@@ -1,12 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
 import {
   IntegrationMappingAdminService,
   IntegrationMappingSet,
   IntegrationMethod,
   IntegrationMethodParameter,
-  IntegrationSourceCatalogField
+  IntegrationSourceCatalogField,
+  IntegrationTransformationCatalog
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { MappingSetsPageComponent } from './mapping-sets-page.component';
@@ -16,6 +18,7 @@ describe('MappingSetsPageComponent', () => {
   let component: MappingSetsPageComponent;
   let api: jasmine.SpyObj<IntegrationMappingAdminService>;
   let router: jasmine.SpyObj<Router>;
+  let auth: jasmine.SpyObj<AuthService>;
 
   const methods: IntegrationMethod[] = [
     {
@@ -69,9 +72,7 @@ describe('MappingSetsPageComponent', () => {
     { id: 4, sourceKind: 'AddendaRecord', entityName: 'AddendaRecords', fieldPath: 'AddendaRecords.PaymentRelatedInformation', displayName: 'PaymentRelatedInformation', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 4, isActive: true },
     { id: 5, sourceKind: 'BatchControl', entityName: 'BatchControls', fieldPath: 'BatchControls.EntryHash', displayName: 'EntryHash', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 5, isActive: true },
     { id: 6, sourceKind: 'FileControl', entityName: 'FileControls', fieldPath: 'FileControls.BlockCount', displayName: 'BlockCount', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 6, isActive: true },
-    { id: 7, sourceKind: 'Transaction', entityName: 'AchTransaction', fieldPath: 'AchTransaction.Reference', displayName: 'Reference', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 7, isActive: true },
-    { id: 8, sourceKind: 'Prenotification', entityName: 'Prenotification', fieldPath: 'Prenotification.Reference', displayName: 'Prenotification Reference', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 8, isActive: true },
-    { id: 9, sourceKind: 'DifferentialResponse', entityName: 'DifferentialResponse', fieldPath: 'DifferentialResponse.ReasonCode', displayName: 'ReasonCode', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 9, isActive: true }
+    { id: 7, sourceKind: 'Transaction', entityName: 'AchTransaction', fieldPath: 'AchTransaction.Reference', displayName: 'Reference', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 7, isActive: true }
   ];
 
   const targetFields: IntegrationMethodParameter[] = [
@@ -80,9 +81,13 @@ describe('MappingSetsPageComponent', () => {
     { id: 11, methodId: 2, parameterPath: 'RegistrarRespuestaTransaccion.CodigoRespuesta', displayName: 'CodigoRespuesta', descriptionEs: 'Codigo respuesta', category: 'SOAP', exampleValue: '00', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true }
   ];
 
+  const transformations: IntegrationTransformationCatalog[] = [
+    { code: 'Trim', displayName: 'Trim', description: 'Limpia espacios', supportsFormatMask: false, supportsMultipleSources: false }
+  ];
+
   const mappingSets: IntegrationMappingSet[] = [
     {
-      id: 'mapping-1',
+      id: '11111111-1111-1111-1111-111111111111',
       methodId: 1,
       methodCode: 'WSCFAACH.Proc_Contrapartidas',
       name: 'Contrapartidas UAT',
@@ -90,9 +95,27 @@ describe('MappingSetsPageComponent', () => {
       status: 'Published',
       isActive: true,
       notes: 'Version controlada',
-      publishedAtUtc: null,
+      publishedAtUtc: '2026-06-01T00:00:00Z',
       publishedBy: 'qa',
-      rules: []
+      rules: [
+        {
+          id: 100,
+          mappingSetId: '11111111-1111-1111-1111-111111111111',
+          methodId: 1,
+          parameterId: 9,
+          sourceKind: 'NachaHeader',
+          sourceCatalogFieldId: 1,
+          sourceFieldPath: 'NachaHeaders.FileIdModifier',
+          fixedValue: null,
+          defaultValue: null,
+          transformationCode: 'Trim',
+          formatMask: null,
+          priority: 1,
+          requiredOverride: true,
+          enabled: true,
+          conditionExpression: null
+        }
+      ]
     }
   ];
 
@@ -102,14 +125,24 @@ describe('MappingSetsPageComponent', () => {
       'getMappingSets',
       'createDraft',
       'getSourceCatalog',
-      'getMethodParameters'
+      'getMethodParameters',
+      'getTransformations',
+      'getHistory',
+      'clone',
+      'upsertRules'
     ]);
     router = jasmine.createSpyObj<Router>('Router', ['navigate']);
+    auth = jasmine.createSpyObj<AuthService>('AuthService', ['hasPermission']);
+    auth.hasPermission.and.returnValue(true);
     api.getMethods.and.returnValue(of(methods));
-    api.getMappingSets.and.callFake((methodId?: number) => of(methodId === 2 ? [] : mappingSets));
+    api.getMappingSets.and.callFake((methodId?: number) => of(methodId === 1 ? mappingSets : []));
     api.getSourceCatalog.and.returnValue(of(sourceCatalog));
     api.getMethodParameters.and.callFake((methodId: number) => of(targetFields.filter((field) => field.methodId === methodId)));
-    api.createDraft.and.returnValue(of(mappingSets[0]));
+    api.getTransformations.and.returnValue(of(transformations));
+    api.getHistory.and.returnValue(of([]));
+    api.clone.and.returnValue(of({ ...mappingSets[0], id: '22222222-2222-2222-2222-222222222222', status: 'Draft', version: 0 }));
+    api.createDraft.and.returnValue(of({ ...mappingSets[0], id: '33333333-3333-3333-3333-333333333333', status: 'Draft', version: 0, rules: [] }));
+    api.upsertRules.and.returnValue(of({ ...mappingSets[0], status: 'Draft', version: 0 }));
 
     await TestBed.configureTestingModule({
       imports: [MappingSetsPageComponent],
@@ -117,6 +150,7 @@ describe('MappingSetsPageComponent', () => {
         { provide: IntegrationMappingAdminService, useValue: api },
         { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) },
         { provide: Router, useValue: router },
+        { provide: AuthService, useValue: auth },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } }
       ]
     }).compileComponents();
@@ -126,78 +160,71 @@ describe('MappingSetsPageComponent', () => {
     fixture.detectChanges();
   });
 
-  it('carga opciones de integracion incluyendo WsAxonRespuestaTransaccionesSoapClient', () => {
+  it('renderiza la pantalla como Matriz de campos SOAP', () => {
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('WSCFAACH');
-    expect(text).toContain('WSAXON');
-    expect(text).toContain('WsAxonRespuestaTransaccionesSoapClient');
+
+    expect(text).toContain('Matriz de campos SOAP');
+    expect(text).toContain('Servicio SOAP');
+    expect(text).toContain('Parametro SOAP');
+    expect(text).toContain('Tabla origen');
+    expect(text).toContain('Campo origen');
+    expect(text).toContain('Regla de conversion');
+    expect(text).toContain('Obligatorio');
+    expect(text).toContain('Estado');
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-matrix-table"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-card"]')).toBeFalsy();
+  });
+
+  it('muestra los tres servicios con descripcion funcional en espanol', () => {
+    const text = fixture.nativeElement.textContent as string;
+
     expect(text).toContain('Proc_Contrapartidas');
     expect(text).toContain('Proc_Transacciones');
     expect(text).toContain('RegistrarRespuestaTransaccion');
-    expect(text).toContain('MonetaryDebitRequest');
-    expect(text).toContain('MonetaryCreditRequest');
-    expect(text).toContain('DifferentialResponseNotification');
-    expect(text).toContain('OutboundRequest');
-    expect(text).toContain('InboundResponse');
-    expect(fixture.nativeElement.querySelector('[data-testid="integration-select"]')).toBeTruthy();
+    expect(text).toContain('debitos monetarios originados por CFA');
+    expect(text).toContain('creditos monetarios recibidos desde otra entidad financiera');
+    expect(text).toContain('No realiza movimiento monetario');
   });
 
-  it('muestra fuentes NACHA-M desagregadas desde catalogo controlado', () => {
+  it('resuelve una relacion parametro SOAP contra tabla y campo origen permitido', () => {
     const text = fixture.nativeElement.textContent as string;
 
-    expect(fixture.nativeElement.querySelector('[data-testid="mapping-catalog-panel"]')).toBeTruthy();
+    expect(text).toContain('CuentaOrigen');
     expect(text).toContain('NachaHeaders');
-    expect(text).toContain('BatchHeaders');
-    expect(text).toContain('EntryDetails');
-    expect(text).toContain('AddendaRecords');
-    expect(text).toContain('BatchControls');
-    expect(text).toContain('FileControls');
-    expect(text).toContain('No hay SQL libre ni seleccion arbitraria de tablas');
+    expect(text).toContain('FileIdModifier');
+    expect(text).toContain('Limpiar espacios');
+    expect(text).toContain('Mapeado');
+    expect(text).not.toContain('MonetaryDebitRequest');
+    expect(text).not.toContain('OutboundRequest');
   });
 
-  it('muestra Proc_Contrapartidas con MonetaryDebitRequest, fuentes controladas y campos destino', () => {
-    component.createDraftForm.patchValue({ methodId: 1 });
-    component.onMethodChange();
-    fixture.detectChanges();
+  it('filtra fuentes no permitidas de las opciones principales de edicion', () => {
+    const options = component.allowedSourceFields
+      .map((field) => `${component.getSourceKindLabel(field.sourceKind)} ${field.displayName}`)
+      .join(' ');
 
-    const text = fixture.nativeElement.textContent as string;
-
-    expect(text).toContain('WSCFAACH');
-    expect(text).toContain('Proc_Contrapartidas');
-    expect(text).toContain('MonetaryDebitRequest');
-    expect(text).toContain('OutboundRequest');
-    expect(text).toContain('AchTransaction');
-    expect(text).toContain('NachaHeaders');
-    expect(text).toContain('EntryDetails');
-    expect(text).toContain('Proc_Contrapartidas.CuentaOrigen');
-    expect(text).toContain('No hay SQL libre ni seleccion arbitraria de tablas');
+    expect(options).toContain('NachaHeaders');
+    expect(options).toContain('BatchHeaders');
+    expect(options).toContain('EntryDetails');
+    expect(options).toContain('AddendaRecords');
+    expect(options).toContain('BatchControls');
+    expect(options).toContain('FileControls');
+    expect(options).not.toContain('AchTransaction');
   });
 
-  it('permite seleccionar WsAxon y muestra estado vacio claro cuando no hay mappings', () => {
-    component.createDraftForm.patchValue({ methodId: 2 });
-    component.onMethodChange();
-    fixture.detectChanges();
+  it('mueve ruta tecnica y auditoria fuera de la vista principal', () => {
+    const mainText = fixture.nativeElement.querySelector('.mapping-matrix-page').textContent as string;
+    expect(mainText).not.toContain('NachaHeaders.FileIdModifier');
 
-    expect(api.getMappingSets).toHaveBeenCalledWith(2);
-    expect(fixture.nativeElement.querySelector('[data-testid="empty-mappings-state"]')).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('No hay mappings configurados para RegistrarRespuestaTransaccion.');
+    expect(component.matrixRows[0].sourceField?.fieldPath).toBe('NachaHeaders.FileIdModifier');
   });
 
-  it('abre detalle read-only y modal de edicion guiada', () => {
-    component.openDetail(mappingSets[0]);
-    expect(component.modalMode).toBe('detail');
-    expect(component.selectedMapping?.name).toBe('Contrapartidas UAT');
+  it('permite usuario solo consulta sin acciones de edicion', async () => {
+    auth.hasPermission.and.returnValue(false);
+    const readOnlyFixture = TestBed.createComponent(MappingSetsPageComponent);
+    readOnlyFixture.detectChanges();
 
-    component.closeModal();
-    component.openEdit(mappingSets[0]);
-    expect(component.modalMode).toBe('edit');
-    expect(component.selectedMapping?.name).toBe('Contrapartidas UAT');
-  });
-
-  it('muestra acciones visibles por card sin grilla principal', () => {
-    expect(fixture.nativeElement.querySelector('ui-grilla-empresarial')).toBeFalsy();
-    expect(fixture.nativeElement.querySelector('[data-testid="mapping-card"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="mapping-detail-button"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="mapping-edit-button"]')).toBeTruthy();
+    expect(readOnlyFixture.nativeElement.querySelector('[data-testid="mapping-detail-button"]')).toBeTruthy();
+    expect(readOnlyFixture.nativeElement.querySelector('[data-testid="mapping-edit-button"]')).toBeFalsy();
   });
 });

@@ -15,22 +15,22 @@ const routes: Routes = [
       {
         path: 'soap-settings',
         component: SoapIntegrationSettingsComponent,
-        data: { breadcrumb: 'Configuración técnica SOAP', title: 'Configuración técnica SOAP' }
+        data: { breadcrumb: 'Configuracion de servicios SOAP', title: 'Configuracion de servicios SOAP' }
       },
       {
         path: 'mappings',
         component: MappingSetsPageComponent,
-        data: { breadcrumb: 'Mapping funcional', title: 'Mapping funcional de integraciones' }
+        data: { breadcrumb: 'Matriz de campos SOAP', title: 'Matriz de campos SOAP' }
       },
       {
         path: 'mappings/compare/:methodCode',
         component: MappingComparePageComponent,
-        data: { breadcrumb: 'Comparador de versiones', title: 'Comparador de versiones MappingSet' }
+        data: { breadcrumb: 'Comparacion tecnica', title: 'Comparacion tecnica de relaciones' }
       },
       {
         path: 'mappings/:methodCode/:mappingSetId',
         component: MappingEditorPageComponent,
-        data: { breadcrumb: 'Editor guiado de mapping', title: 'Configuración funcional del MappingSet' }
+        data: { breadcrumb: 'Editor avanzado', title: 'Editor avanzado de relacion de campos' }
       }
     ]
   }

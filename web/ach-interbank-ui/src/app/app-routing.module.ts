@@ -95,8 +95,8 @@ const routes: Routes = [
         path: 'integraciones',
         canActivate: [roleGuard, permissionGuard],
         data: {
-          roles: ['Admin'],
-          permissions: ['CanManageUsers'],
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch', 'CanManageAch'],
           breadcrumb: 'Integraciones',
           title: 'Integraciones'
         },

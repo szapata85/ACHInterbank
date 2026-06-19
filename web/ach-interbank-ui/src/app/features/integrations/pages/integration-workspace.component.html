@@ -2,17 +2,17 @@
   <ui-migas-pan [items]="migas"></ui-migas-pan>
   <ui-encabezado-pagina
     titulo="Integraciones ACH"
-    descripcion="Configure de forma guiada las reglas funcionales y parámetros técnicos de intercambio con servicios ACH."
+    descripcion="Administre por separado la relacion de campos SOAP y la configuracion tecnica de conexion."
   ></ui-encabezado-pagina>
 
   <ui-alerta
     tipo="info"
-    mensaje="Use configuración funcional para reglas operativas y configuración técnica SOAP para endpoint y contratos de consumo."
+    mensaje="La matriz de campos define que campo del sistema alimenta cada parametro SOAP. La configuracion de servicios SOAP administra endpoint, SOAP Action, estado y prueba local."
   ></ui-alerta>
 
   <nav class="workspace-nav">
-    <a routerLink="/integraciones/mappings" routerLinkActive="active">Configuración funcional</a>
-    <a routerLink="/integraciones/soap-settings" routerLinkActive="active">Configuración técnica SOAP</a>
+    <a routerLink="/integraciones/mappings" routerLinkActive="active">Matriz de campos SOAP</a>
+    <a routerLink="/integraciones/soap-settings" routerLinkActive="active">Configuracion de servicios SOAP</a>
   </nav>
 
   <section class="workspace-content">

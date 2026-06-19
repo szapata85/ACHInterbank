@@ -18,12 +18,12 @@ public class IntegrationMappingSetsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> Get([FromQuery] int? methodId, CancellationToken ct)
         => Ok(await _service.GetByMethodAsync(methodId, ct));
 
     [HttpGet("published")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetPublished([FromQuery] int methodId, CancellationToken ct)
     {
         var published = await _service.GetPublishedByMethodAsync(methodId, ct);
@@ -31,7 +31,7 @@ public class IntegrationMappingSetsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var item = await _service.GetByIdAsync(id, ct);
@@ -77,7 +77,7 @@ public class IntegrationMappingSetsController : ControllerBase
         => Ok(await _service.CloneAsync(id, request, ct));
 
     [HttpGet("{id:guid}/history")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = "CanReadAch")]
     public async Task<IActionResult> History(Guid id, CancellationToken ct)
         => Ok(await _service.GetHistoryAsync(id, ct));
 

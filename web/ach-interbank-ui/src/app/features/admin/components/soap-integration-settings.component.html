@@ -3,8 +3,8 @@
     <ui-migas-pan [items]="migas"></ui-migas-pan>
     <div class="header-row">
       <ui-encabezado-pagina
-        titulo="Configuracion SOAP"
-        descripcion="Administra parametros tecnicos de integracion SOAP para UAT/local."
+        titulo="Configuracion de servicios SOAP"
+        descripcion="Administra endpoint, SOAP Action, estado tecnico y prueba local de los servicios SOAP."
       ></ui-encabezado-pagina>
       <span class="safe-badge">Modo seguro: sin secretos completos</span>
     </div>
@@ -103,7 +103,7 @@
             [routerLink]="['/integraciones/mappings']"
             [queryParams]="{ method: methodCodeFor(method) }"
           >
-            Ver mappings
+            Ver relacion de campos
           </a>
         </div>
       </article>
@@ -152,10 +152,10 @@
       <dd>Secretos y certificados privados gestionados por configuracion segura.</dd>
     </div>
     <div>
-      <dt>Mappings funcionales</dt>
+      <dt>Relacion de campos</dt>
       <dd>
         {{ mappingCountFor(selectedMethod.group) }} parametros tecnicos de contrato en settings.
-        La parametrizacion funcional se administra en /integraciones/mappings.
+        La relacion campo-a-campo se administra en /integraciones/mappings.
       </dd>
     </div>
   </dl>
@@ -167,7 +167,7 @@
       [queryParams]="{ method: methodCodeFor(selectedMethod) }"
       (click)="closeModal()"
     >
-      Ver mappings
+      Ver relacion de campos
     </a>
     <button type="button" class="btn-secondary" (click)="closeModal()">Cerrar</button>
   </footer>
@@ -214,17 +214,17 @@
     </section>
 
     <section class="form-section muted">
-      <h3>Mappings funcionales</h3>
+      <h3>Relacion de campos</h3>
       <p>
         Esta pantalla solo administra endpoint, SOAP Action y estado tecnico del metodo.
-        Los mappings campo-a-campo y su trazabilidad se gestionan en la pantalla de mapeos.
+        La matriz campo-a-campo y su auditoria se gestionan en la pantalla de relacion de campos.
       </p>
       <a
         class="btn-secondary action-link"
         [routerLink]="['/integraciones/mappings']"
         [queryParams]="{ method: methodCodeFor(selectedMethod) }"
       >
-        Abrir mappings funcionales
+        Abrir relacion de campos
       </a>
     </section>
 

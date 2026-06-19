@@ -15,24 +15,25 @@ La pantalla `/integraciones/soap-settings` administra configuracion tecnica por 
 - prueba local/DryRun.
 - certificado o alias cuando aplique, sin exponer secretos.
 
-No debe ser la fuente primaria del mapeo funcional campo-a-campo. Puede mostrar un resumen tecnico del contrato, pero los mappings funcionales se gestionan en `/integraciones/mappings`.
+No debe ser la fuente primaria de la relacion funcional campo-a-campo. Puede mostrar un resumen tecnico del contrato, pero la matriz de campos SOAP se gestiona en `/integraciones/mappings`.
 
 ## Responsabilidad de mappings
 
-La pantalla `/integraciones/mappings` administra configuracion funcional y auditable:
+La pantalla `/integraciones/mappings` presenta la matriz funcional y auditable de campos sistema contra parametros SOAP:
 
-- `IntegrationKey`.
-- `OperationKey`.
-- direccion del mapping.
-- proposito funcional.
+- servicio SOAP.
+- parametro SOAP.
+- tabla origen controlada.
 - campo origen interno.
-- campo destino SOAP/XML.
+- campo destino SOAP.
 - tipo de dato.
 - transformacion.
 - valor por defecto.
 - requerido/opcional.
 - orden.
-- version y estado del mapping set.
+- version y estado de la relacion.
+
+La vista principal debe evitar protagonismo de `MappingSet`, historial, JSON, preview y rutas tecnicas. Esos elementos quedan como detalle tecnico o auditoria secundaria.
 
 ## Relacion obligatoria
 

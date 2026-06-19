@@ -37,7 +37,7 @@ export class SoapIntegrationSettingsComponent {
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/' },
     { etiqueta: 'Integraciones', ruta: '/integraciones' },
-    { etiqueta: 'Configuracion SOAP' }
+    { etiqueta: 'Configuracion de servicios SOAP' }
   ];
 
   readonly form = this.fb.group({
