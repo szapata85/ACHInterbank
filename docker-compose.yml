@@ -9,7 +9,7 @@ services:
     container_name: achinterbank-api
     environment:
       Database__Provider: ${DATABASE_PROVIDER:-Postgres}
-      ConnectionStrings__PostgresConnection: ${CONNECTIONSTRINGS__POSTGRESCONNECTION:-Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-example_user};Password=${POSTGRES_PASSWORD:-example_password_change_me}}
+      ConnectionStrings__PostgresConnection: ${CONNECTIONSTRINGS__POSTGRESCONNECTION:-Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-example_user};Password=${POSTGRES_PASSWORD:-${POSTGRES_PASSWORD_PREFIX:-example_password_change}${POSTGRES_PASSWORD_SUFFIX:-_me}}}
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}
