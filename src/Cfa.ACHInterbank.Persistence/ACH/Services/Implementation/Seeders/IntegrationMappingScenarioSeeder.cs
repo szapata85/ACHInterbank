@@ -33,19 +33,12 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             return;
         }
 
-        var catalogService = new IntegrationCatalogService(_context);
-        var methods = await catalogService.GetMethodsAsync();
-        await EnsurePublishedReferenceMappingAsync(
-            "WSCFAACH.Proc_Transacciones",
-            "ProcTransacciones Published NACHA desagregado",
-            ProcTransaccionesSourcePathFor);
-        await EnsurePublishedReferenceMappingAsync(
-            "WSAXON.RegistrarRespuestaTransaccion",
-            "RegistrarRespuestaTransaccion Published respuesta diferencial",
-            RegistrarRespuestaSourcePathFor);
-        await EnsureDifferentialPrenotificationResponseStatusMappingsAsync();
+        await new IntegrationCatalogBootstrapper(_context).EnsureAsync();
+        await new IntegrationMappingBootstrapper(_context).EnsureAsync();
 
-        var method = methods.FirstOrDefault(x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        var method = await _context.IntegrationMethods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas" && x.IsActive);
         if (method is null)
         {
             return;
@@ -53,10 +46,10 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
 
         var methodId = method.Id;
 
-        var existingPublished = await _context.IntegrationMappingSets
+        var demoAlreadySeeded = await _context.IntegrationMappingSets
             .AsNoTracking()
-            .AnyAsync(x => x.MethodId == methodId && x.Status == IntegrationMappingSetStatusEnum.Published);
-        if (existingPublished)
+            .AnyAsync(x => x.MethodId == methodId && x.Name == "ProcContrapartidas Draft Valido");
+        if (demoAlreadySeeded)
         {
             await EnsureSampleTransactionsAsync();
             return;
@@ -71,29 +64,17 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
         var draftValid = new IntegrationMappingSet
         {
             MethodId = methodId,
-            Name = "ProcContrapartidas Draft Válido",
+            Name = "ProcContrapartidas Draft Valido",
             Status = IntegrationMappingSetStatusEnum.Draft,
             Version = 0,
             IsActive = true,
-            Notes = "Borrador válido para configuración funcional"
-        };
-
-        var published = new IntegrationMappingSet
-        {
-            MethodId = methodId,
-            Name = "ProcContrapartidas Published",
-            Status = IntegrationMappingSetStatusEnum.Published,
-            Version = 1,
-            IsActive = true,
-            Notes = "Versión publicada de referencia",
-            PublishedAtUtc = DateTime.UtcNow,
-            PublishedBy = "seed"
+            Notes = "Borrador valido para configuracion funcional"
         };
 
         var draftInvalid = new IntegrationMappingSet
         {
             MethodId = methodId,
-            Name = "ProcContrapartidas Draft Inválido",
+            Name = "ProcContrapartidas Draft Invalido",
             Status = IntegrationMappingSetStatusEnum.Draft,
             Version = 0,
             IsActive = true,
@@ -107,25 +88,35 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             Status = IntegrationMappingSetStatusEnum.Draft,
             Version = 0,
             IsActive = true,
-            Notes = "Clon de versión publicada"
+            Notes = "Clon de version publicada"
         };
 
-        _context.IntegrationMappingSets.AddRange(draftValid, published, draftInvalid, clonedDraft);
+        _context.IntegrationMappingSets.AddRange(draftValid, draftInvalid, clonedDraft);
         await _context.SaveChangesAsync();
 
-        var publishedRules = BuildPublishedRules(methodId, published.Id, parameters);
+        var published = await _context.IntegrationMappingSets
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.MethodId == methodId && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        if (published is null)
+        {
+            return;
+        }
+
+        var publishedRules = await _context.IntegrationMappingRules
+            .AsNoTracking()
+            .Where(x => x.MappingSetId == published.Id)
+            .OrderBy(x => x.ParameterId)
+            .ToListAsync();
         var validRules = BuildDefaultValidRules(methodId, draftValid.Id, parameters);
         var invalidRules = BuildInvalidRules(methodId, draftInvalid.Id, parameters);
         var clonedRules = publishedRules.Select(r => CloneRule(r, clonedDraft.Id)).ToList();
 
         _context.IntegrationMappingRules.AddRange(validRules);
-        _context.IntegrationMappingRules.AddRange(publishedRules);
         _context.IntegrationMappingRules.AddRange(invalidRules);
         _context.IntegrationMappingRules.AddRange(clonedRules);
 
         _context.IntegrationMappingSetHistory.AddRange(
             BuildHistory(draftValid, "SeedDraftValid"),
-            BuildHistory(published, "SeedPublished"),
             BuildHistory(draftInvalid, "SeedDraftInvalid"),
             BuildHistory(clonedDraft, "SeedCloned"));
 
@@ -277,190 +268,6 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
         // Los datos transaccionales de ejemplo no deben persistirse por seed runtime.
         // Las pruebas y validaciones deben crear sus propios datos explícitos.
         return Task.CompletedTask;
-    }
-
-    private async Task EnsurePublishedReferenceMappingAsync(
-        string methodCode,
-        string mappingName,
-        Func<string, string?> sourcePathFor)
-    {
-        var method = await _context.IntegrationMethods
-            .FirstOrDefaultAsync(x => x.Code == methodCode && x.IsActive);
-        if (method is null)
-        {
-            return;
-        }
-
-        var existingPublished = await _context.IntegrationMappingSets
-            .AsNoTracking()
-            .AnyAsync(x => x.MethodId == method.Id
-                && x.Status == IntegrationMappingSetStatusEnum.Published
-                && x.IsActive);
-        if (existingPublished)
-        {
-            return;
-        }
-
-        var parameters = await _context.IntegrationMethodParameters
-            .AsNoTracking()
-            .Where(x => x.MethodId == method.Id && x.IsActive)
-            .OrderBy(x => x.SortOrder)
-            .ToListAsync();
-
-        var published = new IntegrationMappingSet
-        {
-            MethodId = method.Id,
-            Name = mappingName,
-            Status = IntegrationMappingSetStatusEnum.Published,
-            Version = 1,
-            IsActive = true,
-            Notes = "Mapping UAT/local de referencia. No habilita transmision externa.",
-            PublishedAtUtc = DateTime.UtcNow,
-            PublishedBy = "seed"
-        };
-
-        _context.IntegrationMappingSets.Add(published);
-        await _context.SaveChangesAsync();
-
-        foreach (var parameter in parameters)
-        {
-            var sourcePath = sourcePathFor(parameter.ParameterPath);
-            _context.IntegrationMappingRules.Add(new IntegrationMappingRule
-            {
-                MappingSetId = published.Id,
-                MethodId = method.Id,
-                ParameterId = parameter.Id,
-                SourceKind = SourceKindFor(sourcePath),
-                SourceFieldPath = sourcePath ?? string.Empty,
-                FixedValue = sourcePath is null ? DefaultValueFor(parameter) : null,
-                DefaultValue = parameter.Required ? null : DefaultValueFor(parameter),
-                Priority = 1,
-                Enabled = true
-            });
-        }
-
-        _context.IntegrationMappingSetHistory.Add(BuildHistory(published, "SeedPublishedReference"));
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task EnsureDifferentialPrenotificationResponseStatusMappingsAsync()
-    {
-        await EnsureResponseStatusMappingAsync(
-            camara: "ACH",
-            tipoRespuesta: TipoRespuestaAch.Prenota,
-            estadoExterno: "00",
-            causalExterna: null,
-            idEstadoInterno: 1,
-            idEstadoServicioExterno: 1,
-            estadoInternoNombre: "Aprobada",
-            causalNormalizada: null,
-            descripcionCausal: null,
-            requiereCausal: false);
-
-        await EnsureResponseStatusMappingAsync(
-            camara: "ACH",
-            tipoRespuesta: TipoRespuestaAch.Prenota,
-            estadoExterno: "RJ",
-            causalExterna: "R03",
-            idEstadoInterno: 2,
-            idEstadoServicioExterno: 2,
-            estadoInternoNombre: "Rechazada",
-            causalNormalizada: "R03",
-            descripcionCausal: "Cuenta no localizada",
-            requiereCausal: true);
-    }
-
-    private async Task EnsureResponseStatusMappingAsync(
-        string camara,
-        TipoRespuestaAch tipoRespuesta,
-        string estadoExterno,
-        string? causalExterna,
-        int idEstadoInterno,
-        int idEstadoServicioExterno,
-        string estadoInternoNombre,
-        string? causalNormalizada,
-        string? descripcionCausal,
-        bool requiereCausal)
-    {
-        var exists = await _context.AchResponseStatusMappings.AnyAsync(x =>
-            x.CodigoCamaraCompensacion == camara
-            && x.TipoRespuesta == tipoRespuesta
-            && x.CodigoEstadoExterno == estadoExterno
-            && x.CodigoCausalExterna == causalExterna
-            && x.Activo);
-        if (exists)
-        {
-            return;
-        }
-
-        _context.AchResponseStatusMappings.Add(new AchResponseStatusMapping
-        {
-            CodigoCamaraCompensacion = camara,
-            TipoRespuesta = tipoRespuesta,
-            CodigoEstadoExterno = estadoExterno,
-            CodigoCausalExterna = causalExterna,
-            IdEstadoInterno = idEstadoInterno,
-            IdEstadoServicioExterno = idEstadoServicioExterno,
-            EstadoInternoNombre = estadoInternoNombre,
-            CausalNormalizada = causalNormalizada,
-            DescripcionCausalNormalizada = descripcionCausal,
-            RequiereCausal = requiereCausal,
-            PermiteNotificacion = true,
-            Activo = true,
-            FechaInicioVigencia = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            FechaCreacion = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-        });
-
-        await _context.SaveChangesAsync();
-    }
-
-    private static string? ProcTransaccionesSourcePathFor(string parameterPath)
-        => parameterPath switch
-        {
-            "TIPTRAN" => "entryDetails.transactionCode",
-            "BCORECEP" => "nachaHeaders.immediateDestination",
-            "BCOORIG" => "nachaHeaders.immediateOrigin",
-            "NORIG" => "batchHeaders.companyName",
-            "NCTAORIG" => "batchHeaders.companyId",
-            "IDORIG" => "batchHeaders.companyId",
-            "DESTRAN" => "batchHeaders.companyEntryDescription",
-            "FECEFEC" => "batchHeaders.effectiveEntryDate",
-            "NCTARECEP" => "entryDetails.accountNumber",
-            "MONTO" => "entryDetails.amount",
-            "NRECEP" => "entryDetails.recipUserName",
-            "IDRECEP" => "entryDetails.recipIdNumber",
-            "INFPAG" => "addendaRecords.infofromOriginator",
-            "IDTRAN" => "entryDetails.sequenceNumber",
-            "IDLOTE" => "batchHeaders.batchNumber",
-            "REGLOTE" => "batchControls.entryAddendaCount",
-            "LIBRE1" => "fileControls.blockCount",
-            _ => null
-        };
-
-    private static string? RegistrarRespuestaSourcePathFor(string parameterPath)
-        => parameterPath switch
-        {
-            "ANSIDLOTE" => "batchHeaders.batchNumber",
-            "ANSST" => "differentialResponse.codigoEstadoExterno",
-            "ANCLC" => "differentialResponse.codigoCausalExterna",
-            "ANSIDTX" => "entryDetails.sequenceNumber",
-            "ANSIDREVER" => "addendaRecords.originalTraceNumber",
-            _ => null
-        };
-
-    private static IntegrationSourceKindEnum SourceKindFor(string? sourcePath)
-    {
-        if (sourcePath is null) return IntegrationSourceKindEnum.Constant;
-        if (sourcePath.StartsWith("nachaHeaders.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.NachaHeader;
-        if (sourcePath.StartsWith("batchHeaders.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.BatchHeader;
-        if (sourcePath.StartsWith("entryDetails.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.EntryDetail;
-        if (sourcePath.StartsWith("addendaRecords.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.AddendaRecord;
-        if (sourcePath.StartsWith("batchControls.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.BatchControl;
-        if (sourcePath.StartsWith("fileControls.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.FileControl;
-        if (sourcePath.StartsWith("prenotification.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.Prenotification;
-        if (sourcePath.StartsWith("differentialResponse.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.DifferentialResponse;
-        if (sourcePath.StartsWith("transaction.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.Transaction;
-        return IntegrationSourceKindEnum.Constant;
     }
 
 }

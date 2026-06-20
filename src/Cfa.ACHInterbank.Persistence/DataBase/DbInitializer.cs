@@ -15,6 +15,8 @@ public static class DbInitializer
         if (dbContext is not null)
         {
             dbContext.AuditEnabled = false;
+            await new Cfa.ACHInterbank.Persistence.Integrations.Services.IntegrationCatalogBootstrapper(dbContext).EnsureAsync();
+            await new Cfa.ACHInterbank.Persistence.Integrations.Services.IntegrationMappingBootstrapper(dbContext).EnsureAsync();
         }
 
         var seeders = scope.ServiceProvider

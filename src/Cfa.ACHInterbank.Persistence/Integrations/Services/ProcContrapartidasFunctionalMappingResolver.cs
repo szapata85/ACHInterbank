@@ -25,6 +25,8 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
         DateTime executionDateTime,
         CancellationToken ct = default)
     {
+        await new IntegrationMappingBootstrapper(_context).EnsureAsync(ct);
+
         var method = await _context.Set<IntegrationMethod>()
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas" && x.IsActive, ct);

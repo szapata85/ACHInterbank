@@ -48,6 +48,8 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         object? sourcePayload = null,
         CancellationToken ct = default)
     {
+        await new IntegrationMappingBootstrapper(_context).EnsureAsync(ct);
+
         integrationKey = (integrationKey ?? string.Empty).Trim();
         operationKey = (operationKey ?? string.Empty).Trim();
         mappingPurpose = (mappingPurpose ?? string.Empty).Trim();

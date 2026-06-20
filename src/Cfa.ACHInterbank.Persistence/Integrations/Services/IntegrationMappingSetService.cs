@@ -29,6 +29,8 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
 
     public async Task<IReadOnlyCollection<IntegrationMappingSetDto>> GetByMethodAsync(int? methodId, CancellationToken ct = default)
     {
+        await new IntegrationMappingBootstrapper(_context).EnsureAsync(ct);
+
         var query = _context.Set<IntegrationMappingSet>()
             .AsNoTracking()
             .Include(x => x.Method)
@@ -49,6 +51,8 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
 
     public async Task<IntegrationMappingSetDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
+        await new IntegrationMappingBootstrapper(_context).EnsureAsync(ct);
+
         var item = await _context.Set<IntegrationMappingSet>()
             .AsNoTracking()
             .Include(x => x.Method)
@@ -60,6 +64,8 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
 
     public async Task<IntegrationMappingSetDto?> GetPublishedByMethodAsync(int methodId, CancellationToken ct = default)
     {
+        await new IntegrationMappingBootstrapper(_context).EnsureAsync(ct);
+
         var item = await _context.Set<IntegrationMappingSet>()
             .AsNoTracking()
             .Include(x => x.Method)
