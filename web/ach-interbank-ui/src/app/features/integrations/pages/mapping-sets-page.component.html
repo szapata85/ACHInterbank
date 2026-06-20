@@ -1,19 +1,14 @@
 <section class="mapping-matrix-page" data-testid="integration-mappings-page">
-  <ui-migas-pan [items]="migas"></ui-migas-pan>
-
   <header class="page-header">
-    <ui-encabezado-pagina
-      titulo="Matriz de campos SOAP"
-      descripcion="Relacion de campos del sistema contra parametros de los servicios SOAP."
-    ></ui-encabezado-pagina>
+    <div class="page-title">
+      <span class="eyebrow">Relacion de campos sistema - SOAP</span>
+      <h1>Matriz de campos SOAP</h1>
+      <p>Revise que parametro SOAP se alimenta desde cada tabla y campo interno permitido.</p>
+    </div>
     <button type="button" class="btn btn-primary" *ngIf="canManage" (click)="openDraftModal()">
       Crear borrador
     </button>
   </header>
-
-  <div class="safety-alert">
-    Esta pantalla no ejecuta llamadas SOAP, no mueve dinero y no cambia estado productivo. Solo administra la relacion de campos.
-  </div>
 
   <section class="service-selector" aria-label="Servicios SOAP">
     <button
@@ -25,7 +20,6 @@
       (click)="createDraftForm.patchValue({ methodId: method.id }); onMethodChange()"
     >
       <strong>{{ method.operationKey }}</strong>
-      <span>{{ getServiceDescription(method.operationKey) }}</span>
     </button>
   </section>
 
@@ -34,6 +28,7 @@
       <span>Servicio SOAP</span>
       <strong>{{ selectedMethod.operationKey }}</strong>
       <p>{{ selectedServiceDescription }}</p>
+      <small>No ejecuta llamadas SOAP, no mueve dinero y no cambia estado productivo.</small>
     </div>
     <dl>
       <div>
@@ -56,8 +51,7 @@
   </section>
 
   <section class="catalog-status-card" *ngIf="selectedMethod" [class.error]="catalogLoadState === 'error'">
-    <strong>{{ catalogLoadState === 'loading' ? 'Cargando tablas origen permitidas' : catalogLoadState === 'error' ? 'No se pudo cargar el catalogo' : 'Tablas origen permitidas' }}</strong>
-    <span>NachaHeaders, BatchHeaders, EntryDetails, AddendaRecords, BatchControls y FileControls. No hay SQL libre ni seleccion arbitraria de tablas.</span>
+    <span>{{ catalogLoadState === 'loading' ? 'Cargando matriz y tablas origen permitidas' : catalogLoadState === 'error' ? 'No se pudo cargar el catalogo funcional' : 'Origen permitido: NachaHeaders, BatchHeaders, EntryDetails, AddendaRecords, BatchControls y FileControls. Sin SQL libre.' }}</span>
   </section>
 
   <section class="matrix-card" *ngIf="matrixRows.length > 0; else emptyMatrix">
@@ -72,7 +66,6 @@
             <th>Regla de conversion</th>
             <th>Obligatorio</th>
             <th>Estado</th>
-            <th>Ultima actualizacion</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -90,7 +83,6 @@
             <td data-label="Estado">
               <span class="state-pill" [ngClass]="getStatusClass(row.status)">{{ row.status }}</span>
             </td>
-            <td data-label="Ultima actualizacion">{{ row.lastUpdated }}</td>
             <td data-label="Acciones">
               <div class="row-actions">
                 <button type="button" class="btn btn-ghost" data-testid="mapping-detail-button" (click)="openDetail(row)">
@@ -125,8 +117,10 @@
 
   <ng-template #emptyMatrix>
     <section class="empty-state" data-testid="empty-mappings-state">
-      <strong>No hay parametros SOAP disponibles para {{ selectedMethod?.operationKey || 'el servicio seleccionado' }}.</strong>
-      <span>La consulta no muestra JSON tecnico ni rutas internas. Valide el catalogo del servicio si el estado persiste.</span>
+      <strong>
+        {{ catalogLoadState === 'loading' ? 'Cargando parametros SOAP para la matriz.' : 'No hay parametros SOAP disponibles para ' + (selectedMethod?.operationKey || 'el servicio seleccionado') + '.' }}
+      </strong>
+      <span>La vista principal solo muestra la relacion funcional entre parametro SOAP, tabla origen y campo origen.</span>
     </section>
   </ng-template>
 </section>
@@ -170,6 +164,10 @@
     <div>
       <dt>Estado</dt>
       <dd>{{ selectedRow.status }}</dd>
+    </div>
+    <div>
+      <dt>Ultima actualizacion</dt>
+      <dd>{{ selectedRow.lastUpdated }}</dd>
     </div>
     <div>
       <dt>Ruta tecnica del campo</dt>

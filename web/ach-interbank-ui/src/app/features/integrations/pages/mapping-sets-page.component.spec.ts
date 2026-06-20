@@ -116,6 +116,37 @@ describe('MappingSetsPageComponent', () => {
           conditionExpression: null
         }
       ]
+    },
+    {
+      id: '22222222-2222-2222-2222-222222222222',
+      methodId: 3,
+      methodCode: 'WSCFAACH.Proc_Transacciones',
+      name: 'Transacciones UAT',
+      version: 1,
+      status: 'Published',
+      isActive: true,
+      notes: 'Version controlada',
+      publishedAtUtc: '2026-06-01T00:00:00Z',
+      publishedBy: 'qa',
+      rules: [
+        {
+          id: 101,
+          mappingSetId: '22222222-2222-2222-2222-222222222222',
+          methodId: 3,
+          parameterId: 10,
+          sourceKind: 'NachaHeader',
+          sourceCatalogFieldId: 1,
+          sourceFieldPath: 'NachaHeaders.FileIdModifier',
+          fixedValue: null,
+          defaultValue: null,
+          transformationCode: 'Trim',
+          formatMask: null,
+          priority: 1,
+          requiredOverride: true,
+          enabled: true,
+          conditionExpression: null
+        }
+      ]
     }
   ];
 
@@ -135,7 +166,7 @@ describe('MappingSetsPageComponent', () => {
     auth = jasmine.createSpyObj<AuthService>('AuthService', ['hasPermission']);
     auth.hasPermission.and.returnValue(true);
     api.getMethods.and.returnValue(of(methods));
-    api.getMappingSets.and.callFake((methodId?: number) => of(methodId === 1 ? mappingSets : []));
+    api.getMappingSets.and.callFake((methodId?: number) => of(mappingSets.filter((set) => !methodId || set.methodId === methodId)));
     api.getSourceCatalog.and.returnValue(of(sourceCatalog));
     api.getMethodParameters.and.callFake((methodId: number) => of(targetFields.filter((field) => field.methodId === methodId)));
     api.getTransformations.and.returnValue(of(transformations));
@@ -176,20 +207,27 @@ describe('MappingSetsPageComponent', () => {
   });
 
   it('muestra los tres servicios con descripcion funcional en espanol', () => {
-    const text = fixture.nativeElement.textContent as string;
+    const text = () => fixture.nativeElement.textContent as string;
 
-    expect(text).toContain('Proc_Contrapartidas');
-    expect(text).toContain('Proc_Transacciones');
-    expect(text).toContain('RegistrarRespuestaTransaccion');
-    expect(text).toContain('debitos monetarios originados por CFA');
-    expect(text).toContain('creditos monetarios recibidos desde otra entidad financiera');
-    expect(text).toContain('No realiza movimiento monetario');
+    expect(text()).toContain('Proc_Contrapartidas');
+    expect(text()).toContain('Proc_Transacciones');
+    expect(text()).toContain('RegistrarRespuestaTransaccion');
+    expect(text()).toContain('creditos monetarios recibidos desde otra entidad financiera');
+
+    const buttons = fixture.nativeElement.querySelectorAll('[data-testid="soap-service-option"]') as NodeListOf<HTMLButtonElement>;
+    buttons[1].click();
+    fixture.detectChanges();
+    expect(text()).toContain('debitos monetarios originados por CFA');
+
+    buttons[2].click();
+    fixture.detectChanges();
+    expect(text()).toContain('No realiza movimiento monetario');
   });
 
   it('resuelve una relacion parametro SOAP contra tabla y campo origen permitido', () => {
     const text = fixture.nativeElement.textContent as string;
 
-    expect(text).toContain('CuentaOrigen');
+    expect(text).toContain('TraceNumber');
     expect(text).toContain('NachaHeaders');
     expect(text).toContain('FileIdModifier');
     expect(text).toContain('Limpiar espacios');

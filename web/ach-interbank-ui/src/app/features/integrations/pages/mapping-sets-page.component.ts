@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs';
@@ -56,6 +56,7 @@ export class MappingSetsPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   loading = false;
   savingRule = false;
@@ -94,6 +95,8 @@ export class MappingSetsPageComponent implements OnInit {
       description: 'Servicio utilizado para registrar respuestas, rechazos o notificaciones diferenciales. No realiza movimiento monetario.'
     }
   ];
+
+  private readonly serviceOrder = this.serviceDescriptions.map((service) => service.operationKey);
 
   readonly createDraftForm = this.fb.group({
     methodId: [null as number | null, Validators.required],
@@ -152,14 +155,14 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     return [...this.targetFields]
-      .filter((parameter) => parameter.isActive)
+      .filter((parameter) => this.isActiveFlag(parameter.isActive))
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((parameter) => this.buildMatrixRow(parameter, mappingSet, rulesByParameter.get(parameter.id) ?? null));
   }
 
   get allowedSourceFields(): IntegrationSourceCatalogField[] {
     return this.sourceCatalog
-      .filter((field) => field.isActive && this.isAllowedNachaSource(field.sourceKind))
+      .filter((field) => this.isActiveFlag(field.isActive) && this.isAllowedNachaSource(field.sourceKind))
       .sort((a, b) => this.getSourceKindLabel(a.sourceKind).localeCompare(this.getSourceKindLabel(b.sourceKind)) || a.sortOrder - b.sortOrder);
   }
 
@@ -176,7 +179,10 @@ export class MappingSetsPageComponent implements OnInit {
     this.loading = true;
     this.api.getMethods().pipe(finalize(() => (this.loading = false))).subscribe({
       next: (items) => {
-        this.methods = (items ?? []).filter((method) => this.serviceDescriptions.some((item) => item.operationKey === method.operationKey));
+        this.methods = (items ?? [])
+          .filter((method) => this.isActiveFlag(method.isActive))
+          .filter((method) => this.serviceDescriptions.some((item) => item.operationKey === method.operationKey))
+          .sort((a, b) => this.getServiceOrder(a.operationKey) - this.getServiceOrder(b.operationKey));
         const requestedMethodCode = this.route.snapshot.queryParamMap.get('method');
         const requestedMethod = requestedMethodCode
           ? this.methods.find((method) => method.code === requestedMethodCode || method.operationKey === requestedMethodCode)
@@ -185,6 +191,7 @@ export class MappingSetsPageComponent implements OnInit {
         if (initialMethod) {
           this.createDraftForm.patchValue({ methodId: initialMethod.id });
         }
+        this.refreshView();
         this.loadCatalogForSelectedMethod();
         this.loadMappingSets();
       },
@@ -195,7 +202,10 @@ export class MappingSetsPageComponent implements OnInit {
   loadMappingSets(): void {
     const methodId = this.selectedMethodId;
     this.api.getMappingSets(methodId ?? undefined).subscribe({
-      next: (items) => (this.mappingSets = items ?? []),
+      next: (items) => {
+        this.mappingSets = items ?? [];
+        this.refreshView();
+      },
       error: () => this.notifications.error('No fue posible cargar la relacion de campos.')
     });
   }
@@ -352,8 +362,8 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     const normalized = this.normalizeStatus(mappingSet.status);
-    if (normalized === 'Draft') return 'Borrador';
-    if (normalized === 'Published') return 'Publicado';
+    if (normalized === 'Draft') return 'Borrador de trabajo';
+    if (normalized === 'Published') return 'Publicado activo';
     if (normalized === 'Archived') return 'Archivado';
     return normalized || 'Sin estado';
   }
@@ -408,9 +418,13 @@ export class MappingSetsPageComponent implements OnInit {
 
   private loadTransformations(): void {
     this.api.getTransformations().subscribe({
-      next: (items) => (this.transformations = items ?? []),
+      next: (items) => {
+        this.transformations = items ?? [];
+        this.refreshView();
+      },
       error: () => {
         this.transformations = [];
+        this.refreshView();
       }
     });
   }
@@ -425,20 +439,41 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     this.catalogLoadState = 'loading';
+    let sourceLoaded = false;
+    let parametersLoaded = false;
+    const markReady = () => {
+      if (sourceLoaded && parametersLoaded && this.catalogLoadState !== 'error') {
+        this.catalogLoadState = 'ready';
+        this.refreshView();
+      }
+    };
+
     this.api.getSourceCatalog(methodId).subscribe({
       next: (items) => {
         this.sourceCatalog = items ?? [];
-        this.catalogLoadState = 'ready';
+        sourceLoaded = true;
+        this.refreshView();
+        markReady();
       },
       error: () => {
         this.catalogLoadState = 'error';
-        this.notifications.error('No fue posible cargar las tablas origen permitidas.');
+        this.notifications.error('No fue posible cargar la matriz de campos SOAP.');
+        this.refreshView();
       }
     });
 
     this.api.getMethodParameters(methodId).subscribe({
-      next: (items) => (this.targetFields = items ?? []),
-      error: () => this.notifications.error('No fue posible cargar los parametros SOAP.')
+      next: (items) => {
+        this.targetFields = items ?? [];
+        parametersLoaded = true;
+        this.refreshView();
+        markReady();
+      },
+      error: () => {
+        this.catalogLoadState = 'error';
+        this.notifications.error('No fue posible cargar los parametros SOAP.');
+        this.refreshView();
+      }
     });
   }
 
@@ -455,8 +490,8 @@ export class MappingSetsPageComponent implements OnInit {
     return {
       serviceName: this.selectedMethod?.operationKey ?? parameter.parameterPath.split('.')[0] ?? 'Servicio SOAP',
       parameterId: parameter.id,
-      parameterSoap: parameter.displayName || parameter.parameterPath,
-      parameterDescription: parameter.descriptionEs || parameter.uiHelpText || parameter.parameterPath,
+      parameterSoap: parameter.parameterPath || parameter.displayName,
+      parameterDescription: parameter.descriptionEs || parameter.displayName || parameter.uiHelpText || parameter.parameterPath,
       tableOrigin: hasAllowedSource ? this.getSourceKindLabel(sourceField.sourceKind) : 'Sin mapear',
       fieldOrigin: hasAllowedSource ? sourceField.displayName : 'Sin mapear',
       conversionRule: this.getTransformationLabel(rule?.transformationCode),
@@ -592,6 +627,20 @@ export class MappingSetsPageComponent implements OnInit {
       .includes(this.normalizeSourceKind(kind).toLowerCase());
   }
 
+  private getServiceOrder(operationKey: string): number {
+    const index = this.serviceOrder.indexOf(operationKey);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  }
+
+  private isActiveFlag(value: unknown): boolean {
+    if (value === false || value === 0) return false;
+    if (typeof value === 'string') {
+      const raw = value.trim().toLowerCase();
+      return raw !== 'false' && raw !== '0' && raw !== 'inactive' && raw !== 'inactivo';
+    }
+    return true;
+  }
+
   private normalizeSourceKind(kind: string | number | null | undefined): string {
     if (kind === null || kind === undefined) return '';
     if (typeof kind === 'number') {
@@ -620,18 +669,23 @@ export class MappingSetsPageComponent implements OnInit {
   private normalizeStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
     if (status === null || status === undefined) return '';
     if (typeof status === 'number') {
-      if (status === 0) return 'Draft';
-      if (status === 1) return 'Published';
-      if (status === 2) return 'Archived';
+      if (status === 1) return 'Draft';
+      if (status === 2) return 'Published';
+      if (status === 3) return 'Archived';
       return String(status);
     }
 
     const raw = String(status).trim();
     if (!raw) return '';
+    if (/^\d+$/.test(raw)) return this.normalizeStatus(Number(raw));
     const lowered = raw.toLowerCase();
     if (lowered === 'draft') return 'Draft';
     if (lowered === 'published') return 'Published';
     if (lowered === 'archived') return 'Archived';
     return raw;
+  }
+
+  private refreshView(): void {
+    this.cdr.detectChanges();
   }
 }
