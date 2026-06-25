@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import {
   SoapIntegrationSettings,
@@ -11,23 +11,30 @@ import { SoapIntegrationSettingsComponent } from './soap-integration-settings.co
 describe('SoapIntegrationSettingsComponent', () => {
   let fixture: ComponentFixture<SoapIntegrationSettingsComponent>;
   let component: SoapIntegrationSettingsComponent;
-  let settings$: BehaviorSubject<SoapIntegrationSettings>;
   let service: jasmine.SpyObj<SoapIntegrationSettingsService>;
+  let notifications: jasmine.SpyObj<NotificationService>;
 
   const settings: SoapIntegrationSettings = {
     wscfaachMappings: [
       {
         methodName: 'Proc_Contrapartidas',
-        endpoint: 'http://uat.local/servicios/soap/proc-contrapartidas/endpoint-largo-para-validar-truncado',
+        endpoint: 'http://uat.local/soap/proc-contrapartidas',
         soapAction: 'http://tempuri.org/IWSCFAACH/Proc_Contrapartidas',
         enabled: true,
         inputParameterMappings: [{ inputName: 'transaccion', soapParameterName: 'Transaccion', required: true }]
+      },
+      {
+        methodName: 'Proc_Transacciones',
+        endpoint: 'http://uat.local/soap/proc-transacciones',
+        soapAction: 'http://tempuri.org/IWSCFAACH/Proc_Transacciones',
+        enabled: true,
+        inputParameterMappings: [{ inputName: 'lote', soapParameterName: 'Lote', required: true }]
       }
     ],
     wsAxonRespuestaTransaccionesMappings: [
       {
         methodName: 'RegistrarRespuestaTransaccion',
-        endpoint: 'http://uat.local/servicios/soap/respuestas',
+        endpoint: 'http://uat.local/soap/respuestas',
         soapAction: 'http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion',
         enabled: false,
         inputParameterMappings: [{ inputName: 'respuesta', soapParameterName: 'Respuesta', required: true }]
@@ -36,10 +43,8 @@ describe('SoapIntegrationSettingsComponent', () => {
   };
 
   beforeEach(async () => {
-    settings$ = new BehaviorSubject<SoapIntegrationSettings>(settings);
-    service = jasmine.createSpyObj<SoapIntegrationSettingsService>('SoapIntegrationSettingsService', ['refreshFromServer', 'updateSettings'], {
-      settings$: settings$.asObservable()
-    });
+    service = jasmine.createSpyObj<SoapIntegrationSettingsService>('SoapIntegrationSettingsService', ['refreshFromServer', 'updateSettings']);
+    notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error']);
     service.refreshFromServer.and.returnValue(of(settings));
     service.updateSettings.and.returnValue(of(settings));
 
@@ -47,7 +52,7 @@ describe('SoapIntegrationSettingsComponent', () => {
       imports: [SoapIntegrationSettingsComponent],
       providers: [
         { provide: SoapIntegrationSettingsService, useValue: service },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) },
+        { provide: NotificationService, useValue: notifications },
         { provide: ActivatedRoute, useValue: {} }
       ]
     }).compileComponents();
@@ -57,57 +62,57 @@ describe('SoapIntegrationSettingsComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renderiza lista compacta y no formulario gigante inicial', () => {
+  it('carga configuracion desde backend y muestra los tres servicios obligatorios', () => {
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Servicios configurados');
+
+    expect(service.refreshFromServer).toHaveBeenCalledTimes(1);
+    expect(text).toContain('Proc_Transacciones');
     expect(text).toContain('Proc_Contrapartidas');
-    expect(fixture.nativeElement.querySelector('.desktop-table')).toBeFalsy();
-    expect(fixture.nativeElement.querySelectorAll('[data-testid="soap-service-card"]').length).toBe(2);
-    expect(fixture.nativeElement.querySelector('[data-testid="soap-service-detail-button"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="soap-service-edit-button"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="soap-service-test-button"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('.modal-panel')).toBeFalsy();
-    expect(fixture.nativeElement.querySelector('.edit-form')).toBeFalsy();
+    expect(text).toContain('RegistrarRespuestaTransaccion');
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="soap-service-card"]').length).toBe(3);
+    expect(component.selectedMethodName).toBe('Proc_Transacciones');
   });
 
-  it('abre detalle read-only con endpoint completo', () => {
-    component.openDetail(component.allMethods[0]);
+  it('permite seleccionar un servicio y deja visible el endpoint editable', () => {
+    const registrar = component.allMethods.find((method) => component.methodNameFor(method.group) === 'RegistrarRespuestaTransaccion');
+    expect(registrar).toBeTruthy();
+
+    component.selectMethod(registrar!);
     fixture.detectChanges();
 
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Detalle tecnico');
-    expect(text).toContain(settings.wscfaachMappings[0].endpoint);
-    expect(text).toContain('Secretos y certificados privados');
+    const endpointInput = fixture.nativeElement.querySelector('[data-testid="soap-endpoint-input"]') as HTMLInputElement;
+    expect(endpointInput.value).toBe('http://uat.local/soap/respuestas');
+    expect(fixture.nativeElement.textContent).toContain('Respuesta diferencial');
   });
 
-  it('abre modal de edicion y guardar llama el servicio esperado', () => {
-    component.openEdit(component.allMethods[0]);
-    fixture.detectChanges();
+  it('guarda usando getRawValue y conserva la seleccion actual', () => {
+    const procTransacciones = component.allMethods.find((method) => component.methodNameFor(method.group) === 'Proc_Transacciones')!;
+    component.selectMethod(procTransacciones);
+    procTransacciones.group.get('endpoint')?.setValue('http://uat.local/soap/proc-transacciones-editado');
 
-    expect(fixture.nativeElement.querySelector('.edit-form')).toBeTruthy();
     component.save();
 
     expect(service.updateSettings).toHaveBeenCalled();
+    const payload = service.updateSettings.calls.mostRecent().args[0];
+    expect(payload.wscfaachMappings.find((item) => item.methodName === 'Proc_Transacciones')?.endpoint)
+      .toBe('http://uat.local/soap/proc-transacciones-editado');
+    expect(component.selectedMethodName).toBe('Proc_Transacciones');
   });
 
-  it('abre modal de prueba y ejecuta validacion local sin cambiar modo a Live', () => {
-    component.openTest(component.allMethods[0]);
-    fixture.detectChanges();
+  it('no muestra acciones de prueba SOAP ni validacion no soportadas por backend', () => {
+    const text = fixture.nativeElement.textContent as string;
 
-    component.runConnectionTest();
-    fixture.detectChanges();
-
-    expect(component.lastTestResult?.status).toBe('OK');
-    expect(component.modeFor(component.allMethods[0].group)).toBe('DryRun/UAT-local');
-    expect(fixture.nativeElement.textContent).toContain('Validacion local correcta');
+    expect(text).not.toContain('Validar localmente');
+    expect(text).not.toContain('Ultima validacion');
+    expect(text).not.toContain('Prueba de conexion');
   });
 
-  it('cancela modal sin guardar', () => {
-    component.openEdit(component.allMethods[0]);
-    component.closeModal();
-    fixture.detectChanges();
+  it('muestra error si la carga inicial falla', () => {
+    service.refreshFromServer.and.returnValue(throwError(() => new Error('fallo')));
 
-    expect(component.modalMode).toBeNull();
-    expect(service.updateSettings).not.toHaveBeenCalled();
+    const failedFixture = TestBed.createComponent(SoapIntegrationSettingsComponent);
+    failedFixture.detectChanges();
+
+    expect(notifications.error).toHaveBeenCalledWith('No fue posible cargar la configuracion SOAP.');
   });
 });

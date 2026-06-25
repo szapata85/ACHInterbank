@@ -1,289 +1,112 @@
 <section class="soap-settings-page" data-testid="soap-settings-page">
   <header class="page-header">
-    <ui-migas-pan [items]="migas"></ui-migas-pan>
     <div class="header-row">
-      <ui-encabezado-pagina
-        titulo="Configuracion de servicios SOAP"
-        descripcion="Administra endpoint, SOAP Action, estado tecnico y prueba local de los servicios SOAP."
-      ></ui-encabezado-pagina>
-      <span class="safe-badge">Modo seguro: sin secretos completos</span>
-    </div>
-    <div class="compact-alert">
-      <span class="material-symbols-outlined">shield_lock</span>
-      <strong>Proc_Contrapartidas: DryRun/UAT-local</strong>
-      <button type="button" class="link-button" (click)="openHelp()">Ver recomendaciones de seguridad</button>
+      <p class="page-lead">Administra solo endpoint, SOAP Action y estado activo/inactivo de cada servicio.</p>
+      <button type="button" class="btn-ghost" (click)="openHelp()">Ayuda operativa</button>
     </div>
   </header>
 
-  <section class="summary-grid" aria-label="Resumen SOAP">
-    <article class="summary-tile">
-      <span>Total servicios</span>
-      <strong>{{ allMethods.length }}</strong>
-    </article>
-    <article class="summary-tile">
-      <span>Habilitados</span>
-      <strong>{{ enabledCount }}</strong>
-    </article>
-    <article class="summary-tile">
-      <span>Modo seguro</span>
-      <strong>{{ safeModeCount }}</strong>
-    </article>
-    <article class="summary-tile">
-      <span>Ultima prueba</span>
-      <strong>{{ lastTestResult?.status || 'Pendiente' }}</strong>
-    </article>
-  </section>
+  <div class="loading-state" *ngIf="loading">Cargando configuracion SOAP...</div>
 
-  <section class="toolbar">
-    <div>
-      <h2>Servicios configurados</h2>
-      <p>Lista compacta. Usa detalle o edicion para ver valores completos.</p>
+  <ng-container *ngIf="!loading">
+    <section class="service-selector" aria-label="Servicios SOAP">
+      <button
+        type="button"
+        class="service-tab"
+        data-testid="soap-service-card"
+        *ngFor="let method of allMethods"
+        [class.active]="isSelected(method)"
+        (click)="selectMethod(method)"
+      >
+        <span class="service-tab-title">{{ methodNameFor(method.group) }}</span>
+        <span class="service-tab-meta">{{ statusFor(method.group) }} - {{ method.clientName }}</span>
+      </button>
+    </section>
+
+    <form
+      *ngIf="selectedMethod as method"
+      [formGroup]="method.group"
+      class="settings-workbench"
+      aria-label="Configuracion tecnica SOAP"
+      (ngSubmit)="save()"
+    >
+      <section class="service-overview">
+        <div class="service-heading">
+          <span class="service-code">{{ methodCodeFor(method) }}</span>
+          <h2>{{ methodNameFor(method.group) }}</h2>
+          <p>{{ selectedCopy.title }}. {{ selectedCopy.description }}</p>
+        </div>
+        <span class="status-pill" [class.off]="!method.group.get('enabled')?.value">{{ statusFor(method.group) }}</span>
+      </section>
+
+      <section class="endpoint-editor">
+        <label class="endpoint-field">
+          Endpoint / URL
+          <input type="text" formControlName="endpoint" data-testid="soap-endpoint-input" />
+          <app-error-message [control]="method.group.get('endpoint')"></app-error-message>
+        </label>
+
+        <label>
+          SOAP Action
+          <input type="text" formControlName="soapAction" data-testid="soap-action-input" />
+          <app-error-message [control]="method.group.get('soapAction')"></app-error-message>
+        </label>
+
+        <label class="inline-check">
+          <input type="checkbox" formControlName="enabled" />
+          Servicio activo
+        </label>
+      </section>
+
+      <section class="technical-summary" aria-label="Resumen tecnico">
+        <div>
+          <span>Contrato tecnico</span>
+          <strong>{{ mappingCountFor(method.group) }} parametros soportados</strong>
+        </div>
+        <div>
+          <span>Naturaleza funcional</span>
+          <strong>{{ selectedCopy.nature }}</strong>
+        </div>
+      </section>
+
+      <footer class="action-bar">
+        <a
+          class="btn-ghost action-link"
+          [routerLink]="['/integraciones/mappings']"
+          [queryParams]="{ method: methodCodeFor(method) }"
+        >
+          Ver matriz de campos
+        </a>
+        <button type="button" class="btn-secondary" (click)="reload()" [disabled]="reloading || saving">
+          {{ reloading ? 'Recargando...' : 'Recargar' }}
+        </button>
+        <button type="submit" class="btn-primary" data-testid="soap-save-button" [disabled]="saving || method.group.invalid">
+          {{ saving ? 'Guardando...' : 'Guardar cambios' }}
+        </button>
+      </footer>
+    </form>
+
+    <div class="empty-state" *ngIf="allMethods.length === 0">
+      No hay configuraciones SOAP disponibles.
     </div>
-    <button type="button" class="btn-secondary" (click)="reload()" [disabled]="reloading || saving || testing">
-      {{ reloading ? 'Recargando...' : 'Recargar configuracion' }}
-    </button>
-  </section>
-
-  <form [formGroup]="form" class="services-panel" aria-label="Configuraciones SOAP">
-    <div class="service-card-grid" aria-label="Servicios SOAP">
-      <article class="service-card" data-testid="soap-service-card" *ngFor="let method of allMethods">
-        <div class="service-card-header">
-          <div class="service-title-block" data-ux-critical>
-            <span class="client-name" [title]="method.clientName">{{ method.clientName }}</span>
-            <h3 class="method-name" [title]="methodNameFor(method.group)">{{ methodNameFor(method.group) }}</h3>
-          </div>
-          <span class="status-pill" [class.off]="!method.group.get('enabled')?.value">{{ statusFor(method.group) }}</span>
-        </div>
-
-        <div class="endpoint-block" data-ux-critical>
-          <span>Endpoint</span>
-          <code
-            class="endpoint-preview"
-            data-testid="soap-service-endpoint-preview"
-            [title]="endpointFor(method.group)"
-          >
-            {{ endpointFor(method.group) }}
-          </code>
-        </div>
-
-        <div class="service-meta">
-          <span class="mode-pill">{{ modeFor(method.group) }}</span>
-          <span class="last-test">
-            {{ lastTestResult?.methodName === methodNameFor(method.group) ? lastTestResult?.status : 'Sin prueba' }}
-          </span>
-        </div>
-
-        <div class="card-actions">
-          <button
-            type="button"
-            class="btn-ghost"
-            data-testid="soap-service-detail-button"
-            (click)="openDetail(method)"
-          >
-            Detalle
-          </button>
-          <button
-            type="button"
-            class="btn-secondary"
-            data-testid="soap-service-edit-button"
-            (click)="openEdit(method)"
-          >
-            Editar
-          </button>
-          <button
-            type="button"
-            class="btn-secondary"
-            data-testid="soap-service-test-button"
-            (click)="openTest(method)"
-          >
-            Probar
-          </button>
-          <a
-            class="btn-ghost action-link"
-            [routerLink]="['/integraciones/mappings']"
-            [queryParams]="{ method: methodCodeFor(method) }"
-          >
-            Ver relacion de campos
-          </a>
-        </div>
-      </article>
-    </div>
-  </form>
-
-  <div class="empty-state" *ngIf="allMethods.length === 0">
-    No hay configuraciones SOAP disponibles.
-  </div>
+  </ng-container>
 </section>
 
 <div class="modal-backdrop" *ngIf="modalMode" (click)="closeModal()"></div>
-
-<aside class="modal-panel" *ngIf="modalMode === 'detail' && selectedMethod" role="dialog" aria-modal="true" aria-label="Detalle SOAP">
-  <header class="modal-header">
-    <div>
-      <span class="eyebrow">Detalle tecnico</span>
-      <h2>{{ methodNameFor(selectedMethod.group) }}</h2>
-    </div>
-    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
-  </header>
-
-  <dl class="detail-list">
-    <div>
-      <dt>Cliente</dt>
-      <dd>{{ selectedMethod.clientName }}</dd>
-    </div>
-    <div>
-      <dt>Endpoint completo</dt>
-      <dd class="breakable">{{ endpointFor(selectedMethod.group) }}</dd>
-    </div>
-    <div>
-      <dt>SOAP Action</dt>
-      <dd class="breakable">{{ selectedMethod.group.get('soapAction')?.value }}</dd>
-    </div>
-    <div>
-      <dt>Modo</dt>
-      <dd>{{ modeFor(selectedMethod.group) }}</dd>
-    </div>
-    <div>
-      <dt>Estado</dt>
-      <dd>{{ statusFor(selectedMethod.group) }}</dd>
-    </div>
-    <div>
-      <dt>Seguridad</dt>
-      <dd>Secretos y certificados privados gestionados por configuracion segura.</dd>
-    </div>
-    <div>
-      <dt>Relacion de campos</dt>
-      <dd>
-        {{ mappingCountFor(selectedMethod.group) }} parametros tecnicos de contrato en settings.
-        La relacion campo-a-campo se administra en /integraciones/mappings.
-      </dd>
-    </div>
-  </dl>
-
-  <footer class="modal-footer">
-    <a
-      class="btn-ghost action-link"
-      [routerLink]="['/integraciones/mappings']"
-      [queryParams]="{ method: methodCodeFor(selectedMethod) }"
-      (click)="closeModal()"
-    >
-      Ver relacion de campos
-    </a>
-    <button type="button" class="btn-secondary" (click)="closeModal()">Cerrar</button>
-  </footer>
-</aside>
-
-<aside class="modal-panel wide" *ngIf="modalMode === 'edit' && selectedMethod" role="dialog" aria-modal="true" aria-label="Editar SOAP">
-  <header class="modal-header">
-    <div>
-      <span class="eyebrow">Editar configuracion</span>
-      <h2>{{ methodNameFor(selectedMethod.group) }}</h2>
-    </div>
-    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
-  </header>
-
-  <form [formGroup]="selectedMethod.group" class="edit-form" (ngSubmit)="save()">
-    <section class="form-section">
-      <h3>Servicio</h3>
-      <div class="fields-grid">
-        <label>
-          Nombre
-          <input type="text" formControlName="methodName" readonly />
-        </label>
-        <label class="inline-check">
-          <input type="checkbox" formControlName="enabled" />
-          Habilitado
-        </label>
-      </div>
-    </section>
-
-    <section class="form-section">
-      <h3>Endpoint</h3>
-      <div class="fields-grid">
-        <label>
-          Base URL
-          <input type="text" formControlName="endpoint" />
-          <app-error-message [control]="selectedMethod.group.get('endpoint')"></app-error-message>
-        </label>
-        <label>
-          SOAP Action
-          <input type="text" formControlName="soapAction" />
-          <app-error-message [control]="selectedMethod.group.get('soapAction')"></app-error-message>
-        </label>
-      </div>
-    </section>
-
-    <section class="form-section muted">
-      <h3>Relacion de campos</h3>
-      <p>
-        Esta pantalla solo administra endpoint, SOAP Action y estado tecnico del metodo.
-        La matriz campo-a-campo y su auditoria se gestionan en la pantalla de relacion de campos.
-      </p>
-      <a
-        class="btn-secondary action-link"
-        [routerLink]="['/integraciones/mappings']"
-        [queryParams]="{ method: methodCodeFor(selectedMethod) }"
-      >
-        Abrir relacion de campos
-      </a>
-    </section>
-
-    <section class="form-section muted">
-      <h3>Seguridad</h3>
-      <p>Los secretos completos no se muestran ni se copian desde esta pantalla.</p>
-    </section>
-
-    <footer class="modal-footer sticky">
-      <button type="button" class="btn-secondary" (click)="closeModal()" [disabled]="saving">Cancelar</button>
-      <button type="submit" class="btn-primary" [disabled]="saving || selectedMethod.group.invalid">
-        {{ saving ? 'Guardando...' : 'Guardar cambios' }}
-      </button>
-    </footer>
-  </form>
-</aside>
-
-<aside class="modal-panel compact" *ngIf="modalMode === 'test' && selectedMethod" role="dialog" aria-modal="true" aria-label="Probar conexion SOAP">
-  <header class="modal-header">
-    <div>
-      <span class="eyebrow">Prueba operativa</span>
-      <h2>{{ methodNameFor(selectedMethod.group) }}</h2>
-    </div>
-    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
-  </header>
-
-  <div class="test-box">
-    <p><strong>Modo actual:</strong> {{ modeFor(selectedMethod.group) }}</p>
-    <p>La prueba valida configuracion local. No expone secretos ni ejecuta SOAP productivo desde la SPA.</p>
-  </div>
-
-  <div class="test-result" *ngIf="lastTestResult" [class.ok]="lastTestResult.status === 'OK'" [class.error]="lastTestResult.status === 'ERROR'">
-    <strong>{{ lastTestResult.status }}</strong>
-    <span>{{ lastTestResult.message }}</span>
-    <small>{{ lastTestResult.checkedAt | date: 'short' }}</small>
-  </div>
-
-  <footer class="modal-footer">
-    <button type="button" class="btn-secondary" (click)="closeModal()">Cerrar</button>
-    <button type="button" class="btn-primary" (click)="runConnectionTest()" [disabled]="testing">
-      {{ testing ? 'Probando...' : 'Ejecutar prueba' }}
-    </button>
-  </footer>
-</aside>
 
 <aside class="modal-panel compact" *ngIf="modalMode === 'help'" role="dialog" aria-modal="true" aria-label="Ayuda operativa SOAP">
   <header class="modal-header">
     <div>
       <span class="eyebrow">Ayuda operativa</span>
-      <h2>Recomendaciones de seguridad</h2>
+      <h2>Alcance de esta pantalla</h2>
     </div>
     <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
   </header>
 
   <ul class="help-list">
-    <li>Proc_Contrapartidas debe permanecer en DryRun/UAT-local salvo autorizacion formal.</li>
-    <li>Los secretos completos, credenciales y certificados privados no se muestran.</li>
-    <li>Guardar conserva la misma semantica funcional del endpoint actual.</li>
-    <li>La prueba operativa no cambia estados ni transmite archivos.</li>
+    <li>Esta pantalla administra endpoint, SOAP Action y estado activo/inactivo.</li>
+    <li>La matriz campo a campo se gestiona en /integraciones/mappings.</li>
+    <li>No se muestran credenciales, secretos ni certificados privados.</li>
   </ul>
 
   <footer class="modal-footer">

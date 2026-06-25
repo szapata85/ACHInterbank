@@ -1,17 +1,18 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { finalize, take } from 'rxjs';
+import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import {
   SoapEndpointMethodMapping,
   SoapInputParameterMapping,
+  SoapIntegrationSettings,
   SoapIntegrationSettingsService
 } from '../../../core/services/soap-integration-settings.service';
 import { SharedModule } from '../../../shared/shared.module';
 
 type SoapClientKey = 'wscfaachMappings' | 'wsAxonRespuestaTransaccionesMappings';
-type ModalMode = 'detail' | 'edit' | 'test' | 'help' | null;
+type ModalMode = 'help' | null;
 
 interface SoapMethodView {
   clientKey: SoapClientKey;
@@ -19,6 +20,30 @@ interface SoapMethodView {
   index: number;
   group: FormGroup;
 }
+
+interface SoapServiceCopy {
+  title: string;
+  description: string;
+  nature: string;
+}
+
+const SERVICE_COPY: Record<string, SoapServiceCopy> = {
+  Proc_Transacciones: {
+    title: 'Credito entrante hacia CFA',
+    description: 'Configura el endpoint tecnico usado para preparar creditos monetarios originados por otra entidad.',
+    nature: 'Monetario controlado'
+  },
+  Proc_Contrapartidas: {
+    title: 'Debito originado por CFA',
+    description: 'Configura el endpoint tecnico usado para preparar debitos monetarios de contrapartida.',
+    nature: 'Monetario controlado'
+  },
+  RegistrarRespuestaTransaccion: {
+    title: 'Respuesta diferencial',
+    description: 'Configura el endpoint tecnico para registrar respuestas, rechazos o notificaciones no monetarias.',
+    nature: 'No monetario'
+  }
+};
 
 @Component({
   selector: 'app-soap-integration-settings',
@@ -45,12 +70,16 @@ export class SoapIntegrationSettingsComponent {
     wsAxonRespuestaTransaccionesMappings: this.fb.array<FormGroup>([])
   });
 
+  loading = true;
   saving = false;
-  testing = false;
   reloading = false;
   modalMode: ModalMode = null;
-  selectedMethod: SoapMethodView | null = null;
-  lastTestResult: { status: 'OK' | 'ERROR'; message: string; checkedAt: Date; methodName?: string } | null = null;
+  selectedClientKey: SoapClientKey | null = null;
+  selectedMethodName: string | null = null;
+
+  constructor() {
+    this.loadSettings(false);
+  }
 
   get wscfaachMappings(): FormArray<FormGroup> {
     return this.form.get('wscfaachMappings') as FormArray<FormGroup>;
@@ -77,129 +106,69 @@ export class SoapIntegrationSettingsComponent {
     ];
   }
 
+  get selectedMethod(): SoapMethodView | null {
+    return this.allMethods.find((method) => this.isSelected(method)) ?? this.allMethods[0] ?? null;
+  }
+
+  get selectedCopy(): SoapServiceCopy {
+    const methodName = this.selectedMethod ? this.methodNameFor(this.selectedMethod.group) : '';
+    return SERVICE_COPY[methodName] ?? {
+      title: 'Servicio SOAP',
+      description: 'Configura endpoint, SOAP Action y estado tecnico.',
+      nature: 'Configuracion tecnica'
+    };
+  }
+
   get enabledCount(): number {
     return this.allMethods.filter((item) => item.group.get('enabled')?.value).length;
   }
 
-  get safeModeCount(): number {
-    return this.allMethods.length;
-  }
-
-  constructor() {
-    this.service.settings$.pipe(take(1)).subscribe((settings) => {
-      this.setMappings(this.wscfaachMappings, settings.wscfaachMappings);
-      this.setMappings(this.wsAxonMappings, settings.wsAxonRespuestaTransaccionesMappings);
-      this.cdr.markForCheck();
-    });
-  }
-
-  openDetail(method: SoapMethodView): void {
-    this.selectedMethod = method;
-    this.modalMode = 'detail';
+  selectMethod(method: SoapMethodView): void {
+    this.selectedClientKey = method.clientKey;
+    this.selectedMethodName = this.methodNameFor(method.group);
     this.cdr.markForCheck();
   }
 
-  openEdit(method: SoapMethodView): void {
-    this.selectedMethod = method;
-    this.modalMode = 'edit';
-    this.cdr.markForCheck();
-  }
-
-  openTest(method: SoapMethodView): void {
-    this.selectedMethod = method;
-    this.modalMode = 'test';
-    this.cdr.markForCheck();
+  isSelected(method: SoapMethodView): boolean {
+    return this.selectedClientKey === method.clientKey && this.selectedMethodName === this.methodNameFor(method.group);
   }
 
   openHelp(): void {
-    this.selectedMethod = null;
     this.modalMode = 'help';
     this.cdr.markForCheck();
   }
 
   closeModal(): void {
     this.modalMode = null;
-    this.selectedMethod = null;
     this.cdr.markForCheck();
   }
 
   save(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.notifications.error('Completa endpoint, SOAP Action y mapeos requeridos.');
+      this.notifications.error('Completa endpoint y SOAP Action requeridos.');
       return;
     }
 
+    const currentSelection = this.captureSelection();
     this.saving = true;
-    this.service.updateSettings({
-      wscfaachMappings: this.wscfaachMappings.getRawValue() as SoapEndpointMethodMapping[],
-      wsAxonRespuestaTransaccionesMappings: this.wsAxonMappings.getRawValue() as SoapEndpointMethodMapping[]
-    })
+    this.service.updateSettings(this.buildPayload())
       .pipe(finalize(() => {
         this.saving = false;
         this.cdr.markForCheck();
       }))
-      .subscribe(() => {
-        this.form.markAsPristine();
-        this.notifications.success('Configuracion SOAP guardada.');
-        this.closeModal();
-        this.cdr.markForCheck();
+      .subscribe({
+        next: (settings) => {
+          this.hydrate(settings, currentSelection);
+          this.form.markAsPristine();
+          this.notifications.success('Configuracion SOAP guardada.');
+        },
+        error: () => this.notifications.error('No fue posible guardar la configuracion SOAP.')
       });
   }
 
   reload(): void {
-    this.reloading = true;
-    this.service.refreshFromServer()
-      .pipe(finalize(() => {
-        this.reloading = false;
-        this.cdr.markForCheck();
-      }))
-      .subscribe({
-        next: (settings) => {
-          this.setMappings(this.wscfaachMappings, settings.wscfaachMappings);
-          this.setMappings(this.wsAxonMappings, settings.wsAxonRespuestaTransaccionesMappings);
-          this.form.markAsPristine();
-          this.notifications.success('Configuracion SOAP recargada.');
-        },
-        error: () => this.notifications.error('No fue posible recargar la configuracion SOAP.')
-      });
-  }
-
-  runConnectionTest(): void {
-    if (!this.selectedMethod) {
-      return;
-    }
-
-    this.testing = true;
-    const method = this.selectedMethod.group.getRawValue() as SoapEndpointMethodMapping;
-    const missingRequired = method.enabled && (!method.endpoint?.trim() || !method.soapAction?.trim());
-    this.lastTestResult = missingRequired
-      ? {
-          status: 'ERROR',
-          methodName: method.methodName,
-          message: 'El metodo habilitado no tiene endpoint o SOAP Action configurado.',
-          checkedAt: new Date()
-        }
-      : {
-          status: 'OK',
-          methodName: method.methodName,
-          message: 'Validacion local correcta. No se ejecuto llamada SOAP externa desde esta pantalla.',
-          checkedAt: new Date()
-        };
-    this.testing = false;
-    this.cdr.markForCheck();
-  }
-
-  getInputMappings(mappingGroup: FormGroup): FormArray<FormGroup> {
-    return mappingGroup.get('inputParameterMappings') as FormArray<FormGroup>;
-  }
-
-  addInputMapping(mappingGroup: FormGroup): void {
-    this.getInputMappings(mappingGroup).push(this.createInputMappingGroup());
-  }
-
-  removeInputMapping(mappingGroup: FormGroup, index: number): void {
-    this.getInputMappings(mappingGroup).removeAt(index);
+    this.loadSettings(true);
   }
 
   endpointFor(group: FormGroup): string {
@@ -211,15 +180,7 @@ export class SoapIntegrationSettingsComponent {
   }
 
   statusFor(group: FormGroup): string {
-    return group.get('enabled')?.value ? 'Habilitado' : 'Deshabilitado';
-  }
-
-  modeFor(group: FormGroup): string {
-    const method = this.methodNameFor(group);
-    if (method === 'Proc_Contrapartidas') {
-      return 'DryRun/UAT-local';
-    }
-    return 'Configurado';
+    return group.get('enabled')?.value ? 'Activo' : 'Inactivo';
   }
 
   methodCodeFor(method: SoapMethodView): string {
@@ -229,6 +190,65 @@ export class SoapIntegrationSettingsComponent {
 
   mappingCountFor(group: FormGroup): number {
     return this.getInputMappings(group).length;
+  }
+
+  private loadSettings(showSuccess: boolean): void {
+    const currentSelection = this.captureSelection();
+    this.loading = !showSuccess;
+    this.reloading = showSuccess;
+    this.service.refreshFromServer()
+      .pipe(finalize(() => {
+        this.loading = false;
+        this.reloading = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (settings) => {
+          this.hydrate(settings, currentSelection);
+          this.form.markAsPristine();
+          if (showSuccess) {
+            this.notifications.success('Configuracion SOAP recargada.');
+          }
+        },
+        error: () => this.notifications.error('No fue posible cargar la configuracion SOAP.')
+      });
+  }
+
+  private hydrate(settings: SoapIntegrationSettings, selection = this.captureSelection()): void {
+    this.setMappings(this.wscfaachMappings, settings.wscfaachMappings);
+    this.setMappings(this.wsAxonMappings, settings.wsAxonRespuestaTransaccionesMappings);
+    this.restoreSelection(selection);
+  }
+
+  private captureSelection(): { clientKey: SoapClientKey | null; methodName: string | null } {
+    return {
+      clientKey: this.selectedClientKey,
+      methodName: this.selectedMethodName
+    };
+  }
+
+  private restoreSelection(selection: { clientKey: SoapClientKey | null; methodName: string | null }): void {
+    const existing = this.allMethods.find((method) =>
+      method.clientKey === selection.clientKey && this.methodNameFor(method.group) === selection.methodName
+    );
+    const preferred = existing
+      ?? this.allMethods.find((method) => this.methodNameFor(method.group) === 'Proc_Transacciones')
+      ?? this.allMethods[0]
+      ?? null;
+
+    this.selectedClientKey = preferred?.clientKey ?? null;
+    this.selectedMethodName = preferred ? this.methodNameFor(preferred.group) : null;
+  }
+
+  private buildPayload(): SoapIntegrationSettings {
+    return {
+      wscfaachMappings: this.wscfaachMappings.getRawValue() as SoapEndpointMethodMapping[],
+      wsAxonRespuestaTransaccionesMappings: this.wsAxonMappings.getRawValue() as SoapEndpointMethodMapping[]
+    };
+  }
+
+  private getInputMappings(mappingGroup: FormGroup): FormArray<FormGroup> {
+    return mappingGroup.get('inputParameterMappings') as FormArray<FormGroup>;
   }
 
   private setMappings(target: FormArray<FormGroup>, mappings: SoapEndpointMethodMapping[]): void {
