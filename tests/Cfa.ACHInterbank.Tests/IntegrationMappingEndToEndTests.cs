@@ -138,11 +138,14 @@ public class IntegrationMappingEndToEndTests
     }
 
     [Fact]
-    public async Task Resolver_ReturnsNull_WhenNoPublishedMapping_AllowingHybridFallback()
+    public async Task Resolver_UsesBootstrapPublishedBaseMapping_ByDefault()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();
         var result = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
-        Assert.Null(result);
+        Assert.NotNull(result);
+        Assert.NotNull(result!.Contract);
+        Assert.False(result.UsedFallback);
+        Assert.Equal(fixture.Transaction.Reference, result.Contract.OFIDTX);
     }
 
     [Fact]

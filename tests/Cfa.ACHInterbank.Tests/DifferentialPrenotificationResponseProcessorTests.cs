@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Models;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -11,6 +12,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using System.Reflection;
 using Xunit;
 
@@ -145,8 +147,36 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
     public async Task RegistrarRespuestaTransaccion_ShouldFailControlled_WhenRequiredMappingMissing()
     {
         await using var fixture = await Fixture.CreateAsync();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        readiness
+            .Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntegrationMappingReadinessResult(
+                IsReady: false,
+                Status: "Failed",
+                Code: "INTEGRATION_MAPPING_REQUIRED",
+                IntegrationKey: IntegrationGuaranteeConstants.WsAxon,
+                OperationKey: IntegrationGuaranteeConstants.RegistrarRespuestaTransaccion,
+                MappingPurpose: IntegrationGuaranteeConstants.DifferentialResponseNotification,
+                MappingDirection: IntegrationGuaranteeConstants.InboundResponse,
+                RequiredMappings: 0,
+                ActiveMappings: 0,
+                MissingRequiredMappings: [],
+                InactiveRequiredMappings: [],
+                FallbackFields: [],
+                RequiredFallbackFields: [],
+                UsesFallback: false,
+                CanBuildPayload: false,
+                Errors: ["No existe IntegrationMappingSet publicado para WSAXON.RegistrarRespuestaTransaccion; no se permite fallback para campos requeridos."],
+                Warnings: []));
 
-        var result = await fixture.Processor.ProcessAsync(
+        var traceWriter = new Mock<IIntegrationMappingTraceWriter>(MockBehavior.Strict);
+        var sut = new DifferentialPrenotificationResponseProcessor(
+            fixture.Context,
+            fixture.OperationResolver,
+            readiness.Object,
+            traceWriter.Object);
+
+        var result = await sut.ProcessAsync(
             fixture.SuccessCommand(),
             fixture.BuildResponse("00", null),
             HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
@@ -228,10 +258,10 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
             _connection = connection;
             Context = context;
             Catalog = new IntegrationCatalogService(context);
-            var operationResolver = new TransactionIntegrationOperationResolver(context);
+            OperationResolver = new TransactionIntegrationOperationResolver(context);
             Processor = new DifferentialPrenotificationResponseProcessor(
                 context,
-                operationResolver,
+                OperationResolver,
                 new IntegrationMappingReadinessService(context, Catalog),
                 new IntegrationMappingTraceWriter(context, Catalog));
         }
@@ -239,6 +269,7 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         public string TraceNumber => "000128300012345";
         public AchDbContext Context { get; }
         public IntegrationCatalogService Catalog { get; }
+        public TransactionIntegrationOperationResolver OperationResolver { get; }
         public DifferentialPrenotificationResponseProcessor Processor { get; }
         public AchTransaction Prenotification { get; private set; } = null!;
 

@@ -85,18 +85,19 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task Readiness_ShouldFail_WhenRequiredMappingsAreMissing()
+    public async Task Readiness_ShouldBeOk_WhenRequiredMappingsAreBootstrapSeeded()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.False(readiness.IsReady);
-        Assert.Equal("Failed", readiness.Status);
-        Assert.Equal("INTEGRATION_MAPPING_REQUIRED", readiness.Code);
+        Assert.True(readiness.IsReady);
+        Assert.Equal("Ok", readiness.Status);
+        Assert.Equal("OK", readiness.Code);
         Assert.False(readiness.UsesFallback);
-        Assert.Contains("No existe IntegrationMappingSet publicado", readiness.Errors.First());
+        Assert.True(readiness.CanBuildPayload);
+        Assert.Empty(readiness.Errors);
     }
 
     [Fact]
@@ -114,32 +115,32 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task Readiness_ShouldFail_WhenProcContrapartidasWouldNeedFallback()
+    public async Task Readiness_ShouldBeOk_WhenProcContrapartidasUsesBootstrapPublishedMapping()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.False(readiness.IsReady);
-        Assert.Equal("Failed", readiness.Status);
-        Assert.Equal("REQUIRED_MAPPING_USES_FALLBACK", readiness.Code);
-        Assert.True(readiness.UsesFallback);
-        Assert.False(readiness.CanBuildPayload);
-        Assert.NotEmpty(readiness.RequiredFallbackFields);
+        Assert.True(readiness.IsReady);
+        Assert.Equal("Ok", readiness.Status);
+        Assert.Equal("OK", readiness.Code);
+        Assert.False(readiness.UsesFallback);
+        Assert.True(readiness.CanBuildPayload);
+        Assert.Empty(readiness.RequiredFallbackFields);
     }
 
     [Fact]
-    public async Task Readiness_ShouldNotBeOk_WhenProcContrapartidasWouldNeedFallback()
+    public async Task Readiness_ShouldNotUseFallback_WhenProcContrapartidasIsBootstrapPublished()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.NotEqual("Ok", readiness.Status);
-        Assert.False(readiness.IsReady);
-        Assert.True(readiness.UsesFallback);
+        Assert.Equal("Ok", readiness.Status);
+        Assert.True(readiness.IsReady);
+        Assert.False(readiness.UsesFallback);
     }
 
     [Fact]
@@ -269,15 +270,17 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task MissingMapping_ShouldNotMarkReadinessOk()
+    public async Task MissingMapping_ShouldExposePublishedMappings_AsReady()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.False(readiness.IsReady);
-        Assert.NotEqual("Ok", readiness.Status);
+        Assert.True(readiness.IsReady);
+        Assert.Equal("Ok", readiness.Status);
+        Assert.Equal(readiness.RequiredMappings, readiness.ActiveMappings);
+        Assert.Empty(readiness.MissingRequiredMappings);
     }
 
     [Fact]
