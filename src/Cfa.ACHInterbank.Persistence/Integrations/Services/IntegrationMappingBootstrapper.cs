@@ -28,11 +28,7 @@ public sealed class IntegrationMappingBootstrapper
             "ProcTransacciones Published NACHA desagregado",
             ProcTransaccionesSourcePathFor,
             ct);
-        await EnsurePublishedReferenceMappingAsync(
-            "WSAXON.RegistrarRespuestaTransaccion",
-            "RegistrarRespuestaTransaccion Published respuesta diferencial",
-            RegistrarRespuestaSourcePathFor,
-            ct);
+        await EnsurePublishedRegistrarRespuestaMappingAsync(ct);
         await EnsureDifferentialPrenotificationResponseStatusMappingsAsync(ct);
     }
 
@@ -205,6 +201,113 @@ public sealed class IntegrationMappingBootstrapper
         await _context.SaveChangesAsync(ct);
     }
 
+    private async Task EnsurePublishedRegistrarRespuestaMappingAsync(CancellationToken ct)
+    {
+        const string methodCode = "WSAXON.RegistrarRespuestaTransaccion";
+        const string mappingName = "RegistrarRespuestaTransaccion Published respuesta diferencial";
+
+        var method = await _context.IntegrationMethods
+            .FirstOrDefaultAsync(x => x.Code == methodCode && x.IsActive, ct);
+        if (method is null)
+        {
+            return;
+        }
+
+        var parameters = await _context.IntegrationMethodParameters
+            .AsNoTracking()
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync(ct);
+
+        var publishedSets = await _context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id
+                && x.Status == IntegrationMappingSetStatusEnum.Published
+                && x.IsActive)
+            .OrderByDescending(x => x.Version)
+            .ToListAsync(ct);
+
+        foreach (var published in publishedSets)
+        {
+            var rules = await _context.IntegrationMappingRules
+                .AsNoTracking()
+                .Where(x => x.MappingSetId == published.Id && x.Enabled)
+                .ToListAsync(ct);
+
+            if (IsRegistrarRespuestaMappingCompatible(parameters, rules))
+            {
+                return;
+            }
+        }
+
+        var hasManualPublished = publishedSets.Any(x =>
+            !string.Equals(x.PublishedBy, "seed", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(x.Name, mappingName, StringComparison.OrdinalIgnoreCase));
+        if (hasManualPublished)
+        {
+            return;
+        }
+
+        foreach (var legacySeed in publishedSets)
+        {
+            legacySeed.Status = IntegrationMappingSetStatusEnum.Archived;
+            legacySeed.IsActive = false;
+            _context.IntegrationMappingSetHistory.Add(BuildHistory(legacySeed, "ArchivedByWsdlContractRealignment"));
+        }
+
+        var nextVersion = (await _context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id)
+            .Select(x => (int?)x.Version)
+            .MaxAsync(ct) ?? 0) + 1;
+
+        var publishedSet = new IntegrationMappingSet
+        {
+            MethodId = method.Id,
+            Name = mappingName,
+            Status = IntegrationMappingSetStatusEnum.Published,
+            Version = nextVersion,
+            IsActive = true,
+            Notes = "Mapping UAT/local de referencia alineado al WSDL real. No habilita transmision externa.",
+            PublishedAtUtc = DateTime.UtcNow,
+            PublishedBy = "seed"
+        };
+
+        _context.IntegrationMappingSets.Add(publishedSet);
+        await _context.SaveChangesAsync(ct);
+
+        foreach (var parameter in parameters)
+        {
+            var sourcePath = RegistrarRespuestaSourcePathFor(parameter.ParameterPath);
+            _context.IntegrationMappingRules.Add(new IntegrationMappingRule
+            {
+                MappingSetId = publishedSet.Id,
+                MethodId = method.Id,
+                ParameterId = parameter.Id,
+                SourceKind = SourceKindFor(sourcePath),
+                SourceFieldPath = sourcePath ?? string.Empty,
+                FixedValue = sourcePath is null ? DefaultValueFor(parameter) : null,
+                DefaultValue = parameter.Required ? null : DefaultValueFor(parameter),
+                Priority = 1,
+                Enabled = true
+            });
+        }
+
+        _context.IntegrationMappingSetHistory.Add(BuildHistory(publishedSet, "SeedPublishedReferenceWsdl"));
+        await _context.SaveChangesAsync(ct);
+    }
+
+    private static bool IsRegistrarRespuestaMappingCompatible(
+        IReadOnlyCollection<IntegrationMethodParameter> parameters,
+        IReadOnlyCollection<IntegrationMappingRule> rules)
+    {
+        var requiredParameterIds = parameters
+            .Where(x => x.Required)
+            .Select(x => x.Id)
+            .ToHashSet();
+
+        return requiredParameterIds.Count > 0
+            && requiredParameterIds.All(id => rules.Any(rule => rule.ParameterId == id));
+    }
+
     private async Task EnsureDifferentialPrenotificationResponseStatusMappingsAsync(CancellationToken ct)
     {
         await EnsureResponseStatusMappingAsync(
@@ -305,11 +408,13 @@ public sealed class IntegrationMappingBootstrapper
     private static string? RegistrarRespuestaSourcePathFor(string parameterPath)
         => parameterPath switch
         {
-            "ANSIDLOTE" => "batchHeaders.batchNumber",
-            "ANSST" => "differentialResponse.codigoEstadoExterno",
-            "ANCLC" => "differentialResponse.codigoCausalExterna",
-            "ANSIDTX" => "entryDetails.sequenceNumber",
-            "ANSIDREVER" => "addendaRecords.originalTraceNumber",
+            "idCanal" => "differentialResponse.idCanal",
+            "nombreCanal" => "differentialResponse.nombreCanal",
+            "idTransaccion" => "differentialResponse.idTransaccion",
+            "idEstado" => "differentialResponse.idEstado",
+            "causal" => "differentialResponse.codigoCausalExterna",
+            "idTransaccionAxon" => "differentialResponse.idTransaccionServicioExterno",
+            "descripcionCausal" => "differentialResponse.descripcionCausalExterna",
             _ => null
         };
 

@@ -324,6 +324,21 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         var i = 1;
         return
         [
+            Spec("idCanal", "Id canal", "Identificador numerico del canal que registra la respuesta.", "Respuesta transaccion", "1", "Use el id de canal homologado para respuestas ACH.", "int", true, i++),
+            Spec("nombreCanal", "Nombre canal", "Nombre del canal que registra la respuesta.", "Respuesta transaccion", "ACH", "Use el nombre de canal homologado.", "string", true, i++),
+            Spec("idTransaccion", "Id transaccion", "Identificador de la transaccion notificada.", "Respuesta transaccion", "TX-2026-0001", "Debe corresponder a la transaccion diferencial recibida.", "string", true, i++),
+            Spec("idEstado", "Id estado", "Identificador interno/externo homologado del estado a registrar.", "Respuesta transaccion", "1", "Use el estado homologado por la tabla de respuestas.", "int", true, i++),
+            Spec("causal", "Causal", "Codigo causal asociado a la respuesta, si aplica.", "Respuesta transaccion", "R03", "Mapee causal/codigo homologado cuando aplique.", "string", false, i++),
+            Spec("idTransaccionAxon", "Id transaccion Axon", "Identificador de transaccion del servicio externo Axon.", "Respuesta transaccion", "1001", "Use el id de transaccion servicio externo recibido.", "int", true, i++),
+            Spec("descripcionCausal", "Descripcion causal", "Descripcion funcional de la causal, si aplica.", "Respuesta transaccion", "Cuenta no localizada", "Use la descripcion homologada o externa disponible.", "string", false, i++)
+        ];
+    }
+
+    private static IReadOnlyCollection<ParameterSeedSpec> BuildRegistrarRespuestaTransaccionLegacyTechnicalCatalog()
+    {
+        var i = 1;
+        return
+        [
             Spec("ANSIDLOTE", "Id lote respuesta", "Identificador del lote informado por la respuesta ACH.", "Respuesta transacciÃ³n", "2001", "Mapee el id de lote de la respuesta recibida.", "int", true, i++),
             Spec("ANSST", "Estado respuesta", "Estado funcional informado por la respuesta ACH.", "Respuesta transacciÃ³n", "APROBADA", "Use estado controlado de respuesta.", "string", true, i++),
             Spec("ANCLC", "CÃ³digo local respuesta", "CÃ³digo local o causal informado por la respuesta.", "Respuesta transacciÃ³n", "00", "Mapee causal/cÃ³digo homologado cuando aplique.", "string", false, i++),
@@ -397,8 +412,13 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Source(methodId, IntegrationSourceKindEnum.Prenotification, nameof(AchTransaction), "prenotification.reference", "Prenotificacion > Referencia", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Prenotification, nameof(AchTransaction), "prenotification.state", "Prenotificacion > Estado", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idTransaccion", "Respuesta diferencial > Id transaccion", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idCanal", "Respuesta diferencial > Id canal", "int", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.nombreCanal", "Respuesta diferencial > Nombre canal", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idEstado", "Respuesta diferencial > Id estado", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.codigoEstadoExterno", "Respuesta diferencial > Estado externo", "string", true, order++),
-            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.codigoCausalExterna", "Respuesta diferencial > Causal externa", "string", true, order++)
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.codigoCausalExterna", "Respuesta diferencial > Causal externa", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.idTransaccionServicioExterno", "Respuesta diferencial > Id transaccion servicio externo", "int", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.DifferentialResponse, "AchResponse", "differentialResponse.descripcionCausalExterna", "Respuesta diferencial > Descripcion causal externa", "string", true, order++)
         ];
     }
 

@@ -376,6 +376,7 @@ export class MappingSetsPageComponent implements OnInit {
       case 'addendarecord': return 'AddendaRecords';
       case 'batchcontrol': return 'BatchControls';
       case 'filecontrol': return 'FileControls';
+      case 'differentialresponse': return 'Respuesta diferencial';
       default: return 'Sin mapear';
     }
   }
@@ -623,7 +624,7 @@ export class MappingSetsPageComponent implements OnInit {
   }
 
   private isAllowedNachaSource(kind: string | number | null | undefined): boolean {
-    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol']
+    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol', 'differentialresponse']
       .includes(this.normalizeSourceKind(kind).toLowerCase());
   }
 
@@ -650,6 +651,7 @@ export class MappingSetsPageComponent implements OnInit {
       if (kind === 11) return 'AddendaRecord';
       if (kind === 12) return 'BatchControl';
       if (kind === 13) return 'FileControl';
+      if (kind === 15) return 'DifferentialResponse';
       return String(kind);
     }
 
@@ -663,6 +665,7 @@ export class MappingSetsPageComponent implements OnInit {
     if (lowered === 'addendarecords') return 'AddendaRecord';
     if (lowered === 'batchcontrols') return 'BatchControl';
     if (lowered === 'filecontrols') return 'FileControl';
+    if (lowered === 'differentialresponses') return 'DifferentialResponse';
     return raw;
   }
 

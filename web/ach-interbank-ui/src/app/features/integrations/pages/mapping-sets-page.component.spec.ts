@@ -72,13 +72,26 @@ describe('MappingSetsPageComponent', () => {
     { id: 4, sourceKind: 'AddendaRecord', entityName: 'AddendaRecords', fieldPath: 'AddendaRecords.PaymentRelatedInformation', displayName: 'PaymentRelatedInformation', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 4, isActive: true },
     { id: 5, sourceKind: 'BatchControl', entityName: 'BatchControls', fieldPath: 'BatchControls.EntryHash', displayName: 'EntryHash', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 5, isActive: true },
     { id: 6, sourceKind: 'FileControl', entityName: 'FileControls', fieldPath: 'FileControls.BlockCount', displayName: 'BlockCount', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 6, isActive: true },
-    { id: 7, sourceKind: 'Transaction', entityName: 'AchTransaction', fieldPath: 'AchTransaction.Reference', displayName: 'Reference', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 7, isActive: true }
+    { id: 7, sourceKind: 'Transaction', entityName: 'AchTransaction', fieldPath: 'AchTransaction.Reference', displayName: 'Reference', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 7, isActive: true },
+    { id: 8, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idTransaccion', displayName: 'Id transaccion', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 8, isActive: true },
+    { id: 9, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idCanal', displayName: 'Id canal', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 9, isActive: true },
+    { id: 10, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.nombreCanal', displayName: 'Nombre canal', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 10, isActive: true },
+    { id: 11, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idEstado', displayName: 'Id estado', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 11, isActive: true },
+    { id: 12, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.codigoCausalExterna', displayName: 'Causal externa', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 12, isActive: true },
+    { id: 13, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idTransaccionServicioExterno', displayName: 'Id transaccion servicio externo', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 13, isActive: true },
+    { id: 14, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.descripcionCausalExterna', displayName: 'Descripcion causal externa', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 14, isActive: true }
   ];
 
   const targetFields: IntegrationMethodParameter[] = [
     { id: 9, methodId: 1, parameterPath: 'Proc_Contrapartidas.CuentaOrigen', displayName: 'CuentaOrigen', descriptionEs: 'Cuenta origen debito', category: 'SOAP', exampleValue: '0000003101', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
     { id: 10, methodId: 3, parameterPath: 'Proc_Transacciones.TraceNumber', displayName: 'TraceNumber', descriptionEs: 'Trace destino', category: 'SOAP', exampleValue: '123', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
-    { id: 11, methodId: 2, parameterPath: 'RegistrarRespuestaTransaccion.CodigoRespuesta', displayName: 'CodigoRespuesta', descriptionEs: 'Codigo respuesta', category: 'SOAP', exampleValue: '00', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true }
+    { id: 11, methodId: 2, parameterPath: 'idCanal', displayName: 'Id canal', descriptionEs: 'Identificador del canal', category: 'Respuesta transaccion', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
+    { id: 12, methodId: 2, parameterPath: 'nombreCanal', displayName: 'Nombre canal', descriptionEs: 'Nombre del canal', category: 'Respuesta transaccion', exampleValue: 'ACH', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 2, isActive: true },
+    { id: 13, methodId: 2, parameterPath: 'idTransaccion', displayName: 'Id transaccion', descriptionEs: 'Id transaccion', category: 'Respuesta transaccion', exampleValue: 'TX-1', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 3, isActive: true },
+    { id: 14, methodId: 2, parameterPath: 'idEstado', displayName: 'Id estado', descriptionEs: 'Id estado', category: 'Respuesta transaccion', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 4, isActive: true },
+    { id: 15, methodId: 2, parameterPath: 'causal', displayName: 'Causal', descriptionEs: 'Causal', category: 'Respuesta transaccion', exampleValue: 'R03', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 5, isActive: true },
+    { id: 16, methodId: 2, parameterPath: 'idTransaccionAxon', displayName: 'Id transaccion Axon', descriptionEs: 'Id transaccion Axon', category: 'Respuesta transaccion', exampleValue: '1001', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 6, isActive: true },
+    { id: 17, methodId: 2, parameterPath: 'descripcionCausal', displayName: 'Descripcion causal', descriptionEs: 'Descripcion causal', category: 'Respuesta transaccion', exampleValue: 'Cuenta no localizada', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 7, isActive: true }
   ];
 
   const transformations: IntegrationTransformationCatalog[] = [
@@ -146,6 +159,27 @@ describe('MappingSetsPageComponent', () => {
           enabled: true,
           conditionExpression: null
         }
+      ]
+    },
+    {
+      id: '33333333-3333-3333-3333-333333333333',
+      methodId: 2,
+      methodCode: 'WSAXON.RegistrarRespuestaTransaccion',
+      name: 'RegistrarRespuestaTransaccion WSDL',
+      version: 1,
+      status: 'Published',
+      isActive: true,
+      notes: 'Version WSDL',
+      publishedAtUtc: '2026-06-01T00:00:00Z',
+      publishedBy: 'qa',
+      rules: [
+        { id: 201, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 11, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 9, sourceFieldPath: 'differentialResponse.idCanal', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
+        { id: 202, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 12, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 10, sourceFieldPath: 'differentialResponse.nombreCanal', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
+        { id: 203, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 13, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 8, sourceFieldPath: 'differentialResponse.idTransaccion', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
+        { id: 204, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 14, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 11, sourceFieldPath: 'differentialResponse.idEstado', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
+        { id: 205, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 15, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 12, sourceFieldPath: 'differentialResponse.codigoCausalExterna', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: false, enabled: true, conditionExpression: null },
+        { id: 206, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 16, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 13, sourceFieldPath: 'differentialResponse.idTransaccionServicioExterno', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
+        { id: 207, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 17, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 14, sourceFieldPath: 'differentialResponse.descripcionCausalExterna', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: false, enabled: true, conditionExpression: null }
       ]
     }
   ];
@@ -247,7 +281,26 @@ describe('MappingSetsPageComponent', () => {
     expect(options).toContain('AddendaRecords');
     expect(options).toContain('BatchControls');
     expect(options).toContain('FileControls');
+    expect(options).toContain('Respuesta diferencial');
     expect(options).not.toContain('AchTransaction');
+  });
+
+  it('muestra RegistrarRespuestaTransaccion con los siete parametros WSDL reales', () => {
+    const buttons = fixture.nativeElement.querySelectorAll('[data-testid="soap-service-option"]') as NodeListOf<HTMLButtonElement>;
+    buttons[2].click();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('idCanal');
+    expect(text).toContain('nombreCanal');
+    expect(text).toContain('idTransaccion');
+    expect(text).toContain('idEstado');
+    expect(text).toContain('causal');
+    expect(text).toContain('idTransaccionAxon');
+    expect(text).toContain('descripcionCausal');
+    expect(text).toContain('Respuesta diferencial');
+    expect(text).toContain('Mapeado');
+    expect(text).not.toContain('ANSIDLOTE');
   });
 
   it('mueve ruta tecnica y auditoria fuera de la vista principal', () => {

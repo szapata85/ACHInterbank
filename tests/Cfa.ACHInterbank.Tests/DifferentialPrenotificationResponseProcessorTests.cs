@@ -37,7 +37,7 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.True(result.Success);
         Assert.Equal(AchTransferStateEnum.Certified, prenote.State);
         Assert.Single(prenote.StateEvents);
-        Assert.Contains(trace.Entries, x => x.SourceField == "entryDetails.sequenceNumber" && x.SourceValueSanitized == fixture.TraceNumber);
+        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idTransaccion" && x.SourceValueSanitized == fixture.TraceNumber);
         Assert.False(result.MonetaryMovementCreated);
         Assert.False(result.BalancesAffected);
     }
@@ -82,12 +82,13 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.Equal(IntegrationGuaranteeConstants.DifferentialResponseNotification, trace.MappingPurpose);
         Assert.False(trace.MonetaryMovementCreated);
         Assert.False(trace.ExternalTransmission);
-        Assert.Contains(trace.Entries, x => x.TargetField == "ANSIDTX" && x.SourceField == "entryDetails.sequenceNumber");
-        Assert.Contains(trace.Entries, x => x.TargetField == "ANSIDLOTE" && x.SourceField == "batchHeaders.batchNumber");
+        Assert.Contains(trace.Entries, x => x.TargetField == "idTransaccion" && x.SourceField == "differentialResponse.idTransaccion");
+        Assert.Contains(trace.Entries, x => x.TargetField == "idCanal" && x.SourceField == "differentialResponse.idCanal");
+        Assert.DoesNotContain(trace.Entries, x => x.TargetField.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public async Task RegistrarRespuestaTransaccion_ShouldUseNachaDesagregadoFields_ToMatchPrenotification()
+    public async Task RegistrarRespuestaTransaccion_ShouldUseDifferentialResponseFields_ForWsdlTrace()
     {
         await using var fixture = await Fixture.CreateAsync();
         await fixture.PublishRegistrarRespuestaMappingAsync();
@@ -99,9 +100,9 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
 
         var trace = await fixture.Context.IntegrationMappingTraces.Include(x => x.Entries).SingleAsync();
 
-        Assert.Contains(trace.Entries, x => x.SourceField == "batchHeaders.batchNumber" && x.SourceValueSanitized == "1");
-        Assert.Contains(trace.Entries, x => x.SourceField == "addendaRecords.originalTraceNumber" && x.SourceValueSanitized == fixture.TraceNumber);
-        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.codigoEstadoExterno" && x.SourceValueSanitized == "00");
+        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idTransaccion" && x.SourceValueSanitized == fixture.TraceNumber);
+        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idTransaccionServicioExterno" && x.SourceValueSanitized == "1001");
+        Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idEstado" && x.SourceValueSanitized == "1");
     }
 
     [Fact]
@@ -397,11 +398,13 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         private static string SourceFor(string parameterPath)
             => parameterPath switch
             {
-                "ANSIDLOTE" => "batchHeaders.batchNumber",
-                "ANSST" => "differentialResponse.codigoEstadoExterno",
-                "ANCLC" => "differentialResponse.codigoCausalExterna",
-                "ANSIDTX" => "entryDetails.sequenceNumber",
-                "ANSIDREVER" => "addendaRecords.originalTraceNumber",
+                "idCanal" => "differentialResponse.idCanal",
+                "nombreCanal" => "differentialResponse.nombreCanal",
+                "idTransaccion" => "differentialResponse.idTransaccion",
+                "idEstado" => "differentialResponse.idEstado",
+                "causal" => "differentialResponse.codigoCausalExterna",
+                "idTransaccionAxon" => "differentialResponse.idTransaccionServicioExterno",
+                "descripcionCausal" => "differentialResponse.descripcionCausalExterna",
                 _ => "differentialResponse.idTransaccion"
             };
 

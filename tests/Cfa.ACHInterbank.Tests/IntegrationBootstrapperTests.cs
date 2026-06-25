@@ -28,10 +28,10 @@ public sealed class IntegrationBootstrapperTests
         Assert.Equal(3, firstCounts.Methods);
         Assert.Equal(27, firstCounts.TransaccionesParameters);
         Assert.Equal(22, firstCounts.ContrapartidasParameters);
-        Assert.Equal(5, firstCounts.RespuestaParameters);
-        Assert.Equal(54, firstCounts.TransaccionesSourceFields);
-        Assert.Equal(54, firstCounts.ContrapartidasSourceFields);
-        Assert.Equal(54, firstCounts.RespuestaSourceFields);
+        Assert.Equal(7, firstCounts.RespuestaParameters);
+        Assert.Equal(59, firstCounts.TransaccionesSourceFields);
+        Assert.Equal(59, firstCounts.ContrapartidasSourceFields);
+        Assert.Equal(59, firstCounts.RespuestaSourceFields);
         AssertCountsEqual(firstCounts, secondCounts);
     }
 
@@ -48,11 +48,11 @@ public sealed class IntegrationBootstrapperTests
         var secondCounts = await ReadCountsAsync(fixture.Context);
 
         Assert.Equal(3, firstCounts.PublishedSets);
-        Assert.Equal(49, firstCounts.MappingRules);
+        Assert.Equal(51, firstCounts.MappingRules);
         Assert.Equal(2, firstCounts.ResponseStatusMappings);
         Assert.Equal(27, firstCounts.TransaccionesPublishedRules);
         Assert.Equal(17, firstCounts.ContrapartidasPublishedRules);
-        Assert.Equal(5, firstCounts.RespuestaPublishedRules);
+        Assert.Equal(7, firstCounts.RespuestaPublishedRules);
         Assert.Equal(0, firstCounts.ContrapartidasOptionalPublishedRules);
         AssertCountsEqual(firstCounts, secondCounts);
     }
@@ -122,6 +122,109 @@ public sealed class IntegrationBootstrapperTests
         Assert.Equal(5, parameters.Count(x => !x.Required));
         Assert.Equal(17, rules.Count);
         Assert.Equal(5, parameters.Count(x => !x.Required && !rules.Any(r => r.ParameterId == x.Id)));
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_Catalog_ShouldUseRealWsdlParameters_AndExcludeLegacyAns()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSAXON.RegistrarRespuestaTransaccion");
+        var parameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .Select(x => new { x.ParameterPath, x.Required })
+            .ToListAsync();
+
+        Assert.Equal(
+            ["idCanal", "nombreCanal", "idTransaccion", "idEstado", "causal", "idTransaccionAxon", "descripcionCausal"],
+            parameters.Select(x => x.ParameterPath).ToArray());
+        Assert.Equal(["idCanal", "nombreCanal", "idTransaccion", "idEstado", "idTransaccionAxon"], parameters.Where(x => x.Required).Select(x => x.ParameterPath).ToArray());
+        Assert.DoesNotContain(parameters, x => x.ParameterPath.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
+        Assert.False(await fixture.Context.IntegrationMethods.AnyAsync(x => x.Code.Contains("PLValidarUsuarioBV")));
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldArchiveSeedLegacyMapping_WithoutDeletingHistory()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var method = new IntegrationMethod
+        {
+            Code = "WSAXON.RegistrarRespuestaTransaccion",
+            DisplayName = "RegistrarRespuestaTransaccion",
+            SoapClientCode = "WsAxonRespuestaTransaccionesSoapClient",
+            IsActive = true
+        };
+        fixture.Context.IntegrationMethods.Add(method);
+        await fixture.Context.SaveChangesAsync();
+
+        var legacyParameter = new IntegrationMethodParameter
+        {
+            MethodId = method.Id,
+            ParameterPath = "ANSIDTX",
+            DisplayName = "Id transaccion legacy",
+            DescriptionEs = "Legacy",
+            Category = "Legacy",
+            DataType = "string",
+            Direction = IntegrationParameterDirectionEnum.Input,
+            Cardinality = IntegrationParameterCardinalityEnum.Scalar,
+            Required = true,
+            SortOrder = 1,
+            IsActive = true
+        };
+        var legacySet = new IntegrationMappingSet
+        {
+            MethodId = method.Id,
+            Name = "RegistrarRespuestaTransaccion Published respuesta diferencial",
+            Version = 1,
+            Status = IntegrationMappingSetStatusEnum.Published,
+            IsActive = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            PublishedBy = "seed"
+        };
+        fixture.Context.IntegrationMethodParameters.Add(legacyParameter);
+        fixture.Context.IntegrationMappingSets.Add(legacySet);
+        await fixture.Context.SaveChangesAsync();
+
+        fixture.Context.IntegrationMappingRules.Add(new IntegrationMappingRule
+        {
+            MappingSetId = legacySet.Id,
+            MethodId = method.Id,
+            ParameterId = legacyParameter.Id,
+            SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
+            SourceFieldPath = "differentialResponse.idTransaccion",
+            Priority = 1,
+            Enabled = true
+        });
+        fixture.Context.IntegrationMappingSetHistory.Add(new IntegrationMappingSetHistory
+        {
+            MappingSetId = legacySet.Id,
+            MethodId = method.Id,
+            Version = legacySet.Version,
+            Status = legacySet.Status,
+            Action = "SeedPublishedReference",
+            PerformedBy = "seed",
+            SnapshotJson = "{}",
+            SnapshotHash = "legacy"
+        });
+        await fixture.Context.SaveChangesAsync();
+
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var sets = await fixture.Context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id)
+            .OrderBy(x => x.Version)
+            .ToListAsync();
+        var activeParameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .Select(x => x.ParameterPath)
+            .ToListAsync();
+
+        Assert.Contains(sets, x => x.Id == legacySet.Id && x.Status == IntegrationMappingSetStatusEnum.Archived && !x.IsActive);
+        Assert.Contains(sets, x => x.Id != legacySet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        Assert.DoesNotContain(activeParameters, x => x.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == legacySet.Id && x.Action == "ArchivedByWsdlContractRealignment");
     }
 
     private sealed record SeedCounts(

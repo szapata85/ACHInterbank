@@ -269,19 +269,25 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
     {
         var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["ANSIDLOTE"] = match.BatchHeader?.BatchNumber.ToString(CultureInfo.InvariantCulture) ?? "0",
-            ["ANSST"] = command.CodigoEstadoExterno,
-            ["ANCLC"] = command.CodigoCausalExterna ?? string.Empty,
-            ["ANSIDTX"] = command.IdTransaccion,
-            ["ANSIDREVER"] = match.AddendaRecord?.OriginalTraceNumber ?? "0"
+            ["idCanal"] = command.IdCanal.ToString(CultureInfo.InvariantCulture),
+            ["nombreCanal"] = command.NombreCanal,
+            ["idTransaccion"] = command.IdTransaccion,
+            ["idEstado"] = (homologation.IdEstadoServicioExterno ?? 0).ToString(CultureInfo.InvariantCulture),
+            ["causal"] = command.CodigoCausalExterna ?? string.Empty,
+            ["idTransaccionAxon"] = command.IdTransaccionServicioExterno.ToString(CultureInfo.InvariantCulture),
+            ["descripcionCausal"] = command.DescripcionCausalExterna ?? homologation.DescripcionCausalNormalizada ?? string.Empty
         };
 
         var sourceValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["differentialResponse.idTransaccion"] = command.IdTransaccion,
+            ["differentialResponse.idCanal"] = command.IdCanal.ToString(CultureInfo.InvariantCulture),
+            ["differentialResponse.nombreCanal"] = command.NombreCanal,
+            ["differentialResponse.idEstado"] = (homologation.IdEstadoServicioExterno ?? 0).ToString(CultureInfo.InvariantCulture),
             ["differentialResponse.codigoEstadoExterno"] = command.CodigoEstadoExterno,
             ["differentialResponse.codigoCausalExterna"] = command.CodigoCausalExterna ?? string.Empty,
             ["differentialResponse.idTransaccionServicioExterno"] = command.IdTransaccionServicioExterno.ToString(CultureInfo.InvariantCulture),
+            ["differentialResponse.descripcionCausalExterna"] = command.DescripcionCausalExterna ?? homologation.DescripcionCausalNormalizada ?? string.Empty,
             ["differentialResponse.estadoInternoNombre"] = homologation.EstadoInternoNombre ?? string.Empty,
             ["prenotification.reference"] = prenotification?.Reference ?? string.Empty,
             ["prenotification.state"] = prenotification?.State.ToString() ?? string.Empty,
