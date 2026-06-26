@@ -142,13 +142,9 @@ export class MappingSetsPageComponent implements OnInit {
       return null;
     }
 
-    const draft = this.canManage
-      ? this.mappingSets.find((set) => this.normalizeStatus(set.status) === 'Draft')
-      : null;
-
-    return draft
-      ?? this.mappingSets.find((set) => this.normalizeStatus(set.status) === 'Published' && set.isActive)
+    return this.mappingSets.find((set) => this.normalizeStatus(set.status) === 'Published' && set.isActive)
       ?? this.mappingSets.find((set) => this.normalizeStatus(set.status) === 'Published')
+      ?? this.mappingSets.find((set) => this.normalizeStatus(set.status) === 'Draft')
       ?? this.mappingSets[0];
   }
 

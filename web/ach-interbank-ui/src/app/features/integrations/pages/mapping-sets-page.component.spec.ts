@@ -478,6 +478,50 @@ describe('MappingSetsPageComponent', () => {
     expect(text).not.toContain('Sin mapear');
   });
 
+  it('prioriza el MappingSet publicado activo sobre borradores existentes', () => {
+    selectService(1);
+
+    component.mappingSets = [
+      {
+        ...mappingSets[0],
+        id: '44444444-4444-4444-4444-444444444444',
+        name: 'Contrapartidas Draft vacio',
+        status: 'Draft',
+        version: 0,
+        publishedAtUtc: null,
+        publishedBy: '',
+        rules: []
+      },
+      mappingSets[0]
+    ];
+    fixture.detectChanges();
+
+    expect(component.activeMappingSet?.id).toBe('11111111-1111-1111-1111-111111111111');
+    expect(component.matrixStats.mapped).toBeGreaterThan(0);
+    expect((fixture.nativeElement.textContent as string)).toContain('Publicado activo');
+    expect((fixture.nativeElement.textContent as string)).not.toContain('Borrador de trabajo');
+  });
+
+  it('usa un borrador solo cuando no existe MappingSet publicado', () => {
+    selectService(1);
+
+    component.mappingSets = [
+      {
+        ...mappingSets[0],
+        id: '44444444-4444-4444-4444-444444444444',
+        name: 'Contrapartidas Draft unico',
+        status: 'Draft',
+        version: 0,
+        publishedAtUtc: null,
+        publishedBy: '',
+        rules: []
+      }
+    ];
+
+    expect(component.activeMappingSet?.id).toBe('44444444-4444-4444-4444-444444444444');
+    expect(component.getMappingSetStatusLabel(component.activeMappingSet)).toBe('Borrador de trabajo');
+  });
+
   it('conserva el boton Ver auditoria y carga el historial del mapping activo', () => {
     const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
     const historyButton = buttons.find((button) => button.textContent?.includes('Ver auditoria'));
