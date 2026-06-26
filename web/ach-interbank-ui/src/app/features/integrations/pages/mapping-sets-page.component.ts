@@ -17,7 +17,7 @@ import {
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 
-type MatrixStatus = 'Mapeado' | 'Sin mapear' | 'Inactivo';
+type MatrixStatus = 'Mapeado' | 'Mapeado tecnico' | 'Opcional/reservado' | 'Sin mapear' | 'Inactivo';
 type MappingModalMode = 'detail' | 'edit' | 'draft' | 'history' | null;
 
 interface ServiceDescriptor {
@@ -40,6 +40,14 @@ interface MappingMatrixRow {
   rule: IntegrationMappingRule | null;
   sourceField: IntegrationSourceCatalogField | null;
   technicalNote: string;
+}
+
+interface SourceVisual {
+  tableOrigin: string;
+  fieldOrigin: string;
+  sourceField: IntegrationSourceCatalogField | null;
+  hasValidSource: boolean;
+  isTechnicalSource: boolean;
 }
 
 @Component({
@@ -169,7 +177,7 @@ export class MappingSetsPageComponent implements OnInit {
   get matrixStats() {
     const rows = this.matrixRows;
     return {
-      mapped: rows.filter((row) => row.status === 'Mapeado').length,
+      mapped: rows.filter((row) => row.status === 'Mapeado' || row.status === 'Mapeado tecnico').length,
       unmapped: rows.filter((row) => row.status === 'Sin mapear').length,
       inactive: rows.filter((row) => row.status === 'Inactivo').length
     };
@@ -352,6 +360,8 @@ export class MappingSetsPageComponent implements OnInit {
 
   getStatusClass(status: MatrixStatus): string {
     if (status === 'Mapeado') return 'mapped';
+    if (status === 'Mapeado tecnico') return 'technical';
+    if (status === 'Opcional/reservado') return 'reserved';
     if (status === 'Inactivo') return 'inactive';
     return 'unmapped';
   }
@@ -377,6 +387,14 @@ export class MappingSetsPageComponent implements OnInit {
       case 'batchcontrol': return 'BatchControls';
       case 'filecontrol': return 'FileControls';
       case 'differentialresponse': return 'Respuesta diferencial';
+      case 'transaction': return 'Transaccion';
+      case 'cycle': return 'Ciclo';
+      case 'clearinghouse': return 'Camara';
+      case 'constant': return 'Constante';
+      case 'batch': return 'Lote';
+      case 'addenda': return 'Addenda';
+      case 'financialinstitution': return 'Entidad financiera';
+      case 'prenotification': return 'Prenotificacion';
       default: return 'Sin mapear';
     }
   }
@@ -483,29 +501,157 @@ export class MappingSetsPageComponent implements OnInit {
     mappingSet: IntegrationMappingSet | null,
     rule: IntegrationMappingRule | null
   ): MappingMatrixRow {
-    const sourceField = this.resolveSourceField(rule);
-    const hasAllowedSource = !!sourceField && this.isAllowedNachaSource(sourceField.sourceKind);
     const isInactive = !!mappingSet && (!mappingSet.isActive || this.normalizeStatus(mappingSet.status) === 'Archived' || rule?.enabled === false);
-    const status: MatrixStatus = isInactive ? 'Inactivo' : hasAllowedSource ? 'Mapeado' : 'Sin mapear';
+    const isOptionalReserved = !rule && this.isOptionalReservedParameter(parameter);
+    const sourceVisual = this.resolveSourceVisual(rule);
+    const status: MatrixStatus = isInactive
+      ? 'Inactivo'
+      : sourceVisual.hasValidSource
+        ? sourceVisual.isTechnicalSource ? 'Mapeado tecnico' : 'Mapeado'
+        : isOptionalReserved ? 'Opcional/reservado' : 'Sin mapear';
 
     return {
       serviceName: this.selectedMethod?.operationKey ?? parameter.parameterPath.split('.')[0] ?? 'Servicio SOAP',
       parameterId: parameter.id,
       parameterSoap: parameter.parameterPath || parameter.displayName,
       parameterDescription: parameter.descriptionEs || parameter.displayName || parameter.uiHelpText || parameter.parameterPath,
-      tableOrigin: hasAllowedSource ? this.getSourceKindLabel(sourceField.sourceKind) : 'Sin mapear',
-      fieldOrigin: hasAllowedSource ? sourceField.displayName : 'Sin mapear',
-      conversionRule: this.getTransformationLabel(rule?.transformationCode),
+      tableOrigin: isOptionalReserved ? 'Reservado por contrato' : sourceVisual.tableOrigin,
+      fieldOrigin: isOptionalReserved ? 'Opcional sin fuente requerida' : sourceVisual.fieldOrigin,
+      conversionRule: this.getConversionRuleLabel(rule, isOptionalReserved),
       required: rule?.requiredOverride ?? parameter.required,
       status,
       lastUpdated: this.getLastUpdatedLabel(mappingSet),
       mappingSet,
       rule,
-      sourceField: hasAllowedSource ? sourceField : null,
-      technicalNote: rule && !hasAllowedSource
-        ? 'La regla existe, pero no usa una de las tablas origen permitidas para la matriz funcional.'
-        : 'Relacion construida desde catalogo controlado.'
+      sourceField: sourceVisual.sourceField,
+      technicalNote: this.getTechnicalNote(rule, sourceVisual, isOptionalReserved)
     };
+  }
+
+  private resolveSourceVisual(rule: IntegrationMappingRule | null): SourceVisual {
+    if (!rule || rule.enabled === false) {
+      return this.unmappedSourceVisual();
+    }
+
+    const normalizedKind = this.normalizeSourceKind(rule.sourceKind).toLowerCase();
+    const sourceField = this.resolveSourceField(rule);
+    const isFunctionalSource = this.isFunctionalSourceKind(normalizedKind);
+    const isTechnicalSource = this.isTechnicalSourceKind(normalizedKind);
+    const isConstant = normalizedKind === 'constant';
+    const hasConstantValue = isConstant && (!!rule.fixedValue || !!rule.defaultValue);
+    const hasSourcePath = !!(rule.sourceFieldPath ?? '').trim();
+    const hasValidSource = isConstant ? hasConstantValue : (isFunctionalSource || isTechnicalSource) && (!!sourceField || hasSourcePath);
+
+    if (!hasValidSource) {
+      return this.unmappedSourceVisual(sourceField);
+    }
+
+    return {
+      tableOrigin: this.getSourceKindLabel(rule.sourceKind),
+      fieldOrigin: this.getSourceDisplayName(rule, sourceField),
+      sourceField,
+      hasValidSource: true,
+      isTechnicalSource: isTechnicalSource || isConstant
+    };
+  }
+
+  private unmappedSourceVisual(sourceField: IntegrationSourceCatalogField | null = null): SourceVisual {
+    return {
+      tableOrigin: 'Sin mapear',
+      fieldOrigin: 'Sin mapear',
+      sourceField,
+      hasValidSource: false,
+      isTechnicalSource: false
+    };
+  }
+
+  private getSourceDisplayName(rule: IntegrationMappingRule, sourceField: IntegrationSourceCatalogField | null): string {
+    const normalizedKind = this.normalizeSourceKind(rule.sourceKind).toLowerCase();
+    if (normalizedKind === 'constant') {
+      return rule.fixedValue ? 'Valor fijo' : 'Valor por defecto';
+    }
+
+    const sourcePath = (rule.sourceFieldPath || sourceField?.fieldPath || '').trim();
+    const known = this.getKnownSourceFieldLabel(sourcePath);
+    if (known) {
+      return known;
+    }
+
+    return sourceField?.displayName || sourcePath || 'Fuente tecnica';
+  }
+
+  private getKnownSourceFieldLabel(sourcePath: string): string | null {
+    const normalized = sourcePath.trim().toLowerCase();
+    const labels: Record<string, string> = {
+      'achtransaction.reference': 'Referencia',
+      'transaction.reference': 'Referencia',
+      'transaction.transactionexternalid': 'Id operacion cliente',
+      'transaction.amount': 'Monto',
+      'transaction.tracenumber': 'Trazabilidad',
+      'transaction.companyidentification': 'NIT/Id empresa origen',
+      'transaction.originatingdfi': 'Entidad originadora',
+      'transaction.sourceaccountnumber': 'Cuenta origen',
+      'transaction.id': 'Id transaccion',
+      'batch.id': 'Id lote',
+      'cycle.id': 'Id ciclo',
+      'cycle.processingdate': 'Fecha de proceso',
+      'execution.datetimeutc': 'Fecha/hora ejecucion UTC',
+      'execution.dateyyyymmdd': 'Fecha ejecucion yyyymmdd',
+      'clearinghouse.id': 'Identificador',
+      'clearinghouse.code': 'Codigo',
+      'differentialresponse.idcanal': 'Id canal',
+      'differentialresponse.nombrecanal': 'Nombre canal',
+      'differentialresponse.idtransaccion': 'Id transaccion',
+      'differentialresponse.idestado': 'Id estado',
+      'differentialresponse.codigocausalexterna': 'Causal externa',
+      'differentialresponse.idtransaccionservicioexterno': 'Id transaccion servicio externo',
+      'differentialresponse.descripcioncausalexterna': 'Descripcion causal externa',
+      'prenotification.reference': 'Referencia prenotificacion',
+      'prenotification.state': 'Estado prenotificacion',
+      'addenda.addendatype': 'Tipo addenda'
+    };
+
+    return labels[normalized] ?? null;
+  }
+
+  private getConversionRuleLabel(rule: IntegrationMappingRule | null, isOptionalReserved: boolean): string {
+    if (isOptionalReserved) {
+      return 'Reservado/opcional';
+    }
+
+    if (!rule) {
+      return 'Pendiente de definicion';
+    }
+
+    if (rule.fixedValue) {
+      return 'Constante';
+    }
+
+    if (rule.defaultValue) {
+      return 'Valor por defecto';
+    }
+
+    if (rule.transformationCode) {
+      return this.getTransformationLabel(rule.transformationCode);
+    }
+
+    return 'Sin conversion';
+  }
+
+  private getTechnicalNote(rule: IntegrationMappingRule | null, sourceVisual: SourceVisual, isOptionalReserved: boolean): string {
+    if (isOptionalReserved) {
+      return 'Parametro contractual opcional/reservado para Proc_Contrapartidas.';
+    }
+
+    if (rule && sourceVisual.hasValidSource && sourceVisual.isTechnicalSource) {
+      return 'Relacion activa con fuente tecnica soportada por backend.';
+    }
+
+    if (rule && !sourceVisual.hasValidSource) {
+      return 'La regla existe, pero no tiene fuente activa valida para mostrarla como mapeada.';
+    }
+
+    return 'Relacion construida desde catalogo controlado.';
   }
 
   private resolveSourceField(rule: IntegrationMappingRule | null): IntegrationSourceCatalogField | null {
@@ -628,6 +774,25 @@ export class MappingSetsPageComponent implements OnInit {
       .includes(this.normalizeSourceKind(kind).toLowerCase());
   }
 
+  private isFunctionalSourceKind(kind: string): boolean {
+    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol', 'differentialresponse']
+      .includes(kind);
+  }
+
+  private isTechnicalSourceKind(kind: string): boolean {
+    return ['transaction', 'cycle', 'clearinghouse', 'batch', 'constant', 'addenda', 'financialinstitution', 'prenotification']
+      .includes(kind);
+  }
+
+  private isOptionalReservedParameter(parameter: IntegrationMethodParameter): boolean {
+    const operationKey = this.selectedMethod?.operationKey ?? '';
+    const parameterName = (parameter.parameterPath || parameter.displayName || '').split('.').pop() ?? '';
+    const contrapartidasReservedResponseFields = ['ANSIDLOTE', 'ANSST', 'ANCLC', 'ANSIDTX', 'ANSIDREVER'];
+    return operationKey === 'Proc_Contrapartidas'
+      && !parameter.required
+      && contrapartidasReservedResponseFields.includes(parameterName.toUpperCase());
+  }
+
   private getServiceOrder(operationKey: string): number {
     const index = this.serviceOrder.indexOf(operationKey);
     return index === -1 ? Number.MAX_SAFE_INTEGER : index;
@@ -645,12 +810,20 @@ export class MappingSetsPageComponent implements OnInit {
   private normalizeSourceKind(kind: string | number | null | undefined): string {
     if (kind === null || kind === undefined) return '';
     if (typeof kind === 'number') {
+      if (kind === 1) return 'Transaction';
+      if (kind === 2) return 'Addenda';
+      if (kind === 3) return 'Batch';
+      if (kind === 4) return 'Cycle';
+      if (kind === 5) return 'ClearingHouse';
+      if (kind === 6) return 'Constant';
+      if (kind === 7) return 'Expression';
       if (kind === 8) return 'NachaHeader';
       if (kind === 9) return 'BatchHeader';
       if (kind === 10) return 'EntryDetail';
       if (kind === 11) return 'AddendaRecord';
       if (kind === 12) return 'BatchControl';
       if (kind === 13) return 'FileControl';
+      if (kind === 14) return 'Prenotification';
       if (kind === 15) return 'DifferentialResponse';
       return String(kind);
     }
@@ -666,6 +839,14 @@ export class MappingSetsPageComponent implements OnInit {
     if (lowered === 'batchcontrols') return 'BatchControl';
     if (lowered === 'filecontrols') return 'FileControl';
     if (lowered === 'differentialresponses') return 'DifferentialResponse';
+    if (lowered === 'transactions' || lowered === 'achtransaction') return 'Transaction';
+    if (lowered === 'cycles' || lowered === 'achcycle') return 'Cycle';
+    if (lowered === 'clearinghouses') return 'ClearingHouse';
+    if (lowered === 'constants') return 'Constant';
+    if (lowered === 'batches' || lowered === 'achbatch') return 'Batch';
+    if (lowered === 'addendas') return 'Addenda';
+    if (lowered === 'financialinstitutions') return 'FinancialInstitution';
+    if (lowered === 'prenotifications') return 'Prenotification';
     return raw;
   }
 

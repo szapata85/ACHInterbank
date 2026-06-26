@@ -79,11 +79,22 @@ describe('MappingSetsPageComponent', () => {
     { id: 11, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idEstado', displayName: 'Id estado', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 11, isActive: true },
     { id: 12, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.codigoCausalExterna', displayName: 'Causal externa', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 12, isActive: true },
     { id: 13, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idTransaccionServicioExterno', displayName: 'Id transaccion servicio externo', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 13, isActive: true },
-    { id: 14, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.descripcionCausalExterna', displayName: 'Descripcion causal externa', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 14, isActive: true }
+    { id: 14, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.descripcionCausalExterna', displayName: 'Descripcion causal externa', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 14, isActive: true },
+    { id: 15, sourceKind: 'Cycle', entityName: 'AchCycle', fieldPath: 'cycle.processingDate', displayName: 'Fecha proceso ciclo', dataType: 'datetime', cardinality: 'Scalar', nullable: false, sortOrder: 15, isActive: true },
+    { id: 16, sourceKind: 'ClearingHouse', entityName: 'ClearingHouse', fieldPath: 'clearinghouse.id', displayName: 'Id camara', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 16, isActive: true },
+    { id: 17, sourceKind: 'Constant', entityName: 'Constant', fieldPath: 'constant.value', displayName: 'Valor fijo', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 17, isActive: true },
+    { id: 18, sourceKind: 'Batch', entityName: 'AchBatch', fieldPath: 'batch.id', displayName: 'Id lote', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 18, isActive: true }
   ];
 
   const targetFields: IntegrationMethodParameter[] = [
     { id: 9, methodId: 1, parameterPath: 'Proc_Contrapartidas.CuentaOrigen', displayName: 'CuentaOrigen', descriptionEs: 'Cuenta origen debito', category: 'SOAP', exampleValue: '0000003101', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
+    { id: 18, methodId: 1, parameterPath: 'OFIDTX', displayName: 'OFIDTX', descriptionEs: 'Id transaccion origen', category: 'SOAP', exampleValue: 'REF-1', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 2, isActive: true },
+    { id: 19, methodId: 1, parameterPath: 'OFFECHEFEC', displayName: 'OFFECHEFEC', descriptionEs: 'Fecha efectiva', category: 'SOAP', exampleValue: '20260625', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 3, isActive: true },
+    { id: 20, methodId: 1, parameterPath: 'OFIDCAMCOMPE', displayName: 'OFIDCAMCOMPE', descriptionEs: 'Camara compensacion', category: 'SOAP', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 4, isActive: true },
+    { id: 21, methodId: 1, parameterPath: 'OFDD', displayName: 'OFDD', descriptionEs: 'Naturaleza debito/credito', category: 'SOAP', exampleValue: 'C', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 5, isActive: true },
+    { id: 22, methodId: 1, parameterPath: 'OFIDLOT', displayName: 'OFIDLOT', descriptionEs: 'Id lote', category: 'SOAP', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 6, isActive: true },
+    { id: 23, methodId: 1, parameterPath: 'ANSIDLOTE', displayName: 'ANSIDLOTE', descriptionEs: 'Id lote respuesta reservado', category: 'SOAP', exampleValue: '0', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 7, isActive: true },
+    { id: 24, methodId: 1, parameterPath: 'ANCLC', displayName: 'ANCLC', descriptionEs: 'Codigo local reservado', category: 'SOAP', exampleValue: '', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 8, isActive: true },
     { id: 10, methodId: 3, parameterPath: 'Proc_Transacciones.TraceNumber', displayName: 'TraceNumber', descriptionEs: 'Trace destino', category: 'SOAP', exampleValue: '123', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
     { id: 11, methodId: 2, parameterPath: 'idCanal', displayName: 'Id canal', descriptionEs: 'Identificador del canal', category: 'Respuesta transaccion', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
     { id: 12, methodId: 2, parameterPath: 'nombreCanal', displayName: 'Nombre canal', descriptionEs: 'Nombre del canal', category: 'Respuesta transaccion', exampleValue: 'ACH', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 2, isActive: true },
@@ -122,6 +133,91 @@ describe('MappingSetsPageComponent', () => {
           fixedValue: null,
           defaultValue: null,
           transformationCode: 'Trim',
+          formatMask: null,
+          priority: 1,
+          requiredOverride: true,
+          enabled: true,
+          conditionExpression: null
+        },
+        {
+          id: 102,
+          mappingSetId: '11111111-1111-1111-1111-111111111111',
+          methodId: 1,
+          parameterId: 18,
+          sourceKind: 'Transaction',
+          sourceCatalogFieldId: 7,
+          sourceFieldPath: 'AchTransaction.Reference',
+          fixedValue: null,
+          defaultValue: null,
+          transformationCode: null,
+          formatMask: null,
+          priority: 1,
+          requiredOverride: true,
+          enabled: true,
+          conditionExpression: null
+        },
+        {
+          id: 103,
+          mappingSetId: '11111111-1111-1111-1111-111111111111',
+          methodId: 1,
+          parameterId: 19,
+          sourceKind: 'Cycle',
+          sourceCatalogFieldId: 15,
+          sourceFieldPath: 'cycle.processingDate',
+          fixedValue: null,
+          defaultValue: null,
+          transformationCode: null,
+          formatMask: null,
+          priority: 1,
+          requiredOverride: true,
+          enabled: true,
+          conditionExpression: null
+        },
+        {
+          id: 104,
+          mappingSetId: '11111111-1111-1111-1111-111111111111',
+          methodId: 1,
+          parameterId: 20,
+          sourceKind: 'ClearingHouse',
+          sourceCatalogFieldId: 16,
+          sourceFieldPath: 'clearinghouse.id',
+          fixedValue: null,
+          defaultValue: null,
+          transformationCode: null,
+          formatMask: null,
+          priority: 1,
+          requiredOverride: true,
+          enabled: true,
+          conditionExpression: null
+        },
+        {
+          id: 105,
+          mappingSetId: '11111111-1111-1111-1111-111111111111',
+          methodId: 1,
+          parameterId: 21,
+          sourceKind: 'Constant',
+          sourceCatalogFieldId: 17,
+          sourceFieldPath: 'constant.value',
+          fixedValue: 'C',
+          defaultValue: null,
+          transformationCode: null,
+          formatMask: null,
+          priority: 1,
+          requiredOverride: true,
+          enabled: true,
+          conditionExpression: null
+        },
+        {
+          id: 106,
+          mappingSetId: '11111111-1111-1111-1111-111111111111',
+          methodId: 1,
+          parameterId: 22,
+          sourceKind: 'Batch',
+          sourceCatalogFieldId: 18,
+          sourceFieldPath: 'batch.id',
+          fixedValue: null,
+          defaultValue: null,
+          transformationCode: null,
           formatMask: null,
           priority: 1,
           requiredOverride: true,
@@ -225,6 +321,18 @@ describe('MappingSetsPageComponent', () => {
     fixture.detectChanges();
   });
 
+  const selectService = (index: number) => {
+    const buttons = fixture.nativeElement.querySelectorAll('[data-testid="soap-service-option"]') as NodeListOf<HTMLButtonElement>;
+    buttons[index].click();
+    fixture.detectChanges();
+  };
+
+  const rowText = (parameter: string): string => {
+    const rows = Array.from(fixture.nativeElement.querySelectorAll('[data-testid="mapping-matrix-row"]')) as HTMLElement[];
+    const row = rows.find((item) => item.textContent?.includes(parameter));
+    return row?.textContent ?? '';
+  };
+
   it('renderiza la pantalla como Matriz de campos SOAP', () => {
     const text = fixture.nativeElement.textContent as string;
 
@@ -286,11 +394,12 @@ describe('MappingSetsPageComponent', () => {
   });
 
   it('muestra RegistrarRespuestaTransaccion con los siete parametros WSDL reales', () => {
-    const buttons = fixture.nativeElement.querySelectorAll('[data-testid="soap-service-option"]') as NodeListOf<HTMLButtonElement>;
-    buttons[2].click();
-    fixture.detectChanges();
+    selectService(2);
 
     const text = fixture.nativeElement.textContent as string;
+    const rows = fixture.nativeElement.querySelectorAll('[data-testid="mapping-matrix-row"]') as NodeListOf<HTMLElement>;
+
+    expect(rows.length).toBe(7);
     expect(text).toContain('idCanal');
     expect(text).toContain('nombreCanal');
     expect(text).toContain('idTransaccion');
@@ -300,7 +409,85 @@ describe('MappingSetsPageComponent', () => {
     expect(text).toContain('descripcionCausal');
     expect(text).toContain('Respuesta diferencial');
     expect(text).toContain('Mapeado');
+    rows.forEach((row) => expect(row.textContent).not.toContain('Sin mapear'));
     expect(text).not.toContain('ANSIDLOTE');
+  });
+
+  it('clasifica Transaction como fuente tecnica mapeada y no como Sin mapear', () => {
+    selectService(1);
+
+    const text = rowText('OFIDTX');
+
+    expect(text).toContain('Transaccion');
+    expect(text).toContain('Referencia');
+    expect(text).toContain('Mapeado tecnico');
+    expect(text).not.toContain('Sin mapear');
+  });
+
+  it('clasifica Cycle como fuente tecnica mapeada', () => {
+    selectService(1);
+
+    const text = rowText('OFFECHEFEC');
+
+    expect(text).toContain('Ciclo');
+    expect(text).toContain('Fecha de proceso');
+    expect(text).toContain('Mapeado tecnico');
+    expect(text).not.toContain('Sin mapear');
+  });
+
+  it('clasifica ClearingHouse como fuente tecnica mapeada', () => {
+    selectService(1);
+
+    const text = rowText('OFIDCAMCOMPE');
+
+    expect(text).toContain('Camara');
+    expect(text).toContain('Identificador');
+    expect(text).toContain('Mapeado tecnico');
+    expect(text).not.toContain('Sin mapear');
+  });
+
+  it('clasifica Constant como constante tecnica mapeada', () => {
+    selectService(1);
+
+    const text = rowText('OFDD');
+
+    expect(text).toContain('Constante');
+    expect(text).toContain('Valor fijo');
+    expect(text).toContain('Mapeado tecnico');
+    expect(text).not.toContain('Sin mapear');
+  });
+
+  it('clasifica DifferentialResponse como fuente valida para RegistrarRespuestaTransaccion', () => {
+    selectService(2);
+
+    const text = rowText('idEstado');
+
+    expect(text).toContain('Respuesta diferencial');
+    expect(text).toContain('Id estado');
+    expect(text).toContain('Mapeado');
+    expect(text).not.toContain('Sin mapear');
+  });
+
+  it('clasifica ANS de Proc_Contrapartidas sin regla activa como opcional reservado', () => {
+    selectService(1);
+
+    const text = `${rowText('ANSIDLOTE')} ${rowText('ANCLC')}`;
+
+    expect(text).toContain('Reservado por contrato');
+    expect(text).toContain('Opcional/reservado');
+    expect(text).not.toContain('Sin mapear');
+  });
+
+  it('conserva el boton Ver auditoria y carga el historial del mapping activo', () => {
+    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+    const historyButton = buttons.find((button) => button.textContent?.includes('Ver auditoria'));
+
+    expect(historyButton).toBeTruthy();
+    historyButton!.click();
+    fixture.detectChanges();
+
+    expect(api.getHistory).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
+    expect((fixture.nativeElement.textContent as string)).toContain('Auditoria');
   });
 
   it('mueve ruta tecnica y auditoria fuera de la vista principal', () => {
