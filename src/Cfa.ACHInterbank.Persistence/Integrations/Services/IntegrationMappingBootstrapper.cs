@@ -9,6 +9,9 @@ namespace Cfa.ACHInterbank.Persistence.Integrations.Services;
 
 public sealed class IntegrationMappingBootstrapper
 {
+    private const string ArchivedInvalidSeedContractAction = "ArchivedInvalidSeedContract";
+    private static readonly string PreviousRegistrarArchiveAction = string.Concat("Archived", "By", "Wsdl", "ContractRealignment");
+
     private static readonly string[] RegistrarRespuestaWsdlParameterPaths =
     [
         "idCanal",
@@ -20,7 +23,7 @@ public sealed class IntegrationMappingBootstrapper
         "descripcionCausal"
     ];
 
-    private static readonly string[] RegistrarRespuestaLegacyParameterPaths =
+    private static readonly string[] RegistrarRespuestaNonWsdlParameterPaths =
     [
         "ANSIDLOTE",
         "ANSST",
@@ -42,6 +45,7 @@ public sealed class IntegrationMappingBootstrapper
     {
         await _catalogBootstrapper.EnsureAsync(ct);
 
+        await NormalizeRegistrarRespuestaHistoryActionsAsync(ct);
         await EnsurePublishedContrapartidasMappingAsync(ct);
         await EnsurePublishedReferenceMappingAsync(
             "WSCFAACH.Proc_Transacciones",
@@ -259,19 +263,11 @@ public sealed class IntegrationMappingBootstrapper
             }
         }
 
-        var hasManualPublished = publishedSets.Any(x =>
-            !string.Equals(x.PublishedBy, "seed", StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(x.Name, mappingName, StringComparison.OrdinalIgnoreCase));
-        if (hasManualPublished)
+        foreach (var invalidPublishedSet in publishedSets)
         {
-            return;
-        }
-
-        foreach (var legacySeed in publishedSets)
-        {
-            legacySeed.Status = IntegrationMappingSetStatusEnum.Archived;
-            legacySeed.IsActive = false;
-            _context.IntegrationMappingSetHistory.Add(BuildHistory(legacySeed, "ArchivedByWsdlContractRealignment"));
+            invalidPublishedSet.Status = IntegrationMappingSetStatusEnum.Archived;
+            invalidPublishedSet.IsActive = false;
+            _context.IntegrationMappingSetHistory.Add(BuildHistory(invalidPublishedSet, ArchivedInvalidSeedContractAction));
         }
 
         var nextVersion = (await _context.IntegrationMappingSets
@@ -326,7 +322,7 @@ public sealed class IntegrationMappingBootstrapper
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (!activeParameterPaths.SetEquals(expectedParameterPaths)
-            || activeParameterPaths.Overlaps(RegistrarRespuestaLegacyParameterPaths))
+            || activeParameterPaths.Overlaps(RegistrarRespuestaNonWsdlParameterPaths))
         {
             return false;
         }
@@ -342,6 +338,31 @@ public sealed class IntegrationMappingBootstrapper
         return expectedParameterIds.Count == RegistrarRespuestaWsdlParameterPaths.Length
             && expectedParameterIds.All(ruleParameterIds.Contains)
             && ruleParameterIds.All(expectedParameterIds.Contains);
+    }
+
+    private async Task NormalizeRegistrarRespuestaHistoryActionsAsync(CancellationToken ct)
+    {
+        var method = await _context.IntegrationMethods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == "WSAXON.RegistrarRespuestaTransaccion", ct);
+        if (method is null)
+        {
+            return;
+        }
+
+        var previousActionRows = await _context.IntegrationMappingSetHistory
+            .Where(x => x.MethodId == method.Id
+                && x.Action == PreviousRegistrarArchiveAction)
+            .ToListAsync(ct);
+        foreach (var row in previousActionRows)
+        {
+            row.Action = ArchivedInvalidSeedContractAction;
+        }
+
+        if (previousActionRows.Count > 0)
+        {
+            await _context.SaveChangesAsync(ct);
+        }
     }
 
     private async Task EnsureDifferentialPrenotificationResponseStatusMappingsAsync(CancellationToken ct)

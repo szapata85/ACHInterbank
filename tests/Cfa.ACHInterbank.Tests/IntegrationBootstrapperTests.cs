@@ -130,7 +130,7 @@ public sealed class IntegrationBootstrapperTests
     }
 
     [Fact]
-    public async Task RegistrarRespuestaTransaccion_Catalog_ShouldUseRealWsdlParameters_AndExcludeLegacyAns()
+    public async Task RegistrarRespuestaTransaccion_Catalog_ShouldUseRealWsdlParameters_AndExcludeNonWsdlAns()
     {
         await using var fixture = await ContextFixture.CreateAsync();
         await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
@@ -151,7 +151,7 @@ public sealed class IntegrationBootstrapperTests
     }
 
     [Fact]
-    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldArchiveSeedLegacyMapping_WithoutDeletingHistory()
+    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldArchiveIncorrectSeedMapping_WithoutDeletingHistory()
     {
         await using var fixture = await ContextFixture.CreateAsync();
         var method = new IntegrationMethod
@@ -164,15 +164,15 @@ public sealed class IntegrationBootstrapperTests
         fixture.Context.IntegrationMethods.Add(method);
         await fixture.Context.SaveChangesAsync();
 
-        var legacyParameters = new[]
+        var invalidSeedParameters = new[]
         {
-            LegacyRegistrarParameter(method.Id, "ANSIDLOTE", "Id lote legacy", "int", true, 1),
-            LegacyRegistrarParameter(method.Id, "ANSST", "Estado legacy", "string", true, 2),
-            LegacyRegistrarParameter(method.Id, "ANCLC", "Codigo legacy", "string", false, 3),
-            LegacyRegistrarParameter(method.Id, "ANSIDTX", "Id transaccion legacy", "string", true, 4),
-            LegacyRegistrarParameter(method.Id, "ANSIDREVER", "Id reverso legacy", "int", false, 5)
+            InvalidRegistrarSeedParameter(method.Id, "ANSIDLOTE", "Id lote no WSDL", "int", true, 1),
+            InvalidRegistrarSeedParameter(method.Id, "ANSST", "Estado no WSDL", "string", true, 2),
+            InvalidRegistrarSeedParameter(method.Id, "ANCLC", "Codigo no WSDL", "string", false, 3),
+            InvalidRegistrarSeedParameter(method.Id, "ANSIDTX", "Id transaccion no WSDL", "string", true, 4),
+            InvalidRegistrarSeedParameter(method.Id, "ANSIDREVER", "Id reverso no WSDL", "int", false, 5)
         };
-        var legacySet = new IntegrationMappingSet
+        var invalidSeedSet = new IntegrationMappingSet
         {
             MethodId = method.Id,
             Name = "RegistrarRespuestaTransaccion Published respuesta diferencial",
@@ -182,13 +182,13 @@ public sealed class IntegrationBootstrapperTests
             PublishedAtUtc = DateTime.UtcNow,
             PublishedBy = "seed"
         };
-        fixture.Context.IntegrationMethodParameters.AddRange(legacyParameters);
-        fixture.Context.IntegrationMappingSets.Add(legacySet);
+        fixture.Context.IntegrationMethodParameters.AddRange(invalidSeedParameters);
+        fixture.Context.IntegrationMappingSets.Add(invalidSeedSet);
         await fixture.Context.SaveChangesAsync();
 
-        fixture.Context.IntegrationMappingRules.AddRange(legacyParameters.Select((parameter, index) => new IntegrationMappingRule
+        fixture.Context.IntegrationMappingRules.AddRange(invalidSeedParameters.Select((parameter, index) => new IntegrationMappingRule
         {
-            MappingSetId = legacySet.Id,
+            MappingSetId = invalidSeedSet.Id,
             MethodId = method.Id,
             ParameterId = parameter.Id,
             SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
@@ -205,14 +205,14 @@ public sealed class IntegrationBootstrapperTests
         }));
         fixture.Context.IntegrationMappingSetHistory.Add(new IntegrationMappingSetHistory
         {
-            MappingSetId = legacySet.Id,
+            MappingSetId = invalidSeedSet.Id,
             MethodId = method.Id,
-            Version = legacySet.Version,
-            Status = legacySet.Status,
+            Version = invalidSeedSet.Version,
+            Status = invalidSeedSet.Status,
             Action = "SeedPublishedReference",
             PerformedBy = "seed",
             SnapshotJson = "{}",
-            SnapshotHash = "legacy"
+            SnapshotHash = "incorrect-seed"
         });
         await fixture.Context.SaveChangesAsync();
 
@@ -227,14 +227,14 @@ public sealed class IntegrationBootstrapperTests
             .Select(x => x.ParameterPath)
             .ToListAsync();
 
-        Assert.Contains(sets, x => x.Id == legacySet.Id && x.Status == IntegrationMappingSetStatusEnum.Archived && !x.IsActive);
-        Assert.Contains(sets, x => x.Id != legacySet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        Assert.Contains(sets, x => x.Id == invalidSeedSet.Id && x.Status == IntegrationMappingSetStatusEnum.Archived && !x.IsActive);
+        Assert.Contains(sets, x => x.Id != invalidSeedSet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
         Assert.DoesNotContain(activeParameters, x => x.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == legacySet.Id && x.Action == "ArchivedByWsdlContractRealignment");
+        Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == invalidSeedSet.Id && x.Action == "ArchivedInvalidSeedContract");
     }
 
     [Fact]
-    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldNotOverwriteManualPublishedMapping()
+    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldArchiveManualNonWsdlMapping()
     {
         await using var fixture = await ContextFixture.CreateAsync();
         var method = new IntegrationMethod
@@ -247,15 +247,15 @@ public sealed class IntegrationBootstrapperTests
         fixture.Context.IntegrationMethods.Add(method);
         await fixture.Context.SaveChangesAsync();
 
-        var legacyParameter = new IntegrationMethodParameter
+        var nonWsdlParameter = new IntegrationMethodParameter
         {
             MethodId = method.Id,
             ParameterPath = "ANSIDTX",
-            DisplayName = "Id transaccion legacy manual",
-            DescriptionEs = "Legacy manual",
-            Category = "Legacy manual",
+            DisplayName = "Id transaccion no WSDL manual",
+            DescriptionEs = "Parametro manual fuera del WSDL vigente.",
+            Category = "Contrato no WSDL",
             ExampleValue = "TX-1",
-            UiHelpText = "Legacy manual",
+            UiHelpText = "No corresponde al WSDL de RegistrarRespuestaTransaccion.",
             DataType = "string",
             Direction = IntegrationParameterDirectionEnum.Input,
             Cardinality = IntegrationParameterCardinalityEnum.Scalar,
@@ -273,7 +273,7 @@ public sealed class IntegrationBootstrapperTests
             PublishedAtUtc = DateTime.UtcNow,
             PublishedBy = "operador-uat"
         };
-        fixture.Context.IntegrationMethodParameters.Add(legacyParameter);
+        fixture.Context.IntegrationMethodParameters.Add(nonWsdlParameter);
         fixture.Context.IntegrationMappingSets.Add(manualSet);
         await fixture.Context.SaveChangesAsync();
 
@@ -281,7 +281,7 @@ public sealed class IntegrationBootstrapperTests
         {
             MappingSetId = manualSet.Id,
             MethodId = method.Id,
-            ParameterId = legacyParameter.Id,
+            ParameterId = nonWsdlParameter.Id,
             SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
             SourceFieldPath = "differentialResponse.idTransaccion",
             Priority = 1,
@@ -300,12 +300,13 @@ public sealed class IntegrationBootstrapperTests
             .Select(x => x.ParameterPath)
             .ToListAsync();
 
-        Assert.Single(sets);
-        Assert.Contains(sets, x => x.Id == manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        Assert.Equal(2, sets.Count);
+        Assert.Contains(sets, x => x.Id == manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Archived && !x.IsActive);
+        Assert.Contains(sets, x => x.Id != manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
         Assert.Equal(
             ["idCanal", "nombreCanal", "idTransaccion", "idEstado", "causal", "idTransaccionAxon", "descripcionCausal"],
             activeParameters);
-        Assert.DoesNotContain(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == manualSet.Id && x.Action == "ArchivedByWsdlContractRealignment");
+        Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == manualSet.Id && x.Action == "ArchivedInvalidSeedContract");
     }
 
     private sealed record SeedCounts(
@@ -404,7 +405,7 @@ public sealed class IntegrationBootstrapperTests
             MappingSetNames: mappingSets.Select(x => x.Name).ToList());
     }
 
-    private static IntegrationMethodParameter LegacyRegistrarParameter(
+    private static IntegrationMethodParameter InvalidRegistrarSeedParameter(
         int methodId,
         string parameterPath,
         string displayName,
@@ -416,10 +417,10 @@ public sealed class IntegrationBootstrapperTests
             MethodId = methodId,
             ParameterPath = parameterPath,
             DisplayName = displayName,
-            DescriptionEs = "Legacy",
-            Category = "Legacy",
+            DescriptionEs = "Parametro de seed incorrecto fuera del WSDL validado.",
+            Category = "Contrato no WSDL",
             ExampleValue = "SEED",
-            UiHelpText = "Legacy",
+            UiHelpText = "Se conserva solo para probar normalizacion del seed incorrecto.",
             DataType = dataType,
             Direction = IntegrationParameterDirectionEnum.Input,
             Cardinality = IntegrationParameterCardinalityEnum.Scalar,
