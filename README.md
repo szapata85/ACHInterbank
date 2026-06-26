@@ -59,6 +59,44 @@ docker compose logs --tail=200
 
 No usar `docker compose down -v` salvo instruccion operativa explicita. No borrar volumenes como mecanismo normal de rollback.
 
+## Levantamiento limpio con SQL Server 2025
+
+Cuando se usa `docker-compose.sqlserver.yml` para levantar el stack con SQL Server 2025, un `down -v` elimina la base local `ACHInterbank`. En ese escenario, la API debe arrancar con migraciones habilitadas antes del seed.
+
+Comandos recomendados:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml down -v --remove-orphans
+$env:DATABASE_APPLY_MIGRATIONS="true"
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml build achinterbank-api achinterbank-spa
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml up -d
+curl -i http://localhost:843/health/ready
+curl -i -X POST http://localhost:843/Maintenance/seed
+```
+
+En Bash/Linux:
+
+```bash
+export DATABASE_APPLY_MIGRATIONS=true
+```
+
+Síntoma si se omite:
+
+- `health/ready` responde `503`.
+- `login` falla.
+- `/Maintenance/seed` falla.
+- aparece `Cannot open database "ACHInterbank"`.
+
+Validaciones esperadas:
+
+- SQL Server 2025 `healthy`.
+- API `health/live` y `health/ready` OK.
+- SPA OK.
+- `/Maintenance/seed` 200.
+- `WSAXON.RegistrarRespuestaTransaccion` con 7 parametros WSDL activos y sin ANS* activos.
+- `WSCFAACH.Proc_Contrapartidas` conserva ANS* donde corresponde.
+- `PLValidarUsuarioBV` no catalogado.
+
 ## Secretos y datos sensibles
 
 - No versionar `.env` reales.

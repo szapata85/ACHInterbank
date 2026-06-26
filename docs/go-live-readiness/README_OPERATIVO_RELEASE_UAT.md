@@ -54,6 +54,53 @@ Database__ApplyMigrations: ${DATABASE_APPLY_MIGRATIONS:-false}
 
 No habilitar migraciones desde este README. Cualquier cambio de esquema requiere aprobacion y procedimiento DBA separado.
 
+### Levantamiento limpio con SQL Server 2025
+
+Si se ejecuta:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml down -v --remove-orphans
+```
+
+la base local `ACHInterbank` queda eliminada. En ese caso, antes de ejecutar el seed la API debe levantarse con:
+
+```powershell
+$env:DATABASE_APPLY_MIGRATIONS="true"
+```
+
+En Bash/Linux:
+
+```bash
+export DATABASE_APPLY_MIGRATIONS=true
+```
+
+Flujo recomendado:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml build achinterbank-api achinterbank-spa
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml up -d
+curl -i http://localhost:843/health/ready
+curl -i -X POST http://localhost:843/Maintenance/seed
+```
+
+Si se omite migraciones luego de `down -v`, el síntoma esperado es:
+
+- `health/ready = 503`
+- login falla
+- `/Maintenance/seed` falla
+- error `Cannot open database "ACHInterbank"`
+
+Validaciones esperadas:
+
+- SQL Server 2025 `healthy`.
+- API `health/live` y `health/ready` OK.
+- SPA OK.
+- `/Maintenance/seed` 200.
+- `RegistrarRespuestaTransaccion` con 7 parametros WSDL activos.
+- `RegistrarRespuestaTransaccion` sin ANS* activos.
+- `Proc_Contrapartidas` conserva ANS* donde corresponde.
+- `PLValidarUsuarioBV` no catalogado.
+
 ## 6. SPA Angular
 
 ```bash

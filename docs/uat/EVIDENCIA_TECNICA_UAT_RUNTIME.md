@@ -168,6 +168,51 @@ Estado recomendado: **ambiente apto para UAT tecnico E2E basico desde SPA**, con
 
 Estado productivo: **NO-GO**.
 
+## Addendum operativo SQL Server 2025
+
+### Levantamiento limpio con SQL Server 2025
+
+Si se ejecuta:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.sqlserver.yml down -v --remove-orphans
+```
+
+la base local `ACHInterbank` se elimina. En ese escenario, la API debe arrancar con:
+
+```powershell
+$env:DATABASE_APPLY_MIGRATIONS="true"
+```
+
+Antes de correr:
+
+```powershell
+curl -i -X POST http://localhost:843/Maintenance/seed
+```
+
+En Bash/Linux:
+
+```bash
+export DATABASE_APPLY_MIGRATIONS=true
+```
+
+### Sintoma si se omite
+
+- `health/ready = 503`
+- login falla
+- `/Maintenance/seed` falla
+- error `Cannot open database "ACHInterbank"`
+
+### Validaciones esperadas
+
+- SQL Server 2025 `healthy`.
+- API `health/live` y `health/ready` OK.
+- SPA OK.
+- `/Maintenance/seed` 200.
+- `WSAXON.RegistrarRespuestaTransaccion` con 7 parametros WSDL activos y sin ANS* activos.
+- `WSCFAACH.Proc_Contrapartidas` conserva ANS* donde corresponde.
+- `PLValidarUsuarioBV` no catalogado.
+
 ## Addendum runtime 2026-06-12 - G3.6
 
 | Flujo | Componentes reales | Quartz | Evidencia persistida | Resultado |
