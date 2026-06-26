@@ -85,19 +85,20 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task Readiness_ShouldBeOk_WhenRequiredMappingsAreBootstrapSeeded()
+    public async Task ProcTransaccionesReadiness_ShouldNotBeOk_WhenSeededCriticalFieldsUsePlaceholders()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.True(readiness.IsReady);
-        Assert.Equal("Ok", readiness.Status);
-        Assert.Equal("OK", readiness.Code);
+        Assert.False(readiness.IsReady);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
         Assert.False(readiness.UsesFallback);
-        Assert.True(readiness.CanBuildPayload);
-        Assert.Empty(readiness.Errors);
+        Assert.False(readiness.CanBuildPayload);
+        Assert.Contains(readiness.Errors, x => x.Contains("TREG", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(readiness.Errors, x => x.Contains("SEED", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -115,19 +116,21 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task Readiness_ShouldBeOk_WhenProcContrapartidasUsesBootstrapPublishedMapping()
+    public async Task ProcContrapartidasReadiness_ShouldNotBeOk_WhenMonetaryOrDirectionFieldsUsePlaceholders()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.True(readiness.IsReady);
-        Assert.Equal("Ok", readiness.Status);
-        Assert.Equal("OK", readiness.Code);
+        Assert.False(readiness.IsReady);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
         Assert.False(readiness.UsesFallback);
-        Assert.True(readiness.CanBuildPayload);
+        Assert.False(readiness.CanBuildPayload);
         Assert.Empty(readiness.RequiredFallbackFields);
+        Assert.Contains(readiness.Errors, x => x.Contains("OFMONDEB", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(readiness.Errors, x => x.Contains("OFDD", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -138,9 +141,185 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.Equal("Ok", readiness.Status);
-        Assert.True(readiness.IsReady);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.False(readiness.IsReady);
         Assert.False(readiness.UsesFallback);
+    }
+
+    [Fact]
+    public async Task Readiness_ShouldFail_WhenRequiredFunctionalParameterUsesSeedPlaceholder()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcTransacciones,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath == "TREG")
+                {
+                    rule.SourceKind = IntegrationSourceKindEnum.Constant;
+                    rule.SourceFieldPath = string.Empty;
+                    rule.FixedValue = "SEED";
+                }
+            });
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+
+        Assert.False(readiness.IsReady);
+        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
+        Assert.Contains(readiness.Errors, x => x.Contains("TREG", StringComparison.OrdinalIgnoreCase)
+            && x.Contains("SEED", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Readiness_ShouldFail_WhenCriticalMonetaryParameterUsesZeroPlaceholder()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath == "OFMONDEB")
+                {
+                    rule.SourceKind = IntegrationSourceKindEnum.Constant;
+                    rule.SourceFieldPath = string.Empty;
+                    rule.FixedValue = "0";
+                }
+            });
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+
+        Assert.False(readiness.IsReady);
+        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
+        Assert.Contains(readiness.Errors, x => x.Contains("OFMONDEB", StringComparison.OrdinalIgnoreCase)
+            && x.Contains("0", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Readiness_ShouldWarn_WhenTechnicalConstantIsDocumentedButNotFunctional()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath == "OFDIRECCIONIP")
+                {
+                    rule.SourceKind = IntegrationSourceKindEnum.Constant;
+                    rule.SourceFieldPath = string.Empty;
+                    rule.FixedValue = "0.0.0.0";
+                }
+            });
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+
+        Assert.True(readiness.IsReady);
+        Assert.Equal("ReadyWithWarnings", readiness.Status);
+        Assert.Equal("READY_WITH_WARNINGS", readiness.Code);
+        Assert.Contains(readiness.Warnings, x => x.Contains("OFDIRECCIONIP", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Readiness_ShouldNotFail_ForProcContrapartidasOptionalReservedAnsFields()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(IntegrationGuaranteeConstants.ProcContrapartidas);
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+
+        Assert.True(readiness.IsReady);
+        Assert.Equal("Ok", readiness.Status);
+        Assert.DoesNotContain(readiness.Errors, x => x.Contains("ANS", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(readiness.Warnings, x => x.Contains("ANS", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RegistrarReadiness_ShouldRemainReady_WithSevenWsdlDifferentialResponseSources()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        var operation = fixture.OperationResolver.ResolveDifferentialResponse("RESP-READY", fixture.CreditFromExternal.Id);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+        var registrar = await fixture.Context.IntegrationMethods
+            .AsNoTracking()
+            .SingleAsync(x => x.Code == "WSAXON.RegistrarRespuestaTransaccion");
+        var activeParameters = await fixture.Context.IntegrationMethodParameters
+            .AsNoTracking()
+            .Where(x => x.MethodId == registrar.Id && x.IsActive)
+            .Select(x => x.ParameterPath)
+            .ToListAsync();
+
+        Assert.True(readiness.IsReady);
+        Assert.Equal("Ok", readiness.Status);
+        Assert.Equal("OK", readiness.Code);
+        Assert.Equal(7, activeParameters.Count);
+        Assert.Contains("idCanal", activeParameters);
+        Assert.Contains("nombreCanal", activeParameters);
+        Assert.Contains("idTransaccion", activeParameters);
+        Assert.Contains("idEstado", activeParameters);
+        Assert.Contains("causal", activeParameters);
+        Assert.Contains("idTransaccionAxon", activeParameters);
+        Assert.Contains("descripcionCausal", activeParameters);
+        Assert.DoesNotContain(activeParameters, x => x.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RegistrarCatalog_ShouldNotContainAnsParameters()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.ReadinessService.EvaluateAsync(fixture.OperationResolver.ResolveDifferentialResponse());
+
+        var registrar = await fixture.Context.IntegrationMethods
+            .AsNoTracking()
+            .SingleAsync(x => x.Code == "WSAXON.RegistrarRespuestaTransaccion");
+        var activeParameters = await fixture.Context.IntegrationMethodParameters
+            .AsNoTracking()
+            .Where(x => x.MethodId == registrar.Id && x.IsActive)
+            .Select(x => x.ParameterPath)
+            .ToListAsync();
+
+        Assert.DoesNotContain(activeParameters, x => x.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task PLValidarUsuarioBV_ShouldNotBeCataloged()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+
+        var exists = await fixture.Context.IntegrationMethods
+            .AsNoTracking()
+            .AnyAsync(x => x.Code.Contains("PLValidarUsuarioBV"));
+
+        Assert.False(exists);
+    }
+
+    [Fact]
+    public async Task Readiness_ShouldExposeWarnings_WhenOnlyNonBlockingDefaultsExist()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath == "OFIDCAMCOMPE")
+                {
+                    rule.SourceKind = IntegrationSourceKindEnum.ClearingHouse;
+                    rule.SourceFieldPath = "clearinghouse.id";
+                    rule.DefaultValue = "1";
+                }
+            });
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+
+        Assert.True(readiness.IsReady);
+        Assert.Equal("ReadyWithWarnings", readiness.Status);
+        Assert.Equal("READY_WITH_WARNINGS", readiness.Code);
+        Assert.Contains(readiness.Warnings, x => x.Contains("OFIDCAMCOMPE", StringComparison.OrdinalIgnoreCase)
+            && x.Contains("1", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -270,15 +449,16 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task MissingMapping_ShouldExposePublishedMappings_AsReady()
+    public async Task BootstrapPublishedMappings_ShouldNotBeReady_WhenFunctionalPlaceholdersRemain()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
 
-        Assert.True(readiness.IsReady);
-        Assert.Equal("Ok", readiness.Status);
+        Assert.False(readiness.IsReady);
+        Assert.Equal("Failed", readiness.Status);
+        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
         Assert.Equal(readiness.RequiredMappings, readiness.ActiveMappings);
         Assert.Empty(readiness.MissingRequiredMappings);
     }
@@ -334,20 +514,30 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             return fixture;
         }
 
-        public async Task PublishCompleteMappingAsync(string operationKey, bool disableFirstRequired = false)
+        public async Task PublishCompleteMappingAsync(
+            string operationKey,
+            bool disableFirstRequired = false,
+            Action<IntegrationMethodParameter, IntegrationMappingRule>? configureRule = null)
         {
-            var method = await Context.IntegrationMethods.SingleAsync(x => x.Code == $"{IntegrationGuaranteeConstants.Wscfaach}.{operationKey}");
+            var integrationKey = operationKey == IntegrationGuaranteeConstants.RegistrarRespuestaTransaccion
+                ? IntegrationGuaranteeConstants.WsAxon
+                : IntegrationGuaranteeConstants.Wscfaach;
+            var method = await Context.IntegrationMethods.SingleAsync(x => x.Code == $"{integrationKey}.{operationKey}");
             var parameters = await Context.IntegrationMethodParameters
                 .Where(x => x.MethodId == method.Id && x.IsActive && x.Required && x.Direction == IntegrationParameterDirectionEnum.Input)
                 .OrderBy(x => x.SortOrder)
                 .ToListAsync();
+            var nextVersion = (await Context.IntegrationMappingSets
+                .Where(x => x.MethodId == method.Id)
+                .Select(x => (int?)x.Version)
+                .MaxAsync() ?? 0) + 100;
 
             var set = new IntegrationMappingSet
             {
                 Id = Guid.NewGuid(),
                 MethodId = method.Id,
                 Name = $"{operationKey} readiness test",
-                Version = 1,
+                Version = nextVersion,
                 Status = IntegrationMappingSetStatusEnum.Published,
                 IsActive = true,
                 PublishedAtUtc = DateTime.UtcNow,
@@ -358,16 +548,18 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             var index = 0;
             foreach (var parameter in parameters)
             {
-                Context.IntegrationMappingRules.Add(new IntegrationMappingRule
+                var rule = new IntegrationMappingRule
                 {
                     MappingSetId = set.Id,
                     MethodId = method.Id,
                     ParameterId = parameter.Id,
-                    SourceKind = IntegrationSourceKindEnum.Constant,
-                    FixedValue = DefaultFor(parameter),
+                    SourceKind = SourceKindForFunctionalTest(parameter),
+                    SourceFieldPath = SourcePathForFunctionalTest(parameter),
                     Priority = 1,
                     Enabled = !(disableFirstRequired && index == 0)
-                });
+                };
+                configureRule?.Invoke(parameter, rule);
+                Context.IntegrationMappingRules.Add(rule);
                 index++;
             }
 
@@ -471,13 +663,21 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
                 State = AchTransferStateEnum.Pending
             };
 
-        private static string DefaultFor(IntegrationMethodParameter parameter)
+        private static IntegrationSourceKindEnum SourceKindForFunctionalTest(IntegrationMethodParameter parameter)
+            => SourcePathForFunctionalTest(parameter).Split('.', 2)[0] switch
+            {
+                "transaction" => IntegrationSourceKindEnum.Transaction,
+                "cycle" => IntegrationSourceKindEnum.Cycle,
+                _ => IntegrationSourceKindEnum.Transaction
+            };
+
+        private static string SourcePathForFunctionalTest(IntegrationMethodParameter parameter)
             => parameter.DataType.ToLowerInvariant() switch
             {
-                "int" or "long" => "1",
-                "decimal" or "double" or "float" => "1.00",
-                "datetime" => DateTime.UtcNow.ToString("O"),
-                _ => "TEST"
+                "int" or "long" => "transaction.id",
+                "decimal" or "double" or "float" => "transaction.amount",
+                "datetime" => "cycle.processingDate",
+                _ => "transaction.reference"
             };
 
         public async ValueTask DisposeAsync()
