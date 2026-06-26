@@ -122,6 +122,11 @@ public sealed class IntegrationBootstrapperTests
         Assert.Equal(5, parameters.Count(x => !x.Required));
         Assert.Equal(17, rules.Count);
         Assert.Equal(5, parameters.Count(x => !x.Required && !rules.Any(r => r.ParameterId == x.Id)));
+        Assert.Contains(parameters, x => x.ParameterPath == "ANSIDLOTE" && !x.Required && x.IsActive);
+        Assert.Contains(parameters, x => x.ParameterPath == "ANSST" && !x.Required && x.IsActive);
+        Assert.Contains(parameters, x => x.ParameterPath == "ANCLC" && !x.Required && x.IsActive);
+        Assert.Contains(parameters, x => x.ParameterPath == "ANSIDTX" && !x.Required && x.IsActive);
+        Assert.Contains(parameters, x => x.ParameterPath == "ANSIDREVER" && !x.Required && x.IsActive);
     }
 
     [Fact]
@@ -159,19 +164,13 @@ public sealed class IntegrationBootstrapperTests
         fixture.Context.IntegrationMethods.Add(method);
         await fixture.Context.SaveChangesAsync();
 
-        var legacyParameter = new IntegrationMethodParameter
+        var legacyParameters = new[]
         {
-            MethodId = method.Id,
-            ParameterPath = "ANSIDTX",
-            DisplayName = "Id transaccion legacy",
-            DescriptionEs = "Legacy",
-            Category = "Legacy",
-            DataType = "string",
-            Direction = IntegrationParameterDirectionEnum.Input,
-            Cardinality = IntegrationParameterCardinalityEnum.Scalar,
-            Required = true,
-            SortOrder = 1,
-            IsActive = true
+            LegacyRegistrarParameter(method.Id, "ANSIDLOTE", "Id lote legacy", "int", true, 1),
+            LegacyRegistrarParameter(method.Id, "ANSST", "Estado legacy", "string", true, 2),
+            LegacyRegistrarParameter(method.Id, "ANCLC", "Codigo legacy", "string", false, 3),
+            LegacyRegistrarParameter(method.Id, "ANSIDTX", "Id transaccion legacy", "string", true, 4),
+            LegacyRegistrarParameter(method.Id, "ANSIDREVER", "Id reverso legacy", "int", false, 5)
         };
         var legacySet = new IntegrationMappingSet
         {
@@ -183,20 +182,27 @@ public sealed class IntegrationBootstrapperTests
             PublishedAtUtc = DateTime.UtcNow,
             PublishedBy = "seed"
         };
-        fixture.Context.IntegrationMethodParameters.Add(legacyParameter);
+        fixture.Context.IntegrationMethodParameters.AddRange(legacyParameters);
         fixture.Context.IntegrationMappingSets.Add(legacySet);
         await fixture.Context.SaveChangesAsync();
 
-        fixture.Context.IntegrationMappingRules.Add(new IntegrationMappingRule
+        fixture.Context.IntegrationMappingRules.AddRange(legacyParameters.Select((parameter, index) => new IntegrationMappingRule
         {
             MappingSetId = legacySet.Id,
             MethodId = method.Id,
-            ParameterId = legacyParameter.Id,
+            ParameterId = parameter.Id,
             SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
-            SourceFieldPath = "differentialResponse.idTransaccion",
+            SourceFieldPath = index switch
+            {
+                0 => "batchHeaders.batchNumber",
+                1 => "differentialResponse.codigoEstadoExterno",
+                2 => "differentialResponse.codigoCausalExterna",
+                3 => "entryDetails.sequenceNumber",
+                _ => "addendaRecords.originalTraceNumber"
+            },
             Priority = 1,
             Enabled = true
-        });
+        }));
         fixture.Context.IntegrationMappingSetHistory.Add(new IntegrationMappingSetHistory
         {
             MappingSetId = legacySet.Id,
@@ -225,6 +231,81 @@ public sealed class IntegrationBootstrapperTests
         Assert.Contains(sets, x => x.Id != legacySet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
         Assert.DoesNotContain(activeParameters, x => x.StartsWith("ANS", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == legacySet.Id && x.Action == "ArchivedByWsdlContractRealignment");
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_Bootstrapper_ShouldNotOverwriteManualPublishedMapping()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var method = new IntegrationMethod
+        {
+            Code = "WSAXON.RegistrarRespuestaTransaccion",
+            DisplayName = "RegistrarRespuestaTransaccion",
+            SoapClientCode = "WsAxonRespuestaTransaccionesSoapClient",
+            IsActive = true
+        };
+        fixture.Context.IntegrationMethods.Add(method);
+        await fixture.Context.SaveChangesAsync();
+
+        var legacyParameter = new IntegrationMethodParameter
+        {
+            MethodId = method.Id,
+            ParameterPath = "ANSIDTX",
+            DisplayName = "Id transaccion legacy manual",
+            DescriptionEs = "Legacy manual",
+            Category = "Legacy manual",
+            ExampleValue = "TX-1",
+            UiHelpText = "Legacy manual",
+            DataType = "string",
+            Direction = IntegrationParameterDirectionEnum.Input,
+            Cardinality = IntegrationParameterCardinalityEnum.Scalar,
+            Required = true,
+            SortOrder = 1,
+            IsActive = true
+        };
+        var manualSet = new IntegrationMappingSet
+        {
+            MethodId = method.Id,
+            Name = "RegistrarRespuestaTransaccion Manual publicado",
+            Version = 7,
+            Status = IntegrationMappingSetStatusEnum.Published,
+            IsActive = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            PublishedBy = "operador-uat"
+        };
+        fixture.Context.IntegrationMethodParameters.Add(legacyParameter);
+        fixture.Context.IntegrationMappingSets.Add(manualSet);
+        await fixture.Context.SaveChangesAsync();
+
+        fixture.Context.IntegrationMappingRules.Add(new IntegrationMappingRule
+        {
+            MappingSetId = manualSet.Id,
+            MethodId = method.Id,
+            ParameterId = legacyParameter.Id,
+            SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
+            SourceFieldPath = "differentialResponse.idTransaccion",
+            Priority = 1,
+            Enabled = true
+        });
+        await fixture.Context.SaveChangesAsync();
+
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var sets = await fixture.Context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id)
+            .ToListAsync();
+        var activeParameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .Select(x => x.ParameterPath)
+            .ToListAsync();
+
+        Assert.Single(sets);
+        Assert.Contains(sets, x => x.Id == manualSet.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        Assert.Equal(
+            ["idCanal", "nombreCanal", "idTransaccion", "idEstado", "causal", "idTransaccionAxon", "descripcionCausal"],
+            activeParameters);
+        Assert.DoesNotContain(await fixture.Context.IntegrationMappingSetHistory.ToListAsync(), x => x.MappingSetId == manualSet.Id && x.Action == "ArchivedByWsdlContractRealignment");
     }
 
     private sealed record SeedCounts(
@@ -322,6 +403,30 @@ public sealed class IntegrationBootstrapperTests
             ResponseStatusMappings: responseMappings,
             MappingSetNames: mappingSets.Select(x => x.Name).ToList());
     }
+
+    private static IntegrationMethodParameter LegacyRegistrarParameter(
+        int methodId,
+        string parameterPath,
+        string displayName,
+        string dataType,
+        bool required,
+        int sortOrder)
+        => new()
+        {
+            MethodId = methodId,
+            ParameterPath = parameterPath,
+            DisplayName = displayName,
+            DescriptionEs = "Legacy",
+            Category = "Legacy",
+            ExampleValue = "SEED",
+            UiHelpText = "Legacy",
+            DataType = dataType,
+            Direction = IntegrationParameterDirectionEnum.Input,
+            Cardinality = IntegrationParameterCardinalityEnum.Scalar,
+            Required = required,
+            SortOrder = sortOrder,
+            IsActive = true
+        };
 
     private sealed class ContextFixture : IAsyncDisposable
     {

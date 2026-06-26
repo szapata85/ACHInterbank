@@ -9,6 +9,26 @@ namespace Cfa.ACHInterbank.Persistence.Integrations.Services;
 
 public sealed class IntegrationMappingBootstrapper
 {
+    private static readonly string[] RegistrarRespuestaWsdlParameterPaths =
+    [
+        "idCanal",
+        "nombreCanal",
+        "idTransaccion",
+        "idEstado",
+        "causal",
+        "idTransaccionAxon",
+        "descripcionCausal"
+    ];
+
+    private static readonly string[] RegistrarRespuestaLegacyParameterPaths =
+    [
+        "ANSIDLOTE",
+        "ANSST",
+        "ANCLC",
+        "ANSIDTX",
+        "ANSIDREVER"
+    ];
+
     private readonly AchDbContext _context;
     private readonly IntegrationCatalogBootstrapper _catalogBootstrapper;
 
@@ -299,13 +319,29 @@ public sealed class IntegrationMappingBootstrapper
         IReadOnlyCollection<IntegrationMethodParameter> parameters,
         IReadOnlyCollection<IntegrationMappingRule> rules)
     {
-        var requiredParameterIds = parameters
-            .Where(x => x.Required)
+        var activeParameterPaths = parameters
+            .Select(x => x.ParameterPath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var expectedParameterPaths = RegistrarRespuestaWsdlParameterPaths
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!activeParameterPaths.SetEquals(expectedParameterPaths)
+            || activeParameterPaths.Overlaps(RegistrarRespuestaLegacyParameterPaths))
+        {
+            return false;
+        }
+
+        var expectedParameterIds = parameters
+            .Where(x => expectedParameterPaths.Contains(x.ParameterPath))
             .Select(x => x.Id)
             .ToHashSet();
+        var ruleParameterIds = rules
+            .Select(x => x.ParameterId)
+            .ToHashSet();
 
-        return requiredParameterIds.Count > 0
-            && requiredParameterIds.All(id => rules.Any(rule => rule.ParameterId == id));
+        return expectedParameterIds.Count == RegistrarRespuestaWsdlParameterPaths.Length
+            && expectedParameterIds.All(ruleParameterIds.Contains)
+            && ruleParameterIds.All(expectedParameterIds.Contains);
     }
 
     private async Task EnsureDifferentialPrenotificationResponseStatusMappingsAsync(CancellationToken ct)
