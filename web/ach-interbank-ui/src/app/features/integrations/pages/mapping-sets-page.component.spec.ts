@@ -7,6 +7,7 @@ import {
   IntegrationMappingSet,
   IntegrationMethod,
   IntegrationMethodParameter,
+  IntegrationSourceKind,
   IntegrationSourceCatalogField,
   IntegrationTransformationCatalog
 } from '../../../core/services/integration-mapping-admin.service';
@@ -83,7 +84,9 @@ describe('MappingSetsPageComponent', () => {
     { id: 15, sourceKind: 'Cycle', entityName: 'AchCycle', fieldPath: 'cycle.processingDate', displayName: 'Fecha proceso ciclo', dataType: 'datetime', cardinality: 'Scalar', nullable: false, sortOrder: 15, isActive: true },
     { id: 16, sourceKind: 'ClearingHouse', entityName: 'ClearingHouse', fieldPath: 'clearinghouse.id', displayName: 'Id camara', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 16, isActive: true },
     { id: 17, sourceKind: 'Constant', entityName: 'Constant', fieldPath: 'constant.value', displayName: 'Valor fijo', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 17, isActive: true },
-    { id: 18, sourceKind: 'Batch', entityName: 'AchBatch', fieldPath: 'batch.id', displayName: 'Id lote', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 18, isActive: true }
+    { id: 18, sourceKind: 'Batch', entityName: 'AchBatch', fieldPath: 'batch.id', displayName: 'Id lote', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 18, isActive: true },
+    { id: 19, sourceKind: 'FinancialInstitution', entityName: 'FinancialInstitution', fieldPath: 'financialInstitution.routingNumber', displayName: 'Routing number', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 19, isActive: true },
+    { id: 20, sourceKind: 'EntryDetail', entityName: 'EntryDetails', fieldPath: 'EntryDetails.Amount', displayName: 'Amount', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 20, isActive: true }
   ];
 
   const targetFields: IntegrationMethodParameter[] = [
@@ -370,10 +373,10 @@ describe('MappingSetsPageComponent', () => {
     const text = fixture.nativeElement.textContent as string;
 
     expect(text).toContain('TraceNumber');
-    expect(text).toContain('NachaHeaders');
-    expect(text).toContain('FileIdModifier');
+    expect(text).toContain('Archivo NACHA');
+    expect(text).toContain('Modificador de archivo');
     expect(text).toContain('Limpiar espacios');
-    expect(text).toContain('Mapeado');
+    expect(text).toContain('Mapeado NACHA');
     expect(text).not.toContain('MonetaryDebitRequest');
     expect(text).not.toContain('OutboundRequest');
   });
@@ -383,12 +386,12 @@ describe('MappingSetsPageComponent', () => {
       .map((field) => `${component.getSourceKindLabel(field.sourceKind)} ${field.displayName}`)
       .join(' ');
 
-    expect(options).toContain('NachaHeaders');
-    expect(options).toContain('BatchHeaders');
-    expect(options).toContain('EntryDetails');
-    expect(options).toContain('AddendaRecords');
-    expect(options).toContain('BatchControls');
-    expect(options).toContain('FileControls');
+    expect(options).toContain('Archivo NACHA');
+    expect(options).toContain('Lote NACHA');
+    expect(options).toContain('Detalle NACHA');
+    expect(options).toContain('Addenda NACHA');
+    expect(options).toContain('Control lote NACHA');
+    expect(options).toContain('Control archivo NACHA');
     expect(options).toContain('Respuesta diferencial');
     expect(options).not.toContain('AchTransaction');
   });
@@ -408,41 +411,68 @@ describe('MappingSetsPageComponent', () => {
     expect(text).toContain('idTransaccionAxon');
     expect(text).toContain('descripcionCausal');
     expect(text).toContain('Respuesta diferencial');
-    expect(text).toContain('Mapeado');
+    expect(text).toContain('Mapeado desde respuesta diferencial');
     rows.forEach((row) => expect(row.textContent).not.toContain('Sin mapear'));
     expect(text).not.toContain('ANSIDLOTE');
   });
 
-  it('clasifica Transaction como fuente tecnica mapeada y no como Sin mapear', () => {
+  it('clasifica Transaction como fuente transaccional mapeada y no como Sin mapear', () => {
     selectService(1);
 
     const text = rowText('OFIDTX');
 
     expect(text).toContain('Transaccion');
     expect(text).toContain('Referencia');
-    expect(text).toContain('Mapeado tecnico');
+    expect(text).toContain('Mapeado transaccional');
     expect(text).not.toContain('Sin mapear');
+    expect(text).not.toContain('Mapeado tecnico');
   });
 
-  it('clasifica Cycle como fuente tecnica mapeada', () => {
+  it('clasifica Cycle como fuente de ciclo/camara mapeada', () => {
     selectService(1);
 
     const text = rowText('OFFECHEFEC');
 
     expect(text).toContain('Ciclo');
     expect(text).toContain('Fecha de proceso');
-    expect(text).toContain('Mapeado tecnico');
+    expect(text).toContain('Mapeado por ciclo/camara');
     expect(text).not.toContain('Sin mapear');
   });
 
-  it('clasifica ClearingHouse como fuente tecnica mapeada', () => {
+  it('clasifica ClearingHouse como fuente de ciclo/camara mapeada', () => {
     selectService(1);
 
     const text = rowText('OFIDCAMCOMPE');
 
     expect(text).toContain('Camara');
-    expect(text).toContain('Identificador');
-    expect(text).toContain('Mapeado tecnico');
+    expect(text).toContain('Identificador interno');
+    expect(text).toContain('Mapeado por ciclo/camara');
+    expect(text).not.toContain('Sin mapear');
+  });
+
+  it('clasifica FinancialInstitution como fuente de ciclo/camara mapeada', () => {
+    selectService(1);
+
+    component.mappingSets = [
+      {
+        ...mappingSets[0],
+        rules: mappingSets[0].rules.map((rule) => rule.parameterId === 20
+          ? {
+            ...rule,
+            sourceKind: 'FinancialInstitution',
+            sourceCatalogFieldId: 19,
+            sourceFieldPath: 'financialInstitution.routingNumber'
+          }
+          : rule)
+      }
+    ];
+
+    const row = component.matrixRows.find((item) => item.parameterSoap === 'OFIDCAMCOMPE')!;
+    const text = `${row.tableOrigin} ${row.fieldOrigin} ${row.status}`;
+
+    expect(text).toContain('Entidad financiera');
+    expect(text).toContain('Codigo ruta');
+    expect(text).toContain('Mapeado por ciclo/camara');
     expect(text).not.toContain('Sin mapear');
   });
 
@@ -453,8 +483,28 @@ describe('MappingSetsPageComponent', () => {
 
     expect(text).toContain('Constante');
     expect(text).toContain('Valor fijo');
-    expect(text).toContain('Mapeado tecnico');
+    expect(text).toContain('Constante tecnica');
     expect(text).not.toContain('Sin mapear');
+  });
+
+  it('clasifica Constant con SEED como placeholder pendiente funcional', () => {
+    selectService(1);
+
+    component.mappingSets = [
+      {
+        ...mappingSets[0],
+        rules: mappingSets[0].rules.map((rule) => rule.parameterId === 21
+          ? { ...rule, fixedValue: 'SEED', defaultValue: null }
+          : rule)
+      }
+    ];
+
+    const row = component.matrixRows.find((item) => item.parameterSoap === 'OFDD')!;
+    const text = `${row.fieldOrigin} ${row.conversionRule} ${row.status}`;
+
+    expect(text).toContain('Placeholder pendiente funcional');
+    expect(text).toContain('Placeholder / pendiente funcional');
+    expect(text).not.toContain('Constante tecnica');
   });
 
   it('clasifica DifferentialResponse como fuente valida para RegistrarRespuestaTransaccion', () => {
@@ -463,9 +513,42 @@ describe('MappingSetsPageComponent', () => {
     const text = rowText('idEstado');
 
     expect(text).toContain('Respuesta diferencial');
-    expect(text).toContain('Id estado');
-    expect(text).toContain('Mapeado');
+    expect(text).toContain('Estado');
+    expect(text).toContain('Mapeado desde respuesta diferencial');
     expect(text).not.toContain('Sin mapear');
+  });
+
+  it('clasifica fuentes NACHA como Mapeado NACHA', () => {
+    selectService(0);
+
+    const cases = [
+      { fieldId: 1, kind: 'NachaHeader' as IntegrationSourceKind, path: 'NachaHeaders.FileIdModifier', table: 'Archivo NACHA', field: 'Modificador de archivo' },
+      { fieldId: 2, kind: 'BatchHeader' as IntegrationSourceKind, path: 'BatchHeaders.CompanyIdentification', table: 'Lote NACHA', field: 'Identificacion compania' },
+      { fieldId: 20, kind: 'EntryDetail' as IntegrationSourceKind, path: 'EntryDetails.Amount', table: 'Detalle NACHA', field: 'Monto' }
+    ];
+
+    for (const item of cases) {
+      component.mappingSets = [
+        {
+          ...mappingSets[1],
+          rules: [
+            {
+              ...mappingSets[1].rules[0],
+              sourceKind: item.kind,
+              sourceCatalogFieldId: item.fieldId,
+              sourceFieldPath: item.path
+            }
+          ]
+        }
+      ];
+
+      const row = component.matrixRows.find((item) => item.parameterSoap === 'Proc_Transacciones.TraceNumber')!;
+      const text = `${row.tableOrigin} ${row.fieldOrigin} ${row.status}`;
+      expect(text).toContain(item.table);
+      expect(text).toContain(item.field);
+      expect(text).toContain('Mapeado NACHA');
+      expect(text).not.toContain('Sin mapear');
+    }
   });
 
   it('clasifica ANS de Proc_Contrapartidas sin regla activa como opcional reservado', () => {
@@ -474,8 +557,25 @@ describe('MappingSetsPageComponent', () => {
     const text = `${rowText('ANSIDLOTE')} ${rowText('ANCLC')}`;
 
     expect(text).toContain('Reservado por contrato');
-    expect(text).toContain('Opcional/reservado');
+    expect(text).toContain('Opcional / reservado');
     expect(text).not.toContain('Sin mapear');
+  });
+
+  it('mantiene Sin mapear cuando no hay regla activa ni fuente valida', () => {
+    selectService(1);
+
+    component.mappingSets = [
+      {
+        ...mappingSets[0],
+        rules: mappingSets[0].rules.filter((rule) => rule.parameterId !== 18)
+      }
+    ];
+
+    const row = component.matrixRows.find((item) => item.parameterSoap === 'OFIDTX')!;
+    const text = `${row.tableOrigin} ${row.fieldOrigin} ${row.status}`;
+
+    expect(text).toContain('Sin mapear');
+    expect(text).not.toContain('Mapeado transaccional');
   });
 
   it('prioriza el MappingSet publicado activo sobre borradores existentes', () => {

@@ -17,7 +17,16 @@ import {
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 
-type MatrixStatus = 'Mapeado' | 'Mapeado tecnico' | 'Opcional/reservado' | 'Sin mapear' | 'Inactivo';
+type MatrixStatus =
+  | 'Mapeado NACHA'
+  | 'Mapeado transaccional'
+  | 'Mapeado por ciclo/camara'
+  | 'Mapeado desde respuesta diferencial'
+  | 'Constante tecnica'
+  | 'Placeholder / pendiente funcional'
+  | 'Opcional / reservado'
+  | 'Sin mapear'
+  | 'Inactivo';
 type MappingModalMode = 'detail' | 'edit' | 'draft' | 'history' | null;
 
 interface ServiceDescriptor {
@@ -47,7 +56,7 @@ interface SourceVisual {
   fieldOrigin: string;
   sourceField: IntegrationSourceCatalogField | null;
   hasValidSource: boolean;
-  isTechnicalSource: boolean;
+  sourceKind: string;
 }
 
 @Component({
@@ -173,7 +182,7 @@ export class MappingSetsPageComponent implements OnInit {
   get matrixStats() {
     const rows = this.matrixRows;
     return {
-      mapped: rows.filter((row) => row.status === 'Mapeado' || row.status === 'Mapeado tecnico').length,
+      mapped: rows.filter((row) => this.isMappedStatus(row.status)).length,
       unmapped: rows.filter((row) => row.status === 'Sin mapear').length,
       inactive: rows.filter((row) => row.status === 'Inactivo').length
     };
@@ -355,9 +364,13 @@ export class MappingSetsPageComponent implements OnInit {
   }
 
   getStatusClass(status: MatrixStatus): string {
-    if (status === 'Mapeado') return 'mapped';
-    if (status === 'Mapeado tecnico') return 'technical';
-    if (status === 'Opcional/reservado') return 'reserved';
+    if (status === 'Mapeado NACHA') return 'nacha';
+    if (status === 'Mapeado transaccional') return 'transactional';
+    if (status === 'Mapeado por ciclo/camara') return 'cycle';
+    if (status === 'Mapeado desde respuesta diferencial') return 'differential';
+    if (status === 'Constante tecnica') return 'constant';
+    if (status === 'Placeholder / pendiente funcional') return 'placeholder';
+    if (status === 'Opcional / reservado') return 'reserved';
     if (status === 'Inactivo') return 'inactive';
     return 'unmapped';
   }
@@ -376,19 +389,19 @@ export class MappingSetsPageComponent implements OnInit {
 
   getSourceKindLabel(kind: string | number | null | undefined): string {
     switch (this.normalizeSourceKind(kind).toLowerCase()) {
-      case 'nachaheader': return 'NachaHeaders';
-      case 'batchheader': return 'BatchHeaders';
-      case 'entrydetail': return 'EntryDetails';
-      case 'addendarecord': return 'AddendaRecords';
-      case 'batchcontrol': return 'BatchControls';
-      case 'filecontrol': return 'FileControls';
+      case 'nachaheader': return 'Archivo NACHA';
+      case 'batchheader': return 'Lote NACHA';
+      case 'entrydetail': return 'Detalle NACHA';
+      case 'addendarecord': return 'Addenda NACHA';
+      case 'batchcontrol': return 'Control lote NACHA';
+      case 'filecontrol': return 'Control archivo NACHA';
       case 'differentialresponse': return 'Respuesta diferencial';
       case 'transaction': return 'Transaccion';
       case 'cycle': return 'Ciclo';
       case 'clearinghouse': return 'Camara';
       case 'constant': return 'Constante';
-      case 'batch': return 'Lote';
-      case 'addenda': return 'Addenda';
+      case 'batch': return 'Lote operativo';
+      case 'addenda': return 'Addenda NACHA';
       case 'financialinstitution': return 'Entidad financiera';
       case 'prenotification': return 'Prenotificacion';
       default: return 'Sin mapear';
@@ -500,11 +513,7 @@ export class MappingSetsPageComponent implements OnInit {
     const isInactive = !!mappingSet && (!mappingSet.isActive || this.normalizeStatus(mappingSet.status) === 'Archived' || rule?.enabled === false);
     const isOptionalReserved = !rule && this.isOptionalReservedParameter(parameter);
     const sourceVisual = this.resolveSourceVisual(rule);
-    const status: MatrixStatus = isInactive
-      ? 'Inactivo'
-      : sourceVisual.hasValidSource
-        ? sourceVisual.isTechnicalSource ? 'Mapeado tecnico' : 'Mapeado'
-        : isOptionalReserved ? 'Opcional/reservado' : 'Sin mapear';
+    const status = this.getFunctionalMappingStatus(rule, sourceVisual, isInactive, isOptionalReserved);
 
     return {
       serviceName: this.selectedMethod?.operationKey ?? parameter.parameterPath.split('.')[0] ?? 'Servicio SOAP',
@@ -531,12 +540,12 @@ export class MappingSetsPageComponent implements OnInit {
 
     const normalizedKind = this.normalizeSourceKind(rule.sourceKind).toLowerCase();
     const sourceField = this.resolveSourceField(rule);
-    const isFunctionalSource = this.isFunctionalSourceKind(normalizedKind);
-    const isTechnicalSource = this.isTechnicalSourceKind(normalizedKind);
     const isConstant = normalizedKind === 'constant';
-    const hasConstantValue = isConstant && (!!rule.fixedValue || !!rule.defaultValue);
+    const hasConstantValue = isConstant && (!!rule.fixedValue || !!rule.defaultValue || this.normalizeSourceFieldPath(rule.sourceFieldPath) === 'constant.value');
     const hasSourcePath = !!(rule.sourceFieldPath ?? '').trim();
-    const hasValidSource = isConstant ? hasConstantValue : (isFunctionalSource || isTechnicalSource) && (!!sourceField || hasSourcePath);
+    const hasValidSource = isConstant
+      ? hasConstantValue
+      : this.isKnownSourceKind(normalizedKind) && (!!sourceField || hasSourcePath);
 
     if (!hasValidSource) {
       return this.unmappedSourceVisual(sourceField);
@@ -547,7 +556,7 @@ export class MappingSetsPageComponent implements OnInit {
       fieldOrigin: this.getSourceDisplayName(rule, sourceField),
       sourceField,
       hasValidSource: true,
-      isTechnicalSource: isTechnicalSource || isConstant
+      sourceKind: normalizedKind
     };
   }
 
@@ -557,14 +566,18 @@ export class MappingSetsPageComponent implements OnInit {
       fieldOrigin: 'Sin mapear',
       sourceField,
       hasValidSource: false,
-      isTechnicalSource: false
+      sourceKind: ''
     };
   }
 
   private getSourceDisplayName(rule: IntegrationMappingRule, sourceField: IntegrationSourceCatalogField | null): string {
     const normalizedKind = this.normalizeSourceKind(rule.sourceKind).toLowerCase();
     if (normalizedKind === 'constant') {
-      return rule.fixedValue ? 'Valor fijo' : 'Valor por defecto';
+      if (this.isPlaceholderRule(rule)) {
+        return 'Placeholder pendiente funcional';
+      }
+
+      return rule.fixedValue ? 'Valor fijo' : rule.defaultValue ? 'Valor por defecto' : 'Constante';
     }
 
     const sourcePath = (rule.sourceFieldPath || sourceField?.fieldPath || '').trim();
@@ -584,24 +597,48 @@ export class MappingSetsPageComponent implements OnInit {
       'transaction.transactionexternalid': 'Id operacion cliente',
       'transaction.amount': 'Monto',
       'transaction.tracenumber': 'Trazabilidad',
-      'transaction.companyidentification': 'NIT/Id empresa origen',
-      'transaction.originatingdfi': 'Entidad originadora',
+      'transaction.companyidentification': 'Identificacion compania',
+      'transaction.originatingdfi': 'Banco originador',
       'transaction.sourceaccountnumber': 'Cuenta origen',
       'transaction.id': 'Id transaccion',
+      'achtransaction.amount': 'Monto',
+      'achtransaction.tracenumber': 'Trazabilidad',
+      'achtransaction.companyidentification': 'Identificacion compania',
+      'achtransaction.originatingdfi': 'Banco originador',
       'batch.id': 'Id lote',
+      'achbatch.id': 'Id lote',
       'cycle.id': 'Id ciclo',
       'cycle.processingdate': 'Fecha de proceso',
+      'achcycle.processingdate': 'Fecha de proceso',
       'execution.datetimeutc': 'Fecha/hora ejecucion UTC',
       'execution.dateyyyymmdd': 'Fecha ejecucion yyyymmdd',
-      'clearinghouse.id': 'Identificador',
+      'clearinghouse.id': 'Identificador interno',
       'clearinghouse.code': 'Codigo',
-      'differentialresponse.idcanal': 'Id canal',
+      'financialinstitution.routingnumber': 'Codigo ruta',
+      'differentialresponse.idcanal': 'Canal',
       'differentialresponse.nombrecanal': 'Nombre canal',
-      'differentialresponse.idtransaccion': 'Id transaccion',
-      'differentialresponse.idestado': 'Id estado',
+      'differentialresponse.idtransaccion': 'Transaccion',
+      'differentialresponse.idestado': 'Estado',
       'differentialresponse.codigocausalexterna': 'Causal externa',
       'differentialresponse.idtransaccionservicioexterno': 'Id transaccion servicio externo',
       'differentialresponse.descripcioncausalexterna': 'Descripcion causal externa',
+      'nachaheaders.immediatedestination': 'Destino inmediato',
+      'nachaheaders.immediateorigin': 'Origen inmediato',
+      'nachaheaders.fileidmodifier': 'Modificador de archivo',
+      'batchheaders.companyname': 'Nombre compania',
+      'batchheaders.companyid': 'Identificacion compania',
+      'batchheaders.companyidentification': 'Identificacion compania',
+      'batchheaders.companyentrydescription': 'Descripcion entrada',
+      'batchheaders.effectiveentrydate': 'Fecha efectiva',
+      'entrydetails.amount': 'Monto',
+      'entrydetails.accountnumber': 'Cuenta',
+      'entrydetails.transactioncode': 'Codigo transaccion',
+      'entrydetails.tracenumber': 'Trazabilidad',
+      'addendarecords.infofromoriginator': 'Informacion de pago',
+      'addendarecords.paymentrelatedinformation': 'Informacion de pago',
+      'batchcontrols.entryaddendacount': 'Cantidad registros',
+      'batchcontrols.entryhash': 'Hash entradas',
+      'filecontrols.blockcount': 'Bloques',
       'prenotification.reference': 'Referencia prenotificacion',
       'prenotification.state': 'Estado prenotificacion',
       'addenda.addendatype': 'Tipo addenda'
@@ -612,11 +649,15 @@ export class MappingSetsPageComponent implements OnInit {
 
   private getConversionRuleLabel(rule: IntegrationMappingRule | null, isOptionalReserved: boolean): string {
     if (isOptionalReserved) {
-      return 'Reservado/opcional';
+      return 'Reservado / opcional';
     }
 
     if (!rule) {
       return 'Pendiente de definicion';
+    }
+
+    if (this.isPlaceholderRule(rule)) {
+      return 'Pendiente funcional';
     }
 
     if (rule.fixedValue) {
@@ -639,8 +680,16 @@ export class MappingSetsPageComponent implements OnInit {
       return 'Parametro contractual opcional/reservado para Proc_Contrapartidas.';
     }
 
-    if (rule && sourceVisual.hasValidSource && sourceVisual.isTechnicalSource) {
-      return 'Relacion activa con fuente tecnica soportada por backend.';
+    if (rule && sourceVisual.hasValidSource && this.isPlaceholderRule(rule)) {
+      return 'Valor pendiente de definicion funcional; no debe tratarse como homologado.';
+    }
+
+    if (rule && sourceVisual.hasValidSource && sourceVisual.sourceKind === 'constant') {
+      return 'Valor fijo o default tecnico visible para revision funcional.';
+    }
+
+    if (rule && sourceVisual.hasValidSource) {
+      return 'Relacion activa con fuente funcional soportada por backend.';
     }
 
     if (rule && !sourceVisual.hasValidSource) {
@@ -770,14 +819,108 @@ export class MappingSetsPageComponent implements OnInit {
       .includes(this.normalizeSourceKind(kind).toLowerCase());
   }
 
-  private isFunctionalSourceKind(kind: string): boolean {
-    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol', 'differentialresponse']
+  private getFunctionalMappingStatus(
+    rule: IntegrationMappingRule | null,
+    sourceVisual: SourceVisual,
+    isInactive: boolean,
+    isOptionalReserved: boolean
+  ): MatrixStatus {
+    if (isInactive) {
+      return 'Inactivo';
+    }
+
+    if (isOptionalReserved) {
+      return 'Opcional / reservado';
+    }
+
+    if (!sourceVisual.hasValidSource) {
+      return 'Sin mapear';
+    }
+
+    if (rule && this.isPlaceholderRule(rule)) {
+      return 'Placeholder / pendiente funcional';
+    }
+
+    if (this.isNachaSourceKind(sourceVisual.sourceKind)) {
+      return 'Mapeado NACHA';
+    }
+
+    if (this.isTransactionalSourceKind(sourceVisual.sourceKind)) {
+      return 'Mapeado transaccional';
+    }
+
+    if (this.isCycleCameraSourceKind(sourceVisual.sourceKind)) {
+      return 'Mapeado por ciclo/camara';
+    }
+
+    if (sourceVisual.sourceKind === 'differentialresponse') {
+      return 'Mapeado desde respuesta diferencial';
+    }
+
+    if (sourceVisual.sourceKind === 'constant') {
+      return 'Constante tecnica';
+    }
+
+    return 'Sin mapear';
+  }
+
+  private isMappedStatus(status: MatrixStatus): boolean {
+    return status === 'Mapeado NACHA'
+      || status === 'Mapeado transaccional'
+      || status === 'Mapeado por ciclo/camara'
+      || status === 'Mapeado desde respuesta diferencial'
+      || status === 'Constante tecnica';
+  }
+
+  private isKnownSourceKind(kind: string): boolean {
+    return this.isNachaSourceKind(kind)
+      || this.isTransactionalSourceKind(kind)
+      || this.isCycleCameraSourceKind(kind)
+      || kind === 'differentialresponse'
+      || kind === 'constant';
+  }
+
+  private isNachaSourceKind(kind: string): boolean {
+    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol', 'addenda']
       .includes(kind);
   }
 
-  private isTechnicalSourceKind(kind: string): boolean {
-    return ['transaction', 'cycle', 'clearinghouse', 'batch', 'constant', 'addenda', 'financialinstitution', 'prenotification']
+  private isTransactionalSourceKind(kind: string): boolean {
+    return ['transaction', 'batch', 'prenotification']
       .includes(kind);
+  }
+
+  private isCycleCameraSourceKind(kind: string): boolean {
+    return ['cycle', 'clearinghouse', 'financialinstitution'].includes(kind);
+  }
+
+  private isPlaceholderRule(rule: IntegrationMappingRule | null): boolean {
+    if (!rule) {
+      return false;
+    }
+
+    if (this.normalizeSourceKind(rule.sourceKind).toLowerCase() === 'constant') {
+      const hasConcreteValue = !!(rule.fixedValue ?? rule.defaultValue ?? '').trim();
+      return hasConcreteValue
+        ? [rule.fixedValue, rule.defaultValue].some((value) => this.isPlaceholderValue(value))
+        : this.isPlaceholderValue(rule.sourceFieldPath);
+    }
+
+    return [rule.fixedValue, rule.defaultValue, rule.sourceFieldPath].some((value) => this.isPlaceholderValue(value));
+  }
+
+  private isPlaceholderValue(value: string | null | undefined): boolean {
+    const normalized = (value ?? '').trim().toUpperCase();
+    if (!normalized) {
+      return false;
+    }
+
+    return new Set(['SEED', 'TEST', 'REF-1', 'CONSTANT.VALUE', '000010070', '900123456', 'ACH', '1', '1.0', '1.00', '0', '0.0', '0.00', '0.0.0.0'])
+      .has(normalized);
+  }
+
+  private normalizeSourceFieldPath(path: string | null | undefined): string {
+    return (path ?? '').trim().toLowerCase();
   }
 
   private isOptionalReservedParameter(parameter: IntegrationMethodParameter): boolean {

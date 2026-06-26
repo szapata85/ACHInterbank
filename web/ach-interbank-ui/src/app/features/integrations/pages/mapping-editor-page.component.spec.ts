@@ -271,9 +271,9 @@ describe('MappingEditorPageComponent', () => {
     const { fixture } = await setup();
 
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('NachaHeaders');
-    expect(text).toContain('BatchHeaders');
-    expect(text).toContain('EntryDetails');
+    expect(text).toContain('Archivo NACHA');
+    expect(text).toContain('Lote NACHA');
+    expect(text).toContain('Detalle NACHA');
   });
 
   it('MappingEditor_ShouldKeepSourceFieldPathReadonly', async () => {

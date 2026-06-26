@@ -514,21 +514,21 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   getSourceKindLabel(kind: string | null | undefined): string {
     switch (this.normalizeSourceKind(kind)) {
-      case 'Transaction': return 'Dato de transacción';
-      case 'Batch': return 'Dato de lote';
-      case 'Cycle': return 'Dato de ciclo';
-      case 'ClearingHouse': return 'Dato de cámara';
-      case 'Constant': return 'Valor fijo';
-      case 'Addenda': return 'Dato complementario';
-      case 'NachaHeader': return 'NachaHeaders';
-      case 'BatchHeader': return 'BatchHeaders';
-      case 'EntryDetail': return 'EntryDetails';
-      case 'AddendaRecord': return 'AddendaRecords';
-      case 'BatchControl': return 'BatchControls';
-      case 'FileControl': return 'FileControls';
-      case 'FinancialInstitution': return 'FinancialInstitution';
-      case 'Prenotification': return 'Prenotification';
-      case 'DifferentialResponse': return 'DifferentialResponse';
+      case 'Transaction': return 'Transaccion';
+      case 'Batch': return 'Lote operativo';
+      case 'Cycle': return 'Ciclo';
+      case 'ClearingHouse': return 'Camara';
+      case 'Constant': return 'Constante';
+      case 'Addenda': return 'Addenda NACHA';
+      case 'NachaHeader': return 'Archivo NACHA';
+      case 'BatchHeader': return 'Lote NACHA';
+      case 'EntryDetail': return 'Detalle NACHA';
+      case 'AddendaRecord': return 'Addenda NACHA';
+      case 'BatchControl': return 'Control lote NACHA';
+      case 'FileControl': return 'Control archivo NACHA';
+      case 'FinancialInstitution': return 'Entidad financiera';
+      case 'Prenotification': return 'Prenotificacion';
+      case 'DifferentialResponse': return 'Respuesta diferencial';
       default: return 'No definido';
     }
   }
