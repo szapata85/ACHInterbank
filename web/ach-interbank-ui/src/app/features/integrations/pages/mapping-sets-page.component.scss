@@ -24,22 +24,6 @@
   justify-content: space-between;
 }
 
-.catalog-status-card {
-  border: 1px solid #d7e3f0;
-  border-radius: 9px;
-  background: #f8fafc;
-  color: #475569;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.86rem;
-  font-weight: 650;
-}
-
-.catalog-status-card.error {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #991b1b;
-}
-
 .service-selector {
   display: flex;
   gap: 0.35rem;
@@ -103,8 +87,9 @@
 }
 
 .selected-service {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
   padding: 0.85rem 1rem;
   border-color: #d7e3f0;
@@ -125,23 +110,85 @@ dt,
   margin: 0.1rem 0 0.2rem;
 }
 
-.selected-service dl {
-  display: grid;
-  grid-template-columns: repeat(4, auto);
-  gap: 0.55rem;
-  margin: 0;
+.version-chip {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  padding: 0.18rem 0.55rem;
+  font-weight: 800;
+  margin-top: 0.4rem;
 }
 
-.selected-service dl div {
-  min-width: 84px;
-  border-left: 1px solid #e5e7eb;
-  padding-left: 0.65rem;
+.summary-strip,
+.filter-bar {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
 }
 
+.summary-strip {
+  border: 1px solid #d7e3f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.5rem;
+}
+
+.summary-strip div,
+.filter-chip {
+  flex: 0 0 auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background: #f8fafc;
+  padding: 0.45rem 0.65rem;
+}
+
+.summary-strip div {
+  min-width: 120px;
+}
+
+.summary-strip span,
+.filter-chip span,
+dt {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.summary-strip strong,
+.filter-chip strong,
 dd {
   margin: 0;
   color: #111827;
-  font-weight: 750;
+  font-weight: 800;
+}
+
+.summary-strip .critical {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.summary-strip .warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.filter-chip.active {
+  border-color: #0b4a8b;
+  background: #eef4fb;
+}
+
+.filter-chip.active span,
+.filter-chip.active strong {
+  color: #0b4a8b;
 }
 
 .matrix-card {
@@ -155,7 +202,7 @@ dd {
 
 .mapping-matrix {
   width: 100%;
-  min-width: 960px;
+  min-width: 900px;
   border-collapse: collapse;
 }
 
@@ -273,11 +320,78 @@ dd {
   gap: 0.35rem;
 }
 
+.row-actions.compact {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.row-more-actions {
+  position: relative;
+}
+
+.row-more-actions summary {
+  color: #0b4a8b;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.row-more-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.row-more-actions[open] {
+  z-index: 3;
+}
+
+.row-more-actions[open] summary {
+  margin-bottom: 0.35rem;
+}
+
+.row-more-actions button {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #1f2937;
+  cursor: pointer;
+  padding: 0.28rem 0;
+  text-align: left;
+}
+
 .matrix-footer,
 .modal-footer {
   justify-content: flex-end;
   border-top: 1px solid #e5e7eb;
   padding: 0.85rem 1rem;
+}
+
+.advanced-panel {
+  min-width: min(520px, 100%);
+  color: #334155;
+}
+
+.advanced-panel summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.advanced-panel dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.65rem 0 0;
+}
+
+.advanced-panel dd {
+  overflow-wrap: anywhere;
+}
+
+.filter-empty {
+  color: #64748b;
+  font-weight: 750;
+  padding: 0.75rem 0;
 }
 
 .btn {
@@ -446,11 +560,8 @@ dd {
 @media (max-width: 1100px) {
   .service-selector,
   .selected-service {
-    grid-template-columns: 1fr;
-  }
-
-  .selected-service dl {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
@@ -471,17 +582,6 @@ dd {
   .service-option {
     width: 100%;
     text-align: left;
-  }
-
-  .selected-service dl {
-    grid-template-columns: 1fr;
-  }
-
-  .selected-service dl div {
-    border-left: 0;
-    border-top: 1px solid #e5e7eb;
-    padding-left: 0;
-    padding-top: 0.65rem;
   }
 
   .table-wrap {
@@ -527,6 +627,10 @@ dd {
 
   .row-actions {
     flex-direction: column;
+  }
+
+  .advanced-panel dl {
+    grid-template-columns: 1fr;
   }
 
   .modal-panel {

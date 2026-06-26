@@ -1,9 +1,8 @@
 <section class="mapping-matrix-page" data-testid="integration-mappings-page">
   <header class="page-header">
     <div class="page-title">
-      <span class="eyebrow">Relacion de campos sistema - SOAP</span>
       <h1>Matriz de campos SOAP</h1>
-      <p>Revise que parametro SOAP se alimenta desde cada tabla y campo interno permitido.</p>
+      <p>Revise campos listos, pendientes y bloqueantes por servicio.</p>
     </div>
     <button type="button" class="btn btn-primary" *ngIf="canManage" (click)="openDraftModal()">
       Crear borrador
@@ -25,33 +24,50 @@
 
   <section class="selected-service" *ngIf="selectedMethod">
     <div>
-      <span>Servicio SOAP</span>
       <strong>{{ selectedMethod.operationKey }}</strong>
       <p>{{ selectedServiceDescription }}</p>
-      <small>No ejecuta llamadas SOAP, no mueve dinero y no cambia estado productivo.</small>
+      <span class="version-chip">{{ getMappingSetStatusLabel(activeMappingSet) }}</span>
     </div>
-    <dl>
-      <div>
-        <dt>Version de trabajo</dt>
-        <dd>{{ getMappingSetStatusLabel(activeMappingSet) }}</dd>
-      </div>
-      <div>
-        <dt>Mapeado</dt>
-        <dd>{{ matrixStats.mapped }}</dd>
-      </div>
-      <div>
-        <dt>Sin mapear</dt>
-        <dd>{{ matrixStats.unmapped }}</dd>
-      </div>
-      <div>
-        <dt>Inactivo</dt>
-        <dd>{{ matrixStats.inactive }}</dd>
-      </div>
-    </dl>
   </section>
 
-  <section class="catalog-status-card" *ngIf="selectedMethod" [class.error]="catalogLoadState === 'error'">
-    <span>{{ catalogLoadState === 'loading' ? 'Cargando matriz y tablas origen permitidas' : catalogLoadState === 'error' ? 'No se pudo cargar el catalogo funcional' : 'Origen permitido: NachaHeaders, BatchHeaders, EntryDetails, AddendaRecords, BatchControls y FileControls. Sin SQL libre.' }}</span>
+  <section class="summary-strip" *ngIf="selectedMethod" data-testid="mapping-functional-summary">
+    <div>
+      <span>Total parametros</span>
+      <strong>{{ matrixStats.total }}</strong>
+    </div>
+    <div>
+      <span>Listos</span>
+      <strong>{{ matrixStats.ready }}</strong>
+    </div>
+    <div>
+      <span>Pendientes</span>
+      <strong>{{ matrixStats.pending }}</strong>
+    </div>
+    <div class="critical">
+      <span>Bloqueantes</span>
+      <strong>{{ matrixStats.blocking }}</strong>
+    </div>
+    <div class="warning">
+      <span>Warnings</span>
+      <strong>{{ matrixStats.warnings }}</strong>
+    </div>
+    <div>
+      <span>Opcionales/reservados</span>
+      <strong>{{ matrixStats.optionalReserved }}</strong>
+    </div>
+  </section>
+
+  <section class="filter-bar" *ngIf="selectedMethod" aria-label="Filtros de estado funcional" data-testid="mapping-filter-bar">
+    <button
+      type="button"
+      class="filter-chip"
+      *ngFor="let filter of filterOptions"
+      [class.active]="selectedFilter === filter.key"
+      (click)="setFilter(filter.key)"
+    >
+      <span>{{ filter.label }}</span>
+      <strong>{{ filter.count }}</strong>
+    </button>
   </section>
 
   <section class="matrix-card" *ngIf="matrixRows.length > 0; else emptyMatrix">
@@ -59,45 +75,55 @@
       <table class="mapping-matrix" data-testid="mapping-matrix-table">
         <thead>
           <tr>
-            <th>Servicio SOAP</th>
             <th>Parametro SOAP</th>
-            <th>Tabla origen</th>
-            <th>Campo origen</th>
-            <th>Regla de conversion</th>
-            <th>Obligatorio</th>
-            <th>Estado</th>
-            <th>Acciones</th>
+            <th>Estado funcional</th>
+            <th>Origen</th>
+            <th>Campo / relacion</th>
+            <th>Observacion</th>
+            <th>Accion</th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let row of matrixRows; trackBy: trackRow" data-testid="mapping-matrix-row">
-            <td data-label="Servicio SOAP">{{ row.serviceName }}</td>
+          <tr *ngFor="let row of filteredMatrixRows; trackBy: trackRow" data-testid="mapping-matrix-row">
             <td data-label="Parametro SOAP">
               <strong>{{ row.parameterSoap }}</strong>
               <small>{{ row.parameterDescription }}</small>
             </td>
-            <td data-label="Tabla origen">{{ row.tableOrigin }}</td>
-            <td data-label="Campo origen">{{ row.fieldOrigin }}</td>
-            <td data-label="Regla de conversion">{{ row.conversionRule }}</td>
-            <td data-label="Obligatorio">{{ row.required ? 'Si' : 'No' }}</td>
-            <td data-label="Estado">
+            <td data-label="Estado funcional">
               <span class="state-pill" [ngClass]="getStatusClass(row.status)">{{ row.status }}</span>
             </td>
-            <td data-label="Acciones">
-              <div class="row-actions">
+            <td data-label="Origen">{{ row.tableOrigin }}</td>
+            <td data-label="Campo / relacion">{{ row.fieldOrigin }}</td>
+            <td data-label="Observacion">
+              {{ getObservationLabel(row) }}
+              <small>{{ row.required ? 'Requerido' : 'No requerido' }} · {{ row.conversionRule }}</small>
+            </td>
+            <td data-label="Accion">
+              <div class="row-actions compact">
                 <button type="button" class="btn btn-ghost" data-testid="mapping-detail-button" (click)="openDetail(row)">
-                  Ver detalle
+                  {{ getRowActionLabel(row) }}
                 </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  data-testid="mapping-edit-button"
-                  *ngIf="canManage"
-                  [disabled]="savingRule"
-                  (click)="editRelation(row)"
-                >
-                  Editar relacion
-                </button>
+                <details class="row-more-actions">
+                  <summary>Mas acciones</summary>
+                  <button type="button" (click)="openHistory(row)">Ver auditoria</button>
+                  <button type="button" *ngIf="canManage" (click)="openAdvancedEditor(row)">Editor avanzado</button>
+                  <button
+                    type="button"
+                    data-testid="mapping-edit-button"
+                    *ngIf="canManage"
+                    [disabled]="savingRule"
+                    (click)="editRelation(row)"
+                  >
+                    Editar relacion
+                  </button>
+                </details>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="filteredMatrixRows.length === 0" data-testid="mapping-filter-empty-row">
+            <td colspan="6">
+              <div class="filter-empty">
+                No hay parametros para el filtro seleccionado.
               </div>
             </td>
           </tr>
@@ -109,9 +135,27 @@
       <button type="button" class="btn btn-secondary" (click)="loadMethods()" [disabled]="loading">
         {{ loading ? 'Recargando...' : 'Recargar matriz' }}
       </button>
-      <button type="button" class="btn btn-secondary" *ngIf="activeMappingSet" (click)="openHistory()">
-        Ver auditoria
-      </button>
+      <details class="advanced-panel" *ngIf="selectedMethod">
+        <summary>Informacion tecnica</summary>
+        <dl>
+          <div>
+            <dt>MappingSet</dt>
+            <dd>{{ activeMappingSet?.id || 'Sin version publicada' }}</dd>
+          </div>
+          <div>
+            <dt>Version</dt>
+            <dd>{{ activeMappingSet?.version ?? 'N/A' }}</dd>
+          </div>
+          <div>
+            <dt>Reglas visibles</dt>
+            <dd>{{ activeMappingSet?.rules?.length ?? 0 }}</dd>
+          </div>
+          <div>
+            <dt>Catalogo</dt>
+            <dd>{{ catalogLoadState === 'loading' ? 'Cargando' : catalogLoadState === 'error' ? 'Error' : 'Listo' }}</dd>
+          </div>
+        </dl>
+      </details>
     </footer>
   </section>
 

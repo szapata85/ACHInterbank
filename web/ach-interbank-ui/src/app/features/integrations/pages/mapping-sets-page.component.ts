@@ -27,6 +27,7 @@ type MatrixStatus =
   | 'Opcional / reservado'
   | 'Sin mapear'
   | 'Inactivo';
+type MatrixFilter = 'Todos' | 'Pendientes' | 'Bloqueantes' | 'Warnings' | 'Listos' | 'Opcionales/reservados';
 type MappingModalMode = 'detail' | 'edit' | 'draft' | 'history' | null;
 
 interface ServiceDescriptor {
@@ -89,6 +90,7 @@ export class MappingSetsPageComponent implements OnInit {
   modalMode: MappingModalMode = null;
   selectedRow: MappingMatrixRow | null = null;
   selectedMapping: IntegrationMappingSet | null = null;
+  selectedFilter: MatrixFilter = 'Todos';
 
   readonly canManage = this.auth.hasPermission('CanManageAch');
 
@@ -173,6 +175,10 @@ export class MappingSetsPageComponent implements OnInit {
       .map((parameter) => this.buildMatrixRow(parameter, mappingSet, rulesByParameter.get(parameter.id) ?? null));
   }
 
+  get filteredMatrixRows(): MappingMatrixRow[] {
+    return this.matrixRows.filter((row) => this.matchesSelectedFilter(row));
+  }
+
   get allowedSourceFields(): IntegrationSourceCatalogField[] {
     return this.sourceCatalog
       .filter((field) => this.isActiveFlag(field.isActive) && this.isAllowedNachaSource(field.sourceKind))
@@ -182,10 +188,28 @@ export class MappingSetsPageComponent implements OnInit {
   get matrixStats() {
     const rows = this.matrixRows;
     return {
+      total: rows.length,
+      ready: rows.filter((row) => this.isReadyRow(row)).length,
+      pending: rows.filter((row) => this.isPendingRow(row)).length,
+      blocking: rows.filter((row) => this.isBlockingRow(row)).length,
+      warnings: rows.filter((row) => this.isWarningRow(row)).length,
+      optionalReserved: rows.filter((row) => row.status === 'Opcional / reservado').length,
       mapped: rows.filter((row) => this.isMappedStatus(row.status)).length,
       unmapped: rows.filter((row) => row.status === 'Sin mapear').length,
       inactive: rows.filter((row) => row.status === 'Inactivo').length
     };
+  }
+
+  get filterOptions(): Array<{ key: MatrixFilter; label: string; count: number }> {
+    const stats = this.matrixStats;
+    return [
+      { key: 'Todos', label: 'Todos', count: stats.total },
+      { key: 'Pendientes', label: 'Pendientes', count: stats.pending },
+      { key: 'Bloqueantes', label: 'Bloqueantes', count: stats.blocking },
+      { key: 'Warnings', label: 'Warnings', count: stats.warnings },
+      { key: 'Listos', label: 'Listos', count: stats.ready },
+      { key: 'Opcionales/reservados', label: 'Opcionales/reservados', count: stats.optionalReserved }
+    ];
   }
 
   loadMethods(): void {
@@ -225,6 +249,7 @@ export class MappingSetsPageComponent implements OnInit {
 
   onMethodChange(): void {
     this.closeModal();
+    this.selectedFilter = 'Todos';
     this.loadCatalogForSelectedMethod();
     this.loadMappingSets();
   }
@@ -354,13 +379,22 @@ export class MappingSetsPageComponent implements OnInit {
       });
   }
 
-  openAdvancedEditor(): void {
+  openAdvancedEditor(row?: MappingMatrixRow): void {
+    if (row) {
+      this.selectedRow = row;
+      this.selectedMapping = row.mappingSet;
+    }
+
     const mappingSet = this.selectedMapping ?? this.activeMappingSet;
     if (!mappingSet) {
       return;
     }
 
     this.router.navigate(['/integraciones/mappings', mappingSet.methodCode, mappingSet.id]);
+  }
+
+  setFilter(filter: MatrixFilter): void {
+    this.selectedFilter = filter;
   }
 
   getStatusClass(status: MatrixStatus): string {
@@ -385,6 +419,42 @@ export class MappingSetsPageComponent implements OnInit {
     if (normalized === 'Published') return 'Publicado activo';
     if (normalized === 'Archived') return 'Archivado';
     return normalized || 'Sin estado';
+  }
+
+  getObservationLabel(row: MappingMatrixRow): string {
+    if (row.status === 'Placeholder / pendiente funcional') {
+      return 'Pendiente de definicion funcional.';
+    }
+
+    if (row.status === 'Sin mapear') {
+      return row.required ? 'Requiere fuente o constante homologada.' : 'Sin relacion activa.';
+    }
+
+    if (row.status === 'Constante tecnica') {
+      return 'Constante tecnica; revisar politica funcional.';
+    }
+
+    if (row.status === 'Opcional / reservado') {
+      return 'Reservado por contrato; no bloquea la revision funcional.';
+    }
+
+    if (row.status === 'Inactivo') {
+      return 'No participa en la version visible.';
+    }
+
+    return 'Listo con fuente funcional.';
+  }
+
+  getRowActionLabel(row: MappingMatrixRow): string {
+    if (row.status === 'Sin mapear') {
+      return 'Completar';
+    }
+
+    if (this.isBlockingRow(row) || this.isWarningRow(row)) {
+      return 'Revisar';
+    }
+
+    return 'Ver detalle';
   }
 
   getSourceKindLabel(kind: string | number | null | undefined): string {
@@ -870,6 +940,50 @@ export class MappingSetsPageComponent implements OnInit {
       || status === 'Mapeado por ciclo/camara'
       || status === 'Mapeado desde respuesta diferencial'
       || status === 'Constante tecnica';
+  }
+
+  private matchesSelectedFilter(row: MappingMatrixRow): boolean {
+    if (this.selectedFilter === 'Todos') {
+      return true;
+    }
+
+    if (this.selectedFilter === 'Pendientes') {
+      return this.isPendingRow(row);
+    }
+
+    if (this.selectedFilter === 'Bloqueantes') {
+      return this.isBlockingRow(row);
+    }
+
+    if (this.selectedFilter === 'Warnings') {
+      return this.isWarningRow(row);
+    }
+
+    if (this.selectedFilter === 'Listos') {
+      return this.isReadyRow(row);
+    }
+
+    return row.status === 'Opcional / reservado';
+  }
+
+  private isReadyRow(row: MappingMatrixRow): boolean {
+    return row.status === 'Mapeado NACHA'
+      || row.status === 'Mapeado transaccional'
+      || row.status === 'Mapeado por ciclo/camara'
+      || row.status === 'Mapeado desde respuesta diferencial';
+  }
+
+  private isPendingRow(row: MappingMatrixRow): boolean {
+    return row.status === 'Sin mapear' || row.status === 'Placeholder / pendiente funcional';
+  }
+
+  private isBlockingRow(row: MappingMatrixRow): boolean {
+    return row.status === 'Placeholder / pendiente funcional'
+      || (row.status === 'Sin mapear' && row.required);
+  }
+
+  private isWarningRow(row: MappingMatrixRow): boolean {
+    return row.status === 'Constante tecnica';
   }
 
   private isKnownSourceKind(kind: string): boolean {

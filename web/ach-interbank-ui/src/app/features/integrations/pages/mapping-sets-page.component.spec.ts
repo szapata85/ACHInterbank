@@ -340,15 +340,66 @@ describe('MappingSetsPageComponent', () => {
     const text = fixture.nativeElement.textContent as string;
 
     expect(text).toContain('Matriz de campos SOAP');
-    expect(text).toContain('Servicio SOAP');
     expect(text).toContain('Parametro SOAP');
-    expect(text).toContain('Tabla origen');
-    expect(text).toContain('Campo origen');
-    expect(text).toContain('Regla de conversion');
-    expect(text).toContain('Obligatorio');
-    expect(text).toContain('Estado');
+    expect(text).toContain('Estado funcional');
+    expect(text).toContain('Origen');
+    expect(text).toContain('Campo / relacion');
+    expect(text).toContain('Observacion');
+    expect(text).toContain('Accion');
+    expect(text).not.toContain('Tabla origen');
+    expect(text).not.toContain('Campo origen');
+    expect(text).not.toContain('Regla de conversion');
+    expect(text).not.toContain('Obligatorio');
     expect(fixture.nativeElement.querySelector('[data-testid="mapping-matrix-table"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="mapping-card"]')).toBeFalsy();
+  });
+
+  it('renderiza resumen funcional compacto y filtros principales', () => {
+    const text = fixture.nativeElement.textContent as string;
+    const summary = fixture.nativeElement.querySelector('[data-testid="mapping-functional-summary"]') as HTMLElement;
+    const filterBar = fixture.nativeElement.querySelector('[data-testid="mapping-filter-bar"]') as HTMLElement;
+
+    expect(summary).toBeTruthy();
+    expect(summary.textContent).toContain('Total parametros');
+    expect(summary.textContent).toContain('Listos');
+    expect(summary.textContent).toContain('Pendientes');
+    expect(summary.textContent).toContain('Bloqueantes');
+    expect(summary.textContent).toContain('Warnings');
+    expect(summary.textContent).toContain('Opcionales/reservados');
+    expect(filterBar).toBeTruthy();
+    expect(text).toContain('Todos');
+    expect(text).toContain('Pendientes');
+    expect(text).toContain('Bloqueantes');
+    expect(text).toContain('Warnings');
+    expect(text).toContain('Listos');
+    expect(text).toContain('Opcionales/reservados');
+  });
+
+  it('permite filtrar pendientes y bloqueantes desde la matriz calculada', () => {
+    selectService(1);
+
+    component.mappingSets = [
+      {
+        ...mappingSets[0],
+        rules: mappingSets[0].rules
+          .filter((rule) => rule.parameterId !== 18)
+          .map((rule) => rule.parameterId === 21 ? { ...rule, fixedValue: 'SEED', defaultValue: null } : rule)
+      }
+    ];
+
+    component.setFilter('Pendientes');
+    expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['OFIDTX', 'OFDD']);
+
+    component.setFilter('Bloqueantes');
+    expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['OFIDTX', 'OFDD']);
+  });
+
+  it('permite filtrar opcionales reservados', () => {
+    selectService(1);
+
+    component.setFilter('Opcionales/reservados');
+
+    expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['ANSIDLOTE', 'ANCLC']);
   });
 
   it('muestra los tres servicios con descripcion funcional en espanol', () => {
@@ -632,6 +683,15 @@ describe('MappingSetsPageComponent', () => {
 
     expect(api.getHistory).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
     expect((fixture.nativeElement.textContent as string)).toContain('Auditoria');
+  });
+
+  it('mantiene navegacion hacia editor avanzado desde accion secundaria', () => {
+    selectService(1);
+
+    const row = component.matrixRows.find((item) => item.parameterSoap === 'OFIDTX')!;
+    component.openAdvancedEditor(row);
+
+    expect(router.navigate).toHaveBeenCalledWith(['/integraciones/mappings', 'WSCFAACH.Proc_Contrapartidas', '11111111-1111-1111-1111-111111111111']);
   });
 
   it('mueve ruta tecnica y auditoria fuera de la vista principal', () => {
