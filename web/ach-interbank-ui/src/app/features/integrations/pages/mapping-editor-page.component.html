@@ -173,7 +173,6 @@
             <ui-boton [texto]="previewing ? 'Generando vista previa…' : 'Vista previa'" [cargando]="previewing" variante="contorno" icono="visibility" (accion)="runPreview()"></ui-boton>
             <ui-boton [texto]="publishing ? 'Publicando…' : 'Publicar'" [cargando]="publishing" [deshabilitado]="!isDraftStatus(set.status)" icono="publish" (accion)="publish()"></ui-boton>
             <ui-boton [texto]="cloning ? 'Clonando…' : 'Clonar'" [cargando]="cloning" variante="contorno" icono="content_copy" (accion)="clone()"></ui-boton>
-            <ui-boton texto="Comparar versiones" variante="fantasma" icono="compare_arrows" (accion)="irAComparacion()"></ui-boton>
           </div>
 
           <div class="panel-block" [class.invalido]="totalErroresValidacion > 0" [class.advertencia]="totalErroresValidacion === 0 && totalAdvertenciasValidacion > 0">

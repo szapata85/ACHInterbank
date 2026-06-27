@@ -660,15 +660,6 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   get estadoPublicacion(): string {
     return this.getMappingSetStatusLabel(this.mappingSet?.status as any);
   }
-
-  irAComparacion(): void {
-    if (!this.mappingSet?.methodCode) {
-      this.notifications.error('No se encontró el método para abrir comparación de versiones.');
-      return;
-    }
-    this.router.navigate(['/integraciones/mappings/compare', this.mappingSet.methodCode]);
-  }
-
   trackByParameterId(_: number, parameter: IntegrationMethodParameter): number {
     return parameter.id;
   }

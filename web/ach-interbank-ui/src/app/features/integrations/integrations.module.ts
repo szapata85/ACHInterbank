@@ -7,7 +7,6 @@ import { IntegrationsRoutingModule } from './integrations-routing.module';
 import { IntegrationWorkspaceComponent } from './pages/integration-workspace.component';
 import { MappingSetsPageComponent } from './pages/mapping-sets-page.component';
 import { MappingEditorPageComponent } from './pages/mapping-editor-page.component';
-import { MappingComparePageComponent } from './pages/mapping-compare-page.component';
 
 @NgModule({
   imports: [
@@ -19,8 +18,7 @@ import { MappingComparePageComponent } from './pages/mapping-compare-page.compon
     IntegrationsRoutingModule,
     IntegrationWorkspaceComponent,
     MappingSetsPageComponent,
-    MappingEditorPageComponent,
-    MappingComparePageComponent
+    MappingEditorPageComponent
   ]
 })
 export class IntegrationsModule {}
