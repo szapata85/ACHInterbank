@@ -32,7 +32,7 @@
 
   <section class="summary-strip" *ngIf="selectedMethod" data-testid="mapping-functional-summary">
     <div>
-      <span>Total parametros</span>
+      <span>Total parámetros</span>
       <strong>{{ matrixStats.total }}</strong>
     </div>
     <div>
@@ -48,7 +48,7 @@
       <strong>{{ matrixStats.blocking }}</strong>
     </div>
     <div class="warning">
-      <span>Warnings</span>
+      <span>Alertas</span>
       <strong>{{ matrixStats.warnings }}</strong>
     </div>
     <div>
@@ -66,7 +66,6 @@
       (click)="setFilter(filter.key)"
     >
       <span>{{ filter.label }}</span>
-      <strong>{{ filter.count }}</strong>
     </button>
   </section>
 
@@ -75,17 +74,17 @@
       <table class="mapping-matrix" data-testid="mapping-matrix-table">
         <thead>
           <tr>
-            <th>Parametro SOAP</th>
+            <th>Parámetro SOAP</th>
             <th>Estado funcional</th>
             <th>Origen</th>
-            <th>Campo / relacion</th>
-            <th>Observacion</th>
-            <th>Accion</th>
+            <th>Campo / relación</th>
+            <th>Observación</th>
+            <th>Acción</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let row of filteredMatrixRows; trackBy: trackRow" data-testid="mapping-matrix-row">
-            <td data-label="Parametro SOAP">
+            <td data-label="Parámetro SOAP">
               <strong>{{ row.parameterSoap }}</strong>
               <small>{{ row.parameterDescription }}</small>
             </td>
@@ -93,20 +92,20 @@
               <span class="state-pill" [ngClass]="getStatusClass(row.status)">{{ row.status }}</span>
             </td>
             <td data-label="Origen">{{ row.tableOrigin }}</td>
-            <td data-label="Campo / relacion">{{ row.fieldOrigin }}</td>
-            <td data-label="Observacion">
+            <td data-label="Campo / relación">{{ row.fieldOrigin }}</td>
+            <td data-label="Observación">
               {{ getObservationLabel(row) }}
               <small>{{ row.required ? 'Requerido' : 'No requerido' }} · {{ row.conversionRule }}</small>
             </td>
-            <td data-label="Accion">
+            <td data-label="Acción">
               <div class="row-actions compact">
                 <button type="button" class="btn btn-ghost" data-testid="mapping-detail-button" (click)="openDetail(row)">
                   {{ getRowActionLabel(row) }}
                 </button>
                 <details class="row-more-actions">
-                  <summary>Mas acciones</summary>
-                  <button type="button" (click)="openHistory(row)">Ver auditoria</button>
-                  <button type="button" *ngIf="canManage" (click)="openAdvancedEditor(row)">Editor avanzado</button>
+                  <summary>Más acciones</summary>
+                  <button type="button" (click)="openHistory(row)">Ver auditoría</button>
+                  <button type="button" *ngIf="canManage" (click)="openAdvancedEditor(row)">Avanzado</button>
                   <button
                     type="button"
                     data-testid="mapping-edit-button"
@@ -114,7 +113,7 @@
                     [disabled]="savingRule"
                     (click)="editRelation(row)"
                   >
-                    Editar relacion
+                    Editar relación
                   </button>
                 </details>
               </div>
@@ -123,7 +122,7 @@
           <tr *ngIf="filteredMatrixRows.length === 0" data-testid="mapping-filter-empty-row">
             <td colspan="6">
               <div class="filter-empty">
-                No hay parametros para el filtro seleccionado.
+                No hay parámetros para el filtro seleccionado.
               </div>
             </td>
           </tr>
@@ -133,25 +132,25 @@
 
     <footer class="matrix-footer">
       <button type="button" class="btn btn-secondary" (click)="loadMethods()" [disabled]="loading">
-        {{ loading ? 'Recargando...' : 'Recargar matriz' }}
+        {{ loading ? 'Recargando...' : 'Recargar mapeos' }}
       </button>
       <details class="advanced-panel" *ngIf="selectedMethod">
-        <summary>Informacion tecnica</summary>
+        <summary>Información técnica</summary>
         <dl>
           <div>
-            <dt>MappingSet</dt>
-            <dd>{{ activeMappingSet?.id || 'Sin version publicada' }}</dd>
+            <dt>Versión de mapeo</dt>
+            <dd>{{ activeMappingSet?.id || 'Sin versión publicada' }}</dd>
           </div>
           <div>
-            <dt>Version</dt>
-            <dd>{{ activeMappingSet?.version ?? 'N/A' }}</dd>
+            <dt>Versión</dt>
+            <dd>{{ activeMappingSet?.version ?? 'No aplica' }}</dd>
           </div>
           <div>
             <dt>Reglas visibles</dt>
             <dd>{{ activeMappingSet?.rules?.length ?? 0 }}</dd>
           </div>
           <div>
-            <dt>Catalogo</dt>
+            <dt>Catálogo</dt>
             <dd>{{ catalogLoadState === 'loading' ? 'Cargando' : catalogLoadState === 'error' ? 'Error' : 'Listo' }}</dd>
           </div>
         </dl>
@@ -162,19 +161,19 @@
   <ng-template #emptyMatrix>
     <section class="empty-state" data-testid="empty-mappings-state">
       <strong>
-        {{ catalogLoadState === 'loading' ? 'Cargando parametros SOAP para la matriz.' : 'No hay parametros SOAP disponibles para ' + (selectedMethod?.operationKey || 'el servicio seleccionado') + '.' }}
+        {{ catalogLoadState === 'loading' ? 'Cargando parámetros SOAP para la matriz.' : 'No hay parámetros SOAP disponibles para ' + (selectedMethod?.operationKey || 'el servicio seleccionado') + '.' }}
       </strong>
-      <span>La vista principal solo muestra la relacion funcional entre parametro SOAP, tabla origen y campo origen.</span>
+      <span>La vista principal solo muestra la relación funcional entre parámetro SOAP, tabla origen y campo origen.</span>
     </section>
   </ng-template>
 </section>
 
 <div class="modal-backdrop" *ngIf="modalMode" (click)="closeModal()"></div>
 
-<aside class="modal-panel" *ngIf="modalMode === 'detail' && selectedRow" role="dialog" aria-modal="true" aria-label="Detalle de relacion">
+<aside class="modal-panel" *ngIf="modalMode === 'detail' && selectedRow" role="dialog" aria-modal="true" aria-label="Detalle de relación">
   <header class="modal-header">
     <div>
-      <span class="eyebrow">Detalle tecnico secundario</span>
+      <span class="eyebrow">Detalle técnico secundario</span>
       <h2>{{ selectedRow.parameterSoap }}</h2>
     </div>
     <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
@@ -186,7 +185,7 @@
       <dd>{{ selectedRow.serviceName }}</dd>
     </div>
     <div>
-      <dt>Parametro SOAP</dt>
+      <dt>Parámetro SOAP</dt>
       <dd>{{ selectedRow.parameterSoap }}</dd>
     </div>
     <div>
@@ -198,7 +197,7 @@
       <dd>{{ selectedRow.fieldOrigin }}</dd>
     </div>
     <div>
-      <dt>Regla de conversion</dt>
+      <dt>Regla de conversión</dt>
       <dd>{{ selectedRow.conversionRule }}</dd>
     </div>
     <div>
@@ -210,11 +209,11 @@
       <dd>{{ selectedRow.status }}</dd>
     </div>
     <div>
-      <dt>Ultima actualizacion</dt>
+      <dt>Última actualización</dt>
       <dd>{{ selectedRow.lastUpdated }}</dd>
     </div>
     <div>
-      <dt>Ruta tecnica del campo</dt>
+      <dt>Ruta técnica del campo</dt>
       <dd>{{ selectedRow.sourceField?.fieldPath || 'No aplica en la matriz funcional' }}</dd>
     </div>
     <div>
@@ -224,17 +223,17 @@
   </dl>
 
   <footer class="modal-footer">
-    <button type="button" class="btn btn-secondary" *ngIf="selectedRow.mappingSet" (click)="openHistory(selectedRow)">Ver auditoria</button>
-    <button type="button" class="btn btn-secondary" *ngIf="canManage && selectedRow.mappingSet" (click)="openAdvancedEditor()">Editor avanzado</button>
-    <button type="button" class="btn btn-primary" *ngIf="canManage" (click)="editRelation(selectedRow)">Editar relacion</button>
+    <button type="button" class="btn btn-secondary" *ngIf="selectedRow.mappingSet" (click)="openHistory(selectedRow)">Ver auditoría</button>
+    <button type="button" class="btn btn-secondary" *ngIf="canManage && selectedRow.mappingSet" (click)="openAdvancedEditor()">Avanzado</button>
+    <button type="button" class="btn btn-primary" *ngIf="canManage" (click)="editRelation(selectedRow)">Editar relación</button>
     <button type="button" class="btn btn-secondary" (click)="closeModal()">Cerrar</button>
   </footer>
 </aside>
 
-<aside class="modal-panel" *ngIf="modalMode === 'edit' && selectedRow && selectedMapping" role="dialog" aria-modal="true" aria-label="Editar relacion de campos">
+  <aside class="modal-panel" *ngIf="modalMode === 'edit' && selectedRow && selectedMapping" role="dialog" aria-modal="true" aria-label="Editar relación de campos">
   <header class="modal-header">
     <div>
-      <span class="eyebrow">Editar relacion</span>
+      <span class="eyebrow">Editar relación</span>
       <h2>{{ selectedRow.parameterSoap }}</h2>
     </div>
     <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
@@ -243,7 +242,7 @@
   <form [formGroup]="editRelationForm" class="edit-form" (ngSubmit)="saveRelation()">
     <div class="edit-context">
       <strong>{{ selectedRow.serviceName }}</strong>
-      <span>Los cambios se guardan sobre un borrador. No se ejecuta SOAP desde esta accion.</span>
+      <span>Los cambios se guardan sobre un borrador. No se ejecuta SOAP desde esta acción.</span>
     </div>
 
     <label>
@@ -251,13 +250,13 @@
       <select formControlName="sourceCatalogFieldId" data-testid="source-field-select">
         <option [ngValue]="null">Sin mapear</option>
         <option *ngFor="let field of allowedSourceFields; trackBy: trackField" [ngValue]="field.id">
-          {{ getSourceKindLabel(field.sourceKind) }} - {{ field.displayName }}
+          {{ getSourceKindLabel(field.sourceKind) }} - {{ getSourceFieldLabel(field) }}
         </option>
       </select>
     </label>
 
     <label>
-      Regla de conversion
+      Regla de conversión
       <select formControlName="transformationCode">
         <option value="">Sin regla</option>
         <option *ngFor="let transformation of transformations" [value]="transformation.code">
@@ -279,17 +278,17 @@
     <footer class="modal-footer">
       <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="savingRule">Cancelar</button>
       <button type="submit" class="btn btn-primary" [disabled]="savingRule">
-        {{ savingRule ? 'Guardando...' : 'Guardar relacion' }}
+        {{ savingRule ? 'Guardando...' : 'Guardar relación' }}
       </button>
     </footer>
   </form>
 </aside>
 
-<aside class="modal-panel" *ngIf="modalMode === 'draft'" role="dialog" aria-modal="true" aria-label="Crear borrador de relacion">
+<aside class="modal-panel" *ngIf="modalMode === 'draft'" role="dialog" aria-modal="true" aria-label="Crear borrador de relación">
   <header class="modal-header">
     <div>
       <span class="eyebrow">Nuevo borrador</span>
-      <h2>Crear version de trabajo</h2>
+      <h2>Crear versión de trabajo</h2>
     </div>
     <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
   </header>
@@ -304,7 +303,7 @@
       </select>
     </label>
     <label>
-      Nombre de version
+      Nombre de versión
       <input type="text" formControlName="name" />
     </label>
     <label>
@@ -321,18 +320,18 @@
   </form>
 </aside>
 
-<aside class="modal-panel" *ngIf="modalMode === 'history' && selectedMapping" role="dialog" aria-modal="true" aria-label="Auditoria de relacion">
+<aside class="modal-panel" *ngIf="modalMode === 'history' && selectedMapping" role="dialog" aria-modal="true" aria-label="Auditoría de relación">
   <header class="modal-header">
     <div>
-      <span class="eyebrow">Auditoria</span>
+      <span class="eyebrow">Auditoría</span>
       <h2>{{ selectedMapping.name }}</h2>
     </div>
     <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
   </header>
 
   <section class="history-list">
-    <div class="empty-inline" *ngIf="historyLoading">Cargando auditoria...</div>
-    <div class="empty-inline" *ngIf="!historyLoading && historyItems.length === 0">No hay eventos de auditoria para esta version.</div>
+    <div class="empty-inline" *ngIf="historyLoading">Cargando auditoría...</div>
+    <div class="empty-inline" *ngIf="!historyLoading && historyItems.length === 0">No hay eventos de auditoría para esta versión.</div>
     <article class="history-item" *ngFor="let item of historyItems">
       <strong>{{ item.action }}</strong>
       <span>{{ item.performedBy || 'system' }}</span>

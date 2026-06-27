@@ -20,14 +20,14 @@ import { SharedModule } from '../../../shared/shared.module';
 type MatrixStatus =
   | 'Mapeado NACHA'
   | 'Mapeado transaccional'
-  | 'Mapeado por ciclo/camara'
+  | 'Mapeado por ciclo/cámara'
   | 'Mapeado desde respuesta diferencial'
-  | 'Constante tecnica'
-  | 'Placeholder / pendiente funcional'
+  | 'Constante técnica'
+  | 'Pendiente funcional'
   | 'Opcional / reservado'
   | 'Sin mapear'
   | 'Inactivo';
-type MatrixFilter = 'Todos' | 'Pendientes' | 'Bloqueantes' | 'Warnings' | 'Listos' | 'Opcionales/reservados';
+type MatrixFilter = 'Todos' | 'Pendientes' | 'Bloqueantes' | 'Alertas' | 'Listos' | 'Opcionales';
 type MappingModalMode = 'detail' | 'edit' | 'draft' | 'history' | null;
 
 interface ServiceDescriptor {
@@ -103,11 +103,11 @@ export class MappingSetsPageComponent implements OnInit {
   readonly serviceDescriptions: ServiceDescriptor[] = [
     {
       operationKey: 'Proc_Transacciones',
-      description: 'Servicio utilizado para procesar creditos monetarios recibidos desde otra entidad financiera hacia CFA.'
+      description: 'Servicio utilizado para procesar créditos monetarios recibidos desde otra entidad financiera hacia CFA.'
     },
     {
       operationKey: 'Proc_Contrapartidas',
-      description: 'Servicio utilizado para procesar debitos monetarios originados por CFA hacia otra entidad financiera.'
+      description: 'Servicio utilizado para procesar débitos monetarios originados por CFA hacia otra entidad financiera.'
     },
     {
       operationKey: 'RegistrarRespuestaTransaccion',
@@ -206,9 +206,9 @@ export class MappingSetsPageComponent implements OnInit {
       { key: 'Todos', label: 'Todos', count: stats.total },
       { key: 'Pendientes', label: 'Pendientes', count: stats.pending },
       { key: 'Bloqueantes', label: 'Bloqueantes', count: stats.blocking },
-      { key: 'Warnings', label: 'Warnings', count: stats.warnings },
+      { key: 'Alertas', label: 'Alertas', count: stats.warnings },
       { key: 'Listos', label: 'Listos', count: stats.ready },
-      { key: 'Opcionales/reservados', label: 'Opcionales/reservados', count: stats.optionalReserved }
+      { key: 'Opcionales', label: 'Opcionales', count: stats.optionalReserved }
     ];
   }
 
@@ -243,7 +243,7 @@ export class MappingSetsPageComponent implements OnInit {
         this.mappingSets = items ?? [];
         this.refreshView();
       },
-      error: () => this.notifications.error('No fue posible cargar la relacion de campos.')
+      error: () => this.notifications.error('No fue posible cargar la relación de campos.')
     });
   }
 
@@ -277,7 +277,7 @@ export class MappingSetsPageComponent implements OnInit {
   openHistory(row?: MappingMatrixRow): void {
     const mappingSet = row?.mappingSet ?? this.activeMappingSet;
     if (!mappingSet) {
-      this.notifications.error('No hay auditoria disponible para este servicio.');
+      this.notifications.error('No hay auditoría disponible para este servicio.');
       return;
     }
 
@@ -288,7 +288,7 @@ export class MappingSetsPageComponent implements OnInit {
     this.modalMode = 'history';
     this.api.getHistory(mappingSet.id).pipe(finalize(() => (this.historyLoading = false))).subscribe({
       next: (items) => (this.historyItems = items ?? []),
-      error: () => this.notifications.error('No fue posible cargar la auditoria.')
+      error: () => this.notifications.error('No fue posible cargar la auditoría.')
     });
   }
 
@@ -311,7 +311,7 @@ export class MappingSetsPageComponent implements OnInit {
         .subscribe({
           next: (draft) => {
             this.mappingSets = [draft, ...this.mappingSets];
-            this.notifications.success('Se creo un borrador para editar la relacion.');
+            this.notifications.success('Se creó un borrador para editar la relación.');
             this.openEditForDraft(draft, row.parameterId);
           },
           error: () => this.notifications.error('No fue posible crear un borrador editable.')
@@ -328,7 +328,7 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     if (this.editRelationForm.controls.enabled.value && !this.editRelationForm.controls.sourceCatalogFieldId.value) {
-      this.notifications.error('Seleccione una tabla y campo origen para activar la relacion.');
+      this.notifications.error('Seleccione una tabla y campo origen para activar la relación.');
       return;
     }
 
@@ -339,10 +339,10 @@ export class MappingSetsPageComponent implements OnInit {
       .subscribe({
         next: (updated) => {
           this.mappingSets = [updated, ...this.mappingSets.filter((set) => set.id !== updated.id)];
-          this.notifications.success('Relacion de campos actualizada.');
+          this.notifications.success('Relación de campos actualizada.');
           this.closeModal();
         },
-        error: () => this.notifications.error('No fue posible guardar la relacion de campos.')
+        error: () => this.notifications.error('No fue posible guardar la relación de campos.')
       });
   }
 
@@ -372,7 +372,7 @@ export class MappingSetsPageComponent implements OnInit {
       .subscribe({
         next: (created) => {
           this.mappingSets = [created, ...this.mappingSets];
-          this.notifications.success('Borrador de relacion de campos creado.');
+          this.notifications.success('Borrador de relación de campos creado.');
           this.closeModal();
         },
         error: () => this.notifications.error('No fue posible crear el borrador.')
@@ -400,10 +400,10 @@ export class MappingSetsPageComponent implements OnInit {
   getStatusClass(status: MatrixStatus): string {
     if (status === 'Mapeado NACHA') return 'nacha';
     if (status === 'Mapeado transaccional') return 'transactional';
-    if (status === 'Mapeado por ciclo/camara') return 'cycle';
+    if (status === 'Mapeado por ciclo/cámara') return 'cycle';
     if (status === 'Mapeado desde respuesta diferencial') return 'differential';
-    if (status === 'Constante tecnica') return 'constant';
-    if (status === 'Placeholder / pendiente funcional') return 'placeholder';
+    if (status === 'Constante técnica') return 'constant';
+    if (status === 'Pendiente funcional') return 'placeholder';
     if (status === 'Opcional / reservado') return 'reserved';
     if (status === 'Inactivo') return 'inactive';
     return 'unmapped';
@@ -411,7 +411,7 @@ export class MappingSetsPageComponent implements OnInit {
 
   getMappingSetStatusLabel(mappingSet: IntegrationMappingSet | null): string {
     if (!mappingSet) {
-      return 'Sin version de trabajo';
+      return 'Sin versión de trabajo';
     }
 
     const normalized = this.normalizeStatus(mappingSet.status);
@@ -422,24 +422,24 @@ export class MappingSetsPageComponent implements OnInit {
   }
 
   getObservationLabel(row: MappingMatrixRow): string {
-    if (row.status === 'Placeholder / pendiente funcional') {
-      return 'Pendiente de definicion funcional.';
+    if (row.status === 'Pendiente funcional') {
+      return 'Pendiente de definición funcional.';
     }
 
     if (row.status === 'Sin mapear') {
-      return row.required ? 'Requiere fuente o constante homologada.' : 'Sin relacion activa.';
+      return row.required ? 'Requiere fuente o constante homologada.' : 'Sin relación activa.';
     }
 
-    if (row.status === 'Constante tecnica') {
-      return 'Constante tecnica; revisar politica funcional.';
+    if (row.status === 'Constante técnica') {
+      return 'Constante técnica; revisar política funcional.';
     }
 
     if (row.status === 'Opcional / reservado') {
-      return 'Reservado por contrato; no bloquea la revision funcional.';
+      return 'Reservado por contrato; no bloquea la revisión funcional.';
     }
 
     if (row.status === 'Inactivo') {
-      return 'No participa en la version visible.';
+      return 'No participa en la versión visible.';
     }
 
     return 'Listo con fuente funcional.';
@@ -466,21 +466,29 @@ export class MappingSetsPageComponent implements OnInit {
       case 'batchcontrol': return 'Control lote NACHA';
       case 'filecontrol': return 'Control archivo NACHA';
       case 'differentialresponse': return 'Respuesta diferencial';
-      case 'transaction': return 'Transaccion';
+      case 'transaction': return 'Transacción';
       case 'cycle': return 'Ciclo';
-      case 'clearinghouse': return 'Camara';
+      case 'clearinghouse': return 'Cámara';
       case 'constant': return 'Constante';
       case 'batch': return 'Lote operativo';
       case 'addenda': return 'Addenda NACHA';
       case 'financialinstitution': return 'Entidad financiera';
-      case 'prenotification': return 'Prenotificacion';
+      case 'prenotification': return 'Prenotificación';
       default: return 'Sin mapear';
     }
   }
 
+  getSourceFieldLabel(field: IntegrationSourceCatalogField): string {
+    return this.getKnownSourceFieldLabel(field.fieldPath)
+      ?? this.getKnownSourceFieldLabel(field.displayName)
+      ?? field.displayName
+      ?? field.fieldPath
+      ?? 'Campo fuente';
+  }
+
   getServiceDescription(operationKey: string | null | undefined): string {
     return this.serviceDescriptions.find((item) => item.operationKey === operationKey)?.description
-      ?? 'Servicio SOAP controlado para integracion ACH.';
+      ?? 'Servicio SOAP controlado para integración ACH.';
   }
 
   getTransformationLabel(code: string | null | undefined): string {
@@ -569,7 +577,7 @@ export class MappingSetsPageComponent implements OnInit {
       },
       error: () => {
         this.catalogLoadState = 'error';
-        this.notifications.error('No fue posible cargar los parametros SOAP.');
+        this.notifications.error('No fue posible cargar los parámetros SOAP.');
         this.refreshView();
       }
     });
@@ -644,7 +652,7 @@ export class MappingSetsPageComponent implements OnInit {
     const normalizedKind = this.normalizeSourceKind(rule.sourceKind).toLowerCase();
     if (normalizedKind === 'constant') {
       if (this.isPlaceholderRule(rule)) {
-        return 'Placeholder pendiente funcional';
+        return 'Pendiente funcional';
       }
 
       return rule.fixedValue ? 'Valor fijo' : rule.defaultValue ? 'Valor por defecto' : 'Constante';
@@ -656,7 +664,7 @@ export class MappingSetsPageComponent implements OnInit {
       return known;
     }
 
-    return sourceField?.displayName || sourcePath || 'Fuente tecnica';
+    return sourceField?.displayName || sourcePath || 'Fuente técnica';
   }
 
   private getKnownSourceFieldLabel(sourcePath: string): string | null {
@@ -664,53 +672,53 @@ export class MappingSetsPageComponent implements OnInit {
     const labels: Record<string, string> = {
       'achtransaction.reference': 'Referencia',
       'transaction.reference': 'Referencia',
-      'transaction.transactionexternalid': 'Id operacion cliente',
+      'transaction.transactionexternalid': 'ID de operación del cliente',
       'transaction.amount': 'Monto',
       'transaction.tracenumber': 'Trazabilidad',
-      'transaction.companyidentification': 'Identificacion compania',
+      'transaction.companyidentification': 'Identificación de compañía',
       'transaction.originatingdfi': 'Banco originador',
       'transaction.sourceaccountnumber': 'Cuenta origen',
-      'transaction.id': 'Id transaccion',
+      'transaction.id': 'ID de transacción',
       'achtransaction.amount': 'Monto',
       'achtransaction.tracenumber': 'Trazabilidad',
-      'achtransaction.companyidentification': 'Identificacion compania',
+      'achtransaction.companyidentification': 'Identificación de compañía',
       'achtransaction.originatingdfi': 'Banco originador',
-      'batch.id': 'Id lote',
-      'achbatch.id': 'Id lote',
-      'cycle.id': 'Id ciclo',
+      'batch.id': 'ID de lote',
+      'achbatch.id': 'ID de lote',
+      'cycle.id': 'ID de ciclo',
       'cycle.processingdate': 'Fecha de proceso',
       'achcycle.processingdate': 'Fecha de proceso',
-      'execution.datetimeutc': 'Fecha/hora ejecucion UTC',
-      'execution.dateyyyymmdd': 'Fecha ejecucion yyyymmdd',
+      'execution.datetimeutc': 'Fecha/hora de ejecución UTC',
+      'execution.dateyyyymmdd': 'Fecha de ejecución yyyymmdd',
       'clearinghouse.id': 'Identificador interno',
-      'clearinghouse.code': 'Codigo',
-      'financialinstitution.routingnumber': 'Codigo ruta',
+      'clearinghouse.code': 'Código',
+      'financialinstitution.routingnumber': 'Código ruta',
       'differentialresponse.idcanal': 'Canal',
-      'differentialresponse.nombrecanal': 'Nombre canal',
-      'differentialresponse.idtransaccion': 'Transaccion',
+      'differentialresponse.nombrecanal': 'Nombre de canal',
+      'differentialresponse.idtransaccion': 'Transacción',
       'differentialresponse.idestado': 'Estado',
       'differentialresponse.codigocausalexterna': 'Causal externa',
-      'differentialresponse.idtransaccionservicioexterno': 'Id transaccion servicio externo',
-      'differentialresponse.descripcioncausalexterna': 'Descripcion causal externa',
+      'differentialresponse.idtransaccionservicioexterno': 'ID de transacción del servicio externo',
+      'differentialresponse.descripcioncausalexterna': 'Descripción de causal externa',
       'nachaheaders.immediatedestination': 'Destino inmediato',
       'nachaheaders.immediateorigin': 'Origen inmediato',
       'nachaheaders.fileidmodifier': 'Modificador de archivo',
-      'batchheaders.companyname': 'Nombre compania',
-      'batchheaders.companyid': 'Identificacion compania',
-      'batchheaders.companyidentification': 'Identificacion compania',
-      'batchheaders.companyentrydescription': 'Descripcion entrada',
+      'batchheaders.companyname': 'Nombre de compañía',
+      'batchheaders.companyid': 'Identificación de compañía',
+      'batchheaders.companyidentification': 'Identificación de compañía',
+      'batchheaders.companyentrydescription': 'Descripción de entrada',
       'batchheaders.effectiveentrydate': 'Fecha efectiva',
       'entrydetails.amount': 'Monto',
       'entrydetails.accountnumber': 'Cuenta',
-      'entrydetails.transactioncode': 'Codigo transaccion',
+      'entrydetails.transactioncode': 'Código de transacción',
       'entrydetails.tracenumber': 'Trazabilidad',
-      'addendarecords.infofromoriginator': 'Informacion de pago',
-      'addendarecords.paymentrelatedinformation': 'Informacion de pago',
-      'batchcontrols.entryaddendacount': 'Cantidad registros',
+      'addendarecords.infofromoriginator': 'Información de pago',
+      'addendarecords.paymentrelatedinformation': 'Información de pago',
+      'batchcontrols.entryaddendacount': 'Cantidad de registros',
       'batchcontrols.entryhash': 'Hash entradas',
       'filecontrols.blockcount': 'Bloques',
-      'prenotification.reference': 'Referencia prenotificacion',
-      'prenotification.state': 'Estado prenotificacion',
+      'prenotification.reference': 'Referencia de prenotificación',
+      'prenotification.state': 'Estado de prenotificación',
       'addenda.addendatype': 'Tipo addenda'
     };
 
@@ -723,7 +731,7 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     if (!rule) {
-      return 'Pendiente de definicion';
+      return 'Pendiente de definición';
     }
 
     if (this.isPlaceholderRule(rule)) {
@@ -742,31 +750,31 @@ export class MappingSetsPageComponent implements OnInit {
       return this.getTransformationLabel(rule.transformationCode);
     }
 
-    return 'Sin conversion';
+      return 'Sin conversión';
   }
 
   private getTechnicalNote(rule: IntegrationMappingRule | null, sourceVisual: SourceVisual, isOptionalReserved: boolean): string {
     if (isOptionalReserved) {
-      return 'Parametro contractual opcional/reservado para Proc_Contrapartidas.';
+      return 'Parámetro contractual opcional/reservado para Proc_Contrapartidas.';
     }
 
     if (rule && sourceVisual.hasValidSource && this.isPlaceholderRule(rule)) {
-      return 'Valor pendiente de definicion funcional; no debe tratarse como homologado.';
+      return 'Valor pendiente de definición funcional; no debe tratarse como homologado.';
     }
 
     if (rule && sourceVisual.hasValidSource && sourceVisual.sourceKind === 'constant') {
-      return 'Valor fijo o default tecnico visible para revision funcional.';
+      return 'Valor fijo o default técnico visible para revisión funcional.';
     }
 
     if (rule && sourceVisual.hasValidSource) {
-      return 'Relacion activa con fuente funcional soportada por backend.';
+      return 'Relación activa con fuente funcional soportada por el backend.';
     }
 
     if (rule && !sourceVisual.hasValidSource) {
-      return 'La regla existe, pero no tiene fuente activa valida para mostrarla como mapeada.';
+      return 'La regla existe, pero no tiene fuente activa válida para mostrarla como mapeada.';
     }
 
-    return 'Relacion construida desde catalogo controlado.';
+    return 'Relación construida desde catálogo controlado.';
   }
 
   private resolveSourceField(rule: IntegrationMappingRule | null): IntegrationSourceCatalogField | null {
@@ -791,7 +799,7 @@ export class MappingSetsPageComponent implements OnInit {
 
   private getLastUpdatedLabel(mappingSet: IntegrationMappingSet | null): string {
     if (!mappingSet) {
-      return 'Sin version';
+      return 'Sin versión';
     }
 
     if (mappingSet.publishedAtUtc) {
@@ -831,7 +839,7 @@ export class MappingSetsPageComponent implements OnInit {
       .subscribe({
         next: (draft) => {
           this.mappingSets = [draft, ...this.mappingSets];
-          this.notifications.success('Se creo un borrador para editar la relacion.');
+            this.notifications.success('Se creó un borrador para editar la relación.');
           this.openEditForDraft(draft, parameterId);
         },
         error: () => this.notifications.error('No fue posible crear un borrador editable.')
@@ -908,7 +916,7 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     if (rule && this.isPlaceholderRule(rule)) {
-      return 'Placeholder / pendiente funcional';
+      return 'Pendiente funcional';
     }
 
     if (this.isNachaSourceKind(sourceVisual.sourceKind)) {
@@ -920,7 +928,7 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     if (this.isCycleCameraSourceKind(sourceVisual.sourceKind)) {
-      return 'Mapeado por ciclo/camara';
+      return 'Mapeado por ciclo/cámara';
     }
 
     if (sourceVisual.sourceKind === 'differentialresponse') {
@@ -928,7 +936,7 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     if (sourceVisual.sourceKind === 'constant') {
-      return 'Constante tecnica';
+      return 'Constante técnica';
     }
 
     return 'Sin mapear';
@@ -937,9 +945,9 @@ export class MappingSetsPageComponent implements OnInit {
   private isMappedStatus(status: MatrixStatus): boolean {
     return status === 'Mapeado NACHA'
       || status === 'Mapeado transaccional'
-      || status === 'Mapeado por ciclo/camara'
+      || status === 'Mapeado por ciclo/cámara'
       || status === 'Mapeado desde respuesta diferencial'
-      || status === 'Constante tecnica';
+      || status === 'Constante técnica';
   }
 
   private matchesSelectedFilter(row: MappingMatrixRow): boolean {
@@ -955,7 +963,7 @@ export class MappingSetsPageComponent implements OnInit {
       return this.isBlockingRow(row);
     }
 
-    if (this.selectedFilter === 'Warnings') {
+    if (this.selectedFilter === 'Alertas') {
       return this.isWarningRow(row);
     }
 
@@ -969,21 +977,21 @@ export class MappingSetsPageComponent implements OnInit {
   private isReadyRow(row: MappingMatrixRow): boolean {
     return row.status === 'Mapeado NACHA'
       || row.status === 'Mapeado transaccional'
-      || row.status === 'Mapeado por ciclo/camara'
+      || row.status === 'Mapeado por ciclo/cámara'
       || row.status === 'Mapeado desde respuesta diferencial';
   }
 
   private isPendingRow(row: MappingMatrixRow): boolean {
-    return row.status === 'Sin mapear' || row.status === 'Placeholder / pendiente funcional';
+    return row.status === 'Sin mapear' || row.status === 'Pendiente funcional';
   }
 
   private isBlockingRow(row: MappingMatrixRow): boolean {
-    return row.status === 'Placeholder / pendiente funcional'
+    return row.status === 'Pendiente funcional'
       || (row.status === 'Sin mapear' && row.required);
   }
 
   private isWarningRow(row: MappingMatrixRow): boolean {
-    return row.status === 'Constante tecnica';
+    return row.status === 'Constante técnica';
   }
 
   private isKnownSourceKind(kind: string): boolean {

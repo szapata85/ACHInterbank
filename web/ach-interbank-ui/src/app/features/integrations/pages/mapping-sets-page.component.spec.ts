@@ -340,15 +340,15 @@ describe('MappingSetsPageComponent', () => {
     const text = fixture.nativeElement.textContent as string;
 
     expect(text).toContain('Matriz de campos SOAP');
-    expect(text).toContain('Parametro SOAP');
+    expect(text).toContain('Parámetro SOAP');
     expect(text).toContain('Estado funcional');
     expect(text).toContain('Origen');
-    expect(text).toContain('Campo / relacion');
-    expect(text).toContain('Observacion');
-    expect(text).toContain('Accion');
+    expect(text).toContain('Campo / relación');
+    expect(text).toContain('Observación');
+    expect(text).toContain('Acción');
     expect(text).not.toContain('Tabla origen');
     expect(text).not.toContain('Campo origen');
-    expect(text).not.toContain('Regla de conversion');
+    expect(text).not.toContain('Regla de conversión');
     expect(text).not.toContain('Obligatorio');
     expect(fixture.nativeElement.querySelector('[data-testid="mapping-matrix-table"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="mapping-card"]')).toBeFalsy();
@@ -360,19 +360,19 @@ describe('MappingSetsPageComponent', () => {
     const filterBar = fixture.nativeElement.querySelector('[data-testid="mapping-filter-bar"]') as HTMLElement;
 
     expect(summary).toBeTruthy();
-    expect(summary.textContent).toContain('Total parametros');
+    expect(summary.textContent).toContain('Total parámetros');
     expect(summary.textContent).toContain('Listos');
     expect(summary.textContent).toContain('Pendientes');
     expect(summary.textContent).toContain('Bloqueantes');
-    expect(summary.textContent).toContain('Warnings');
+    expect(summary.textContent).toContain('Alertas');
     expect(summary.textContent).toContain('Opcionales/reservados');
     expect(filterBar).toBeTruthy();
     expect(text).toContain('Todos');
     expect(text).toContain('Pendientes');
     expect(text).toContain('Bloqueantes');
-    expect(text).toContain('Warnings');
+    expect(text).toContain('Alertas');
     expect(text).toContain('Listos');
-    expect(text).toContain('Opcionales/reservados');
+    expect(text).toContain('Opcionales');
   });
 
   it('permite filtrar pendientes y bloqueantes desde la matriz calculada', () => {
@@ -397,7 +397,7 @@ describe('MappingSetsPageComponent', () => {
   it('permite filtrar opcionales reservados', () => {
     selectService(1);
 
-    component.setFilter('Opcionales/reservados');
+    component.setFilter('Opcionales');
 
     expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['ANSIDLOTE', 'ANCLC']);
   });
@@ -408,12 +408,12 @@ describe('MappingSetsPageComponent', () => {
     expect(text()).toContain('Proc_Contrapartidas');
     expect(text()).toContain('Proc_Transacciones');
     expect(text()).toContain('RegistrarRespuestaTransaccion');
-    expect(text()).toContain('creditos monetarios recibidos desde otra entidad financiera');
+    expect(text()).toContain('créditos monetarios recibidos desde otra entidad financiera');
 
     const buttons = fixture.nativeElement.querySelectorAll('[data-testid="soap-service-option"]') as NodeListOf<HTMLButtonElement>;
     buttons[1].click();
     fixture.detectChanges();
-    expect(text()).toContain('debitos monetarios originados por CFA');
+    expect(text()).toContain('débitos monetarios originados por CFA');
 
     buttons[2].click();
     fixture.detectChanges();
@@ -434,7 +434,7 @@ describe('MappingSetsPageComponent', () => {
 
   it('filtra fuentes no permitidas de las opciones principales de edicion', () => {
     const options = component.allowedSourceFields
-      .map((field) => `${component.getSourceKindLabel(field.sourceKind)} ${field.displayName}`)
+      .map((field) => `${component.getSourceKindLabel(field.sourceKind)} ${component.getSourceFieldLabel(field)}`)
       .join(' ');
 
     expect(options).toContain('Archivo NACHA');
@@ -447,7 +447,7 @@ describe('MappingSetsPageComponent', () => {
     expect(options).not.toContain('AchTransaction');
   });
 
-  it('muestra RegistrarRespuestaTransaccion con los siete parametros WSDL reales', () => {
+  it('muestra RegistrarRespuestaTransaccion con los siete parámetros WSDL reales', () => {
     selectService(2);
 
     const text = fixture.nativeElement.textContent as string;
@@ -472,11 +472,11 @@ describe('MappingSetsPageComponent', () => {
 
     const text = rowText('OFIDTX');
 
-    expect(text).toContain('Transaccion');
+    expect(text).toContain('Transacción');
     expect(text).toContain('Referencia');
     expect(text).toContain('Mapeado transaccional');
     expect(text).not.toContain('Sin mapear');
-    expect(text).not.toContain('Mapeado tecnico');
+    expect(text).not.toContain('Mapeado técnico');
   });
 
   it('clasifica Cycle como fuente de ciclo/camara mapeada', () => {
@@ -486,7 +486,7 @@ describe('MappingSetsPageComponent', () => {
 
     expect(text).toContain('Ciclo');
     expect(text).toContain('Fecha de proceso');
-    expect(text).toContain('Mapeado por ciclo/camara');
+    expect(text).toContain('Mapeado por ciclo/cámara');
     expect(text).not.toContain('Sin mapear');
   });
 
@@ -495,9 +495,9 @@ describe('MappingSetsPageComponent', () => {
 
     const text = rowText('OFIDCAMCOMPE');
 
-    expect(text).toContain('Camara');
+    expect(text).toContain('Cámara');
     expect(text).toContain('Identificador interno');
-    expect(text).toContain('Mapeado por ciclo/camara');
+    expect(text).toContain('Mapeado por ciclo/cámara');
     expect(text).not.toContain('Sin mapear');
   });
 
@@ -522,8 +522,8 @@ describe('MappingSetsPageComponent', () => {
     const text = `${row.tableOrigin} ${row.fieldOrigin} ${row.status}`;
 
     expect(text).toContain('Entidad financiera');
-    expect(text).toContain('Codigo ruta');
-    expect(text).toContain('Mapeado por ciclo/camara');
+    expect(text).toContain('Código ruta');
+    expect(text).toContain('Mapeado por ciclo/cámara');
     expect(text).not.toContain('Sin mapear');
   });
 
@@ -534,7 +534,7 @@ describe('MappingSetsPageComponent', () => {
 
     expect(text).toContain('Constante');
     expect(text).toContain('Valor fijo');
-    expect(text).toContain('Constante tecnica');
+    expect(text).toContain('Constante técnica');
     expect(text).not.toContain('Sin mapear');
   });
 
@@ -553,9 +553,8 @@ describe('MappingSetsPageComponent', () => {
     const row = component.matrixRows.find((item) => item.parameterSoap === 'OFDD')!;
     const text = `${row.fieldOrigin} ${row.conversionRule} ${row.status}`;
 
-    expect(text).toContain('Placeholder pendiente funcional');
-    expect(text).toContain('Placeholder / pendiente funcional');
-    expect(text).not.toContain('Constante tecnica');
+    expect(text).toContain('Pendiente funcional');
+    expect(text).not.toContain('Constante técnica');
   });
 
   it('clasifica DifferentialResponse como fuente valida para RegistrarRespuestaTransaccion', () => {
@@ -574,7 +573,7 @@ describe('MappingSetsPageComponent', () => {
 
     const cases = [
       { fieldId: 1, kind: 'NachaHeader' as IntegrationSourceKind, path: 'NachaHeaders.FileIdModifier', table: 'Archivo NACHA', field: 'Modificador de archivo' },
-      { fieldId: 2, kind: 'BatchHeader' as IntegrationSourceKind, path: 'BatchHeaders.CompanyIdentification', table: 'Lote NACHA', field: 'Identificacion compania' },
+      { fieldId: 2, kind: 'BatchHeader' as IntegrationSourceKind, path: 'BatchHeaders.CompanyIdentification', table: 'Lote NACHA', field: 'Identificación de compañía' },
       { fieldId: 20, kind: 'EntryDetail' as IntegrationSourceKind, path: 'EntryDetails.Amount', table: 'Detalle NACHA', field: 'Monto' }
     ];
 
@@ -675,14 +674,14 @@ describe('MappingSetsPageComponent', () => {
 
   it('conserva el boton Ver auditoria y carga el historial del mapping activo', () => {
     const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-    const historyButton = buttons.find((button) => button.textContent?.includes('Ver auditoria'));
+    const historyButton = buttons.find((button) => button.textContent?.includes('Ver auditoría'));
 
     expect(historyButton).toBeTruthy();
     historyButton!.click();
     fixture.detectChanges();
 
     expect(api.getHistory).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
-    expect((fixture.nativeElement.textContent as string)).toContain('Auditoria');
+    expect((fixture.nativeElement.textContent as string)).toContain('Auditoría');
   });
 
   it('mantiene navegacion hacia editor avanzado desde accion secundaria', () => {
