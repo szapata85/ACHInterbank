@@ -7,6 +7,9 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
   build-and-test:
@@ -26,7 +29,14 @@ jobs:
         run: dotnet restore ACHInterbank.sln
 
       - name: Build
-        run: dotnet build ACHInterbank.sln -c Release --no-restore
+        run: dotnet build ACHInterbank.sln -c Release --no-restore --maxcpucount:1
 
       - name: Test
-        run: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --logger trx -- RunConfiguration.MaxCpuCount=1
+        run: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --logger "trx;LogFileName=dotnet-tests.trx" --results-directory TestResults -- RunConfiguration.MaxCpuCount=1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: TestResults
