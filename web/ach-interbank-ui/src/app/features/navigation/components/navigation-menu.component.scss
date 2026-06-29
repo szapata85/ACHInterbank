@@ -4,9 +4,10 @@
   gap: 1.5rem;
 }
 
-.grid {
+.navigation-admin__layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  align-items: start;
   gap: 1.25rem;
 }
 
@@ -20,7 +21,7 @@
 
 .card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
@@ -29,6 +30,13 @@
 .card-header h2 {
   margin: 0;
   font-size: 1.1rem;
+}
+
+.card-header p {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-soft);
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .card-header .link {
@@ -53,7 +61,7 @@
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 0.75rem 1rem;
+  gap: 1rem;
 }
 
 .field {
@@ -63,9 +71,16 @@
   font-size: 0.95rem;
 }
 
-.field span {
+.field > span {
   color: #334155;
   font-weight: 600;
+}
+
+.field-hint {
+  color: var(--color-text-soft);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.35;
 }
 
 .field input,
@@ -212,15 +227,34 @@
   flex-direction: row;
   align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .field.inline input[type='checkbox'] {
   width: 18px;
   height: 18px;
+  flex: 0 0 auto;
 }
 
-button[type='submit'] {
+.field.inline .field-hint {
+  flex-basis: 100%;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
   margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.form-actions button {
+  min-width: 150px;
+}
+
+.form-actions button[type='submit'] {
   background: var(--button-color, var(--color-primary));
   color: var(--color-surface);
   border: none;
@@ -228,7 +262,7 @@ button[type='submit'] {
   font-weight: 600;
 }
 
-button[type='submit']:disabled {
+.form-actions button[type='submit']:disabled {
   opacity: 0.7;
   cursor: not-allowed;
 }
@@ -249,4 +283,41 @@ button[type='submit']:disabled {
 .actions .danger {
   border-color: #ef4444;
   color: var(--color-danger-hover);
+}
+
+@media (max-width: 1024px) {
+  .navigation-admin__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 0.85rem;
+  }
+
+  .card-header {
+    flex-direction: column;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .icon-select {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .icon-preview {
+    width: 100%;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
 }

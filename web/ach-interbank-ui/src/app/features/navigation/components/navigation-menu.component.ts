@@ -131,6 +131,28 @@ export class NavigationMenuComponent implements OnInit {
     permissionIds: [[] as string[]]
   });
 
+  get isEditing(): boolean {
+    return !!this.form.value.id;
+  }
+
+  get formTitle(): string {
+    return this.isEditing ? 'Editar opción de menú' : 'Nueva opción de menú';
+  }
+
+  get formSubtitle(): string {
+    return this.isEditing
+      ? 'Actualiza la ubicación, visibilidad y permisos de la opción seleccionada.'
+      : 'Define una nueva opción visible en la navegación de la SPA.';
+  }
+
+  get submitText(): string {
+    if (this.saving) {
+      return 'Guardando...';
+    }
+
+    return this.isEditing ? 'Guardar cambios' : 'Crear opción';
+  }
+
   ngOnInit(): void {
     this.loadRoles();
     this.loadPermissions();
@@ -238,6 +260,10 @@ export class NavigationMenuComponent implements OnInit {
   }
 
   save(): void {
+    if (this.saving) {
+      return;
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
