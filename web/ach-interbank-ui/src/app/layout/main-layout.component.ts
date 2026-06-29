@@ -127,11 +127,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  onLogoutSelected(): void {
-    this.logout();
-    this.onNavItemSelected();
-  }
-
   @HostListener('window:resize')
   onResize(): void {
     if (!this.isMobileView() && this.isMenuOpen) {

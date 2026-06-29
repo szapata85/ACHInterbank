@@ -70,18 +70,6 @@
         </div>
       </ng-container>
     </nav>
-
-    <section class="session" *ngIf="user$ | async as user">
-      <p class="session-title">Perfil</p>
-      <div class="session-user">
-        <div class="avatar" aria-hidden="true">{{ user.fullName?.charAt(0) || 'U' }}</div>
-        <div class="session-meta">
-          <span class="session-name">{{ user.fullName }}</span>
-          <small class="session-roles">{{ user.roles?.join(', ') || 'Usuario' }}</small>
-        </div>
-      </div>
-      <button type="button" class="logout" (click)="onLogoutSelected()">Cerrar sesión</button>
-    </section>
   </aside>
 
   <div class="main">
