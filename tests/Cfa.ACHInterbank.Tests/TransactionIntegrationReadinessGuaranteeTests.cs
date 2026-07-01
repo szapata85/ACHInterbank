@@ -197,6 +197,47 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
+    public async Task Readiness_ShouldAllow_ProcContrapartidasObservedFunctionalConstants()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            configureRule: (parameter, rule) =>
+            {
+                var value = parameter.ParameterPath switch
+                {
+                    "OFDD" => "TRANSFER  ",
+                    "OFMONCRE" => "0",
+                    "OFST" => "OO",
+                    "OFIDTX" => "0",
+                    "OFIDREVER" => "0",
+                    "OFIDEBAPLI" => "1",
+                    _ => null
+                };
+
+                if (value is null)
+                {
+                    return;
+                }
+
+                rule.SourceKind = IntegrationSourceKindEnum.Constant;
+                rule.SourceFieldPath = "constant.value";
+                rule.FixedValue = value;
+                rule.DefaultValue = value;
+                rule.TransformationCode = null;
+                rule.FormatMask = null;
+            });
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+
+        Assert.True(readiness.IsReady);
+        Assert.Equal("Ok", readiness.Status);
+        Assert.DoesNotContain(readiness.Errors, x => x.Contains("OFDD", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(readiness.Errors, x => x.Contains("OFIDTX", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Readiness_ShouldWarn_WhenTechnicalConstantIsDocumentedButNotFunctional()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();

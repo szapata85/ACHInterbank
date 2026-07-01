@@ -72,7 +72,13 @@ describe('TransactionCreateComponent', () => {
       destinationAccountNumber: activeThirdPartyAccount.destinationAccountNumber,
       recipientIdNumber: activeThirdPartyAccount.recipientIdNumber
     }, { emitEvent: false });
-    component.addendas.at(0).patchValue({ addendaType: '05', information: 'Detalle' });
+    component.addendas.at(0).patchValue({
+      addendaType: '05',
+      collectorId: '9001234567890',
+      receiverCustomerCode: 'CLI0000000001',
+      serviceDescription: 'SERVQA',
+      information: 'Detalle'
+    });
     component.form.updateValueAndValidity();
   }
 
@@ -89,6 +95,9 @@ describe('TransactionCreateComponent', () => {
     expect(payload.companyIdentification).toBe('AB12');
     expect(payload.destinationInstitutionId).toBe(7);
     expect(payload.addendas.length).toBe(1);
+    expect(payload.addendas[0].collectorId).toBe('9001234567890');
+    expect(payload.addendas[0].receiverCustomerCode).toBe('CLI0000000001');
+    expect(payload.addendas[0].serviceDescription).toBe('SERVQA');
   });
 
   it('TransactionCreateComponent_ShouldInitializeDefaultAddenda', () => {

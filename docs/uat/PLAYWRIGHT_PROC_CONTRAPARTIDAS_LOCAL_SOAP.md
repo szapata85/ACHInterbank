@@ -2,61 +2,61 @@
 
 ## Objetivo
 
-Validar en entorno local/UAT que una transaccion debito creada desde la SPA en `/transactions` queda originada por CFA (`IsDefaultSource=true`) y, al procesarse, dispara `Proc_Contrapartidas` contra el SOAP legacy local `WSCFAACH.svc`.
+Validar en entorno local/UAT que una transaccion debito creada desde la SPA en `/transactions` queda originada por CFA (`IsDefaultSource=true`) y, al procesarse, invoca `Proc_Contrapartidas` contra el SOAP legacy local `WSCFAACH.svc`.
 
-La prueba no se ejecuta por defecto porque `Proc_Contrapartidas` es un candidato monetario. Requiere habilitacion explicita por variables de entorno y debe usarse solo con datos sinteticos y servicio SOAP local controlado.
+La prueba es opt-in porque `Proc_Contrapartidas` es candidato monetario. Debe usarse solo con datos sinteticos y SOAP local controlado.
 
-## Endpoints SOAP locales
+## Configuracion requerida
 
-- `WSCFAACH`: `http://localhost:7083/WSCFAACH.svc`
-  - `Proc_Contrapartidas`
-  - `Proc_Transacciones`
-- `WSAxonRespuestaTransacciones`: `http://localhost:7083/WSAxonRespuestaTransacciones.svc`
-  - `RegistrarRespuestaTransaccion`
-
-Si la API corre dentro de Docker y el SOAP corre en el host, usar `host.docker.internal:7083` en las variables `SOAP_LOCAL_WSCFAACH_URL` y `SOAP_LOCAL_AXON_RESPONSE_URL`.
-
-## Variables requeridas
-
-```powershell
-$env:RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E = "true"
-$env:ALLOW_LOCAL_MONETARY_SOAP_E2E = "true"
-$env:ACH_UI_URL = "http://localhost:743"
-$env:ACH_API_URL = "http://localhost:843"
-$env:ACH_USER = "<usuario-local-uat>"
-$env:ACH_PASS = "<password-local-uat>"
-$env:SOAP_LOCAL_WSCFAACH_URL = "http://localhost:7083/WSCFAACH.svc"
-$env:SOAP_LOCAL_AXON_RESPONSE_URL = "http://localhost:7083/WSAxonRespuestaTransacciones.svc"
-$env:SOAP_LOCAL_WSCFAACH_LOG = "<ruta-al-log-plano-wscfaach>"
-```
-
-Alternativamente puede usarse `SOAP_LOCAL_LOG_DIR` si el servicio SOAP escribe varios archivos `.log`, `.txt` o `.xml`.
-
-Para que exista transmision real al SOAP local, arrancar la API local/UAT con:
+Modo live del backend:
 
 ```powershell
 $env:ProcContrapartidas__Mode = "Live"
 ```
 
-Sin ese valor, el backend seguira en `DryRun` y el spec fallara con evidencia `PROC_DRY_RUN`, lo cual es correcto para ambientes no autorizados.
+Clave equivalente en `appsettings`:
 
-## Configuracion aplicada por el spec
-
-El spec lee `api/users/soap-integrations`, cambia temporalmente los endpoints de:
-
-- `Proc_Contrapartidas`
-- `Proc_Transacciones`
-- `RegistrarRespuestaTransaccion`
-
-y restaura la configuracion original al finalizar. No agrega `PLValidarUsuarioBV`, no crea campos `METODO` y no modifica DTOs, servicios ni rutas.
-
-Se puede desactivar este ajuste temporal con:
-
-```powershell
-$env:PROC_CONTRA_CONFIGURE_SOAP_SETTINGS = "false"
+```json
+{
+  "ProcContrapartidas": {
+    "Mode": "Live"
+  }
+}
 ```
 
-## Comandos
+En este runtime los endpoints SOAP no se leen directamente de `appsettings`: se toman de la configuracion persistida expuesta por `api/users/soap-integrations`. El spec la ajusta temporalmente con:
+
+- `SOAP_LOCAL_WSCFAACH_URL`
+- `SOAP_LOCAL_AXON_RESPONSE_URL`
+
+Si la API corre en Docker y el SOAP corre en el host:
+
+```powershell
+$env:SOAP_LOCAL_WSCFAACH_URL = "http://host.docker.internal:7083/WSCFAACH.svc"
+$env:SOAP_LOCAL_AXON_RESPONSE_URL = "http://host.docker.internal:7083/WSAxonRespuestaTransacciones.svc"
+$env:WSCFAACH__HostHeader = "localhost:7083"
+```
+
+`WSCFAACH__HostHeader` es necesario cuando IIS/WCF rechaza `Host: host.docker.internal:7083` con `HTTP 400 Invalid Hostname`. Si la API corre en host, usar `http://localhost:7083/...` y no se requiere ese override.
+
+## Variables Playwright
+
+```powershell
+$env:RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E = "true"
+$env:ALLOW_LOCAL_MONETARY_SOAP_E2E = "true"
+$env:ACH_E2E_DB_PROVIDER = "SqlServer"
+$env:ACH_UI_URL = "http://localhost:743"
+$env:ACH_API_URL = "http://localhost:843"
+$env:ACH_USER = "<usuario-local-uat>"
+$env:ACH_PASS = "<password-local-uat>"
+$env:SOAP_LOCAL_WSCFAACH_URL = "http://host.docker.internal:7083/WSCFAACH.svc"
+$env:SOAP_LOCAL_AXON_RESPONSE_URL = "http://host.docker.internal:7083/WSAxonRespuestaTransacciones.svc"
+$env:SOAP_LOCAL_LOG_DIR = "C:\WebServices\WSCFAACH\Log"
+```
+
+Tambien puede usarse `SOAP_LOCAL_WSCFAACH_LOG` para apuntar a un archivo especifico. El SOAP local no expone endpoints auxiliares tipo `/__requests`; la evidencia se valida por archivo plano.
+
+## Comandos usados
 
 Desde `web/ach-interbank-ui`:
 
@@ -64,37 +64,62 @@ Desde `web/ach-interbank-ui`:
 npx playwright test e2e/transactions-proc-contrapartidas.spec.ts --project=chromium --trace on
 ```
 
-Builds recomendados:
+Verificacion backend:
 
 ```powershell
-cd C:\Users\CHECHO\Documents\proyectos\Interbank\ACHInterbank_SPA2
 dotnet build ACHInterbank.sln -c Release
-dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~ContrapartidaDispatchJobServiceTests|FullyQualifiedName~TransactionIntegrationReadinessGuaranteeTests"
-
-cd web/ach-interbank-ui
-npm run build
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~TransactionIntegrationReadinessGuaranteeTests"
 ```
 
-## Evidencia esperada
+## Comportamiento del spec
 
-El spec adjunta en `web/ach-interbank-ui/test-results`:
+El spec:
 
-- captura del formulario `/transactions/create` lleno,
-- captura del listado `/transactions` despues de crear,
-- request `Proc_Contrapartidas` sanitizado,
-- fragmento sanitizado del log SOAP local.
+- exige `RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E=true` y `ALLOW_LOCAL_MONETARY_SOAP_E2E=true`;
+- crea datos sinteticos desde la SPA en `/transactions/create`;
+- crea/activa un tercero sintetico como prerequisito local;
+- usa CFA como origen (`IsDefaultSource=true`) y una entidad destino externa;
+- ajusta temporalmente `api/users/soap-integrations` para endpoints locales y restaura al final;
+- ajusta temporalmente el mapping publicado de `Proc_Contrapartidas` a los valores esperados y restaura al final;
+- no agrega `PLValidarUsuarioBV`;
+- no agrega ni envia `<METODO>` en el request outbound de ACHInterbank;
+- no exige `ILR` ni `cantTrans`.
 
-La evidencia debe confirmar:
+## Resultado 2026-07-01
 
-- operacion `Proc_Contrapartidas`,
-- campos funcionales `OFNIT`, `OFCTA`, `OFMONDEB`, `OFIDCAMCOMPE`, `OFFECHEFEC`,
-- ausencia de tag SOAP `<METODO>`,
-- ausencia de `Proc_Transacciones` para este escenario,
-- respuesta real del SOAP local o error controlado del servicio local.
+Resultado: GO local.
 
-## Limitaciones conocidas
+La corrida Playwright paso contra:
 
-- La prueba queda saltada si no se habilitan `RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E=true` y `ALLOW_LOCAL_MONETARY_SOAP_E2E=true`.
-- La prueba exige ruta de log local mediante `SOAP_LOCAL_WSCFAACH_LOG` o `SOAP_LOCAL_LOG_DIR`; no asume endpoints auxiliares como `/__requests`.
-- La SPA requiere una cuenta destino activa para debitos; el spec crea primero una prenotificacion sintetica por API como prerequisito y luego crea la transaccion monetaria desde la UI.
-- El contrato backend actual revisado no declara `ILR` ni `cantTrans`. El spec los valida porque forman parte del requisito observado; si no aparecen en el request live, el resultado debe tratarse como hallazgo funcional antes de tocar codigo productivo.
+- API Docker: `http://localhost:843`
+- SPA Docker: `http://localhost:743`
+- SOAP local host: `http://host.docker.internal:7083/WSCFAACH.svc`
+- Host header WCF: `localhost:7083`
+- Log plano: `C:\WebServices\WSCFAACH\Log\Trama_ACH_20260701.log`
+
+Evidencia observada:
+
+- request persistido contiene `Proc_Contrapartidas`;
+- no contiene `Proc_Transacciones`;
+- no contiene `RegistrarRespuestaTransaccion`;
+- no contiene tag `<METODO>` en el outbound request de ACHInterbank;
+- el log plano local registra `INICIO Proc_Contrapartidas`;
+- campos funcionales esperados presentes, excluyendo `ILR` y `cantTrans`;
+- `OFDD=TRANSFER  `;
+- `OFFECHEFEC` en formato `yyyyMMdd`;
+- `OFMONCRE=0`;
+- `OFST=OO`;
+- `OFIDTX=0`;
+- `OFIDREVER=0`;
+- `OFIDEBAPLI=1`;
+- `OFIDCAMCOMPE=1` para ACH Colombia.
+
+Nota: el SOAP legacy puede registrar internamente `<METODO>` en su `strEnvelope` de trazabilidad. Esa etiqueta es metadato legacy del componente SOAP y no forma parte del envelope outbound enviado por ACHInterbank.
+
+## Limitaciones
+
+- Productivo permanece NO-GO.
+- La respuesta del SOAP local puede ser rechazo funcional; el criterio de esta validacion es invocacion real local, evidencia en log plano y request outbound correcto.
+- Si la API corre en Docker, IIS/WCF puede requerir `WSCFAACH__HostHeader=localhost:7083`.
+- `ILR` y `cantTrans` se ignoran en esta iteracion: no son requeridos en DTOs, contratos, builders, mappings ni validaciones Playwright.
+- No se guardan logs originales en el repo; solo se adjunta evidencia sanitizada en `test-results`.

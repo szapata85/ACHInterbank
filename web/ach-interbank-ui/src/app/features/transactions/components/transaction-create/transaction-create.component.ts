@@ -221,6 +221,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.addendas.push(
       this.fb.group({
         addendaType: ['05', [Validators.required]],
+        collectorId: ['', [Validators.maxLength(13)]],
+        receiverCustomerCode: ['', [Validators.maxLength(30)]],
+        serviceDescription: ['', [Validators.maxLength(15)]],
         information: ['', [Validators.required, Validators.maxLength(80)]]
       })
     );
@@ -521,6 +524,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private buildAddendaPayload(item: TransactionDraft['addendas'][number]) {
     return {
       addendaType: item.addendaType?.trim().toUpperCase(),
+      collectorId: item.collectorId?.trim() || undefined,
+      receiverCustomerCode: item.receiverCustomerCode?.trim() || undefined,
+      serviceDescription: item.serviceDescription?.trim() || undefined,
       information: item.information.trim()
     };
   }

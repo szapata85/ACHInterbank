@@ -442,9 +442,29 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                 || string.Equals(parameterPath, "RTALOC", StringComparison.OrdinalIgnoreCase));
 
     private static bool IsAllowedFunctionalConstant(string operationKey, string parameterPath, string? value)
-        => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(parameterPath, "TREG", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(value, "6", StringComparison.OrdinalIgnoreCase);
+    {
+        if (string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(parameterPath, "TREG", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(value, "6", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (!string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return parameterPath.ToUpperInvariant() switch
+        {
+            "OFDD" => string.Equals(value, "TRANSFER", StringComparison.OrdinalIgnoreCase),
+            "OFMONCRE" => string.Equals(value, "0", StringComparison.OrdinalIgnoreCase),
+            "OFST" => string.Equals(value, "OO", StringComparison.OrdinalIgnoreCase),
+            "OFIDTX" => string.Equals(value, "0", StringComparison.OrdinalIgnoreCase),
+            "OFIDREVER" => string.Equals(value, "0", StringComparison.OrdinalIgnoreCase),
+            "OFIDEBAPLI" => string.Equals(value, "1", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+    }
 
     private static bool IsAmbiguousFunctionalSource(string operationKey, string parameterPath, string? sourcePath)
         => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)

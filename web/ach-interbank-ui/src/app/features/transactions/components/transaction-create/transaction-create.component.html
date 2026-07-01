@@ -254,6 +254,21 @@
             <app-error-message [control]="addenda.get('addendaType')"></app-error-message>
           </label>
           <label>
+            <span>NIT/EAN-13 recaudador</span>
+            <input type="text" formControlName="collectorId" maxlength="13" />
+            <app-error-message [control]="addenda.get('collectorId')"></app-error-message>
+          </label>
+          <label>
+            <span>Código cliente receptor</span>
+            <input type="text" formControlName="receiverCustomerCode" maxlength="30" />
+            <app-error-message [control]="addenda.get('receiverCustomerCode')"></app-error-message>
+          </label>
+          <label>
+            <span>Servicio</span>
+            <input type="text" formControlName="serviceDescription" maxlength="15" />
+            <app-error-message [control]="addenda.get('serviceDescription')"></app-error-message>
+          </label>
+          <label>
             <span>Información *</span>
             <input type="text" formControlName="information" required maxlength="80" />
             <app-error-message [control]="addenda.get('information')"></app-error-message>

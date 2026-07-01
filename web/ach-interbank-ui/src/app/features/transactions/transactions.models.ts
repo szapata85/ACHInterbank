@@ -32,6 +32,9 @@ export interface TransactionDraft {
   addendas: Array<{
     addendaType: string;
     information: string;
+    collectorId?: string;
+    receiverCustomerCode?: string;
+    serviceDescription?: string;
     returnReasonCode?: string;
     originalTraceSequence?: string;
   }>;

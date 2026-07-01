@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.Extensions.Configuration;
 
 namespace Cfa.ACHInterbank.External.Connections;
 
@@ -13,15 +14,18 @@ public class WscfaachSoapClient : IWscfaachSoapClient
     private readonly ILoggerManager _logger;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
 
     public WscfaachSoapClient(
         ILoggerManager logger,
         ISoapIntegrationSettingsService soapSettingsService,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration)
     {
         _logger = logger;
         _soapSettingsService = soapSettingsService;
         _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
     }
 
     public Task<string> PLValidarUsuarioBVAsync(string requestXml, CancellationToken ct = default)
@@ -123,6 +127,11 @@ public class WscfaachSoapClient : IWscfaachSoapClient
         request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
         request.Headers.Add("SOAPAction", soapAction);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
+        var hostHeader = _configuration["WSCFAACH:HostHeader"];
+        if (!string.IsNullOrWhiteSpace(hostHeader))
+        {
+            request.Headers.Host = hostHeader.Trim();
+        }
 
         _logger.LogInfo($"SOAP request {action} -> {endpoint}");
 
