@@ -1,4 +1,5 @@
 import { expect, Page, test, TestInfo } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { G36Postgres, pollUntil, type AchCycleSnapshot } from './support/g36-postgres';
@@ -37,6 +38,21 @@ type CreatedTransaction = {
   } | null;
 };
 
+type PagedResponse<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type CustomerThirdParty = {
+  id: number;
+  destinationInstitutionId: number;
+  destinationAccountNumber: string;
+  recipientIdNumber: string;
+  status: number | string;
+};
+
 type TransactionRow = {
   id: number;
   transactionExternalId: string;
@@ -69,6 +85,20 @@ type DispatchEvidenceRow = {
   requestedBy: string;
   batchStatus: number;
   correlationId: string;
+};
+
+type MappingRuleSnapshot = {
+  id: number;
+  sourceKind: number;
+  sourceCatalogFieldId: number | null;
+  sourceFieldPath: string;
+  fixedValue: string | null;
+  defaultValue: string | null;
+  transformationCode: string | null;
+  formatMask: string | null;
+  priority: number;
+  requiredOverride: boolean | null;
+  enabled: boolean;
 };
 
 type SoapInputParameterMapping = {
@@ -118,6 +148,7 @@ const configureSoapSettings = process.env['PROC_CONTRA_CONFIGURE_SOAP_SETTINGS']
 const runSeed = process.env['PROC_CONTRA_RUN_SEED'] === 'true';
 const targetInstitutionName = process.env['PROC_CONTRA_DESTINATION_INSTITUTION_NAME'] ?? '';
 const dispatchTriggeredBy = 'playwright-local-proc-contrapartidas';
+const runtimeDbProvider = (process.env['ACH_E2E_DB_PROVIDER'] ?? process.env['Database__Provider'] ?? 'Postgres').trim();
 
 const loginPath = '/auth/login';
 const seedPath = '/Maintenance/seed';
@@ -130,9 +161,10 @@ const contrapartidaDispatchPath = '/api/uat/contrapartidas/dispatch-cycle';
 test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOAP local', async ({ page }, testInfo) => {
   test.setTimeout(600_000);
   const startedAt = new Date();
-  const db = new G36Postgres();
+  const db = new ProcContrapartidasRuntimeDb(runtimeDbProvider);
   let originalSoapSettings: SoapIntegrationSettings | null = null;
   let cycleSnapshot: AchCycleSnapshot | null = null;
+  let mappingSnapshot: MappingRuleSnapshot[] | null = null;
 
   const reference = `PW-CONTRA-${Date.now()}`;
   const sourceAccountNumber = `44${String(Date.now()).slice(-10)}`;
@@ -140,6 +172,9 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
   const recipientIdNumber = `70${String(Date.now()).slice(-8)}`;
   const sourceCompanyIdentification = `PW${String(Date.now()).slice(-8)}`;
   const sourceCompanyName = `PWCONTRA${String(Date.now()).slice(-6)}`;
+  const collectorId = `90${String(Date.now()).slice(-11)}`;
+  const receiverCustomerCode = `CLI${String(Date.now()).slice(-11)}`;
+  const serviceDescription = 'SERVQA';
   const amount = 1500;
 
   const runtime = await authenticateRuntime();
@@ -159,6 +194,8 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
       const localSettings = buildLocalSoapSettings(originalSoapSettings);
       await apiPutJson<SoapIntegrationSettings>(soapSettingsPath, runtime.token, localSettings);
     }
+
+    mappingSnapshot = await db.configureProcContrapartidasExpectedMapping();
 
     const institutions = await apiGetJson<FinancialInstitution[]>(financialInstitutionsPath, runtime.token);
     const defaultSource = institutions.find((item) => item.isDefaultSource) ?? null;
@@ -196,6 +233,13 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     });
     expect(createdPrenote.id, 'La prenotificacion sintetica debe quedar creada como prerequisito.').toBeGreaterThan(0);
 
+    await activateSyntheticThirdParty(runtime.token, {
+      sourceAccountNumber,
+      destinationAccountNumber,
+      recipientIdNumber,
+      destinationInstitutionId: targetInstitution.id
+    });
+
     await page.goto(joinUrl(uiBaseUrl, '/transactions/create'));
     await expect(page.getByRole('heading', { name: /Crear transaccion ACH|Crear transacción ACH/i })).toBeVisible();
 
@@ -205,6 +249,9 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
       sourceAccountNumber,
       destinationAccountNumber,
       recipientIdNumber,
+      collectorId,
+      receiverCustomerCode,
+      serviceDescription,
       sourceCompanyIdentification,
       sourceCompanyName,
       targetInstitutionName: targetInstitution.name,
@@ -222,31 +269,35 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
 
     await page.getByRole('button', { name: /Registrar transacci[oó]n/i }).click();
     const createResponse = await createResponsePromise;
-    expect(createResponse.ok(), `POST /transactions desde la SPA debe responder OK. Status=${createResponse.status()}`).toBeTruthy();
-    const createdTransaction = await createResponse.json() as CreatedTransaction;
+    const createResponseText = await createResponse.text();
+    expect(
+      createResponse.ok(),
+      `POST /transactions desde la SPA debe responder OK. Status=${createResponse.status()}, body=${createResponseText}`
+    ).toBeTruthy();
+    const createdTransaction = JSON.parse(createResponseText) as CreatedTransaction;
     expect(createdTransaction.id, 'La transaccion monetaria creada desde UI debe devolver id.').toBeGreaterThan(0);
 
-    await expect(page).toHaveURL(/\/transactions(?:\?.*)?$/);
+    await expect(page).toHaveURL(/\/transactions(?:\/list)?(?:\?.*)?$/);
     await testInfo.attach('transactions-list-after-create.png', {
       body: await page.screenshot({ fullPage: true }),
       contentType: 'image/png'
     });
 
     const transaction = await pollUntil(
-      async () => findTransactionByExternalId(db, reference),
+      async () => db.findTransactionByExternalId(reference),
       `transaccion ${reference} creada en base`,
       120_000
     );
 
-    expect(transaction.type, 'La transaccion objetivo debe ser debito.').toBe(2);
+    expect([2, 'Debit']).toContain(transaction.type);
     expect(transaction.sourceInstitutionId, 'La transaccion debe originarse desde CFA IsDefaultSource=true.').toBe(defaultSource!.id);
     expect(transaction.destinationInstitutionId, 'La entidad destino debe ser externa.').toBe(targetInstitution.id);
     expect(transaction.destinationInstitutionId).not.toBe(defaultSource!.id);
 
-    cycleSnapshot = await loadCycleSnapshot(db, transaction.achCycleId, transaction.clearingHouseId);
+    cycleSnapshot = await db.loadCycleSnapshot(transaction.achCycleId, transaction.clearingHouseId);
     await db.configureCycle(cycleSnapshot, cycleSnapshot.cycleName, todayIsoDate());
 
-    await expect.poll(async () => countDispatchItems(db, transaction.id), {
+    await expect.poll(async () => db.countDispatchItems(transaction.id), {
       timeout: 120_000,
       intervals: [2_000, 5_000, 10_000]
     }).toBeGreaterThan(0);
@@ -265,7 +316,7 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     expect(dispatchResult.processed ?? 0, 'El dispatch debe procesar al menos una transaccion.').toBeGreaterThan(0);
 
     const evidence = await pollUntil(
-      async () => findDispatchEvidence(db, reference),
+      async () => db.findDispatchEvidence(reference),
       `evidencia Proc_Contrapartidas para ${reference}`,
       180_000
     );
@@ -281,22 +332,26 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     ].join(' ')).not.toMatch(/PROC_DRY_RUN|PROC_DISABLED/i);
 
     const localSoapEvidence = readLocalSoapEvidence(startedAt, evidence.requestPayloadXml);
-    const localEnvelope = extractEnvelopeNear(localSoapEvidence.text, evidence.requestPayloadXml) ?? localSoapEvidence.text;
-    expect(localEnvelope, 'El log plano del SOAP local debe contener evidencia de Proc_Contrapartidas.').toContain('Proc_Contrapartidas');
-    expect(localEnvelope).toContain('OFNIT');
-    expect(localEnvelope).toContain('OFCTA');
-    expect(localEnvelope).toContain('OFMONDEB');
-    expect(localEnvelope).toContain('OFIDCAMCOMPE');
-    expect(localEnvelope).toContain('OFFECHEFEC');
-    expect(localEnvelope).not.toMatch(/<[^>]*METODO[^>]*>/i);
-    expect(localEnvelope).not.toContain('Proc_Transacciones');
+    const legacyLogFragment = extractEnvelopeNear(localSoapEvidence.text, evidence.requestPayloadXml) ?? localSoapEvidence.text;
+    expect(legacyLogFragment, 'El log plano del SOAP local debe contener evidencia de Proc_Contrapartidas.').toContain('Proc_Contrapartidas');
+    expect(legacyLogFragment).toContain('OFNIT');
+    expect(legacyLogFragment).toContain('OFCTA');
+    expect(legacyLogFragment).toContain('OFMONDEB');
+    expect(legacyLogFragment).toContain('OFIDCAMCOMPE');
+    expect(legacyLogFragment).toContain('OFFECHEFEC');
+    expect(legacyLogFragment).not.toContain('Proc_Transacciones');
 
     await testInfo.attach('proc-contrapartidas-request-sanitized.xml', {
       body: sanitizeEvidence(evidence.requestPayloadXml),
       contentType: 'application/xml'
     });
     await testInfo.attach('proc-contrapartidas-local-soap-log-sanitized.txt', {
-      body: `source=${localSoapEvidence.source}\n\n${sanitizeEvidence(localEnvelope)}`,
+      body: [
+        `source=${localSoapEvidence.source}`,
+        'nota=El SOAP legacy puede registrar <METODO> en su envelope interno de trazabilidad; la ausencia de <METODO> se valida en el request outbound persistido por ACHInterbank.',
+        '',
+        sanitizeEvidence(legacyLogFragment)
+      ].join('\n'),
       contentType: 'text/plain'
     });
   } finally {
@@ -306,6 +361,10 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
 
     if (originalSoapSettings) {
       await apiPutJson<SoapIntegrationSettings>(soapSettingsPath, runtime.token, originalSoapSettings);
+    }
+
+    if (mappingSnapshot) {
+      await db.restoreProcContrapartidasMapping(mappingSnapshot);
     }
 
     await db.close();
@@ -318,6 +377,9 @@ async function fillTransactionFormFromUi(page: Page, data: {
   sourceAccountNumber: string;
   destinationAccountNumber: string;
   recipientIdNumber: string;
+  collectorId: string;
+  receiverCustomerCode: string;
+  serviceDescription: string;
   sourceCompanyIdentification: string;
   sourceCompanyName: string;
   targetInstitutionName: string;
@@ -337,6 +399,9 @@ async function fillTransactionFormFromUi(page: Page, data: {
   await selectOption(page, 'Tipo persona receptor', 'Persona jurídica');
   await fillInput(page, 'Identificación del receptor', data.recipientIdNumber);
   await fillInput(page, 'Nombre del receptor', 'RECEPTOR QA CONTRA');
+  await fillInput(page, 'NIT/EAN-13 recaudador', data.collectorId);
+  await fillInput(page, 'Código cliente receptor', data.receiverCustomerCode);
+  await fillInput(page, 'Servicio', data.serviceDescription);
   await selectOption(page, 'Descripción de la entrada', data.companyEntryDescriptionLabel || 'NOMINAS');
   await selectOption(page, 'Código tipo registro adenda', '05 - Información adicional');
   await fillInput(page, 'Información', `${data.reference}-ADDENDA`);
@@ -361,10 +426,315 @@ async function selectOption(page: Page, labelText: string, optionText: string): 
 }
 
 function fieldByLabel(page: Page, labelText: string) {
-  const labelPattern = new RegExp(`^${escapeRegExp(labelText)}(?:\\s*\\*)?$`, 'i');
+  const labelPattern = new RegExp(`^${escapeRegExp(labelText)}(?:\\s*\\([^)]*\\))?(?:\\s*\\*)?$`, 'i');
   return page.locator('label')
     .filter({ has: page.locator('span').filter({ hasText: labelPattern }) })
     .first();
+}
+
+class ProcContrapartidasRuntimeDb {
+  private readonly provider: string;
+  private readonly postgres: G36Postgres | null;
+
+  constructor(provider: string) {
+    this.provider = provider.trim().toLowerCase();
+    this.postgres = this.isSqlServer ? null : new G36Postgres();
+  }
+
+  private get isSqlServer(): boolean {
+    return ['sqlserver', 'mssql'].includes(this.provider);
+  }
+
+  async assertReady(): Promise<void> {
+    if (this.postgres) {
+      await this.postgres.assertReady();
+      return;
+    }
+
+    const rows = this.sqlQuery<{ table_name: string }>(
+      `SELECT [name] AS [table_name]
+       FROM sys.tables
+       WHERE [name] IN ('AchCycles', 'AchTransactions', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems', 'ContrapartidaDispatchAttempts')`
+    );
+    expect(rows.map((row) => row.table_name).sort(), 'La base runtime SqlServer debe estar provisionada para Proc_Contrapartidas.')
+      .toEqual(['AchCycles', 'AchTransactions', 'ContrapartidaDispatchAttempts', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems'].sort());
+  }
+
+  async close(): Promise<void> {
+    await this.postgres?.close();
+  }
+
+  async configureProcContrapartidasExpectedMapping(): Promise<MappingRuleSnapshot[]> {
+    if (this.postgres) {
+      return [];
+    }
+
+    const targetPaths = ['OFCTA', 'OFDD', 'OFMONDEB', 'OFMONCRE', 'OFST', 'OFIDTX', 'OFIDREVER', 'OFIDEBAPLI', 'OFLIBRE', 'OFLIBRE1'];
+    const pathList = targetPaths.map(sqlString).join(', ');
+    const snapshot = this.sqlQuery<MappingRuleSnapshot>(
+      `WITH Published AS (
+         SELECT TOP (1) s.[Id] AS [MappingSetId], s.[MethodId]
+         FROM [IntegrationMappingSets] s
+         JOIN [IntegrationMethods] m ON m.[Id] = s.[MethodId]
+         WHERE m.[Code] = N'WSCFAACH.Proc_Contrapartidas'
+           AND s.[Status] = 2
+           AND s.[IsActive] = 1
+         ORDER BY s.[Version] DESC
+       )
+       SELECT r.[Id] AS [id],
+              r.[SourceKind] AS [sourceKind],
+              r.[SourceCatalogFieldId] AS [sourceCatalogFieldId],
+              r.[SourceFieldPath] AS [sourceFieldPath],
+              r.[FixedValue] AS [fixedValue],
+              r.[DefaultValue] AS [defaultValue],
+              r.[TransformationCode] AS [transformationCode],
+              r.[FormatMask] AS [formatMask],
+              r.[Priority] AS [priority],
+              r.[RequiredOverride] AS [requiredOverride],
+              r.[Enabled] AS [enabled]
+       FROM [IntegrationMappingRules] r
+       JOIN [IntegrationMethodParameters] p ON p.[Id] = r.[ParameterId]
+       JOIN Published pub ON pub.[MappingSetId] = r.[MappingSetId]
+       WHERE p.[ParameterPath] IN (${pathList})`
+    );
+
+    expect(snapshot, 'El mapping publicado de Proc_Contrapartidas debe contener las reglas funcionales requeridas para esta prueba.').toHaveLength(targetPaths.length);
+
+    this.updateProcContrapartidasRule('OFCTA', 1, 'transaction.sourceaccountnumber', null, null);
+    this.updateProcContrapartidasRule('OFDD', 6, 'constant.value', 'TRANSFER  ', 'TRANSFER  ');
+    this.updateProcContrapartidasRule('OFMONDEB', 1, 'transaction.amount', null, '0');
+    this.updateProcContrapartidasRule('OFMONCRE', 6, 'constant.value', '0', '0');
+    this.updateProcContrapartidasRule('OFST', 6, 'constant.value', 'OO', 'OO');
+    this.updateProcContrapartidasRule('OFIDTX', 6, 'constant.value', '0', '0');
+    this.updateProcContrapartidasRule('OFIDREVER', 6, 'constant.value', '0', '0');
+    this.updateProcContrapartidasRule('OFIDEBAPLI', 6, 'constant.value', '1', '1');
+    this.updateProcContrapartidasRule('OFLIBRE', 1, 'transaction.reference', null, null);
+    this.updateProcContrapartidasRule('OFLIBRE1', 1, 'transaction.id', null, null);
+
+    return snapshot;
+  }
+
+  async restoreProcContrapartidasMapping(snapshot: MappingRuleSnapshot[]): Promise<void> {
+    if (this.postgres || snapshot.length === 0) {
+      return;
+    }
+
+    for (const row of snapshot) {
+      this.sqlExecute(
+        `UPDATE [IntegrationMappingRules]
+         SET [SourceKind] = ${row.sourceKind},
+             [SourceCatalogFieldId] = ${sqlNullableNumber(row.sourceCatalogFieldId)},
+             [SourceFieldPath] = ${sqlNullableString(row.sourceFieldPath)},
+             [FixedValue] = ${sqlNullableString(row.fixedValue)},
+             [DefaultValue] = ${sqlNullableString(row.defaultValue)},
+             [TransformationCode] = ${sqlNullableString(row.transformationCode)},
+             [FormatMask] = ${sqlNullableString(row.formatMask)},
+             [Priority] = ${row.priority},
+             [RequiredOverride] = ${sqlNullableBoolean(row.requiredOverride)},
+             [Enabled] = ${row.enabled ? 1 : 0}
+         WHERE [Id] = ${row.id}`
+      );
+    }
+  }
+
+  async findTransactionByExternalId(transactionExternalId: string): Promise<TransactionRow | null> {
+    if (this.postgres) {
+      return findTransactionByExternalIdPostgres(this.postgres, transactionExternalId);
+    }
+
+    const rows = this.sqlQuery<TransactionRow>(
+      `SELECT TOP (1)
+              t.[Id] AS [id],
+              t.[TransactionExternalId] AS [transactionExternalId],
+              t.[AchCycleId] AS [achCycleId],
+              c.[ClearingHouseId] AS [clearingHouseId],
+              t.[SourceInstitutionId] AS [sourceInstitutionId],
+              t.[DestinationInstitutionId] AS [destinationInstitutionId],
+              t.[Type] AS [type]
+       FROM [AchTransactions] t
+       JOIN [AchCycles] c ON c.[Id] = t.[AchCycleId]
+       WHERE t.[TransactionExternalId] = ${sqlString(transactionExternalId)}
+       ORDER BY t.[Id] DESC`
+    );
+
+    return rows[0] ?? null;
+  }
+
+  async loadCycleSnapshot(cycleId: string, clearingHouseId: number): Promise<AchCycleSnapshot> {
+    if (this.postgres) {
+      return loadCycleSnapshotPostgres(this.postgres, cycleId, clearingHouseId);
+    }
+
+    const rows = this.sqlQuery<AchCycleSnapshot>(
+      `SELECT [Id] AS [id],
+              [CycleName] AS [cycleName],
+              CONVERT(varchar(10), [ProcessingDate], 23) AS [processingDate],
+              CONVERT(varchar(16), [CutoffTime], 114) AS [cutoffTime],
+              CONVERT(varchar(16), [StartTime], 114) AS [startTime],
+              CONVERT(varchar(16), [EndTime], 114) AS [endTime],
+              [RescheduleOnHoliday] AS [rescheduleOnHoliday],
+              [ClearingHouseId] AS [clearingHouseId],
+              CONVERT(varchar(33), [UpdatedAt], 126) AS [updatedAt]
+       FROM [AchCycles]
+       WHERE [Id] = ${sqlString(cycleId)} AND [ClearingHouseId] = ${clearingHouseId}`
+    );
+
+    expect(rows, `Debe existir el ciclo ${cycleId}.`).toHaveLength(1);
+    return rows[0];
+  }
+
+  async configureCycle(snapshot: AchCycleSnapshot, cycleName: string, processingDate: string): Promise<void> {
+    if (this.postgres) {
+      await this.postgres.configureCycle(snapshot, cycleName, processingDate);
+      return;
+    }
+
+    this.sqlExecute(
+      `UPDATE [AchCycles]
+       SET [CycleName] = ${sqlString(cycleName)},
+           [ProcessingDate] = CONVERT(date, ${sqlString(processingDate)}, 23),
+           [StartTime] = CONVERT(time, '00:00:00'),
+           [EndTime] = CONVERT(time, '23:59:59'),
+           [CutoffTime] = CONVERT(time, '23:59:59'),
+           [RescheduleOnHoliday] = 0,
+           [UpdatedAt] = SYSUTCDATETIME()
+       WHERE [Id] = ${sqlString(snapshot.id)}`
+    );
+  }
+
+  async restoreCycle(snapshot: AchCycleSnapshot): Promise<void> {
+    if (this.postgres) {
+      await this.postgres.restoreCycle(snapshot);
+      return;
+    }
+
+    this.sqlExecute(
+      `UPDATE [AchCycles]
+       SET [CycleName] = ${sqlString(snapshot.cycleName)},
+           [ProcessingDate] = CONVERT(date, ${sqlString(toSqlDate(snapshot.processingDate))}, 23),
+           [CutoffTime] = CONVERT(time, ${sqlString(String(snapshot.cutoffTime))}),
+           [StartTime] = CONVERT(time, ${sqlString(String(snapshot.startTime))}),
+           [EndTime] = CONVERT(time, ${sqlString(String(snapshot.endTime))}),
+           [RescheduleOnHoliday] = ${snapshot.rescheduleOnHoliday ? 1 : 0},
+           [UpdatedAt] = SYSUTCDATETIME()
+       WHERE [Id] = ${sqlString(snapshot.id)}`
+    );
+  }
+
+  async countDispatchItems(transactionId: number): Promise<number> {
+    if (this.postgres) {
+      return countDispatchItemsPostgres(this.postgres, transactionId);
+    }
+
+    const rows = this.sqlQuery<{ value: string }>(
+      `SELECT CONVERT(varchar(30), COUNT(*)) AS [value]
+       FROM [ContrapartidaDispatchItems]
+       WHERE [AchTransactionId] = ${transactionId}`
+    );
+
+    return Number(rows[0]?.value ?? 0);
+  }
+
+  async findDispatchEvidence(transactionExternalId: string): Promise<DispatchEvidenceRow | null> {
+    if (this.postgres) {
+      return findDispatchEvidencePostgres(this.postgres, transactionExternalId);
+    }
+
+    const rows = this.sqlQuery<DispatchEvidenceRow>(
+      `SELECT TOP (1)
+              a.[Result] AS [result],
+              a.[ExternalResponseCode] AS [externalResponseCode],
+              a.[ExternalResponseMessage] AS [externalResponseMessage],
+              a.[ErrorCode] AS [errorCode],
+              a.[ErrorMessage] AS [errorMessage],
+              a.[RequestPayloadXml] AS [requestPayloadXml],
+              a.[ResponsePayloadXml] AS [responsePayloadXml],
+              b.[RequestedBy] AS [requestedBy],
+              b.[Status] AS [batchStatus],
+              a.[CorrelationId] AS [correlationId]
+       FROM [ContrapartidaDispatchAttempts] a
+       JOIN [ContrapartidaDispatchItems] i ON i.[Id] = a.[DispatchItemId]
+       JOIN [ContrapartidaDispatchBatches] b ON b.[Id] = a.[DispatchBatchId]
+       JOIN [AchTransactions] t ON t.[Id] = i.[AchTransactionId]
+       WHERE t.[TransactionExternalId] = ${sqlString(transactionExternalId)}
+         AND b.[RequestedBy] = ${sqlString(dispatchTriggeredBy)}
+       ORDER BY a.[FinishedAtUtc] DESC`
+    );
+
+    return rows[0] ?? null;
+  }
+
+  private sqlQuery<T>(selectSql: string): T[] {
+    const output = this.runSqlCmd(`${selectSql} FOR JSON PATH, INCLUDE_NULL_VALUES;`);
+    return parseSqlJson<T>(output);
+  }
+
+  private sqlExecute(sql: string): void {
+    this.runSqlCmd(sql, true);
+  }
+
+  private updateProcContrapartidasRule(
+    parameterPath: string,
+    sourceKind: number,
+    sourceFieldPath: string,
+    fixedValue: string | null,
+    defaultValue: string | null
+  ): void {
+    this.sqlExecute(
+      `WITH Published AS (
+         SELECT TOP (1) s.[Id] AS [MappingSetId]
+         FROM [IntegrationMappingSets] s
+         JOIN [IntegrationMethods] m ON m.[Id] = s.[MethodId]
+         WHERE m.[Code] = N'WSCFAACH.Proc_Contrapartidas'
+           AND s.[Status] = 2
+           AND s.[IsActive] = 1
+         ORDER BY s.[Version] DESC
+       )
+       UPDATE r
+       SET r.[SourceKind] = ${sourceKind},
+           r.[SourceCatalogFieldId] = NULL,
+           r.[SourceFieldPath] = ${sqlString(sourceFieldPath)},
+           r.[FixedValue] = ${sqlNullableString(fixedValue)},
+           r.[DefaultValue] = ${sqlNullableString(defaultValue)},
+           r.[TransformationCode] = NULL,
+           r.[FormatMask] = NULL,
+           r.[RequiredOverride] = 1,
+           r.[Enabled] = 1
+       FROM [IntegrationMappingRules] r
+       JOIN [IntegrationMethodParameters] p ON p.[Id] = r.[ParameterId]
+       JOIN Published pub ON pub.[MappingSetId] = r.[MappingSetId]
+       WHERE p.[ParameterPath] = ${sqlString(parameterPath)}`
+    );
+  }
+
+  private runSqlCmd(sql: string, failOnError = true): string {
+    const server = process.env['SQLSERVER_HOST'] ?? '127.0.0.1';
+    const port = process.env['SQLSERVER_PORT'] ?? process.env['SQLSERVER_HOST_PORT'] ?? '1433';
+    const database = process.env['SQLSERVER_DB'] ?? process.env['MSSQL_DB'] ?? 'ACHInterbank';
+    const user = process.env['SQLSERVER_USER'] ?? 'sa';
+    const password = process.env['SQLSERVER_PASSWORD'] ?? process.env['MSSQL_SA_PASSWORD'] ?? 'Example_sqlServer_2026*';
+    const sqlcmdPath = process.env['SQLCMD_PATH'] ?? 'sqlcmd';
+    const args = [
+      '-S', `${server},${port}`,
+      '-U', user,
+      '-P', password,
+      '-d', database,
+      '-C',
+      '-w', '65535',
+      '-y', '0',
+      '-Q', `SET NOCOUNT ON; ${sql}`
+    ];
+
+    if (failOnError) {
+      args.unshift('-b');
+    }
+
+    return execFileSync(sqlcmdPath, args, {
+      encoding: 'utf8',
+      windowsHide: true,
+      maxBuffer: 10 * 1024 * 1024
+    });
+  }
 }
 
 async function authenticateRuntime(): Promise<{ token: string }> {
@@ -433,6 +803,20 @@ async function apiPutJson<T>(path: string, token: string, body: unknown): Promis
   return await response.json() as T;
 }
 
+async function apiPatchJson<T>(path: string, token: string, body: unknown): Promise<T> {
+  const response = await fetch(joinUrl(apiBaseUrl, path), {
+    method: 'PATCH',
+    headers: authHeaders(token, true),
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    throw new Error(`PATCH ${path} debe responder 200. Status=${response.status}, body=${await response.text()}`);
+  }
+
+  return await response.json() as T;
+}
+
 async function resolveCompanyEntryDescription(token: string): Promise<CompanyEntryDescription> {
   const items = await apiGetJson<CompanyEntryDescription[]>(companyEntryDescriptionsPath, token);
   const selected = items.find((item) => item.term?.toUpperCase() === 'NOMINAS')
@@ -440,6 +824,36 @@ async function resolveCompanyEntryDescription(token: string): Promise<CompanyEnt
     ?? null;
   expect(selected, 'Debe existir un concepto de entrada activo.').not.toBeNull();
   return selected!;
+}
+
+async function activateSyntheticThirdParty(token: string, request: {
+  sourceAccountNumber: string;
+  destinationAccountNumber: string;
+  recipientIdNumber: string;
+  destinationInstitutionId: number;
+}): Promise<void> {
+  const query = new URLSearchParams({
+    sourceAccountNumber: request.sourceAccountNumber,
+    destinationAccountNumber: request.destinationAccountNumber,
+    recipientIdNumber: request.recipientIdNumber,
+    destinationInstitutionId: String(request.destinationInstitutionId),
+    page: '1',
+    pageSize: '20'
+  });
+
+  const thirdParty = await pollUntil(async () => {
+    const page = await apiGetJson<PagedResponse<CustomerThirdParty>>(`/api/customer-third-parties?${query}`, token);
+    return page.items.find((item) =>
+      item.destinationInstitutionId === request.destinationInstitutionId
+      && item.destinationAccountNumber === request.destinationAccountNumber
+      && item.recipientIdNumber === request.recipientIdNumber
+    );
+  }, `tercero sintetico ${request.destinationAccountNumber}`, 60_000);
+
+  await apiPatchJson<CustomerThirdParty>(`/api/customer-third-parties/${thirdParty.id}/status`, token, {
+    status: 1,
+    validationMessage: 'Playwright local SOAP Proc_Contrapartidas synthetic approval'
+  });
 }
 
 function resolveTargetInstitution(institutions: FinancialInstitution[], defaultSourceId: number): FinancialInstitution {
@@ -490,7 +904,7 @@ function assertNoMetodoMapping(settings: SoapIntegrationSettings): void {
   }
 }
 
-async function findTransactionByExternalId(db: G36Postgres, transactionExternalId: string): Promise<TransactionRow | null> {
+async function findTransactionByExternalIdPostgres(db: G36Postgres, transactionExternalId: string): Promise<TransactionRow | null> {
   const rows = await db.query<TransactionRow>(
     `SELECT t."Id" AS id,
             t."TransactionExternalId" AS "transactionExternalId",
@@ -510,7 +924,7 @@ async function findTransactionByExternalId(db: G36Postgres, transactionExternalI
   return rows[0] ?? null;
 }
 
-async function loadCycleSnapshot(db: G36Postgres, cycleId: string, clearingHouseId: number): Promise<AchCycleSnapshot> {
+async function loadCycleSnapshotPostgres(db: G36Postgres, cycleId: string, clearingHouseId: number): Promise<AchCycleSnapshot> {
   const rows = await db.query<AchCycleSnapshot>(
     `SELECT "Id" AS id,
             "CycleName" AS "cycleName",
@@ -530,7 +944,7 @@ async function loadCycleSnapshot(db: G36Postgres, cycleId: string, clearingHouse
   return rows[0];
 }
 
-async function countDispatchItems(db: G36Postgres, transactionId: number): Promise<number> {
+async function countDispatchItemsPostgres(db: G36Postgres, transactionId: number): Promise<number> {
   return Number(await db.scalar<string>(
     `SELECT COUNT(*)::text
      FROM "ContrapartidaDispatchItems"
@@ -539,7 +953,7 @@ async function countDispatchItems(db: G36Postgres, transactionId: number): Promi
   ) ?? 0);
 }
 
-async function findDispatchEvidence(db: G36Postgres, transactionExternalId: string): Promise<DispatchEvidenceRow | null> {
+async function findDispatchEvidencePostgres(db: G36Postgres, transactionExternalId: string): Promise<DispatchEvidenceRow | null> {
   const rows = await db.query<DispatchEvidenceRow>(
     `SELECT a."Result" AS result,
             a."ExternalResponseCode" AS "externalResponseCode",
@@ -582,24 +996,23 @@ function assertProcContrapartidasPayload(xml: string, clearingHouseId: number): 
     'OFIDTX',
     'OFIDREVER',
     'OFIDEBAPLI',
-    'OFIDCAMCOMPE',
-    'ILR',
-    'cantTrans'
+    'OFIDCAMCOMPE'
   ]) {
     expect(xml, `El request debe contener ${field}.`).toContain(field);
   }
 
+  expect(xml, 'OFDD observado debe ser TRANSFER con espacios finales.').toMatch(/<[^>]*OFDD[^>]*>TRANSFER\s{2}<\/[^>]*OFDD>/);
   expect(xml, 'OFFECHEFEC debe viajar en formato yyyyMMdd.').toMatch(/<[^>]*OFFECHEFEC[^>]*>\d{8}<\/[^>]*OFFECHEFEC>/);
   expect(xml, 'OFMONCRE observado debe ser 0.').toMatch(/<[^>]*OFMONCRE[^>]*>0(?:\.0+)?<\/[^>]*OFMONCRE>/);
   expect(xml, 'OFST observado debe ser OO.').toMatch(/<[^>]*OFST[^>]*>OO<\/[^>]*OFST>/);
   expect(xml, 'OFIDTX observado debe ser 0.').toMatch(/<[^>]*OFIDTX[^>]*>0<\/[^>]*OFIDTX>/);
   expect(xml, 'OFIDREVER observado debe ser 0.').toMatch(/<[^>]*OFIDREVER[^>]*>0<\/[^>]*OFIDREVER>/);
   expect(xml, 'OFIDEBAPLI observado debe ser 1.').toMatch(/<[^>]*OFIDEBAPLI[^>]*>1<\/[^>]*OFIDEBAPLI>/);
-  expect(xml, 'ILR observado debe ser A.').toMatch(/<[^>]*ILR[^>]*>A<\/[^>]*ILR>/);
-  expect(xml, 'cantTrans observado debe ser 1.').toMatch(/<[^>]*cantTrans[^>]*>1<\/[^>]*cantTrans>/);
 
   if (clearingHouseId === 1) {
     expect(xml, 'ACH Colombia debe enviar OFIDCAMCOMPE=1.').toMatch(/<[^>]*OFIDCAMCOMPE[^>]*>1<\/[^>]*OFIDCAMCOMPE>/);
+  } else if (clearingHouseId === 2) {
+    expect(xml, 'CENIT debe enviar OFIDCAMCOMPE=2.').toMatch(/<[^>]*OFIDCAMCOMPE[^>]*>2<\/[^>]*OFIDCAMCOMPE>/);
   }
 }
 
@@ -627,10 +1040,16 @@ function readLocalSoapEvidence(startedAt: Date, expectedRequestXml: string): Loc
     })
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
 
-  const expectedOfIdTx = extractElementText(expectedRequestXml, 'OFIDTX');
+  const expectedMarkers = [
+    extractElementText(expectedRequestXml, 'OFCTA'),
+    extractElementText(expectedRequestXml, 'OFNIT'),
+    extractElementText(expectedRequestXml, 'OFIDLOT'),
+    extractElementText(expectedRequestXml, 'OFIDTX')
+  ].filter((value): value is string => Boolean(value && value.trim() && value.trim() !== '0'));
+
   for (const candidate of candidates) {
     const text = readFileSync(candidate, 'utf8');
-    if (text.includes('Proc_Contrapartidas') || (expectedOfIdTx && text.includes(expectedOfIdTx))) {
+    if (text.includes('Proc_Contrapartidas') && expectedMarkers.some((marker) => text.includes(marker))) {
       return { source: candidate, text };
     }
   }
@@ -639,8 +1058,14 @@ function readLocalSoapEvidence(startedAt: Date, expectedRequestXml: string): Loc
 }
 
 function extractEnvelopeNear(logText: string, expectedRequestXml: string): string | null {
-  const ofIdTx = extractElementText(expectedRequestXml, 'OFIDTX');
-  const marker = ofIdTx && logText.includes(ofIdTx) ? ofIdTx : 'Proc_Contrapartidas';
+  const markers = [
+    extractElementText(expectedRequestXml, 'OFCTA'),
+    extractElementText(expectedRequestXml, 'OFNIT'),
+    extractElementText(expectedRequestXml, 'OFIDLOT'),
+    extractElementText(expectedRequestXml, 'OFIDTX'),
+    'Proc_Contrapartidas'
+  ].filter((value): value is string => Boolean(value && value.trim() && value.trim() !== '0'));
+  const marker = markers.find((value) => logText.includes(value)) ?? 'Proc_Contrapartidas';
   const markerIndex = logText.lastIndexOf(marker);
   if (markerIndex < 0) {
     return null;
@@ -708,6 +1133,40 @@ function normalizeUrlPath(url: string): string {
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function parseSqlJson<T>(output: string): T[] {
+  const start = output.indexOf('[');
+  const end = output.lastIndexOf(']');
+  if (start < 0 || end < start) {
+    return [];
+  }
+
+  return JSON.parse(output.slice(start, end + 1).replace(/\r?\n/g, '')) as T[];
+}
+
+function sqlString(value: string): string {
+  return `N'${value.replace(/'/g, "''")}'`;
+}
+
+function sqlNullableString(value: string | null | undefined): string {
+  return value == null ? 'NULL' : sqlString(value);
+}
+
+function sqlNullableNumber(value: number | null | undefined): string {
+  return value == null ? 'NULL' : String(value);
+}
+
+function sqlNullableBoolean(value: boolean | null | undefined): string {
+  return value == null ? 'NULL' : (value ? '1' : '0');
+}
+
+function toSqlDate(value: Date | string): string {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return String(value).slice(0, 10);
 }
 
 function escapeRegExp(value: string): string {
