@@ -73,6 +73,84 @@ $env:SOAP_LOCAL_AXON_RESPONSE_URL = "http://localhost:7083/WSAxonRespuestaTransa
 Remove-Item Env:\WSCFAACH__HostHeader -ErrorAction SilentlyContinue
 ```
 
+## Ejecucion multi motor
+
+ACHInterbank soporta SQL Server y PostgreSQL. El spec `e2e/transactions-proc-contrapartidas.spec.ts` selecciona el motor con `ACH_E2E_DB_PROVIDER` y no debe quedar acoplado a un unico proveedor.
+
+Seleccion SQL Server:
+
+```powershell
+$env:ACH_E2E_DB_PROVIDER = "SqlServer"
+```
+
+Conexion SQL Server mediante connection string:
+
+```powershell
+$env:ACH_E2E_SQLSERVER_CONNECTION_STRING = "Server=127.0.0.1,1433;Database=<db-local>;User Id=<usuario>;Password=<password>;TrustServerCertificate=True"
+```
+
+Conexion SQL Server mediante variables separadas:
+
+```powershell
+$env:ACH_E2E_SQLSERVER_HOST = "127.0.0.1"
+$env:ACH_E2E_SQLSERVER_PORT = "1433"
+$env:ACH_E2E_SQLSERVER_DATABASE = "<db-local>"
+$env:ACH_E2E_SQLSERVER_USER = "<usuario>"
+$env:ACH_E2E_SQLSERVER_PASSWORD = "<password>"
+```
+
+El contenedor local de `docker-compose.sqlserver.yml` publica `127.0.0.1:${SQLSERVER_HOST_PORT:-1433}`. Reutilizar los valores cargados localmente para `MSSQL_DB` y `MSSQL_SA_PASSWORD`, exportandolos a `ACH_E2E_SQLSERVER_*`; no copiar secretos al repositorio.
+
+Validacion de conectividad SQL Server:
+
+```powershell
+sqlcmd -S "$env:ACH_E2E_SQLSERVER_HOST,$env:ACH_E2E_SQLSERVER_PORT" -U "$env:ACH_E2E_SQLSERVER_USER" -P "$env:ACH_E2E_SQLSERVER_PASSWORD" -d "$env:ACH_E2E_SQLSERVER_DATABASE" -C -Q "SELECT DB_NAME() AS DatabaseName"
+```
+
+Comando Playwright final para SQL Server:
+
+```powershell
+$env:ACH_E2E_DB_PROVIDER = "SqlServer"
+npx playwright test e2e/transactions-proc-contrapartidas.spec.ts --project=chromium --trace on
+```
+
+Seleccion PostgreSQL:
+
+```powershell
+$env:ACH_E2E_DB_PROVIDER = "Postgres"
+```
+
+Conexion PostgreSQL mediante connection string:
+
+```powershell
+$env:ACH_E2E_POSTGRES_CONNECTION_STRING = "Host=127.0.0.1;Port=5432;Database=<db-local>;Username=<usuario>;Password=<password>"
+```
+
+Conexion PostgreSQL mediante variables separadas:
+
+```powershell
+$env:ACH_E2E_POSTGRES_HOST = "127.0.0.1"
+$env:ACH_E2E_POSTGRES_PORT = "5432"
+$env:ACH_E2E_POSTGRES_DATABASE = "<db-local>"
+$env:ACH_E2E_POSTGRES_USER = "<usuario>"
+$env:ACH_E2E_POSTGRES_PASSWORD = "<password>"
+```
+
+Tambien pueden reutilizarse valores locales de `.env`, `.env.example`, `docker-compose.postgres.yml` o `ConnectionStrings__PostgresConnection`, cargandolos en variables `ACH_E2E_POSTGRES_*` para Playwright. No subir `.env` con secretos ni logs reales.
+
+Validacion de conectividad PostgreSQL:
+
+```powershell
+psql "host=$env:ACH_E2E_POSTGRES_HOST port=$env:ACH_E2E_POSTGRES_PORT dbname=$env:ACH_E2E_POSTGRES_DATABASE user=$env:ACH_E2E_POSTGRES_USER password=$env:ACH_E2E_POSTGRES_PASSWORD" -c "SELECT current_database();"
+```
+
+Comando Playwright final para PostgreSQL:
+
+```powershell
+$env:ACH_E2E_DB_PROVIDER = "Postgres"
+npx playwright test e2e/transactions-proc-contrapartidas.spec.ts --project=chromium --trace on
+```
+
 ## Comandos usados
 
 Desde `web/ach-interbank-ui`:
@@ -143,6 +221,36 @@ JOIN ContrapartidaDispatchItems i ON i.Id = a.DispatchItemId
 JOIN AchTransactions t ON t.Id = i.AchTransactionId
 WHERE t.TransactionExternalId = N'<referencia-sintetica>'
 ORDER BY a.FinishedAtUtc DESC;
+```
+
+Consulta PostgreSQL sanitizada equivalente:
+
+```sql
+SELECT
+       t."TransactionExternalId",
+       i."AchCycleId",
+       i."AchBatchId",
+       a."SoapMethodName",
+       a."SoapEndpoint",
+       a."ExecutionMode",
+       a."StartedAtUtc",
+       a."FinishedAtUtc",
+       a."DurationMs",
+       a."SoapResponseCode",
+       a."SoapResponseDescription",
+       a."SoapTechnicalStatus",
+       a."IsSuccessful",
+       a."IsFunctionalRejection",
+       a."IsTechnicalFailure",
+       LENGTH(a."RequestPayloadXml") AS "RequestLength",
+       LENGTH(a."ResponsePayloadXml") AS "ResponseLength",
+       a."CorrelationId"
+FROM "ContrapartidaDispatchAttempts" a
+JOIN "ContrapartidaDispatchItems" i ON i."Id" = a."DispatchItemId"
+JOIN "AchTransactions" t ON t."Id" = i."AchTransactionId"
+WHERE t."TransactionExternalId" = '<referencia-sintetica>'
+ORDER BY a."FinishedAtUtc" DESC
+LIMIT 1;
 ```
 
 El request persistido no debe contener `<METODO>`, `Proc_Transacciones` ni `RegistrarRespuestaTransaccion`. La respuesta persistida debe tener contenido y el `SoapResponseCode` debe corresponder al codigo entregado por el SOAP cuando el legacy lo informa explicitamente.

@@ -51,16 +51,50 @@ export type SqlCommand = {
   values?: readonly unknown[];
 };
 
+export type G36PostgresOptions = {
+  connectionString?: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  password?: string;
+  requireExplicitConfig?: boolean;
+};
+
 export class G36Postgres {
   private readonly pool: Pool;
 
-  constructor() {
+  constructor(options: G36PostgresOptions = {}) {
+    const connectionString = options.connectionString ?? process.env['ACH_E2E_POSTGRES_CONNECTION_STRING'];
+    if (connectionString) {
+      this.pool = new Pool({
+        ...parsePostgresConnectionString(connectionString),
+        max: 4,
+        connectionTimeoutMillis: 10_000,
+        idleTimeoutMillis: 10_000
+      });
+      return;
+    }
+
+    const host = options.host ?? process.env['ACH_E2E_POSTGRES_HOST'] ?? process.env['POSTGRES_HOST'];
+    const port = options.port ?? readNumberEnv('ACH_E2E_POSTGRES_PORT', 'POSTGRES_PORT');
+    const database = options.database ?? process.env['ACH_E2E_POSTGRES_DATABASE'] ?? process.env['POSTGRES_DB'];
+    const user = options.user ?? process.env['ACH_E2E_POSTGRES_USER'] ?? process.env['POSTGRES_USER'];
+    const password = options.password ?? process.env['ACH_E2E_POSTGRES_PASSWORD'] ?? process.env['POSTGRES_PASSWORD'];
+
+    if (!host || !port || !database || !user || !password) {
+      throw new Error([
+        'PostgreSQL E2E requiere ACH_E2E_POSTGRES_CONNECTION_STRING o ACH_E2E_POSTGRES_HOST/PORT/DATABASE/USER/PASSWORD.',
+        'Tambien puede reutilizar POSTGRES_* cargandolas desde .env local, sin commitear secretos.'
+      ].join(' '));
+    }
+
     this.pool = new Pool({
-      host: process.env['POSTGRES_HOST'] ?? '127.0.0.1',
-      port: Number(process.env['POSTGRES_PORT'] ?? 5432),
-      database: process.env['POSTGRES_DB'] ?? 'ACHInterbank',
-      user: process.env['POSTGRES_USER'] ?? 'example_user',
-      password: process.env['POSTGRES_PASSWORD'] ?? 'example_password_change_me',
+      host,
+      port,
+      database,
+      user,
+      password,
       max: 4,
       connectionTimeoutMillis: 10_000,
       idleTimeoutMillis: 10_000
@@ -390,4 +424,46 @@ export async function pollUntil<T>(
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function readNumberEnv(...names: string[]): number | undefined {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value) {
+      return Number(value);
+    }
+  }
+
+  return undefined;
+}
+
+function parsePostgresConnectionString(connectionString: string): {
+  connectionString?: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  password?: string;
+} {
+  if (/^postgres(?:ql)?:\/\//i.test(connectionString)) {
+    return { connectionString };
+  }
+
+  const values = new Map<string, string>();
+  for (const part of connectionString.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator <= 0) {
+      continue;
+    }
+
+    values.set(part.slice(0, separator).trim().toLowerCase(), part.slice(separator + 1).trim());
+  }
+
+  return {
+    host: values.get('host') ?? values.get('server'),
+    port: values.get('port') ? Number(values.get('port')) : undefined,
+    database: values.get('database') ?? values.get('dbname'),
+    user: values.get('username') ?? values.get('user id') ?? values.get('user') ?? values.get('uid'),
+    password: values.get('password') ?? values.get('pwd')
+  };
 }
