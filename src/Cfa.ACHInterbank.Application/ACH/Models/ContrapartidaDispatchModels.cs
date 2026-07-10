@@ -25,4 +25,15 @@ public sealed record ContrapartidaDispatchAttemptCreateRequest(
     string? ErrorCode = null,
     string? ErrorMessage = null,
     string? RequestPayloadXml = null,
-    string? ResponsePayloadXml = null);
+    string? ResponsePayloadXml = null,
+    string? SoapMethodName = null,
+    string? SoapEndpoint = null,
+    string? ExecutionMode = null,
+    long DurationMs = 0,
+    string? SoapResponseCode = null,
+    string? SoapResponseDescription = null,
+    string? SoapTechnicalStatus = null,
+    bool IsSuccessful = false,
+    bool IsFunctionalRejection = false,
+    bool IsTechnicalFailure = false,
+    string? TechnicalException = null);

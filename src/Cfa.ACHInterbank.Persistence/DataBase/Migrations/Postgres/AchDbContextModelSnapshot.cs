@@ -5974,6 +5974,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<long>("DispatchItemId")
                         .HasColumnType("bigint");
 
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("ErrorCode")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -5983,6 +5986,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ExecutionMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("ExternalResponseCode")
                         .IsRequired()
@@ -5996,6 +6004,15 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<DateTime?>("FinishedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsFunctionalRejection")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSuccessful")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsTechnicalFailure")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("RequestPayloadXml")
                         .IsRequired()
@@ -6013,8 +6030,38 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<bool>("RetryEligible")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("SoapEndpoint")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("SoapMethodName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("SoapResponseCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("SoapResponseDescription")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("SoapTechnicalStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<DateTime>("StartedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TechnicalException")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
 
                     b.Property<string>("TriggeredBy")
                         .IsRequired()
@@ -6032,6 +6079,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.HasIndex("DispatchItemId", "AttemptNumber")
                         .IsUnique();
+
+                    b.HasIndex("SoapMethodName", "ExecutionMode", "SoapTechnicalStatus")
+                        .HasDatabaseName("IX_ContrapartidaDispatchAttempts_SoapAudit");
 
                     b.ToTable("ContrapartidaDispatchAttempts", (string)null);
                 });

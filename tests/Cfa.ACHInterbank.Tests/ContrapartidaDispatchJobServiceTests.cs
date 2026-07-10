@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
+using Cfa.ACHInterbank.Application.Security.Dtos;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -43,7 +45,8 @@ public class ContrapartidaDispatchJobServiceTests
             mapper.Object,
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
-            LiveDispatchOptions());
+            LiveDispatchOptions(),
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -117,7 +120,8 @@ public class ContrapartidaDispatchJobServiceTests
             mapper.Object,
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
-            LiveDispatchOptions());
+            LiveDispatchOptions(),
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -135,6 +139,18 @@ public class ContrapartidaDispatchJobServiceTests
         var attempt = await context.ContrapartidaDispatchAttempts.SingleAsync();
         Assert.Equal(ContrapartidaDispatchAttemptResultEnum.Success, attempt.Result);
         Assert.False(attempt.RetryEligible);
+        Assert.Equal("Proc_Contrapartidas", attempt.SoapMethodName);
+        Assert.Equal("http://localhost:7083/WSCFAACH.svc", attempt.SoapEndpoint);
+        Assert.Equal("Live", attempt.ExecutionMode);
+        Assert.Equal("R96", attempt.SoapResponseCode);
+        Assert.Equal("Aplicado", attempt.SoapResponseDescription);
+        Assert.Equal("Succeeded", attempt.SoapTechnicalStatus);
+        Assert.True(attempt.IsSuccessful);
+        Assert.False(attempt.IsFunctionalRejection);
+        Assert.False(attempt.IsTechnicalFailure);
+        Assert.Equal("<request/>\n", attempt.RequestPayloadXml);
+        Assert.Equal("<Envelope><Body><ok/></Body></Envelope>", attempt.ResponsePayloadXml);
+        Assert.DoesNotContain("<METODO>", attempt.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
 
         var batch = await context.ContrapartidaDispatchBatches.SingleAsync();
         Assert.Equal(ContrapartidaDispatchBatchStatusEnum.Completed, batch.Status);
@@ -213,9 +229,79 @@ public class ContrapartidaDispatchJobServiceTests
         var attempt = await context.ContrapartidaDispatchAttempts.SingleAsync();
         Assert.Equal(ContrapartidaDispatchAttemptResultEnum.Failed, attempt.Result);
         Assert.True(attempt.RetryEligible);
+        Assert.Equal("R98", attempt.SoapResponseCode);
+        Assert.Equal("Temporal", attempt.SoapResponseDescription);
+        Assert.Equal("SoapFault", attempt.SoapTechnicalStatus);
+        Assert.False(attempt.IsFunctionalRejection);
+        Assert.True(attempt.IsTechnicalFailure);
 
         var batch = await context.ContrapartidaDispatchBatches.SingleAsync();
         Assert.Equal(ContrapartidaDispatchBatchStatusEnum.Failed, batch.Status);
+    }
+
+    [Fact]
+    public async Task ProcessCycleAsync_DebePersistirRechazoFuncional_CuandoSoapRetornaR01()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<AchDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        var txId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper
+            .Setup(x => x.ResolveAsync(It.IsAny<AchCycle>(), It.IsAny<IReadOnlyCollection<AchTransaction>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(),
+                MappingSnapshotHash = "hash-r01",
+                UsedFallback = false
+            });
+        mapper
+            .Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()))
+            .Returns("<Proc_Contrapartidas><OFNIT>900123456</OFNIT></Proc_Contrapartidas>");
+
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap
+            .Setup(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><Proc_ContrapartidasResponse><ANSST>R01</ANSST><ANCLC>R01</ANCLC></Proc_ContrapartidasResponse></Body></Envelope>");
+
+        var parser = new ProcContrapartidasResponseParser();
+
+        var sut = new ContrapartidaDispatchJobService(
+            context,
+            soap.Object,
+            mapper.Object,
+            parser,
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions(),
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-r01", 100, CancellationToken.None);
+
+        Assert.Equal(1, result.Processed);
+        Assert.Equal(0, result.Succeeded);
+        Assert.Equal(1, result.Failed);
+
+        var attempt = await context.ContrapartidaDispatchAttempts.SingleAsync();
+        Assert.Equal("R01", attempt.SoapResponseCode);
+        Assert.Equal("FunctionalRejection", attempt.SoapTechnicalStatus);
+        Assert.False(attempt.IsSuccessful);
+        Assert.True(attempt.IsFunctionalRejection);
+        Assert.False(attempt.IsTechnicalFailure);
+        Assert.NotEmpty(attempt.ResponsePayloadXml);
+        Assert.Contains("R01", attempt.ResponsePayloadXml);
+
+        var item = await context.ContrapartidaDispatchItems.SingleAsync();
+        Assert.Equal("R01", item.LastResponseCode);
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ContrapartidaReportFailed, item.State);
     }
 
     [Fact]
@@ -357,6 +443,12 @@ public class ContrapartidaDispatchJobServiceTests
         Assert.False(attempt.RetryEligible);
         Assert.Equal("<request-dry-run/>", attempt.RequestPayloadXml);
         Assert.Contains("dry-run", attempt.ResponsePayloadXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("DryRun", attempt.ExecutionMode);
+        Assert.Equal("PROC_DRY_RUN", attempt.SoapResponseCode);
+        Assert.Equal("DryRun", attempt.SoapTechnicalStatus);
+        Assert.False(attempt.IsSuccessful);
+        Assert.False(attempt.IsFunctionalRejection);
+        Assert.False(attempt.IsTechnicalFailure);
 
         var execution = await context.IncomingNachaIntegrationExecution.SingleAsync();
         Assert.Equal(IntegrationGuaranteeConstants.ProcContrapartidas, execution.MethodName);
@@ -414,6 +506,10 @@ public class ContrapartidaDispatchJobServiceTests
         Assert.Equal(ContrapartidaDispatchAttemptResultEnum.Failed, attempt.Result);
         Assert.Equal(string.Empty, attempt.RequestPayloadXml);
         Assert.Contains("REQUIRED_MAPPING_USES_FALLBACK", attempt.ResponsePayloadXml);
+        Assert.Equal("SOAP_EXCEPTION", attempt.SoapResponseCode);
+        Assert.Equal("TechnicalException", attempt.SoapTechnicalStatus);
+        Assert.True(attempt.IsTechnicalFailure);
+        Assert.Contains("REQUIRED_MAPPING_USES_FALLBACK", attempt.TechnicalException);
 
         mapper.Verify(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>()), Times.Never);
         soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -650,4 +746,26 @@ public class ContrapartidaDispatchJobServiceTests
 
     private static IOptions<ProcContrapartidasDispatchOptions> LiveDispatchOptions()
         => Options.Create(new ProcContrapartidasDispatchOptions { Mode = "Live" });
+
+    private static ISoapIntegrationSettingsService SoapSettingsService(string endpoint)
+    {
+        var settings = new Mock<ISoapIntegrationSettingsService>();
+        settings
+            .Setup(x => x.GetAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SoapIntegrationSettingsDto
+            {
+                WscfaachMappings =
+                [
+                    new SoapEndpointMethodMappingDto
+                    {
+                        MethodName = "Proc_Contrapartidas",
+                        Endpoint = endpoint,
+                        SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+                        Enabled = true
+                    }
+                ]
+            });
+
+        return settings.Object;
+    }
 }

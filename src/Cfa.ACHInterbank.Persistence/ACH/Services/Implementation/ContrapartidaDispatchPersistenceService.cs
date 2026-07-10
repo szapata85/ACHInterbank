@@ -114,7 +114,18 @@ public sealed class ContrapartidaDispatchPersistenceService : IContrapartidaDisp
             ErrorCode = request.ErrorCode?.Trim() ?? string.Empty,
             ErrorMessage = request.ErrorMessage?.Trim() ?? string.Empty,
             RequestPayloadXml = request.RequestPayloadXml ?? string.Empty,
-            ResponsePayloadXml = request.ResponsePayloadXml ?? string.Empty
+            ResponsePayloadXml = request.ResponsePayloadXml ?? string.Empty,
+            SoapMethodName = request.SoapMethodName?.Trim() ?? string.Empty,
+            SoapEndpoint = request.SoapEndpoint?.Trim() ?? string.Empty,
+            ExecutionMode = request.ExecutionMode?.Trim() ?? string.Empty,
+            DurationMs = request.DurationMs,
+            SoapResponseCode = request.SoapResponseCode?.Trim() ?? string.Empty,
+            SoapResponseDescription = request.SoapResponseDescription?.Trim() ?? string.Empty,
+            SoapTechnicalStatus = request.SoapTechnicalStatus?.Trim() ?? string.Empty,
+            IsSuccessful = request.IsSuccessful,
+            IsFunctionalRejection = request.IsFunctionalRejection,
+            IsTechnicalFailure = request.IsTechnicalFailure,
+            TechnicalException = request.TechnicalException?.Trim() ?? string.Empty
         };
 
         item.AttemptCount = nextAttemptNumber;

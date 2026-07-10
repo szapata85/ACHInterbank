@@ -40,8 +40,31 @@ public class ContrapartidaDispatchAttemptConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.RequestPayloadXml);
         builder.Property(x => x.ResponsePayloadXml);
 
+        builder.Property(x => x.SoapMethodName)
+            .HasMaxLength(120);
+
+        builder.Property(x => x.SoapEndpoint)
+            .HasMaxLength(500);
+
+        builder.Property(x => x.ExecutionMode)
+            .HasMaxLength(20);
+
+        builder.Property(x => x.SoapResponseCode)
+            .HasMaxLength(80);
+
+        builder.Property(x => x.SoapResponseDescription)
+            .HasMaxLength(4000);
+
+        builder.Property(x => x.SoapTechnicalStatus)
+            .HasMaxLength(50);
+
+        builder.Property(x => x.TechnicalException)
+            .HasMaxLength(4000);
+
         builder.HasIndex(x => new { x.DispatchItemId, x.AttemptNumber }).IsUnique();
         builder.HasIndex(x => new { x.DispatchBatchId, x.CreatedAt });
         builder.HasIndex(x => x.Result);
+        builder.HasIndex(x => new { x.SoapMethodName, x.ExecutionMode, x.SoapTechnicalStatus })
+            .HasDatabaseName("IX_ContrapartidaDispatchAttempts_SoapAudit");
     }
 }

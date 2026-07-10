@@ -82,6 +82,17 @@ type DispatchEvidenceRow = {
   errorMessage: string | null;
   requestPayloadXml: string;
   responsePayloadXml: string;
+  soapMethodName: string | null;
+  soapEndpoint: string | null;
+  executionMode: string | null;
+  durationMs: number | string | null;
+  soapResponseCode: string | null;
+  soapResponseDescription: string | null;
+  soapTechnicalStatus: string | null;
+  isSuccessful: boolean | number | null;
+  isFunctionalRejection: boolean | number | null;
+  isTechnicalFailure: boolean | number | null;
+  technicalException: string | null;
   requestedBy: string;
   batchStatus: number;
   correlationId: string;
@@ -326,10 +337,39 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     expect(evidence.requestPayloadXml).not.toContain('RegistrarRespuestaTransaccion');
     expect(evidence.requestPayloadXml).not.toMatch(/<[^>]*METODO[^>]*>/i);
 
+    expect(evidence.responsePayloadXml, 'Debe persistirse la respuesta inbound del SOAP, no solo el request outbound.').toBeTruthy();
+    expect(evidence.responsePayloadXml.trim().length, 'La respuesta SOAP persistida no puede estar vacia.').toBeGreaterThan(0);
+    expect(evidence.soapMethodName, 'El intento debe persistir el metodo SOAP ejecutado.').toBe('Proc_Contrapartidas');
+    expect(evidence.executionMode, 'El intento debe persistir modo Live.').toMatch(/^Live$/i);
+    expect(evidence.soapEndpoint ?? '', 'El intento debe persistir el endpoint WSCFAACH usado.').toContain('WSCFAACH.svc');
+    expect(Number(evidence.durationMs ?? 0), 'El intento debe persistir duracion aproximada.').toBeGreaterThanOrEqual(0);
+
     expect(evidence.externalResponseCode ?? evidence.errorCode ?? '', [
       'El backend debe estar en modo live para esta prueba.',
       'Si aparece PROC_DRY_RUN o PROC_DISABLED, arranque la API con ProcContrapartidas__Mode=Live solo en local/UAT autorizado.'
     ].join(' ')).not.toMatch(/PROC_DRY_RUN|PROC_DISABLED/i);
+    expect(evidence.soapResponseCode ?? '', 'El codigo SOAP normalizado no debe indicar dry-run/disabled en live.').not.toMatch(/PROC_DRY_RUN|PROC_DISABLED/i);
+    expect(evidence.soapTechnicalStatus ?? '', 'El estado tecnico SOAP debe quedar persistido.').toMatch(/Succeeded|FunctionalRejection|SoapFault|RetryableFailure|ParserError|TechnicalException|UnknownFailure/i);
+    expect(evidence.soapResponseCode ?? evidence.externalResponseCode ?? evidence.errorCode ?? '', 'Debe existir codigo funcional/tecnico normalizado consultable.').toBeTruthy();
+
+    const persistedCode = evidence.soapResponseCode ?? '';
+    const legacyCode = evidence.externalResponseCode ?? evidence.errorCode ?? '';
+    if (persistedCode && legacyCode) {
+      expect(persistedCode, 'SoapResponseCode debe corresponder al codigo persistido legacy del intento.').toBe(legacyCode);
+    }
+
+    if (persistedCode && !/UNKNOWN|SOAP_EXCEPTION|PARSER_ERROR|EMPTY_RESPONSE/i.test(persistedCode)) {
+      expect(evidence.responsePayloadXml, 'La respuesta persistida debe contener el codigo SOAP normalizado cuando el legacy lo entrega explicitamente.')
+        .toContain(persistedCode);
+    }
+
+    if (asBoolean(evidence.isFunctionalRejection)) {
+      expect(asBoolean(evidence.isTechnicalFailure), 'Un rechazo funcional no debe marcarse como falla tecnica.').toBeFalsy();
+    }
+
+    if (asBoolean(evidence.isTechnicalFailure)) {
+      expect(evidence.soapTechnicalStatus ?? '', 'Una falla tecnica debe tener estado tecnico explicito.').toMatch(/SoapFault|RetryableFailure|ParserError|TechnicalException|UnknownFailure/i);
+    }
 
     const localSoapEvidence = readLocalSoapEvidence(startedAt, evidence.requestPayloadXml);
     const legacyLogFragment = extractEnvelopeNear(localSoapEvidence.text, evidence.requestPayloadXml) ?? localSoapEvidence.text;
@@ -343,6 +383,10 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
 
     await testInfo.attach('proc-contrapartidas-request-sanitized.xml', {
       body: sanitizeEvidence(evidence.requestPayloadXml),
+      contentType: 'application/xml'
+    });
+    await testInfo.attach('proc-contrapartidas-response-sanitized.xml', {
+      body: sanitizeEvidence(evidence.responsePayloadXml),
       contentType: 'application/xml'
     });
     await testInfo.attach('proc-contrapartidas-local-soap-log-sanitized.txt', {
@@ -649,6 +693,17 @@ class ProcContrapartidasRuntimeDb {
               a.[ErrorMessage] AS [errorMessage],
               a.[RequestPayloadXml] AS [requestPayloadXml],
               a.[ResponsePayloadXml] AS [responsePayloadXml],
+              a.[SoapMethodName] AS [soapMethodName],
+              a.[SoapEndpoint] AS [soapEndpoint],
+              a.[ExecutionMode] AS [executionMode],
+              a.[DurationMs] AS [durationMs],
+              a.[SoapResponseCode] AS [soapResponseCode],
+              a.[SoapResponseDescription] AS [soapResponseDescription],
+              a.[SoapTechnicalStatus] AS [soapTechnicalStatus],
+              a.[IsSuccessful] AS [isSuccessful],
+              a.[IsFunctionalRejection] AS [isFunctionalRejection],
+              a.[IsTechnicalFailure] AS [isTechnicalFailure],
+              a.[TechnicalException] AS [technicalException],
               b.[RequestedBy] AS [requestedBy],
               b.[Status] AS [batchStatus],
               a.[CorrelationId] AS [correlationId]
@@ -962,6 +1017,17 @@ async function findDispatchEvidencePostgres(db: G36Postgres, transactionExternal
             a."ErrorMessage" AS "errorMessage",
             a."RequestPayloadXml" AS "requestPayloadXml",
             a."ResponsePayloadXml" AS "responsePayloadXml",
+            a."SoapMethodName" AS "soapMethodName",
+            a."SoapEndpoint" AS "soapEndpoint",
+            a."ExecutionMode" AS "executionMode",
+            a."DurationMs" AS "durationMs",
+            a."SoapResponseCode" AS "soapResponseCode",
+            a."SoapResponseDescription" AS "soapResponseDescription",
+            a."SoapTechnicalStatus" AS "soapTechnicalStatus",
+            a."IsSuccessful" AS "isSuccessful",
+            a."IsFunctionalRejection" AS "isFunctionalRejection",
+            a."IsTechnicalFailure" AS "isTechnicalFailure",
+            a."TechnicalException" AS "technicalException",
             b."RequestedBy" AS "requestedBy",
             b."Status" AS "batchStatus",
             a."CorrelationId" AS "correlationId"
@@ -1106,6 +1172,10 @@ function sanitizeEvidence(value: string): string {
     .replace(/\b\d{6,10}\b/g, '[id-redactado]')
     .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [redactado]')
     .replace(/<password>.*?<\/password>/gi, '<password>[redactado]</password>');
+}
+
+function asBoolean(value: boolean | number | string | null | undefined): boolean {
+  return value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true';
 }
 
 function authHeaders(token: string, json = false): HeadersInit {

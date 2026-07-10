@@ -24,7 +24,15 @@ Clave equivalente en `appsettings`:
 }
 ```
 
-En este runtime los endpoints SOAP no se leen directamente de `appsettings`: se toman de la configuracion persistida expuesta por `api/users/soap-integrations`. El spec la ajusta temporalmente con:
+En `appsettings.Development.json` el default local queda en `Live` para esta validacion. `DryRun` sigue disponible como rollback/fallback:
+
+```powershell
+$env:ProcContrapartidas__Mode = "DryRun"
+```
+
+No cambiar `ProcTransacciones__Mode`; este escenario no debe ejecutar `Proc_Transacciones`.
+
+En este runtime los endpoints SOAP se toman de la configuracion persistida expuesta por `api/users/soap-integrations`. El spec la ajusta temporalmente con:
 
 - `SOAP_LOCAL_WSCFAACH_URL`
 - `SOAP_LOCAL_AXON_RESPONSE_URL`
@@ -44,6 +52,7 @@ $env:WSCFAACH__HostHeader = "localhost:7083"
 ```powershell
 $env:RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E = "true"
 $env:ALLOW_LOCAL_MONETARY_SOAP_E2E = "true"
+$env:ProcContrapartidas__Mode = "Live"
 $env:ACH_E2E_DB_PROVIDER = "SqlServer"
 $env:ACH_UI_URL = "http://localhost:743"
 $env:ACH_API_URL = "http://localhost:843"
@@ -56,6 +65,14 @@ $env:SOAP_LOCAL_LOG_DIR = "C:\WebServices\WSCFAACH\Log"
 
 Tambien puede usarse `SOAP_LOCAL_WSCFAACH_LOG` para apuntar a un archivo especifico. El SOAP local no expone endpoints auxiliares tipo `/__requests`; la evidencia se valida por archivo plano.
 
+Si la API corre en host en lugar de Docker:
+
+```powershell
+$env:SOAP_LOCAL_WSCFAACH_URL = "http://localhost:7083/WSCFAACH.svc"
+$env:SOAP_LOCAL_AXON_RESPONSE_URL = "http://localhost:7083/WSAxonRespuestaTransacciones.svc"
+Remove-Item Env:\WSCFAACH__HostHeader -ErrorAction SilentlyContinue
+```
+
 ## Comandos usados
 
 Desde `web/ach-interbank-ui`:
@@ -64,11 +81,15 @@ Desde `web/ach-interbank-ui`:
 npx playwright test e2e/transactions-proc-contrapartidas.spec.ts --project=chromium --trace on
 ```
 
-Verificacion backend:
+Verificacion completa recomendada:
 
 ```powershell
 dotnet build ACHInterbank.sln -c Release
-dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~TransactionIntegrationReadinessGuaranteeTests"
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
+cd web/ach-interbank-ui
+npm run build
+npm test -- --watch=false --browsers=ChromeHeadless
+npx playwright test e2e/transactions-proc-contrapartidas.spec.ts --project=chromium --trace on
 ```
 
 ## Comportamiento del spec
@@ -84,6 +105,72 @@ El spec:
 - no agrega `PLValidarUsuarioBV`;
 - no agrega ni envia `<METODO>` en el request outbound de ACHInterbank;
 - no exige `ILR` ni `cantTrans`.
+- exige que `ContrapartidaDispatchAttempts.ResponsePayloadXml` no este vacio;
+- exige que se persistan `SoapMethodName`, `SoapEndpoint`, `ExecutionMode=Live`, `DurationMs`, `SoapResponseCode`, `SoapResponseDescription`, `SoapTechnicalStatus`, `IsSuccessful`, `IsFunctionalRejection` e `IsTechnicalFailure`.
+
+## Verificacion de persistencia
+
+Tabla principal:
+
+- `ContrapartidaDispatchAttempts`.
+- Union a transaccion: `ContrapartidaDispatchAttempts.DispatchItemId -> ContrapartidaDispatchItems.Id -> AchTransactions.Id`.
+- Union a ciclo/lote: `ContrapartidaDispatchItems.AchCycleId`, `ContrapartidaDispatchItems.AchBatchId` y `ContrapartidaDispatchBatches.AchCycleId`.
+
+Consulta SqlServer sanitizada por referencia sintetica:
+
+```sql
+SELECT TOP (1)
+       t.TransactionExternalId,
+       i.AchCycleId,
+       i.AchBatchId,
+       a.SoapMethodName,
+       a.SoapEndpoint,
+       a.ExecutionMode,
+       a.StartedAtUtc,
+       a.FinishedAtUtc,
+       a.DurationMs,
+       a.SoapResponseCode,
+       a.SoapResponseDescription,
+       a.SoapTechnicalStatus,
+       a.IsSuccessful,
+       a.IsFunctionalRejection,
+       a.IsTechnicalFailure,
+       LEN(a.RequestPayloadXml) AS RequestLength,
+       LEN(a.ResponsePayloadXml) AS ResponseLength,
+       a.CorrelationId
+FROM ContrapartidaDispatchAttempts a
+JOIN ContrapartidaDispatchItems i ON i.Id = a.DispatchItemId
+JOIN AchTransactions t ON t.Id = i.AchTransactionId
+WHERE t.TransactionExternalId = N'<referencia-sintetica>'
+ORDER BY a.FinishedAtUtc DESC;
+```
+
+El request persistido no debe contener `<METODO>`, `Proc_Transacciones` ni `RegistrarRespuestaTransaccion`. La respuesta persistida debe tener contenido y el `SoapResponseCode` debe corresponder al codigo entregado por el SOAP cuando el legacy lo informa explicitamente.
+
+## Interpretacion de codigos observados
+
+| Codigo | Interpretacion aplicada |
+| --- | --- |
+| `R96` | Exito operativo observado para contrapartida. Se persiste como `IsSuccessful=true`. |
+| `R01` | Rechazo funcional observado por fondos insuficientes. Se persiste como `IsFunctionalRejection=true` y `IsTechnicalFailure=false`. |
+| `RE` | Respuesta tecnica/anomala. No se asume rechazo funcional sin confirmacion del legado. |
+| `0` | Respuesta tecnica/anomala o cierre no funcional segun contexto. No se asume significado funcional no confirmado. |
+| Otros | Documentar codigo y respuesta cruda sanitizada; no inferir significado sin validacion funcional. |
+
+## Rollback a DryRun
+
+Para desactivar transmision local sin cambiar codigo:
+
+```powershell
+$env:ProcContrapartidas__Mode = "DryRun"
+```
+
+Reiniciar la API despues de cambiar la variable. La prueba Playwright live debe seguir saltandose si no estan ambos flags:
+
+```powershell
+$env:RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E = "false"
+$env:ALLOW_LOCAL_MONETARY_SOAP_E2E = "false"
+```
 
 ## Resultado 2026-07-01
 
@@ -104,6 +191,7 @@ Evidencia observada:
 - no contiene `RegistrarRespuestaTransaccion`;
 - no contiene tag `<METODO>` en el outbound request de ACHInterbank;
 - el log plano local registra `INICIO Proc_Contrapartidas`;
+- para la validacion actual, ademas debe existir `ResponsePayloadXml` persistido y campos `SoapResponse*`/`SoapTechnicalStatus` consultables;
 - campos funcionales esperados presentes, excluyendo `ILR` y `cantTrans`;
 - `OFDD=TRANSFER  `;
 - `OFFECHEFEC` en formato `yyyyMMdd`;
@@ -119,7 +207,7 @@ Nota: el SOAP legacy puede registrar internamente `<METODO>` en su `strEnvelope`
 ## Limitaciones
 
 - Productivo permanece NO-GO.
-- La respuesta del SOAP local puede ser rechazo funcional; el criterio de esta validacion es invocacion real local, evidencia en log plano y request outbound correcto.
+- La respuesta del SOAP local puede ser exito, rechazo funcional o respuesta tecnica/anomala; el criterio actual exige invocacion real local, evidencia en log plano, request outbound correcto y response persistida.
 - Si la API corre en Docker, IIS/WCF puede requerir `WSCFAACH__HostHeader=localhost:7083`.
 - `ILR` y `cantTrans` se ignoran en esta iteracion: no son requeridos en DTOs, contratos, builders, mappings ni validaciones Playwright.
 - No se guardan logs originales en el repo; solo se adjunta evidencia sanitizada en `test-results`.

@@ -123,6 +123,18 @@ public class ContrapartidaDispatchAttempt : AuditableEntity
     public string RequestPayloadXml { get; set; } = string.Empty;
     public string ResponsePayloadXml { get; set; } = string.Empty;
 
+    public string SoapMethodName { get; set; } = string.Empty;
+    public string SoapEndpoint { get; set; } = string.Empty;
+    public string ExecutionMode { get; set; } = string.Empty;
+    public long DurationMs { get; set; }
+    public string SoapResponseCode { get; set; } = string.Empty;
+    public string SoapResponseDescription { get; set; } = string.Empty;
+    public string SoapTechnicalStatus { get; set; } = string.Empty;
+    public bool IsSuccessful { get; set; }
+    public bool IsFunctionalRejection { get; set; }
+    public bool IsTechnicalFailure { get; set; }
+    public string TechnicalException { get; set; } = string.Empty;
+
     public ContrapartidaDispatchItem DispatchItem { get; set; } = null!;
     public ContrapartidaDispatchBatch? DispatchBatch { get; set; }
 }

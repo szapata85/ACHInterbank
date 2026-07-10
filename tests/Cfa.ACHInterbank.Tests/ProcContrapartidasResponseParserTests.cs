@@ -35,6 +35,33 @@ public class ProcContrapartidasResponseParserTests
     }
 
     [Fact]
+    public void Parse_DebeRetornarExito_CuandoAnsstEsR96()
+    {
+        var sut = new ProcContrapartidasResponseParser();
+        var xml = "<Envelope><Body><Proc_ContrapartidasResponse><ANSST>R96</ANSST><ANCLC>00</ANCLC></Proc_ContrapartidasResponse></Body></Envelope>";
+
+        var result = sut.Parse(xml);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.IsFunctionalRejection);
+        Assert.Equal("R96", result.ResponseCode);
+    }
+
+    [Fact]
+    public void Parse_DebeRetornarRechazoFuncional_CuandoAnsstEsR01()
+    {
+        var sut = new ProcContrapartidasResponseParser();
+        var xml = "<Envelope><Body><Proc_ContrapartidasResponse><ANSST>R01</ANSST><ANCLC>R01</ANCLC></Proc_ContrapartidasResponse></Body></Envelope>";
+
+        var result = sut.Parse(xml);
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsFunctionalRejection);
+        Assert.False(result.IsRetryable);
+        Assert.Equal("R01", result.ResponseCode);
+    }
+
+    [Fact]
     public void Parse_DebeRetornarRechazoFuncional_CuandoAnsstNoExitoso()
     {
         var sut = new ProcContrapartidasResponseParser();
@@ -47,6 +74,22 @@ public class ProcContrapartidasResponseParserTests
         Assert.False(result.IsRetryable);
         Assert.Equal("R10", result.ResponseCode);
         Assert.Equal("R10", result.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData("RE")]
+    [InlineData("0")]
+    public void Parse_DebeTratarCodigosTecnicosAnomalosComoNoFuncionales(string code)
+    {
+        var sut = new ProcContrapartidasResponseParser();
+        var xml = $"<Envelope><Body><Proc_ContrapartidasResponse><ANSST>{code}</ANSST><ANCLC>{code}</ANCLC></Proc_ContrapartidasResponse></Body></Envelope>";
+
+        var result = sut.Parse(xml);
+
+        Assert.False(result.IsSuccess);
+        Assert.False(result.IsFunctionalRejection);
+        Assert.False(result.IsSoapFault);
+        Assert.Equal(code, result.ResponseCode);
     }
 
     [Fact]
