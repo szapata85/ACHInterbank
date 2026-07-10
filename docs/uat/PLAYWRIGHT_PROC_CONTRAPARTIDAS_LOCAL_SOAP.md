@@ -312,6 +312,221 @@ Evidencia observada:
 
 Nota: el SOAP legacy puede registrar internamente `<METODO>` en su `strEnvelope` de trazabilidad. Esa etiqueta es metadato legacy del componente SOAP y no forma parte del envelope outbound enviado por ACHInterbank.
 
+## Acta técnica corta
+
+### GO local LIVE — Proc_Contrapartidas
+
+**Proyecto:** ACHInterbank  
+**Flujo validado:** Creación de transacción desde `/transactions` y ejecución LIVE de `Proc_Contrapartidas`  
+**Ambiente:** Local/UAT técnico  
+**Motor de base de datos usado en la validación:** SQL Server  
+**Estado:** GO local LIVE  
+**Fecha de evidencia:** 2026-07-10  
+**Commit validado:** `e1cf028e576ec6e9063aea8ed560f3a4ea010af4`
+
+### 1. Objetivo
+
+Validar de punta a punta que una transacción originada por CFA, creada desde la SPA en `/transactions`, ejecute el servicio SOAP legacy `Proc_Contrapartidas` en modo `Live`, reciba respuesta real del SOAP local y persista dicha respuesta para toma de decisiones funcionales posteriores.
+
+### 2. Alcance validado
+
+Se validó el flujo:
+
+```txt
+SPA /transactions
+→ creación de transacción débito originada por CFA
+→ procesamiento backend
+→ dispatch-cycle
+→ ejecución LIVE de Proc_Contrapartidas
+→ consumo de WSCFAACH.svc local
+→ recepción de respuesta SOAP
+→ persistencia en ContrapartidaDispatchAttempts
+→ validación automática con Playwright
+```
+
+### 3. Configuración usada
+
+El contenedor local de la API fue recreado con configuración LIVE para `Proc_Contrapartidas`:
+
+```txt
+ProcContrapartidas__Mode=Live
+WSCFAACH__Endpoint=http://host.docker.internal:7083/WSCFAACH.svc
+WSCFAACH__HostHeader=localhost:7083
+```
+
+El servicio SOAP legacy local usado fue:
+
+```txt
+http://localhost:7083/WSCFAACH.svc
+```
+
+Ruta de log plano validada:
+
+```txt
+C:\WebServices\WSCFAACH\Log\Trama_ACH_20260710.log
+```
+
+### 4. Evidencia de ejecución
+
+La prueba Playwright LIVE terminó correctamente:
+
+```txt
+npx playwright test e2e/transactions-proc-contrapartidas.spec.ts --project=chromium --trace on
+Resultado: 1 passed / 0 skipped
+```
+
+Evidencia validada:
+
+```txt
+ExecutionMode=Live
+SoapMethodName=Proc_Contrapartidas
+ResponsePayloadXml persistido
+SoapResponseCode=R96
+Request sin <METODO>
+Request sin Proc_Transacciones
+Request sin RegistrarRespuestaTransaccion
+Log plano nuevo generado en WSCFAACH
+```
+
+### 5. Persistencia validada
+
+La respuesta del SOAP quedó persistida en la tabla:
+
+```txt
+ContrapartidaDispatchAttempts
+```
+
+Campos relevantes validados:
+
+```txt
+ExecutionMode
+SoapMethodName
+SoapEndpoint
+RequestPayloadXml
+ResponsePayloadXml
+SoapResponseCode
+SoapResponseDescription
+SoapTechnicalStatus
+IsSuccessful
+IsFunctionalRejection
+IsTechnicalFailure
+DurationMs
+TechnicalException
+```
+
+Resultado real recibido:
+
+```txt
+SoapResponseCode=R96
+```
+
+Interpretación aplicada:
+
+```txt
+R96 = éxito operativo de Proc_Contrapartidas
+```
+
+### 6. Validación multi motor
+
+La prueba E2E quedó adaptada para ejecución multi motor mediante `G36RuntimeDb`.
+
+Para esta validación se usó:
+
+```txt
+ACH_E2E_DB_PROVIDER=SqlServer
+```
+
+Se confirmó que durante esta ejecución:
+
+```txt
+No intentó conectarse a PostgreSQL.
+Consultó correctamente SQL Server.
+La arquitectura multi motor se conserva.
+```
+
+### 7. Migración requerida
+
+Durante la validación se confirmó que la base SQL Server local no tenía aplicada la migración existente:
+
+```txt
+20260710133000_AddContrapartidaSoapResponseAudit
+```
+
+Se aplicó el equivalente SQL localmente para alinear el runtime con el código actual.
+
+Checklist obligatorio para otros ambientes:
+
+```txt
+Antes de ejecutar Proc_Contrapartidas LIVE:
+- Confirmar migración aplicada.
+- Confirmar columnas nuevas en ContrapartidaDispatchAttempts.
+- Confirmar ProcContrapartidas__Mode=Live.
+- Confirmar endpoint WSCFAACH.
+- Confirmar WSCFAACH__HostHeader si la API corre en Docker.
+```
+
+### 8. Comandos validados
+
+```txt
+dotnet build ACHInterbank.sln -c Release
+Resultado: OK, 0 warnings, 0 errors
+
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
+Resultado: OK, 1677 passed, 1 skipped
+
+npm run build
+Resultado: OK, con warning existente de Browserslist
+
+npm test -- --watch=false --browsers=ChromeHeadless
+Resultado: OK, 367 SUCCESS
+
+npx playwright test e2e/transactions-proc-contrapartidas.spec.ts --project=chromium --trace on
+Resultado: OK, 1 passed
+```
+
+### 9. Resultado
+
+Se declara **GO local LIVE para `Proc_Contrapartidas`**.
+
+La validación confirma que el flujo real desde la SPA hasta el SOAP local funciona correctamente, que el servicio `WSCFAACH.svc` recibe la invocación, que la respuesta SOAP real se persiste y que el código `R96` queda disponible para decisiones posteriores.
+
+### 10. Restricciones y observaciones
+
+Este GO aplica únicamente para ambiente local/UAT técnico.
+
+Productivo permanece en estado:
+
+```txt
+NO-GO productivo
+```
+
+Motivos:
+
+```txt
+Pendiente validación con endpoints productivos.
+Pendiente aprobación funcional/operativa.
+Pendiente verificación de secretos, certificados y configuración definitiva.
+Pendiente plan formal de rollback.
+Pendiente validación controlada de ventanas operativas reales.
+```
+
+`DryRun` permanece disponible como fallback configurable mediante:
+
+```txt
+ProcContrapartidas__Mode=DryRun
+```
+
+### 11. Conclusión
+
+La integración LIVE local de `Proc_Contrapartidas` queda técnicamente aprobada como patrón base para continuar con los siguientes flujos SOAP del proyecto ACHInterbank, especialmente `Proc_Transacciones` y `RegistrarRespuestaTransaccion`.
+
+Estado final:
+
+```txt
+Proc_Contrapartidas local LIVE: GO
+Productivo: NO-GO
+```
+
 ## Limitaciones
 
 - Productivo permanece NO-GO.
