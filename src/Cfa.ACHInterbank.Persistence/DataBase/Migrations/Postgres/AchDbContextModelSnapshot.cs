@@ -7435,13 +7435,30 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<Guid>("DispatchQueueId")
                         .HasColumnType("uuid");
 
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ExecutionMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTime?>("FinishedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsFunctionalRejection")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsRetryable")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsSuccess")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSuccessful")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsTechnicalFailure")
                         .HasColumnType("boolean");
 
                     b.Property<Guid?>("MappingSetId")
@@ -7488,8 +7505,38 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("SoapEndpoint")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("SoapMethodName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("SoapResponseCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("SoapResponseDescription")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("SoapTechnicalStatus")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.Property<DateTime>("StartedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TechnicalException")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -7497,6 +7544,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.HasIndex("CorrelationId");
+
+                    b.HasIndex("DispatchQueueId");
+
+                    b.HasIndex("SoapMethodName");
+
+                    b.HasIndex("SoapResponseCode");
+
+                    b.HasIndex("SoapTechnicalStatus");
+
+                    b.HasIndex("StartedAtUtc");
 
                     b.HasIndex("DispatchQueueId", "StartedAtUtc");
 

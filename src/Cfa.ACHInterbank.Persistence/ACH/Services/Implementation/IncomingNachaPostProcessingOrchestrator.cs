@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -17,6 +18,17 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcessingOrchestrator
 {
+    private const string SoapMethodName = IntegrationGuaranteeConstants.ProcTransacciones;
+    private const string TechnicalStatusSucceeded = "Succeeded";
+    private const string TechnicalStatusFunctionalRejection = "FunctionalRejection";
+    private const string TechnicalStatusSoapFault = "SoapFault";
+    private const string TechnicalStatusRetryableFailure = "RetryableFailure";
+    private const string TechnicalStatusParserError = "ParserError";
+    private const string TechnicalStatusTechnicalException = "TechnicalException";
+    private const string TechnicalStatusDryRun = "DryRun";
+    private const string TechnicalStatusDisabled = "Disabled";
+    private const string TechnicalStatusUnknownFailure = "UnknownFailure";
+
     private readonly AchDbContext _context;
     private readonly IProcTransaccionesRequestMapper _mapper;
     private readonly IProcTransaccionesResponseParser _parser;
@@ -27,6 +39,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
     private readonly IIntegrationMappingTraceWriter? _mappingTraceWriter;
     private readonly IContrapartidaDispatchJobService? _contrapartidaDispatchJobService;
+    private readonly ISoapIntegrationSettingsService? _soapIntegrationSettingsService;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -38,7 +51,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         ITransactionIntegrationOperationResolver? operationResolver = null,
         IIntegrationMappingReadinessService? mappingReadinessService = null,
         IIntegrationMappingTraceWriter? mappingTraceWriter = null,
-        IContrapartidaDispatchJobService? contrapartidaDispatchJobService = null)
+        IContrapartidaDispatchJobService? contrapartidaDispatchJobService = null,
+        ISoapIntegrationSettingsService? soapIntegrationSettingsService = null)
     {
         _context = context;
         _mapper = mapper;
@@ -50,6 +64,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _mappingReadinessService = mappingReadinessService;
         _mappingTraceWriter = mappingTraceWriter;
         _contrapartidaDispatchJobService = contrapartidaDispatchJobService;
+        _soapIntegrationSettingsService = soapIntegrationSettingsService;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -141,9 +156,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             var execution = new IncomingNachaIntegrationExecution
             {
                 DispatchQueueId = queue.Id,
-                MethodName = "Proc_Transacciones",
+                MethodName = SoapMethodName,
+                SoapMethodName = SoapMethodName,
+                ExecutionMode = NormalizeAuditValue(_dispatchOptions.NormalizedMode, 20),
                 CorrelationId = correlationId,
-                StartedAtUtc = nowUtc
+                StartedAtUtc = DateTime.UtcNow
             };
             _context.IncomingNachaIntegrationExecution.Add(execution);
 
@@ -164,23 +181,15 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 var operation = await EnsureProcTransaccionesReadinessAsync(queue.AchTransaction, ct);
                 var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, DateTime.Now, ct);
                 var requestXml = _mapper.BuildSoapBody(resolution.Contract);
+                var dispatchEndpoint = await ResolveProcTransaccionesEndpointAsync(ct);
+                ApplyRequestAudit(execution, resolution, requestXml, dispatchEndpoint);
                 await WriteMappingTraceAsync(operation, resolution, queue, correlationId, ct);
 
                 var responseXml = await DispatchProcTransaccionesAsync(requestXml, queue, ct);
                 var parsed = _parser.Parse(responseXml);
+                var finishedAtUtc = DateTime.UtcNow;
 
-                execution.MappingSetId = resolution.MappingSetId;
-                execution.MappingVersion = resolution.MappingVersion;
-                execution.MappingSnapshotHash = resolution.MappingSnapshotHash;
-                execution.RequestPayloadXml = requestXml;
-                execution.ResponsePayloadXml = responseXml;
-                execution.RequestHash = Hash(requestXml);
-                execution.ResponseHash = Hash(responseXml);
-                execution.ResponseCode = parsed.ResponseCode;
-                execution.ResponseMessage = parsed.ResponseMessage;
-                execution.IsSuccess = parsed.IsSuccess;
-                execution.IsRetryable = parsed.IsRetryable;
-                execution.FinishedAtUtc = DateTime.UtcNow;
+                ApplyResponseAudit(execution, parsed, responseXml, finishedAtUtc);
 
                 queue.LastResponseCode = parsed.ResponseCode;
                 queue.LastErrorCode = parsed.IsSuccess ? string.Empty : parsed.ResponseCode;
@@ -233,8 +242,18 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 queue.LastErrorMessage = ex.Message;
                 execution.ResponseCode = queue.LastErrorCode;
                 execution.ResponseMessage = ex.Message;
+                execution.SoapResponseCode = queue.LastErrorCode;
+                execution.SoapResponseDescription = ex.Message;
+                execution.SoapTechnicalStatus = queue.LastErrorCode.Equals("PROC_TRANSACCIONES_DISABLED", StringComparison.OrdinalIgnoreCase)
+                    ? TechnicalStatusDisabled
+                    : TechnicalStatusTechnicalException;
+                execution.IsSuccessful = false;
+                execution.IsFunctionalRejection = false;
+                execution.IsTechnicalFailure = true;
+                execution.TechnicalException = BuildTechnicalException(ex);
                 execution.RequestHash = execution.RequestHash == string.Empty ? Hash(ex.Message) : execution.RequestHash;
                 execution.FinishedAtUtc = DateTime.UtcNow;
+                execution.DurationMs = CalculateDurationMs(execution.StartedAtUtc, execution.FinishedAtUtc.Value);
                 queue.NextAttemptAtUtc = null;
                 AddAutomaticEvent(queue, "DispatchBlockedByMapping", "Blocked", ex.Message, queue.LastErrorCode);
                 blocked++;
@@ -248,6 +267,14 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.FinishedAtUtc = DateTime.UtcNow;
                 execution.IsSuccess = false;
                 execution.IsRetryable = true;
+                execution.SoapResponseCode = queue.LastErrorCode;
+                execution.SoapResponseDescription = ex.Message;
+                execution.SoapTechnicalStatus = TechnicalStatusTechnicalException;
+                execution.IsSuccessful = false;
+                execution.IsFunctionalRejection = false;
+                execution.IsTechnicalFailure = true;
+                execution.TechnicalException = BuildTechnicalException(ex);
+                execution.DurationMs = CalculateDurationMs(execution.StartedAtUtc, execution.FinishedAtUtc.Value);
 
                 if (queue.AttemptCount < _resilienceOptions.MaxAttempts)
                 {
@@ -427,6 +454,140 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             </Envelope>
             """;
     }
+
+    private void ApplyRequestAudit(
+        IncomingNachaIntegrationExecution execution,
+        ProcTransaccionesRequestResolution resolution,
+        string requestXml,
+        string soapEndpoint)
+    {
+        execution.MappingSetId = resolution.MappingSetId;
+        execution.MappingVersion = resolution.MappingVersion;
+        execution.MappingSnapshotHash = resolution.MappingSnapshotHash;
+        execution.RequestPayloadXml = requestXml;
+        execution.RequestHash = Hash(requestXml);
+        execution.SoapEndpoint = NormalizeAuditValue(soapEndpoint, 500);
+    }
+
+    private void ApplyResponseAudit(
+        IncomingNachaIntegrationExecution execution,
+        ProcTransaccionesParsedResponse parsed,
+        string responseXml,
+        DateTime finishedAtUtc)
+    {
+        var soapCode = NormalizeAuditValue(parsed.ResponseCode, 80);
+        var soapDescription = NormalizeAuditValue(parsed.ResponseMessage, 4000);
+        var isSuccessful = parsed.IsSuccess || parsed.IsPartialSuccess;
+        var isFunctionalRejection = !_dispatchOptions.IsDryRunLike
+            && !_dispatchOptions.IsDisabled
+            && !isSuccessful
+            && parsed.IsFunctionalRejection
+            && !IsTechnicalAnomalyCode(parsed.ResponseCode);
+        var isTechnicalFailure = !_dispatchOptions.IsDryRunLike
+            && !_dispatchOptions.IsDisabled
+            && !isSuccessful
+            && !isFunctionalRejection;
+
+        execution.ResponsePayloadXml = responseXml;
+        execution.ResponseHash = Hash(responseXml);
+        execution.SoapResponseCode = soapCode;
+        execution.SoapResponseDescription = soapDescription;
+        execution.SoapTechnicalStatus = ResolveSoapTechnicalStatus(parsed, isSuccessful, isFunctionalRejection);
+        execution.IsSuccessful = isSuccessful;
+        execution.IsFunctionalRejection = isFunctionalRejection;
+        execution.IsTechnicalFailure = isTechnicalFailure;
+        execution.ResponseCode = soapCode;
+        execution.ResponseMessage = soapDescription;
+        execution.IsSuccess = parsed.IsSuccess;
+        execution.IsRetryable = parsed.IsRetryable;
+        execution.FinishedAtUtc = finishedAtUtc;
+        execution.DurationMs = CalculateDurationMs(execution.StartedAtUtc, finishedAtUtc);
+    }
+
+    private string ResolveSoapTechnicalStatus(
+        ProcTransaccionesParsedResponse parsed,
+        bool isSuccessful,
+        bool isFunctionalRejection)
+    {
+        if (_dispatchOptions.IsDisabled)
+        {
+            return TechnicalStatusDisabled;
+        }
+
+        if (_dispatchOptions.IsDryRunLike)
+        {
+            return TechnicalStatusDryRun;
+        }
+
+        if (isSuccessful)
+        {
+            return TechnicalStatusSucceeded;
+        }
+
+        if (parsed.ResponseCode.Equals("SOAP_FAULT", StringComparison.OrdinalIgnoreCase)
+            || parsed.RawResponse.Contains("<Fault", StringComparison.OrdinalIgnoreCase)
+            || parsed.RawResponse.Contains(":Fault", StringComparison.OrdinalIgnoreCase))
+        {
+            return TechnicalStatusSoapFault;
+        }
+
+        if (parsed.ResponseCode.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase))
+        {
+            return TechnicalStatusParserError;
+        }
+
+        if (isFunctionalRejection)
+        {
+            return TechnicalStatusFunctionalRejection;
+        }
+
+        if (parsed.IsRetryable)
+        {
+            return TechnicalStatusRetryableFailure;
+        }
+
+        return TechnicalStatusUnknownFailure;
+    }
+
+    private async Task<string> ResolveProcTransaccionesEndpointAsync(CancellationToken ct)
+    {
+        if (_soapIntegrationSettingsService is null)
+        {
+            return string.Empty;
+        }
+
+        var settings = await _soapIntegrationSettingsService.GetAsync(ct);
+        return settings.WscfaachMappings
+            .FirstOrDefault(x => string.Equals(x.MethodName, SoapMethodName, StringComparison.OrdinalIgnoreCase))
+            ?.Endpoint
+            ?.Trim() ?? string.Empty;
+    }
+
+    private static long CalculateDurationMs(DateTime startedAtUtc, DateTime finishedAtUtc)
+        => Math.Max(0, (long)(finishedAtUtc - startedAtUtc).TotalMilliseconds);
+
+    private static string BuildTechnicalException(Exception ex)
+        => NormalizeAuditValue($"{ex.GetType().Name}: {ex.Message}", 4000);
+
+    private static string NormalizeAuditValue(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
+
+    private static bool IsTechnicalAnomalyCode(string? code)
+        => code is not null
+           && (code.Equals("RE", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("0", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("SOAP_FAULT", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("SOAP_EXCEPTION", StringComparison.OrdinalIgnoreCase)
+               || code.Equals("EMPTY_RESPONSE", StringComparison.OrdinalIgnoreCase));
 
     private async Task WriteMappingTraceAsync(
         TransactionIntegrationOperationResult? operation,

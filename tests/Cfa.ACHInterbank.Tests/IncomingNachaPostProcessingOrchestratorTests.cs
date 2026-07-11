@@ -3,6 +3,8 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
+using Cfa.ACHInterbank.Application.Security.Dtos;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -50,7 +52,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         const string requestXml = "<Proc_Transacciones><IDTRAN>1</IDTRAN></Proc_Transacciones>";
         mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>())).Returns(requestXml);
 
-        const string responseXml = "<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>";
+        const string responseXml = "<Envelope><Body><Proc_TransaccionesResponse><RTAACH>R96</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>";
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(responseXml);
 
@@ -59,7 +61,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             mapper.Object,
             new ProcTransaccionesResponseParser(),
             soap.Object,
-            dispatchOptions: LiveProcTransaccionesOptions());
+            dispatchOptions: LiveProcTransaccionesOptions(),
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -73,6 +76,21 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.Equal(responseXml, execution.ResponsePayloadXml);
         Assert.False(string.IsNullOrWhiteSpace(execution.RequestHash));
         Assert.False(string.IsNullOrWhiteSpace(execution.ResponseHash));
+        Assert.Equal("Proc_Transacciones", execution.SoapMethodName);
+        Assert.Equal("http://localhost:7083/WSCFAACH.svc", execution.SoapEndpoint);
+        Assert.Equal("Live", execution.ExecutionMode);
+        Assert.Equal("R96", execution.SoapResponseCode);
+        Assert.Equal("OK", execution.SoapResponseDescription);
+        Assert.Equal("Succeeded", execution.SoapTechnicalStatus);
+        Assert.True(execution.IsSuccessful);
+        Assert.False(execution.IsFunctionalRejection);
+        Assert.False(execution.IsTechnicalFailure);
+        Assert.Equal("R96", execution.ResponseCode);
+        Assert.Equal("OK", execution.ResponseMessage);
+        Assert.DoesNotContain("<METODO>", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Proc_Contrapartidas", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RegistrarRespuestaTransaccion", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PLValidarUsuarioBV", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
     }
     [Fact]
     public async Task ExecuteAsync_BlocksQueue_WhenMappingIsInvalid()
@@ -128,6 +146,16 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
         Assert.False(string.IsNullOrWhiteSpace(execution.RequestPayloadXml));
         Assert.Contains("PROC_TRANSACCIONES_DRY_RUN", execution.ResponsePayloadXml);
+        Assert.Equal("Proc_Transacciones", execution.SoapMethodName);
+        Assert.Equal("DryRun", execution.ExecutionMode);
+        Assert.Equal("PROC_TRANSACCIONES_DRY_RUN", execution.SoapResponseCode);
+        Assert.Equal("DryRun", execution.SoapTechnicalStatus);
+        Assert.False(execution.IsSuccessful);
+        Assert.False(execution.IsFunctionalRejection);
+        Assert.False(execution.IsTechnicalFailure);
+        Assert.DoesNotContain("<METODO>", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Proc_Contrapartidas", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RegistrarRespuestaTransaccion", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
         Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "ProcTransaccionesDryRunGuardrail"));
         soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -156,6 +184,10 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.Equal("PROC_TRANSACCIONES_DISABLED", queue.LastErrorCode);
         var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
         Assert.Equal("PROC_TRANSACCIONES_DISABLED", execution.ResponseCode);
+        Assert.Equal("Proc_Transacciones", execution.SoapMethodName);
+        Assert.Equal("Disabled", execution.ExecutionMode);
+        Assert.Equal("Disabled", execution.SoapTechnicalStatus);
+        Assert.Equal("PROC_TRANSACCIONES_DISABLED", execution.SoapResponseCode);
         soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -329,10 +361,20 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
         Assert.Equal(IncomingNachaDispatchQueueStatus.RetryPending, queue.QueueStatus);
         Assert.NotNull(queue.NextAttemptAtUtc);
+        var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
+        Assert.Equal("Proc_Transacciones", execution.SoapMethodName);
+        Assert.Equal("Live", execution.ExecutionMode);
+        Assert.Equal("ITIMEOUT", execution.SoapResponseCode);
+        Assert.Equal("TechnicalException", execution.SoapTechnicalStatus);
+        Assert.False(execution.IsSuccessful);
+        Assert.False(execution.IsFunctionalRejection);
+        Assert.True(execution.IsTechnicalFailure);
+        Assert.Contains("timeout", execution.TechnicalException, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<METODO>", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task ExecuteAsync_SetsFailedFinal_WhenFunctionalRejectionOccurs()
+    public async Task ExecuteAsync_SetsFailedFinal_AndStoresFunctionalRejectionAudit_WhenObservedFunctionalCodeOccurs()
     {
         await using var context = BuildContext();
         SeedDispatchItem(context);
@@ -340,7 +382,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var mapper = BuildMapperSuccess();
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>105</RTAACH><RTALOC>Saldo insuficiente</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>R17</RTAACH><RTALOC>Codigo funcional observado</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
@@ -355,7 +397,42 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
         Assert.Equal(IncomingNachaDispatchQueueStatus.FailedFinal, queue.QueueStatus);
         Assert.Equal("IFUNC", queue.LastErrorCode);
+        var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
+        Assert.Equal("R17", execution.SoapResponseCode);
+        Assert.Equal("Codigo funcional observado", execution.SoapResponseDescription);
+        Assert.Equal("FunctionalRejection", execution.SoapTechnicalStatus);
+        Assert.False(execution.IsSuccessful);
+        Assert.True(execution.IsFunctionalRejection);
+        Assert.False(execution.IsTechnicalFailure);
+        Assert.Equal("R17", execution.ResponseCode);
         Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "IntegrationNonRetryableFailed"));
+    }
+
+    [Fact]
+    public async Task IncomingNachaIntegrationExecution_EfModel_ShouldExposeSoapAuditColumnsAndIndexes()
+    {
+        await using var context = BuildContext();
+
+        var entity = context.Model.FindEntityType(typeof(IncomingNachaIntegrationExecution));
+
+        Assert.NotNull(entity);
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.SoapMethodName)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.SoapEndpoint)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.ExecutionMode)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.DurationMs)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.SoapResponseCode)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.SoapResponseDescription)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.SoapTechnicalStatus)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.IsSuccessful)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.IsFunctionalRejection)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.IsTechnicalFailure)));
+        Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.TechnicalException)));
+        Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.CorrelationId)));
+        Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.DispatchQueueId)));
+        Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.SoapMethodName)));
+        Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.StartedAtUtc)));
+        Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.SoapResponseCode)));
+        Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.SoapTechnicalStatus)));
     }
 
     [Fact]
@@ -568,8 +645,30 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 Guid.NewGuid(),
                 1,
                 "hash"));
-        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>())).Returns("<request/>");
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>()))
+            .Returns("<Proc_Transacciones><IDTRAN>1</IDTRAN></Proc_Transacciones>");
         return mapper;
+    }
+
+    private static ISoapIntegrationSettingsService SoapSettingsService(string endpoint)
+    {
+        var settings = new Mock<ISoapIntegrationSettingsService>();
+        settings.Setup(x => x.GetAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SoapIntegrationSettingsDto
+            {
+                WscfaachMappings =
+                [
+                    new SoapEndpointMethodMappingDto
+                    {
+                        MethodName = "Proc_Transacciones",
+                        Enabled = true,
+                        Endpoint = endpoint,
+                        SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones"
+                    }
+                ]
+            });
+
+        return settings.Object;
     }
 
     private static IOptions<ProcTransaccionesDispatchOptions> LiveProcTransaccionesOptions()

@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.SqlServer
 {
     [DbContext(typeof(AchDbContext))]
-    partial class AchDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260711003700_AddIncomingNachaProcTransaccionesSoapAudit")]
+    partial class AddIncomingNachaProcTransaccionesSoapAudit
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -787,7 +790,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                             Exact = true,
                             Icon = "dashboard",
                             IsActive = true,
-                            Label = "Panel principal",
+                            Label = "Dashboard",
                             MenuId = 1,
                             Order = 1,
                             Route = "/dashboard"
@@ -889,48 +892,25 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         {
                             Id = 20,
                             Exact = true,
-                            Icon = "tune",
+                            Icon = "view_column",
                             IsActive = true,
-                            Label = "Configuración NACHA-M",
+                            Label = "Layouts NACHA",
                             MenuId = 1,
                             Order = 2,
-                            Route = "/nacha-config-admin"
+                            ParentId = 4,
+                            Route = "/ach-cycles/nacha/layouts"
                         },
                         new
                         {
                             Id = 25,
                             Exact = true,
-                            Icon = "fact_check",
+                            Icon = "playlist_add_check",
                             IsActive = true,
-                            Label = "Perfiles oficiales",
+                            Label = "Definiciones NACHA",
                             MenuId = 1,
                             Order = 3,
-                            ParentId = 20,
-                            Route = "/nacha-config-admin/perfiles"
-                        },
-                        new
-                        {
-                            Id = 2802,
-                            Exact = true,
-                            Icon = "view_list",
-                            IsActive = true,
-                            Label = "Registros oficiales",
-                            MenuId = 1,
-                            Order = 4,
-                            ParentId = 20,
-                            Route = "/nacha-config-admin/records"
-                        },
-                        new
-                        {
-                            Id = 2803,
-                            Exact = true,
-                            Icon = "schema",
-                            IsActive = true,
-                            Label = "Variantes y campos",
-                            MenuId = 1,
-                            Order = 5,
-                            ParentId = 20,
-                            Route = "/nacha-config-admin/variants-fields"
+                            ParentId = 4,
+                            Route = "/ach-cycles/nacha/definitions"
                         },
                         new
                         {
@@ -1171,7 +1151,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                             Exact = true,
                             Icon = "rule",
                             IsActive = true,
-                            Label = "Reglas por cámara",
+                            Label = "Reglas por camara",
                             MenuId = 1,
                             Order = 6,
                             ParentId = 6,
@@ -1219,7 +1199,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         new
                         {
                             MenuItemId = 13,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
                         },
                         new
                         {
@@ -1244,7 +1224,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         new
                         {
                             MenuItemId = 4,
-                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
+                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         },
                         new
                         {
@@ -1259,16 +1239,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         new
                         {
                             MenuItemId = 25,
-                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
-                        },
-                        new
-                        {
-                            MenuItemId = 2802,
-                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
-                        },
-                        new
-                        {
-                            MenuItemId = 2803,
                             PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
                         },
                         new
@@ -1482,6 +1452,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         {
                             MenuItemId = 34,
                             RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
+                        },
+                        new
+                        {
+                            MenuItemId = 25,
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
                         new
                         {

@@ -55,6 +55,9 @@ public class IncomingNachaIntegrationExecution : AuditableEntity
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid DispatchQueueId { get; set; }
     public string MethodName { get; set; } = "Proc_Transacciones";
+    public string SoapMethodName { get; set; } = "Proc_Transacciones";
+    public string SoapEndpoint { get; set; } = string.Empty;
+    public string ExecutionMode { get; set; } = string.Empty;
     public Guid? MappingSetId { get; set; }
     public int? MappingVersion { get; set; }
     public string MappingSnapshotHash { get; set; } = string.Empty;
@@ -62,7 +65,21 @@ public class IncomingNachaIntegrationExecution : AuditableEntity
     public string ResponseHash { get; set; } = string.Empty;
     public string RequestPayloadXml { get; set; } = string.Empty;
     public string ResponsePayloadXml { get; set; } = string.Empty;
+    public string SoapResponseCode { get; set; } = string.Empty;
+    public string SoapResponseDescription { get; set; } = string.Empty;
+    public string SoapTechnicalStatus { get; set; } = string.Empty;
+    public bool IsSuccessful { get; set; }
+    public bool IsFunctionalRejection { get; set; }
+    public bool IsTechnicalFailure { get; set; }
+    public string TechnicalException { get; set; } = string.Empty;
+    public long DurationMs { get; set; }
+    /// <summary>
+    /// Compatibility summary for existing queue/read-model consumers. Raw SOAP code is stored in SoapResponseCode.
+    /// </summary>
     public string ResponseCode { get; set; } = string.Empty;
+    /// <summary>
+    /// Compatibility summary for existing queue/read-model consumers. Raw SOAP message is stored in SoapResponseDescription.
+    /// </summary>
     public string ResponseMessage { get; set; } = string.Empty;
     public bool IsSuccess { get; set; }
     public bool IsRetryable { get; set; }
