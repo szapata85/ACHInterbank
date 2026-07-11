@@ -26,7 +26,7 @@ public sealed class IntegrationBootstrapperTests
         var secondCounts = await ReadCountsAsync(fixture.Context);
 
         Assert.Equal(3, firstCounts.Methods);
-        Assert.Equal(27, firstCounts.TransaccionesParameters);
+        Assert.Equal(28, firstCounts.TransaccionesParameters);
         Assert.Equal(22, firstCounts.ContrapartidasParameters);
         Assert.Equal(7, firstCounts.RespuestaParameters);
         Assert.Equal(59, firstCounts.TransaccionesSourceFields);
@@ -48,9 +48,9 @@ public sealed class IntegrationBootstrapperTests
         var secondCounts = await ReadCountsAsync(fixture.Context);
 
         Assert.Equal(3, firstCounts.PublishedSets);
-        Assert.Equal(51, firstCounts.MappingRules);
+        Assert.Equal(50, firstCounts.MappingRules);
         Assert.Equal(2, firstCounts.ResponseStatusMappings);
-        Assert.Equal(27, firstCounts.TransaccionesPublishedRules);
+        Assert.Equal(26, firstCounts.TransaccionesPublishedRules);
         Assert.Equal(17, firstCounts.ContrapartidasPublishedRules);
         Assert.Equal(7, firstCounts.RespuestaPublishedRules);
         Assert.Equal(0, firstCounts.ContrapartidasOptionalPublishedRules);
@@ -127,6 +127,31 @@ public sealed class IntegrationBootstrapperTests
         Assert.Contains(parameters, x => x.ParameterPath == "ANCLC" && !x.Required && x.IsActive);
         Assert.Contains(parameters, x => x.ParameterPath == "ANSIDTX" && !x.Required && x.IsActive);
         Assert.Contains(parameters, x => x.ParameterPath == "ANSIDREVER" && !x.Required && x.IsActive);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_BaseMapping_ShouldKeepObservedOptionalInputsAndResponseOutputs()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Transacciones");
+        var parameters = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync();
+        var published = await fixture.Context.IntegrationMappingSets.SingleAsync(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published);
+        var rules = await fixture.Context.IntegrationMappingRules.Where(x => x.MappingSetId == published.Id).ToListAsync();
+
+        Assert.Equal(28, parameters.Count);
+        Assert.Equal(26, rules.Count);
+        Assert.Contains(parameters, x => x.ParameterPath == "NCTAORIG" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        Assert.Contains(parameters, x => x.ParameterPath == "DISCRE" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        Assert.Contains(parameters, x => x.ParameterPath == "ILR" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        Assert.Contains(parameters, x => x.ParameterPath == "MONTO" && x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        Assert.Contains(parameters, x => x.ParameterPath == "RTAACH" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Output);
+        Assert.Contains(parameters, x => x.ParameterPath == "RTALOC" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Output);
+        Assert.DoesNotContain(rules, x => parameters.Any(p => p.Id == x.ParameterId && p.Direction == IntegrationParameterDirectionEnum.Output));
     }
 
     [Fact]

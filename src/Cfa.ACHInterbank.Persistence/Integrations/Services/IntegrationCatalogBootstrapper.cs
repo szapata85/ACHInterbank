@@ -223,7 +223,7 @@ public sealed class IntegrationCatalogBootstrapper
             Spec("BCORECEP", "Banco receptor", "Codigo banco receptor.", "Entrada transaccion", "1007", "Codigo bancario receptor.", "int", true, i++),
             Spec("BCOORIG", "Banco origen", "Codigo banco originador.", "Entrada transaccion", "1001", "Codigo bancario origen.", "int", true, i++),
             Spec("NORIG", "Nombre origen", "Nombre del originador.", "Entrada transaccion", "EMPRESA ORIGEN", "Nombre homologado del originador.", "string", true, i++),
-            Spec("NCTAORIG", "Cuenta origen", "Numero de cuenta origen.", "Entrada transaccion", "001234567890", "Cuenta origen validada.", "string", true, i++),
+            Spec("NCTAORIG", "Cuenta origen", "Numero de cuenta origen.", "Entrada transaccion", "001234567890", "Cuenta origen validada cuando venga informada.", "string", false, i++),
             Spec("IDORIG", "Id origen", "Identificacion origen.", "Entrada transaccion", "900123456", "Documento/NIT origen.", "string", true, i++),
             Spec("DESTRAN", "Descripcion", "Descripcion de transaccion.", "Entrada transaccion", "PAGO NOMINA", "Descripcion visible de negocio.", "string", true, i++),
             Spec("FECEFEC", "Fecha efectiva", "Fecha efectiva en formato entero.", "Entrada transaccion", "20260413", "Fecha efectiva segun especificacion.", "int", true, i++),
@@ -231,7 +231,7 @@ public sealed class IntegrationCatalogBootstrapper
             Spec("MONTO", "Monto", "Monto de la transaccion.", "Entrada transaccion", "250000.75", "Monto exacto con formato numerico valido.", "double", true, i++),
             Spec("NRECEP", "Nombre receptor", "Nombre del receptor.", "Entrada transaccion", "JUAN PEREZ", "Nombre receptor en mayusculas.", "string", true, i++),
             Spec("IDRECEP", "Id receptor", "Identificacion del receptor.", "Entrada transaccion", "1099001122", "Documento receptor.", "string", true, i++),
-            Spec("DISCRE", "Discrecional", "Campo discrecional receptor.", "Entrada transaccion", "", "Campo opcional segun operacion.", "string", true, i++),
+            Spec("DISCRE", "Discrecional", "Campo discrecional receptor.", "Entrada transaccion", "", "Campo opcional segun operacion.", "string", false, i++),
             Spec("CONV", "Convenio", "Codigo de convenio.", "Entrada transaccion", "CNV01", "Convenio aplicable a la operacion.", "string", true, i++),
             Spec("PROD", "Producto", "Codigo de producto.", "Entrada transaccion", "ACH", "Producto financiero asociado.", "string", true, i++),
             Spec("INFPAG", "Informacion pago", "Informacion adicional de pago.", "Entrada transaccion", "NOMINA ABRIL", "Texto informativo del pago.", "string", true, i++),
@@ -243,8 +243,9 @@ public sealed class IntegrationCatalogBootstrapper
             Spec("IDCAMCOMPE", "Id camara", "Id camara compensadora.", "Entrada transaccion", "12", "Id de camara vigente.", "int", true, i++),
             Spec("DIRECCIONIP", "Direccion IP", "IP de origen.", "Entrada transaccion", "10.10.10.1", "IP para trazabilidad.", "string", true, i++),
             Spec("LIBRE1", "Campo libre numerico", "Campo libre numerico.", "Entrada transaccion", "1", "Campo complementario numerico.", "int", true, i++),
-            Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++),
-            Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++)
+            Spec("ILR", "Indicador ILR", "Indicador legacy ILR observado en tramas de Proc_Transacciones.", "Entrada transaccion", "A", "Campo opcional; valores observados A/B.", "string", false, i++),
+            Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo de salida reservado por contrato legado.", "string", false, i++, IntegrationParameterDirectionEnum.Output),
+            Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo de salida reservado por contrato legado.", "string", false, i, IntegrationParameterDirectionEnum.Output)
         ];
     }
 

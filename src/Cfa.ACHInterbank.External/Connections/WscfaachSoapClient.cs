@@ -120,7 +120,7 @@ public class WscfaachSoapClient : IWscfaachSoapClient
     {
         var (endpoint, soapAction) = await ResolveConfigurationAsync(action, ct)
             .ConfigureAwait(false);
-        var envelope = BuildEnvelope(requestXml);
+        var envelope = EnsureEnvelope(requestXml);
 
         using var client = _httpClientFactory.CreateClient(nameof(WscfaachSoapClient));
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
@@ -180,6 +180,16 @@ public class WscfaachSoapClient : IWscfaachSoapClient
 
         return (mapping.Endpoint, mapping.SoapAction);
     }
+
+    private static string EnsureEnvelope(string body)
+        => IsSoapEnvelope(body) ? body : BuildEnvelope(body);
+
+    private static bool IsSoapEnvelope(string body)
+        => !string.IsNullOrWhiteSpace(body)
+            && (body.Contains("<Envelope", StringComparison.OrdinalIgnoreCase)
+                || body.Contains(":Envelope", StringComparison.OrdinalIgnoreCase))
+            && (body.Contains("</Envelope>", StringComparison.OrdinalIgnoreCase)
+                || body.Contains(":Envelope>", StringComparison.OrdinalIgnoreCase));
 
     private static string BuildEnvelope(string body)
     {

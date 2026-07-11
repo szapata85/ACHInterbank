@@ -204,7 +204,7 @@ public sealed class IntegrationMappingBootstrapper
         _context.IntegrationMappingSets.Add(published);
         await _context.SaveChangesAsync(ct);
 
-        foreach (var parameter in parameters)
+        foreach (var parameter in parameters.Where(x => x.Direction == IntegrationParameterDirectionEnum.Input))
         {
             var sourcePath = sourcePathFor(parameter.ParameterPath);
             _context.IntegrationMappingRules.Add(new IntegrationMappingRule

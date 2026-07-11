@@ -149,6 +149,12 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Contains("Proc_Transacciones", envelope);
         Assert.Contains("999900001234567", envelope);
         Assert.Contains("PAGO UAT DESAGREGADO", envelope);
+        Assert.DoesNotContain("<METODO>", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Proc_Contrapartidas", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RegistrarRespuestaTransaccion", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PLValidarUsuarioBV", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RTAACH", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RTALOC", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("password", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Bearer", envelope, StringComparison.OrdinalIgnoreCase);
     }

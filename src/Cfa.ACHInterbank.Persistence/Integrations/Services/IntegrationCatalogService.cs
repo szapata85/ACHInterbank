@@ -294,7 +294,7 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Spec("BCORECEP", "Banco receptor", "Código banco receptor.", "Entrada transacción", "1007", "Código bancario receptor.", "int", true, i++),
             Spec("BCOORIG", "Banco origen", "Código banco originador.", "Entrada transacción", "1001", "Código bancario origen.", "int", true, i++),
             Spec("NORIG", "Nombre origen", "Nombre del originador.", "Entrada transacción", "EMPRESA ORIGEN", "Nombre homologado del originador.", "string", true, i++),
-            Spec("NCTAORIG", "Cuenta origen", "Número de cuenta origen.", "Entrada transacción", "001234567890", "Cuenta origen validada.", "string", true, i++),
+            Spec("NCTAORIG", "Cuenta origen", "Número de cuenta origen.", "Entrada transacción", "001234567890", "Cuenta origen validada cuando venga informada.", "string", false, i++),
             Spec("IDORIG", "Id origen", "Identificación origen.", "Entrada transacción", "900123456", "Documento/NIT origen.", "string", true, i++),
             Spec("DESTRAN", "Descripción", "Descripción de transacción.", "Entrada transacción", "PAGO NOMINA", "Descripción visible de negocio.", "string", true, i++),
             Spec("FECEFEC", "Fecha efectiva", "Fecha efectiva en formato entero.", "Entrada transacción", "20260413", "Fecha efectiva según especificación.", "int", true, i++),
@@ -302,7 +302,7 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Spec("MONTO", "Monto", "Monto de la transacción.", "Entrada transacción", "250000.75", "Monto exacto con formato numérico válido.", "double", true, i++),
             Spec("NRECEP", "Nombre receptor", "Nombre del receptor.", "Entrada transacción", "JUAN PEREZ", "Nombre receptor en mayúsculas.", "string", true, i++),
             Spec("IDRECEP", "Id receptor", "Identificación del receptor.", "Entrada transacción", "1099001122", "Documento receptor.", "string", true, i++),
-            Spec("DISCRE", "Discrecional", "Campo discrecional receptor.", "Entrada transacción", "", "Campo opcional según operación.", "string", true, i++),
+            Spec("DISCRE", "Discrecional", "Campo discrecional receptor.", "Entrada transacción", "", "Campo opcional según operación.", "string", false, i++),
             Spec("CONV", "Convenio", "Código de convenio.", "Entrada transacción", "CNV01", "Convenio aplicable a la operación.", "string", true, i++),
             Spec("PROD", "Producto", "Código de producto.", "Entrada transacción", "ACH", "Producto financiero asociado.", "string", true, i++),
             Spec("INFPAG", "Información pago", "Información adicional de pago.", "Entrada transacción", "NOMINA ABRIL", "Texto informativo del pago.", "string", true, i++),
@@ -314,8 +314,9 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Spec("IDCAMCOMPE", "Id cámara", "Id cámara compensadora.", "Entrada transacción", "12", "Id de cámara vigente.", "int", true, i++),
             Spec("DIRECCIONIP", "Dirección IP", "IP de origen.", "Entrada transacción", "10.10.10.1", "IP para trazabilidad.", "string", true, i++),
             Spec("LIBRE1", "Campo libre numérico", "Campo libre numérico.", "Entrada transacción", "1", "Campo complementario numérico.", "int", true, i++),
-            Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++),
-            Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo reservado por contrato legado.", "string", true, i++)
+            Spec("ILR", "Indicador ILR", "Indicador legacy ILR observado en tramas de Proc_Transacciones.", "Entrada transacción", "A", "Campo opcional; valores observados A/B.", "string", false, i++),
+            Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo de salida reservado por contrato legado.", "string", false, i++, IntegrationParameterDirectionEnum.Output),
+            Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo de salida reservado por contrato legado.", "string", false, i, IntegrationParameterDirectionEnum.Output)
         ];
     }
 

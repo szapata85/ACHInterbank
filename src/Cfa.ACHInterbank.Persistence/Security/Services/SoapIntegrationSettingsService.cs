@@ -148,11 +148,11 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
         =>
         [
             MapInput("TREG"), MapInput("TIPTRAN"), MapInput("BCORECEP"), MapInput("BCOORIG"), MapInput("NORIG"),
-            MapInput("NCTAORIG"), MapInput("IDORIG"), MapInput("DESTRAN"), MapInput("FECEFEC"), MapInput("NCTARECEP"),
-            MapInput("MONTO"), MapInput("NRECEP"), MapInput("IDRECEP"), MapInput("DISCRE"), MapInput("CONV"),
+            MapInput("NCTAORIG", required: false), MapInput("IDORIG"), MapInput("DESTRAN"), MapInput("FECEFEC"), MapInput("NCTARECEP"),
+            MapInput("MONTO"), MapInput("NRECEP"), MapInput("IDRECEP"), MapInput("DISCRE", required: false), MapInput("CONV"),
             MapInput("PROD"), MapInput("INFPAG"), MapInput("IDTRAN"), MapInput("IDLOTE"), MapInput("REGLOTE"),
             MapInput("IREVER"), MapInput("LIBRE"), MapInput("IDCAMCOMPE"), MapInput("DIRECCIONIP"), MapInput("LIBRE1"),
-            MapInput("RTAACH", required: false), MapInput("RTALOC", required: false)
+            MapInput("ILR", required: false)
         ];
 
     private static SoapInputParameterMappingDto MapInput(string name, bool required = true)
