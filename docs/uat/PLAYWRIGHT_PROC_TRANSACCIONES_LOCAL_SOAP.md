@@ -126,3 +126,92 @@ La compuerta SOAP fallo antes del upload y, adicionalmente, faltaban variables L
 - Cola preexistente y restauracion Quartz no inspeccionadas porque las compuertas posteriores no se abrieron.
 - Integracion LIVE y resultado monetario permanecen sin validar.
 - PostgreSQL conserva soporte en codigo/CI, pero no fue motor de esta ronda SQL Server.
+
+---
+
+## Segunda ronda — SOAP local disponible
+
+### Identificacion y alcance
+
+- Fecha local: 2026-07-12 16:47:17 -05:00 (America/Bogota).
+- Fecha UTC: 2026-07-12T21:47:17Z.
+- Commit probado: `2dcbbfc985da8b517bb3c1580289c7e0cc612403`.
+- Motor previsto: SQL Server local; la migracion y el schema ya estaban confirmados y no se reaplicaron.
+- Resultado: **NO-GO preventivo antes del upload**.
+- Transmisiones consumidas en esta ronda: 0 de 1 autorizada.
+
+### SOAP local
+
+- TCP `localhost:7083`: disponible.
+- WSDL `http://localhost:7083/WSCFAACH.svc?wsdl`: HTTP 200.
+- Operacion `Proc_Transacciones`: presente en el WSDL.
+- Directorio `C:\WebServices\WSCFAACH\Log`: existe y es legible.
+- Snapshot UTC: 2026-07-12T21:46:40.4601803Z.
+- Snapshot inicial: 2 archivos preexistentes; no se detecto ningun archivo nuevo o modificado porque no hubo transmision.
+
+### API, UI y configuracion efectiva
+
+- Contenedor API: `achinterbank-api`, estado `running`, puerto publicado `843`.
+- Contenedor SPA: `achinterbank-spa`, estado `running`, puerto publicado `743`.
+- La API en ejecucion no tiene `ProcTransacciones__Mode` ni endpoint ProcTransacciones inyectados en su entorno.
+- `ACH_API_URL`, `ACH_UI_URL`, `ACH_USER` y `ACH_PASS`: no estaban inyectadas en el proceso de validacion.
+- No fue posible autenticar ni consultar `GET /api/users/soap-integrations`.
+- `effectiveMode`, `enabled`, `mappingReady` y endpoint efectivo: no confirmados.
+- No se asumio `localhost` como endpoint interno de un contenedor.
+
+### Datos autorizados
+
+- Cuenta autorizada/enmascarada: no disponible; la variable obligatoria no estaba inyectada.
+- Monto autorizado: no disponible; la variable obligatoria no estaba inyectada.
+- Endpoint esperado: no disponible; la variable obligatoria no estaba inyectada.
+- Origen, receptor CFA, DFI receptor, transaccion correlacionable y mapping: no validados por cierre de compuerta.
+- Variables SQL Server requeridas por `G36RuntimeDb`: no estaban inyectadas.
+- No se inventaron ni reutilizaron valores desde archivos locales o fallbacks.
+
+### Ejecucion Playwright LIVE
+
+Comando autorizado, no ejecutado:
+
+```powershell
+npx playwright test `
+  e2e/transactions-proc-transacciones.spec.ts `
+  --project=chromium `
+  --workers=1 `
+  --retries=0 `
+  --repeat-each=1 `
+  --trace=on
+```
+
+- Resultado: 0 passed, 0 failed, 0 skipped, 0 retries, 0 workers iniciados y 0 transmisiones.
+- `IDTRAN`: no generado para LIVE.
+- `IDLOTE`: no enviado.
+- `DispatchQueueId`: no creado.
+- `CorrelationId`: no creado.
+- Codigo SOAP y clasificacion: no disponibles.
+- Estado final de cola: no creado.
+
+### Evidencia, validaciones negativas y log
+
+- No se creo registro en `IncomingNachaIntegrationExecution`.
+- No existe request/response persistido ni codigo SOAP para esta ronda.
+- No se creo ingestion ni elemento de cola E2E.
+- No hubo request outbound; por ausencia de transmision, no se envio `<METODO>`, `Proc_Contrapartidas`, `RegistrarRespuestaTransaccion` ni `PLValidarUsuarioBV`.
+- No existe bloque de log correlacionado con `IDTRAN`/`IDLOTE`.
+- Archivos del snapshot inicial:
+  - `C:\WebServices\WSCFAACH\Log\Trama_ACH_20260701.log`, 4258 bytes, ultima modificacion UTC 2026-07-01T05:57:45.9298493Z.
+  - `C:\WebServices\WSCFAACH\Log\Trama_ACH_20260710.log`, 2145 bytes, ultima modificacion UTC 2026-07-10T22:54:57.6648445Z.
+
+### Limpieza y restauracion
+
+- Quartz no fue acelerado ni modificado.
+- `IncomingNachaPostProcessing` no fue modificado.
+- No se abrieron conexiones E2E ni se insertaron datos de prueba.
+- No hubo datos de ingestion que limpiar ni evidencia LIVE que preservar.
+- No se borraron pendientes ajenos, transacciones, bancos, ciclos, mappings o catalogos.
+- No se intento revertir ningun movimiento mediante SQL.
+
+### Veredicto de segunda ronda
+
+**NO-GO**.
+
+Aunque el SOAP local ya estaba disponible, las compuertas de API/configuracion y variables obligatorias fallaron. No se pudo confirmar `effectiveMode=Live`, endpoint efectivo, mapping, cuenta, monto, instituciones, autenticacion ni conexion SQL E2E. Conforme al guardrail, no se hizo upload ni se ejecuto Playwright LIVE.
