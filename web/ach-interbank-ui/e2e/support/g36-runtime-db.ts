@@ -132,6 +132,11 @@ export type IncomingProcTransaccionesReceiverPreflight = {
   matchingTransactionCount: number;
 };
 
+export type IncomingProcTransaccionesScenarioPreflight = IncomingProcTransaccionesReceiverPreflight & {
+  receivingDfi: string;
+  externalOriginRouting: string;
+};
+
 type RuntimeProvider = 'SqlServer' | 'Postgres';
 
 export const procContrapartidasReadinessTables = [
@@ -672,6 +677,120 @@ export class G36RuntimeDb {
     ) ?? 0);
     expect(matchingTransactionCount, 'La cuenta receptora CFA debe estar previamente configurada para correlación entrante.').toBeGreaterThan(0);
     return { receiverInstitutionId: receivers[0].id, sourceInstitutionId: sources[0].id, matchingTransactionCount };
+  }
+
+  async resolveIncomingProcTransaccionesScenario(
+    receiverAccount: string,
+    expectedAmount: number
+  ): Promise<IncomingProcTransaccionesScenarioPreflight> {
+    if (this.postgres) {
+      const receivers = await this.postgres.query<{ id: number; receivingDfi: string }>(
+        `SELECT "Id" AS id,
+                ("RoutingNumber" || "TransitCode" || "CheckDigit") AS "receivingDfi"
+         FROM "FinancialInstitutions"
+         WHERE "IsDefaultSource" = TRUE
+           AND "Status" = 1`,
+        []
+      );
+      expect(receivers, 'Debe existir exactamente una CFA activa IsDefaultSource=true.').toHaveLength(1);
+
+      const sources = await this.postgres.query<{ id: number; externalOriginRouting: string }>(
+        `SELECT "Id" AS id,
+                ("RoutingNumber" || "TransitCode") AS "externalOriginRouting"
+         FROM "FinancialInstitutions"
+         WHERE "IsDefaultSource" = FALSE
+           AND "Status" = 1
+           AND "Name" = 'Banco UAT Externo ACH'`,
+        []
+      );
+      expect(sources, 'Debe existir exactamente una entidad sintética Banco UAT Externo ACH activa y no CFA.').toHaveLength(1);
+
+      const matchingTransactionCount = Number(await this.postgres.scalar<string>(
+        `SELECT COUNT(*)::text
+         FROM "AchTransactions"
+         WHERE "DestinationInstitutionId" = $1
+           AND "SourceInstitutionId" = $2
+           AND "DestinationAccountNumber" = $3
+           AND "Amount" = $4
+           AND "TransactionCode" = '22'
+           AND "Type" = 'Credit'
+           AND "TransactionExternalId" LIKE 'E2E-PTX-IN-%'`,
+        [receivers[0].id, sources[0].id, receiverAccount, expectedAmount]
+      ) ?? 0);
+      expect(matchingTransactionCount, 'Debe existir exactamente una transacción sintética crédito código 22 para CFA, origen, cuenta y monto autorizados.').toBe(1);
+
+      return {
+        receiverInstitutionId: receivers[0].id,
+        sourceInstitutionId: sources[0].id,
+        matchingTransactionCount,
+        receivingDfi: receivers[0].receivingDfi,
+        externalOriginRouting: sources[0].externalOriginRouting
+      };
+    }
+
+    const receivers = this.sqlQuery<{ id: number; receivingDfi: string }>(
+      `SELECT [Id] AS [id],
+              CONCAT([RoutingNumber], [TransitCode], [CheckDigit]) AS [receivingDfi]
+       FROM [FinancialInstitutions]
+       WHERE [IsDefaultSource] = 1
+         AND [Status] = 1`
+    );
+    expect(receivers, 'Debe existir exactamente una CFA activa IsDefaultSource=true.').toHaveLength(1);
+
+    const sources = this.sqlQuery<{ id: number; externalOriginRouting: string }>(
+      `SELECT [Id] AS [id],
+              CONCAT([RoutingNumber], [TransitCode]) AS [externalOriginRouting]
+       FROM [FinancialInstitutions]
+       WHERE [IsDefaultSource] = 0
+         AND [Status] = 1
+         AND [Name] = N'Banco UAT Externo ACH'`
+    );
+    expect(sources, 'Debe existir exactamente una entidad sintética Banco UAT Externo ACH activa y no CFA.').toHaveLength(1);
+
+    const matchingTransactionCount = Number(this.sqlServer!.scalar<string>(
+      `SELECT CONVERT(varchar(30), COUNT(*)) AS [value]
+       FROM [AchTransactions]
+       WHERE [DestinationInstitutionId] = ${receivers[0].id}
+         AND [SourceInstitutionId] = ${sources[0].id}
+         AND [DestinationAccountNumber] = ${sqlString(receiverAccount)}
+         AND [Amount] = ${expectedAmount}
+         AND [TransactionCode] = N'22'
+         AND [Type] = N'Credit'
+         AND [TransactionExternalId] LIKE N'E2E-PTX-IN-%'`
+    ) ?? 0);
+    expect(matchingTransactionCount, 'Debe existir exactamente una transacción sintética crédito código 22 para CFA, origen, cuenta y monto autorizados.').toBe(1);
+
+    return {
+      receiverInstitutionId: receivers[0].id,
+      sourceInstitutionId: sources[0].id,
+      matchingTransactionCount,
+      receivingDfi: receivers[0].receivingDfi,
+      externalOriginRouting: sources[0].externalOriginRouting
+    };
+  }
+
+  async assertIncomingProcTransaccionesFileAvailable(fileName: string): Promise<void> {
+    if (!fileName?.trim()) {
+      throw new Error('El nombre del fixture Proc_Transacciones es obligatorio para validar colisión.');
+    }
+
+    if (this.postgres) {
+      const count = Number(await this.postgres.scalar<string>(
+        `SELECT COUNT(*)::text
+         FROM "IncomingNachaFileIngestions"
+         WHERE "FileName" = $1`,
+        [fileName.trim()]
+      ) ?? 0);
+      expect(count, `No debe existir una ingesta previa con FileName=${fileName}.`).toBe(0);
+      return;
+    }
+
+    const count = Number(this.sqlServer!.scalar<string>(
+      `SELECT CONVERT(varchar(30), COUNT(*)) AS [value]
+       FROM [IncomingNachaFileIngestions]
+       WHERE [FileName] = ${sqlString(fileName.trim())}`
+    ) ?? 0);
+    expect(count, `No debe existir una ingesta previa con FileName=${fileName}.`).toBe(0);
   }
 
   async findIncomingDispatchQueueItem(ingestionId: string): Promise<IncomingNachaDispatchQueueRow | null> {

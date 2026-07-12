@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Cfa.ACHInterbank.Api.Controllers;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.DataBase;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,7 +45,10 @@ public class MaintenanceControllerTests
             })
             .Build();
 
-        var controller = new MaintenanceController(services.BuildServiceProvider(), configuration);
+        var controller = new MaintenanceController(
+            services.BuildServiceProvider(),
+            configuration,
+            Mock.Of<IIncomingProcTransaccionesE2eScenarioSetupService>());
 
         // Act
         var result = await controller.RunDbInitializer();

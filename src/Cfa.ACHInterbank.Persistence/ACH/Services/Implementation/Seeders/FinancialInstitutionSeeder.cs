@@ -11,6 +11,10 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 
 public class FinancialInstitutionSeeder : IDbSeeder
 {
+    public const string SyntheticAchExternalName = "Banco UAT Externo ACH";
+    public const string SyntheticAchExternalRouting = "99999";
+    public const string SyntheticAchExternalTransit = "900";
+
     private readonly AchDbContext _context;
     private readonly IHostEnvironment _environment;
 
@@ -619,7 +623,7 @@ public class FinancialInstitutionSeeder : IDbSeeder
 
         var definitions = new[]
         {
-            new { Name = "Banco UAT Externo ACH", Routing = "99999", Transit = "900" },
+            new { Name = SyntheticAchExternalName, Routing = SyntheticAchExternalRouting, Transit = SyntheticAchExternalTransit },
             new { Name = "Banco UAT Externo CENIT", Routing = "99998", Transit = "900" }
         };
 

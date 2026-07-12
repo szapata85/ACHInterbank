@@ -6,6 +6,7 @@ import {
   assertExpectedReceiverAccount,
   assertEffectiveProcTransaccionesPreflight,
   getConfirmedSoapCorrelationTokens,
+  readAuthorizedFixtureInput,
   type SoapIntegrationSettings
 } from './support/proc-transacciones-preflight';
 import { G36RuntimeDb, pollUntil, type IncomingNachaIntegrationEvidenceRow } from './support/g36-runtime-db';
@@ -24,7 +25,8 @@ const requiredSettings = [
   'SOAP_LOCAL_LOG_DIR',
   'ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT',
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT',
-  'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT'
+  'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT',
+  'ALLOW_PROC_TRANSACCIONES_SYNTHETIC_DATA_SETUP'
 ].filter((name) => !process.env[name]);
 // Ningún endpoint existente expone el modo efectivo resuelto por la API. El GET de SOAP settings solo devuelve mapping persistido.
 
@@ -36,7 +38,6 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
   test.setTimeout(300_000);
   const startedAt = new Date();
   const runKey = `PTX-${Date.now().toString(36).toUpperCase()}`;
-  const fixture = buildIncomingProcTransaccionesFixture(runKey);
   const db = new G36RuntimeDb('playwright-local-proc-transacciones');
   const logDirectory = process.env['SOAP_LOCAL_LOG_DIR']!;
   const logSnapshot = snapshotSoapLogDirectory(logDirectory);
@@ -44,9 +45,17 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
 
   try {
     await db.assertIncomingProcTransaccionesReady();
+    const expectedAmount = Number(process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT']);
+    const scenario = await db.resolveIncomingProcTransaccionesScenario(
+      process.env['ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT']!,
+      expectedAmount
+    );
+    const fixture = buildIncomingProcTransaccionesFixture(
+      readAuthorizedFixtureInput(runKey, scenario)
+    );
+    await db.assertIncomingProcTransaccionesFileAvailable(fixture.fileName);
     assertExpectedReceiverAccount(fixture, process.env['ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT']!);
     assertExpectedAmount(fixture, process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT']!);
-    await db.assertIncomingProcTransaccionesReceiver(fixture.receiverAccount, fixture.receivingDfi, fixture.immediateOrigin);
     const token = await authenticate();
     const settings = await getSoapIntegrationSettings(token);
     assertEffectiveProcTransaccionesPreflight(settings, process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT']!);
