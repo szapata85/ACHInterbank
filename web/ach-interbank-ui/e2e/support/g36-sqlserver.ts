@@ -55,6 +55,61 @@ export class G36SqlServer {
     expect(database, 'SQL Server runtime debe estar disponible.').toBeTruthy();
   }
 
+  assertIncomingProcTransaccionesSchema(): void {
+    const requiredTables = [
+      'IncomingNachaFileIngestions',
+      'IncomingNachaDispatchQueue',
+      'IncomingNachaIntegrationExecution',
+      'IncomingNachaEntryClassifications',
+      'IncomingNachaTransactionLinks',
+      'NachaHeaders',
+      'AddendaRecords',
+      'TaskDefinition'
+    ];
+    const tableList = requiredTables.map(sqlString).join(', ');
+    const tables = this.query<{ name: string }>(
+      `SELECT [name]
+       FROM sys.tables
+       WHERE [name] IN (${tableList})`
+    );
+    expect(
+      tables.map((row) => row.name).sort(),
+      'Falta el schema de auditoria NACHA entrante en SQL Server. Aplique la migracion AddIncomingNachaProcTransaccionesSoapAudit antes de ejecutar este E2E.'
+    ).toEqual([...requiredTables].sort());
+
+    const requiredColumns = [
+      'DispatchQueueId',
+      'SoapMethodName',
+      'SoapEndpoint',
+      'ExecutionMode',
+      'RequestPayloadXml',
+      'ResponsePayloadXml',
+      'SoapResponseCode',
+      'SoapResponseDescription',
+      'SoapTechnicalStatus',
+      'IsSuccessful',
+      'IsFunctionalRejection',
+      'IsTechnicalFailure',
+      'TechnicalException',
+      'DurationMs',
+      'CorrelationId',
+      'StartedAtUtc',
+      'FinishedAtUtc'
+    ];
+    const columnList = requiredColumns.map(sqlString).join(', ');
+    const columns = this.query<{ name: string }>(
+      `SELECT c.[name]
+       FROM sys.columns c
+       JOIN sys.tables t ON t.[object_id] = c.[object_id]
+       WHERE t.[name] = N'IncomingNachaIntegrationExecution'
+         AND c.[name] IN (${columnList})`
+    );
+    expect(
+      columns.map((row) => row.name).sort(),
+      'IncomingNachaIntegrationExecution no contiene todas las columnas de auditoria requeridas. Aplique la migracion AddIncomingNachaProcTransaccionesSoapAudit.'
+    ).toEqual([...requiredColumns].sort());
+  }
+
   query<T>(selectSql: string): T[] {
     const output = this.run(`${selectSql} FOR JSON PATH, INCLUDE_NULL_VALUES;`);
     return parseSqlJson<T>(output);

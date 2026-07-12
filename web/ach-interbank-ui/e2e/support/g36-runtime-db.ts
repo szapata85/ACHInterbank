@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { G36Postgres, type AchCycleSnapshot } from './g36-postgres';
+import { G36Postgres, type AchCycleSnapshot, type SqlCommand } from './g36-postgres';
 import {
   G36SqlServer,
   sqlNullableBoolean,
@@ -59,6 +59,73 @@ export type MappingRuleSnapshot = {
   enabled: boolean | number;
 };
 
+export type IncomingNachaIngestionRow = {
+  id: string;
+  fileName: string;
+  correlationId: string;
+  ingestionStatus: string | number;
+  cycleResolutionStatus: string | number;
+  parsingStatus: string | number;
+  resolvedAchCycleId: string | null;
+  resolvedClearingHouseId: number | null;
+  operationalDate: Date | string | null;
+  uploadedAtUtc: Date | string;
+};
+
+export type IncomingNachaDispatchQueueRow = {
+  id: string;
+  incomingNachaFileIngestionId: string;
+  achCycleId: string;
+  queueStatus: string | number;
+  attemptCount: number;
+  lastErrorCode: string;
+  lastErrorMessage: string;
+  lastResponseCode: string;
+  idempotencyDispatchKey: string;
+  correlationId: string;
+  functionalClass: string;
+  eligibilityStatus: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
+export type IncomingNachaIntegrationEvidenceRow = {
+  id: string;
+  dispatchQueueId: string;
+  integrationType: string;
+  soapMethodName: string;
+  soapEndpoint: string;
+  executionMode: string;
+  requestPayloadXml: string;
+  responsePayloadXml: string;
+  soapResponseCode: string;
+  soapResponseDescription: string;
+  soapTechnicalStatus: string;
+  isSuccessful: boolean | number;
+  isFunctionalRejection: boolean | number;
+  isTechnicalFailure: boolean | number;
+  technicalException: string;
+  correlationId: string;
+  startedAtUtc: Date | string;
+  finishedAtUtc: Date | string | null;
+  durationMs: number | string;
+};
+
+export type IncomingPostProcessingTaskSnapshot = {
+  id: number;
+  status: number;
+  calendarPolicy: number;
+  periodicityType: number;
+  n: number | null;
+  minute: number | null;
+  timeOfDayTicks: string | null;
+  weeklyDay: number | null;
+  monthDay: number | null;
+  cronExpression: string | null;
+  startAt: Date | string | null;
+  endAt: Date | string | null;
+};
+
 type RuntimeProvider = 'SqlServer' | 'Postgres';
 
 export class G36RuntimeDb {
@@ -92,10 +159,20 @@ export class G36RuntimeDb {
     const rows = this.sqlQuery<{ table_name: string }>(
       `SELECT [name] AS [table_name]
        FROM sys.tables
-       WHERE [name] IN ('AchCycles', 'AchTransactions', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems', 'ContrapartidaDispatchAttempts')`
+       WHERE [name] IN ('AchCycles', 'AchTransactions', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems', 'ContrapartidaDispatchAttempts', 'IncomingNachaFileIngestions', 'IncomingNachaDispatchQueue', 'IncomingNachaIntegrationExecution')`
     );
     expect(rows.map((row) => row.table_name).sort(), 'La base runtime SQL Server debe estar provisionada para Proc_Contrapartidas.')
-      .toEqual(['AchCycles', 'AchTransactions', 'ContrapartidaDispatchAttempts', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems'].sort());
+      .toEqual(['AchCycles', 'AchTransactions', 'ContrapartidaDispatchAttempts', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems', 'IncomingNachaFileIngestions', 'IncomingNachaDispatchQueue', 'IncomingNachaIntegrationExecution'].sort());
+  }
+
+  async assertIncomingProcTransaccionesReady(): Promise<void> {
+    if (this.postgres) {
+      await this.postgres.assertIncomingProcTransaccionesSchema();
+      return;
+    }
+
+    this.sqlServer!.assertReady();
+    this.sqlServer!.assertIncomingProcTransaccionesSchema();
   }
 
   async close(): Promise<void> {
@@ -461,6 +538,243 @@ export class G36RuntimeDb {
     return rows[0] ?? null;
   }
 
+  async findIncomingNachaIngestion(criteria: { correlationId?: string; uniqueRunKey?: string }): Promise<IncomingNachaIngestionRow | null> {
+    if (!criteria.correlationId && !criteria.uniqueRunKey) {
+      throw new Error('La consulta de ingestión NACHA entrante requiere correlationId o uniqueRunKey.');
+    }
+
+    if (this.postgres) {
+      const rows = await this.postgres.query<IncomingNachaIngestionRow>(
+        `SELECT DISTINCT i."Id"::text AS id,
+                i."FileName" AS "fileName",
+                i."CorrelationId" AS "correlationId",
+                i."IngestionStatus" AS "ingestionStatus",
+                i."CycleResolutionStatus" AS "cycleResolutionStatus",
+                i."ParsingStatus" AS "parsingStatus",
+                i."ResolvedAchCycleId" AS "resolvedAchCycleId",
+                i."ResolvedClearingHouseId" AS "resolvedClearingHouseId",
+                i."OperationalDate" AS "operationalDate",
+                i."UploadedAtUtc" AS "uploadedAtUtc"
+         FROM "IncomingNachaFileIngestions" i
+         LEFT JOIN "NachaHeaders" h ON h."IncomingNachaFileIngestionId" = i."Id"
+         LEFT JOIN "AddendaRecords" a ON a."NachaID" = h."NachaID"
+         WHERE ($1::text IS NULL OR i."CorrelationId" = $1)
+           AND ($2::text IS NULL OR a."InvoiceOrAccountNumber" = $2)`,
+        [criteria.correlationId ?? null, criteria.uniqueRunKey ?? null]
+      );
+      return singleOrNull(rows, 'La correlación NACHA entrante PostgreSQL debe identificar una sola ingestión.');
+    }
+
+    const predicates = [
+      criteria.correlationId ? `i.[CorrelationId] = ${sqlString(criteria.correlationId)}` : '',
+      criteria.uniqueRunKey ? `a.[InvoiceOrAccountNumber] = ${sqlString(criteria.uniqueRunKey)}` : ''
+    ].filter(Boolean).join(' AND ');
+    const rows = this.sqlQuery<IncomingNachaIngestionRow>(
+      `SELECT DISTINCT i.[Id] AS [id],
+              i.[FileName] AS [fileName],
+              i.[CorrelationId] AS [correlationId],
+              i.[IngestionStatus] AS [ingestionStatus],
+              i.[CycleResolutionStatus] AS [cycleResolutionStatus],
+              i.[ParsingStatus] AS [parsingStatus],
+              i.[ResolvedAchCycleId] AS [resolvedAchCycleId],
+              i.[ResolvedClearingHouseId] AS [resolvedClearingHouseId],
+              i.[OperationalDate] AS [operationalDate],
+              i.[UploadedAtUtc] AS [uploadedAtUtc]
+       FROM [IncomingNachaFileIngestions] i
+       LEFT JOIN [NachaHeaders] h ON h.[IncomingNachaFileIngestionId] = i.[Id]
+       LEFT JOIN [AddendaRecords] a ON a.[NachaID] = h.[NachaID]
+       WHERE ${predicates}`
+    );
+    return singleOrNull(rows, 'La correlación NACHA entrante SQL Server debe identificar una sola ingestión.');
+  }
+
+  async findIncomingDispatchQueueItem(ingestionId: string): Promise<IncomingNachaDispatchQueueRow | null> {
+    if (this.postgres) {
+      const rows = await this.postgres.query<IncomingNachaDispatchQueueRow>(
+        `SELECT q."Id"::text AS id,
+                q."IncomingNachaFileIngestionId"::text AS "incomingNachaFileIngestionId",
+                q."AchCycleId" AS "achCycleId",
+                q."QueueStatus" AS "queueStatus",
+                q."AttemptCount" AS "attemptCount",
+                q."LastErrorCode" AS "lastErrorCode",
+                q."LastErrorMessage" AS "lastErrorMessage",
+                q."LastResponseCode" AS "lastResponseCode",
+                q."IdempotencyDispatchKey" AS "idempotencyDispatchKey",
+                i."CorrelationId" AS "correlationId",
+                c."FunctionalClass" AS "functionalClass",
+                c."EligibilityStatus" AS "eligibilityStatus",
+                q."CreatedAt" AS "createdAt",
+                q."UpdatedAt" AS "updatedAt"
+         FROM "IncomingNachaDispatchQueue" q
+         JOIN "IncomingNachaFileIngestions" i ON i."Id" = q."IncomingNachaFileIngestionId"
+         JOIN "IncomingNachaEntryClassifications" c ON c."Id" = q."IncomingNachaEntryClassificationId"
+         WHERE q."IncomingNachaFileIngestionId" = $1::uuid`,
+        [ingestionId]
+      );
+      return singleOrNull(rows, 'La ingestión NACHA entrante PostgreSQL debe producir una sola fila de cola para este fixture.');
+    }
+
+    const rows = this.sqlQuery<IncomingNachaDispatchQueueRow>(
+      `SELECT q.[Id] AS [id],
+              q.[IncomingNachaFileIngestionId] AS [incomingNachaFileIngestionId],
+              q.[AchCycleId] AS [achCycleId],
+              q.[QueueStatus] AS [queueStatus],
+              q.[AttemptCount] AS [attemptCount],
+              q.[LastErrorCode] AS [lastErrorCode],
+              q.[LastErrorMessage] AS [lastErrorMessage],
+              q.[LastResponseCode] AS [lastResponseCode],
+              q.[IdempotencyDispatchKey] AS [idempotencyDispatchKey],
+              i.[CorrelationId] AS [correlationId],
+              c.[FunctionalClass] AS [functionalClass],
+              c.[EligibilityStatus] AS [eligibilityStatus],
+              q.[CreatedAt] AS [createdAt],
+              q.[UpdatedAt] AS [updatedAt]
+       FROM [IncomingNachaDispatchQueue] q
+       JOIN [IncomingNachaFileIngestions] i ON i.[Id] = q.[IncomingNachaFileIngestionId]
+       JOIN [IncomingNachaEntryClassifications] c ON c.[Id] = q.[IncomingNachaEntryClassificationId]
+       WHERE q.[IncomingNachaFileIngestionId] = ${sqlString(ingestionId)}`
+    );
+    return singleOrNull(rows, 'La ingestión NACHA entrante SQL Server debe producir una sola fila de cola para este fixture.');
+  }
+
+  async findIncomingProcTransaccionesEvidence(
+    lookup: string | { dispatchQueueId?: string; correlationId?: string; uniqueRunKey?: string }
+  ): Promise<IncomingNachaIntegrationEvidenceRow | null> {
+    const dispatchQueueId = typeof lookup === 'string' ? lookup : lookup.dispatchQueueId;
+    if (!dispatchQueueId) {
+      if (typeof lookup === 'string') {
+        throw new Error('DispatchQueueId no puede ser vacio para consultar evidencia Proc_Transacciones.');
+      }
+      const ingestion = await this.findIncomingNachaIngestion({
+        correlationId: lookup.correlationId,
+        uniqueRunKey: lookup.uniqueRunKey
+      });
+      if (!ingestion) {
+        return null;
+      }
+      const queue = await this.findIncomingDispatchQueueItem(ingestion.id);
+      return queue ? this.findIncomingProcTransaccionesEvidence(queue.id) : null;
+    }
+
+    if (this.postgres) {
+      const rows = await this.postgres.query<IncomingNachaIntegrationEvidenceRow>(
+        `SELECT e."Id"::text AS id,
+                e."DispatchQueueId"::text AS "dispatchQueueId",
+                e."MethodName" AS "integrationType",
+                e."SoapMethodName" AS "soapMethodName",
+                e."SoapEndpoint" AS "soapEndpoint",
+                e."ExecutionMode" AS "executionMode",
+                e."RequestPayloadXml" AS "requestPayloadXml",
+                e."ResponsePayloadXml" AS "responsePayloadXml",
+                e."SoapResponseCode" AS "soapResponseCode",
+                e."SoapResponseDescription" AS "soapResponseDescription",
+                e."SoapTechnicalStatus" AS "soapTechnicalStatus",
+                e."IsSuccessful" AS "isSuccessful",
+                e."IsFunctionalRejection" AS "isFunctionalRejection",
+                e."IsTechnicalFailure" AS "isTechnicalFailure",
+                e."TechnicalException" AS "technicalException",
+                e."CorrelationId" AS "correlationId",
+                e."StartedAtUtc" AS "startedAtUtc",
+                e."FinishedAtUtc" AS "finishedAtUtc",
+                e."DurationMs" AS "durationMs"
+         FROM "IncomingNachaIntegrationExecution" e
+         WHERE e."DispatchQueueId" = $1::uuid
+         ORDER BY e."StartedAtUtc" DESC
+         LIMIT 1`,
+        [dispatchQueueId]
+      );
+      return rows[0] ?? null;
+    }
+
+    const rows = this.sqlQuery<IncomingNachaIntegrationEvidenceRow>(
+      `SELECT TOP (1) e.[Id] AS [id],
+              e.[DispatchQueueId] AS [dispatchQueueId],
+              e.[MethodName] AS [integrationType],
+              e.[SoapMethodName] AS [soapMethodName],
+              e.[SoapEndpoint] AS [soapEndpoint],
+              e.[ExecutionMode] AS [executionMode],
+              e.[RequestPayloadXml] AS [requestPayloadXml],
+              e.[ResponsePayloadXml] AS [responsePayloadXml],
+              e.[SoapResponseCode] AS [soapResponseCode],
+              e.[SoapResponseDescription] AS [soapResponseDescription],
+              e.[SoapTechnicalStatus] AS [soapTechnicalStatus],
+              e.[IsSuccessful] AS [isSuccessful],
+              e.[IsFunctionalRejection] AS [isFunctionalRejection],
+              e.[IsTechnicalFailure] AS [isTechnicalFailure],
+              e.[TechnicalException] AS [technicalException],
+              e.[CorrelationId] AS [correlationId],
+              e.[StartedAtUtc] AS [startedAtUtc],
+              e.[FinishedAtUtc] AS [finishedAtUtc],
+              e.[DurationMs] AS [durationMs]
+       FROM [IncomingNachaIntegrationExecution] e
+       WHERE e.[DispatchQueueId] = ${sqlString(dispatchQueueId)}
+       ORDER BY e.[StartedAtUtc] DESC`
+    );
+    return rows[0] ?? null;
+  }
+
+  async cleanupIncomingProcTransaccionesRun(ingestionId: string): Promise<void> {
+    if (this.postgres) {
+      await this.postgres.executeTransaction(incomingCleanupCommandsPostgres(ingestionId));
+      return;
+    }
+
+    this.sqlExecute(incomingCleanupSqlServer(ingestionId));
+  }
+
+  async accelerateIncomingPostProcessing(): Promise<IncomingPostProcessingTaskSnapshot> {
+    const code = 'IncomingNachaPostProcessing';
+    if (this.postgres) {
+      const snapshot = await this.postgres.snapshotTask(code);
+      await this.postgres.accelerateTask(code);
+      return snapshot;
+    }
+
+    const snapshot = this.loadIncomingPostProcessingTaskSqlServer(code);
+    this.sqlExecute(
+      `UPDATE [TaskDefinition]
+       SET [Status] = 1, [CalendarPolicy] = 0, [PeriodicityType] = 1, [N] = 1,
+           [Minute] = NULL, [TimeOfDayTicks] = NULL, [WeeklyDay] = NULL, [MonthDay] = NULL,
+           [CronExpression] = NULL, [StartAt] = DATEADD(minute, -1, SYSUTCDATETIME()), [EndAt] = NULL,
+           [UpdatedAt] = SYSUTCDATETIME()
+       WHERE [Id] = ${snapshot.id}`
+    );
+    return snapshot;
+  }
+
+  async restoreIncomingPostProcessing(snapshot: IncomingPostProcessingTaskSnapshot): Promise<void> {
+    if (this.postgres) {
+      await this.postgres.restoreTask(snapshot);
+      return;
+    }
+
+    this.sqlExecute(
+      `UPDATE [TaskDefinition]
+       SET [Status] = ${snapshot.status}, [CalendarPolicy] = ${snapshot.calendarPolicy},
+           [PeriodicityType] = ${snapshot.periodicityType}, [N] = ${sqlNullableNumber(snapshot.n)},
+           [Minute] = ${sqlNullableNumber(snapshot.minute)}, [TimeOfDayTicks] = ${sqlNullableString(snapshot.timeOfDayTicks)},
+           [WeeklyDay] = ${sqlNullableNumber(snapshot.weeklyDay)}, [MonthDay] = ${sqlNullableNumber(snapshot.monthDay)},
+           [CronExpression] = ${sqlNullableString(snapshot.cronExpression)},
+           [StartAt] = ${sqlNullableString(snapshot.startAt == null ? null : String(snapshot.startAt))},
+           [EndAt] = ${sqlNullableString(snapshot.endAt == null ? null : String(snapshot.endAt))},
+           [UpdatedAt] = SYSUTCDATETIME()
+       WHERE [Id] = ${snapshot.id}`
+    );
+  }
+
+  private loadIncomingPostProcessingTaskSqlServer(code: string): IncomingPostProcessingTaskSnapshot {
+    const rows = this.sqlQuery<IncomingPostProcessingTaskSnapshot>(
+      `SELECT [Id] AS [id], [Status] AS [status], [CalendarPolicy] AS [calendarPolicy],
+              [PeriodicityType] AS [periodicityType], [N] AS [n], [Minute] AS [minute],
+              [TimeOfDayTicks] AS [timeOfDayTicks], [WeeklyDay] AS [weeklyDay], [MonthDay] AS [monthDay],
+              [CronExpression] AS [cronExpression], [StartAt] AS [startAt], [EndAt] AS [endAt]
+       FROM [TaskDefinition]
+       WHERE [Code] = ${sqlString(code)}`
+    );
+    expect(rows, `Debe existir TaskDefinition ${code}.`).toHaveLength(1);
+    return rows[0];
+  }
+
   private async configureProcContrapartidasExpectedMappingPostgres(): Promise<MappingRuleSnapshot[]> {
     const targetPaths = procContrapartidasTargetPaths();
     const snapshot = await this.postgres!.query<MappingRuleSnapshot>(
@@ -628,4 +942,54 @@ function toNullableBoolean(value: boolean | number | null): boolean | null {
 function buildTemporaryCycleName(snapshot: AchCycleSnapshot, index: number): string {
   const suffix = ` PW${index + 1}`;
   return `${snapshot.cycleName}`.slice(0, Math.max(1, 80 - suffix.length)) + suffix;
+}
+
+function singleOrNull<T>(rows: T[], message: string): T | null {
+  expect(rows.length, message).toBeLessThanOrEqual(1);
+  return rows[0] ?? null;
+}
+
+function incomingCleanupCommandsPostgres(ingestionId: string): SqlCommand[] {
+  const scope = '$1::uuid';
+  const fileName = `(SELECT "FileName" FROM "IncomingNachaFileIngestions" WHERE "Id" = ${scope})`;
+  return [
+    { sql: `DELETE FROM "ExternalFileNameValidationLog" WHERE "RegistryId" IN (SELECT "Id" FROM "ExternalFileNameRegistry" WHERE "ExternalFileName" = ${fileName})`, values: [ingestionId] },
+    { sql: `DELETE FROM "ExternalFileNameRegistry" WHERE "ExternalFileName" = ${fileName}`, values: [ingestionId] },
+    { sql: `DELETE FROM "IncomingNachaIntegrationExecution" WHERE "DispatchQueueId" IN (SELECT "Id" FROM "IncomingNachaDispatchQueue" WHERE "IncomingNachaFileIngestionId" = ${scope})`, values: [ingestionId] },
+    { sql: `DELETE FROM "IncomingNachaProcessingEvents" WHERE "IncomingNachaFileIngestionId" = ${scope}`, values: [ingestionId] },
+    { sql: `DELETE FROM "IncomingNachaDispatchQueue" WHERE "IncomingNachaFileIngestionId" = ${scope}`, values: [ingestionId] },
+    { sql: `DELETE FROM "IncomingNachaTransactionLinks" WHERE "IncomingNachaFileIngestionId" = ${scope}`, values: [ingestionId] },
+    { sql: `DELETE FROM "IncomingNachaEntryClassifications" WHERE "IncomingNachaFileIngestionId" = ${scope}`, values: [ingestionId] },
+    { sql: `DELETE FROM "IncomingNachaFileProcessingResults" WHERE "IncomingNachaFileIngestionId" = ${scope}`, values: [ingestionId] },
+    { sql: `DELETE FROM "AddendaRecords" WHERE "NachaID" IN (SELECT "NachaID" FROM "NachaHeaders" WHERE "IncomingNachaFileIngestionId" = ${scope})`, values: [ingestionId] },
+    { sql: `DELETE FROM "BatchControls" WHERE "NachaID" IN (SELECT "NachaID" FROM "NachaHeaders" WHERE "IncomingNachaFileIngestionId" = ${scope})`, values: [ingestionId] },
+    { sql: `DELETE FROM "BatchHeaders" WHERE "NachaID" IN (SELECT "NachaID" FROM "NachaHeaders" WHERE "IncomingNachaFileIngestionId" = ${scope})`, values: [ingestionId] },
+    { sql: `DELETE FROM "EntryDetails" WHERE "NachaID" IN (SELECT "NachaID" FROM "NachaHeaders" WHERE "IncomingNachaFileIngestionId" = ${scope})`, values: [ingestionId] },
+    { sql: `DELETE FROM "FileControls" WHERE "NachaID" IN (SELECT "NachaID" FROM "NachaHeaders" WHERE "IncomingNachaFileIngestionId" = ${scope})`, values: [ingestionId] },
+    { sql: `DELETE FROM "NachaHeaders" WHERE "IncomingNachaFileIngestionId" = ${scope}`, values: [ingestionId] },
+    { sql: `DELETE FROM "IncomingNachaFileIngestions" WHERE "Id" = ${scope}`, values: [ingestionId] }
+  ];
+}
+
+function incomingCleanupSqlServer(ingestionId: string): string {
+  const id = sqlString(ingestionId);
+  const headers = `(SELECT [NachaID] FROM [NachaHeaders] WHERE [IncomingNachaFileIngestionId] = ${id})`;
+  const queues = `(SELECT [Id] FROM [IncomingNachaDispatchQueue] WHERE [IncomingNachaFileIngestionId] = ${id})`;
+  const fileName = `(SELECT [FileName] FROM [IncomingNachaFileIngestions] WHERE [Id] = ${id})`;
+  return `
+    DELETE FROM [ExternalFileNameValidationLog] WHERE [RegistryId] IN (SELECT [Id] FROM [ExternalFileNameRegistry] WHERE [ExternalFileName] = ${fileName});
+    DELETE FROM [ExternalFileNameRegistry] WHERE [ExternalFileName] = ${fileName};
+    DELETE FROM [IncomingNachaIntegrationExecution] WHERE [DispatchQueueId] IN ${queues};
+    DELETE FROM [IncomingNachaProcessingEvents] WHERE [IncomingNachaFileIngestionId] = ${id};
+    DELETE FROM [IncomingNachaDispatchQueue] WHERE [IncomingNachaFileIngestionId] = ${id};
+    DELETE FROM [IncomingNachaTransactionLinks] WHERE [IncomingNachaFileIngestionId] = ${id};
+    DELETE FROM [IncomingNachaEntryClassifications] WHERE [IncomingNachaFileIngestionId] = ${id};
+    DELETE FROM [IncomingNachaFileProcessingResults] WHERE [IncomingNachaFileIngestionId] = ${id};
+    DELETE FROM [AddendaRecords] WHERE [NachaID] IN ${headers};
+    DELETE FROM [BatchControls] WHERE [NachaID] IN ${headers};
+    DELETE FROM [BatchHeaders] WHERE [NachaID] IN ${headers};
+    DELETE FROM [EntryDetails] WHERE [NachaID] IN ${headers};
+    DELETE FROM [FileControls] WHERE [NachaID] IN ${headers};
+    DELETE FROM [NachaHeaders] WHERE [IncomingNachaFileIngestionId] = ${id};
+    DELETE FROM [IncomingNachaFileIngestions] WHERE [Id] = ${id};`;
 }

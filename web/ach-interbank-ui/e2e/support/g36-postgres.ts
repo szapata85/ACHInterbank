@@ -127,6 +127,61 @@ export class G36Postgres {
       .toEqual([...requiredTables].sort());
   }
 
+  async assertIncomingProcTransaccionesSchema(): Promise<void> {
+    const requiredTables = [
+      'IncomingNachaFileIngestions',
+      'IncomingNachaDispatchQueue',
+      'IncomingNachaIntegrationExecution',
+      'IncomingNachaEntryClassifications',
+      'IncomingNachaTransactionLinks',
+      'NachaHeaders',
+      'AddendaRecords',
+      'TaskDefinition'
+    ];
+    const tables = await this.query<{ table_name: string }>(
+      `SELECT table_name
+       FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
+      [requiredTables]
+    );
+    expect(
+      tables.map((row) => row.table_name).sort(),
+      'Falta el schema de auditoria NACHA entrante en PostgreSQL. Aplique la migracion AddIncomingNachaProcTransaccionesSoapAudit antes de ejecutar este E2E.'
+    ).toEqual([...requiredTables].sort());
+
+    const requiredColumns = [
+      'DispatchQueueId',
+      'SoapMethodName',
+      'SoapEndpoint',
+      'ExecutionMode',
+      'RequestPayloadXml',
+      'ResponsePayloadXml',
+      'SoapResponseCode',
+      'SoapResponseDescription',
+      'SoapTechnicalStatus',
+      'IsSuccessful',
+      'IsFunctionalRejection',
+      'IsTechnicalFailure',
+      'TechnicalException',
+      'DurationMs',
+      'CorrelationId',
+      'StartedAtUtc',
+      'FinishedAtUtc'
+    ];
+    const columns = await this.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'IncomingNachaIntegrationExecution'
+         AND column_name = ANY($1::text[])`,
+      [requiredColumns]
+    );
+    expect(
+      columns.map((row) => row.column_name).sort(),
+      'IncomingNachaIntegrationExecution no contiene todas las columnas de auditoria requeridas. Aplique la migracion AddIncomingNachaProcTransaccionesSoapAudit.'
+    ).toEqual([...requiredColumns].sort());
+  }
+
   async query<T>(sql: string, values: readonly unknown[] = []): Promise<T[]> {
     const result = await this.pool.query(sql, [...values]);
     return result.rows as T[];
