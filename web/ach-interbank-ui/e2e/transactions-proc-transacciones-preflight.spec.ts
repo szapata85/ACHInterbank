@@ -9,6 +9,7 @@ import { findProcTransaccionesLogEvidence, snapshotSoapLogDirectory } from './su
 import {
   assertExpectedAmount,
   assertExpectedReceiverAccount,
+  assertEffectiveProcTransaccionesPreflight,
   getConfirmedSoapCorrelationTokens
 } from './support/proc-transacciones-preflight';
 import {
@@ -48,6 +49,25 @@ test.describe('Proc_Transacciones pre-LIVE guardrails', () => {
 
     expect(() => assertExpectedReceiverAccount(fixture, '0000')).toThrow(/cuenta receptora/i);
     expect(() => assertExpectedAmount(fixture, '999999')).toThrow(/monto/i);
+  });
+
+  test('bloquea DryRun antes del upload y acepta solo el preflight Live completo', () => {
+    const base = {
+      wscfaachMappings: [{ methodName: 'Proc_Transacciones', endpoint: 'http://local/WSCFAACH.svc', soapAction: 'action', enabled: true }],
+      procTransaccionesEffectiveSettings: {
+        operation: 'Proc_Transacciones',
+        effectiveMode: 'Live',
+        endpoint: 'http://local/WSCFAACH.svc',
+        enabled: true,
+        mappingReady: true
+      }
+    };
+
+    expect(assertEffectiveProcTransaccionesPreflight(base, 'http://local/WSCFAACH.svc')).toBe('http://local/WSCFAACH.svc');
+    expect(() => assertEffectiveProcTransaccionesPreflight({
+      ...base,
+      procTransaccionesEffectiveSettings: { ...base.procTransaccionesEffectiveSettings, effectiveMode: 'DryRun' }
+    }, 'http://local/WSCFAACH.svc')).toThrow(/bloqueada antes del upload/i);
   });
 
   test('correlaciona el log solo por tokens confirmados en RequestPayloadXml', async ({}, testInfo) => {

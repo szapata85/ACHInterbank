@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.Security.Services;
 
@@ -15,16 +16,20 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
     private const string DefaultWsAxonEndpoint = "http://esparta/WSCFAACH/WSAxonRespuestaTransacciones.svc";
 
     private readonly AchDbContext _dbContext;
-    private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly AppSettings? _appSettings = AppSettings.Settings;
+    private readonly ProcTransaccionesDispatchOptions _procTransaccionesDispatchOptions;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public SoapIntegrationSettingsService(AchDbContext dbContext)
+    public SoapIntegrationSettingsService(
+        AchDbContext dbContext,
+        IOptions<ProcTransaccionesDispatchOptions> procTransaccionesDispatchOptions)
     {
         _dbContext = dbContext;
+        _procTransaccionesDispatchOptions = procTransaccionesDispatchOptions.Value;
     }
 
     public async Task<SoapIntegrationSettingsDto> GetAsync(CancellationToken ct = default)
@@ -45,7 +50,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             _dbContext.Set<SoapIntegrationSetting>().Add(settings);
             await _dbContext.SaveChangesAsync(ct);
 
-            return defaults;
+            return WithEffectiveProcTransaccionesSettings(defaults);
         }
 
         var hydrated = MapToDto(settings);
@@ -60,7 +65,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             await _dbContext.SaveChangesAsync(ct);
         }
 
-        return hydrated;
+        return WithEffectiveProcTransaccionesSettings(hydrated);
     }
 
     public async Task<SoapIntegrationSettingsDto> SaveAsync(SoapIntegrationSettingsDto request, CancellationToken ct = default)
@@ -82,12 +87,12 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
 
         await _dbContext.SaveChangesAsync(ct);
 
-        return normalized;
+        return WithEffectiveProcTransaccionesSettings(normalized);
     }
 
     private SoapIntegrationSettingsDto BuildDefaultSettings()
     {
-        var fallback = _appSettings.Integrations?.UrlAch;
+        var fallback = _appSettings?.Integrations?.UrlAch;
         var defaultWscfaachEndpoint = string.IsNullOrWhiteSpace(fallback) ? DefaultWscfaachEndpoint : fallback;
         var defaultWsAxonEndpoint = string.IsNullOrWhiteSpace(fallback) ? DefaultWsAxonEndpoint : fallback;
 
@@ -255,6 +260,29 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                 Required = x.Required
             })
             .ToList();
+    }
+
+    private SoapIntegrationSettingsDto WithEffectiveProcTransaccionesSettings(SoapIntegrationSettingsDto settings)
+    {
+        var mapping = settings.WscfaachMappings
+            .FirstOrDefault(x => string.Equals(x.MethodName, "Proc_Transacciones", StringComparison.OrdinalIgnoreCase));
+        var endpoint = mapping?.Endpoint?.Trim() ?? string.Empty;
+        var enabled = mapping?.Enabled == true;
+        var mappingReady = enabled
+            && !string.IsNullOrWhiteSpace(endpoint)
+            && mapping!.InputParameterMappings.Any(x => string.Equals(x.InputName, "IDTRAN", StringComparison.OrdinalIgnoreCase));
+
+        return settings with
+        {
+            ProcTransaccionesEffectiveSettings = new ProcTransaccionesEffectiveSettingsDto
+            {
+                Operation = "Proc_Transacciones",
+                EffectiveMode = _procTransaccionesDispatchOptions.NormalizedMode,
+                Endpoint = endpoint,
+                Enabled = enabled,
+                MappingReady = mappingReady
+            }
+        };
     }
 
 }

@@ -27,6 +27,65 @@ public class IncomingNachaDispatchPlannerTests
         Assert.Equal(1, blocked);
     }
 
+    [Fact]
+    public async Task PlanForIngestionAsync_UsesIngestionAndClassificationInUniqueIdempotencyKey()
+    {
+        await using var context = BuildContext();
+        var firstIngestion = SeedCommonGraph(context);
+        var eligibility = new IncomingNachaDispatchEligibilityPolicy();
+        var sut = new IncomingNachaDispatchPlanner(context, eligibility);
+
+        await sut.PlanForIngestionAsync(firstIngestion.Id, "tester");
+        var firstQueue = await context.IncomingNachaDispatchQueue
+            .SingleAsync(x => x.IncomingNachaFileIngestionId == firstIngestion.Id && x.AchTransactionId == 100);
+
+        var secondIngestion = new IncomingNachaFileIngestion
+        {
+            Id = Guid.NewGuid(),
+            FileName = "in-second.ach",
+            FileHashSha256 = "h-second",
+            FileSize = 1,
+            ContentType = "text/plain",
+            UploadedBy = "tester",
+            CorrelationId = "c-second",
+            Notes = "n",
+            IngestionStatus = IncomingNachaIngestionStatus.Completado,
+            CycleResolutionStatus = IncomingNachaCycleResolutionStatus.ResueltoConfirmado,
+            ResolvedAchCycleId = "C1",
+            ResolvedClearingHouseId = 1,
+            OperationalDate = DateTime.Today
+        };
+        var secondClassification = new IncomingNachaEntryClassification
+        {
+            Id = Guid.NewGuid(),
+            IncomingNachaFileIngestionId = secondIngestion.Id,
+            EntryDetailId = 3,
+            FunctionalClass = IncomingNachaFunctionalClass.CreditoEntrante,
+            EligibilityStatus = IncomingNachaEligibilityStatus.Elegible
+        };
+        var secondLink = new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(),
+            IncomingNachaFileIngestionId = secondIngestion.Id,
+            EntryDetailId = 3,
+            AchTransactionId = 100,
+            LinkType = IncomingNachaLinkType.ExactTrace15,
+            IsFinal = true
+        };
+        context.EntryDetails.Add(new EntryDetail { EntryDetailID = 3, TransactionCode = "22", ReceivingParticipantEntityCode = "22222222", AccountNumber = "D", Amount = 100m, RecipUserName = "Receiver" });
+        context.AddRange(secondIngestion, secondClassification, secondLink);
+        await context.SaveChangesAsync();
+
+        var created = await sut.PlanForIngestionAsync(secondIngestion.Id, "tester");
+        var secondQueue = await context.IncomingNachaDispatchQueue
+            .SingleAsync(x => x.IncomingNachaFileIngestionId == secondIngestion.Id && x.AchTransactionId == 100);
+
+        Assert.Equal(1, created);
+        Assert.NotEqual(firstQueue.IdempotencyDispatchKey, secondQueue.IdempotencyDispatchKey);
+        Assert.Equal(64, firstQueue.IdempotencyDispatchKey.Length);
+        Assert.Equal(64, secondQueue.IdempotencyDispatchKey.Length);
+    }
+
     private static IncomingNachaFileIngestion SeedCommonGraph(AchDbContext context)
     {
         var cycle = new AchCycle

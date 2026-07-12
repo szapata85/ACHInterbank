@@ -7,8 +7,17 @@ export type SoapEndpointMethodMapping = {
   enabled: boolean;
 };
 
+export type ProcTransaccionesEffectiveSettings = {
+  operation: string;
+  effectiveMode: string;
+  endpoint: string;
+  enabled: boolean;
+  mappingReady: boolean;
+};
+
 export type SoapIntegrationSettings = {
   wscfaachMappings: SoapEndpointMethodMapping[];
+  procTransaccionesEffectiveSettings?: ProcTransaccionesEffectiveSettings;
 };
 
 export function assertExpectedReceiverAccount(fixture: IncomingProcTransaccionesFixture, expectedAccount: string): void {
@@ -24,25 +33,32 @@ export function assertExpectedAmount(fixture: IncomingProcTransaccionesFixture, 
   }
 }
 
+export function assertEffectiveProcTransaccionesPreflight(
+  settings: SoapIntegrationSettings,
+  expectedEndpoint: string
+): string {
+  const mapping = settings.wscfaachMappings?.find((item) => item.methodName === 'Proc_Transacciones');
+  const effective = settings.procTransaccionesEffectiveSettings;
+  if (!mapping?.enabled
+    || !mapping.endpoint?.trim()
+    || effective?.operation !== 'Proc_Transacciones'
+    || effective.effectiveMode !== 'Live'
+    || !effective.enabled
+    || !effective.mappingReady
+    || effective.endpoint?.trim() !== expectedEndpoint.trim()
+    || mapping.endpoint.trim() !== effective.endpoint.trim()) {
+    throw new Error('El preflight efectivo de Proc_Transacciones no confirma Live, endpoint esperado, integración habilitada y mapping listo. La carga NACHA-M fue bloqueada antes del upload.');
+  }
+  return effective.endpoint.trim();
+}
+
 export function getConfirmedSoapCorrelationTokens(requestPayloadXml: string, fixture: IncomingProcTransaccionesFixture): string[] {
   const idTran = readSoapElement(requestPayloadXml, 'IDTRAN');
   const idLote = readSoapElement(requestPayloadXml, 'IDLOTE');
   if (idTran !== fixture.idTran || idLote !== fixture.idLote) {
-    throw new Error('RequestPayloadXml no confirma los tokens IDTRAN/IDLOTE esperados para correlación SOAP.');
+    throw new Error('RequestPayloadXml no confirma los tokens IDTRAN/IDLOTE esperados para correlacion SOAP.');
   }
   return [idTran, idLote];
-}
-
-export function assertProcTransaccionesEndpointConfigured(settings: SoapIntegrationSettings): string {
-  const mapping = settings.wscfaachMappings?.find((item) => item.methodName === 'Proc_Transacciones');
-  if (!mapping?.enabled || !mapping.endpoint?.trim()) {
-    throw new Error('La configuración autenticada no contiene un endpoint habilitado para Proc_Transacciones.');
-  }
-  return mapping.endpoint.trim();
-}
-
-export function blockWithoutEffectiveApiMode(): never {
-  throw new Error('BLOCKED_EFFECTIVE_API_MODE: no existe un endpoint autenticado que exponga el modo efectivo resuelto por la API para Proc_Transacciones. La configuración SOAP solo confirma endpoint/mapping; este spec no puede ejecutar LIVE automáticamente.');
 }
 
 export function maskSensitive(value: string): string {

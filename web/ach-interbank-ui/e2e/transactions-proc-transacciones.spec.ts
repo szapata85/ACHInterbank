@@ -4,8 +4,7 @@ import { findProcTransaccionesLogEvidence, snapshotSoapLogDirectory } from './su
 import {
   assertExpectedAmount,
   assertExpectedReceiverAccount,
-  assertProcTransaccionesEndpointConfigured,
-  blockWithoutEffectiveApiMode,
+  assertEffectiveProcTransaccionesPreflight,
   getConfirmedSoapCorrelationTokens,
   type SoapIntegrationSettings
 } from './support/proc-transacciones-preflight';
@@ -28,12 +27,10 @@ const requiredSettings = [
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT'
 ].filter((name) => !process.env[name]);
 // Ningún endpoint existente expone el modo efectivo resuelto por la API. El GET de SOAP settings solo devuelve mapping persistido.
-const effectiveApiModePreflightAvailable = false;
 
 test.describe.configure({ mode: 'serial' });
 test.skip(!liveOptIn, 'RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E=true, ALLOW_LOCAL_MONETARY_SOAP_E2E=true y ProcTransacciones__Mode=Live son requeridos para habilitar este E2E monetario local.');
 test.skip(requiredSettings.length > 0, `Faltan variables requeridas para el E2E LIVE: ${requiredSettings.join(', ')}. El spec no contiene fallbacks de credenciales, URLs ni conexiones.`);
-test.skip(!effectiveApiModePreflightAvailable, 'BLOCKED_EFFECTIVE_API_MODE: no existe endpoint autenticado que confirme el modo efectivo Live de Proc_Transacciones en la API en ejecución.');
 
 test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transacciones LIVE', async ({ page }) => {
   test.setTimeout(300_000);
@@ -52,9 +49,7 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
     await db.assertIncomingProcTransaccionesReceiver(fixture.receiverAccount, fixture.receivingDfi, fixture.immediateOrigin);
     const token = await authenticate();
     const settings = await getSoapIntegrationSettings(token);
-    const endpoint = assertProcTransaccionesEndpointConfigured(settings);
-    expect(endpoint).toBe(process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT']);
-    blockWithoutEffectiveApiMode();
+    assertEffectiveProcTransaccionesPreflight(settings, process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT']!);
     await seedSession(page, token);
     await page.goto(`${process.env['ACH_UI_URL']!.replace(/\/+$/, '')}/transactions/nacha-upload`);
     await expect(page.getByRole('button', { name: 'Cargar archivo' })).toBeVisible();
