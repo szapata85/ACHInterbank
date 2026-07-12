@@ -215,3 +215,115 @@ npx playwright test `
 **NO-GO**.
 
 Aunque el SOAP local ya estaba disponible, las compuertas de API/configuracion y variables obligatorias fallaron. No se pudo confirmar `effectiveMode=Live`, endpoint efectivo, mapping, cuenta, monto, instituciones, autenticacion ni conexion SQL E2E. Conforme al guardrail, no se hizo upload ni se ejecuto Playwright LIVE.
+
+---
+
+## Tercera ronda - API Live verificada y bloqueo funcional antes del upload
+
+### Identificacion y alcance
+
+- Fecha local: 2026-07-12 17:52:06 -05:00 (America/Bogota).
+- Fecha UTC: 2026-07-12T22:52:06Z.
+- Commit probado: `c2eddba4a2e38a27e52be3d272fe123fb32ea4f6`.
+- Motor: SQL Server local en `127.0.0.1:1433`.
+- Resultado: **NO-GO preventivo en Fase 8, antes del upload**.
+- Playwright LIVE ejecutado: no.
+- Transmisiones consumidas: 0 de 1 autorizada.
+
+### Variables y readiness de infraestructura
+
+- `ACH_USER`, `ACH_PASS`, `ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT` y `ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT`: presentes; no se registraron valores sensibles.
+- API `http://localhost:843`: HTTP 200.
+- SPA `http://localhost:743`: HTTP 200.
+- SQL Server `127.0.0.1:1433`: TCP disponible y contenedor healthy.
+- SOAP Windows `http://localhost:7083/WSCFAACH.svc`: HTTP 200.
+- WSDL local: HTTP 200; `Proc_Transacciones` presente.
+- Schema SQL Server: 13 tablas requeridas y 17 columnas de auditoria SOAP confirmadas.
+- Migracion `20260711003700_AddIncomingNachaProcTransaccionesSoapAudit`: ya aplicada; no se reaplico.
+
+### API y conectividad SOAP desde Docker
+
+- Se creo un override temporal fuera del repositorio para `ProcTransacciones__Mode=Live`.
+- La imagen API anterior no exponia `procTransaccionesEffectiveSettings`; se reconstruyo exclusivamente `achinterbank-api:local` desde el `HEAD` actual.
+- SQL Server y SPA no se reconstruyeron ni recrearon.
+- Desde la red `achinterbank-onprem_ach_onprem`, `host.docker.internal` resolvio a `192.168.65.254` y el puerto 7083 respondio.
+- WCF devolvio HTTP 400 con el Host normal `host.docker.internal:7083`, pero HTTP 200 con `Host: localhost:7083`.
+- El cliente existente `WscfaachSoapClient` soporta `WSCFAACH:HostHeader`; se inyecto temporalmente `WSCFAACH__HostHeader=localhost:7083` sin cambiar codigo.
+- Con esa configuracion, el WSDL fue accesible desde Docker y contenia `Proc_Transacciones`.
+
+### Configuracion efectiva temporal
+
+La consulta autenticada confirmo antes del preflight funcional:
+
+```text
+operation = Proc_Transacciones
+effectiveMode = Live
+endpoint = http://host.docker.internal:7083/WSCFAACH.svc
+enabled = true
+mappingReady = true
+```
+
+- Se guardo snapshot completo previo fuera del repositorio.
+- Se actualizo por API autenticada unicamente el endpoint de `Proc_Transacciones`.
+- Los demas mappings WSCFAACH, todos los mappings WSAxon y el resto de campos de `Proc_Transacciones` permanecieron sin cambios.
+- No se modificaron `Proc_Contrapartidas`, `RegistrarRespuestaTransaccion`, mappings por SQL ni logica de negocio.
+
+### Preflight Playwright no monetario
+
+Comando ejecutado con un worker:
+
+```powershell
+npx playwright test `
+  e2e/transactions-proc-transacciones-preflight.spec.ts `
+  --project=chromium `
+  --workers=1
+```
+
+Resultado: 5 passed, 0 failed, 0 skipped. Se confirmaron `IDTRAN` dinamico, parser compatible, bloqueo de cuenta/monto no autorizados, bloqueo de DryRun y correlacion estricta de log.
+
+### Bloqueo funcional del fixture y base
+
+- Fixture: 1060 bytes, 10 registros de 106 bytes.
+- Cuenta del fixture: `********7777`.
+- `TransactionCode=22`: confirmado.
+- `IDLOTE=0000001`: confirmado.
+- BatchHeader y BatchControl: consistentes.
+- Colision por nombre de archivo: 0.
+- La cuenta del fixture no coincide con `ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT`.
+- El monto del fixture no coincide exactamente con `ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT`.
+- Entidad CFA `IsDefaultSource=true` con DFI receptor coincidente: 0; se requeria exactamente 1.
+- Entidad origen externa `IsDefaultSource=false` coincidente: 0; se requeria al menos 1.
+- Transaccion receptora configurada para cuenta/entidad CFA: 0; se requeria al menos 1.
+
+La carga se bloqueo porque continuar habria usado una cuenta y un monto distintos de los autorizados y no existia correlacion institucional/transaccional valida en SQL Server. No se inventaron valores, no se crearon seeds y no se alteraron datos o mappings por SQL.
+
+### Upload, SOAP, evidencia y clasificacion
+
+- Uploads: 0.
+- Ingestiones E2E: 0; la tabla de ingestiones quedo con conteo total 0.
+- Elementos de cola E2E: 0.
+- `IncomingNachaIntegrationExecution`: no creado.
+- Requests outbound: 0.
+- Respuestas SOAP: 0.
+- Transmisiones monetarias: 0.
+- Clasificacion operacional/funcional/tecnica: no evaluada porque no hubo ejecucion.
+- No se envio `<METODO>`, `Proc_Contrapartidas`, `RegistrarRespuestaTransaccion` ni `PLValidarUsuarioBV`.
+- Los dos logs SOAP preexistentes conservaron tamano y fecha anteriores a la ronda; no hubo bloque correlacionado nuevo.
+
+### Limpieza y restauracion
+
+- Quartz no se acelero ni modifico.
+- `IncomingNachaPostProcessing` no se modifico.
+- No hubo registros E2E que eliminar.
+- No se modificaron datos preexistentes ni pendientes ajenos.
+- No existio movimiento de core y no se intento revertir nada mediante SQL.
+- El snapshot SOAP se reaplico mediante API autenticada.
+- El endpoint de `Proc_Transacciones` volvio a `http://localhost:7083/WSCFAACH.svc`.
+- La API se recreo sin override; el modo efectivo volvio a `DryRun` y se retiro el HostHeader temporal.
+- La imagen API reconstruida se conservo actualizada.
+
+### Veredicto de tercera ronda
+
+**NO-GO**.
+
+Las compuertas tecnicas de API Live, DTO efectivo, mapping y conectividad Docker/SOAP se abrieron correctamente. La compuerta funcional/monetaria fallo antes del upload por desacuerdo de cuenta y monto autorizados y por ausencia de receptor CFA, origen externo y transaccion receptora correlacionables en SQL Server. Para retomar, se deben suministrar variables que coincidan exactamente con el fixture sintetico autorizado y provisionar los datos institucionales/transaccionales mediante el mecanismo normal de aplicacion o seeding aprobado; no mediante SQL directo. Despues debe repetirse desde Fase 1 y volver a ejecutar Fase 8 antes de considerar la unica ejecucion LIVE.
