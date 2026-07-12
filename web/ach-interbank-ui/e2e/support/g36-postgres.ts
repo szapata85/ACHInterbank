@@ -127,6 +127,27 @@ export class G36Postgres {
       .toEqual([...requiredTables].sort());
   }
 
+  async assertProcContrapartidasSchema(): Promise<void> {
+    const database = await this.scalar<string>('SELECT current_database();');
+    expect(database, 'PostgreSQL runtime debe estar disponible.').toBeTruthy();
+
+    const requiredTables = [
+      'AchCycles',
+      'AchTransactions',
+      'ContrapartidaDispatchBatches',
+      'ContrapartidaDispatchItems',
+      'ContrapartidaDispatchAttempts'
+    ];
+    const rows = await this.query<{ table_name: string }>(
+      `SELECT table_name
+       FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
+      [requiredTables]
+    );
+    expect(rows.map((row) => row.table_name).sort(), 'La base runtime PostgreSQL debe estar provisionada para Proc_Contrapartidas.')
+      .toEqual([...requiredTables].sort());
+  }
+
   async assertIncomingProcTransaccionesSchema(): Promise<void> {
     const requiredTables = [
       'IncomingNachaFileIngestions',
@@ -135,8 +156,13 @@ export class G36Postgres {
       'IncomingNachaEntryClassifications',
       'IncomingNachaTransactionLinks',
       'NachaHeaders',
+      'EntryDetails',
       'AddendaRecords',
-      'TaskDefinition'
+      'BatchHeaders',
+      'BatchControls',
+      'FileControls',
+      'TaskDefinition',
+      'FinancialInstitutions'
     ];
     const tables = await this.query<{ table_name: string }>(
       `SELECT table_name

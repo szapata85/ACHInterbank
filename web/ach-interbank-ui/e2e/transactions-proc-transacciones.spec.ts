@@ -1,6 +1,14 @@
 import { expect, Page, test } from '@playwright/test';
 import { buildIncomingProcTransaccionesFixture } from './support/incoming-proc-transacciones-fixture';
 import { findProcTransaccionesLogEvidence, snapshotSoapLogDirectory } from './support/local-soap-log-evidence';
+import {
+  assertExpectedAmount,
+  assertExpectedReceiverAccount,
+  assertProcTransaccionesEndpointConfigured,
+  blockWithoutEffectiveApiMode,
+  getConfirmedSoapCorrelationTokens,
+  type SoapIntegrationSettings
+} from './support/proc-transacciones-preflight';
 import { G36RuntimeDb, pollUntil, type IncomingNachaIntegrationEvidenceRow } from './support/g36-runtime-db';
 
 type AuthLoginResponse = { data?: { token?: string } };
@@ -14,12 +22,18 @@ const requiredSettings = [
   'ACH_UI_URL',
   'ACH_USER',
   'ACH_PASS',
-  'SOAP_LOCAL_LOG_DIR'
+  'SOAP_LOCAL_LOG_DIR',
+  'ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT',
+  'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT',
+  'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT'
 ].filter((name) => !process.env[name]);
+// Ningún endpoint existente expone el modo efectivo resuelto por la API. El GET de SOAP settings solo devuelve mapping persistido.
+const effectiveApiModePreflightAvailable = false;
 
 test.describe.configure({ mode: 'serial' });
 test.skip(!liveOptIn, 'RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E=true, ALLOW_LOCAL_MONETARY_SOAP_E2E=true y ProcTransacciones__Mode=Live son requeridos para habilitar este E2E monetario local.');
 test.skip(requiredSettings.length > 0, `Faltan variables requeridas para el E2E LIVE: ${requiredSettings.join(', ')}. El spec no contiene fallbacks de credenciales, URLs ni conexiones.`);
+test.skip(!effectiveApiModePreflightAvailable, 'BLOCKED_EFFECTIVE_API_MODE: no existe endpoint autenticado que confirme el modo efectivo Live de Proc_Transacciones en la API en ejecución.');
 
 test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transacciones LIVE', async ({ page }) => {
   test.setTimeout(300_000);
@@ -33,7 +47,14 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
 
   try {
     await db.assertIncomingProcTransaccionesReady();
+    assertExpectedReceiverAccount(fixture, process.env['ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT']!);
+    assertExpectedAmount(fixture, process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT']!);
+    await db.assertIncomingProcTransaccionesReceiver(fixture.receiverAccount, fixture.receivingDfi, fixture.immediateOrigin);
     const token = await authenticate();
+    const settings = await getSoapIntegrationSettings(token);
+    const endpoint = assertProcTransaccionesEndpointConfigured(settings);
+    expect(endpoint).toBe(process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT']);
+    blockWithoutEffectiveApiMode();
     await seedSession(page, token);
     await page.goto(`${process.env['ACH_UI_URL']!.replace(/\/+$/, '')}/transactions/nacha-upload`);
     await expect(page.getByRole('button', { name: 'Cargar archivo' })).toBeVisible();
@@ -75,9 +96,11 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
       );
       assertLiveProcTransaccionesEvidence(evidence, queue.id, Number(queueAfterDispatch.attemptCount));
 
-      const localSoapLog = findProcTransaccionesLogEvidence(logDirectory, logSnapshot, startedAt, fixture.uniqueRunKey);
+      const correlationTokens = getConfirmedSoapCorrelationTokens(evidence.requestPayloadXml, fixture);
+      const localSoapLog = findProcTransaccionesLogEvidence(logDirectory, logSnapshot, startedAt, correlationTokens);
       expect(localSoapLog.text).toContain('Proc_Transacciones');
       expect(localSoapLog.text).not.toContain('Proc_Contrapartidas');
+      expect(localSoapLog.text).not.toContain('RegistrarRespuestaTransaccion');
     } finally {
       await db.restoreIncomingPostProcessing(taskSnapshot);
     }
@@ -99,6 +122,14 @@ async function authenticate(): Promise<string> {
   const payload = await response.json() as AuthLoginResponse;
   expect(payload.data?.token, 'El login UAT debe devolver token.').toBeTruthy();
   return payload.data!.token!;
+}
+
+async function getSoapIntegrationSettings(token: string): Promise<SoapIntegrationSettings> {
+  const response = await fetch(`${process.env['ACH_API_URL']!.replace(/\/+$/, '')}/api/users/soap-integrations`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  expect(response.ok, 'El preflight debe leer la configuración autenticada existente de SOAP.').toBeTruthy();
+  return response.json() as Promise<SoapIntegrationSettings>;
 }
 
 async function seedSession(page: Page, token: string): Promise<void> {

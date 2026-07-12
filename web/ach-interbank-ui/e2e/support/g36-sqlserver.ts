@@ -63,8 +63,13 @@ export class G36SqlServer {
       'IncomingNachaEntryClassifications',
       'IncomingNachaTransactionLinks',
       'NachaHeaders',
+      'EntryDetails',
       'AddendaRecords',
-      'TaskDefinition'
+      'BatchHeaders',
+      'BatchControls',
+      'FileControls',
+      'TaskDefinition',
+      'FinancialInstitutions'
     ];
     const tableList = requiredTables.map(sqlString).join(', ');
     const tables = this.query<{ name: string }>(

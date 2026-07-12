@@ -126,7 +126,36 @@ export type IncomingPostProcessingTaskSnapshot = {
   endAt: Date | string | null;
 };
 
+export type IncomingProcTransaccionesReceiverPreflight = {
+  receiverInstitutionId: number;
+  sourceInstitutionId: number;
+  matchingTransactionCount: number;
+};
+
 type RuntimeProvider = 'SqlServer' | 'Postgres';
+
+export const procContrapartidasReadinessTables = [
+  'AchCycles',
+  'AchTransactions',
+  'ContrapartidaDispatchBatches',
+  'ContrapartidaDispatchItems',
+  'ContrapartidaDispatchAttempts'
+] as const;
+
+export const incomingProcTransaccionesReadinessTables = [
+  'IncomingNachaFileIngestions',
+  'IncomingNachaEntryClassifications',
+  'IncomingNachaTransactionLinks',
+  'IncomingNachaDispatchQueue',
+  'IncomingNachaIntegrationExecution',
+  'NachaHeaders',
+  'EntryDetails',
+  'AddendaRecords',
+  'BatchHeaders',
+  'BatchControls',
+  'FileControls',
+  'TaskDefinition'
+] as const;
 
 export class G36RuntimeDb {
   private readonly provider: RuntimeProvider;
@@ -151,7 +180,7 @@ export class G36RuntimeDb {
 
   async assertReady(): Promise<void> {
     if (this.postgres) {
-      await this.postgres.assertReady();
+      await this.postgres.assertProcContrapartidasSchema();
       return;
     }
 
@@ -159,10 +188,10 @@ export class G36RuntimeDb {
     const rows = this.sqlQuery<{ table_name: string }>(
       `SELECT [name] AS [table_name]
        FROM sys.tables
-       WHERE [name] IN ('AchCycles', 'AchTransactions', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems', 'ContrapartidaDispatchAttempts', 'IncomingNachaFileIngestions', 'IncomingNachaDispatchQueue', 'IncomingNachaIntegrationExecution')`
+       WHERE [name] IN ('AchCycles', 'AchTransactions', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems', 'ContrapartidaDispatchAttempts')`
     );
     expect(rows.map((row) => row.table_name).sort(), 'La base runtime SQL Server debe estar provisionada para Proc_Contrapartidas.')
-      .toEqual(['AchCycles', 'AchTransactions', 'ContrapartidaDispatchAttempts', 'ContrapartidaDispatchBatches', 'ContrapartidaDispatchItems', 'IncomingNachaFileIngestions', 'IncomingNachaDispatchQueue', 'IncomingNachaIntegrationExecution'].sort());
+      .toEqual([...procContrapartidasReadinessTables].sort());
   }
 
   async assertIncomingProcTransaccionesReady(): Promise<void> {
@@ -586,6 +615,63 @@ export class G36RuntimeDb {
        WHERE ${predicates}`
     );
     return singleOrNull(rows, 'La correlación NACHA entrante SQL Server debe identificar una sola ingestión.');
+  }
+
+  async assertIncomingProcTransaccionesReceiver(
+    receiverAccount: string,
+    receivingDfi: string,
+    immediateOrigin: string
+  ): Promise<IncomingProcTransaccionesReceiverPreflight> {
+    if (this.postgres) {
+      const receivers = await this.postgres.query<{ id: number }>(
+        `SELECT "Id" AS id
+         FROM "FinancialInstitutions"
+         WHERE "IsDefaultSource" = TRUE
+           AND ("RoutingNumber" || "TransitCode" || "CheckDigit") = $1`,
+        [receivingDfi]
+      );
+      expect(receivers, 'La cuenta receptora debe pertenecer a la única entidad CFA IsDefaultSource=true con DFI coincidente.').toHaveLength(1);
+      const sources = await this.postgres.query<{ id: number }>(
+        `SELECT "Id" AS id
+         FROM "FinancialInstitutions"
+         WHERE "IsDefaultSource" = FALSE
+           AND LEFT("RoutingNumber" || "TransitCode", char_length($1)) = $1`,
+        [immediateOrigin]
+      );
+      expect(sources.length, 'El origen NACHA-M debe corresponder a una entidad externa, no CFA.').toBeGreaterThan(0);
+      const matchingTransactionCount = Number(await this.postgres.scalar<string>(
+        `SELECT COUNT(*)::text
+         FROM "AchTransactions"
+         WHERE "DestinationInstitutionId" = $1
+           AND "DestinationAccountNumber" = $2`,
+        [receivers[0].id, receiverAccount]
+      ) ?? 0);
+      expect(matchingTransactionCount, 'La cuenta receptora CFA debe estar previamente configurada para correlación entrante.').toBeGreaterThan(0);
+      return { receiverInstitutionId: receivers[0].id, sourceInstitutionId: sources[0].id, matchingTransactionCount };
+    }
+
+    const receivers = this.sqlQuery<{ id: number }>(
+      `SELECT [Id] AS [id]
+       FROM [FinancialInstitutions]
+       WHERE [IsDefaultSource] = 1
+         AND CONCAT([RoutingNumber], [TransitCode], [CheckDigit]) = ${sqlString(receivingDfi)}`
+    );
+    expect(receivers, 'La cuenta receptora debe pertenecer a la única entidad CFA IsDefaultSource=true con DFI coincidente.').toHaveLength(1);
+    const sources = this.sqlQuery<{ id: number }>(
+      `SELECT [Id] AS [id]
+       FROM [FinancialInstitutions]
+       WHERE [IsDefaultSource] = 0
+         AND LEFT(CONCAT([RoutingNumber], [TransitCode]), LEN(${sqlString(immediateOrigin)})) = ${sqlString(immediateOrigin)}`
+    );
+    expect(sources.length, 'El origen NACHA-M debe corresponder a una entidad externa, no CFA.').toBeGreaterThan(0);
+    const matchingTransactionCount = Number(this.sqlServer!.scalar<string>(
+      `SELECT CONVERT(varchar(30), COUNT(*)) AS [value]
+       FROM [AchTransactions]
+       WHERE [DestinationInstitutionId] = ${receivers[0].id}
+         AND [DestinationAccountNumber] = ${sqlString(receiverAccount)}`
+    ) ?? 0);
+    expect(matchingTransactionCount, 'La cuenta receptora CFA debe estar previamente configurada para correlación entrante.').toBeGreaterThan(0);
+    return { receiverInstitutionId: receivers[0].id, sourceInstitutionId: sources[0].id, matchingTransactionCount };
   }
 
   async findIncomingDispatchQueueItem(ingestionId: string): Promise<IncomingNachaDispatchQueueRow | null> {
