@@ -23,14 +23,13 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
     public const string SetupAuthorizationVariable = "ALLOW_PROC_TRANSACCIONES_SYNTHETIC_DATA_SETUP";
     public const string ReceiverAccountVariable = "ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT";
     public const string ExpectedAmountVariable = "ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT";
-    public const string OriginCoreBankCodeVariable = "ACH_E2E_PROC_TRANSACCIONES_ORIGIN_CORE_BANK_CODE";
     public const string TransactionExternalIdPrefix = "E2E-PTX-IN-";
     public const string BatchCompanyName = "ESCENARIO E2E PROC TRANSACCIONES";
     public const string SyntheticRecipientId = "E2EPTXANCHOR001";
     public const string IncomingTransactionCode = "32";
     public const string IncomingServiceClassCode = "220";
     public const string IncomingClearingHouseCode = "CENIT";
-    public const string CfaCoreBankCode = "283";
+    public const string CfaTransitCode = "283";
     public const string SyntheticCompanyIdentification = "E2ECENIT01";
 
     private readonly AchDbContext _context;
@@ -65,7 +64,6 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
         EnsureSafeEnvironment();
         EnsureSetupAuthorized();
         var (receiverAccount, authorizedAmount, amountInCents) = ReadAuthorizedValues();
-        var originCoreBankCode = ReadOriginCoreBankCode();
         ValidateRequest(request);
 
         var cfaCandidates = await _context.FinancialInstitutions
@@ -85,13 +83,13 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
             throw new InvalidOperationException("PROC_TRANSACCIONES_E2E_CFA_INACTIVE: la CFA canónica está inactiva; el setup no la modificará.");
         }
 
-        if (!string.Equals(cfa.CoreBankCode, CfaCoreBankCode, StringComparison.Ordinal))
+        if (!string.Equals(NormalizeTransitCode(cfa.TransitCode), CfaTransitCode, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("PROC_TRANSACCIONES_E2E_CFA_CORE_CODE_INVALID: la CFA canónica debe tener CoreBankCode=283; el setup no modificará instituciones canónicas.");
+            throw new InvalidOperationException("PROC_TRANSACCIONES_E2E_CFA_TRANSIT_CODE_INVALID: la CFA canónica debe tener TransitCode normalizado 283; el setup no modificará instituciones canónicas.");
         }
 
         var receivingDfi = ResolveDfi(cfa, "CFA");
-        var externalResolution = await ResolveExternalInstitutionAsync(originCoreBankCode, allowCreate, ct);
+        var externalResolution = await ResolveExternalInstitutionAsync(allowCreate, ct);
         var external = externalResolution.Institution;
         var externalDfi = ResolveDfi(external, "entidad externa sintética");
         var externalOriginRouting = externalDfi[..8];
@@ -274,18 +272,6 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
         return (account, amount, amountInCents);
     }
 
-    private string ReadOriginCoreBankCode()
-    {
-        var value = (_configuration[OriginCoreBankCodeVariable] ?? string.Empty).Trim();
-        if (!Regex.IsMatch(value, @"^\d{1,3}$"))
-        {
-            throw new InvalidOperationException(
-                $"PROC_TRANSACCIONES_E2E_ORIGIN_CORE_CODE_INVALID: {OriginCoreBankCodeVariable} es obligatoria y debe contener entre uno y tres dígitos.");
-        }
-
-        return value;
-    }
-
     private static void ValidateRequest(IncomingProcTransaccionesE2eScenarioRequest request)
     {
         if (request.OperationalDate == default)
@@ -300,7 +286,6 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
     }
 
     private async Task<(FinancialInstitution Institution, bool Created)> ResolveExternalInstitutionAsync(
-        string originCoreBankCode,
         bool allowCreate,
         CancellationToken ct)
     {
@@ -329,7 +314,6 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
                 Name = FinancialInstitutionSeeder.SyntheticAchExternalName,
                 RoutingNumber = FinancialInstitutionSeeder.SyntheticAchExternalRouting,
                 TransitCode = FinancialInstitutionSeeder.SyntheticAchExternalTransit,
-                CoreBankCode = originCoreBankCode,
                 IsDefaultSource = false,
                 Status = FinancialInstitutionStatus.Active
             };
@@ -348,22 +332,18 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
                 "PROC_TRANSACCIONES_E2E_EXTERNAL_NOT_SYNTHETIC: la entidad con nombre UAT no conserva la marca/routing sintéticos aprobados y no será modificada.");
         }
 
-        if (string.IsNullOrWhiteSpace(external.CoreBankCode))
-        {
-            if (!allowCreate)
-            {
-                throw new InvalidOperationException("PROC_TRANSACCIONES_E2E_EXTERNAL_CORE_CODE_MISSING: ejecute el setup autorizado para completar exclusivamente la institución sintética.");
-            }
-
-            external.CoreBankCode = originCoreBankCode;
-            await _context.SaveChangesAsync(ct);
-        }
-        else if (!string.Equals(external.CoreBankCode, originCoreBankCode, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("PROC_TRANSACCIONES_E2E_EXTERNAL_CORE_CODE_MISMATCH: la institución sintética existente tiene un CoreBankCode diferente y no será modificada.");
-        }
-
         return (external, false);
+    }
+
+    private static string NormalizeTransitCode(string? transitCode)
+    {
+        var value = (transitCode ?? string.Empty).Trim();
+        if (value.Length != 3 || value.Any(c => !char.IsDigit(c)))
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_E2E_TRANSIT_CODE_INVALID: TransitCode debe contener exactamente tres dígitos.");
+        }
+
+        return int.Parse(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
     }
 
     private async Task<AchCycle> ResolveCycleAsync(DateTime operationalDate, int cycleNumber, CancellationToken ct)

@@ -150,15 +150,15 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                 Warnings: []);
         }
 
-        var published = await _context.IntegrationMappingSets
+        var publishedMappings = await _context.IntegrationMappingSets
             .AsNoTracking()
             .Where(x => x.MethodId == method.Id
                 && x.Status == IntegrationMappingSetStatusEnum.Published
                 && x.IsActive)
             .OrderByDescending(x => x.Version)
-            .FirstOrDefaultAsync(ct);
+            .ToListAsync(ct);
 
-        if (published is null)
+        if (publishedMappings.Count == 0)
         {
             var requiredFallbackFields = activeInputParameters
                 .Where(x => x.Required)
@@ -168,9 +168,7 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             return new IntegrationMappingReadinessResult(
                 IsReady: false,
                 Status: "Failed",
-                Code: SupportsTransitionalFallback(operationKey, mappingPurpose)
-                    ? "REQUIRED_MAPPING_USES_FALLBACK"
-                    : "INTEGRATION_MAPPING_REQUIRED",
+                Code: "PUBLISHED_MAPPING_NOT_FOUND",
                 IntegrationKey: integrationKey,
                 OperationKey: operationKey,
                 MappingPurpose: mappingPurpose,
@@ -179,13 +177,22 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                 ActiveMappings: 0,
                 MissingRequiredMappings: requiredFallbackFields,
                 InactiveRequiredMappings: [],
-                FallbackFields: SupportsTransitionalFallback(operationKey, mappingPurpose) ? requiredFallbackFields : [],
-                RequiredFallbackFields: SupportsTransitionalFallback(operationKey, mappingPurpose) ? requiredFallbackFields : [],
-                UsesFallback: SupportsTransitionalFallback(operationKey, mappingPurpose),
+                FallbackFields: [],
+                RequiredFallbackFields: [],
+                UsesFallback: false,
                 CanBuildPayload: false,
                 Errors: [$"No existe IntegrationMappingSet publicado para {methodCode}; no se permite fallback para campos requeridos."],
                 Warnings: []);
         }
+
+        if (publishedMappings.Count != 1)
+        {
+            return Failed(integrationKey, operationKey, mappingPurpose, mappingDirection,
+                "MAPPING_SET_NOT_UNIQUE",
+                [$"Existen {publishedMappings.Count} IntegrationMappingSets publicados y activos para {methodCode}."]);
+        }
+
+        var published = publishedMappings[0];
 
         var requiredParameters = activeInputParameters
             .Where(x => x.Required)
@@ -337,10 +344,10 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             return [$"Proc_Transacciones.transaction: no existe la transacción {transactionId} para evaluar fuentes funcionales."];
         }
 
-        if (!IsCoreBankCode(transaction.DestinationInstitution?.CoreBankCode))
-            errors.Add("Proc_Transacciones.BCORECEP: la CFA receptora no tiene CoreBankCode numérico de uno a tres dígitos.");
-        if (!IsCoreBankCode(transaction.SourceInstitution?.CoreBankCode))
-            errors.Add("Proc_Transacciones.BCOORIG: la institución originadora no tiene CoreBankCode numérico de uno a tres dígitos.");
+        if (!IsTransitCode(transaction.DestinationInstitution?.TransitCode))
+            errors.Add("Proc_Transacciones.BCORECEP: la CFA receptora no tiene TransitCode numérico de tres dígitos.");
+        if (!IsTransitCode(transaction.SourceInstitution?.TransitCode))
+            errors.Add("Proc_Transacciones.BCOORIG: la institución originadora no tiene TransitCode numérico de tres dígitos.");
 
         var clearingHouse = transaction.AchCycle?.ClearingHouse;
         var validClearingHouse = clearingHouse is not null
@@ -389,10 +396,10 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         return errors;
     }
 
-    private static bool IsCoreBankCode(string? value)
+    private static bool IsTransitCode(string? value)
     {
         var normalized = (value ?? string.Empty).Trim();
-        return normalized.Length is >= 1 and <= 3 && normalized.All(char.IsDigit);
+        return normalized.Length == 3 && normalized.All(char.IsDigit);
     }
 
     private static bool SupportsTransitionalFallback(string operationKey, string mappingPurpose)
@@ -555,8 +562,8 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         {
             return parameterPath.ToUpperInvariant() switch
             {
-                "BCORECEP" => !string.Equals(sourcePath, "destinationInstitution.coreBankCode", StringComparison.OrdinalIgnoreCase),
-                "BCOORIG" => !string.Equals(sourcePath, "sourceInstitution.coreBankCode", StringComparison.OrdinalIgnoreCase),
+                "BCORECEP" => !string.Equals(sourcePath, "destinationInstitution.transitCodeNormalized", StringComparison.OrdinalIgnoreCase),
+                "BCOORIG" => !string.Equals(sourcePath, "sourceInstitution.transitCodeNormalized", StringComparison.OrdinalIgnoreCase),
                 "DESTRAN" or "INFPAG" => !string.Equals(sourcePath, "procTransacciones.paymentInformation", StringComparison.OrdinalIgnoreCase),
                 "IDTRAN" => !string.Equals(sourcePath, "transaction.traceSequenceNumber", StringComparison.OrdinalIgnoreCase),
                 "IDLOTE" => !string.Equals(sourcePath, "procTransacciones.functionalBatchId", StringComparison.OrdinalIgnoreCase),

@@ -6971,10 +6971,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<int?>("ClearingHouseId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("CoreBankCode")
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 

@@ -12,13 +12,6 @@ public partial class AddProcTransaccionesFunctionalSources : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.AddColumn<string>(
-            name: "CoreBankCode",
-            table: "FinancialInstitutions",
-            type: "nvarchar(3)",
-            maxLength: 3,
-            nullable: true);
-
         migrationBuilder.AddColumn<int>(
             name: "BatchNumber",
             table: "EntryDetails",
@@ -36,7 +29,6 @@ public partial class AddProcTransaccionesFunctionalSources : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropColumn(name: "CoreBankCode", table: "FinancialInstitutions");
         migrationBuilder.DropColumn(name: "BatchNumber", table: "EntryDetails");
         migrationBuilder.DropColumn(name: "PaymentRelatedInformation", table: "AddendaRecords");
     }

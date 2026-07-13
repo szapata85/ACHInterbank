@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -35,12 +36,18 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             .FirstOrDefaultAsync(x => x.Code == "WSCFAACH.Proc_Transacciones" && x.IsActive, ct)
             ?? throw new InvalidOperationException("No existe IntegrationMethod activo para WSCFAACH.Proc_Transacciones.");
 
-        var mappingSet = await _context.IntegrationMappingSets
+        var publishedMappingSets = await _context.IntegrationMappingSets
             .AsNoTracking()
-            .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published)
+            .Where(x => x.MethodId == method.Id
+                && x.Status == IntegrationMappingSetStatusEnum.Published
+                && x.IsActive)
             .OrderByDescending(x => x.Version)
-            .FirstOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException("No existe IntegrationMappingSet publicado para Proc_Transacciones.");
+            .ToListAsync(ct);
+        if (publishedMappingSets.Count == 0)
+            throw new InvalidOperationException("PUBLISHED_MAPPING_NOT_FOUND: no existe IntegrationMappingSet publicado y activo para Proc_Transacciones.");
+        if (publishedMappingSets.Count != 1)
+            throw new InvalidOperationException("MAPPING_SET_NOT_UNIQUE: existe más de un IntegrationMappingSet publicado y activo para Proc_Transacciones.");
+        var mappingSet = publishedMappingSets[0];
 
         var parameters = await _context.IntegrationMethodParameters
             .AsNoTracking()
@@ -180,8 +187,8 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             "transaction.sourceaccountnumber" => transaction.SourceAccountNumber,
             "transaction.destinationaccountnumber" => transaction.DestinationAccountNumber,
             "transaction.effectiveentrydate" => transaction.EffectiveEntryDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
-            "destinationinstitution.corebankcode" => functionalSource.DestinationCoreBankCode,
-            "sourceinstitution.corebankcode" => functionalSource.SourceCoreBankCode,
+            "destinationinstitution.transitcodenormalized" => functionalSource.DestinationTransitCode,
+            "sourceinstitution.transitcodenormalized" => functionalSource.SourceTransitCode,
             "destinationinstitution.name" => functionalSource.DestinationInstitutionName,
             "sourceinstitution.name" => functionalSource.SourceInstitutionName,
             "proctransacciones.paymentinformation" => functionalSource.PaymentInformation,
@@ -284,9 +291,11 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                         || x.OriginalTraceNumber == entryDetail.SequenceNumber), ct);
         }
 
-        var batchControl = string.IsNullOrWhiteSpace(nachaId)
+        var batchControl = string.IsNullOrWhiteSpace(nachaId) || batchHeader is null
             ? null
-            : await _context.BatchControls.AsNoTracking().OrderBy(x => x.BatchControlID).FirstOrDefaultAsync(x => x.NachaID == nachaId, ct);
+            : await _context.BatchControls.AsNoTracking().OrderBy(x => x.BatchControlID).FirstOrDefaultAsync(
+                x => x.NachaID == nachaId
+                    && x.BatchNumber == batchHeader.BatchNumber.ToString("D7", CultureInfo.InvariantCulture), ct);
 
         var fileControl = string.IsNullOrWhiteSpace(nachaId)
             ? null
@@ -310,8 +319,8 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         var destination = institutions.SingleOrDefault(x => x.Id == transaction.DestinationInstitutionId)
             ?? throw new InvalidOperationException("PROC_TRANSACCIONES_DESTINATION_INSTITUTION_MISSING: no existe la institución receptora enlazada.");
 
-        var sourceCode = ValidateCoreBankCode(source.CoreBankCode, "BCOORIG");
-        var destinationCode = ValidateCoreBankCode(destination.CoreBankCode, "BCORECEP");
+        var sourceCode = NormalizeTransitCode(source.TransitCode, "BCOORIG");
+        var destinationCode = NormalizeTransitCode(destination.TransitCode, "BCORECEP");
         if (!destination.IsDefaultSource)
         {
             throw new InvalidOperationException("PROC_TRANSACCIONES_DESTINATION_NOT_CFA: la institución receptora no es la CFA canónica.");
@@ -325,6 +334,29 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
 
         var batch = nachaSource.BatchHeader
             ?? throw new InvalidOperationException("PROC_TRANSACCIONES_BATCH_MISSING: no se encontró el BatchHeader de la entrada clasificada.");
+        var entry = nachaSource.EntryDetail
+            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_ENTRY_MISSING: no existe el registro tipo 6 clasificado.");
+        var originatorCode = NormalizeParticipantCode(batch.OriginParticipantEntityCode, "BCOORIG");
+        var receiverCode = NormalizeParticipantCode(entry.ReceivingParticipantEntityCode, "BCORECEP");
+        ValidateNachaOriginatorEvidence(nachaSource.Header, batch, entry, nachaSource.BatchControl, clearingHouse.Code);
+        var configuredInstitutions = await _context.FinancialInstitutions
+            .AsNoTracking()
+            .Where(x => x.Status == Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.FinancialInstitutionStatus.Active)
+            .ToListAsync(ct);
+        var sourceFromNacha = ResolveInstitutionByParticipantCode(configuredInstitutions, originatorCode, "BCOORIG");
+        var destinationFromNacha = ResolveInstitutionByParticipantCode(configuredInstitutions, receiverCode, "BCORECEP");
+        if (string.Equals(clearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+        {
+            var immediateOrigin = (nachaSource.Header?.ImmediateOrigin ?? string.Empty).Trim();
+            var expectedImmediateOrigin = $"{originatorCode}{DigitoChequeoHelper.CalcularDigitoChequeo(originatorCode)}";
+            if (!string.Equals(immediateOrigin, expectedImmediateOrigin, StringComparison.Ordinal))
+                throw new InvalidOperationException("PROC_TRANSACCIONES_ACHCOL_IMMEDIATE_ORIGIN_CHECK_DIGIT_MISMATCH: tipo 1 no coincide con tipo 5 y su dígito de chequeo.");
+        }
+        if (!destinationFromNacha.IsDefaultSource)
+            throw new InvalidOperationException("PROC_TRANSACCIONES_DESTINATION_NOT_CFA: la entidad tipo 6 receptora no es CFA.");
+        if (transaction.SourceInstitutionId != sourceFromNacha.Id || transaction.DestinationInstitutionId != destinationFromNacha.Id)
+            throw new InvalidOperationException("PROC_TRANSACCIONES_TRANSACTION_INSTITUTION_MISMATCH: la transacción no coincide con las instituciones derivadas de NACHA-M.");
+
         var addenda = nachaSource.AddendaRecord;
         if (addenda is null || !string.Equals(addenda.CodeTypeAddendumRecord, "05", StringComparison.Ordinal))
         {
@@ -363,15 +395,61 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         return numeric.ToString("D6", CultureInfo.InvariantCulture);
     }
 
-    private static string ValidateCoreBankCode(string? value, string parameter)
+    private static void ValidateNachaOriginatorEvidence(
+        NachaHeader? header,
+        BatchHeader batch,
+        EntryDetail entry,
+        BatchControl? control,
+        string clearingHouseCode)
+    {
+        var originator = NormalizeParticipantCode(batch.OriginParticipantEntityCode, "BCOORIG");
+        if (originator.All(c => c == '0'))
+            throw new InvalidOperationException("PROC_TRANSACCIONES_ORIGINATOR_ZERO: el código originador NACHA-M no puede ser ceros.");
+        var trace = (entry.SequenceNumber ?? string.Empty).Trim();
+        if (trace.Length != 15 || trace.Any(c => !char.IsDigit(c)) || !string.Equals(trace[..8], originator, StringComparison.Ordinal))
+            throw new InvalidOperationException("PROC_TRANSACCIONES_ORIGINATOR_TRACE_MISMATCH: tipo 5 no coincide con tipo 6.");
+        if (control is null || !string.Equals((control.IdOrigEntity ?? string.Empty).Trim(), originator, StringComparison.Ordinal))
+            throw new InvalidOperationException("PROC_TRANSACCIONES_ORIGINATOR_CONTROL_MISMATCH: tipo 5 no coincide con tipo 8.");
+        if (string.Equals(clearingHouseCode, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+        {
+            var immediateOrigin = (header?.ImmediateOrigin ?? string.Empty).Trim();
+            if (immediateOrigin.Length != 9 || immediateOrigin.Any(c => !char.IsDigit(c)) || !string.Equals(immediateOrigin[..8], originator, StringComparison.Ordinal))
+                throw new InvalidOperationException("PROC_TRANSACCIONES_ACHCOL_IMMEDIATE_ORIGIN_MISMATCH: tipo 1 no coincide con tipo 5.");
+        }
+    }
+
+    private static FinancialInstitution ResolveInstitutionByParticipantCode(
+        IReadOnlyCollection<FinancialInstitution> institutions,
+        string participantCode,
+        string parameter)
+    {
+        var matches = institutions.Where(x => string.Equals(
+            $"{x.RoutingNumber?.Trim()}{x.TransitCode?.Trim()}", participantCode, StringComparison.Ordinal)).ToList();
+        return matches.Count switch
+        {
+            1 => matches[0],
+            0 => throw new InvalidOperationException($"PROC_TRANSACCIONES_INSTITUTION_NOT_FOUND: {parameter}={participantCode} no existe en FinancialInstitutions."),
+            _ => throw new InvalidOperationException($"PROC_TRANSACCIONES_INSTITUTION_AMBIGUOUS: {parameter}={participantCode} tiene más de una institución activa.")
+        };
+    }
+
+    private static string NormalizeParticipantCode(string? value, string parameter)
     {
         var normalized = (value ?? string.Empty).Trim();
-        if (normalized.Length is < 1 or > 3 || normalized.Any(c => !char.IsDigit(c)))
+        if (normalized.Length != 8 || normalized.Any(c => !char.IsDigit(c)))
+            throw new InvalidOperationException($"PROC_TRANSACCIONES_ORIGINATOR_INVALID: {parameter} requiere ocho dígitos NACHA-M.");
+        return normalized;
+    }
+
+    private static string NormalizeTransitCode(string? value, string parameter)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (normalized.Length != 3 || normalized.Any(c => !char.IsDigit(c)))
         {
-            throw new InvalidOperationException($"PROC_TRANSACCIONES_CORE_BANK_CODE_INVALID: {parameter} requiere CoreBankCode numérico de uno a tres dígitos.");
+            throw new InvalidOperationException($"PROC_TRANSACCIONES_TRANSIT_CODE_INVALID: {parameter} requiere TransitCode numérico de tres dígitos.");
         }
 
-        return normalized;
+        return int.Parse(normalized, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
     }
 
     private static void ValidateCanonicalClearingHouse(ClearingHouse clearingHouse)
@@ -397,8 +475,8 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         FileControl? FileControl);
 
     private sealed record FunctionalSourceContext(
-        string SourceCoreBankCode,
-        string DestinationCoreBankCode,
+        string SourceTransitCode,
+        string DestinationTransitCode,
         string SourceInstitutionName,
         string DestinationInstitutionName,
         string FunctionalBatchId,

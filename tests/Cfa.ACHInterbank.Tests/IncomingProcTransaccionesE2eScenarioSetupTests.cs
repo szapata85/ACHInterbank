@@ -56,8 +56,8 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
         Assert.Equal("E2EACCOUNT0008684", transaction.DestinationAccountNumber);
         Assert.Equal(IncomingProcTransaccionesE2eScenarioSetupService.SyntheticRecipientId, transaction.RecipientIdNumber);
         Assert.Equal(IncomingProcTransaccionesE2eScenarioSetupService.SyntheticCompanyIdentification, transaction.CompanyIdentification);
-        Assert.Equal("283", fixture.Cfa.CoreBankCode);
-        Assert.Equal("999", fixture.External.CoreBankCode);
+        Assert.Equal("283", fixture.Cfa.TransitCode);
+        Assert.Equal(FinancialInstitutionSeeder.SyntheticAchExternalTransit, fixture.External.TransitCode);
         Assert.Equal(AchTransferStateEnum.Pending, transaction.State);
     }
 
@@ -134,33 +134,6 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
     }
 
     [Fact]
-    public async Task EnsureAsync_WithoutAuthorizedOriginCoreBankCode_BlocksBeforeMutation()
-    {
-        await using var fixture = await ScenarioFixture.CreateAsync(
-            includeCfa: true,
-            includeExternal: true,
-            originCoreBankCode: null);
-
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.CreateService().EnsureAsync(Request()));
-
-        Assert.Contains("ORIGIN_CORE_CODE_INVALID", error.Message);
-        Assert.Empty(await fixture.Context.AchTransactions.ToListAsync());
-    }
-
-    [Fact]
-    public async Task EnsureAsync_ExistingSyntheticOriginWithDifferentCoreBankCode_BlocksWithoutOverwrite()
-    {
-        await using var fixture = await ScenarioFixture.CreateAsync(includeCfa: true, includeExternal: true);
-        fixture.External!.CoreBankCode = "111";
-        await fixture.Context.SaveChangesAsync();
-
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.CreateService().EnsureAsync(Request()));
-
-        Assert.Contains("EXTERNAL_CORE_CODE_MISMATCH", error.Message);
-        Assert.Equal("111", (await fixture.Context.FinancialInstitutions.SingleAsync(x => x.Id == fixture.External.Id)).CoreBankCode);
-    }
-
-    [Fact]
     public void RelevantModel_IsEquivalentForSqlServerAndPostgresProviders()
     {
         using var sql = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
@@ -228,8 +201,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
             bool includeCfa,
             bool includeExternal,
             bool authorized = true,
-            string authorizedAmount = "123.45",
-            string? originCoreBankCode = "999")
+            string authorizedAmount = "123.45")
         {
             var connection = new SqliteConnection("DataSource=:memory:");
             await connection.OpenAsync();
@@ -240,8 +212,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
             {
                 [IncomingProcTransaccionesE2eScenarioSetupService.SetupAuthorizationVariable] = authorized ? "true" : "false",
                 [IncomingProcTransaccionesE2eScenarioSetupService.ReceiverAccountVariable] = "E2EACCOUNT0008684",
-                [IncomingProcTransaccionesE2eScenarioSetupService.ExpectedAmountVariable] = authorizedAmount,
-                [IncomingProcTransaccionesE2eScenarioSetupService.OriginCoreBankCodeVariable] = originCoreBankCode
+                [IncomingProcTransaccionesE2eScenarioSetupService.ExpectedAmountVariable] = authorizedAmount
             }).Build();
             var environment = new Mock<IHostEnvironment>();
             environment.SetupGet(x => x.EnvironmentName).Returns("Testing");
@@ -280,8 +251,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
 
             if (includeCfa)
             {
-                fixture.Cfa = Institution("CFA CANONICA", "00001", "006", isDefault: true);
-                fixture.Cfa.CoreBankCode = IncomingProcTransaccionesE2eScenarioSetupService.CfaCoreBankCode;
+                fixture.Cfa = Institution("CFA CANONICA", "00001", "283", isDefault: true);
                 context.FinancialInstitutions.Add(fixture.Cfa);
             }
 
@@ -292,7 +262,6 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
                     FinancialInstitutionSeeder.SyntheticAchExternalRouting,
                     FinancialInstitutionSeeder.SyntheticAchExternalTransit,
                     isDefault: false);
-                fixture.External.CoreBankCode = "999";
                 context.FinancialInstitutions.Add(fixture.External);
             }
 

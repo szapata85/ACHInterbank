@@ -7004,10 +7004,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int?>("ClearingHouseId")
                         .HasColumnType("int");
 
-                    b.Property<string>("CoreBankCode")
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 

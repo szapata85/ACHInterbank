@@ -514,8 +514,8 @@ public sealed class IntegrationMappingBootstrapper
         => parameterPath switch
         {
             "TIPTRAN" => "transaction.transactionCode",
-            "BCORECEP" => "destinationInstitution.coreBankCode",
-            "BCOORIG" => "sourceInstitution.coreBankCode",
+            "BCORECEP" => "destinationInstitution.transitCodeNormalized",
+            "BCOORIG" => "sourceInstitution.transitCodeNormalized",
             "NORIG" => "sourceInstitution.name",
             "NCTAORIG" => "transaction.sourceAccountNumber",
             "IDORIG" => "transaction.companyIdentification",

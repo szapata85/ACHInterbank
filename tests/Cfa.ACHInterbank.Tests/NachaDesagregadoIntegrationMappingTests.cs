@@ -52,12 +52,12 @@ public sealed class NachaDesagregadoIntegrationMappingTests
     [Theory]
     [InlineData(true, "BCORECEP")]
     [InlineData(false, "BCOORIG")]
-    public async Task ProcTransaccionesReadiness_MissingCoreBankCode_Blocks(bool receiver, string parameter)
+    public async Task ProcTransaccionesReadiness_MissingTransitCode_Blocks(bool receiver, string parameter)
     {
         await using var fixture = await Fixture.CreateAsync();
         await fixture.PublishProcTransaccionesMappingAsync();
         var institution = await fixture.Context.FinancialInstitutions.SingleAsync(x => x.Id == (receiver ? 1 : 2));
-        institution.CoreBankCode = null;
+        institution.TransitCode = string.Empty;
         await fixture.Context.SaveChangesAsync();
 
         var readiness = await new IntegrationMappingReadinessService(fixture.Context, fixture.Catalog)
@@ -86,7 +86,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Equal("2", result.Contract.Parameters["IDCAMCOMPE"]);
         Assert.Equal("32", result.Contract.Parameters["TIPTRAN"]);
         Assert.Equal("283", result.Contract.Parameters["BCORECEP"]);
-        Assert.Equal("999", result.Contract.Parameters["BCOORIG"]);
+        Assert.Equal("900", result.Contract.Parameters["BCOORIG"]);
         Assert.Equal("20260713", result.Contract.Parameters["FECEFEC"]);
         Assert.Equal("V", result.Contract.Parameters["DISCRE"]);
         Assert.Equal("1234567", result.Contract.Parameters["IDTRAN"]);
@@ -164,7 +164,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Equal(77, resolution.Contract.Parameters["DESTRAN"].Length);
         Assert.Equal(resolution.Contract.Parameters["DESTRAN"], resolution.Contract.Parameters["INFPAG"]);
         Assert.Equal("283", resolution.Contract.Parameters["BCORECEP"]);
-        Assert.Equal("999", resolution.Contract.Parameters["BCOORIG"]);
+        Assert.Equal("900", resolution.Contract.Parameters["BCOORIG"]);
         Assert.Equal("000001", resolution.Contract.Parameters["IDLOTE"]);
         Assert.Equal("1", resolution.Contract.Parameters["IDCAMCOMPE"]);
         Assert.Equal("32", resolution.Contract.SourceValues!["transaction.transactionCode"]);
@@ -333,23 +333,21 @@ public sealed class NachaDesagregadoIntegrationMappingTests
             {
                 Id = 1,
                 Name = "Cooperativa Financiera de Antioquia",
-                RoutingNumber = "0001",
-                TransitCode = "0283",
+                RoutingNumber = "00001",
+                TransitCode = "283",
                 IsDefaultSource = true,
                 Status = FinancialInstitutionStatus.Active
             };
-            cfa.CoreBankCode = "283";
             cfa.CalculateCheckDigit();
             var external = new FinancialInstitution
             {
                 Id = 2,
                 Name = "Banco Externo UAT",
-                RoutingNumber = "9999",
-                TransitCode = "0000",
+                RoutingNumber = "99999",
+                TransitCode = "900",
                 IsDefaultSource = false,
                 Status = FinancialInstitutionStatus.Active
             };
-            external.CoreBankCode = "999";
             external.CalculateCheckDigit();
             Context.FinancialInstitutions.AddRange(cfa, external);
             Cycle = new AchCycle
@@ -377,9 +375,9 @@ public sealed class NachaDesagregadoIntegrationMappingTests
                 DestinationInstitutionId = 1,
                 SourceAccountNumber = string.Empty,
                 DestinationAccountNumber = "0000003202",
-                OriginatingDFI = "9999000",
-                ReceivingDFI = "0001283",
-                TraceNumber = "999900001234567",
+                OriginatingDFI = "99999900",
+                ReceivingDFI = "00001283",
+                TraceNumber = "999999001234567",
                 TraceSequenceNumber = 1234567,
                 CompanyIdentification = "900999000",
                 AchCycleId = Cycle.Id,
@@ -405,8 +403,8 @@ public sealed class NachaDesagregadoIntegrationMappingTests
             {
                 NachaID = "NACHA-DES-001",
                 IncomingNachaFileIngestionId = Ingestion.Id,
-                ImmediateOrigin = "9999000",
-                ImmediateDestination = "0001283",
+                ImmediateOrigin = "999999002",
+                ImmediateDestination = "00001283",
                 FileIdModifier = "A",
                 ReferenceCode = "REF-UAT",
                 ClearingHouseId = 1,
@@ -421,7 +419,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
                 StandardEntryClassCode = "PPD",
                 CompanyEntryDescription = "PAGO UAT",
                 EffectiveEntryDate = "260713",
-                OriginParticipantEntityCode = "9999000",
+                OriginParticipantEntityCode = "99999900",
                 BatchNumber = 1
             });
             Context.EntryDetails.Add(new EntryDetail
@@ -429,12 +427,12 @@ public sealed class NachaDesagregadoIntegrationMappingTests
                 EntryDetailID = 601,
                 NachaID = "NACHA-DES-001",
                 TransactionCode = "32",
-                ReceivingParticipantEntityCode = "0001283",
+                ReceivingParticipantEntityCode = "00001283",
                 AccountNumber = "0000003202",
                 Amount = 4321.50m,
                 RecipIdNumber = "900003201",
                 RecipUserName = "USUARIO UAT",
-                SequenceNumber = "999900001234567",
+                SequenceNumber = "999999001234567",
                 BatchNumber = 1
             });
             Context.AddendaRecords.Add(new AddendaRecord
@@ -453,7 +451,9 @@ public sealed class NachaDesagregadoIntegrationMappingTests
                 EntryAddendaCount = 2,
                 EntryHash = 1283,
                 TotalCreditAmount = 4321.50m,
-                TotalDebitAmount = 0m
+                TotalDebitAmount = 0m,
+                IdOrigEntity = "99999900",
+                BatchNumber = "0000001"
             });
             Context.FileControls.Add(new FileControl
             {

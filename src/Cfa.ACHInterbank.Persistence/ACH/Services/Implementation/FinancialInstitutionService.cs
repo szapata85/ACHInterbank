@@ -42,7 +42,6 @@ public class FinancialInstitutionService : IFinancialInstitutionService
 
     public async Task<FinancialInstitutionDto> CreateAsync(FinancialInstitutionDto dto, CancellationToken ct = default)
     {
-        ValidateCoreBankCode(dto.CoreBankCode);
         var entity = _mapper.Map<FinancialInstitution>(dto);
         entity.CalculateCheckDigit();
 
@@ -54,7 +53,6 @@ public class FinancialInstitutionService : IFinancialInstitutionService
 
     public async Task<FinancialInstitutionDto> UpdateAsync(FinancialInstitutionDto dto, CancellationToken ct = default)
     {
-        ValidateCoreBankCode(dto.CoreBankCode);
         var entity = await _context.FinancialInstitutions.FindAsync(new object?[] { dto.Id }, ct)
                      ?? throw new KeyNotFoundException("Institución no encontrada");
 
@@ -73,13 +71,5 @@ public class FinancialInstitutionService : IFinancialInstitutionService
         await _context.SaveChangesAsync(ct);
     }
 
-    private static void ValidateCoreBankCode(string? coreBankCode)
-    {
-        var value = coreBankCode?.Trim();
-        if (!string.IsNullOrEmpty(value) && (value.Length > 3 || value.Any(c => !char.IsDigit(c))))
-        {
-            throw new ArgumentException("CoreBankCode debe contener entre uno y tres dígitos.", nameof(coreBankCode));
-        }
-    }
 }
 
