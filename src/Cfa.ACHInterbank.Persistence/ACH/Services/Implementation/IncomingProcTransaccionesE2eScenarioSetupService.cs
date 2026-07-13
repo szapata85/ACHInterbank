@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -25,6 +26,9 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
     public const string TransactionExternalIdPrefix = "E2E-PTX-IN-";
     public const string BatchCompanyName = "ESCENARIO E2E PROC TRANSACCIONES";
     public const string SyntheticRecipientId = "E2EPTXANCHOR001";
+    public const string IncomingTransactionCode = "32";
+    public const string IncomingServiceClassCode = "220";
+    public const string IncomingClearingHouseCode = "CENIT";
 
     private readonly AchDbContext _context;
     private readonly IConfiguration _configuration;
@@ -131,8 +135,8 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
                 TransactionExternalId = scenarioKey,
                 Reference = scenarioKey,
                 Type = TransactionTypeEnum.Credit,
-                TransactionCode = "22",
-                ServiceClassCode = "220",
+                TransactionCode = IncomingTransactionCode,
+                ServiceClassCode = IncomingServiceClassCode,
                 CompanyEntryDescriptionId = companyEntryDescription.Id,
                 CompanyName = BatchCompanyName,
                 CompanyIdentification = scenarioKey,
@@ -227,16 +231,21 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
         }
 
         var rawAmount = (_configuration[ExpectedAmountVariable] ?? string.Empty).Trim();
-        if (!decimal.TryParse(rawAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount))
+        if (!Regex.IsMatch(rawAmount, @"^\d+(?:[\.,]\d{1,2})?$")
+            || !decimal.TryParse(
+                rawAmount.Replace(',', '.'),
+                NumberStyles.AllowDecimalPoint,
+                CultureInfo.InvariantCulture,
+                out var amount))
         {
             throw new InvalidOperationException(
-                $"PROC_TRANSACCIONES_E2E_AMOUNT_MISSING: {ExpectedAmountVariable} debe contener un decimal autorizado sin fallback.");
+                $"PROC_TRANSACCIONES_E2E_AMOUNT_MISSING: {ExpectedAmountVariable} debe contener un decimal autorizado sin separadores de miles, usando punto o coma y mÃ¡ximo dos decimales.");
         }
 
         if (amount <= 0m)
         {
             throw new InvalidOperationException(
-                "PROC_TRANSACCIONES_E2E_AMOUNT_INVALID: TransactionCode=22 requiere monto monetario mayor que cero.");
+                $"PROC_TRANSACCIONES_E2E_AMOUNT_INVALID: TransactionCode={IncomingTransactionCode} requiere monto monetario mayor que cero.");
         }
 
         var scale = (decimal.GetBits(amount)[3] >> 16) & 0x7F;
@@ -326,7 +335,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
             .Include(x => x.ClearingHouse)
             .Where(x => x.ProcessingDate.Date == operationalDate.Date
                         && x.ClearingHouse != null
-                        && x.ClearingHouse.Code == "ACHCOL")
+                        && x.ClearingHouse.Code == IncomingClearingHouseCode)
             .ToListAsync(ct);
 
         var candidates = cycles
@@ -336,7 +345,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
         if (candidates.Count != 1)
         {
             throw new InvalidOperationException(
-                $"PROC_TRANSACCIONES_E2E_CYCLE_AMBIGUOUS: se esperaba un ciclo ACHCOL {cycleNumber} para {operationalDate:yyyy-MM-dd} y se encontraron {candidates.Count}.");
+                $"PROC_TRANSACCIONES_E2E_CYCLE_AMBIGUOUS: se esperaba un ciclo {IncomingClearingHouseCode} {cycleNumber} para {operationalDate:yyyy-MM-dd} y se encontraron {candidates.Count}.");
         }
 
         return candidates[0];
@@ -381,7 +390,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
         batch = new AchBatch
         {
             AchCycleId = cycle.Id,
-            ServiceClassCode = "220",
+            ServiceClassCode = IncomingServiceClassCode,
             CompanyName = BatchCompanyName,
             CompanyIdentification = scenarioKey,
             CompanyEntryDescription = companyEntryDescription.Term,
@@ -410,7 +419,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
         var valid = transaction.TransactionExternalId == scenarioKey
                     && transaction.Reference == scenarioKey
                     && transaction.Type == TransactionTypeEnum.Credit
-                    && transaction.TransactionCode == "22"
+                    && transaction.TransactionCode == IncomingTransactionCode
                     && transaction.Amount == amount
                     && transaction.SourceInstitutionId == external.Id
                     && transaction.DestinationInstitutionId == cfa.Id

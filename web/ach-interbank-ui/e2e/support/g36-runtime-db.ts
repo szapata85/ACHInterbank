@@ -712,12 +712,12 @@ export class G36RuntimeDb {
            AND "SourceInstitutionId" = $2
            AND "DestinationAccountNumber" = $3
            AND "Amount" = $4
-           AND "TransactionCode" = '22'
+           AND "TransactionCode" = '32'
            AND "Type" = 'Credit'
            AND "TransactionExternalId" LIKE 'E2E-PTX-IN-%'`,
         [receivers[0].id, sources[0].id, receiverAccount, expectedAmount]
       ) ?? 0);
-      expect(matchingTransactionCount, 'Debe existir exactamente una transacción sintética crédito código 22 para CFA, origen, cuenta y monto autorizados.').toBe(1);
+      expect(matchingTransactionCount, 'Debe existir exactamente una transacción sintética crédito CENIT código 32 para CFA, origen, cuenta y monto autorizados.').toBe(1);
 
       return {
         receiverInstitutionId: receivers[0].id,
@@ -754,11 +754,11 @@ export class G36RuntimeDb {
          AND [SourceInstitutionId] = ${sources[0].id}
          AND [DestinationAccountNumber] = ${sqlString(receiverAccount)}
          AND [Amount] = ${expectedAmount}
-         AND [TransactionCode] = N'22'
+         AND [TransactionCode] = N'32'
          AND [Type] = N'Credit'
          AND [TransactionExternalId] LIKE N'E2E-PTX-IN-%'`
     ) ?? 0);
-    expect(matchingTransactionCount, 'Debe existir exactamente una transacción sintética crédito código 22 para CFA, origen, cuenta y monto autorizados.').toBe(1);
+    expect(matchingTransactionCount, 'Debe existir exactamente una transacción sintética crédito CENIT código 32 para CFA, origen, cuenta y monto autorizados.').toBe(1);
 
     return {
       receiverInstitutionId: receivers[0].id,

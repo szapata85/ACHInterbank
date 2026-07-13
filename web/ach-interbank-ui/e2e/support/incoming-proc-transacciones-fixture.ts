@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { inflateRawSync } from 'node:zlib';
 
 const recordLength = 106;
 const batchHeaderRecordIndex = 1;
@@ -14,6 +15,12 @@ const entrySequenceLength = 15;
 const batchNumberOffset = 91;
 const batchNumberLength = 7;
 const syntheticRecipientId = 'E2EPTXANCHOR001';
+const cenitPackageEntryName = '0001283.002.20260713.1';
+const cenitRuntimeFileName = '0001283.002.1';
+const cenitSelectedBatchHeaderIndex = 13;
+const cenitSelectedEntryIndex = 14;
+const cenitSelectedAddendaIndex = 15;
+const cenitSelectedBatchControlIndex = 16;
 
 export type IncomingProcTransaccionesFixtureInput = {
   receiverAccount: string;
@@ -81,17 +88,27 @@ export function buildIncomingProcTransaccionesFixture(
   const transactionTrace = deriveFifteenDigitTrace(input.uniqueRunKey, input.externalOriginRouting);
   const amountInCents = toAmountInCents(input.amount);
 
+  writeFixed(content, batchStart + 4, 16, 'BANCO UAT CENIT', ' ');
+  writeFixed(content, batchStart + 20, 20, 'ESCENARIO E2E', ' ');
+  writeFixed(content, batchStart + 40, 10, 'E2ECENIT01', ' ');
+  writeFixed(content, batchStart + 53, 10, 'CREDITOE2E', ' ');
   writeFixed(content, batchStart + 83, 8, input.externalOriginRouting, '0');
   writeFixed(content, entryStart + 3, 8, receivingRouting, '0');
   writeFixed(content, entryStart + 11, 1, receivingCheckDigit, '0');
   writeFixed(content, entryStart + 12, 17, input.receiverAccount, ' ');
   writeFixed(content, entryStart + 29, 18, amountInCents.toString(), '0');
   writeFixed(content, entryStart + 47, 15, syntheticRecipientId, ' ');
+  writeFixed(content, entryStart + 62, 22, 'RECEPTOR E2E', ' ');
+  writeFixed(content, entryStart + 84, 2, '', ' ');
   writeFixed(content, entryStart + entrySequenceOffset, entrySequenceLength, transactionTrace, '0');
+  writeFixed(content, addendaStart + 87, 7, transactionTrace.slice(-7), '0');
+  writeFixed(content, batchControlStart + 56, 10, 'E2ECENIT01', ' ');
   writeFixed(content, batchControlStart + 91, 8, input.externalOriginRouting, '0');
 
-  content.fill(0x20, addendaStart + invoiceOffset, addendaStart + invoiceOffset + invoiceLength);
+  content.fill(0x20, addendaStart + 3, addendaStart + 83);
+  writeFixed(content, addendaStart + 3, 13, 'E2EPTXANCHOR', ' ');
   content.write(input.uniqueRunKey, addendaStart + invoiceOffset, 'ascii');
+  writeFixed(content, addendaStart + 87, 7, transactionTrace.slice(-7), '0');
 
   const calculated = calculateControls(content);
   writeBatchControl(content, calculated);
@@ -112,9 +129,90 @@ export function buildIncomingProcTransaccionesFixture(
   };
 }
 
+export function buildIncomingProcTransaccionesCenitFixture(
+  input: IncomingProcTransaccionesFixtureInput,
+  packagePath = process.env['CENIT_TEST_PACKAGE_PATH']
+): IncomingProcTransaccionesFixture {
+  validateInput(input);
+  if (!packagePath) {
+    throw new Error('CENIT_TEST_PACKAGE_PATH es obligatoria para derivar el fixture CENIT autorizado.');
+  }
+
+  const source = readZipEntry(packagePath, cenitPackageEntryName);
+  const sourceRecords = splitRecords(source);
+  if (sourceRecords.length !== 20) {
+    throw new Error(`La fuente CENIT ${cenitPackageEntryName} debe contener exactamente 20 registros de 106 bytes.`);
+  }
+
+  const selected = [
+    sourceRecords[0],
+    sourceRecords[cenitSelectedBatchHeaderIndex],
+    sourceRecords[cenitSelectedEntryIndex],
+    sourceRecords[cenitSelectedAddendaIndex],
+    sourceRecords[cenitSelectedBatchControlIndex]
+  ];
+  if (selected.some((record) => record === undefined)
+    || selected.map((record) => record![0]).join('') !== '15678') {
+    throw new Error('La entrada CENIT seleccionada no conserva la secuencia estructural 1/5/6/7/8 esperada.');
+  }
+  if (selected[1]!.slice(1, 4) !== '220'
+    || selected[2]!.slice(1, 3) !== '32'
+    || selected[3]!.slice(0, 3) !== '705') {
+    throw new Error('La fuente CENIT seleccionada debe ser lote 220, crédito entrante código 32 y addenda 05.');
+  }
+
+  const fileControl = Buffer.alloc(recordLength, 0x20);
+  fileControl[0] = 0x39;
+  const content = Buffer.from([
+    ...selected.map((record) => Buffer.from(record!, 'ascii')),
+    fileControl,
+    ...Array.from({ length: 4 }, () => Buffer.from('9'.repeat(recordLength), 'ascii'))
+  ].reduce((all, record) => [...all, ...record], [] as number[]));
+
+  const batchStart = batchHeaderRecordIndex * recordLength;
+  const entryStart = entryDetailRecordIndex * recordLength;
+  const addendaStart = addendaRecordIndex * recordLength;
+  const batchControlStart = batchControlRecordIndex * recordLength;
+  const receivingRouting = input.receivingDfi.slice(0, 8);
+  const receivingCheckDigit = input.receivingDfi.slice(8);
+  const transactionTrace = deriveFifteenDigitTrace(input.uniqueRunKey, input.externalOriginRouting);
+  const amountInCents = toAmountInCents(input.amount);
+
+  writeFixed(content, batchStart + 83, 8, input.externalOriginRouting, '0');
+  writeFixed(content, batchStart + batchNumberOffset, batchNumberLength, '1', '0');
+  writeFixed(content, entryStart + 3, 8, receivingRouting, '0');
+  writeFixed(content, entryStart + 11, 1, receivingCheckDigit, '0');
+  writeFixed(content, entryStart + 12, 17, input.receiverAccount, ' ');
+  writeFixed(content, entryStart + 29, 18, amountInCents.toString(), '0');
+  writeFixed(content, entryStart + 47, 15, syntheticRecipientId, ' ');
+  writeFixed(content, entryStart + entrySequenceOffset, entrySequenceLength, transactionTrace, '0');
+  writeFixed(content, batchControlStart + 91, 8, input.externalOriginRouting, '0');
+  writeFixed(content, batchControlStart + 99, 7, '1', '0');
+  content.fill(0x20, addendaStart + invoiceOffset, addendaStart + invoiceOffset + invoiceLength);
+  content.write(input.uniqueRunKey, addendaStart + invoiceOffset, 'ascii');
+
+  const calculated = calculateControls(content);
+  writeBatchControl(content, calculated);
+  writeFileControl(content, calculated);
+  const fields = parseIncomingProcTransaccionesFixture(content, input.uniqueRunKey, cenitRuntimeFileName);
+  validateDerivedFixture(fields, input, transactionTrace, calculated, '32');
+
+  return {
+    fileName: cenitRuntimeFileName,
+    content,
+    ...fields,
+    immediateOrigin: content.subarray(13, 23).toString('ascii').trim(),
+    idTran: transactionTrace,
+    idTranSource: 'entryDetails.sequenceNumber',
+    idLote: fields.batchNumber,
+    idLoteSource: 'batchHeaders.batchNumber'
+  };
+}
+
 export function parseIncomingProcTransaccionesFixture(
   content: Buffer,
-  uniqueRunKey: string
+  uniqueRunKey: string,
+  sourceFileName = goldenFileName()
 ): IncomingProcTransaccionesFixtureFields {
   if (content.length !== recordLength * 10) {
     throw new Error('El contenido NACHA-M derivado debe conservar exactamente 10 registros de 106 bytes.');
@@ -166,7 +264,7 @@ export function parseIncomingProcTransaccionesFixture(
     externalOriginRouting,
     uniqueRunKey,
     operationalDate: readAscii(content, 23, 8),
-    cycleNumber: readCycleNumber(goldenFileName()),
+    cycleNumber: readCycleNumber(sourceFileName),
     batchControls,
     fileControls
   };
@@ -217,10 +315,11 @@ function validateDerivedFixture(
   fields: IncomingProcTransaccionesFixtureFields,
   input: IncomingProcTransaccionesFixtureInput,
   transactionTrace: string,
-  calculated: IncomingProcTransaccionesControls
+  calculated: IncomingProcTransaccionesControls,
+  expectedTransactionCode = '22'
 ): void {
-  if (fields.transactionCode !== '22') {
-    throw new Error('El fixture Proc_Transacciones debe conservar TransactionCode=22.');
+  if (fields.transactionCode !== expectedTransactionCode) {
+    throw new Error(`El fixture Proc_Transacciones debe conservar TransactionCode=${expectedTransactionCode}.`);
   }
   if (fields.receiverAccount !== input.receiverAccount
     || fields.receivingDfi !== input.receivingDfi
@@ -399,6 +498,57 @@ function readCycleNumber(fileName: string): number {
     throw new Error(`No se pudo resolver el ciclo desde ${fileName}.`);
   }
   return parsed;
+}
+
+function readZipEntry(packagePath: string, entryName: string): Buffer {
+  const zip = readFileSync(packagePath);
+  const eocdSignature = 0x06054b50;
+  let eocdOffset = -1;
+  for (let offset = zip.length - 22; offset >= Math.max(0, zip.length - 65_557); offset--) {
+    if (zip.readUInt32LE(offset) === eocdSignature) {
+      eocdOffset = offset;
+      break;
+    }
+  }
+  if (eocdOffset < 0) {
+    throw new Error('El paquete CENIT no contiene un directorio central ZIP válido.');
+  }
+
+  const entryCount = zip.readUInt16LE(eocdOffset + 10);
+  let centralOffset = zip.readUInt32LE(eocdOffset + 16);
+  for (let index = 0; index < entryCount; index++) {
+    if (zip.readUInt32LE(centralOffset) !== 0x02014b50) {
+      throw new Error('El directorio central del paquete CENIT está corrupto.');
+    }
+    const compression = zip.readUInt16LE(centralOffset + 10);
+    const compressedSize = zip.readUInt32LE(centralOffset + 20);
+    const uncompressedSize = zip.readUInt32LE(centralOffset + 24);
+    const nameLength = zip.readUInt16LE(centralOffset + 28);
+    const extraLength = zip.readUInt16LE(centralOffset + 30);
+    const commentLength = zip.readUInt16LE(centralOffset + 32);
+    const localOffset = zip.readUInt32LE(centralOffset + 42);
+    const name = zip.subarray(centralOffset + 46, centralOffset + 46 + nameLength).toString('utf8');
+    if (name === entryName) {
+      if (zip.readUInt32LE(localOffset) !== 0x04034b50) {
+        throw new Error(`La entrada ${entryName} no contiene un header ZIP local válido.`);
+      }
+      const localNameLength = zip.readUInt16LE(localOffset + 26);
+      const localExtraLength = zip.readUInt16LE(localOffset + 28);
+      const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+      const compressed = zip.subarray(dataOffset, dataOffset + compressedSize);
+      const value = compression === 0
+        ? Buffer.from(compressed)
+        : compression === 8
+          ? inflateRawSync(compressed)
+          : (() => { throw new Error(`Compresión ZIP ${compression} no soportada para ${entryName}.`); })();
+      if (value.length !== uncompressedSize) {
+        throw new Error(`La entrada ${entryName} no conserva el tamaño declarado en el ZIP.`);
+      }
+      return value;
+    }
+    centralOffset += 46 + nameLength + extraLength + commentLength;
+  }
+  throw new Error(`El paquete CENIT no contiene la entrada requerida ${entryName}.`);
 }
 
 function goldenFileName(): string {

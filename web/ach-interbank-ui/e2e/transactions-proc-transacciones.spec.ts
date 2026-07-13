@@ -1,11 +1,12 @@
 import { expect, Page, test } from '@playwright/test';
-import { buildIncomingProcTransaccionesFixture } from './support/incoming-proc-transacciones-fixture';
+import { buildIncomingProcTransaccionesCenitFixture } from './support/incoming-proc-transacciones-fixture';
 import { findProcTransaccionesLogEvidence, snapshotSoapLogDirectory } from './support/local-soap-log-evidence';
 import {
   assertExpectedAmount,
   assertExpectedReceiverAccount,
   assertEffectiveProcTransaccionesPreflight,
   getConfirmedSoapCorrelationTokens,
+  parseAuthorizedProcTransaccionesAmount,
   readAuthorizedFixtureInput,
   type SoapIntegrationSettings
 } from './support/proc-transacciones-preflight';
@@ -26,7 +27,8 @@ const requiredSettings = [
   'ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT',
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT',
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT',
-  'ALLOW_PROC_TRANSACCIONES_SYNTHETIC_DATA_SETUP'
+  'ALLOW_PROC_TRANSACCIONES_SYNTHETIC_DATA_SETUP',
+  'CENIT_TEST_PACKAGE_PATH'
 ].filter((name) => !process.env[name]);
 // Ningún endpoint existente expone el modo efectivo resuelto por la API. El GET de SOAP settings solo devuelve mapping persistido.
 
@@ -45,12 +47,14 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
 
   try {
     await db.assertIncomingProcTransaccionesReady();
-    const expectedAmount = Number(process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT']);
+    const expectedAmount = parseAuthorizedProcTransaccionesAmount(
+      process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT']!
+    );
     const scenario = await db.resolveIncomingProcTransaccionesScenario(
       process.env['ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT']!,
       expectedAmount
     );
-    const fixture = buildIncomingProcTransaccionesFixture(
+    const fixture = buildIncomingProcTransaccionesCenitFixture(
       readAuthorizedFixtureInput(runKey, scenario)
     );
     await db.assertIncomingProcTransaccionesFileAvailable(fixture.fileName);

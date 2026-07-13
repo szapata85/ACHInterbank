@@ -50,10 +50,7 @@ export function readAuthorizedFixtureInput(
   if (!rawAmount) {
     throw new Error('El monto autorizado ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT es obligatorio y no tiene fallback.');
   }
-  const amount = Number(rawAmount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('TransactionCode=22 requiere un monto autorizado mayor que cero.');
-  }
+  const amount = parseAuthorizedProcTransaccionesAmount(rawAmount);
   return {
     receiverAccount,
     receivingDfi: setup.receivingDfi,
@@ -98,10 +95,22 @@ export function assertExpectedReceiverAccount(fixture: IncomingProcTransacciones
 }
 
 export function assertExpectedAmount(fixture: IncomingProcTransaccionesFixture, expectedAmount: string): void {
-  const parsed = Number(expectedAmount);
+  const parsed = parseAuthorizedProcTransaccionesAmount(expectedAmount);
   if (!Number.isFinite(parsed) || parsed <= 0 || fixture.amount !== parsed) {
     throw new Error('El monto del fixture no coincide con ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT. La carga NACHA-M fue bloqueada antes del upload.');
   }
+}
+
+export function parseAuthorizedProcTransaccionesAmount(rawAmount: string): number {
+  const normalized = rawAmount.trim();
+  if (!/^\d+(?:[.,]\d{1,2})?$/.test(normalized)) {
+    throw new Error('El monto autorizado debe ser decimal sin separadores de miles, usando punto o coma y máximo dos decimales.');
+  }
+  const amount = Number(normalized.replace(',', '.'));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('TransactionCode=32 requiere un monto autorizado mayor que cero.');
+  }
+  return amount;
 }
 
 export function assertEffectiveProcTransaccionesPreflight(

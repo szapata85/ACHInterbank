@@ -5,6 +5,7 @@ import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   buildIncomingProcTransaccionesFixture,
+  buildIncomingProcTransaccionesCenitFixture,
   incomingProcTransaccionesGoldenPath,
   parseIncomingProcTransaccionesFixture,
   validateIncomingProcTransaccionesControls
@@ -88,14 +89,18 @@ test.describe('Proc_Transacciones pre-LIVE guardrails', () => {
   test('escenario completo pasa readiness y genera fixture autorizado', () => {
     assertSyntheticSetupReadiness(readySetup);
     const input = readAuthorizedFixtureInput('PTX-20260712-000003', readySetup, authorizedEnvironment);
-    const fixture = buildIncomingProcTransaccionesFixture(input);
-    const parsed = parseIncomingProcTransaccionesFixture(fixture.content, fixture.uniqueRunKey);
+    if (!process.env['CENIT_TEST_PACKAGE_PATH']) {
+      expect(() => buildIncomingProcTransaccionesCenitFixture(input)).toThrow(/CENIT_TEST_PACKAGE_PATH/);
+      return;
+    }
+    const fixture = buildIncomingProcTransaccionesCenitFixture(input);
+    const parsed = parseIncomingProcTransaccionesFixture(fixture.content, fixture.uniqueRunKey, fixture.fileName);
 
     expect(parsed.receiverAccount).toBe(input.receiverAccount);
     expect(parsed.receivingDfi).toBe(input.receivingDfi);
     expect(parsed.amount).toBe(input.amount);
     expect(parsed.externalOriginRouting).toBe(input.externalOriginRouting);
-    expect(parsed.transactionCode).toBe('22');
+    expect(parsed.transactionCode).toBe('32');
     expect(parsed.batchNumber).toBe('0000001');
     expect(() => validateIncomingProcTransaccionesControls(fixture.content)).not.toThrow();
   });

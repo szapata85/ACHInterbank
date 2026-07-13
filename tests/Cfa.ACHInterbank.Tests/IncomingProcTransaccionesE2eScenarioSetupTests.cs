@@ -15,7 +15,7 @@ namespace Cfa.ACHInterbank.Tests;
 
 public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
 {
-    private static readonly DateTime OperationalDate = new(2026, 5, 24);
+    private static readonly DateTime OperationalDate = new(2026, 7, 13);
 
     [Fact]
     public async Task EnsureAsync_WithoutExplicitAuthorization_BlocksBeforeMutation()
@@ -49,13 +49,27 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
 
         var transaction = await fixture.Context.AchTransactions.AsNoTracking().SingleAsync();
         Assert.Equal(TransactionTypeEnum.Credit, transaction.Type);
-        Assert.Equal("22", transaction.TransactionCode);
+        Assert.Equal("32", transaction.TransactionCode);
         Assert.Equal(123.45m, transaction.Amount);
         Assert.Equal(fixture.Cfa!.Id, transaction.DestinationInstitutionId);
         Assert.Equal(fixture.External!.Id, transaction.SourceInstitutionId);
         Assert.Equal("E2EACCOUNT0008684", transaction.DestinationAccountNumber);
         Assert.Equal(IncomingProcTransaccionesE2eScenarioSetupService.SyntheticRecipientId, transaction.RecipientIdNumber);
         Assert.Equal(AchTransferStateEnum.Pending, transaction.State);
+    }
+
+    [Fact]
+    public async Task EnsureAsync_DecimalComma_IsParsedAsDecimalWithoutThousandsAmbiguity()
+    {
+        await using var fixture = await ScenarioFixture.CreateAsync(
+            includeCfa: true,
+            includeExternal: true,
+            authorizedAmount: "234678,85");
+
+        var result = await fixture.CreateService().EnsureAsync(Request());
+
+        Assert.Equal(234678.85m, result.AuthorizedAmount);
+        Assert.Equal(234678.85m, await fixture.Context.AchTransactions.Select(x => x.Amount).SingleAsync());
     }
 
     [Fact]
@@ -141,7 +155,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
     private static IncomingProcTransaccionesE2eScenarioRequest Request() => new()
     {
         OperationalDate = OperationalDate,
-        CycleNumber = 6
+        CycleNumber = 1
     };
 
     private static FinancialInstitution Institution(string name, string routing, string transit, bool isDefault)
@@ -183,7 +197,8 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
         public static async Task<ScenarioFixture> CreateAsync(
             bool includeCfa,
             bool includeExternal,
-            bool authorized = true)
+            bool authorized = true,
+            string authorizedAmount = "123.45")
         {
             var connection = new SqliteConnection("DataSource=:memory:");
             await connection.OpenAsync();
@@ -194,7 +209,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
             {
                 [IncomingProcTransaccionesE2eScenarioSetupService.SetupAuthorizationVariable] = authorized ? "true" : "false",
                 [IncomingProcTransaccionesE2eScenarioSetupService.ReceiverAccountVariable] = "E2EACCOUNT0008684",
-                [IncomingProcTransaccionesE2eScenarioSetupService.ExpectedAmountVariable] = "123.45"
+                [IncomingProcTransaccionesE2eScenarioSetupService.ExpectedAmountVariable] = authorizedAmount
             }).Build();
             var environment = new Mock<IHostEnvironment>();
             environment.SetupGet(x => x.EnvironmentName).Returns("Testing");
@@ -204,15 +219,15 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
             context.ClearingHouses.Add(new ClearingHouse
             {
                 Id = 1,
-                Name = "ACH Colombia",
-                Code = "ACHCOL",
-                OriginCode = "12345678",
+                Name = "CENIT",
+                Code = "CENIT",
+                OriginCode = "011111111",
                 ClearingHouseId = 1
             });
             context.AchCycles.Add(new AchCycle
             {
-                Id = "ACH-20260524-06",
-                CycleName = "Ciclo 6 - ACH Colombia",
+                Id = "CENIT-20260713-01",
+                CycleName = "Ciclo 1 - CENIT",
                 ProcessingDate = OperationalDate,
                 StartTime = TimeSpan.Zero,
                 EndTime = new TimeSpan(23, 59, 0),

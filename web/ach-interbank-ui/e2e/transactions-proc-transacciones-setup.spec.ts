@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import {
-  buildIncomingProcTransaccionesFixture,
-  incomingProcTransaccionesGoldenPath,
+  buildIncomingProcTransaccionesCenitFixture,
   validateIncomingProcTransaccionesControls
 } from './support/incoming-proc-transacciones-fixture';
 import {
@@ -20,6 +19,7 @@ const required = [
   'ACH_USER',
   'ACH_PASS',
   'ACH_E2E_DB_PROVIDER',
+  'CENIT_TEST_PACKAGE_PATH',
   'ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT',
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT'
 ].filter((name) => !process.env[name]);
@@ -30,12 +30,16 @@ test.skip(required.length > 0, `Faltan variables para setup PRE-LIVE: ${required
 
 test('provisiona escenario sintético idempotente, genera fixture en memoria y valida controles sin upload', async () => {
   const token = await authenticate();
-  const golden = readFileSync(incomingProcTransaccionesGoldenPath());
-  const rawOperationalDate = golden.subarray(23, 31).toString('ascii');
-  const operationalDate = `${rawOperationalDate.slice(0, 4)}-${rawOperationalDate.slice(4, 6)}-${rawOperationalDate.slice(6, 8)}`;
-  const cycleNumber = 6;
+  const packageBefore = readFileSync(process.env['CENIT_TEST_PACKAGE_PATH']!);
+  const operationalDate = '2026-07-13';
+  const cycleNumber = 1;
   const first = await setupScenario(token, operationalDate, cycleNumber);
   const second = await setupScenario(token, operationalDate, cycleNumber);
+
+  console.log(JSON.stringify({
+    first: setupEvidence(first),
+    second: setupEvidence(second)
+  }));
 
   assertSyntheticSetupReadiness(first);
   assertSyntheticSetupReadiness(second);
@@ -44,7 +48,7 @@ test('provisiona escenario sintético idempotente, genera fixture en memoria y v
   expect(second.externalInstitutionId).toBe(first.externalInstitutionId);
   expect(second.transactionId).toBe(first.transactionId);
 
-  const amount = Number(process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT']);
+  const amount = first.authorizedAmount;
   const db = new G36RuntimeDb('playwright-local-proc-transacciones-setup');
   try {
     await db.assertIncomingProcTransaccionesReady();
@@ -52,16 +56,19 @@ test('provisiona escenario sintético idempotente, genera fixture en memoria y v
       process.env['ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT']!,
       amount
     );
-    const fixture = buildIncomingProcTransaccionesFixture(
+    const fixture = buildIncomingProcTransaccionesCenitFixture(
       readAuthorizedFixtureInput('PTX-SETUP-PREFLIGHT-0001', scenario)
     );
     await db.assertIncomingProcTransaccionesFileAvailable(fixture.fileName);
-    expect(fixture.content.equals(golden)).toBe(false);
+    expect(fixture.transactionCode).toBe('32');
+    expect(fixture.operationalDate).toBe('20260713');
+    expect(fixture.cycleNumber).toBe(1);
     expect(fixture.receiverAccount).toBe(process.env['ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT']);
     expect(fixture.amount).toBe(amount);
     expect(fixture.receivingDfi).toBe(scenario.receivingDfi);
     expect(fixture.externalOriginRouting).toBe(scenario.externalOriginRouting);
     expect(() => validateIncomingProcTransaccionesControls(fixture.content)).not.toThrow();
+    expect(readFileSync(process.env['CENIT_TEST_PACKAGE_PATH']!).equals(packageBefore)).toBe(true);
   } finally {
     await db.close();
   }
@@ -78,6 +85,22 @@ async function authenticate(): Promise<string> {
   const token = payload.data?.token ?? payload.token ?? payload.accessToken;
   expect(token, 'El login debe devolver token sin imprimirlo.').toBeTruthy();
   return token!;
+}
+
+function setupEvidence(result: ProcTransaccionesSyntheticSetupResult & {
+  createdExternalInstitution: boolean;
+  createdTransaction: boolean;
+}) {
+  return {
+    cfaInstitutionId: result.cfaInstitutionId,
+    externalInstitutionId: result.externalInstitutionId,
+    transactionId: result.transactionId,
+    achCycleId: result.achCycleId,
+    receiverAccountMasked: result.receiverAccountMasked,
+    authorizedAmount: result.authorizedAmount,
+    createdExternalInstitution: result.createdExternalInstitution,
+    createdTransaction: result.createdTransaction
+  };
 }
 
 async function setupScenario(
