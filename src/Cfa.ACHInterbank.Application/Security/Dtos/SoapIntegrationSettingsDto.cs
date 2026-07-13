@@ -14,4 +14,6 @@ public record ProcTransaccionesEffectiveSettingsDto
     public string Endpoint { get; init; } = string.Empty;
     public bool Enabled { get; init; }
     public bool MappingReady { get; init; }
+    public string? MappingIssueCode { get; init; }
+    public IReadOnlyCollection<string> BlockingParameters { get; init; } = [];
 }

@@ -97,8 +97,9 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
         Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
         Assert.False(readiness.UsesFallback);
         Assert.False(readiness.CanBuildPayload);
-        Assert.Contains(readiness.Errors, x => x.Contains("TREG", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(readiness.Errors, x => x.Contains("SEED", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(readiness.Errors, x => x.Contains("TREG", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(readiness.Errors, x => x.Contains("IDLOTE", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(readiness.Errors, x => x.Contains("BCORECEP", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -417,7 +418,9 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
 
         Assert.NotNull(readiness);
         Assert.Equal(IntegrationGuaranteeConstants.ProcTransacciones, readiness!.OperationKey);
-        Assert.True(readiness.Readiness.IsReady);
+        Assert.False(readiness.Readiness.IsReady);
+        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Readiness.Code);
+        Assert.Contains(readiness.Readiness.Errors, x => x.Contains("IDLOTE", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

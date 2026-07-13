@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -18,6 +20,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
     private readonly AchDbContext _dbContext;
     private readonly AppSettings? _appSettings = AppSettings.Settings;
     private readonly ProcTransaccionesDispatchOptions _procTransaccionesDispatchOptions;
+    private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -26,10 +29,12 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
 
     public SoapIntegrationSettingsService(
         AchDbContext dbContext,
-        IOptions<ProcTransaccionesDispatchOptions> procTransaccionesDispatchOptions)
+        IOptions<ProcTransaccionesDispatchOptions> procTransaccionesDispatchOptions,
+        IIntegrationMappingReadinessService? mappingReadinessService = null)
     {
         _dbContext = dbContext;
         _procTransaccionesDispatchOptions = procTransaccionesDispatchOptions.Value;
+        _mappingReadinessService = mappingReadinessService;
     }
 
     public async Task<SoapIntegrationSettingsDto> GetAsync(CancellationToken ct = default)
@@ -50,7 +55,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             _dbContext.Set<SoapIntegrationSetting>().Add(settings);
             await _dbContext.SaveChangesAsync(ct);
 
-            return WithEffectiveProcTransaccionesSettings(defaults);
+            return await WithEffectiveProcTransaccionesSettingsAsync(defaults, ct);
         }
 
         var hydrated = MapToDto(settings);
@@ -65,7 +70,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             await _dbContext.SaveChangesAsync(ct);
         }
 
-        return WithEffectiveProcTransaccionesSettings(hydrated);
+        return await WithEffectiveProcTransaccionesSettingsAsync(hydrated, ct);
     }
 
     public async Task<SoapIntegrationSettingsDto> SaveAsync(SoapIntegrationSettingsDto request, CancellationToken ct = default)
@@ -87,7 +92,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
 
         await _dbContext.SaveChangesAsync(ct);
 
-        return WithEffectiveProcTransaccionesSettings(normalized);
+        return await WithEffectiveProcTransaccionesSettingsAsync(normalized, ct);
     }
 
     private SoapIntegrationSettingsDto BuildDefaultSettings()
@@ -152,12 +157,11 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
     private static List<SoapInputParameterMappingDto> BuildProcTransaccionesInputMappings()
         =>
         [
-            MapInput("TREG"), MapInput("TIPTRAN"), MapInput("BCORECEP"), MapInput("BCOORIG"), MapInput("NORIG"),
+            MapInput("TREG", required: false), MapInput("TIPTRAN"), MapInput("BCORECEP"), MapInput("BCOORIG"), MapInput("NORIG"),
             MapInput("NCTAORIG", required: false), MapInput("IDORIG"), MapInput("DESTRAN"), MapInput("FECEFEC"), MapInput("NCTARECEP"),
-            MapInput("MONTO"), MapInput("NRECEP"), MapInput("IDRECEP"), MapInput("DISCRE", required: false), MapInput("CONV"),
-            MapInput("PROD"), MapInput("INFPAG"), MapInput("IDTRAN"), MapInput("IDLOTE"), MapInput("REGLOTE"),
-            MapInput("IREVER"), MapInput("LIBRE"), MapInput("IDCAMCOMPE"), MapInput("DIRECCIONIP"), MapInput("LIBRE1"),
-            MapInput("ILR", required: false)
+            MapInput("MONTO"), MapInput("NRECEP"), MapInput("IDRECEP"), MapInput("DISCRE", required: false), MapInput("CONV", required: false),
+            MapInput("PROD", required: false), MapInput("INFPAG"), MapInput("IDTRAN"), MapInput("IDLOTE"), MapInput("REGLOTE", required: false),
+            MapInput("IREVER"), MapInput("LIBRE", required: false), MapInput("IDCAMCOMPE"), MapInput("DIRECCIONIP", required: false), MapInput("LIBRE1", required: false)
         ];
 
     private static SoapInputParameterMappingDto MapInput(string name, bool required = true)
@@ -262,15 +266,34 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             .ToList();
     }
 
-    private SoapIntegrationSettingsDto WithEffectiveProcTransaccionesSettings(SoapIntegrationSettingsDto settings)
+    private async Task<SoapIntegrationSettingsDto> WithEffectiveProcTransaccionesSettingsAsync(
+        SoapIntegrationSettingsDto settings,
+        CancellationToken ct)
     {
         var mapping = settings.WscfaachMappings
             .FirstOrDefault(x => string.Equals(x.MethodName, "Proc_Transacciones", StringComparison.OrdinalIgnoreCase));
         var endpoint = mapping?.Endpoint?.Trim() ?? string.Empty;
         var enabled = mapping?.Enabled == true;
+        var readiness = _mappingReadinessService is null
+            ? null
+            : await _mappingReadinessService.EvaluateAsync(
+                IntegrationGuaranteeConstants.Wscfaach,
+                IntegrationGuaranteeConstants.ProcTransacciones,
+                IntegrationGuaranteeConstants.MonetaryCreditRequest,
+                IntegrationGuaranteeConstants.OutboundRequest,
+                ct: ct);
         var mappingReady = enabled
             && !string.IsNullOrWhiteSpace(endpoint)
-            && mapping!.InputParameterMappings.Any(x => string.Equals(x.InputName, "IDTRAN", StringComparison.OrdinalIgnoreCase));
+            && readiness?.IsReady == true
+            && readiness.CanBuildPayload;
+        var blockingParameters = readiness is null
+            ? Array.Empty<string>()
+            : readiness.MissingRequiredMappings
+                .Concat(readiness.InactiveRequiredMappings)
+                .Concat(readiness.Errors.Select(TryReadBlockingParameter).OfType<string>())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
         return settings with
         {
@@ -280,9 +303,21 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                 EffectiveMode = _procTransaccionesDispatchOptions.NormalizedMode,
                 Endpoint = endpoint,
                 Enabled = enabled,
-                MappingReady = mappingReady
+                MappingReady = mappingReady,
+                MappingIssueCode = mappingReady ? null : readiness?.Code ?? "FUNCTIONAL_MAPPING_INVALID",
+                BlockingParameters = blockingParameters
             }
         };
+    }
+
+    private static string? TryReadBlockingParameter(string error)
+    {
+        const string prefix = "Proc_Transacciones.";
+        var start = error.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return null;
+        start += prefix.Length;
+        var end = error.IndexOf(':', start);
+        return end > start ? error[start..end].Trim() : null;
     }
 
 }

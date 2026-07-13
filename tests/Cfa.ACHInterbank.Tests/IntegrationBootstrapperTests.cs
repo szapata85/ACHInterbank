@@ -143,11 +143,13 @@ public sealed class IntegrationBootstrapperTests
         var published = await fixture.Context.IntegrationMappingSets.SingleAsync(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published);
         var rules = await fixture.Context.IntegrationMappingRules.Where(x => x.MappingSetId == published.Id).ToListAsync();
 
-        Assert.Equal(28, parameters.Count);
-        Assert.Equal(26, rules.Count);
+        Assert.Equal(27, parameters.Count);
         Assert.Contains(parameters, x => x.ParameterPath == "NCTAORIG" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
         Assert.Contains(parameters, x => x.ParameterPath == "DISCRE" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
-        Assert.Contains(parameters, x => x.ParameterPath == "ILR" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
+        Assert.DoesNotContain(parameters, x => x.ParameterPath == "ILR");
+        Assert.All(new[] { "TREG", "CONV", "PROD", "REGLOTE", "LIBRE", "DIRECCIONIP", "LIBRE1" },
+            path => Assert.Contains(parameters, x => x.ParameterPath == path && !x.Required));
+        Assert.DoesNotContain(rules, x => string.Equals(x.DefaultValue, "SEED", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(parameters, x => x.ParameterPath == "MONTO" && x.Required && x.Direction == IntegrationParameterDirectionEnum.Input);
         Assert.Contains(parameters, x => x.ParameterPath == "RTAACH" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Output);
         Assert.Contains(parameters, x => x.ParameterPath == "RTALOC" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Output);

@@ -71,6 +71,10 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             }
 
             var value = ResolveValue(rule, queueItem, ingestion, classification, transaction, cycle, executionDateTime, nachaSource);
+            if (!parameter.Required && IsPlaceholder(value))
+            {
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(value) && parameter.Required)
             {
                 throw new InvalidOperationException($"El parámetro requerido {parameter.ParameterPath} no pudo resolverse.");
@@ -83,13 +87,25 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             }
         }
 
-        var requiredKeys = new[] { "TREG", "TIPTRAN", "MONTO", "IDTRAN", "IDCAMCOMPE" };
-        foreach (var key in requiredKeys)
+        var hasHomologatedIdLoteSource = rules.Any(x =>
+            parameters.Any(p => p.Id == x.ParameterId
+                && string.Equals(p.ParameterPath, "IDLOTE", StringComparison.OrdinalIgnoreCase))
+            && string.Equals(x.SourceFieldPath, "procTransacciones.functionalBatchId", StringComparison.OrdinalIgnoreCase));
+        resolved.TryGetValue("IDLOTE", out var idLote);
+        if (hasHomologatedIdLoteSource
+            && idLote is not null
+            && (!resolved.TryGetValue("IDTRAN", out var idTran)
+                || !idTran.All(char.IsDigit)
+                || idTran.Length != 7))
         {
-            if (!resolved.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
-            {
-                throw new InvalidOperationException($"El mapping publicado no resolvió {key} para Proc_Transacciones.");
-            }
+            throw new InvalidOperationException("IDTRAN debe contener exactamente siete digitos derivados de la entrada NACHA-M.");
+        }
+
+        if (hasHomologatedIdLoteSource
+            && idLote is not null
+            && (!idLote.All(char.IsDigit) || idLote.Length != 6))
+        {
+            throw new InvalidOperationException("IDLOTE debe contener exactamente seis digitos y una fuente funcional homologada.");
         }
 
         var snapshotHash = await _context.IntegrationMappingSetHistory
@@ -109,7 +125,11 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
     public string BuildSoapBody(ProcTransaccionesRequestContract request)
     {
         var operation = new XElement(ActionNamespace + "Proc_Transacciones",
-            request.Parameters.Select(x => new XElement(ActionNamespace + x.Key, x.Value)));
+            request.Parameters
+                .Where(x => !string.IsNullOrWhiteSpace(x.Value)
+                    && !string.Equals(x.Key, "METODO", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(x.Key, "ILR", StringComparison.OrdinalIgnoreCase))
+                .Select(x => new XElement(ActionNamespace + x.Key, x.Value)));
         var envelope = new XDocument(
             new XElement(XName.Get("Envelope", "http://schemas.xmlsoap.org/soap/envelope/"),
                 new XAttribute(XNamespace.Xmlns + "soapenv", "http://schemas.xmlsoap.org/soap/envelope/"),
@@ -145,6 +165,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             "transaction.amount" => transaction.Amount.ToString(CultureInfo.InvariantCulture),
             "transaction.transactioncode" => transaction.TransactionCode,
             "transaction.tracenumber" or "transaction.trace" => transaction.TraceNumber,
+            "transaction.tracesequencenumber" => transaction.TraceSequenceNumber.ToString("D7", CultureInfo.InvariantCulture),
             "transaction.transactionexternalid" or "transaction.externalid" => transaction.TransactionExternalId,
             "transaction.reference" => transaction.Reference,
             "transaction.companyidentification" => transaction.CompanyIdentification,
@@ -200,6 +221,11 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
 
     private static string? FirstNonEmpty(params string?[] values)
         => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+
+    private static bool IsPlaceholder(string? value)
+        => string.Equals(value?.Trim(), "SEED", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value?.Trim(), "PLACEHOLDER", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value?.Trim(), "TODO", StringComparison.OrdinalIgnoreCase);
 
     private async Task<NachaSourceContext> LoadNachaSourceContextAsync(
         IncomingNachaEntryClassification classification,

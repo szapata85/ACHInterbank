@@ -327,3 +327,40 @@ La carga se bloqueo porque continuar habria usado una cuenta y un monto distinto
 **NO-GO**.
 
 Las compuertas tecnicas de API Live, DTO efectivo, mapping y conectividad Docker/SOAP se abrieron correctamente. La compuerta funcional/monetaria fallo antes del upload por desacuerdo de cuenta y monto autorizados y por ausencia de receptor CFA, origen externo y transaccion receptora correlacionables en SQL Server. Para retomar, se deben suministrar variables que coincidan exactamente con el fixture sintetico autorizado y provisionar los datos institucionales/transaccionales mediante el mecanismo normal de aplicacion o seeding aprobado; no mediante SQL directo. Despues debe repetirse desde Fase 1 y volver a ejecutar Fase 8 antes de considerar la unica ejecucion LIVE.
+
+---
+
+## Ejecucion LIVE consumida - bloqueo de mapping antes de SOAP
+
+- Resultado: **NO-GO**.
+- Upload: si.
+- SOAP: no alcanzado.
+- Request SOAP: no construido.
+- Response SOAP: no recibida.
+- Codigo: `MAPPING_INVALID`.
+- Detalle: `FUNCTIONAL_MAPPING_PLACEHOLDER`.
+- `AttemptCount`: 1.
+- Movimiento monetario: no.
+- Restauracion: completada.
+
+No se repitio el spec LIVE. Los identificadores de ingestion, cola y correlacion se conservaron unicamente en la evidencia operativa enmascarada; no se copio payload ni dato personal a esta documentacion.
+
+## Homologacion productiva de mappings - Commit 4.2
+
+### Evidencia validada
+
+- Log: `docs/uat/Logs_Ejemplos/Trama_ACH_20260626.log`.
+- SHA-256: `36CF1C99C118EEFD90DB2FD93FCC4CA98F0811944E606239C22A814713984C6C`.
+- Bloques correlacionados `INICIO Proc_Transacciones` / `FIN Proc_Transacciones: R96`: 1576.
+- Parametros presentes en todos los bloques: `TIPTRAN`, `BCORECEP`, `BCOORIG`, `NORIG`, `NCTAORIG`, `IDORIG`, `DESTRAN`, `FECEFEC`, `NCTARECEP`, `MONTO`, `NRECEP`, `IDRECEP`, `DISCRE`, `INFPAG`, `IDTRAN`, `IDLOTE`, `IREVER`, `IDCAMCOMPE`, `ILR`.
+- Parametros ausentes: `TREG`, `CONV`, `PROD`, `REGLOTE`, `LIBRE`, `DIRECCIONIP`, `LIBRE1`.
+- Datos personales copiados: no.
+- XML productivo persistido: no.
+
+### Contrato y decision funcional
+
+El WSDL vigente conserva los siete parametros ausentes con `minOccurs=0`; por ello permanecen en el contrato como opcionales, sin `SEED`, y se omiten del outbound cuando no tienen valor. `ILR` aparece en el log legacy, pero no pertenece al WSDL vigente y no se envia. `<METODO>` sigue siendo metadato interno legacy y tampoco se envia.
+
+La homologacion permanece bloqueada. `FinancialInstitution` no posee un codigo core aprobado distinto de routing/transit/check digit para derivar `BCORECEP` y `BCOORIG`. El log confirma que `IDLOTE` contiene seis digitos, pero no demuestra que corresponda a `BatchSequenceNumber`, al `BatchNumber` NACHA-M de siete digitos ni a otro consecutivo. Tampoco existe equivalencia de catalogo publicada para `IDCAMCOMPE`. No se inventaron conversiones ni se truncaron valores.
+
+`mappingReady` utiliza ahora el mismo evaluator que el dispatch y expone codigo de incidencia y nombres de parametros bloqueantes sin valores sensibles. Hasta homologar las fuentes anteriores, el resultado es **NO-GO MAPPING**. Durante esta fase no se ejecuto upload, Playwright LIVE, Quartz ni SOAP.

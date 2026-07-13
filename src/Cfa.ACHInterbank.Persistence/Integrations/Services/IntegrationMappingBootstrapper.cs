@@ -207,6 +207,11 @@ public sealed class IntegrationMappingBootstrapper
         foreach (var parameter in parameters.Where(x => x.Direction == IntegrationParameterDirectionEnum.Input))
         {
             var sourcePath = sourcePathFor(parameter.ParameterPath);
+            if (sourcePath is null && !parameter.Required)
+            {
+                continue;
+            }
+
             _context.IntegrationMappingRules.Add(new IntegrationMappingRule
             {
                 MappingSetId = published.Id,
@@ -215,7 +220,7 @@ public sealed class IntegrationMappingBootstrapper
                 SourceKind = SourceKindFor(sourcePath),
                 SourceFieldPath = sourcePath ?? string.Empty,
                 FixedValue = sourcePath is null ? DefaultValueFor(parameter) : null,
-                DefaultValue = parameter.Required ? null : DefaultValueFor(parameter),
+                DefaultValue = null,
                 Priority = 1,
                 Enabled = true
             });
@@ -442,20 +447,20 @@ public sealed class IntegrationMappingBootstrapper
     private static string? ProcTransaccionesSourcePathFor(string parameterPath)
         => parameterPath switch
         {
-            "TIPTRAN" => "entryDetails.transactionCode",
+            "TIPTRAN" => "transaction.transactionCode",
             "BCORECEP" => "nachaHeaders.immediateDestination",
             "BCOORIG" => "nachaHeaders.immediateOrigin",
             "NORIG" => "batchHeaders.companyName",
-            "NCTAORIG" => "batchHeaders.companyId",
-            "IDORIG" => "batchHeaders.companyId",
+            "NCTAORIG" => "transaction.sourceAccountNumber",
+            "IDORIG" => "transaction.companyIdentification",
             "DESTRAN" => "batchHeaders.companyEntryDescription",
-            "FECEFEC" => "batchHeaders.effectiveEntryDate",
-            "NCTARECEP" => "entryDetails.accountNumber",
-            "MONTO" => "entryDetails.amount",
+            "FECEFEC" => "transaction.effectiveEntryDate",
+            "NCTARECEP" => "transaction.destinationAccountNumber",
+            "MONTO" => "transaction.amount",
             "NRECEP" => "entryDetails.recipUserName",
             "IDRECEP" => "entryDetails.recipIdNumber",
             "INFPAG" => "addendaRecords.infofromOriginator",
-            "IDTRAN" => "entryDetails.sequenceNumber",
+            "IDTRAN" => "transaction.traceSequenceNumber",
             "IDLOTE" => "batchHeaders.batchNumber",
             "REGLOTE" => "batchControls.entryAddendaCount",
             "LIBRE1" => "fileControls.blockCount",

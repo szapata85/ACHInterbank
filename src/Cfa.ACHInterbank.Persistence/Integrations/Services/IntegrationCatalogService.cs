@@ -289,7 +289,7 @@ public class IntegrationCatalogService : IIntegrationCatalogService
         var i = 1;
         return
         [
-            Spec("TREG", "Tipo de registro", "Tipo de registro ACH transacción.", "Entrada transacción", "6", "Tipo de registro según layout ACH.", "string", true, i++),
+            Spec("TREG", "Tipo de registro", "Tipo de registro ACH transacción.", "Entrada transacción", "6", "Tipo de registro según layout ACH.", "string", false, i++),
             Spec("TIPTRAN", "Tipo transacción", "Código de tipo de transacción.", "Entrada transacción", "22", "Código según tabla operativa.", "int", true, i++),
             Spec("BCORECEP", "Banco receptor", "Código banco receptor.", "Entrada transacción", "1007", "Código bancario receptor.", "int", true, i++),
             Spec("BCOORIG", "Banco origen", "Código banco originador.", "Entrada transacción", "1001", "Código bancario origen.", "int", true, i++),
@@ -303,18 +303,17 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Spec("NRECEP", "Nombre receptor", "Nombre del receptor.", "Entrada transacción", "JUAN PEREZ", "Nombre receptor en mayúsculas.", "string", true, i++),
             Spec("IDRECEP", "Id receptor", "Identificación del receptor.", "Entrada transacción", "1099001122", "Documento receptor.", "string", true, i++),
             Spec("DISCRE", "Discrecional", "Campo discrecional receptor.", "Entrada transacción", "", "Campo opcional según operación.", "string", false, i++),
-            Spec("CONV", "Convenio", "Código de convenio.", "Entrada transacción", "CNV01", "Convenio aplicable a la operación.", "string", true, i++),
-            Spec("PROD", "Producto", "Código de producto.", "Entrada transacción", "ACH", "Producto financiero asociado.", "string", true, i++),
+            Spec("CONV", "Convenio", "Código de convenio.", "Entrada transacción", "CNV01", "Convenio aplicable a la operación.", "string", false, i++),
+            Spec("PROD", "Producto", "Código de producto.", "Entrada transacción", "ACH", "Producto financiero asociado.", "string", false, i++),
             Spec("INFPAG", "Información pago", "Información adicional de pago.", "Entrada transacción", "NOMINA ABRIL", "Texto informativo del pago.", "string", true, i++),
             Spec("IDTRAN", "Id transacción", "Identificador numérico de transacción.", "Entrada transacción", "9876543210", "Id único de transacción.", "long", true, i++),
             Spec("IDLOTE", "Id lote", "Identificador de lote.", "Entrada transacción", "LOTE-001", "Id de lote operacional.", "string", true, i++),
-            Spec("REGLOTE", "Registro lote", "Registro secuencial de lote.", "Entrada transacción", "1", "Número de registro en lote.", "long", true, i++),
+            Spec("REGLOTE", "Registro lote", "Registro secuencial de lote.", "Entrada transacción", "1", "Número de registro en lote.", "long", false, i++),
             Spec("IREVER", "Indicador reverso", "Indicador de reverso.", "Entrada transacción", "0", "0 normal, 1 reverso.", "int", true, i++),
-            Spec("LIBRE", "Campo libre", "Campo libre texto.", "Entrada transacción", "OBS", "Campo complementario opcional.", "string", true, i++),
+            Spec("LIBRE", "Campo libre", "Campo libre texto.", "Entrada transacción", "OBS", "Campo complementario opcional.", "string", false, i++),
             Spec("IDCAMCOMPE", "Id cámara", "Id cámara compensadora.", "Entrada transacción", "12", "Id de cámara vigente.", "int", true, i++),
-            Spec("DIRECCIONIP", "Dirección IP", "IP de origen.", "Entrada transacción", "10.10.10.1", "IP para trazabilidad.", "string", true, i++),
-            Spec("LIBRE1", "Campo libre numérico", "Campo libre numérico.", "Entrada transacción", "1", "Campo complementario numérico.", "int", true, i++),
-            Spec("ILR", "Indicador ILR", "Indicador legacy ILR observado en tramas de Proc_Transacciones.", "Entrada transacción", "A", "Campo opcional; valores observados A/B.", "string", false, i++),
+            Spec("DIRECCIONIP", "Dirección IP", "IP de origen.", "Entrada transacción", "10.10.10.1", "IP para trazabilidad.", "string", false, i++),
+            Spec("LIBRE1", "Campo libre numérico", "Campo libre numérico.", "Entrada transacción", "1", "Campo complementario numérico.", "int", false, i++),
             Spec("RTAACH", "Respuesta ACH", "Campo contractual de respuesta ACH.", "Respuesta esperada", "", "Campo de salida reservado por contrato legado.", "string", false, i++, IntegrationParameterDirectionEnum.Output),
             Spec("RTALOC", "Respuesta local", "Campo contractual de respuesta local.", "Respuesta esperada", "", "Campo de salida reservado por contrato legado.", "string", false, i, IntegrationParameterDirectionEnum.Output)
         ];

@@ -445,8 +445,10 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
     {
         if (string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase))
         {
-            return string.Equals(parameterPath, "TREG", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(value, "6", StringComparison.OrdinalIgnoreCase);
+            return (string.Equals(parameterPath, "DISCRE", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(value, "V", StringComparison.OrdinalIgnoreCase))
+                || (string.Equals(parameterPath, "IREVER", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(value, "0", StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase))
@@ -467,9 +469,25 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
     }
 
     private static bool IsAmbiguousFunctionalSource(string operationKey, string parameterPath, string? sourcePath)
-        => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)
+    {
+        if (string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase))
+        {
+            return parameterPath.ToUpperInvariant() switch
+            {
+                "BCORECEP" => !string.Equals(sourcePath, "institution.destination.coreCode", StringComparison.OrdinalIgnoreCase),
+                "BCOORIG" => !string.Equals(sourcePath, "institution.source.coreCode", StringComparison.OrdinalIgnoreCase),
+                "DESTRAN" or "INFPAG" => !string.Equals(sourcePath, "procTransacciones.paymentDescription", StringComparison.OrdinalIgnoreCase),
+                "IDTRAN" => !string.Equals(sourcePath, "transaction.traceSequenceNumber", StringComparison.OrdinalIgnoreCase),
+                "IDLOTE" => !string.Equals(sourcePath, "procTransacciones.functionalBatchId", StringComparison.OrdinalIgnoreCase),
+                "IDCAMCOMPE" => !string.Equals(sourcePath, "clearingHouse.coreCompensationId", StringComparison.OrdinalIgnoreCase),
+                _ => false
+            };
+        }
+
+        return string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)
             && string.Equals(parameterPath, "OFCTA", StringComparison.OrdinalIgnoreCase)
             && string.Equals(sourcePath, "transaction.originatingdfi", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool BlocksReadinessDefault(string operationKey, string parameterPath, string? sourcePath, string value)
         => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)

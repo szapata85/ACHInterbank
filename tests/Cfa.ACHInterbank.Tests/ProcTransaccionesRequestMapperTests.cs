@@ -106,8 +106,11 @@ public class ProcTransaccionesRequestMapperTests
         Assert.Equal(IntegrationParameterDirectionEnum.Input, parameters["DISCRE"].Direction);
         Assert.True(parameters["MONTO"].Required);
         Assert.Equal(IntegrationParameterDirectionEnum.Input, parameters["MONTO"].Direction);
-        Assert.False(parameters["ILR"].Required);
-        Assert.Equal(IntegrationParameterDirectionEnum.Input, parameters["ILR"].Direction);
+        Assert.DoesNotContain("ILR", parameters.Keys);
+        foreach (var optional in new[] { "TREG", "CONV", "PROD", "REGLOTE", "LIBRE", "DIRECCIONIP", "LIBRE1" })
+        {
+            Assert.False(parameters[optional].Required);
+        }
         Assert.Equal(IntegrationParameterDirectionEnum.Output, parameters["RTAACH"].Direction);
         Assert.Equal(IntegrationParameterDirectionEnum.Output, parameters["RTALOC"].Direction);
     }
@@ -159,7 +162,7 @@ public class ProcTransaccionesRequestMapperTests
 
         Assert.Equal("0", resolution.Contract.Parameters["MONTO"]);
         Assert.Equal(ilr, resolution.Contract.Parameters["ILR"]);
-        Assert.Contains($"<tem:ILR>{ilr}</tem:ILR>", xml);
+        Assert.DoesNotContain("<tem:ILR>", xml, StringComparison.OrdinalIgnoreCase);
     }
 
     private static IncomingNachaDispatchQueue BuildQueue()
