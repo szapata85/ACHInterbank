@@ -60,6 +60,13 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         }
 
         var nachaSource = await LoadNachaSourceContextAsync(classification, ingestion, ct);
+        var requiresFunctionalSource = rules.Any(x =>
+            x.SourceFieldPath.StartsWith("destinationInstitution.", StringComparison.OrdinalIgnoreCase)
+            || x.SourceFieldPath.StartsWith("sourceInstitution.", StringComparison.OrdinalIgnoreCase)
+            || x.SourceFieldPath.StartsWith("procTransacciones.", StringComparison.OrdinalIgnoreCase));
+        var functionalSource = requiresFunctionalSource
+            ? await LoadFunctionalSourceContextAsync(transaction, cycle, nachaSource, ct)
+            : FunctionalSourceContext.Empty;
         var resolved = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var sourceValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var parameter in parameters)
@@ -70,7 +77,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                 continue;
             }
 
-            var value = ResolveValue(rule, queueItem, ingestion, classification, transaction, cycle, executionDateTime, nachaSource);
+            var value = ResolveValue(rule, queueItem, ingestion, classification, transaction, cycle, executionDateTime, nachaSource, functionalSource);
             if (!parameter.Required && IsPlaceholder(value))
             {
                 continue;
@@ -146,7 +153,8 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         AchTransaction transaction,
         AchCycle cycle,
         DateTime executionDateTime,
-        NachaSourceContext nachaSource)
+        NachaSourceContext nachaSource,
+        FunctionalSourceContext functionalSource)
     {
         if (!string.IsNullOrWhiteSpace(rule.FixedValue))
         {
@@ -170,11 +178,20 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             "transaction.reference" => transaction.Reference,
             "transaction.companyidentification" => transaction.CompanyIdentification,
             "transaction.sourceaccountnumber" => transaction.SourceAccountNumber,
+            "transaction.destinationaccountnumber" => transaction.DestinationAccountNumber,
             "transaction.effectiveentrydate" => transaction.EffectiveEntryDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
+            "destinationinstitution.corebankcode" => functionalSource.DestinationCoreBankCode,
+            "sourceinstitution.corebankcode" => functionalSource.SourceCoreBankCode,
+            "destinationinstitution.name" => functionalSource.DestinationInstitutionName,
+            "sourceinstitution.name" => functionalSource.SourceInstitutionName,
+            "proctransacciones.paymentinformation" => functionalSource.PaymentInformation,
+            "proctransacciones.functionalbatchid" => functionalSource.FunctionalBatchId,
             "batch.id" => transaction.AchBatchId.ToString(CultureInfo.InvariantCulture),
             "cycle.id" => cycle.Id,
             "cycle.processingdate" => cycle.ProcessingDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture),
-            "cycle.clearinghouseid" => cycle.ClearingHouseId.ToString(CultureInfo.InvariantCulture),
+            "cycle.clearinghouseid" => string.IsNullOrEmpty(functionalSource.ClearingHouseId)
+                ? cycle.ClearingHouseId.ToString(CultureInfo.InvariantCulture)
+                : functionalSource.ClearingHouseId,
             "ingestion.id" => ingestion.Id.ToString("N"),
             "classification.class" => ((int)classification.FunctionalClass).ToString(CultureInfo.InvariantCulture),
             "queue.idempotencykey" => queue.IdempotencyDispatchKey,
@@ -243,9 +260,11 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
 
         nachaId ??= header?.NachaID;
 
-        var batchHeader = string.IsNullOrWhiteSpace(nachaId)
+        var batchHeader = string.IsNullOrWhiteSpace(nachaId) || entryDetail is null
             ? null
-            : await _context.BatchHeaders.AsNoTracking().OrderBy(x => x.BatchID).FirstOrDefaultAsync(x => x.NachaID == nachaId, ct);
+            : await _context.BatchHeaders.AsNoTracking().FirstOrDefaultAsync(
+                x => x.NachaID == nachaId && x.BatchNumber == entryDetail.BatchNumber,
+                ct);
 
         var addendaRecord = classification.AddendaRecordId.HasValue
             ? await _context.AddendaRecords.AsNoTracking().FirstOrDefaultAsync(x => x.AddendaID == classification.AddendaRecordId.Value, ct)
@@ -276,6 +295,99 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         return new NachaSourceContext(header, batchHeader, entryDetail, addendaRecord, batchControl, fileControl);
     }
 
+    private async Task<FunctionalSourceContext> LoadFunctionalSourceContextAsync(
+        AchTransaction transaction,
+        AchCycle cycle,
+        NachaSourceContext nachaSource,
+        CancellationToken ct)
+    {
+        var institutions = await _context.FinancialInstitutions
+            .AsNoTracking()
+            .Where(x => x.Id == transaction.SourceInstitutionId || x.Id == transaction.DestinationInstitutionId)
+            .ToListAsync(ct);
+        var source = institutions.SingleOrDefault(x => x.Id == transaction.SourceInstitutionId)
+            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_SOURCE_INSTITUTION_MISSING: no existe la institución originadora enlazada.");
+        var destination = institutions.SingleOrDefault(x => x.Id == transaction.DestinationInstitutionId)
+            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_DESTINATION_INSTITUTION_MISSING: no existe la institución receptora enlazada.");
+
+        var sourceCode = ValidateCoreBankCode(source.CoreBankCode, "BCOORIG");
+        var destinationCode = ValidateCoreBankCode(destination.CoreBankCode, "BCORECEP");
+        if (!destination.IsDefaultSource)
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_DESTINATION_NOT_CFA: la institución receptora no es la CFA canónica.");
+        }
+
+        var clearingHouse = await _context.ClearingHouses
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == cycle.ClearingHouseId, ct)
+            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_CLEARING_HOUSE_MISSING: la cámara del ciclo no está resuelta.");
+        ValidateCanonicalClearingHouse(clearingHouse);
+
+        var batch = nachaSource.BatchHeader
+            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_BATCH_MISSING: no se encontró el BatchHeader de la entrada clasificada.");
+        var addenda = nachaSource.AddendaRecord;
+        if (addenda is null || !string.Equals(addenda.CodeTypeAddendumRecord, "05", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_ADDENDA_05_MISSING: el crédito entrante requiere addenda tipo 05.");
+        }
+
+        var paymentInformation = ProcTransaccionesPaymentInformationBuilder.Build(
+            transaction.CompanyIdentification,
+            batch.CompanyEntryDescription ?? string.Empty,
+            addenda.PaymentRelatedInformation ?? string.Empty);
+
+        return new FunctionalSourceContext(
+            sourceCode,
+            destinationCode,
+            source.Name,
+            destination.Name,
+            ToFunctionalBatchId(batch.BatchNumber.ToString("D7", CultureInfo.InvariantCulture)),
+            clearingHouse.Id.ToString(CultureInfo.InvariantCulture),
+            paymentInformation);
+    }
+
+    public static string ToFunctionalBatchId(string rawBatchNumber)
+    {
+        var value = (rawBatchNumber ?? string.Empty).Trim();
+        if (value.Length != 7 || value.Any(c => !char.IsDigit(c)))
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_BATCH_NUMBER_INVALID: BatchNumber debe contener exactamente siete dígitos.");
+        }
+
+        var numeric = int.Parse(value, CultureInfo.InvariantCulture);
+        if (numeric is < 0 or > 999_999)
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_BATCH_NUMBER_RANGE: BatchNumber debe estar entre 0000000 y 0999999.");
+        }
+
+        return numeric.ToString("D6", CultureInfo.InvariantCulture);
+    }
+
+    private static string ValidateCoreBankCode(string? value, string parameter)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (normalized.Length is < 1 or > 3 || normalized.Any(c => !char.IsDigit(c)))
+        {
+            throw new InvalidOperationException($"PROC_TRANSACCIONES_CORE_BANK_CODE_INVALID: {parameter} requiere CoreBankCode numérico de uno a tres dígitos.");
+        }
+
+        return normalized;
+    }
+
+    private static void ValidateCanonicalClearingHouse(ClearingHouse clearingHouse)
+    {
+        var expected = clearingHouse.Code.ToUpperInvariant() switch
+        {
+            "ACHCOL" => 1,
+            "CENIT" => 2,
+            _ => throw new InvalidOperationException("PROC_TRANSACCIONES_CLEARING_HOUSE_UNSUPPORTED: la cámara no es ACHCOL ni CENIT.")
+        };
+        if (clearingHouse.Id != expected)
+        {
+            throw new InvalidOperationException($"PROC_TRANSACCIONES_CLEARING_HOUSE_ID_INVALID: {clearingHouse.Code} debe conservar Id canónico {expected}.");
+        }
+    }
+
     private sealed record NachaSourceContext(
         NachaHeader? Header,
         BatchHeader? BatchHeader,
@@ -283,4 +395,16 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         AddendaRecord? AddendaRecord,
         BatchControl? BatchControl,
         FileControl? FileControl);
+
+    private sealed record FunctionalSourceContext(
+        string SourceCoreBankCode,
+        string DestinationCoreBankCode,
+        string SourceInstitutionName,
+        string DestinationInstitutionName,
+        string FunctionalBatchId,
+        string ClearingHouseId,
+        string PaymentInformation)
+    {
+        public static FunctionalSourceContext Empty { get; } = new("", "", "", "", "", "", "");
+    }
 }

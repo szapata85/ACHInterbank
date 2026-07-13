@@ -76,7 +76,8 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
         await fixture.PublishCompleteMappingAsync(IntegrationGuaranteeConstants.ProcTransacciones);
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
-        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
         Assert.True(readiness.IsReady);
         Assert.Equal("Ok", readiness.Status);
@@ -109,7 +110,8 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
         await fixture.PublishCompleteMappingAsync(IntegrationGuaranteeConstants.ProcTransacciones, disableFirstRequired: true);
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
-        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
         Assert.False(readiness.IsReady);
         Assert.Equal("Failed", readiness.Status);
@@ -122,7 +124,8 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
 
-        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
         Assert.False(readiness.IsReady);
         Assert.Equal("Failed", readiness.Status);
@@ -155,7 +158,7 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             IntegrationGuaranteeConstants.ProcTransacciones,
             configureRule: (parameter, rule) =>
             {
-                if (parameter.ParameterPath == "TREG")
+                if (parameter.ParameterPath == "TIPTRAN")
                 {
                     rule.SourceKind = IntegrationSourceKindEnum.Constant;
                     rule.SourceFieldPath = string.Empty;
@@ -164,11 +167,12 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             });
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
-        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
         Assert.False(readiness.IsReady);
         Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
-        Assert.Contains(readiness.Errors, x => x.Contains("TREG", StringComparison.OrdinalIgnoreCase)
+        Assert.Contains(readiness.Errors, x => x.Contains("TIPTRAN", StringComparison.OrdinalIgnoreCase)
             && x.Contains("SEED", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -189,7 +193,8 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             });
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
 
-        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
         Assert.False(readiness.IsReady);
         Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
@@ -371,7 +376,8 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
         await fixture.PublishCompleteMappingAsync(IntegrationGuaranteeConstants.ProcTransacciones);
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
-        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
         Assert.True(readiness.IsReady);
         Assert.DoesNotContain(typeof(IWscfaachSoapClient), fixture.ReadinessService.GetType().GetConstructors().SelectMany(x => x.GetParameters()).Select(x => x.ParameterType));
@@ -493,16 +499,17 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
-    public async Task BootstrapPublishedMappings_ShouldNotBeReady_WhenFunctionalPlaceholdersRemain()
+    public async Task BootstrapPublishedMappings_ShouldBeReady_WhenFunctionalSourcesAreHomologated()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
 
-        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
 
-        Assert.False(readiness.IsReady);
-        Assert.Equal("Failed", readiness.Status);
-        Assert.Equal("FUNCTIONAL_MAPPING_PLACEHOLDER", readiness.Code);
+        Assert.True(readiness.IsReady);
+        Assert.Equal("Ok", readiness.Status);
+        Assert.Equal("OK", readiness.Code);
         Assert.Equal(readiness.RequiredMappings, readiness.ActiveMappings);
         Assert.Empty(readiness.MissingRequiredMappings);
     }
@@ -602,6 +609,13 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
                     Priority = 1,
                     Enabled = !(disableFirstRequired && index == 0)
                 };
+                if (operationKey == IntegrationGuaranteeConstants.ProcTransacciones
+                    && parameter.ParameterPath == "IREVER")
+                {
+                    rule.SourceKind = IntegrationSourceKindEnum.Constant;
+                    rule.SourceFieldPath = string.Empty;
+                    rule.FixedValue = "0";
+                }
                 configureRule?.Invoke(parameter, rule);
                 Context.IntegrationMappingRules.Add(rule);
                 index++;
@@ -716,12 +730,30 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             };
 
         private static string SourcePathForFunctionalTest(IntegrationMethodParameter parameter)
-            => parameter.DataType.ToLowerInvariant() switch
+            => parameter.ParameterPath switch
             {
-                "int" or "long" => "transaction.id",
-                "decimal" or "double" or "float" => "transaction.amount",
-                "datetime" => "cycle.processingDate",
-                _ => "transaction.reference"
+                "TIPTRAN" => "transaction.transactionCode",
+                "BCORECEP" => "destinationInstitution.coreBankCode",
+                "BCOORIG" => "sourceInstitution.coreBankCode",
+                "NORIG" => "sourceInstitution.name",
+                "NCTAORIG" => "transaction.sourceAccountNumber",
+                "IDORIG" => "transaction.companyIdentification",
+                "DESTRAN" or "INFPAG" => "procTransacciones.paymentInformation",
+                "FECEFEC" => "transaction.effectiveEntryDate",
+                "NCTARECEP" => "transaction.destinationAccountNumber",
+                "MONTO" => "transaction.amount",
+                "NRECEP" => "entryDetails.recipUserName",
+                "IDRECEP" => "entryDetails.recipIdNumber",
+                "IDTRAN" => "transaction.traceSequenceNumber",
+                "IDLOTE" => "procTransacciones.functionalBatchId",
+                "IDCAMCOMPE" => "cycle.clearingHouseId",
+                _ => parameter.DataType.ToLowerInvariant() switch
+                {
+                    "int" or "long" => "transaction.id",
+                    "decimal" or "double" or "float" => "transaction.amount",
+                    "datetime" => "cycle.processingDate",
+                    _ => "transaction.reference"
+                }
             };
 
         public async ValueTask DisposeAsync()

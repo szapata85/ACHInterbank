@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 
@@ -245,6 +246,7 @@ public class FinancialInstitutionSeeder : IDbSeeder
                     IsDefaultSource = true,
                     RoutingNumber = "00001",
                     TransitCode = "283",
+                    CoreBankCode = IncomingProcTransaccionesE2eScenarioSetupService.CfaCoreBankCode,
                     Status = FinancialInstitutionStatus.Active
                 },
                 new FinancialInstitution {
@@ -671,6 +673,19 @@ public class FinancialInstitutionSeeder : IDbSeeder
             || string.Equals(fi.Name, "CFA Cooperativa Financiera", StringComparison.OrdinalIgnoreCase));
         var target = cfa ?? activeInstitutions.FirstOrDefault(fi => fi.IsDefaultSource) ?? activeInstitutions[0];
         var changed = false;
+
+        if (cfa is not null)
+        {
+            if (string.IsNullOrWhiteSpace(cfa.CoreBankCode))
+            {
+                cfa.CoreBankCode = IncomingProcTransaccionesE2eScenarioSetupService.CfaCoreBankCode;
+                changed = true;
+            }
+            else if (!string.Equals(cfa.CoreBankCode, IncomingProcTransaccionesE2eScenarioSetupService.CfaCoreBankCode, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("La CFA canónica tiene un CoreBankCode distinto de 283 y no será sobrescrita automáticamente.");
+            }
+        }
 
         foreach (var institution in activeInstitutions)
         {

@@ -26,12 +26,12 @@ public sealed class IntegrationBootstrapperTests
         var secondCounts = await ReadCountsAsync(fixture.Context);
 
         Assert.Equal(3, firstCounts.Methods);
-        Assert.Equal(28, firstCounts.TransaccionesParameters);
+        Assert.Equal(27, firstCounts.TransaccionesParameters);
         Assert.Equal(22, firstCounts.ContrapartidasParameters);
         Assert.Equal(7, firstCounts.RespuestaParameters);
-        Assert.Equal(59, firstCounts.TransaccionesSourceFields);
-        Assert.Equal(59, firstCounts.ContrapartidasSourceFields);
-        Assert.Equal(59, firstCounts.RespuestaSourceFields);
+        Assert.Equal(68, firstCounts.TransaccionesSourceFields);
+        Assert.Equal(68, firstCounts.ContrapartidasSourceFields);
+        Assert.Equal(68, firstCounts.RespuestaSourceFields);
         AssertCountsEqual(firstCounts, secondCounts);
     }
 
@@ -48,9 +48,9 @@ public sealed class IntegrationBootstrapperTests
         var secondCounts = await ReadCountsAsync(fixture.Context);
 
         Assert.Equal(3, firstCounts.PublishedSets);
-        Assert.Equal(50, firstCounts.MappingRules);
+        Assert.Equal(42, firstCounts.MappingRules);
         Assert.Equal(2, firstCounts.ResponseStatusMappings);
-        Assert.Equal(26, firstCounts.TransaccionesPublishedRules);
+        Assert.Equal(18, firstCounts.TransaccionesPublishedRules);
         Assert.Equal(17, firstCounts.ContrapartidasPublishedRules);
         Assert.Equal(7, firstCounts.RespuestaPublishedRules);
         Assert.Equal(0, firstCounts.ContrapartidasOptionalPublishedRules);

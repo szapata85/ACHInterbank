@@ -13,6 +13,7 @@ public class AddendaRecord
     public string? CollectorId { get; set; }
     public string? ReceiverCustomerCode { get; set; }
     public string? ServiceDescription { get; set; }
+    public string? PaymentRelatedInformation { get; set; }
     public string? ReturnReasonCode { get; set; }
     public string? OriginalTraceNumber { get; set; }
     public string? NewTraceNumber { get; set; }

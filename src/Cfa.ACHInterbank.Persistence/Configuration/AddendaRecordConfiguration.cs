@@ -16,6 +16,7 @@ public class AddendaRecordConfiguration : IEntityTypeConfiguration<AddendaRecord
         builder.Property(x => x.CollectorId).HasMaxLength(13);
         builder.Property(x => x.ReceiverCustomerCode).HasMaxLength(30);
         builder.Property(x => x.ServiceDescription).HasMaxLength(15);
+        builder.Property(x => x.PaymentRelatedInformation).HasMaxLength(80);
         builder.Property(x => x.ReturnReasonCode).HasMaxLength(5);
         builder.Property(x => x.OriginalTraceNumber).HasMaxLength(15);
         builder.Property(x => x.NewTraceNumber).HasMaxLength(15);

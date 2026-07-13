@@ -146,6 +146,8 @@ public class NachaParserService : INachaParserService
                         }
 
                         entry.NachaID = currentHeader?.NachaID;
+                        entry.BatchNumber = currentBatch?.BatchNumber
+                            ?? throw new InvalidOperationException("Registro tipo 6 recibido sin BatchHeader tipo 5 asociado.");
                         UpdateBatchMetricsForEntry(currentBatchMetrics, entry);
                         fileMetrics.RegisterEntry(entry, CreditCodes, DebitCodes);
 
@@ -715,6 +717,7 @@ public class NachaParserService : INachaParserService
             CollectorId = a.Substring(1, 2).Trim() == "05" ? a.Substring(3, 13).Trim() : null,
             ReceiverCustomerCode = a.Substring(1, 2).Trim() == "05" ? a.Substring(16, 30).Trim() : null,
             ServiceDescription = a.Substring(1, 2).Trim() == "05" ? a.Substring(46, 15).Trim() : null,
+            PaymentRelatedInformation = a.Substring(1, 2).Trim() == "05" ? a.Substring(3, 80) : null,
             IdUserOrig = a.Substring(1, 2).Trim() == "99" ? a.Substring(3, 5).Trim() : a.Substring(3, 13).Trim(),
             PurposeOfTransaction = a.Substring(1, 2).Trim() == "99" ? null : a.Substring(20, 10).Trim(),
             InvoiceOrAccountNumber = a.Substring(1, 2).Trim() == "99" ? a.Substring(8, 15).Trim() : a.Substring(30, 53).Trim(),

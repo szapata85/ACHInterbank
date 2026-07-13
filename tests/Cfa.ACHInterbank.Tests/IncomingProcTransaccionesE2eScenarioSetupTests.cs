@@ -55,6 +55,9 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
         Assert.Equal(fixture.External!.Id, transaction.SourceInstitutionId);
         Assert.Equal("E2EACCOUNT0008684", transaction.DestinationAccountNumber);
         Assert.Equal(IncomingProcTransaccionesE2eScenarioSetupService.SyntheticRecipientId, transaction.RecipientIdNumber);
+        Assert.Equal(IncomingProcTransaccionesE2eScenarioSetupService.SyntheticCompanyIdentification, transaction.CompanyIdentification);
+        Assert.Equal("283", fixture.Cfa.CoreBankCode);
+        Assert.Equal("999", fixture.External.CoreBankCode);
         Assert.Equal(AchTransferStateEnum.Pending, transaction.State);
     }
 
@@ -131,6 +134,33 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
     }
 
     [Fact]
+    public async Task EnsureAsync_WithoutAuthorizedOriginCoreBankCode_BlocksBeforeMutation()
+    {
+        await using var fixture = await ScenarioFixture.CreateAsync(
+            includeCfa: true,
+            includeExternal: true,
+            originCoreBankCode: null);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.CreateService().EnsureAsync(Request()));
+
+        Assert.Contains("ORIGIN_CORE_CODE_INVALID", error.Message);
+        Assert.Empty(await fixture.Context.AchTransactions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task EnsureAsync_ExistingSyntheticOriginWithDifferentCoreBankCode_BlocksWithoutOverwrite()
+    {
+        await using var fixture = await ScenarioFixture.CreateAsync(includeCfa: true, includeExternal: true);
+        fixture.External!.CoreBankCode = "111";
+        await fixture.Context.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.CreateService().EnsureAsync(Request()));
+
+        Assert.Contains("EXTERNAL_CORE_CODE_MISMATCH", error.Message);
+        Assert.Equal("111", (await fixture.Context.FinancialInstitutions.SingleAsync(x => x.Id == fixture.External.Id)).CoreBankCode);
+    }
+
+    [Fact]
     public void RelevantModel_IsEquivalentForSqlServerAndPostgresProviders()
     {
         using var sql = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
@@ -198,7 +228,8 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
             bool includeCfa,
             bool includeExternal,
             bool authorized = true,
-            string authorizedAmount = "123.45")
+            string authorizedAmount = "123.45",
+            string? originCoreBankCode = "999")
         {
             var connection = new SqliteConnection("DataSource=:memory:");
             await connection.OpenAsync();
@@ -209,7 +240,8 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
             {
                 [IncomingProcTransaccionesE2eScenarioSetupService.SetupAuthorizationVariable] = authorized ? "true" : "false",
                 [IncomingProcTransaccionesE2eScenarioSetupService.ReceiverAccountVariable] = "E2EACCOUNT0008684",
-                [IncomingProcTransaccionesE2eScenarioSetupService.ExpectedAmountVariable] = authorizedAmount
+                [IncomingProcTransaccionesE2eScenarioSetupService.ExpectedAmountVariable] = authorizedAmount,
+                [IncomingProcTransaccionesE2eScenarioSetupService.OriginCoreBankCodeVariable] = originCoreBankCode
             }).Build();
             var environment = new Mock<IHostEnvironment>();
             environment.SetupGet(x => x.EnvironmentName).Returns("Testing");
@@ -218,7 +250,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
             context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
             context.ClearingHouses.Add(new ClearingHouse
             {
-                Id = 1,
+                Id = 2,
                 Name = "CENIT",
                 Code = "CENIT",
                 OriginCode = "011111111",
@@ -232,7 +264,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
                 StartTime = TimeSpan.Zero,
                 EndTime = new TimeSpan(23, 59, 0),
                 CutoffTime = new TimeSpan(20, 0, 0),
-                ClearingHouseId = 1
+                ClearingHouseId = 2
             });
             if (!await context.CompanyEntryDescriptionCatalogs.AnyAsync(x => x.IsActive))
             {
@@ -249,6 +281,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
             if (includeCfa)
             {
                 fixture.Cfa = Institution("CFA CANONICA", "00001", "006", isDefault: true);
+                fixture.Cfa.CoreBankCode = IncomingProcTransaccionesE2eScenarioSetupService.CfaCoreBankCode;
                 context.FinancialInstitutions.Add(fixture.Cfa);
             }
 
@@ -259,6 +292,7 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupTests
                     FinancialInstitutionSeeder.SyntheticAchExternalRouting,
                     FinancialInstitutionSeeder.SyntheticAchExternalTransit,
                     isDefault: false);
+                fixture.External.CoreBankCode = "999";
                 context.FinancialInstitutions.Add(fixture.External);
             }
 

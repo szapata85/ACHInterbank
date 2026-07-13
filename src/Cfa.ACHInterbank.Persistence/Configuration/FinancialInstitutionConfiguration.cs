@@ -13,6 +13,7 @@ public class FinancialInstitutionConfigurationConfiguration : IEntityTypeConfigu
 
         builder.HasKey(f => f.Id);
         builder.Property(f => f.Name).HasMaxLength(200).IsRequired();
+        builder.Property(f => f.CoreBankCode).HasMaxLength(3);
 
         builder.Property(fi => fi.Status)
                .HasConversion<int>()

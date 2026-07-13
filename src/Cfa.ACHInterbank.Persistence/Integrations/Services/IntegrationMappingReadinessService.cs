@@ -1,8 +1,10 @@
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.Integrations.Services;
@@ -250,6 +252,12 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                 Warnings: []);
         }
 
+        if (string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase)
+            && transactionId.HasValue)
+        {
+            functionalErrors.AddRange(await ValidateProcTransaccionesRuntimeAsync(transactionId.Value, ct));
+        }
+
         if (functionalErrors.Count > 0)
         {
             return new IntegrationMappingReadinessResult(
@@ -312,6 +320,79 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             CanBuildPayload: true,
             Errors: [],
             Warnings: []);
+    }
+
+    private async Task<IReadOnlyCollection<string>> ValidateProcTransaccionesRuntimeAsync(int transactionId, CancellationToken ct)
+    {
+        var errors = new List<string>();
+        var transaction = await _context.AchTransactions
+            .AsNoTracking()
+            .Include(x => x.SourceInstitution)
+            .Include(x => x.DestinationInstitution)
+            .Include(x => x.AchCycle)
+                .ThenInclude(x => x.ClearingHouse)
+            .SingleOrDefaultAsync(x => x.Id == transactionId, ct);
+        if (transaction is null)
+        {
+            return [$"Proc_Transacciones.transaction: no existe la transacción {transactionId} para evaluar fuentes funcionales."];
+        }
+
+        if (!IsCoreBankCode(transaction.DestinationInstitution?.CoreBankCode))
+            errors.Add("Proc_Transacciones.BCORECEP: la CFA receptora no tiene CoreBankCode numérico de uno a tres dígitos.");
+        if (!IsCoreBankCode(transaction.SourceInstitution?.CoreBankCode))
+            errors.Add("Proc_Transacciones.BCOORIG: la institución originadora no tiene CoreBankCode numérico de uno a tres dígitos.");
+
+        var clearingHouse = transaction.AchCycle?.ClearingHouse;
+        var validClearingHouse = clearingHouse is not null
+            && ((clearingHouse.Code == "ACHCOL" && clearingHouse.Id == 1)
+                || (clearingHouse.Code == "CENIT" && clearingHouse.Id == 2));
+        if (!validClearingHouse)
+            errors.Add("Proc_Transacciones.IDCAMCOMPE: la cámara no está resuelta con IDs canónicos ACHCOL=1 o CENIT=2.");
+
+        var link = await _context.IncomingNachaTransactionLinks
+            .AsNoTracking()
+            .Include(x => x.EntryDetail)
+            .Include(x => x.AddendaRecord)
+            .Where(x => x.AchTransactionId == transactionId && x.IsFinal)
+            .OrderByDescending(x => x.LinkedAtUtc)
+            .FirstOrDefaultAsync(ct);
+        var entry = link?.EntryDetail;
+        var addenda = link?.AddendaRecord;
+        var batch = entry is null || string.IsNullOrWhiteSpace(entry.NachaID)
+            ? null
+            : await _context.BatchHeaders.AsNoTracking().SingleOrDefaultAsync(
+                x => x.NachaID == entry.NachaID && x.BatchNumber == entry.BatchNumber,
+                ct);
+
+        try
+        {
+            _ = ProcTransaccionesRequestMapper.ToFunctionalBatchId(batch?.BatchNumber.ToString("D7") ?? string.Empty);
+        }
+        catch (InvalidOperationException ex)
+        {
+            errors.Add($"Proc_Transacciones.IDLOTE: {ex.Message}");
+        }
+
+        try
+        {
+            _ = ProcTransaccionesPaymentInformationBuilder.Build(
+                transaction.CompanyIdentification,
+                batch?.CompanyEntryDescription ?? string.Empty,
+                addenda?.PaymentRelatedInformation ?? string.Empty);
+        }
+        catch (InvalidOperationException ex)
+        {
+            errors.Add($"Proc_Transacciones.DESTRAN: {ex.Message}");
+            errors.Add($"Proc_Transacciones.INFPAG: {ex.Message}");
+        }
+
+        return errors;
+    }
+
+    private static bool IsCoreBankCode(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return normalized.Length is >= 1 and <= 3 && normalized.All(char.IsDigit);
     }
 
     private static bool SupportsTransitionalFallback(string operationKey, string mappingPurpose)
@@ -474,12 +555,12 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         {
             return parameterPath.ToUpperInvariant() switch
             {
-                "BCORECEP" => !string.Equals(sourcePath, "institution.destination.coreCode", StringComparison.OrdinalIgnoreCase),
-                "BCOORIG" => !string.Equals(sourcePath, "institution.source.coreCode", StringComparison.OrdinalIgnoreCase),
-                "DESTRAN" or "INFPAG" => !string.Equals(sourcePath, "procTransacciones.paymentDescription", StringComparison.OrdinalIgnoreCase),
+                "BCORECEP" => !string.Equals(sourcePath, "destinationInstitution.coreBankCode", StringComparison.OrdinalIgnoreCase),
+                "BCOORIG" => !string.Equals(sourcePath, "sourceInstitution.coreBankCode", StringComparison.OrdinalIgnoreCase),
+                "DESTRAN" or "INFPAG" => !string.Equals(sourcePath, "procTransacciones.paymentInformation", StringComparison.OrdinalIgnoreCase),
                 "IDTRAN" => !string.Equals(sourcePath, "transaction.traceSequenceNumber", StringComparison.OrdinalIgnoreCase),
                 "IDLOTE" => !string.Equals(sourcePath, "procTransacciones.functionalBatchId", StringComparison.OrdinalIgnoreCase),
-                "IDCAMCOMPE" => !string.Equals(sourcePath, "clearingHouse.coreCompensationId", StringComparison.OrdinalIgnoreCase),
+                "IDCAMCOMPE" => !string.Equals(sourcePath, "cycle.clearingHouseId", StringComparison.OrdinalIgnoreCase),
                 _ => false
             };
         }

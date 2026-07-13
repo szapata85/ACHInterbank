@@ -3297,6 +3297,10 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<string>("InfofromOriginator")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PaymentRelatedInformation")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("InvoiceOrAccountNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -6719,6 +6723,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<decimal?>("Amount")
                         .HasColumnType("money");
 
+                    b.Property<int>("BatchNumber")
+                        .HasColumnType("int");
+
                     b.Property<string>("CheckDigit")
                         .HasColumnType("nvarchar(max)");
 
@@ -6996,6 +7003,10 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<int?>("ClearingHouseId")
                         .HasColumnType("int");
+
+                    b.Property<string>("CoreBankCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");

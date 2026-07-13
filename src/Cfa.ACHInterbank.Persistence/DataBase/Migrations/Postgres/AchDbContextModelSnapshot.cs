@@ -3267,6 +3267,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("InfofromOriginator")
                         .HasColumnType("text");
 
+                    b.Property<string>("PaymentRelatedInformation")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
                     b.Property<string>("InvoiceOrAccountNumber")
                         .HasColumnType("text");
 
@@ -6686,6 +6690,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<decimal?>("Amount")
                         .HasColumnType("money");
 
+                    b.Property<int>("BatchNumber")
+                        .HasColumnType("integer");
+
                     b.Property<string>("CheckDigit")
                         .HasColumnType("text");
 
@@ -6963,6 +6970,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<int?>("ClearingHouseId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("CoreBankCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");

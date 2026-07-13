@@ -173,15 +173,12 @@ public sealed class IntegrationMappingBootstrapper
             return;
         }
 
-        var existingPublished = await _context.IntegrationMappingSets
-            .AsNoTracking()
-            .AnyAsync(x => x.MethodId == method.Id
+        var existingPublishedSets = await _context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id
                 && x.Status == IntegrationMappingSetStatusEnum.Published
-                && x.IsActive, ct);
-        if (existingPublished)
-        {
-            return;
-        }
+                && x.IsActive)
+            .OrderByDescending(x => x.Version)
+            .ToListAsync(ct);
 
         var parameters = await _context.IntegrationMethodParameters
             .AsNoTracking()
@@ -189,12 +186,41 @@ public sealed class IntegrationMappingBootstrapper
             .OrderBy(x => x.SortOrder)
             .ToListAsync(ct);
 
+        if (existingPublishedSets.Any(x => !string.Equals(x.PublishedBy, "seed", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        foreach (var existing in existingPublishedSets)
+        {
+            var existingRules = await _context.IntegrationMappingRules
+                .AsNoTracking()
+                .Where(x => x.MappingSetId == existing.Id && x.Enabled)
+                .ToListAsync(ct);
+            if (IsProcTransaccionesMappingCompatible(parameters, existingRules))
+            {
+                return;
+            }
+        }
+
+        foreach (var invalid in existingPublishedSets)
+        {
+            invalid.Status = IntegrationMappingSetStatusEnum.Archived;
+            invalid.IsActive = false;
+            _context.IntegrationMappingSetHistory.Add(BuildHistory(invalid, "ArchivedInvalidProcTransaccionesMapping"));
+        }
+
+        var nextVersion = (await _context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id)
+            .Select(x => (int?)x.Version)
+            .MaxAsync(ct) ?? 0) + 1;
+
         var published = new IntegrationMappingSet
         {
             MethodId = method.Id,
             Name = mappingName,
             Status = IntegrationMappingSetStatusEnum.Published,
-            Version = 1,
+            Version = nextVersion,
             IsActive = true,
             Notes = "Mapping UAT/local de referencia. No habilita transmision externa.",
             PublishedAtUtc = DateTime.UtcNow,
@@ -207,7 +233,8 @@ public sealed class IntegrationMappingBootstrapper
         foreach (var parameter in parameters.Where(x => x.Direction == IntegrationParameterDirectionEnum.Input))
         {
             var sourcePath = sourcePathFor(parameter.ParameterPath);
-            if (sourcePath is null && !parameter.Required)
+            var fixedValue = ProcTransaccionesFixedValueFor(parameter.ParameterPath);
+            if (sourcePath is null && fixedValue is null && !parameter.Required)
             {
                 continue;
             }
@@ -219,7 +246,7 @@ public sealed class IntegrationMappingBootstrapper
                 ParameterId = parameter.Id,
                 SourceKind = SourceKindFor(sourcePath),
                 SourceFieldPath = sourcePath ?? string.Empty,
-                FixedValue = sourcePath is null ? DefaultValueFor(parameter) : null,
+                FixedValue = fixedValue,
                 DefaultValue = null,
                 Priority = 1,
                 Enabled = true
@@ -229,6 +256,45 @@ public sealed class IntegrationMappingBootstrapper
         _context.IntegrationMappingSetHistory.Add(BuildHistory(published, "SeedPublishedReference"));
         await _context.SaveChangesAsync(ct);
     }
+
+    private static bool IsProcTransaccionesMappingCompatible(
+        IReadOnlyCollection<IntegrationMethodParameter> parameters,
+        IReadOnlyCollection<IntegrationMappingRule> rules)
+    {
+        foreach (var parameter in parameters.Where(x => x.Direction == IntegrationParameterDirectionEnum.Input))
+        {
+            var expectedSource = ProcTransaccionesSourcePathFor(parameter.ParameterPath);
+            var expectedFixed = ProcTransaccionesFixedValueFor(parameter.ParameterPath);
+            var rule = rules.FirstOrDefault(x => x.ParameterId == parameter.Id);
+            if (expectedSource is null && expectedFixed is null)
+            {
+                if (rule is not null && (IsPlaceholder(rule.DefaultValue) || IsPlaceholder(rule.FixedValue))) return false;
+                continue;
+            }
+
+            if (rule is null
+                || !string.Equals(rule.SourceFieldPath, expectedSource ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(rule.FixedValue, expectedFixed, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return rules.All(x => !IsPlaceholder(x.DefaultValue) && !IsPlaceholder(x.FixedValue));
+    }
+
+    private static string? ProcTransaccionesFixedValueFor(string parameterPath)
+        => parameterPath switch
+        {
+            "DISCRE" => "V",
+            "IREVER" => "0",
+            _ => null
+        };
+
+    private static bool IsPlaceholder(string? value)
+        => string.Equals(value?.Trim(), "SEED", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value?.Trim(), "PLACEHOLDER", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value?.Trim(), "TODO", StringComparison.OrdinalIgnoreCase);
 
     private async Task EnsurePublishedRegistrarRespuestaMappingAsync(CancellationToken ct)
     {
@@ -448,22 +514,21 @@ public sealed class IntegrationMappingBootstrapper
         => parameterPath switch
         {
             "TIPTRAN" => "transaction.transactionCode",
-            "BCORECEP" => "nachaHeaders.immediateDestination",
-            "BCOORIG" => "nachaHeaders.immediateOrigin",
-            "NORIG" => "batchHeaders.companyName",
+            "BCORECEP" => "destinationInstitution.coreBankCode",
+            "BCOORIG" => "sourceInstitution.coreBankCode",
+            "NORIG" => "sourceInstitution.name",
             "NCTAORIG" => "transaction.sourceAccountNumber",
             "IDORIG" => "transaction.companyIdentification",
-            "DESTRAN" => "batchHeaders.companyEntryDescription",
+            "DESTRAN" => "procTransacciones.paymentInformation",
             "FECEFEC" => "transaction.effectiveEntryDate",
             "NCTARECEP" => "transaction.destinationAccountNumber",
             "MONTO" => "transaction.amount",
             "NRECEP" => "entryDetails.recipUserName",
             "IDRECEP" => "entryDetails.recipIdNumber",
-            "INFPAG" => "addendaRecords.infofromOriginator",
+            "INFPAG" => "procTransacciones.paymentInformation",
             "IDTRAN" => "transaction.traceSequenceNumber",
-            "IDLOTE" => "batchHeaders.batchNumber",
-            "REGLOTE" => "batchControls.entryAddendaCount",
-            "LIBRE1" => "fileControls.blockCount",
+            "IDLOTE" => "procTransacciones.functionalBatchId",
+            "IDCAMCOMPE" => "cycle.clearingHouseId",
             _ => null
         };
 
@@ -516,6 +581,10 @@ public sealed class IntegrationMappingBootstrapper
         if (sourcePath.StartsWith("prenotification.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.Prenotification;
         if (sourcePath.StartsWith("differentialResponse.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.DifferentialResponse;
         if (sourcePath.StartsWith("transaction.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.Transaction;
+        if (sourcePath.StartsWith("cycle.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.Cycle;
+        if (sourcePath.StartsWith("destinationInstitution.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.Transaction;
+        if (sourcePath.StartsWith("sourceInstitution.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.Transaction;
+        if (sourcePath.StartsWith("procTransacciones.", StringComparison.OrdinalIgnoreCase)) return IntegrationSourceKindEnum.Transaction;
         return IntegrationSourceKindEnum.Constant;
     }
 }

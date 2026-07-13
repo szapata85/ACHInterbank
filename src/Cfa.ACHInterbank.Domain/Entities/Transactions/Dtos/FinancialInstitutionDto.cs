@@ -10,6 +10,7 @@ public class FinancialInstitutionDto
     public string RoutingNumber { get; set; } = null!;
     public string TransitCode { get; set; } = null!;
     public string CheckDigit { get; set; } = null!;
+    public string? CoreBankCode { get; set; }
     public FinancialInstitutionStatus Status { get; set; }
 }
 
