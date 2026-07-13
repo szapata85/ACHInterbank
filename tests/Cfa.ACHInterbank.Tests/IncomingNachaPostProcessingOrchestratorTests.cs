@@ -48,13 +48,16 @@ public class IncomingNachaPostProcessingOrchestratorTests
         await using var context = BuildContext();
         SeedDispatchItem(context);
 
-        var mapper = BuildMapperSuccess();
+        var mappingIdentity = BuildMappingIdentity();
+        var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         const string requestXml = "<Proc_Transacciones><IDTRAN>1</IDTRAN></Proc_Transacciones>";
         mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>())).Returns(requestXml);
 
         const string responseXml = "<Envelope><Body><Proc_TransaccionesResponse><RTAACH>R96</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>";
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(responseXml);
+        var operationResolver = BuildProcTransaccionesOperationResolver();
+        var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
@@ -62,6 +65,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             new ProcTransaccionesResponseParser(),
             soap.Object,
             dispatchOptions: LiveProcTransaccionesOptions(),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object,
             soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
 
         var result = await sut.ExecuteAsync(50, "tester");
@@ -98,6 +103,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         await using var context = BuildContext();
         SeedDispatchItem(context);
 
+        var mappingIdentity = BuildMappingIdentity();
         var mapper = new Mock<IProcTransaccionesRequestMapper>();
         mapper.Setup(x => x.ResolveAsync(
                 It.IsAny<IncomingNachaDispatchQueue>(),
@@ -109,11 +115,16 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("mapping inválido"));
 
+        var operationResolver = BuildProcTransaccionesOperationResolver();
+        var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
+
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
-            Mock.Of<IWscfaachSoapClient>());
+            Mock.Of<IWscfaachSoapClient>(),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -130,15 +141,20 @@ public class IncomingNachaPostProcessingOrchestratorTests
         await using var context = BuildContext();
         SeedDispatchItem(context);
 
-        var mapper = BuildMapperSuccess();
+        var mappingIdentity = BuildMappingIdentity();
+        var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = BuildProcTransaccionesOperationResolver();
+        var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
             soap.Object,
-            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }));
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -166,15 +182,20 @@ public class IncomingNachaPostProcessingOrchestratorTests
         await using var context = BuildContext();
         SeedDispatchItem(context);
 
-        var mapper = BuildMapperSuccess();
+        var mappingIdentity = BuildMappingIdentity();
+        var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = BuildProcTransaccionesOperationResolver();
+        var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
             soap.Object,
-            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "Disabled" }));
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "Disabled" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -393,11 +414,281 @@ public class IncomingNachaPostProcessingOrchestratorTests
     }
 
     [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldBlock_WhenOperationResolverIsMissing()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            mappingReadinessService: new Mock<IIntegrationMappingReadinessService>().Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal("PROC_TRANSACCIONES_READINESS_SERVICE_UNAVAILABLE", queue.LastErrorCode);
+        mapper.Verify(x => x.ResolveAsync(
+            It.IsAny<IncomingNachaDispatchQueue>(),
+            It.IsAny<IncomingNachaFileIngestion>(),
+            It.IsAny<IncomingNachaEntryClassification>(),
+            It.IsAny<AchTransaction>(),
+            It.IsAny<AchCycle>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldBlock_WhenReadinessServiceIsMissing()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            operationResolver: operationResolver.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal("PROC_TRANSACCIONES_READINESS_SERVICE_UNAVAILABLE", queue.LastErrorCode);
+        mapper.Verify(x => x.ResolveAsync(
+            It.IsAny<IncomingNachaDispatchQueue>(),
+            It.IsAny<IncomingNachaFileIngestion>(),
+            It.IsAny<IncomingNachaEntryClassification>(),
+            It.IsAny<AchTransaction>(),
+            It.IsAny<AchCycle>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldBlock_WhenReadinessMissingMappingSetId()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var resolution = BuildResolution(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            7,
+            "HASH-RESOLUTION");
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        mapper.Setup(x => x.ResolveAsync(
+                It.IsAny<IncomingNachaDispatchQueue>(),
+                It.IsAny<IncomingNachaFileIngestion>(),
+                It.IsAny<IncomingNachaEntryClassification>(),
+                It.IsAny<AchTransaction>(),
+                It.IsAny<AchCycle>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resolution);
+
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildReadiness(
+                mappingSetId: null,
+                mappingVersion: 7,
+                mappingSnapshotHash: "HASH-RESOLUTION"));
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal("MAPPING_SNAPSHOT_CHANGED", queue.LastErrorCode);
+        Assert.Contains("identidad completa", queue.LastErrorMessage, StringComparison.OrdinalIgnoreCase);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldBlock_WhenReadinessMissingVersion()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var resolution = BuildResolution(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            7,
+            "HASH-RESOLUTION");
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        mapper.Setup(x => x.ResolveAsync(
+                It.IsAny<IncomingNachaDispatchQueue>(),
+                It.IsAny<IncomingNachaFileIngestion>(),
+                It.IsAny<IncomingNachaEntryClassification>(),
+                It.IsAny<AchTransaction>(),
+                It.IsAny<AchCycle>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resolution);
+
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildReadiness(
+                mappingSetId: resolution.MappingSetId,
+                mappingVersion: null,
+                mappingSnapshotHash: "HASH-RESOLUTION"));
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal("MAPPING_SNAPSHOT_CHANGED", queue.LastErrorCode);
+        Assert.Contains("identidad completa", queue.LastErrorMessage, StringComparison.OrdinalIgnoreCase);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldBlock_WhenReadinessMissingSnapshotHash()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var resolution = BuildResolution(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            7,
+            "HASH-RESOLUTION");
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        mapper.Setup(x => x.ResolveAsync(
+                It.IsAny<IncomingNachaDispatchQueue>(),
+                It.IsAny<IncomingNachaFileIngestion>(),
+                It.IsAny<IncomingNachaEntryClassification>(),
+                It.IsAny<AchTransaction>(),
+                It.IsAny<AchCycle>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resolution);
+
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildReadiness(
+                mappingSetId: resolution.MappingSetId,
+                mappingVersion: resolution.MappingVersion,
+                mappingSnapshotHash: null));
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal("MAPPING_SNAPSHOT_CHANGED", queue.LastErrorCode);
+        Assert.Contains("identidad completa", queue.LastErrorMessage, StringComparison.OrdinalIgnoreCase);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldProceed_WhenSnapshotMatches()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mappingSetId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        mapper.Setup(x => x.ResolveAsync(
+                It.IsAny<IncomingNachaDispatchQueue>(),
+                It.IsAny<IncomingNachaFileIngestion>(),
+                It.IsAny<IncomingNachaEntryClassification>(),
+                It.IsAny<AchTransaction>(),
+                It.IsAny<AchCycle>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildResolution(mappingSetId, 7, "HASH-MATCH"));
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>()))
+            .Returns("<request/>");
+
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildReadiness(mappingSetId, 7, "HASH-MATCH"));
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "Live" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object,
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+
+        soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Confirmed);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Confirmed, queue.QueueStatus);
+        mapper.Verify(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>()), Times.Once);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_SetsRetryPending_WhenTechnicalErrorOccurs()
     {
         await using var context = BuildContext();
         SeedDispatchItem(context);
 
+        var mappingIdentity = BuildMappingIdentity();
         var mapper = new Mock<IProcTransaccionesRequestMapper>();
         mapper.Setup(x => x.ResolveAsync(
                 It.IsAny<IncomingNachaDispatchQueue>(),
@@ -409,20 +700,24 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProcTransaccionesRequestResolution(
                 new ProcTransaccionesRequestContract(new Dictionary<string, string> { ["TREG"] = "6", ["TIPTRAN"] = "22", ["MONTO"] = "10", ["IDTRAN"] = "1", ["IDCAMCOMPE"] = "1" }),
-                Guid.NewGuid(),
-                1,
-                "hash"));
+                mappingIdentity.MappingSetId,
+                mappingIdentity.Version,
+                mappingIdentity.SnapshotHash));
         mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>())).Returns("<request/>");
 
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("timeout"));
+        var operationResolver = BuildProcTransaccionesOperationResolver();
+        var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
             soap.Object,
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object,
             dispatchOptions: LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
@@ -449,16 +744,21 @@ public class IncomingNachaPostProcessingOrchestratorTests
         await using var context = BuildContext();
         SeedDispatchItem(context);
 
-        var mapper = BuildMapperSuccess();
+        var mappingIdentity = BuildMappingIdentity();
+        var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>R17</RTAACH><RTALOC>Codigo funcional observado</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+        var operationResolver = BuildProcTransaccionesOperationResolver();
+        var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
             soap.Object,
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object,
             dispatchOptions: LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
@@ -514,23 +814,28 @@ public class IncomingNachaPostProcessingOrchestratorTests
         queue.AttemptCount = 1;
         await context.SaveChangesAsync();
 
-        var mapper = BuildMapperSuccess();
+        var mappingIdentity = BuildMappingIdentity();
+        var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("<Envelope><Body><Fault><faultstring>SOAP timeout</faultstring></Fault></Body></Envelope>");
+        var operationResolver = BuildProcTransaccionesOperationResolver();
+        var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
             soap.Object,
-            Options.Create(new IncomingNachaDispatchResilienceOptions
+            resilienceOptions: Options.Create(new IncomingNachaDispatchResilienceOptions
             {
                 MaxAttempts = 2,
                 InitialBackoffSeconds = 1,
                 MaxBackoffSeconds = 10
             }),
-            LiveProcTransaccionesOptions());
+            dispatchOptions: LiveProcTransaccionesOptions(),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -552,16 +857,21 @@ public class IncomingNachaPostProcessingOrchestratorTests
         queue.NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(-2);
         await context.SaveChangesAsync();
 
-        var mapper = BuildMapperSuccess();
+        var mappingIdentity = BuildMappingIdentity();
+        var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+        var operationResolver = BuildProcTransaccionesOperationResolver();
+        var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
             soap.Object,
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object,
             dispatchOptions: LiveProcTransaccionesOptions());
 
         var result = await sut.ExecuteAsync(50, "tester");
@@ -699,8 +1009,12 @@ public class IncomingNachaPostProcessingOrchestratorTests
         return context;
     }
 
-    private static Mock<IProcTransaccionesRequestMapper> BuildMapperSuccess()
+    private static Mock<IProcTransaccionesRequestMapper> BuildMapperSuccess(
+        Guid? mappingSetId = null,
+        int mappingVersion = 1,
+        string mappingSnapshotHash = "hash")
     {
+        var identity = mappingSetId ?? BuildMappingIdentity().MappingSetId;
         var mapper = new Mock<IProcTransaccionesRequestMapper>();
         mapper.Setup(x => x.ResolveAsync(
                 It.IsAny<IncomingNachaDispatchQueue>(),
@@ -712,13 +1026,67 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProcTransaccionesRequestResolution(
                 new ProcTransaccionesRequestContract(new Dictionary<string, string> { ["TREG"] = "6", ["TIPTRAN"] = "22", ["MONTO"] = "10", ["IDTRAN"] = "1", ["IDCAMCOMPE"] = "1" }),
-                Guid.NewGuid(),
-                1,
-                "hash"));
+                identity,
+                mappingVersion,
+                mappingSnapshotHash));
         mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcTransaccionesRequestContract>()))
             .Returns("<Proc_Transacciones><IDTRAN>1</IDTRAN></Proc_Transacciones>");
         return mapper;
     }
+
+    private static (Guid MappingSetId, int Version, string SnapshotHash) BuildMappingIdentity()
+        => (Guid.Parse("11111111-1111-1111-1111-111111111111"), 7, "HASH-MATCH");
+
+    private static Mock<ITransactionIntegrationOperationResolver> BuildProcTransaccionesOperationResolver()
+    {
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+        return operationResolver;
+    }
+
+    private static Mock<IIntegrationMappingReadinessService> BuildProcTransaccionesReadinessService(
+        Guid mappingSetId,
+        int mappingVersion,
+        string mappingSnapshotHash)
+    {
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildReadiness(mappingSetId, mappingVersion, mappingSnapshotHash));
+        return readiness;
+    }
+
+    private static ProcTransaccionesRequestResolution BuildResolution(Guid mappingSetId, int version, string snapshotHash)
+        => new(
+            new ProcTransaccionesRequestContract(new Dictionary<string, string> { ["TREG"] = "6", ["TIPTRAN"] = "22", ["MONTO"] = "10", ["IDTRAN"] = "1", ["IDCAMCOMPE"] = "1" }),
+            mappingSetId,
+            version,
+            snapshotHash);
+
+    private static IntegrationMappingReadinessResult BuildReadiness(Guid? mappingSetId, int? mappingVersion, string? mappingSnapshotHash)
+        => new IntegrationMappingReadinessResult(
+            true,
+            "Ok",
+            "OK",
+            IntegrationGuaranteeConstants.Wscfaach,
+            IntegrationGuaranteeConstants.ProcTransacciones,
+            IntegrationGuaranteeConstants.MonetaryCreditRequest,
+            IntegrationGuaranteeConstants.OutboundRequest,
+            5,
+            5,
+            [],
+            [],
+            [],
+            [],
+            false,
+            true,
+            [],
+            [])
+        {
+            MappingSetId = mappingSetId,
+            MappingVersion = mappingVersion,
+            MappingSnapshotHash = mappingSnapshotHash
+        };
 
     private static ISoapIntegrationSettingsService SoapSettingsService(string endpoint)
     {

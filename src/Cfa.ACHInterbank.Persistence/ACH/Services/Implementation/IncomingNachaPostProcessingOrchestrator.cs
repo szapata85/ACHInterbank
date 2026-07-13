@@ -180,10 +180,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
 
                 var readinessContext = await EnsureProcTransaccionesReadinessAsync(queue.AchTransaction, ct);
                 var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, DateTime.Now, ct);
-                if (readinessContext.Readiness is not null)
-                {
-                    EnsureSnapshotConsistency(readinessContext.Readiness, resolution);
-                }
+                EnsureSnapshotConsistency(readinessContext.Readiness, resolution);
                 var requestXml = _mapper.BuildSoapBody(resolution.Contract);
                 var dispatchEndpoint = await ResolveProcTransaccionesEndpointAsync(ct);
                 ApplyRequestAudit(execution, resolution, requestXml, dispatchEndpoint);
@@ -242,6 +239,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
                 queue.LastErrorCode = ex.Message.StartsWith("PROC_TRANSACCIONES_DISABLED:", StringComparison.OrdinalIgnoreCase)
                     ? "PROC_TRANSACCIONES_DISABLED"
+                    : ex.Message.StartsWith("PROC_TRANSACCIONES_READINESS_SERVICE_UNAVAILABLE:", StringComparison.OrdinalIgnoreCase)
+                        ? "PROC_TRANSACCIONES_READINESS_SERVICE_UNAVAILABLE"
                     : ex.Message.StartsWith("MAPPING_SNAPSHOT_CHANGED:", StringComparison.OrdinalIgnoreCase)
                         ? "MAPPING_SNAPSHOT_CHANGED"
                         : "MAPPING_INVALID";
@@ -252,6 +251,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.SoapResponseDescription = ex.Message;
                 execution.SoapTechnicalStatus = queue.LastErrorCode.Equals("PROC_TRANSACCIONES_DISABLED", StringComparison.OrdinalIgnoreCase)
                     ? TechnicalStatusDisabled
+                    : queue.LastErrorCode.Equals("PROC_TRANSACCIONES_READINESS_SERVICE_UNAVAILABLE", StringComparison.OrdinalIgnoreCase)
+                        ? TechnicalStatusTechnicalException
                     : queue.LastErrorCode.Equals("MAPPING_SNAPSHOT_CHANGED", StringComparison.OrdinalIgnoreCase)
                         ? TechnicalStatusTechnicalException
                     : TechnicalStatusTechnicalException;
@@ -396,14 +397,20 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         });
     }
 
-    private async Task<(TransactionIntegrationOperationResult? Operation, IntegrationMappingReadinessResult? Readiness)> EnsureProcTransaccionesReadinessAsync(AchTransaction transaction, CancellationToken ct)
+    private async Task<(TransactionIntegrationOperationResult Operation, IntegrationMappingReadinessResult Readiness)> EnsureProcTransaccionesReadinessAsync(AchTransaction transaction, CancellationToken ct)
     {
         if (_operationResolver is null || _mappingReadinessService is null)
         {
-            return (null, null);
+            throw new InvalidOperationException(
+                "PROC_TRANSACCIONES_READINESS_SERVICE_UNAVAILABLE: no se puede evaluar readiness de Proc_Transacciones sin resolver de operación o servicio de readiness.");
         }
 
         var operation = await _operationResolver.ResolveAsync(transaction, ct);
+        if (operation is null)
+        {
+            throw new InvalidOperationException(
+                "PROC_TRANSACCIONES_READINESS_SERVICE_UNAVAILABLE: el resolvedor de operación devolvió null para Proc_Transacciones.");
+        }
         if (!operation.IsSupported
             || operation.OperationKey != IntegrationGuaranteeConstants.ProcTransacciones
             || operation.MappingPurpose != IntegrationGuaranteeConstants.MonetaryCreditRequest)
@@ -413,6 +420,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         }
 
         var readiness = await _mappingReadinessService.EvaluateAsync(operation, ct);
+        if (readiness is null)
+        {
+            throw new InvalidOperationException(
+                "PROC_TRANSACCIONES_READINESS_SERVICE_UNAVAILABLE: el servicio de readiness devolvió null para Proc_Transacciones.");
+        }
         if (readiness.Status == "Failed" || !readiness.IsReady)
         {
             throw new InvalidOperationException(
