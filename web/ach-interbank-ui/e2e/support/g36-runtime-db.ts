@@ -1182,10 +1182,13 @@ function incomingCleanupSqlServer(ingestionId: string): string {
   const queues = `(SELECT [Id] FROM [IncomingNachaDispatchQueue] WHERE [IncomingNachaFileIngestionId] = ${id})`;
   const fileName = `(SELECT [FileName] FROM [IncomingNachaFileIngestions] WHERE [Id] = ${id})`;
   return `
+    SET QUOTED_IDENTIFIER ON;
+    SET XACT_ABORT ON;
+    BEGIN TRANSACTION;
     DELETE FROM [ExternalFileNameValidationLog] WHERE [RegistryId] IN (SELECT [Id] FROM [ExternalFileNameRegistry] WHERE [ExternalFileName] = ${fileName});
     DELETE FROM [ExternalFileNameRegistry] WHERE [ExternalFileName] = ${fileName};
     DELETE FROM [IncomingNachaIntegrationExecution] WHERE [DispatchQueueId] IN ${queues};
-    DELETE FROM [IncomingNachaProcessingEvents] WHERE [IncomingNachaFileIngestionId] = ${id};
+    DELETE FROM [IncomingNachaProcessingEvents] WHERE [IncomingNachaFileIngestionId] = ${id} OR [IncomingNachaFileIngestionId1] = ${id};
     DELETE FROM [IncomingNachaDispatchQueue] WHERE [IncomingNachaFileIngestionId] = ${id};
     DELETE FROM [IncomingNachaTransactionLinks] WHERE [IncomingNachaFileIngestionId] = ${id};
     DELETE FROM [IncomingNachaEntryClassifications] WHERE [IncomingNachaFileIngestionId] = ${id};
@@ -1196,5 +1199,6 @@ function incomingCleanupSqlServer(ingestionId: string): string {
     DELETE FROM [EntryDetails] WHERE [NachaID] IN ${headers};
     DELETE FROM [FileControls] WHERE [NachaID] IN ${headers};
     DELETE FROM [NachaHeaders] WHERE [IncomingNachaFileIngestionId] = ${id};
-    DELETE FROM [IncomingNachaFileIngestions] WHERE [Id] = ${id};`;
+    DELETE FROM [IncomingNachaFileIngestions] WHERE [Id] = ${id};
+    COMMIT TRANSACTION;`;
 }

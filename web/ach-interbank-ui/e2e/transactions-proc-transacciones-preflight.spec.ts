@@ -103,6 +103,38 @@ test.describe('Proc_Transacciones pre-LIVE guardrails', () => {
     expect(parsed.transactionCode).toBe('32');
     expect(parsed.batchNumber).toBe('0000001');
     expect(() => validateIncomingProcTransaccionesControls(fixture.content)).not.toThrow();
+
+    const batch = fixture.content.subarray(106, 212).toString('ascii');
+    const entry = fixture.content.subarray(212, 318).toString('ascii');
+    const addenda = fixture.content.subarray(318, 424).toString('ascii');
+    expect(batch.slice(4, 20).trimEnd()).toBe('BANCO UAT CENIT');
+    expect(batch.slice(20, 40).trimEnd()).toBe('ESCENARIO E2E');
+    expect(batch.slice(40, 50)).toBe('E2ECENIT01');
+    expect(batch.slice(53, 63)).toBe('CREDITOE2E');
+    expect(batch.slice(83, 91)).toBe(input.externalOriginRouting);
+    expect(batch.slice(91, 98)).toBe('0000001');
+    expect(entry.slice(3, 12)).toBe(input.receivingDfi);
+    expect(entry.slice(12, 29).trimEnd()).toBe(input.receiverAccount);
+    expect(Number(entry.slice(29, 47)) / 100).toBe(input.amount);
+    expect(entry.slice(47, 62)).toBe('E2EPTXANCHOR001');
+    expect(entry.slice(62, 84).trimEnd()).toBe('RECEPTOR E2E');
+    expect(entry.slice(84, 86)).toBe('  ');
+    expect(entry.slice(87, 102)).toBe(fixture.transactionTrace);
+    expect(addenda.slice(3, 16).trimEnd()).toBe('E2EPTXANCHOR');
+    expect(addenda.slice(16, 30)).toBe(' '.repeat(14));
+    expect(addenda.slice(30, 30 + fixture.uniqueRunKey.length)).toBe(fixture.uniqueRunKey);
+    expect(addenda.slice(30 + fixture.uniqueRunKey.length, 87)).toBe(' '.repeat(87 - 30 - fixture.uniqueRunKey.length));
+    expect(addenda.slice(87, 94)).toBe(fixture.transactionTrace.slice(-7));
+    expect(addenda.slice(94)).toBe(' '.repeat(12));
+  });
+
+  test('SHA incorrecto bloquea el paquete CENIT antes de construir el fixture', () => {
+    const input = readAuthorizedFixtureInput('PTX-20260712-SHA0001', readySetup, authorizedEnvironment);
+    expect(() => buildIncomingProcTransaccionesCenitFixture(
+      input,
+      process.env['CENIT_TEST_PACKAGE_PATH'],
+      '0'.repeat(64)
+    )).toThrow(/SHA-256.*bloqueado antes del upload/i);
   });
 
   test('golden original no cambia y controles se recalculan para dos montos', async () => {

@@ -131,11 +131,20 @@ export function buildIncomingProcTransaccionesFixture(
 
 export function buildIncomingProcTransaccionesCenitFixture(
   input: IncomingProcTransaccionesFixtureInput,
-  packagePath = process.env['CENIT_TEST_PACKAGE_PATH']
+  packagePath = process.env['CENIT_TEST_PACKAGE_PATH'],
+  expectedPackageSha256 = process.env['CENIT_TEST_PACKAGE_SHA256']
 ): IncomingProcTransaccionesFixture {
   validateInput(input);
   if (!packagePath) {
     throw new Error('CENIT_TEST_PACKAGE_PATH es obligatoria para derivar el fixture CENIT autorizado.');
+  }
+  if (!expectedPackageSha256) {
+    throw new Error('CENIT_TEST_PACKAGE_SHA256 es obligatoria para validar el paquete CENIT sin fallback.');
+  }
+  const packageContent = readFileSync(packagePath);
+  const actualPackageSha256 = createHash('sha256').update(packageContent).digest('hex');
+  if (actualPackageSha256.toLowerCase() !== expectedPackageSha256.trim().toLowerCase()) {
+    throw new Error('El SHA-256 del paquete CENIT no coincide con CENIT_TEST_PACKAGE_SHA256; el fixture fue bloqueado antes del upload.');
   }
 
   const source = readZipEntry(packagePath, cenitPackageEntryName);
@@ -178,6 +187,10 @@ export function buildIncomingProcTransaccionesCenitFixture(
   const transactionTrace = deriveFifteenDigitTrace(input.uniqueRunKey, input.externalOriginRouting);
   const amountInCents = toAmountInCents(input.amount);
 
+  writeFixed(content, batchStart + 4, 16, 'BANCO UAT CENIT', ' ');
+  writeFixed(content, batchStart + 20, 20, 'ESCENARIO E2E', ' ');
+  writeFixed(content, batchStart + 40, 10, 'E2ECENIT01', ' ');
+  writeFixed(content, batchStart + 53, 10, 'CREDITOE2E', ' ');
   writeFixed(content, batchStart + 83, 8, input.externalOriginRouting, '0');
   writeFixed(content, batchStart + batchNumberOffset, batchNumberLength, '1', '0');
   writeFixed(content, entryStart + 3, 8, receivingRouting, '0');
@@ -185,11 +198,17 @@ export function buildIncomingProcTransaccionesCenitFixture(
   writeFixed(content, entryStart + 12, 17, input.receiverAccount, ' ');
   writeFixed(content, entryStart + 29, 18, amountInCents.toString(), '0');
   writeFixed(content, entryStart + 47, 15, syntheticRecipientId, ' ');
+  writeFixed(content, entryStart + 62, 22, 'RECEPTOR E2E', ' ');
+  writeFixed(content, entryStart + 84, 2, '', ' ');
   writeFixed(content, entryStart + entrySequenceOffset, entrySequenceLength, transactionTrace, '0');
+  writeFixed(content, batchControlStart + 56, 10, 'E2ECENIT01', ' ');
   writeFixed(content, batchControlStart + 91, 8, input.externalOriginRouting, '0');
   writeFixed(content, batchControlStart + 99, 7, '1', '0');
-  content.fill(0x20, addendaStart + invoiceOffset, addendaStart + invoiceOffset + invoiceLength);
+  content.fill(0x20, addendaStart + 3, addendaStart + 83);
+  content.fill(0x20, addendaStart + 83, addendaStart + recordLength);
+  writeFixed(content, addendaStart + 3, 13, 'E2EPTXANCHOR', ' ');
   content.write(input.uniqueRunKey, addendaStart + invoiceOffset, 'ascii');
+  writeFixed(content, addendaStart + 87, 7, transactionTrace.slice(-7), '0');
 
   const calculated = calculateControls(content);
   writeBatchControl(content, calculated);
@@ -454,7 +473,7 @@ function deriveFifteenDigitTrace(uniqueRunKey: string, externalOriginRouting: st
 
 function toAmountInCents(amount: number): number {
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('TransactionCode=22 requiere un monto autorizado mayor que cero.');
+    throw new Error('El crédito entrante requiere un monto mayor que cero.');
   }
   const rawCents = amount * 100;
   const cents = Math.round(rawCents);

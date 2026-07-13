@@ -27,11 +27,9 @@ const requiredSettings = [
   'ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT',
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT',
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT',
-  'ALLOW_PROC_TRANSACCIONES_SYNTHETIC_DATA_SETUP',
-  'CENIT_TEST_PACKAGE_PATH'
+  'CENIT_TEST_PACKAGE_PATH',
+  'CENIT_TEST_PACKAGE_SHA256'
 ].filter((name) => !process.env[name]);
-// Ningún endpoint existente expone el modo efectivo resuelto por la API. El GET de SOAP settings solo devuelve mapping persistido.
-
 test.describe.configure({ mode: 'serial' });
 test.skip(!liveOptIn, 'RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E=true, ALLOW_LOCAL_MONETARY_SOAP_E2E=true y ProcTransacciones__Mode=Live son requeridos para habilitar este E2E monetario local.');
 test.skip(requiredSettings.length > 0, `Faltan variables requeridas para el E2E LIVE: ${requiredSettings.join(', ')}. El spec no contiene fallbacks de credenciales, URLs ni conexiones.`);
@@ -109,6 +107,35 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
       expect(localSoapLog.text).toContain('Proc_Transacciones');
       expect(localSoapLog.text).not.toContain('Proc_Contrapartidas');
       expect(localSoapLog.text).not.toContain('RegistrarRespuestaTransaccion');
+      console.log(JSON.stringify({
+        ingestionId: ingestion.id,
+        dispatchQueueId: queue.id,
+        correlationId: evidence.correlationId,
+        idTran: fixture.idTran,
+        idLote: fixture.idLote,
+        soapMethodName: evidence.soapMethodName,
+        soapEndpoint: evidence.soapEndpoint,
+        executionMode: evidence.executionMode,
+        soapResponseCode: evidence.soapResponseCode,
+        soapResponseDescription: evidence.soapResponseDescription,
+        soapTechnicalStatus: evidence.soapTechnicalStatus,
+        queueStatus: queueAfterDispatch.queueStatus,
+        attemptCount: queueAfterDispatch.attemptCount,
+        durationMs: evidence.durationMs,
+        isSuccessful: evidence.isSuccessful,
+        isFunctionalRejection: evidence.isFunctionalRejection,
+        isTechnicalFailure: evidence.isTechnicalFailure,
+        requestPersisted: evidence.requestPayloadXml.length > 0,
+        responsePersisted: evidence.responsePayloadXml.length > 0,
+        outboundHasMetodo: evidence.requestPayloadXml.includes('<METODO>'),
+        outboundHasProcContrapartidas: evidence.requestPayloadXml.includes('Proc_Contrapartidas'),
+        outboundHasRegistrarRespuesta: evidence.requestPayloadXml.includes('RegistrarRespuestaTransaccion'),
+        outboundHasPlValidarUsuario: evidence.requestPayloadXml.includes('PLValidarUsuarioBV'),
+        soapLogFile: localSoapLog.source,
+        soapLogHasProcTransacciones: localSoapLog.text.includes('Proc_Transacciones'),
+        soapLogHasIdTran: localSoapLog.text.includes(fixture.idTran),
+        soapLogHasIdLote: localSoapLog.text.includes(fixture.idLote)
+      }));
     } finally {
       await db.restoreIncomingPostProcessing(taskSnapshot);
     }

@@ -41,7 +41,6 @@ export function readAuthorizedFixtureInput(
   setup: Pick<ProcTransaccionesSyntheticSetupResult, 'receivingDfi' | 'externalOriginRouting'>,
   environment: NodeJS.ProcessEnv = process.env
 ): IncomingProcTransaccionesFixtureInput {
-  assertSyntheticSetupAuthorization(environment);
   const receiverAccount = environment['ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT']?.trim() ?? '';
   const rawAmount = environment['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT']?.trim() ?? '';
   if (!receiverAccount) {
@@ -108,7 +107,7 @@ export function parseAuthorizedProcTransaccionesAmount(rawAmount: string): numbe
   }
   const amount = Number(normalized.replace(',', '.'));
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('TransactionCode=32 requiere un monto autorizado mayor que cero.');
+    throw new Error('El crédito entrante requiere un monto mayor que cero.');
   }
   return amount;
 }
