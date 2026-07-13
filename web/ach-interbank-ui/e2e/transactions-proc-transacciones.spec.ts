@@ -2,9 +2,11 @@ import { expect, Page, test } from '@playwright/test';
 import { findProcTransaccionesLogEvidence, snapshotSoapLogDirectory } from './support/local-soap-log-evidence';
 import {
   assertEffectiveProcTransaccionesPreflight,
+  assertExactProcTransaccionesHealth,
   getConfirmedSoapCorrelationTokens,
   maskSensitive,
   parseAuthorizedProcTransaccionesAmount,
+  type RuntimeHealthResponse,
   type SoapIntegrationSettings
 } from './support/proc-transacciones-preflight';
 import {
@@ -33,7 +35,8 @@ const requiredSettings = [
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT',
   'CENIT_TEST_PACKAGE_PATH',
   'CENIT_TEST_PACKAGE_SHA256',
-  'CENIT_TEST_ENTRY_NAME'
+  'CENIT_TEST_ENTRY_NAME',
+  'CENIT_TEST_BATCH_ORDINAL'
 ].filter((name) => !process.env[name]);
 
 test.describe.configure({ mode: 'serial' });
@@ -58,16 +61,19 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
     const selectedEntryName = assertAuthorizedOfficialProcTransaccionesEntryName(
       process.env['CENIT_TEST_ENTRY_NAME']!
     );
+    expect(process.env['CENIT_TEST_BATCH_ORDINAL']!, 'El fixture derivado debe usar el cuarto lote fisico.').toBe('4');
     const packagePath = process.env['CENIT_TEST_PACKAGE_PATH']!;
     const packageSha256 = process.env['CENIT_TEST_PACKAGE_SHA256']!;
     const archive = await loadOfficialProcTransaccionesArchiveInventory({
       packagePath,
-      expectedPackageSha256: packageSha256
+      expectedPackageSha256: packageSha256,
+      requiredEntryNames: [selectedEntryName]
     });
     const selection = await selectOfficialProcTransaccionesEntry({
       packagePath,
       expectedPackageSha256: packageSha256,
-      selectedEntryName
+      selectedEntryName,
+      requiredEntryNames: [selectedEntryName]
     });
     const eligibleEntries = findOfficialProcTransaccionesEligibleEntries(
       selection.selectedEntry.fileName,
@@ -82,13 +88,23 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
       throw new Error('NO-GO HARNESS: MULTIPLE_ELIGIBLE_ENTRIES');
     }
     const selectedEligibleEntry = eligibleEntries[0];
-    expect(selectedEligibleEntry.batchNumber).toBe('0000001');
+    expect(archive.entries).toHaveLength(1);
     expect(selection.selectedEntry.fileName).toBe(selectedEntryName);
     expect(selection.selectedEntry.fixedLengthValid).toBe(true);
     expect(selection.selectedEntry.effectiveDate).toBe('20260713');
     expect(selection.selectedEntry.scc).toBe('220');
-    expect(selection.selectedEntry.transactionCodes).toContain('32');
-    expect(selection.selectedEntry.recordTypes).toEqual(expect.arrayContaining(['1', '5', '6', '7', '8', '9']));
+    expect(selection.selectedEntry.transactionCodes).toEqual(['32']);
+    expect(selection.selectedEntry.recordTypes).toEqual(['1', '5', '6', '7', '8', '9']);
+    expect(selection.selectedEntry.batchCount).toBe(1);
+    expect(selection.selectedEntry.addenda05Count).toBe(1);
+    expect(selection.selectedEntry.recordCount).toBe(10);
+    expect(selectedEligibleEntry.batchOrdinal).toBe(4);
+    expect(selectedEligibleEntry.batchNumberRaw7).toBe('0000004');
+    expect(selectedEligibleEntry.idLote).toBe('000004');
+    expect(selectedEligibleEntry.idTran).toBe(selectedEligibleEntry.traceSequence7);
+    expect(selectedEligibleEntry.traceNumber15).toMatch(/^\d{15}$/);
+    expect(selectedEligibleEntry.originatorCode8).toMatch(/^\d{8}$/);
+    expect(selectedEligibleEntry.traceSequence7).toMatch(/^\d{7}$/);
     expect(selection.packageSha256).toBe(packageSha256.trim().toUpperCase());
 
     console.log(JSON.stringify({
@@ -98,10 +114,14 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
       selectedEntrySha256: selection.selectedEntry.sha256,
       selectedEligibleEntry: {
         fileName: selectedEligibleEntry.fileName,
-        batchNumber: selectedEligibleEntry.batchNumber,
+        batchOrdinal: selectedEligibleEntry.batchOrdinal,
+        batchNumberRaw7: selectedEligibleEntry.batchNumberRaw7,
         transactionCode: selectedEligibleEntry.transactionCode,
         amount: selectedEligibleEntry.amount,
         receiverAccount: maskSensitive(selectedEligibleEntry.receiverAccount),
+        traceNumber15: selectedEligibleEntry.traceNumber15,
+        originatorCode8: selectedEligibleEntry.originatorCode8,
+        traceSequence7: selectedEligibleEntry.traceSequence7,
         idTran: selectedEligibleEntry.idTran,
         idLote: selectedEligibleEntry.idLote
       },
@@ -208,17 +228,17 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
 
 async function assertRuntimeSurface(): Promise<{ liveStatus: number; readyStatus: number; readyHealthy: boolean; liveHealthy: boolean; scalarStatus: number; spaStatus: number }> {
   const liveResponse = await fetch('http://localhost:843/health/live', { signal: AbortSignal.timeout(10_000) });
-  const liveText = await liveResponse.text();
   expect(liveResponse.ok, '/health/live debe responder HTTP 200.').toBeTruthy();
-  expect(liveText).toMatch(/Healthy/i);
+  const liveJson = await liveResponse.json() as RuntimeHealthResponse;
+  assertExactProcTransaccionesHealth(liveJson, 'live');
 
   const readyResponse = await fetch('http://localhost:843/health/ready', { signal: AbortSignal.timeout(10_000) });
-  const readyText = await readyResponse.text();
   expect(readyResponse.ok, '/health/ready debe responder HTTP 200.').toBeTruthy();
-  expect(readyText).toMatch(/Healthy/i);
-  expect(readyText).toMatch(/database/i);
+  const readyJson = await readyResponse.json() as RuntimeHealthResponse;
+  assertExactProcTransaccionesHealth(readyJson, 'ready');
 
   const scalarResponse = await fetch('http://localhost:843/scalar/', { signal: AbortSignal.timeout(10_000) });
+  expect(scalarResponse.ok, '/scalar/ debe responder HTTP 200.').toBeTruthy();
 
   const spaResponse = await fetch('http://localhost:743/login', { signal: AbortSignal.timeout(10_000) });
   const spaText = await spaResponse.text();
@@ -229,8 +249,8 @@ async function assertRuntimeSurface(): Promise<{ liveStatus: number; readyStatus
   return {
     liveStatus: liveResponse.status,
     readyStatus: readyResponse.status,
-    readyHealthy: readyText.toLowerCase().includes('healthy'),
-    liveHealthy: liveText.toLowerCase().includes('healthy'),
+    readyHealthy: readyJson.status === 'Healthy' && readyJson.check === 'ready' && readyJson.database === 'Healthy',
+    liveHealthy: liveJson.status === 'Healthy' && liveJson.check === 'live' && liveJson.service === 'ACHInterbank',
     scalarStatus: scalarResponse.status,
     spaStatus: spaResponse.status
   };

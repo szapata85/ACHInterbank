@@ -15,6 +15,7 @@ import {
 } from './support/incoming-proc-transacciones-fixture';
 import {
   assertAuthorizedOfficialProcTransaccionesEntryName,
+  deriveOfficialProcTransaccionesSingleBatchFixture,
   findOfficialProcTransaccionesEligibleEntries,
   loadOfficialProcTransaccionesArchiveInventory,
   selectOfficialProcTransaccionesEntry,
@@ -23,6 +24,7 @@ import {
 import { findProcTransaccionesLogEvidence, snapshotSoapLogDirectory } from './support/local-soap-log-evidence';
 import {
   assertEffectiveProcTransaccionesPreflight,
+  assertExactProcTransaccionesHealth,
   assertSyntheticSetupAuthorization,
   assertSyntheticSetupReadiness,
   getConfirmedSoapCorrelationTokens,
@@ -258,8 +260,9 @@ test.describe('Proc_Transacciones pre-LIVE guardrails', () => {
     test.skip(
       !process.env['CENIT_TEST_PACKAGE_PATH']
       || !process.env['CENIT_TEST_PACKAGE_SHA256']
-      || !process.env['CENIT_TEST_ENTRY_NAME'],
-      'CENIT_TEST_PACKAGE_PATH, CENIT_TEST_PACKAGE_SHA256 y CENIT_TEST_ENTRY_NAME son requeridos para validar el ZIP oficial.'
+      || !process.env['CENIT_TEST_ENTRY_NAME']
+      || !process.env['CENIT_TEST_BATCH_ORDINAL'],
+      'CENIT_TEST_PACKAGE_PATH, CENIT_TEST_PACKAGE_SHA256, CENIT_TEST_ENTRY_NAME y CENIT_TEST_BATCH_ORDINAL son requeridos para validar el ZIP oficial.'
     );
 
     test.beforeAll(async () => {
@@ -342,6 +345,94 @@ test.describe('Proc_Transacciones pre-LIVE guardrails', () => {
         ...candidates,
         { fileName: '0001283.002.20260713.1', uploadedAtUtc: '2026-07-13T10:00:02Z', correlationId: 'third' }
       ], '0001283.002.20260713.1', base)).toThrow(/ingesti/i);
+    });
+
+    test('health exacta acepta Healthy y rechaza Unhealthy', () => {
+      expect(() => assertExactProcTransaccionesHealth({
+        status: 'Healthy',
+        check: 'live',
+        service: 'ACHInterbank'
+      }, 'live')).not.toThrow();
+      expect(() => assertExactProcTransaccionesHealth({
+        status: 'Healthy',
+        check: 'ready',
+        database: 'Healthy'
+      }, 'ready')).not.toThrow();
+      expect(() => assertExactProcTransaccionesHealth({
+        status: 'Unhealthy',
+        check: 'live',
+        service: 'ACHInterbank'
+      }, 'live')).toThrow(/Healthy/i);
+    });
+
+    test('deriva un fixture UAT de un solo lote fisico y persiste ZIP y manifest', async () => {
+      const sourcePackagePath = process.env['CENIT_TEST_PACKAGE_PATH']!;
+      const sourcePackageSha256 = process.env['CENIT_TEST_PACKAGE_SHA256']!;
+      const sourceEntryName = process.env['CENIT_TEST_ENTRY_NAME']!;
+      const selectedBatchOrdinal = Number(process.env['CENIT_TEST_BATCH_ORDINAL']!);
+      const receiverAccount = '02001033883';
+      const expectedAmount = 3000;
+      const derivedPackagePath = path.resolve('..', '..', 'docs', 'uat', 'CENIT_Proc_Transacciones_SINGLE_20260713.zip');
+      const derivedManifestPath = path.resolve('..', '..', 'docs', 'uat', 'CENIT_Proc_Transacciones_SINGLE_20260713.manifest.json');
+
+      const derived = await deriveOfficialProcTransaccionesSingleBatchFixture({
+        sourcePackagePath,
+        sourcePackageSha256,
+        sourceEntryName,
+        selectedBatchOrdinal,
+        receiverAccount,
+        expectedAmount,
+        derivedPackagePath,
+        derivedManifestPath
+      });
+
+      const bytes = readFileSync(derivedPackagePath);
+      const manifest = JSON.parse(readFileSync(derivedManifestPath, 'utf8')) as typeof derived.manifest;
+
+      expect(derived.selectedBatchOrdinal).toBe(4);
+      expect(derived.batchNumberRaw7).toBe('0000004');
+      expect(derived.idLoteExpectedD6).toBe('000004');
+      expect(derived.selectedEligibleEntry.idTran).toBe(derived.selectedEligibleEntry.traceSequence7);
+      expect(derived.selectedEligibleEntry.traceNumber15).toHaveLength(15);
+      expect(derived.selectedEligibleEntry.originatorCode8).toHaveLength(8);
+      expect(derived.selectedEligibleEntry.traceSequence7).toHaveLength(7);
+      expect(derived.selectedEligibleEntry.transactionCode).toBe('32');
+      expect(derived.manifest.transactionCode).toBe('32');
+      expect(derived.manifest.batchCount).toBe(1);
+      expect(derived.manifest.eligibleEntryCount).toBe(1);
+      expect(derived.manifest.recordCount).toBe(10);
+      expect(derived.manifest.scc).toBe('220');
+      expect(derived.manifest.effectiveDate).toBe('20260713');
+      expect(derived.manifest.idLoteExpectedD6).toBe('000004');
+      expect(derived.manifest.derivedEntrySha256).toBe(derived.derivedEntrySha256);
+      expect(derived.manifest.derivedPackageSha256).toBe(derived.derivedPackageSha256);
+      expect(manifest.derivedPackageSha256).toBe(derived.derivedPackageSha256);
+      expect(sha256(bytes)).toBe(derived.derivedPackageSha256);
+
+      const derivedArchive = await selectOfficialProcTransaccionesEntry({
+        packagePath: derivedPackagePath,
+        expectedPackageSha256: derived.derivedPackageSha256,
+        selectedEntryName: sourceEntryName,
+        requiredEntryNames: [sourceEntryName]
+      });
+      expect(derivedArchive.entries).toHaveLength(1);
+      expect(derivedArchive.selectedEntry.recordCount).toBe(10);
+      expect(derivedArchive.selectedEntry.batchCount).toBe(1);
+      expect(derivedArchive.selectedEntry.addenda05Count).toBe(1);
+      expect(derivedArchive.selectedEntry.transactionCodes).toEqual(['32']);
+      expect(derivedArchive.selectedEntry.effectiveDate).toBe('20260713');
+
+      const derivedEligibleEntries = findOfficialProcTransaccionesEligibleEntries(
+        sourceEntryName,
+        derivedArchive.selectedBytes,
+        receiverAccount,
+        expectedAmount
+      );
+      expect(derivedEligibleEntries).toHaveLength(1);
+      expect(derivedEligibleEntries[0].batchOrdinal).toBe(4);
+      expect(derivedEligibleEntries[0].batchNumberRaw7).toBe('0000004');
+      expect(derivedEligibleEntries[0].idTran).toHaveLength(7);
+      expect(derivedEligibleEntries[0].idLote).toBe('000004');
     });
 
     test('el spec live no acelera Quartz ni limpia evidencia', () => {

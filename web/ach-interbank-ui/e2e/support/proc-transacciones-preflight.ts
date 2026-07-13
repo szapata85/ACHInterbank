@@ -1,3 +1,4 @@
+import { expect } from '@playwright/test';
 import type {
   IncomingProcTransaccionesFixture,
   IncomingProcTransaccionesFixtureInput
@@ -129,6 +130,26 @@ export function assertEffectiveProcTransaccionesPreflight(
     throw new Error('El preflight efectivo de Proc_Transacciones no confirma Live, endpoint esperado, integración habilitada y mapping listo. La carga NACHA-M fue bloqueada antes del upload.');
   }
   return effective.endpoint.trim();
+}
+
+export type RuntimeHealthResponse = {
+  status: string;
+  check: string;
+  service?: string;
+  database?: string;
+};
+
+export function assertExactProcTransaccionesHealth(
+  response: RuntimeHealthResponse,
+  scope: 'live' | 'ready'
+): void {
+  expect(response.status, `La respuesta ${scope} debe reportar status Healthy.`).toBe('Healthy');
+  expect(response.check, `La respuesta ${scope} debe reportar check ${scope}.`).toBe(scope);
+  if (scope === 'live') {
+    expect(response.service, 'La respuesta /health/live debe reportar el servicio ACHInterbank.').toBe('ACHInterbank');
+  } else {
+    expect(response.database, 'La respuesta /health/ready debe reportar database Healthy.').toBe('Healthy');
+  }
 }
 
 export function getConfirmedSoapCorrelationTokens(
