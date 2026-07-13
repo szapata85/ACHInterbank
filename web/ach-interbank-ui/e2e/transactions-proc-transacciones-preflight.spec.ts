@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { expect, test } from '@playwright/test';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   buildIncomingProcTransaccionesFixture,
   buildIncomingProcTransaccionesCenitFixture,
@@ -10,6 +13,13 @@ import {
   parseIncomingProcTransaccionesFixture,
   validateIncomingProcTransaccionesControls
 } from './support/incoming-proc-transacciones-fixture';
+import {
+  assertAuthorizedOfficialProcTransaccionesEntryName,
+  findOfficialProcTransaccionesEligibleEntries,
+  loadOfficialProcTransaccionesArchiveInventory,
+  selectOfficialProcTransaccionesEntry,
+  selectUniqueIngestionCandidate
+} from './support/official-proc-transacciones-cenit';
 import { findProcTransaccionesLogEvidence, snapshotSoapLogDirectory } from './support/local-soap-log-evidence';
 import {
   assertEffectiveProcTransaccionesPreflight,
@@ -129,12 +139,17 @@ test.describe('Proc_Transacciones pre-LIVE guardrails', () => {
   });
 
   test('SHA incorrecto bloquea el paquete CENIT antes de construir el fixture', () => {
-    const input = readAuthorizedFixtureInput('PTX-20260712-SHA0001', readySetup, authorizedEnvironment);
-    expect(() => buildIncomingProcTransaccionesCenitFixture(
-      input,
-      process.env['CENIT_TEST_PACKAGE_PATH'],
-      '0'.repeat(64)
-    )).toThrow(/SHA-256.*bloqueado antes del upload/i);
+    test.skip(
+      !process.env['CENIT_TEST_PACKAGE_PATH']
+      || !process.env['CENIT_TEST_PACKAGE_SHA256']
+      || !process.env['CENIT_TEST_ENTRY_NAME'],
+      'CENIT_TEST_PACKAGE_PATH, CENIT_TEST_PACKAGE_SHA256 y CENIT_TEST_ENTRY_NAME son requeridos para validar el hash oficial.'
+    );
+    return expect(selectOfficialProcTransaccionesEntry({
+      packagePath: process.env['CENIT_TEST_PACKAGE_PATH']!,
+      expectedPackageSha256: '0'.repeat(64),
+      selectedEntryName: process.env['CENIT_TEST_ENTRY_NAME']!
+    })).rejects.toThrow(/SHA-256/i);
   });
 
   test('golden original no cambia y controles se recalculan para dos montos', async () => {
@@ -232,8 +247,179 @@ test.describe('Proc_Transacciones pre-LIVE guardrails', () => {
     expect(evidence.text).toContain(fixture.idTran);
     expect(evidence.text).not.toContain('Proc_Contrapartidas');
   });
+
+  test.describe('official zip helper', () => {
+    test.describe.configure({ timeout: 120_000 });
+
+    let officialInventory: Awaited<ReturnType<typeof loadOfficialProcTransaccionesArchiveInventory>> | undefined;
+    let officialSelection: Awaited<ReturnType<typeof selectOfficialProcTransaccionesEntry>> | undefined;
+    let missingEntryZip: string | undefined;
+
+    test.skip(
+      !process.env['CENIT_TEST_PACKAGE_PATH']
+      || !process.env['CENIT_TEST_PACKAGE_SHA256']
+      || !process.env['CENIT_TEST_ENTRY_NAME'],
+      'CENIT_TEST_PACKAGE_PATH, CENIT_TEST_PACKAGE_SHA256 y CENIT_TEST_ENTRY_NAME son requeridos para validar el ZIP oficial.'
+    );
+
+    test.beforeAll(async () => {
+      officialInventory = await loadOfficialProcTransaccionesArchiveInventory({
+        packagePath: process.env['CENIT_TEST_PACKAGE_PATH']!,
+        expectedPackageSha256: process.env['CENIT_TEST_PACKAGE_SHA256']!
+      });
+      officialSelection = await selectOfficialProcTransaccionesEntry({
+        packagePath: process.env['CENIT_TEST_PACKAGE_PATH']!,
+        expectedPackageSha256: process.env['CENIT_TEST_PACKAGE_SHA256']!,
+        selectedEntryName: process.env['CENIT_TEST_ENTRY_NAME']!
+      });
+      missingEntryZip = createZipWithoutEntry(
+        process.env['CENIT_TEST_PACKAGE_PATH']!,
+        '0001283.002.20260713.1'
+      );
+    });
+
+    test('acepta el nombre completo oficial y rechaza el abreviado', async () => {
+      expect(officialInventory?.entries.map((entry) => entry.fileName)).toEqual([
+        '0001283.001.20260713.1',
+        '0001283.002.20260713.1',
+        '0001283.003.20260713.1',
+        '0001283.004.20260713.1',
+        '0001283.005.20260713.1'
+      ]);
+      expect(assertAuthorizedOfficialProcTransaccionesEntryName('0001283.002.20260713.1')).toBe('0001283.002.20260713.1');
+      expect(() => assertAuthorizedOfficialProcTransaccionesEntryName('0001283.002.1')).toThrow(/CENIT_TEST_ENTRY_NAME/);
+    });
+
+    test('bloquea una entrada inexistente aunque el hash sea correcto', async () => {
+      try {
+        const tempHash = sha256(readFileSync(missingEntryZip!));
+        await expect(selectOfficialProcTransaccionesEntry({
+          packagePath: missingEntryZip!,
+          expectedPackageSha256: tempHash,
+          selectedEntryName: '0001283.002.20260713.1'
+        })).rejects.toThrow(/no contiene|no existe/i);
+      } finally {
+        rmSync(path.dirname(missingEntryZip!), { recursive: true, force: true });
+      }
+    });
+
+    test('bloquea el ZIP con hash incorrecto', async () => {
+      await expect(selectOfficialProcTransaccionesEntry({
+        packagePath: process.env['CENIT_TEST_PACKAGE_PATH']!,
+        expectedPackageSha256: '0'.repeat(64),
+        selectedEntryName: '0001283.002.20260713.1'
+      })).rejects.toThrow(/SHA-256/i);
+    });
+
+    test('mantiene intactos los bytes extraídos', async () => {
+      expect(sha256(officialSelection!.selectedBytes)).toBe(officialSelection!.selectedEntry.sha256);
+      expect(officialSelection!.selectedEntry.fileName).toBe(process.env['CENIT_TEST_ENTRY_NAME']!);
+    });
+
+    test('bloquea más de una entrada elegible en el mismo contenido', async () => {
+      const duplicated = Buffer.concat([officialSelection!.selectedBytes, officialSelection!.selectedBytes]);
+      const firstEligible = extractFirstEligibleEntrySignature(officialSelection!.selectedBytes);
+      const matches = findOfficialProcTransaccionesEligibleEntries(
+        officialSelection!.selectedEntry.fileName,
+        duplicated,
+        firstEligible.receiverAccount,
+        firstEligible.amount
+      );
+
+      expect(matches.length).toBeGreaterThan(1);
+    });
+
+    test('correlaciona por filename y ventana sin duplicados', () => {
+      const base = new Date('2026-07-13T10:00:00Z');
+      const candidates = [
+        { fileName: '0001283.002.20260713.1', uploadedAtUtc: '2026-07-13T09:59:59Z', correlationId: 'old' },
+        { fileName: '0001283.002.20260713.1', uploadedAtUtc: '2026-07-13T10:00:01Z', correlationId: 'new' }
+      ];
+
+      expect(selectUniqueIngestionCandidate(candidates, '0001283.002.20260713.1', base).correlationId).toBe('new');
+      expect(() => selectUniqueIngestionCandidate(candidates, '0001283.002.20260713.1', new Date('2026-07-13T11:00:00Z'))).toThrow(/ingesti/i);
+      expect(() => selectUniqueIngestionCandidate([
+        ...candidates,
+        { fileName: '0001283.002.20260713.1', uploadedAtUtc: '2026-07-13T10:00:02Z', correlationId: 'third' }
+      ], '0001283.002.20260713.1', base)).toThrow(/ingesti/i);
+    });
+
+    test('el spec live no acelera Quartz ni limpia evidencia', () => {
+      const liveSpec = readFileSync(path.resolve('e2e/transactions-proc-transacciones.spec.ts'), 'utf8');
+      expect(liveSpec).toContain('http://localhost:843/health/live');
+      expect(liveSpec).toContain('http://localhost:843/health/ready');
+      expect(liveSpec).toContain('http://localhost:743/login');
+      expect(liveSpec).toContain('CENIT_TEST_ENTRY_NAME');
+      expect(liveSpec).not.toContain('buildIncomingProcTransaccionesCenitFixture');
+      expect(liveSpec).not.toContain('readAuthorizedFixtureInput');
+      expect(liveSpec).not.toContain('accelerateIncomingPostProcessing');
+      expect(liveSpec).not.toContain('cleanupIncomingProcTransaccionesRun');
+      expect(liveSpec).not.toContain('TaskDefinition');
+    });
+  });
 });
 
 function sha256(content: Buffer): string {
-  return createHash('sha256').update(content).digest('hex');
+  return createHash('sha256').update(content).digest('hex').toUpperCase();
+}
+
+function createZipWithoutEntry(sourceZipPath: string, entryName: string): string {
+  const tempDirectory = mkdtempSync(path.join(tmpdir(), 'proc-transacciones-zip-'));
+  const tempZipPath = path.join(tempDirectory, 'missing-entry.zip');
+  const script = `
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression
+$sourcePath = '${escapePowerShell(sourceZipPath)}'
+$destinationPath = '${escapePowerShell(tempZipPath)}'
+$entryName = '${escapePowerShell(entryName)}'
+$source = [System.IO.Compression.ZipFile]::OpenRead($sourcePath)
+$destination = [System.IO.Compression.ZipFile]::Open($destinationPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+  foreach ($entry in $source.Entries) {
+    if ($entry.FullName -eq $entryName) { continue }
+    $newEntry = $destination.CreateEntry($entry.FullName)
+    $sourceStream = $entry.Open()
+    $destinationStream = $newEntry.Open()
+    try {
+      $sourceStream.CopyTo($destinationStream)
+    }
+    finally {
+      $destinationStream.Dispose()
+      $sourceStream.Dispose()
+    }
+  }
+}
+finally {
+  $destination.Dispose()
+  $source.Dispose()
+}
+`;
+
+  execFileSync('powershell', ['-NoProfile', '-Command', script], { stdio: 'pipe' });
+  return tempZipPath;
+}
+
+function escapePowerShell(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+function extractFirstEligibleEntrySignature(fileBytes: Buffer): { receiverAccount: string; amount: number } {
+  const recordLength = 106;
+  if (fileBytes.length % recordLength !== 0) {
+    throw new Error('El archivo oficial debe conservar longitud fija para detectar la primera entrada elegible.');
+  }
+
+  for (let offset = 0; offset < fileBytes.length; offset += recordLength) {
+    const record = fileBytes.subarray(offset, offset + recordLength).toString('ascii');
+    if (record[0] !== '6' || record.slice(1, 3) !== '32') {
+      continue;
+    }
+
+    return {
+      receiverAccount: record.slice(12, 29).trimEnd(),
+      amount: Number(record.slice(29, 47)) / 100
+    };
+  }
+
+  throw new Error('No se encontró una entrada elegible 32 en el archivo oficial seleccionado.');
 }

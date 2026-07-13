@@ -133,11 +133,11 @@ export function assertEffectiveProcTransaccionesPreflight(
 
 export function getConfirmedSoapCorrelationTokens(
   requestPayloadXml: string,
-  fixture: IncomingProcTransaccionesFixture
+  source: Pick<IncomingProcTransaccionesFixture, 'idTran' | 'idLote'>
 ): string[] {
   const idTran = readSoapElement(requestPayloadXml, 'IDTRAN');
   const idLote = readSoapElement(requestPayloadXml, 'IDLOTE');
-  if (idTran !== fixture.idTran || idLote !== fixture.idLote) {
+  if (idTran !== source.idTran || idLote !== source.idLote) {
     throw new Error('RequestPayloadXml no confirma los tokens IDTRAN/IDLOTE esperados para correlación SOAP.');
   }
   return [idTran, idLote];

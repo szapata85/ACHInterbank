@@ -75,6 +75,9 @@ export type IncomingNachaIngestionRow = {
 export type IncomingNachaDispatchQueueRow = {
   id: string;
   incomingNachaFileIngestionId: string;
+  incomingNachaEntryClassificationId: string;
+  incomingNachaTransactionLinkId: string;
+  achTransactionId: number;
   achCycleId: string;
   queueStatus: string | number;
   attemptCount: number;
@@ -96,6 +99,11 @@ export type IncomingNachaIntegrationEvidenceRow = {
   soapMethodName: string;
   soapEndpoint: string;
   executionMode: string;
+  mappingSetId: string | null;
+  mappingVersion: number | null;
+  mappingSnapshotHash: string;
+  requestHash: string;
+  responseHash: string;
   requestPayloadXml: string;
   responsePayloadXml: string;
   soapResponseCode: string;
@@ -622,6 +630,53 @@ export class G36RuntimeDb {
     return singleOrNull(rows, 'La correlación NACHA entrante SQL Server debe identificar una sola ingestión.');
   }
 
+  async findIncomingNachaIngestionByFileName(
+    fileName: string,
+    uploadedAfterUtc: Date
+  ): Promise<IncomingNachaIngestionRow | null> {
+    const normalizedFileName = fileName.trim();
+    if (!normalizedFileName) {
+      throw new Error('El nombre del archivo NACHA es obligatorio para correlacionar la ingestiÃ³n.');
+    }
+
+    if (this.postgres) {
+      const rows = await this.postgres.query<IncomingNachaIngestionRow>(
+        `SELECT DISTINCT i."Id"::text AS id,
+                i."FileName" AS "fileName",
+                i."CorrelationId" AS "correlationId",
+                i."IngestionStatus" AS "ingestionStatus",
+                i."CycleResolutionStatus" AS "cycleResolutionStatus",
+                i."ParsingStatus" AS "parsingStatus",
+                i."ResolvedAchCycleId" AS "resolvedAchCycleId",
+                i."ResolvedClearingHouseId" AS "resolvedClearingHouseId",
+                i."OperationalDate" AS "operationalDate",
+                i."UploadedAtUtc" AS "uploadedAtUtc"
+         FROM "IncomingNachaFileIngestions" i
+         WHERE i."FileName" = $1
+           AND i."UploadedAtUtc" >= $2`,
+        [normalizedFileName, uploadedAfterUtc.toISOString()]
+      );
+      return singleOrNull(rows, 'La correlaciÃ³n por FileName y ventana debe identificar una sola ingestiÃ³n.');
+    }
+
+    const rows = this.sqlQuery<IncomingNachaIngestionRow>(
+      `SELECT DISTINCT i.[Id] AS [id],
+              i.[FileName] AS [fileName],
+              i.[CorrelationId] AS [correlationId],
+              i.[IngestionStatus] AS [ingestionStatus],
+              i.[CycleResolutionStatus] AS [cycleResolutionStatus],
+              i.[ParsingStatus] AS [parsingStatus],
+              i.[ResolvedAchCycleId] AS [resolvedAchCycleId],
+              i.[ResolvedClearingHouseId] AS [resolvedClearingHouseId],
+              i.[OperationalDate] AS [operationalDate],
+              i.[UploadedAtUtc] AS [uploadedAtUtc]
+       FROM [IncomingNachaFileIngestions] i
+       WHERE [FileName] = ${sqlString(normalizedFileName)}
+         AND [UploadedAtUtc] >= ${sqlString(uploadedAfterUtc.toISOString())}`
+    );
+    return singleOrNull(rows, 'La correlaciÃ³n por FileName y ventana debe identificar una sola ingestiÃ³n.');
+  }
+
   async assertIncomingProcTransaccionesReceiver(
     receiverAccount: string,
     receivingDfi: string,
@@ -798,6 +853,9 @@ export class G36RuntimeDb {
       const rows = await this.postgres.query<IncomingNachaDispatchQueueRow>(
         `SELECT q."Id"::text AS id,
                 q."IncomingNachaFileIngestionId"::text AS "incomingNachaFileIngestionId",
+                q."IncomingNachaEntryClassificationId"::text AS "incomingNachaEntryClassificationId",
+                q."IncomingNachaTransactionLinkId"::text AS "incomingNachaTransactionLinkId",
+                q."AchTransactionId" AS "achTransactionId",
                 q."AchCycleId" AS "achCycleId",
                 q."QueueStatus" AS "queueStatus",
                 q."AttemptCount" AS "attemptCount",
@@ -822,6 +880,9 @@ export class G36RuntimeDb {
     const rows = this.sqlQuery<IncomingNachaDispatchQueueRow>(
       `SELECT q.[Id] AS [id],
               q.[IncomingNachaFileIngestionId] AS [incomingNachaFileIngestionId],
+              q.[IncomingNachaEntryClassificationId] AS [incomingNachaEntryClassificationId],
+              q.[IncomingNachaTransactionLinkId] AS [incomingNachaTransactionLinkId],
+              q.[AchTransactionId] AS [achTransactionId],
               q.[AchCycleId] AS [achCycleId],
               q.[QueueStatus] AS [queueStatus],
               q.[AttemptCount] AS [attemptCount],
@@ -869,6 +930,11 @@ export class G36RuntimeDb {
                 e."SoapMethodName" AS "soapMethodName",
                 e."SoapEndpoint" AS "soapEndpoint",
                 e."ExecutionMode" AS "executionMode",
+                e."MappingSetId"::text AS "mappingSetId",
+                e."MappingVersion" AS "mappingVersion",
+                e."MappingSnapshotHash" AS "mappingSnapshotHash",
+                e."RequestHash" AS "requestHash",
+                e."ResponseHash" AS "responseHash",
                 e."RequestPayloadXml" AS "requestPayloadXml",
                 e."ResponsePayloadXml" AS "responsePayloadXml",
                 e."SoapResponseCode" AS "soapResponseCode",
@@ -898,6 +964,11 @@ export class G36RuntimeDb {
               e.[SoapMethodName] AS [soapMethodName],
               e.[SoapEndpoint] AS [soapEndpoint],
               e.[ExecutionMode] AS [executionMode],
+              e.[MappingSetId] AS [mappingSetId],
+              e.[MappingVersion] AS [mappingVersion],
+              e.[MappingSnapshotHash] AS [mappingSnapshotHash],
+              e.[RequestHash] AS [requestHash],
+              e.[ResponseHash] AS [responseHash],
               e.[RequestPayloadXml] AS [requestPayloadXml],
               e.[ResponsePayloadXml] AS [responsePayloadXml],
               e.[SoapResponseCode] AS [soapResponseCode],
