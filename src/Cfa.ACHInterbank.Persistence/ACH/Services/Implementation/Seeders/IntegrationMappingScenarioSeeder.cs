@@ -17,11 +17,13 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
 {
     private readonly AchDbContext _context;
     private readonly IHostEnvironment _environment;
+    private readonly IntegrationMappingSnapshotBuilder _snapshotBuilder;
 
-    public IntegrationMappingScenarioSeeder(AchDbContext context, IHostEnvironment environment)
+    public IntegrationMappingScenarioSeeder(AchDbContext context, IHostEnvironment environment, IntegrationMappingSnapshotBuilder? snapshotBuilder = null)
     {
         _context = context;
         _environment = environment;
+        _snapshotBuilder = snapshotBuilder ?? new IntegrationMappingSnapshotBuilder(context);
     }
 
     public int Order => 7;
@@ -115,10 +117,11 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
         _context.IntegrationMappingRules.AddRange(invalidRules);
         _context.IntegrationMappingRules.AddRange(clonedRules);
 
+        await _context.SaveChangesAsync();
         _context.IntegrationMappingSetHistory.AddRange(
-            BuildHistory(draftValid, "SeedDraftValid"),
-            BuildHistory(draftInvalid, "SeedDraftInvalid"),
-            BuildHistory(clonedDraft, "SeedCloned"));
+            await BuildHistoryAsync(draftValid, "SeedDraftValid"),
+            await BuildHistoryAsync(draftInvalid, "SeedDraftInvalid"),
+            await BuildHistoryAsync(clonedDraft, "SeedCloned"));
 
         await _context.SaveChangesAsync();
         await EnsureSampleTransactionsAsync();
@@ -147,7 +150,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
         AddPathRule("OFEMP", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.code", "ACH");
         AddPathRule("OFCTA", IntegrationSourceKindEnum.Transaction, "transaction.originatingdfi", "000010070");
         AddPathRule("OFDD", IntegrationSourceKindEnum.Constant, "constant.value", "C");
-        AddPathRule("OFFECHEFEC", IntegrationSourceKindEnum.Cycle, "cycle.processingdate", DateTime.UtcNow.ToString("yyyyMMdd"));
+        AddPathRule("OFFECHEFEC", IntegrationSourceKindEnum.Cycle, "cycle.processingdate", null);
         AddPathRule("OFMONCRE", IntegrationSourceKindEnum.Transaction, "transaction.amount", "0");
         AddPathRule("OFMONDEB", IntegrationSourceKindEnum.Constant, "constant.value", "0");
         AddPathRule("OFIDARCH", IntegrationSourceKindEnum.Batch, "batch.id", "1");
@@ -159,7 +162,7 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
 
         return rules;
 
-        void AddPathRule(string parameterPath, IntegrationSourceKindEnum kind, string sourcePath, string fallback)
+        void AddPathRule(string parameterPath, IntegrationSourceKindEnum kind, string sourcePath, string? fallback)
         {
             var parameter = parameters.FirstOrDefault(p => p.ParameterPath == parameterPath);
             if (parameter is null)
@@ -239,8 +242,10 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             ConditionExpression = source.ConditionExpression
         };
 
-    private static IntegrationMappingSetHistory BuildHistory(IntegrationMappingSet set, string action)
-        => new()
+    private async Task<IntegrationMappingSetHistory> BuildHistoryAsync(IntegrationMappingSet set, string action)
+    {
+        var snapshot = await _snapshotBuilder.BuildAsync(set.Id);
+        return new IntegrationMappingSetHistory
         {
             MappingSetId = set.Id,
             MethodId = set.MethodId,
@@ -249,9 +254,10 @@ public sealed class IntegrationMappingScenarioSeeder : IDbSeeder
             Action = action,
             PerformedBy = "seed",
             PerformedAtUtc = DateTime.UtcNow,
-            SnapshotJson = $"{{\"mappingSet\":\"{set.Name}\"}}",
-            SnapshotHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(set.Name)))
+            SnapshotJson = snapshot.SnapshotJson,
+            SnapshotHash = snapshot.SnapshotHash
         };
+    }
 
     private static string DefaultValueFor(IntegrationMethodParameter parameter)
         => parameter.DataType.ToLowerInvariant() switch

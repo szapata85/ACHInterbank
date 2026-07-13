@@ -1,6 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using Cfa.ACHInterbank.Application.Integrations.Dtos;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
@@ -16,15 +13,18 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
     private readonly AchDbContext _context;
     private readonly IIntegrationMappingValidationService _validationService;
     private readonly IIntegrationMappingPreviewService _previewService;
+    private readonly IntegrationMappingSnapshotBuilder _snapshotBuilder;
 
     public IntegrationMappingSetService(
         AchDbContext context,
         IIntegrationMappingValidationService validationService,
-        IIntegrationMappingPreviewService previewService)
+        IIntegrationMappingPreviewService previewService,
+        IntegrationMappingSnapshotBuilder? snapshotBuilder = null)
     {
         _context = context;
         _validationService = validationService;
         _previewService = previewService;
+        _snapshotBuilder = snapshotBuilder ?? new IntegrationMappingSnapshotBuilder(context);
     }
 
     public async Task<IReadOnlyCollection<IntegrationMappingSetDto>> GetByMethodAsync(int? methodId, CancellationToken ct = default)
@@ -207,7 +207,6 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
         {
             published.Status = IntegrationMappingSetStatusEnum.Archived;
             published.IsActive = false;
-            await AppendHistoryAsync(published, "ArchivedByNewPublication", request.PublishedBy, ct);
         }
 
         var nextVersion = await _context.Set<IntegrationMappingSet>()
@@ -223,6 +222,12 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
         set.Notes = string.IsNullOrWhiteSpace(request.PublishNote)
             ? set.Notes
             : $"{set.Notes}\n[PublishNote] {request.PublishNote.Trim()}";
+
+        await _context.SaveChangesAsync(ct);
+        foreach (var published in currentPublished)
+        {
+            await AppendHistoryAsync(published, "ArchivedByNewPublication", request.PublishedBy, ct);
+        }
 
         await AppendHistoryAsync(set, "Published", request.PublishedBy, ct);
         await _context.SaveChangesAsync(ct);
@@ -269,6 +274,7 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
         });
 
         _context.Set<IntegrationMappingRule>().AddRange(cloneRules);
+        await _context.SaveChangesAsync(ct);
         await AppendHistoryAsync(clone, "Cloned", request.ClonedBy, ct);
         await _context.SaveChangesAsync(ct);
 
@@ -413,7 +419,7 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
 
     private async Task AppendHistoryAsync(IntegrationMappingSet set, string action, string actor, CancellationToken ct)
     {
-        var snapshot = await BuildSnapshotAsync(set.Id, ct);
+        var snapshot = await _snapshotBuilder.BuildAsync(set.Id, ct);
         var history = new IntegrationMappingSetHistory
         {
             MappingSetId = set.Id,
@@ -423,58 +429,11 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
             Action = action,
             PerformedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor.Trim(),
             PerformedAtUtc = DateTime.UtcNow,
-            SnapshotJson = snapshot,
-            SnapshotHash = ComputeSha256(snapshot)
+            SnapshotJson = snapshot.SnapshotJson,
+            SnapshotHash = snapshot.SnapshotHash
         };
 
         _context.Set<IntegrationMappingSetHistory>().Add(history);
-    }
-
-    private async Task<string> BuildSnapshotAsync(Guid mappingSetId, CancellationToken ct)
-    {
-        var set = await _context.Set<IntegrationMappingSet>()
-            .AsNoTracking()
-            .Include(x => x.Rules)
-            .FirstAsync(x => x.Id == mappingSetId, ct);
-
-        return JsonSerializer.Serialize(new
-        {
-            set.Id,
-            set.MethodId,
-            set.Name,
-            set.Version,
-            set.Status,
-            set.IsActive,
-            set.Notes,
-            set.PublishedAtUtc,
-            set.PublishedBy,
-            Rules = set.Rules
-                .OrderBy(r => r.ParameterId)
-                .ThenBy(r => r.Priority)
-                .Select(r => new
-                {
-                    r.Id,
-                    r.ParameterId,
-                    r.SourceKind,
-                    r.SourceCatalogFieldId,
-                    r.SourceFieldPath,
-                    r.FixedValue,
-                    r.DefaultValue,
-                    r.TransformationCode,
-                    r.FormatMask,
-                    r.Priority,
-                    r.RequiredOverride,
-                    r.Enabled,
-                    r.ConditionExpression
-                })
-        });
-    }
-
-    private static string ComputeSha256(string text)
-    {
-        var bytes = Encoding.UTF8.GetBytes(text);
-        var hash = SHA256.HashData(bytes);
-        return Convert.ToHexString(hash);
     }
 
     private static IntegrationMappingSetDto MapToDto(IntegrationMappingSet x)

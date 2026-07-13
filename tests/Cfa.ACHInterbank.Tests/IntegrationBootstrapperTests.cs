@@ -58,6 +58,31 @@ public sealed class IntegrationBootstrapperTests
     }
 
     [Fact]
+    public async Task MappingBootstrapper_ShouldPersistCanonicalSnapshotHistory()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Transacciones");
+        var published = await fixture.Context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id
+            && x.Status == IntegrationMappingSetStatusEnum.Published
+            && x.Name == "ProcTransacciones Published NACHA desagregado");
+        var history = await fixture.Context.IntegrationMappingSetHistory.SingleAsync(x =>
+            x.MappingSetId == published.Id
+            && x.Action == "SeedPublishedReference");
+        var snapshot = await new IntegrationMappingSnapshotBuilder(fixture.Context).BuildAsync(published.Id);
+
+        Assert.Equal(snapshot.SnapshotJson, history.SnapshotJson);
+        Assert.Equal(snapshot.SnapshotHash, history.SnapshotHash);
+        Assert.Contains("\"MappingSetId\"", history.SnapshotJson);
+        Assert.Contains("\"Parameters\"", history.SnapshotJson);
+        Assert.DoesNotContain("\"mappingSet\"", history.SnapshotJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task DbInitializer_Development_ShouldSeedDemoMappings_AndBeIdempotent()
     {
         await using var fixture = await ServiceFixture.CreateAsync("Development", registerScenarioSeeder: true);

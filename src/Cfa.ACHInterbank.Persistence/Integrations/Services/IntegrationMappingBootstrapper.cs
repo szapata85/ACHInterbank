@@ -34,11 +34,13 @@ public sealed class IntegrationMappingBootstrapper
 
     private readonly AchDbContext _context;
     private readonly IntegrationCatalogBootstrapper _catalogBootstrapper;
+    private readonly IntegrationMappingSnapshotBuilder _snapshotBuilder;
 
-    public IntegrationMappingBootstrapper(AchDbContext context)
+    public IntegrationMappingBootstrapper(AchDbContext context, IntegrationMappingSnapshotBuilder? snapshotBuilder = null)
     {
         _context = context;
         _catalogBootstrapper = new IntegrationCatalogBootstrapper(context);
+        _snapshotBuilder = snapshotBuilder ?? new IntegrationMappingSnapshotBuilder(context);
     }
 
     public async Task EnsureAsync(CancellationToken ct = default)
@@ -94,11 +96,10 @@ public sealed class IntegrationMappingBootstrapper
         };
 
         _context.IntegrationMappingSets.Add(published);
-        await _context.SaveChangesAsync(ct);
-
         var publishedRules = BuildPublishedRules(method.Id, published.Id, parameters);
         _context.IntegrationMappingRules.AddRange(publishedRules);
-        _context.IntegrationMappingSetHistory.Add(BuildHistory(published, "SeedPublished"));
+        await _context.SaveChangesAsync(ct);
+        _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(published, "SeedPublished", ct));
         await _context.SaveChangesAsync(ct);
     }
 
@@ -110,7 +111,7 @@ public sealed class IntegrationMappingBootstrapper
         AddPathRule("OFEMP", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.code", "ACH");
         AddPathRule("OFCTA", IntegrationSourceKindEnum.Transaction, "transaction.originatingdfi", "000010070");
         AddPathRule("OFDD", IntegrationSourceKindEnum.Constant, "constant.value", "C");
-        AddPathRule("OFFECHEFEC", IntegrationSourceKindEnum.Cycle, "cycle.processingdate", DateTime.UtcNow.ToString("yyyyMMdd"));
+        AddPathRule("OFFECHEFEC", IntegrationSourceKindEnum.Cycle, "cycle.processingdate", null);
         AddPathRule("OFMONCRE", IntegrationSourceKindEnum.Transaction, "transaction.amount", "0");
         AddPathRule("OFMONDEB", IntegrationSourceKindEnum.Constant, "constant.value", "0");
         AddPathRule("OFIDARCH", IntegrationSourceKindEnum.Batch, "batch.id", "1");
@@ -122,7 +123,7 @@ public sealed class IntegrationMappingBootstrapper
 
         return rules;
 
-        void AddPathRule(string parameterPath, IntegrationSourceKindEnum kind, string sourcePath, string fallback)
+        void AddPathRule(string parameterPath, IntegrationSourceKindEnum kind, string sourcePath, string? fallback)
         {
             var parameter = parameters.FirstOrDefault(p => p.ParameterPath == parameterPath);
             if (parameter is null)
@@ -207,7 +208,6 @@ public sealed class IntegrationMappingBootstrapper
         {
             invalid.Status = IntegrationMappingSetStatusEnum.Archived;
             invalid.IsActive = false;
-            _context.IntegrationMappingSetHistory.Add(BuildHistory(invalid, "ArchivedInvalidProcTransaccionesMapping"));
         }
 
         var nextVersion = (await _context.IntegrationMappingSets
@@ -228,7 +228,6 @@ public sealed class IntegrationMappingBootstrapper
         };
 
         _context.IntegrationMappingSets.Add(published);
-        await _context.SaveChangesAsync(ct);
 
         foreach (var parameter in parameters.Where(x => x.Direction == IntegrationParameterDirectionEnum.Input))
         {
@@ -253,7 +252,13 @@ public sealed class IntegrationMappingBootstrapper
             });
         }
 
-        _context.IntegrationMappingSetHistory.Add(BuildHistory(published, "SeedPublishedReference"));
+        await _context.SaveChangesAsync(ct);
+        foreach (var invalid in existingPublishedSets)
+        {
+            _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(invalid, "ArchivedInvalidProcTransaccionesMapping", ct));
+        }
+
+        _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(published, "SeedPublishedReference", ct));
         await _context.SaveChangesAsync(ct);
     }
 
@@ -338,7 +343,6 @@ public sealed class IntegrationMappingBootstrapper
         {
             invalidPublishedSet.Status = IntegrationMappingSetStatusEnum.Archived;
             invalidPublishedSet.IsActive = false;
-            _context.IntegrationMappingSetHistory.Add(BuildHistory(invalidPublishedSet, ArchivedInvalidSeedContractAction));
         }
 
         var nextVersion = (await _context.IntegrationMappingSets
@@ -359,7 +363,6 @@ public sealed class IntegrationMappingBootstrapper
         };
 
         _context.IntegrationMappingSets.Add(publishedSet);
-        await _context.SaveChangesAsync(ct);
 
         foreach (var parameter in parameters)
         {
@@ -378,7 +381,13 @@ public sealed class IntegrationMappingBootstrapper
             });
         }
 
-        _context.IntegrationMappingSetHistory.Add(BuildHistory(publishedSet, "SeedPublishedReferenceWsdl"));
+        await _context.SaveChangesAsync(ct);
+        foreach (var invalidPublishedSet in publishedSets)
+        {
+            _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(invalidPublishedSet, ArchivedInvalidSeedContractAction, ct));
+        }
+
+        _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(publishedSet, "SeedPublishedReferenceWsdl", ct));
         await _context.SaveChangesAsync(ct);
     }
 
@@ -555,8 +564,10 @@ public sealed class IntegrationMappingBootstrapper
             _ => "SEED"
         };
 
-    private static IntegrationMappingSetHistory BuildHistory(IntegrationMappingSet set, string action)
-        => new()
+    private async Task<IntegrationMappingSetHistory> BuildHistoryAsync(IntegrationMappingSet set, string action, CancellationToken ct)
+    {
+        var snapshot = await _snapshotBuilder.BuildAsync(set.Id, ct);
+        return new IntegrationMappingSetHistory
         {
             MappingSetId = set.Id,
             MethodId = set.MethodId,
@@ -565,9 +576,10 @@ public sealed class IntegrationMappingBootstrapper
             Action = action,
             PerformedBy = "seed",
             PerformedAtUtc = DateTime.UtcNow,
-            SnapshotJson = $"{{\"mappingSet\":\"{set.Name}\"}}",
-            SnapshotHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(set.Name)))
+            SnapshotJson = snapshot.SnapshotJson,
+            SnapshotHash = snapshot.SnapshotHash
         };
+    }
 
     private static IntegrationSourceKindEnum SourceKindFor(string? sourcePath)
     {

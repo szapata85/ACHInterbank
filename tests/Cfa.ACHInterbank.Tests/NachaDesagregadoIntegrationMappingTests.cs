@@ -49,6 +49,28 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Empty(settings.ProcTransaccionesEffectiveSettings.BlockingParameters);
     }
 
+    [Fact]
+    public async Task ProcTransaccionesReadiness_AndMapper_ShouldShareMappingIdentity()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishProcTransaccionesMappingAsync();
+
+        var readiness = await new IntegrationMappingReadinessService(fixture.Context, fixture.Catalog)
+            .EvaluateAsync(Operation(fixture));
+        var resolution = await new ProcTransaccionesRequestMapper(fixture.Context).ResolveAsync(
+            fixture.Queue,
+            fixture.Ingestion,
+            fixture.Classification,
+            fixture.Transaction,
+            fixture.Cycle,
+            DateTime.UtcNow);
+
+        Assert.Equal(readiness.MappingSetId, resolution.MappingSetId);
+        Assert.Equal(readiness.MappingVersion, resolution.MappingVersion);
+        Assert.Equal(readiness.MappingSnapshotHash, resolution.MappingSnapshotHash);
+        Assert.False(string.IsNullOrWhiteSpace(resolution.MappingSnapshotHash));
+    }
+
     [Theory]
     [InlineData(true, "BCORECEP")]
     [InlineData(false, "BCOORIG")]

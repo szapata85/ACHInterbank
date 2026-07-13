@@ -178,12 +178,16 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     continue;
                 }
 
-                var operation = await EnsureProcTransaccionesReadinessAsync(queue.AchTransaction, ct);
+                var readinessContext = await EnsureProcTransaccionesReadinessAsync(queue.AchTransaction, ct);
                 var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, DateTime.Now, ct);
+                if (readinessContext.Readiness is not null)
+                {
+                    EnsureSnapshotConsistency(readinessContext.Readiness, resolution);
+                }
                 var requestXml = _mapper.BuildSoapBody(resolution.Contract);
                 var dispatchEndpoint = await ResolveProcTransaccionesEndpointAsync(ct);
                 ApplyRequestAudit(execution, resolution, requestXml, dispatchEndpoint);
-                await WriteMappingTraceAsync(operation, resolution, queue, correlationId, ct);
+                await WriteMappingTraceAsync(readinessContext.Operation, resolution, queue, correlationId, ct);
 
                 var responseXml = await DispatchProcTransaccionesAsync(requestXml, queue, ct);
                 var parsed = _parser.Parse(responseXml);
@@ -238,7 +242,9 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
                 queue.LastErrorCode = ex.Message.StartsWith("PROC_TRANSACCIONES_DISABLED:", StringComparison.OrdinalIgnoreCase)
                     ? "PROC_TRANSACCIONES_DISABLED"
-                    : "MAPPING_INVALID";
+                    : ex.Message.StartsWith("MAPPING_SNAPSHOT_CHANGED:", StringComparison.OrdinalIgnoreCase)
+                        ? "MAPPING_SNAPSHOT_CHANGED"
+                        : "MAPPING_INVALID";
                 queue.LastErrorMessage = ex.Message;
                 execution.ResponseCode = queue.LastErrorCode;
                 execution.ResponseMessage = ex.Message;
@@ -246,6 +252,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.SoapResponseDescription = ex.Message;
                 execution.SoapTechnicalStatus = queue.LastErrorCode.Equals("PROC_TRANSACCIONES_DISABLED", StringComparison.OrdinalIgnoreCase)
                     ? TechnicalStatusDisabled
+                    : queue.LastErrorCode.Equals("MAPPING_SNAPSHOT_CHANGED", StringComparison.OrdinalIgnoreCase)
+                        ? TechnicalStatusTechnicalException
                     : TechnicalStatusTechnicalException;
                 execution.IsSuccessful = false;
                 execution.IsFunctionalRejection = false;
@@ -388,11 +396,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         });
     }
 
-    private async Task<TransactionIntegrationOperationResult?> EnsureProcTransaccionesReadinessAsync(AchTransaction transaction, CancellationToken ct)
+    private async Task<(TransactionIntegrationOperationResult? Operation, IntegrationMappingReadinessResult? Readiness)> EnsureProcTransaccionesReadinessAsync(AchTransaction transaction, CancellationToken ct)
     {
         if (_operationResolver is null || _mappingReadinessService is null)
         {
-            return null;
+            return (null, null);
         }
 
         var operation = await _operationResolver.ResolveAsync(transaction, ct);
@@ -423,7 +431,26 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 "PROC_TRANSACCIONES_REQUIRED_FIELD_USES_FALLBACK: Proc_Transacciones no puede marcar readiness Ok ni construir payload con fallback requerido.");
         }
 
-        return operation;
+        return (operation, readiness);
+    }
+
+    private static void EnsureSnapshotConsistency(
+        IntegrationMappingReadinessResult readiness,
+        ProcTransaccionesRequestResolution resolution)
+    {
+        if (!readiness.MappingSetId.HasValue
+            || !readiness.MappingVersion.HasValue
+            || string.IsNullOrWhiteSpace(readiness.MappingSnapshotHash))
+        {
+            throw new InvalidOperationException("MAPPING_SNAPSHOT_CHANGED: readiness no expuso identidad completa del mapping.");
+        }
+
+        if (readiness.MappingSetId.Value != resolution.MappingSetId
+            || readiness.MappingVersion.Value != resolution.MappingVersion
+            || !string.Equals(readiness.MappingSnapshotHash, resolution.MappingSnapshotHash, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("MAPPING_SNAPSHOT_CHANGED: el snapshot del mapping cambió entre readiness y dispatch.");
+        }
     }
 
     private async Task<string> DispatchProcTransaccionesAsync(string requestXml, IncomingNachaDispatchQueue queue, CancellationToken ct)

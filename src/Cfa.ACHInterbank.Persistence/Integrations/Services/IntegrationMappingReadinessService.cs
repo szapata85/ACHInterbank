@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.Integrations.Services;
@@ -57,11 +58,16 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
 
     private readonly AchDbContext _context;
     private readonly IIntegrationCatalogService _catalogService;
+    private readonly IntegrationMappingSnapshotBuilder _snapshotBuilder;
 
-    public IntegrationMappingReadinessService(AchDbContext context, IIntegrationCatalogService catalogService)
+    public IntegrationMappingReadinessService(
+        AchDbContext context,
+        IIntegrationCatalogService catalogService,
+        IntegrationMappingSnapshotBuilder? snapshotBuilder = null)
     {
         _context = context;
         _catalogService = catalogService;
+        _snapshotBuilder = snapshotBuilder ?? new IntegrationMappingSnapshotBuilder(context);
     }
 
     public Task<IntegrationMappingReadinessResult> EvaluateAsync(
@@ -193,6 +199,7 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         }
 
         var published = publishedMappings[0];
+        var snapshot = await _snapshotBuilder.BuildAsync(published.Id, ct);
 
         var requiredParameters = activeInputParameters
             .Where(x => x.Required)
@@ -256,7 +263,12 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                 UsesFallback: false,
                 CanBuildPayload: false,
                 Errors: ["Faltan mappings requeridos activos para construir payload SOAP/XML."],
-                Warnings: []);
+                Warnings: [])
+            {
+                MappingSetId = snapshot.MappingSetId,
+                MappingVersion = snapshot.Version,
+                MappingSnapshotHash = snapshot.SnapshotHash
+            };
         }
 
         if (string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase)
@@ -284,7 +296,12 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                 UsesFallback: false,
                 CanBuildPayload: false,
                 Errors: functionalErrors,
-                Warnings: functionalWarnings);
+                Warnings: functionalWarnings)
+            {
+                MappingSetId = snapshot.MappingSetId,
+                MappingVersion = snapshot.Version,
+                MappingSnapshotHash = snapshot.SnapshotHash
+            };
         }
 
         if (functionalWarnings.Count > 0)
@@ -306,7 +323,12 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
                 UsesFallback: false,
                 CanBuildPayload: true,
                 Errors: [],
-                Warnings: functionalWarnings);
+                Warnings: functionalWarnings)
+            {
+                MappingSetId = snapshot.MappingSetId,
+                MappingVersion = snapshot.Version,
+                MappingSnapshotHash = snapshot.SnapshotHash
+            };
         }
 
         return new IntegrationMappingReadinessResult(
@@ -326,7 +348,12 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             UsesFallback: false,
             CanBuildPayload: true,
             Errors: [],
-            Warnings: []);
+            Warnings: [])
+        {
+            MappingSetId = snapshot.MappingSetId,
+            MappingVersion = snapshot.Version,
+            MappingSnapshotHash = snapshot.SnapshotHash
+        };
     }
 
     private async Task<IReadOnlyCollection<string>> ValidateProcTransaccionesRuntimeAsync(int transactionId, CancellationToken ct)
@@ -634,6 +661,16 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             CanBuildPayload: false,
             Errors: errors,
             Warnings: []);
+
+    private static IntegrationMappingReadinessResult AttachSnapshotIdentity(
+        IntegrationMappingReadinessResult result,
+        IntegrationMappingSnapshotBuilder.IntegrationMappingSnapshotResult snapshot)
+        => result with
+        {
+            MappingSetId = snapshot.MappingSetId,
+            MappingVersion = snapshot.Version,
+            MappingSnapshotHash = snapshot.SnapshotHash
+        };
 
     private sealed record FunctionalCoverageAssessment(
         IReadOnlyCollection<string> Errors,

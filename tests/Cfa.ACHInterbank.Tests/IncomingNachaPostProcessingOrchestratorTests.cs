@@ -323,6 +323,76 @@ public class IncomingNachaPostProcessingOrchestratorTests
     }
 
     [Fact]
+    public async Task ProcTransacciones_DryRun_ShouldBlock_WhenMappingSnapshotChangesBeforeDispatch()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        mapper.Setup(x => x.ResolveAsync(
+                It.IsAny<IncomingNachaDispatchQueue>(),
+                It.IsAny<IncomingNachaFileIngestion>(),
+                It.IsAny<IncomingNachaEntryClassification>(),
+                It.IsAny<AchTransaction>(),
+                It.IsAny<AchCycle>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcTransaccionesRequestResolution(
+                new ProcTransaccionesRequestContract(new Dictionary<string, string> { ["TIPTRAN"] = "32" }),
+                Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                7,
+                "HASH-RESOLUTION"));
+
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var operationResolver = new Mock<ITransactionIntegrationOperationResolver>();
+        var readiness = new Mock<IIntegrationMappingReadinessService>();
+        operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProcTransaccionesOperation());
+        readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntegrationMappingReadinessResult(
+                true,
+                "Ok",
+                "OK",
+                IntegrationGuaranteeConstants.Wscfaach,
+                IntegrationGuaranteeConstants.ProcTransacciones,
+                IntegrationGuaranteeConstants.MonetaryCreditRequest,
+                IntegrationGuaranteeConstants.OutboundRequest,
+                5,
+                5,
+                [],
+                [],
+                [],
+                [],
+                false,
+                true,
+                [],
+                [])
+            {
+                MappingSetId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                MappingVersion = 7,
+                MappingSnapshotHash = "HASH-READY"
+            });
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
+            operationResolver: operationResolver.Object,
+            mappingReadinessService: readiness.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, queue.QueueStatus);
+        Assert.Equal("MAPPING_SNAPSHOT_CHANGED", queue.LastErrorCode);
+        Assert.Contains("MAPPING_SNAPSHOT_CHANGED", queue.LastErrorMessage);
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_SetsRetryPending_WhenTechnicalErrorOccurs()
     {
         await using var context = BuildContext();

@@ -45,7 +45,12 @@ public sealed record IntegrationMappingReadinessResult(
     bool UsesFallback,
     bool CanBuildPayload,
     IReadOnlyCollection<string> Errors,
-    IReadOnlyCollection<string> Warnings);
+    IReadOnlyCollection<string> Warnings)
+{
+    public Guid? MappingSetId { get; init; }
+    public int? MappingVersion { get; init; }
+    public string? MappingSnapshotHash { get; init; }
+}
 
 public sealed record TransactionIntegrationReadinessResult(
     int TransactionId,

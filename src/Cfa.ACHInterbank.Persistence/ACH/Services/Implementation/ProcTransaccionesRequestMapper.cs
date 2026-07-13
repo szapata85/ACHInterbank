@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -16,10 +17,12 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
 {
     private static readonly XNamespace ActionNamespace = "http://tempuri.org/";
     private readonly AchDbContext _context;
+    private readonly IntegrationMappingSnapshotBuilder _snapshotBuilder;
 
-    public ProcTransaccionesRequestMapper(AchDbContext context)
+    public ProcTransaccionesRequestMapper(AchDbContext context, IntegrationMappingSnapshotBuilder? snapshotBuilder = null)
     {
         _context = context;
+        _snapshotBuilder = snapshotBuilder ?? new IntegrationMappingSnapshotBuilder(context);
     }
 
     public async Task<ProcTransaccionesRequestResolution> ResolveAsync(
@@ -122,18 +125,13 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             throw new InvalidOperationException("IDLOTE debe contener exactamente seis digitos y una fuente funcional homologada.");
         }
 
-        var snapshotHash = await _context.IntegrationMappingSetHistory
-            .AsNoTracking()
-            .Where(x => x.MappingSetId == mappingSet.Id)
-            .OrderByDescending(x => x.PerformedAtUtc)
-            .Select(x => x.SnapshotHash)
-            .FirstOrDefaultAsync(ct) ?? string.Empty;
+        var snapshot = await _snapshotBuilder.BuildAsync(mappingSet.Id, ct);
 
         return new ProcTransaccionesRequestResolution(
             Contract: new ProcTransaccionesRequestContract(resolved, sourceValues),
             MappingSetId: mappingSet.Id,
             MappingVersion: mappingSet.Version,
-            MappingSnapshotHash: snapshotHash);
+            MappingSnapshotHash: snapshot.SnapshotHash);
     }
 
     public string BuildSoapBody(ProcTransaccionesRequestContract request)
@@ -371,8 +369,8 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         return new FunctionalSourceContext(
             sourceCode,
             destinationCode,
-            source.Name,
-            destination.Name,
+            sourceFromNacha.Name,
+            destinationFromNacha.Name,
             ToFunctionalBatchId(batch.BatchNumber.ToString("D7", CultureInfo.InvariantCulture)),
             clearingHouse.Id.ToString(CultureInfo.InvariantCulture),
             paymentInformation);
