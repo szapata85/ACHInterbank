@@ -19,6 +19,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
     private readonly IIncomingNachaDispatchPlanner _dispatchPlanner;
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService;
     private readonly IAchStateTransitionService _stateTransitionService;
+    private readonly IIncomingNachaLocalLivePreparationService? _localLivePreparationService;
 
     public IncomingNachaPostParseProcessor(
         AchDbContext context,
@@ -27,7 +28,8 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         IIncomingNachaPrenotificationResolver prenotificationResolver,
         IIncomingNachaDispatchPlanner dispatchPlanner,
         IAchRegulatoryCatalogService regulatoryCatalogService,
-        IAchStateTransitionService stateTransitionService)
+        IAchStateTransitionService stateTransitionService,
+        IIncomingNachaLocalLivePreparationService? localLivePreparationService = null)
     {
         _context = context;
         _classifier = classifier;
@@ -36,6 +38,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         _dispatchPlanner = dispatchPlanner;
         _regulatoryCatalogService = regulatoryCatalogService;
         _stateTransitionService = stateTransitionService;
+        _localLivePreparationService = localLivePreparationService;
     }
 
     public async Task ProcessAsync(Guid ingestionId, string executedBy, CancellationToken ct = default)
@@ -105,6 +108,11 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
             var ingestion = await _context.IncomingNachaFileIngestions
                 .AsNoTracking()
                 .FirstAsync(x => x.Id == ingestionId, ct);
+
+            if (_localLivePreparationService is not null)
+            {
+                await _localLivePreparationService.EnsureAsync(ingestion, entry, classification.FunctionalClass, ct);
+            }
 
             var linkResult = await _linker.LinkAsync(
                 entry,

@@ -94,4 +94,15 @@ public class MaintenanceController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [HttpPost("incoming-nacha/post-processing")]
+    [Authorize(Policy = P1Policies.MaintenanceRunAdminTask)]
+    public async Task<IActionResult> RunIncomingNachaPostProcessing(
+        [FromServices] IIncomingNachaPostProcessingOrchestrator orchestrator,
+        [FromQuery] int chunkSize = 100,
+        CancellationToken ct = default)
+        => Ok(await orchestrator.ExecuteAsync(
+            Math.Clamp(chunkSize, 10, 500),
+            User?.Identity?.Name ?? "maintenance.api",
+            ct));
 }

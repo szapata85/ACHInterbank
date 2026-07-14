@@ -18,7 +18,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 {
-    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex OfficialCycleNameRegex = new(@"^(?<origin>\d{7})\.(?<sequence>\d{3})(?:\.\d{8})?\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private readonly AchDbContext _context;
     private readonly IPaymentRailContextService? _paymentRailContextService;
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;

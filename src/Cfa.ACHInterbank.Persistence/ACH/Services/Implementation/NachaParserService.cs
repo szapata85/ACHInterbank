@@ -10,8 +10,11 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -31,6 +34,7 @@ public class NachaParserService : INachaParserService
     private readonly ILogger<NachaParserService> _logger;
     private readonly IAchStateTransitionService _stateTransitionService;
     private readonly IAchRegulatoryCatalogService? _catalogService;
+    private readonly IConfiguration? _configuration;
     private HashSet<string>? _configuredTransactionCodes;
     private Dictionary<string, AchFileRejectionCode> _rejectionCatalog = new(StringComparer.OrdinalIgnoreCase);
 
@@ -38,12 +42,14 @@ public class NachaParserService : INachaParserService
         AchDbContext context,
         ILogger<NachaParserService> logger,
         IAchStateTransitionService stateTransitionService,
-        IAchRegulatoryCatalogService? catalogService = null)
+        IAchRegulatoryCatalogService? catalogService = null,
+        IConfiguration? configuration = null)
     {
         _context = context;
         _logger = logger;
         _stateTransitionService = stateTransitionService;
         _catalogService = catalogService;
+        _configuration = configuration;
     }
 
     public async Task<IReadOnlyList<NachaValidationFailure>> ParseAndSaveAsync(Stream nachaStream, string FileName, CancellationToken ct = default)
@@ -107,7 +113,6 @@ public class NachaParserService : INachaParserService
                         {
                             break;
                         }
-                        parsedNachaId = currentHeader.NachaID;
                         currentHeader.Batches = new List<BatchHeader>();
                         currentHeader.EntryDetails = new List<EntryDetail>();
                         currentHeader.AddendaRecords = new List<AddendaRecord>();
@@ -120,10 +125,23 @@ public class NachaParserService : INachaParserService
                                         && p.FileIdModifier == currentHeader.FileIdModifier
                                         && p.ImmediateOrigin == currentHeader.ImmediateOrigin, ct);
 
-                        if (NachaHeadersExists)
+                        var isAuthorizedReplay = request?.IncomingNachaFileIngestionId is Guid replayIngestionId
+                                                 && await _context.IncomingNachaFileIngestions
+                                                     .AsNoTracking()
+                                                     .AnyAsync(x => x.Id == replayIngestionId && x.IsReprocess, ct);
+                        if (NachaHeadersExists && !isAuthorizedReplay)
                         {
                             ThrowRegulatory("D01", "El Archivo NACHA ya existe!");
                         }
+
+                        if (NachaHeadersExists && isAuthorizedReplay)
+                        {
+                            currentHeader.NachaID = BuildReplayNachaId(
+                                currentHeader.NachaID,
+                                request!.IncomingNachaFileIngestionId!.Value);
+                        }
+
+                        parsedNachaId = currentHeader.NachaID;
 
                         headers.Add(currentHeader);
                         break;
@@ -1000,6 +1018,12 @@ public class NachaParserService : INachaParserService
 
             if (!matches)
             {
+                if (IsLocalLiveProcTransaccionesPreparationEnabled()
+                    && string.Equals(code, "32", StringComparison.Ordinal))
+                {
+                    return (true, "LOCAL_LIVE_RECIPIENT_PREPARATION_PENDING");
+                }
+
                 const string reason = "R17: La identificación no coincide con cuenta del usuario receptor.";
                 failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
                 return (false, reason);
@@ -1008,6 +1032,14 @@ public class NachaParserService : INachaParserService
 
         return (true, null);
     }
+
+    private bool IsLocalLiveProcTransaccionesPreparationEnabled()
+        => string.Equals(_configuration?["RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E"], "true", StringComparison.OrdinalIgnoreCase)
+           && string.Equals(_configuration?["ALLOW_LOCAL_MONETARY_SOAP_E2E"], "true", StringComparison.OrdinalIgnoreCase)
+           && string.Equals(_configuration?["ProcTransacciones:Mode"], "Live", StringComparison.OrdinalIgnoreCase);
+
+    private static string BuildReplayNachaId(string? originalNachaId, Guid ingestionId)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{originalNachaId}|{ingestionId:N}"))).ToLowerInvariant()[..40];
 
     private static string? ValidateType6ReceiverName(EntryDetail entry)
     {

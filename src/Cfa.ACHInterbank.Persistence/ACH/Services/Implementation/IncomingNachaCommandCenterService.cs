@@ -436,11 +436,6 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         var normalizedKey = request.IdempotencyKey.Trim();
         var normalizedBy = string.IsNullOrWhiteSpace(performedBy) ? "ops.command-center" : performedBy;
 
-        var tx = _context.Database.IsRelational()
-            ? await _context.Database.BeginTransactionAsync(ct)
-            : null;
-        await using var _ = tx;
-
         var queue = await _context.IncomingNachaDispatchQueue.FirstOrDefaultAsync(x => x.Id == queueId, ct)
                     ?? throw new InvalidOperationException("No existe item de cola indicado.");
 
@@ -454,11 +449,6 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
 
         if (replayed)
         {
-            if (tx is not null)
-            {
-                await tx.CommitAsync(ct);
-            }
-
             return new IncomingNachaManualActionResultDto(queue.Id, ToActionLabel(transitionEvent), queue.QueueStatus, queue.QueueStatus, true, "Solicitud idempotente ya aplicada previamente.");
         }
 
@@ -497,11 +487,6 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             request,
             transition,
             ct);
-
-        if (tx is not null)
-        {
-            await tx.CommitAsync(ct);
-        }
 
         return new IncomingNachaManualActionResultDto(queue.Id, ToActionLabel(transitionEvent), previousStatus, queue.QueueStatus, false, $"{appliedMessage} [{transition.ResultCode}]");
     }

@@ -18,6 +18,10 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcessingOrchestrator
 {
+    // The scheduler and an authorized operator may both request a local run.
+    // Serialize them in-process so a queued entry is never dispatched twice
+    // before its first execution has persisted its terminal state.
+    private static readonly SemaphoreSlim DispatchGate = new(1, 1);
     private const string SoapMethodName = IntegrationGuaranteeConstants.ProcTransacciones;
     private const string TechnicalStatusSucceeded = "Succeeded";
     private const string TechnicalStatusFunctionalRejection = "FunctionalRejection";
@@ -40,6 +44,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly IIntegrationMappingTraceWriter? _mappingTraceWriter;
     private readonly IContrapartidaDispatchJobService? _contrapartidaDispatchJobService;
     private readonly ISoapIntegrationSettingsService? _soapIntegrationSettingsService;
+    private readonly IIncomingNachaLocalLivePreparationService? _localLivePreparationService;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -52,7 +57,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         IIntegrationMappingReadinessService? mappingReadinessService = null,
         IIntegrationMappingTraceWriter? mappingTraceWriter = null,
         IContrapartidaDispatchJobService? contrapartidaDispatchJobService = null,
-        ISoapIntegrationSettingsService? soapIntegrationSettingsService = null)
+        ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
+        IIncomingNachaLocalLivePreparationService? localLivePreparationService = null)
     {
         _context = context;
         _mapper = mapper;
@@ -65,12 +71,29 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _mappingTraceWriter = mappingTraceWriter;
         _contrapartidaDispatchJobService = contrapartidaDispatchJobService;
         _soapIntegrationSettingsService = soapIntegrationSettingsService;
+        _localLivePreparationService = localLivePreparationService;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
         int chunkSize,
         string triggeredBy,
         CancellationToken ct = default)
+    {
+        await DispatchGate.WaitAsync(ct);
+        try
+        {
+            return await ExecuteCoreAsync(chunkSize, triggeredBy, ct);
+        }
+        finally
+        {
+            DispatchGate.Release();
+        }
+    }
+
+    private async Task<IncomingNachaPostProcessingRunResult> ExecuteCoreAsync(
+        int chunkSize,
+        string triggeredBy,
+        CancellationToken ct)
     {
         var safeChunk = Math.Clamp(chunkSize, 10, 500);
         var nowUtc = DateTime.UtcNow;
@@ -176,6 +199,13 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     AddAutomaticEvent(queue, "IntegrationContextMissing", "Blocked", queue.LastErrorMessage, queue.LastErrorCode);
                     blocked++;
                     continue;
+                }
+
+                if (_localLivePreparationService is not null)
+                {
+                    var entry = await _context.EntryDetails
+                        .SingleAsync(x => x.EntryDetailID == classification.EntryDetailId, ct);
+                    await _localLivePreparationService.EnsureAsync(ingestion, entry, classification.FunctionalClass, ct);
                 }
 
                 var readinessContext = await EnsureProcTransaccionesReadinessAsync(queue.AchTransaction, ct);

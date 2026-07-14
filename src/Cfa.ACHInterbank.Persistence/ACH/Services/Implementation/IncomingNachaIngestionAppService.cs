@@ -136,8 +136,10 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             };
         }
 
+        var ingestionId = Guid.NewGuid();
         var ingestion = new IncomingNachaFileIngestion
         {
+            Id = ingestionId,
             FileName = request.FileName,
             FileHashSha256 = fileHash,
             FileSize = fileBytes.LongLength,
@@ -152,17 +154,18 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ParsingStatus = IncomingNachaParsingStatus.NoEjecutado,
             CycleResolutionStatus = IncomingNachaCycleResolutionStatus.NoIntentado,
             Notes = authorizedPreDispatchRetry
-                ? $"AUTHORIZED_RETRY_OF_PRE_DISPATCH_BLOCKED_INGESTION; PreviousIngestionId={canonicalCandidate!.Id}; PreviousFileHash={canonicalCandidate.FileHashSha256}; Reason=BlockedWithoutDispatchOrSoap; OccurredAtUtc={DateTime.UtcNow:O}"
+                ? $"AUTHORIZED_REPLAY_AFTER_PRE_DISPATCH_FAILURE; PreviousIngestionId={canonicalCandidate!.Id}; NewIngestionId={ingestionId}; FileHash={canonicalCandidate.FileHashSha256}; Reason=BlockedWithoutQueueOrIntegrationExecution; OccurredAtUtc={DateTime.UtcNow:O}"
                 : request.ForceReprocess
                     ? $"Reproceso autorizado. ParentIngestionId={parentIngestionId}"
                     : "Archivo recibido.",
             ResolutionEvidenceJson = authorizedPreDispatchRetry
                 ? JsonSerializer.Serialize(new
                 {
-                    eventType = "AUTHORIZED_RETRY_OF_PRE_DISPATCH_BLOCKED_INGESTION",
+                    eventType = "AUTHORIZED_REPLAY_AFTER_PRE_DISPATCH_FAILURE",
                     previousIngestionId = canonicalCandidate!.Id,
-                    previousFileHash = canonicalCandidate.FileHashSha256,
-                    reason = "BlockedWithoutDispatchOrSoap",
+                    newIngestionId = ingestionId,
+                    fileHash = canonicalCandidate.FileHashSha256,
+                    reason = "BlockedWithoutQueueOrIntegrationExecution",
                     occurredAtUtc = DateTime.UtcNow
                 })
                 : request.ForceReprocess
@@ -456,14 +459,6 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             .AsNoTracking()
             .AnyAsync(x => x.IncomingNachaFileIngestionId == ingestion.Id, ct);
         if (hasQueue)
-        {
-            return false;
-        }
-
-        var hasFunctionalClassification = await _context.IncomingNachaEntryClassifications
-            .AsNoTracking()
-            .AnyAsync(x => x.IncomingNachaFileIngestionId == ingestion.Id, ct);
-        if (hasFunctionalClassification)
         {
             return false;
         }
