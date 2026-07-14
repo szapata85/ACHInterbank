@@ -19,14 +19,12 @@ public class QuartzPersistentStoreConfigurationTests
     [Fact]
     public void QuartzConfiguration_ShouldDefaultToRamJobStore_WhenModeMissingOrRam()
     {
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Quartz:JobStore:Provider"] = "Postgres"
-        }).Build();
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
 
         var options = QuartzJobStoreOptionsFactory.Create(config);
         options.Mode.Should().Be("RAM");
         options.IsPersistentMode().Should().BeFalse();
+        options.Provider.Should().BeEmpty();
     }
 
     [Fact]
@@ -94,6 +92,38 @@ public class QuartzPersistentStoreConfigurationTests
         Action act = () => options.GetNormalizedProvider();
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*provider is required*");
+    }
+
+    [Fact]
+    public void QuartzConfiguration_ShouldRejectMissingProviderWhenPersistent()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Quartz:JobStore:Mode"] = "Persistent"
+        }).Build();
+
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+
+        options.Provider.Should().BeEmpty();
+        options.IsPersistentMode().Should().BeTrue();
+
+        Action act = () => options.GetNormalizedProvider();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*provider is required*");
+    }
+
+    [Fact]
+    public void QuartzConfiguration_ShouldAllowRamModeWithoutProvider()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Quartz:JobStore:Mode"] = "RAM"
+        }).Build();
+
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+
+        options.Provider.Should().BeEmpty();
+        options.IsPersistentMode().Should().BeFalse();
     }
 
     [Fact]

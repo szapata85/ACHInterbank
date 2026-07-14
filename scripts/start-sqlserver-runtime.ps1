@@ -93,6 +93,15 @@ function Ensure-Environment {
         $plainPassword = ConvertFrom-SecureStringPlainText -SecureString $securePassword
         Set-Item -Path Env:MSSQL_SA_PASSWORD -Value $plainPassword
     }
+
+    Set-DefaultEnv -Name 'ACH_E2E_DB_PROVIDER' -DefaultValue 'SqlServer'
+    Set-DefaultEnv -Name 'ACH_E2E_SQLSERVER_HOST' -DefaultValue '127.0.0.1'
+    Set-DefaultEnv -Name 'ACH_E2E_SQLSERVER_PORT' -DefaultValue $env:SQLSERVER_HOST_PORT
+    Set-DefaultEnv -Name 'ACH_E2E_SQLSERVER_DATABASE' -DefaultValue 'ACHInterbank'
+    Set-DefaultEnv -Name 'ACH_E2E_SQLSERVER_USER' -DefaultValue 'sa'
+    if ([string]::IsNullOrWhiteSpace($env:ACH_E2E_SQLSERVER_PASSWORD)) {
+        Set-Item -Path Env:ACH_E2E_SQLSERVER_PASSWORD -Value $env:MSSQL_SA_PASSWORD
+    }
 }
 
 function Redact-Text {
@@ -105,6 +114,8 @@ function Redact-Text {
     $redacted = $Text
     $patterns = @(
         '(?i)(MSSQL_SA_PASSWORD\s*[:=]\s*)([^\s;]+)',
+        '(?i)(ACH_E2E_SQLSERVER_PASSWORD\s*[:=]\s*)([^\s;]+)',
+        '(?i)(ACH_E2E_SQLSERVER_CONNECTION_STRING\s*[:=]\s*)([^\r\n]+)',
         '(?i)(POSTGRES_PASSWORD\s*[:=]\s*)([^\s;]+)',
         '(?i)(ConnectionStrings__SqlConnection\s*[:=]\s*)([^\r\n]+)',
         '(?i)(ConnectionStrings__PostgresConnection\s*[:=]\s*)([^\r\n]+)',
@@ -159,6 +170,24 @@ function Invoke-Compose {
     if (-not [string]::IsNullOrWhiteSpace($renderedOutput)) {
         Write-Host $renderedOutput
     }
+}
+
+function Get-SqlCmdPath {
+    $candidates = @(
+        '/opt/mssql-tools18/bin/sqlcmd',
+        '/opt/mssql-tools/bin/sqlcmd'
+    )
+
+    foreach ($candidate in $candidates) {
+        try {
+            Invoke-Compose -Arguments @('exec', '-T', 'sqlserver', 'sh', '-lc', "test -x $candidate")
+            return $candidate
+        } catch {
+            continue
+        }
+    }
+
+    throw 'Unable to locate sqlcmd in the SQL Server container.'
 }
 
 function Show-StatusAndLogs {
@@ -231,30 +260,36 @@ function Wait-For-Health {
     throw 'Health checks did not become ready within the allotted time.'
 }
 
-function Get-SqlServerVersion {
-    $sqlCmdCandidates = @(
-        '/opt/mssql-tools18/bin/sqlcmd',
-        '/opt/mssql-tools/bin/sqlcmd'
+function Invoke-SqlCmdInContainer {
+    param(
+        [Parameter(Mandatory = $true)][string]$Query,
+        [Parameter(Mandatory = $true)][string]$Database
     )
 
-    foreach ($sqlCmd in $sqlCmdCandidates) {
-        try {
-            $output = Invoke-Compose -Arguments @('exec', '-T', '-e', "SQLCMDPASSWORD=$env:MSSQL_SA_PASSWORD", 'sqlserver', $sqlCmd, '-S', 'localhost', '-U', 'sa', '-d', 'master', '-C', '-Q', 'SET NOCOUNT ON; SELECT @@VERSION;') -CaptureOutput
-            return $output
-        } catch {
-            continue
-        }
-    }
+    $shellDatabase = $Database.Trim() -replace '"', '\"'
+    $sqlCmd = Get-SqlCmdPath
+    $hostTempFile = [System.IO.Path]::GetTempFileName()
+    $containerQueryFile = '/tmp/achinterbank-sqlcmd-query.sql'
 
-    throw 'Unable to query SQL Server version from the container.'
+    try {
+        Set-Content -LiteralPath $hostTempFile -Value $Query -NoNewline -Encoding utf8
+        & docker cp $hostTempFile "achinterbank-sqlserver:$containerQueryFile" | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "docker cp $hostTempFile achinterbank-sqlserver:$containerQueryFile failed with exit code $LASTEXITCODE."
+        }
+
+        $shellScript = 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" ' + $sqlCmd + ' -S localhost -U sa -d ' + $shellDatabase + ' -C -i ' + $containerQueryFile
+        return Invoke-Compose -Arguments @('exec', '-T', 'sqlserver', 'sh', '-lc', $shellScript) -CaptureOutput
+    } finally {
+        Remove-Item -LiteralPath $hostTempFile -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-SqlServerVersion {
+    return Invoke-SqlCmdInContainer -Database 'master' -Query 'SET NOCOUNT ON; SELECT @@VERSION;'
 }
 
 function Get-EfMigrationsTableState {
-    $sqlCmdCandidates = @(
-        '/opt/mssql-tools18/bin/sqlcmd',
-        '/opt/mssql-tools/bin/sqlcmd'
-    )
-
     $query = @"
 SET NOCOUNT ON;
 SELECT s.name AS SchemaName, t.name AS TableName
@@ -263,21 +298,7 @@ INNER JOIN sys.schemas AS s ON s.schema_id = t.schema_id
 WHERE t.name = '__EFMigrationsHistory';
 "@
 
-    foreach ($sqlCmd in $sqlCmdCandidates) {
-        try {
-            $databaseName = $env:MSSQL_DB
-            if ([string]::IsNullOrWhiteSpace($databaseName)) {
-                $databaseName = 'ACHInterbank'
-            }
-
-            $output = Invoke-Compose -Arguments @('exec', '-T', '-e', "SQLCMDPASSWORD=$env:MSSQL_SA_PASSWORD", 'sqlserver', $sqlCmd, '-S', 'localhost', '-U', 'sa', '-d', $databaseName, '-C', '-Q', $query) -CaptureOutput
-            return $output
-        } catch {
-            continue
-        }
-    }
-
-    throw 'Unable to inspect EF migration history from the container.'
+    return Invoke-SqlCmdInContainer -Database 'ACHInterbank' -Query $query
 }
 
 Push-Location $root

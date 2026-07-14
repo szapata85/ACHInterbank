@@ -5,7 +5,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Quartz;
 public sealed class QuartzJobStoreOptions
 {
     public string Mode { get; set; } = "RAM";
-    public string Provider { get; set; } = "SqlServer";
+    public string Provider { get; set; } = string.Empty;
     public string TablePrefix { get; set; } = "QRTZ_";
     public bool Clustered { get; set; }
     public int ClusterCheckinIntervalSeconds { get; set; } = 20;

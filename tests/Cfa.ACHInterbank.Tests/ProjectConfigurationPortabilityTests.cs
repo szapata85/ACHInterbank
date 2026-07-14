@@ -50,6 +50,21 @@ public class ProjectConfigurationPortabilityTests
         sqlServerCompose.Should().NotContain("Cooperativa");
     }
 
+    [Fact]
+    public void SqlServerRuntimeScript_ShouldUseContainerShellPasswordAndAvoidVisibleArguments()
+    {
+        var script = File.ReadAllText(Path.Combine(RepoRoot, "scripts", "start-sqlserver-runtime.ps1"));
+
+        script.Should().Contain("'sqlserver', 'sh', '-lc'");
+        script.Should().Contain("SQLCMDPASSWORD=\"$MSSQL_SA_PASSWORD\"");
+        script.Should().Contain("/opt/mssql-tools18/bin/sqlcmd");
+        script.Should().Contain("/opt/mssql-tools/bin/sqlcmd");
+        script.Should().NotContain("SQLCMDPASSWORD=$env:MSSQL_SA_PASSWORD");
+        script.Should().NotContain("-P $env:MSSQL_SA_PASSWORD");
+        script.Should().NotContain("-P \"$env:MSSQL_SA_PASSWORD\"");
+        script.Should().NotContain("-e \"SQLCMDPASSWORD=");
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
