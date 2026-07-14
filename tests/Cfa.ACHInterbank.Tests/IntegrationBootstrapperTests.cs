@@ -179,6 +179,10 @@ public sealed class IntegrationBootstrapperTests
         Assert.Contains(parameters, x => x.ParameterPath == "RTAACH" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Output);
         Assert.Contains(parameters, x => x.ParameterPath == "RTALOC" && !x.Required && x.Direction == IntegrationParameterDirectionEnum.Output);
         Assert.DoesNotContain(rules, x => parameters.Any(p => p.Id == x.ParameterId && p.Direction == IntegrationParameterDirectionEnum.Output));
+        var sourceCatalog = await fixture.Context.IntegrationSourceCatalogFields
+            .Where(x => x.MethodId == method.Id && x.IsActive)
+            .ToListAsync();
+        Assert.Contains(sourceCatalog, x => x.FieldPath == "entrydetails.accountnumber" && x.DisplayName == "Número de cuenta del detalle de entrada");
     }
 
     [Fact]

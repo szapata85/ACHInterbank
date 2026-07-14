@@ -17,6 +17,7 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
     private const string ReadyWithWarningsCode = "READY_WITH_WARNINGS";
     private const string FunctionalPlaceholderCode = "FUNCTIONAL_MAPPING_PLACEHOLDER";
     private const string RegistrarContractInvalidCode = "REGISTRAR_WSDL_CONTRACT_INVALID";
+    private const string ProcTransaccionesNctaOrigSourceInvalidCode = "PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID";
 
     private static readonly string[] RegistrarRespuestaWsdlParameterPaths =
     [
@@ -206,6 +207,37 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             .ToList();
 
         var requiredIds = requiredParameters.Select(x => x.Id).ToHashSet();
+        if (string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase))
+        {
+            var nctaOrigErrors = ValidateProcTransaccionesNctaOrigRule(activeInputParameters, published.Id);
+            if (nctaOrigErrors.Count > 0)
+            {
+                return new IntegrationMappingReadinessResult(
+                    IsReady: false,
+                    Status: "Failed",
+                    Code: ProcTransaccionesNctaOrigSourceInvalidCode,
+                    IntegrationKey: integrationKey,
+                    OperationKey: operationKey,
+                    MappingPurpose: mappingPurpose,
+                    MappingDirection: mappingDirection,
+                    RequiredMappings: requiredParameters.Count,
+                    ActiveMappings: 1,
+                    MissingRequiredMappings: [],
+                    InactiveRequiredMappings: [],
+                    FallbackFields: [],
+                    RequiredFallbackFields: [],
+                    UsesFallback: false,
+                    CanBuildPayload: false,
+                    Errors: nctaOrigErrors,
+                    Warnings: [])
+                {
+                    MappingSetId = snapshot.MappingSetId,
+                    MappingVersion = snapshot.Version,
+                    MappingSnapshotHash = snapshot.SnapshotHash
+                };
+            }
+        }
+
         var rules = await _context.IntegrationMappingRules
             .AsNoTracking()
             .Where(x => x.MappingSetId == published.Id && requiredIds.Contains(x.ParameterId))
@@ -466,6 +498,39 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         }
 
         return errors;
+    }
+
+    private IReadOnlyCollection<string> ValidateProcTransaccionesNctaOrigRule(
+        IReadOnlyCollection<IntegrationMethodParameter> activeInputParameters,
+        Guid mappingSetId)
+    {
+        var parameter = activeInputParameters.FirstOrDefault(x => string.Equals(x.ParameterPath, "NCTAORIG", StringComparison.OrdinalIgnoreCase));
+        if (parameter is null)
+        {
+            return ["PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID"];
+        }
+
+        var rule = _context.IntegrationMappingRules
+            .AsNoTracking()
+            .Where(x => x.MappingSetId == mappingSetId && x.ParameterId == parameter.Id)
+            .OrderBy(x => x.Priority)
+            .ThenBy(x => x.Id)
+            .FirstOrDefault();
+
+        if (rule is null || !rule.Enabled)
+        {
+            return ["PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID"];
+        }
+
+        if (rule.SourceKind != IntegrationSourceKindEnum.EntryDetail
+            || !string.Equals(rule.SourceFieldPath, "entrydetails.accountnumber", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrWhiteSpace(rule.FixedValue)
+            || !string.IsNullOrWhiteSpace(rule.DefaultValue))
+        {
+            return ["PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID"];
+        }
+
+        return [];
     }
 
     private static FunctionalCoverageAssessment AssessFunctionalCoverage(

@@ -526,7 +526,7 @@ public sealed class IntegrationMappingBootstrapper
             "BCORECEP" => "destinationInstitution.transitCodeNormalized",
             "BCOORIG" => "sourceInstitution.transitCodeNormalized",
             "NORIG" => "sourceInstitution.name",
-            "NCTAORIG" => "transaction.sourceAccountNumber",
+            "NCTAORIG" => "entrydetails.accountnumber",
             "IDORIG" => "transaction.companyIdentification",
             "DESTRAN" => "procTransacciones.paymentInformation",
             "FECEFEC" => "transaction.effectiveEntryDate",

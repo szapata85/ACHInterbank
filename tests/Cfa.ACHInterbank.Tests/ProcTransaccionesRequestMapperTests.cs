@@ -30,6 +30,7 @@ public class ProcTransaccionesRequestMapperTests
         var classification = new IncomingNachaEntryClassification { Id = queue.IncomingNachaEntryClassificationId };
         var transaction = new AchTransaction { Id = queue.AchTransactionId, Amount = 100m, TransactionCode = "22", TraceNumber = "1", TransactionExternalId = "ext", AchCycleId = "C1", Reference = "r", CompanyName = "c", CompanyIdentification = "i", SourceAccountNumber = "s", DestinationAccountNumber = "d", OriginatingDFI = "o", ReceivingDFI = "r", SourceInstitutionId = 1, DestinationInstitutionId = 1, AchBatchId = 1, Type = Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit, EffectiveEntryDate = DateTime.Today };
         var cycle = new AchCycle { Id = "C1", ProcessingDate = DateTime.Today, StartTime = TimeSpan.Zero, EndTime = new TimeSpan(23, 59, 0), ClearingHouseId = 1, CycleName = "c1" };
+        await SeedNachaSourceContextAsync(context, queue, ingestion, classification, transaction, "0000003202");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             sut.ResolveAsync(queue, ingestion, classification, transaction, cycle, DateTime.Now));
@@ -73,6 +74,7 @@ public class ProcTransaccionesRequestMapperTests
         var classification = new IncomingNachaEntryClassification { Id = queue.IncomingNachaEntryClassificationId, FunctionalClass = IncomingNachaFunctionalClass.CreditoEntrante };
         var transaction = new AchTransaction { Id = queue.AchTransactionId, Amount = 100m, TransactionCode = "22", TraceNumber = "1", TransactionExternalId = "ext", AchCycleId = "C1", Reference = "r", CompanyName = "c", CompanyIdentification = "i", SourceAccountNumber = "s", DestinationAccountNumber = "d", OriginatingDFI = "o", ReceivingDFI = "r", SourceInstitutionId = 1, DestinationInstitutionId = 1, AchBatchId = 1, Type = Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit, EffectiveEntryDate = DateTime.Today };
         var cycle = new AchCycle { Id = "C1", ProcessingDate = DateTime.Today, StartTime = TimeSpan.Zero, EndTime = new TimeSpan(23, 59, 0), ClearingHouseId = 1, CycleName = "c1" };
+        await SeedNachaSourceContextAsync(context, queue, ingestion, classification, transaction, "0000003202");
 
         var resolution = await sut.ResolveAsync(queue, ingestion, classification, transaction, cycle, DateTime.Now);
         var xml = sut.BuildSoapBody(resolution.Contract);
@@ -156,6 +158,7 @@ public class ProcTransaccionesRequestMapperTests
         var classification = new IncomingNachaEntryClassification { Id = queue.IncomingNachaEntryClassificationId, FunctionalClass = IncomingNachaFunctionalClass.CreditoEntrante };
         var transaction = new AchTransaction { Id = queue.AchTransactionId, Amount = 0m, TransactionCode = "33", TraceNumber = "1", TransactionExternalId = "ext", AchCycleId = "C1", Reference = "r", CompanyName = "c", CompanyIdentification = "i", SourceAccountNumber = string.Empty, DestinationAccountNumber = "d", OriginatingDFI = "o", ReceivingDFI = "r", SourceInstitutionId = 1, DestinationInstitutionId = 1, AchBatchId = 1, Type = Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit, EffectiveEntryDate = DateTime.Today };
         var cycle = new AchCycle { Id = "C1", ProcessingDate = DateTime.Today, StartTime = TimeSpan.Zero, EndTime = new TimeSpan(23, 59, 0), ClearingHouseId = 1, CycleName = "c1" };
+        await SeedNachaSourceContextAsync(context, queue, ingestion, classification, transaction, "0000003202");
 
         var resolution = await sut.ResolveAsync(queue, ingestion, classification, transaction, cycle, DateTime.Now);
         var xml = sut.BuildSoapBody(resolution.Contract);
@@ -178,6 +181,85 @@ public class ProcTransaccionesRequestMapperTests
             ClearingHouseId = 1,
             OperationalDate = DateTime.Today
         };
+    }
+
+    private static async Task SeedNachaSourceContextAsync(
+        AchDbContext context,
+        IncomingNachaDispatchQueue queue,
+        IncomingNachaFileIngestion ingestion,
+        IncomingNachaEntryClassification classification,
+        AchTransaction transaction,
+        string accountNumber)
+    {
+        const string nachaId = "NACHA-REQ-001";
+
+        var header = new NachaHeader
+        {
+            NachaID = nachaId,
+            IncomingNachaFileIngestionId = ingestion.Id,
+            ImmediateOrigin = "0000128300",
+            ImmediateDestination = "0000000000",
+            FileIdModifier = "1",
+            ReferenceCode = "TEST",
+            CycleNumber = 1
+        };
+        var batchNumber = 1;
+        var traceNumber = transaction.TraceNumber.Length >= 15 ? transaction.TraceNumber : "000000000000001";
+
+        context.NachaHeaders.Add(header);
+        context.BatchHeaders.Add(new BatchHeader
+        {
+            BatchID = 501,
+            NachaID = nachaId,
+            CompanyId = "900999000",
+            CompanyName = "BANCO EXTERNO UAT",
+            StandardEntryClassCode = "PPD",
+            CompanyEntryDescription = "PAGO UAT",
+            EffectiveEntryDate = "260713",
+            OriginParticipantEntityCode = "99999900",
+            BatchNumber = batchNumber
+        });
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = 601,
+            NachaID = nachaId,
+            TransactionCode = "32",
+            ReceivingParticipantEntityCode = "00001283",
+            AccountNumber = accountNumber,
+            Amount = transaction.Amount,
+            RecipIdNumber = "900003201",
+            RecipUserName = "USUARIO UAT",
+            SequenceNumber = traceNumber,
+            BatchNumber = batchNumber
+        });
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = 602,
+            NachaID = nachaId,
+            CodeTypeAddendumRecord = "05",
+            InfofromOriginator = "PAGO-SEGMENTO-UAT-0001",
+            InvoiceOrAccountNumber = "FAC-UAT-001",
+            EntryDetailSequenceNumber = traceNumber
+        });
+
+        var link = new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(),
+            IncomingNachaFileIngestionId = ingestion.Id,
+            EntryDetailId = 601,
+            AddendaRecordId = 602,
+            AchTransactionId = transaction.Id,
+            LinkType = IncomingNachaLinkType.ExactTrace15,
+            ConfidenceScore = 1m,
+            EvidenceJson = "{}",
+            LinkedBy = "test",
+            IsFinal = true
+        };
+        context.IncomingNachaTransactionLinks.Add(link);
+        queue.IncomingNachaTransactionLinkId = link.Id;
+        classification.EntryDetailId = 601;
+        classification.AddendaRecordId = 602;
+        await context.SaveChangesAsync();
     }
 
     private static AchDbContext BuildContext()

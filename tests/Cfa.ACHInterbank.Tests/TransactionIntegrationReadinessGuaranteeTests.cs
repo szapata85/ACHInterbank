@@ -86,6 +86,33 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     }
 
     [Fact]
+    public async Task ProcTransaccionesReadiness_ShouldFailClosed_WhenNctaOrigUsesTransactionSourceAccountNumber()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcTransacciones,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath == "NCTAORIG")
+                {
+                    rule.SourceKind = IntegrationSourceKindEnum.Transaction;
+                    rule.SourceFieldPath = "transaction.sourceAccountNumber";
+                    rule.FixedValue = null;
+                    rule.DefaultValue = null;
+                    rule.Enabled = true;
+                }
+            });
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.CreditFromExternal);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(
+            operation.IntegrationKey, operation.OperationKey, operation.MappingPurpose, operation.MappingDirection);
+
+        Assert.False(readiness.IsReady);
+        Assert.Equal("PROC_TRANSACCIONES_NCTAORIG_SOURCE_INVALID", readiness.Code);
+        Assert.Contains(readiness.Errors, x => x.Contains("NCTAORIG", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task ProcTransaccionesReadiness_ShouldNotBeOk_WhenSeededCriticalFieldsUsePlaceholders()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
@@ -621,6 +648,24 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
                 index++;
             }
 
+            if (operationKey == IntegrationGuaranteeConstants.ProcTransacciones)
+            {
+                var nctaOrigParameter = await Context.IntegrationMethodParameters
+                    .SingleAsync(x => x.MethodId == method.Id && x.ParameterPath == "NCTAORIG");
+                var nctaOrigRule = new IntegrationMappingRule
+                {
+                    MappingSetId = set.Id,
+                    MethodId = method.Id,
+                    ParameterId = nctaOrigParameter.Id,
+                    SourceKind = IntegrationSourceKindEnum.EntryDetail,
+                    SourceFieldPath = "entrydetails.accountnumber",
+                    Priority = 1,
+                    Enabled = true
+                };
+                configureRule?.Invoke(nctaOrigParameter, nctaOrigRule);
+                Context.IntegrationMappingRules.Add(nctaOrigRule);
+            }
+
             await Context.SaveChangesAsync();
         }
 
@@ -725,6 +770,7 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             => SourcePathForFunctionalTest(parameter).Split('.', 2)[0] switch
             {
                 "transaction" => IntegrationSourceKindEnum.Transaction,
+                "entrydetails" => IntegrationSourceKindEnum.EntryDetail,
                 "cycle" => IntegrationSourceKindEnum.Cycle,
                 _ => IntegrationSourceKindEnum.Transaction
             };
@@ -736,7 +782,7 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
                 "BCORECEP" => "destinationInstitution.transitCodeNormalized",
                 "BCOORIG" => "sourceInstitution.transitCodeNormalized",
                 "NORIG" => "sourceInstitution.name",
-                "NCTAORIG" => "transaction.sourceAccountNumber",
+                "NCTAORIG" => "entrydetails.accountnumber",
                 "IDORIG" => "transaction.companyIdentification",
                 "DESTRAN" or "INFPAG" => "procTransacciones.paymentInformation",
                 "FECEFEC" => "transaction.effectiveEntryDate",

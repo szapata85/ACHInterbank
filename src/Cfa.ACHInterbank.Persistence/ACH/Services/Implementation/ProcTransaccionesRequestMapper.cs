@@ -69,7 +69,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             throw new InvalidOperationException($"El mapping set {mappingSet.Id} publicado no tiene reglas habilitadas.");
         }
 
-        var nachaSource = await LoadNachaSourceContextAsync(classification, ingestion, ct);
+        var nachaSource = await LoadNachaSourceContextAsync(queueItem, classification, ingestion, ct);
         var requiresFunctionalSource = rules.Any(x =>
             x.SourceFieldPath.StartsWith("destinationInstitution.", StringComparison.OrdinalIgnoreCase)
             || x.SourceFieldPath.StartsWith("sourceInstitution.", StringComparison.OrdinalIgnoreCase)
@@ -250,30 +250,44 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             || string.Equals(value?.Trim(), "TODO", StringComparison.OrdinalIgnoreCase);
 
     private async Task<NachaSourceContext> LoadNachaSourceContextAsync(
+        IncomingNachaDispatchQueue queue,
         IncomingNachaEntryClassification classification,
         IncomingNachaFileIngestion ingestion,
         CancellationToken ct)
     {
-        var entryDetail = await _context.EntryDetails
+        var link = await _context.IncomingNachaTransactionLinks
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.EntryDetailID == classification.EntryDetailId, ct);
+            .Include(x => x.EntryDetail)
+            .Include(x => x.AddendaRecord)
+            .FirstOrDefaultAsync(x => x.Id == queue.IncomingNachaTransactionLinkId, ct)
+            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_QUEUE_LINK_MISSING: la cola no tiene un vínculo NACHA persistido.");
 
-        var nachaId = entryDetail?.NachaID;
+        var entryDetail = link.EntryDetail
+            ?? await _context.EntryDetails.AsNoTracking().FirstOrDefaultAsync(x => x.EntryDetailID == classification.EntryDetailId, ct)
+            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_ENTRY_MISSING: no existe el registro tipo 6 asociado a la cola.");
+
+        if (classification.EntryDetailId != entryDetail.EntryDetailID)
+        {
+            throw new InvalidOperationException("PROC_TRANSACCIONES_ENTRY_MISMATCH: la clasificación no coincide con el EntryDetail enlazado a la cola.");
+        }
+
+        var nachaId = entryDetail.NachaID;
         var header = !string.IsNullOrWhiteSpace(nachaId)
             ? await _context.NachaHeaders.AsNoTracking().FirstOrDefaultAsync(x => x.NachaID == nachaId, ct)
             : await _context.NachaHeaders.AsNoTracking().FirstOrDefaultAsync(x => x.IncomingNachaFileIngestionId == ingestion.Id, ct);
 
         nachaId ??= header?.NachaID;
 
-        var batchHeader = string.IsNullOrWhiteSpace(nachaId) || entryDetail is null
+        var batchHeader = string.IsNullOrWhiteSpace(nachaId)
             ? null
             : await _context.BatchHeaders.AsNoTracking().FirstOrDefaultAsync(
                 x => x.NachaID == nachaId && x.BatchNumber == entryDetail.BatchNumber,
                 ct);
 
-        var addendaRecord = classification.AddendaRecordId.HasValue
-            ? await _context.AddendaRecords.AsNoTracking().FirstOrDefaultAsync(x => x.AddendaID == classification.AddendaRecordId.Value, ct)
-            : null;
+        var addendaRecord = link.AddendaRecord
+            ?? (classification.AddendaRecordId.HasValue
+                ? await _context.AddendaRecords.AsNoTracking().FirstOrDefaultAsync(x => x.AddendaID == classification.AddendaRecordId.Value, ct)
+                : null);
 
         if (addendaRecord is null && !string.IsNullOrWhiteSpace(nachaId))
         {
@@ -281,8 +295,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
                 .AsNoTracking()
                 .OrderBy(x => x.AddendaID)
                 .FirstOrDefaultAsync(x => x.NachaID == nachaId
-                    && (entryDetail == null
-                        || x.EntryDetailSequenceNumber == entryDetail.SequenceNumber
+                    && (x.EntryDetailSequenceNumber == entryDetail.SequenceNumber
                         || (!string.IsNullOrWhiteSpace(x.EntryDetailSequenceNumber)
                             && !string.IsNullOrWhiteSpace(entryDetail.SequenceNumber)
                             && entryDetail.SequenceNumber.EndsWith(x.EntryDetailSequenceNumber))

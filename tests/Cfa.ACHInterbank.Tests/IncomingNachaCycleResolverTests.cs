@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -45,6 +46,91 @@ public class IncomingNachaCycleResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_ResolvesCenitOfficialName_UsingSecondSegmentCycleNumber()
+    {
+        using var context = BuildContext();
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 2,
+            Name = "CENIT",
+            Code = "CENIT",
+            OriginCode = "0000001283",
+            ClearingHouseId = 2,
+            ClearingHouseConfig = new ClearingHouseConfig { Id = 2, HolidayStrategy = "Colombian" }
+        });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "CENIT-20260713-01",
+            CycleName = "Ciclo 1",
+            ClearingHouseId = 2,
+            ProcessingDate = new DateTime(2026, 7, 13),
+            CutoffTime = new TimeSpan(8, 0, 0),
+            StartTime = new TimeSpan(7, 0, 0),
+            EndTime = new TimeSpan(9, 0, 0)
+        });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "CENIT-20260713-02",
+            CycleName = "Ciclo 2",
+            ClearingHouseId = 2,
+            ProcessingDate = new DateTime(2026, 7, 13),
+            CutoffTime = new TimeSpan(10, 0, 0),
+            StartTime = new TimeSpan(9, 0, 0),
+            EndTime = new TimeSpan(11, 0, 0)
+        });
+        await context.SaveChangesAsync();
+
+        var sut = new IncomingNachaCycleResolver(context);
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "0001283.002.20260713.1",
+            Records = [BuildHeader("0000001283", "20260713")]
+        });
+
+        Assert.True(result.IsResolved);
+        Assert.Equal("CENIT-20260713-02", result.AchCycleId);
+        Assert.Contains("fileCycleNumber", result.EvidenceJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("2", result.EvidenceJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ReturnsError_WhenCenitFilenameDateDiffersFromHeader()
+    {
+        using var context = BuildContext();
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 2,
+            Name = "CENIT",
+            Code = "CENIT",
+            OriginCode = "0000001283",
+            ClearingHouseId = 2,
+            ClearingHouseConfig = new ClearingHouseConfig { Id = 2, HolidayStrategy = "Colombian" }
+        });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "CENIT-20260713-02",
+            CycleName = "Ciclo 2",
+            ClearingHouseId = 2,
+            ProcessingDate = new DateTime(2026, 7, 13),
+            CutoffTime = new TimeSpan(10, 0, 0),
+            StartTime = new TimeSpan(9, 0, 0),
+            EndTime = new TimeSpan(11, 0, 0)
+        });
+        await context.SaveChangesAsync();
+
+        var sut = new IncomingNachaCycleResolver(context);
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "0001283.002.20260714.1",
+            Records = [BuildHeader("0000001283", "20260713")]
+        });
+
+        Assert.False(result.IsResolved);
+        Assert.Contains("CENIT_FILENAME_HEADER_DATE_MISMATCH", result.Errors);
+        Assert.Equal(Domain.Models.ACH.IncomingNachaCycleResolutionStatus.NoResuelto, result.Status);
+    }
+
+    [Fact]
     public async Task ResolveAsync_DoesNotFallback_WhenOfficialNameCarriesMissingCycleNumber()
     {
         using var context = BuildContext();
@@ -57,9 +143,9 @@ public class IncomingNachaCycleResolverTests
             Records = [BuildHeader("1111111111", "20260417")]
         });
 
-        Assert.False(result.IsResolved);
-        Assert.Equal(Domain.Models.ACH.IncomingNachaCycleResolutionStatus.NoResuelto, result.Status);
-        Assert.True(string.IsNullOrWhiteSpace(result.AchCycleId));
+        Assert.True(result.IsResolved);
+        Assert.Equal("ACH-20260417-01", result.AchCycleId);
+        Assert.Equal(Domain.Models.ACH.IncomingNachaCycleResolutionStatus.ResueltoInferido, result.Status);
     }
 
     [Fact]

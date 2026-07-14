@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.CodeAnalysis;
@@ -551,7 +552,7 @@ public class NachaParserService : INachaParserService
 
     private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap, string FileName, NachaParseRequest? request)
     {
-        int cycleNumber = ExtractCycleNumberFromFileName(FileName);
+        int? cycleNumber = CenitOfficialFileNameParser.ExtractCycleNumberFromFileName(FileName);
 
         return line.Select(a =>
         {
@@ -568,9 +569,9 @@ public class NachaParserService : INachaParserService
                 cycleQuery = cycleQuery.Where(c => c.ProcessingDate == processingDate.Value.Date);
             }
 
-            if (cycleNumber > 0)
+            if (cycleNumber.HasValue)
             {
-                cycleQuery = cycleQuery.Where(c => c.CycleName.Contains(cycleNumber.ToString()));
+                cycleQuery = cycleQuery.Where(c => c.CycleName.Contains(cycleNumber.Value.ToString(CultureInfo.InvariantCulture)));
             }
 
             string? achCycleId = request?.ResolvedAchCycleId;
@@ -614,36 +615,11 @@ public class NachaParserService : INachaParserService
                 ImmediateOriginName = a.Substring(65, 23).Trim(),
                 ReferenceCode = a.Substring(88, 8).Trim(),
                 ClearingHouseId = clearingHouseId,
-                CycleNumber = cycleNumber,
+                CycleNumber = cycleNumber ?? 0,
                 AchCycleId = achCycleId,
                 IncomingNachaFileIngestionId = request?.IncomingNachaFileIngestionId
             };
         }).ToList();
-    }
-
-    private static int ExtractCycleNumberFromFileName(string fileName)
-    {
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            return 0;
-        }
-
-        var nameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
-        if (string.IsNullOrWhiteSpace(nameWithoutExtension))
-        {
-            return 0;
-        }
-
-        var segments = nameWithoutExtension.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        foreach (var segment in segments)
-        {
-            if (int.TryParse(segment, out var cycleNumber) && cycleNumber > 0)
-            {
-                return cycleNumber;
-            }
-        }
-
-        return 0;
     }
 
     private static DateTime? ParseNachaProcessingDate(string? fileCreationDate)

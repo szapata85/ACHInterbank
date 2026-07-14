@@ -114,7 +114,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Equal("1234567", result.Contract.Parameters["IDTRAN"]);
         Assert.Equal("000001", result.Contract.Parameters["IDLOTE"]);
         Assert.Equal("0", result.Contract.Parameters["IREVER"]);
-        Assert.Equal(string.Empty, result.Contract.Parameters["NCTAORIG"]);
+        Assert.Equal("0000003202", result.Contract.Parameters["NCTAORIG"]);
         Assert.Equal(77, result.Contract.Parameters["DESTRAN"].Length);
         Assert.Equal(result.Contract.Parameters["DESTRAN"], result.Contract.Parameters["INFPAG"]);
     }
@@ -157,6 +157,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Contains(nameof(BatchControl), entityNames);
         Assert.Contains(nameof(FileControl), entityNames);
         Assert.Contains("entryDetails.sequenceNumber", fieldPaths);
+        Assert.Contains("entrydetails.accountnumber", fieldPaths);
         Assert.Contains("batchHeaders.companyId", fieldPaths);
         Assert.Contains("nachaHeaders.immediateOrigin", fieldPaths);
         Assert.DoesNotContain(fieldPaths, x => x.Contains("select ", StringComparison.OrdinalIgnoreCase) || x.Contains(" from ", StringComparison.OrdinalIgnoreCase));
@@ -278,7 +279,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.Contains("Proc_Transacciones", envelope);
         Assert.Contains("1234567", envelope);
         Assert.DoesNotContain("<METODO>", envelope, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("NCTAORIG", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<tem:NCTAORIG>0000003202</tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ILR", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SEED", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("PLACEHOLDER", envelope, StringComparison.OrdinalIgnoreCase);
@@ -289,6 +290,32 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.DoesNotContain("RTALOC", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("password", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Bearer", envelope, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_ShouldMapNctaOrig_FromEntryDetailsAccountNumber_AndIgnoreTransactionSourceAccountNumber()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishProcTransaccionesMappingAsync();
+
+        var entry = await fixture.Context.EntryDetails.SingleAsync(x => x.EntryDetailID == 601);
+        entry.AccountNumber = "123456789";
+        fixture.Transaction.SourceAccountNumber = "local-live-test-marker";
+        await fixture.Context.SaveChangesAsync();
+
+        var mapper = new ProcTransaccionesRequestMapper(fixture.Context);
+        var resolution = await mapper.ResolveAsync(
+            fixture.Queue,
+            fixture.Ingestion,
+            fixture.Classification,
+            fixture.Transaction,
+            fixture.Cycle,
+            new DateTime(2026, 5, 23, 10, 0, 0, DateTimeKind.Utc));
+
+        var envelope = mapper.BuildSoapBody(resolution.Contract);
+
+        Assert.Contains("<tem:NCTAORIG>123456789</tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("local-live-test-marker", envelope, StringComparison.OrdinalIgnoreCase);
     }
 
     private static TransactionIntegrationOperationResult Operation(Fixture fixture)
@@ -543,7 +570,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
                 "BCORECEP" => "nachaHeaders.immediateDestination",
                 "BCOORIG" => "nachaHeaders.immediateOrigin",
                 "NORIG" => "batchHeaders.companyName",
-                "NCTAORIG" => "batchHeaders.companyId",
+                "NCTAORIG" => "entrydetails.accountnumber",
                 "IDORIG" => "batchHeaders.companyId",
                 "DESTRAN" => "batchHeaders.companyEntryDescription",
                 "FECEFEC" => "batchHeaders.effectiveEntryDate",

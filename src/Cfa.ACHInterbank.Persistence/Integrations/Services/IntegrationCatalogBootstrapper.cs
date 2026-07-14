@@ -315,7 +315,7 @@ public sealed class IntegrationCatalogBootstrapper
             Source(methodId, IntegrationSourceKindEnum.BatchHeader, nameof(BatchHeader), "batchHeaders.batchNumber", "Archivo NACHA-M > Lote > Numero lote", "int", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.transactionCode", "Archivo NACHA-M > Detalle > Codigo transaccion", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.receivingParticipantEntityCode", "Archivo NACHA-M > Detalle > Entidad receptora", "string", true, order++),
-            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.accountNumber", "Archivo NACHA-M > Detalle > Cuenta", "string", true, order++),
+            Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entrydetails.accountnumber", "Número de cuenta del detalle de entrada", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.amount", "Archivo NACHA-M > Detalle > Monto", "decimal", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.recipIdNumber", "Archivo NACHA-M > Detalle > Identificacion receptor", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.EntryDetail, nameof(EntryDetail), "entryDetails.recipUserName", "Archivo NACHA-M > Detalle > Nombre receptor", "string", true, order++),
