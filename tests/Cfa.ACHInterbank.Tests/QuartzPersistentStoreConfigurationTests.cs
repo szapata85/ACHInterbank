@@ -35,7 +35,7 @@ public class QuartzPersistentStoreConfigurationTests
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Quartz:JobStore:Mode"] = "Persistent",
-            ["Quartz:JobStore:Provider"] = "Postgres",
+            ["Quartz:JobStore:Provider"] = "postGres",
             ["Quartz:JobStore:TablePrefix"] = "QRTZ_",
             ["Quartz:JobStore:Clustered"] = "true"
         }).Build();
@@ -57,7 +57,12 @@ public class QuartzPersistentStoreConfigurationTests
         }).Build();
 
         var options = QuartzJobStoreOptionsFactory.Create(config);
-        options.GetNormalizedProvider().Should().Be("Postgres");
+
+        Action act = () => options.GetNormalizedProvider();
+        var exception = act.Should().Throw<InvalidOperationException>().Which;
+        exception.Message.Should().Contain("Oracle");
+        exception.Message.Should().Contain("Postgres");
+        exception.Message.Should().Contain("SqlServer");
     }
 
 
@@ -67,12 +72,28 @@ public class QuartzPersistentStoreConfigurationTests
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Quartz:JobStore:Mode"] = "Persistent",
-            ["Quartz:JobStore:Provider"] = "SqlServer"
+            ["Quartz:JobStore:Provider"] = "sqlserver"
         }).Build();
 
         var options = QuartzJobStoreOptionsFactory.Create(config);
         options.IsPersistentMode().Should().BeTrue();
         options.GetNormalizedProvider().Should().Be("SqlServer");
+    }
+
+    [Fact]
+    public void QuartzConfiguration_ShouldRejectEmptyProvider()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Quartz:JobStore:Mode"] = "Persistent",
+            ["Quartz:JobStore:Provider"] = ""
+        }).Build();
+
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+
+        Action act = () => options.GetNormalizedProvider();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*provider is required*");
     }
 
     [Fact]

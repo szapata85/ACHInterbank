@@ -35,16 +35,19 @@ public class ProjectConfigurationPortabilityTests
         var sqlServerCompose = File.ReadAllText(Path.Combine(RepoRoot, "docker-compose.sqlserver.yml"));
 
         baseCompose.Should().NotContain("Cooperativa");
-        baseCompose.Should().NotContain("POSTGRES_USER:-sa");
         baseCompose.Should().NotContain("example_password_change_me");
+        baseCompose.Should().NotContain("MSSQL_SA_PASSWORD:-");
+        baseCompose.Should().NotContain("POSTGRES_PASSWORD:-");
 
-        postgresCompose.Should().Contain("POSTGRES_PASSWORD");
-        postgresCompose.Should().Contain("example_password_change_me");
-        postgresCompose.Should().NotContain("POSTGRES_USER:-sa");
+        postgresCompose.Should().Contain("POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}");
+        postgresCompose.Should().Contain("ConnectionStrings__PostgresConnection");
+        postgresCompose.Should().NotContain("example_password_change_me");
         postgresCompose.Should().NotContain("Cooperativa");
 
-        sqlServerCompose.Should().Contain("Database__Provider: SqlServer");
+        sqlServerCompose.Should().Contain("MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria}");
         sqlServerCompose.Should().Contain("ConnectionStrings__SqlConnection");
+        sqlServerCompose.Should().NotContain("Example_sqlServer_2026*");
+        sqlServerCompose.Should().NotContain("Cooperativa");
     }
 
     private static string FindRepositoryRoot()

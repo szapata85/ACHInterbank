@@ -8,8 +8,9 @@ services:
     image: achinterbank-api:local
     container_name: achinterbank-api
     environment:
-      Database__Provider: ${DATABASE_PROVIDER:-SqlServer}
-      ConnectionStrings__SqlConnection: ${CONNECTIONSTRINGS__SQLCONNECTION:-Server=sqlserver,1433;Database=${MSSQL_DB:-ACHInterbank};User Id=sa;Password=${MSSQL_SA_PASSWORD:-Example_sqlServer_2026*};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true}
+      Database__Provider: ${DATABASE_PROVIDER:-}
+      ConnectionStrings__SqlConnection: ${CONNECTIONSTRINGS__SQLCONNECTION:-}
+      ConnectionStrings__PostgresConnection: ${CONNECTIONSTRINGS__POSTGRESCONNECTION:-}
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}

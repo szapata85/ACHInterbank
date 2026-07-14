@@ -1,5 +1,5 @@
 param(
-    [switch]$SkipClean
+    [switch]$ResetData
 )
 
 $ErrorActionPreference = 'Stop'
@@ -87,12 +87,38 @@ function Ensure-Environment {
         try {
             $securePassword = Read-Host -Prompt 'Enter MSSQL_SA_PASSWORD' -AsSecureString
         } catch {
-            throw 'MSSQL_SA_PASSWORD is not available in the environment or .env, and the current host did not allow interactive entry.'
+            throw 'MSSQL_SA_PASSWORD is required and was not found in the environment or .env file.'
         }
 
         $plainPassword = ConvertFrom-SecureStringPlainText -SecureString $securePassword
         Set-Item -Path Env:MSSQL_SA_PASSWORD -Value $plainPassword
     }
+}
+
+function Redact-Text {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $Text
+    }
+
+    $redacted = $Text
+    $patterns = @(
+        '(?i)(MSSQL_SA_PASSWORD\s*[:=]\s*)([^\s;]+)',
+        '(?i)(POSTGRES_PASSWORD\s*[:=]\s*)([^\s;]+)',
+        '(?i)(ConnectionStrings__SqlConnection\s*[:=]\s*)([^\r\n]+)',
+        '(?i)(ConnectionStrings__PostgresConnection\s*[:=]\s*)([^\r\n]+)',
+        '(?i)(Password=)([^;]+)',
+        '(?i)(secretKetJwt\s*[:=]\s*)([^\s;]+)',
+        '(?i)(clientSecret\s*[:=]\s*)([^\s;]+)',
+        '(?i)(x_api_key\s*[:=]\s*)([^\s;]+)'
+    )
+
+    foreach ($pattern in $patterns) {
+        $redacted = [regex]::Replace($redacted, $pattern, '$1[REDACTED]')
+    }
+
+    return $redacted
 }
 
 function Invoke-Compose {
@@ -111,18 +137,27 @@ function Invoke-Compose {
 
     $fullArgs += $Arguments
 
-    if ($CaptureOutput) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
         $output = & docker compose @fullArgs 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "docker compose $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
-        }
-
-        return $output
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
     }
 
-    & docker compose @fullArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "docker compose $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    $renderedOutput = Redact-Text (($output | Out-String).TrimEnd())
+
+    if ($exitCode -ne 0) {
+        throw $renderedOutput
+    }
+
+    if ($CaptureOutput) {
+        return $renderedOutput
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($renderedOutput)) {
+        Write-Host $renderedOutput
     }
 }
 
@@ -131,14 +166,14 @@ function Show-StatusAndLogs {
     try {
         Invoke-Compose -Arguments @('ps', '--all')
     } catch {
-        Write-Host $_
+        Write-Host (Redact-Text ($_.Exception.Message))
     }
 
     Write-Section 'Compose logs --no-color --tail 500'
     try {
         Invoke-Compose -Arguments @('logs', '--no-color', '--tail', '500')
     } catch {
-        Write-Host $_
+        Write-Host (Redact-Text ($_.Exception.Message))
     }
 }
 
@@ -204,7 +239,7 @@ function Get-SqlServerVersion {
 
     foreach ($sqlCmd in $sqlCmdCandidates) {
         try {
-            $output = Invoke-Compose -Arguments @('exec', '-T', 'sqlserver', $sqlCmd, '-S', 'localhost', '-U', 'sa', '-P', $env:MSSQL_SA_PASSWORD, '-C', '-Q', 'SET NOCOUNT ON; SELECT @@VERSION;') -CaptureOutput
+            $output = Invoke-Compose -Arguments @('exec', '-T', '-e', "SQLCMDPASSWORD=$env:MSSQL_SA_PASSWORD", 'sqlserver', $sqlCmd, '-S', 'localhost', '-U', 'sa', '-d', 'master', '-C', '-Q', 'SET NOCOUNT ON; SELECT @@VERSION;') -CaptureOutput
             return $output
         } catch {
             continue
@@ -214,22 +249,35 @@ function Get-SqlServerVersion {
     throw 'Unable to query SQL Server version from the container.'
 }
 
-function Get-MigrationHistory {
+function Get-EfMigrationsTableState {
     $sqlCmdCandidates = @(
         '/opt/mssql-tools18/bin/sqlcmd',
         '/opt/mssql-tools/bin/sqlcmd'
     )
 
+    $query = @"
+SET NOCOUNT ON;
+SELECT s.name AS SchemaName, t.name AS TableName
+FROM sys.tables AS t
+INNER JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+WHERE t.name = '__EFMigrationsHistory';
+"@
+
     foreach ($sqlCmd in $sqlCmdCandidates) {
         try {
-            $output = Invoke-Compose -Arguments @('exec', '-T', 'sqlserver', $sqlCmd, '-S', 'localhost', '-U', 'sa', '-P', $env:MSSQL_SA_PASSWORD, '-C', '-Q', 'SELECT COUNT(*) AS MigrationCount FROM dbo.__EFMigrationsHistory;') -CaptureOutput
+            $databaseName = $env:MSSQL_DB
+            if ([string]::IsNullOrWhiteSpace($databaseName)) {
+                $databaseName = 'ACHInterbank'
+            }
+
+            $output = Invoke-Compose -Arguments @('exec', '-T', '-e', "SQLCMDPASSWORD=$env:MSSQL_SA_PASSWORD", 'sqlserver', $sqlCmd, '-S', 'localhost', '-U', 'sa', '-d', $databaseName, '-C', '-Q', $query) -CaptureOutput
             return $output
         } catch {
             continue
         }
     }
 
-    throw 'Unable to query EF migration history from the container.'
+    throw 'Unable to inspect EF migration history from the container.'
 }
 
 Push-Location $root
@@ -237,13 +285,15 @@ try {
     Import-DotEnv -Path (Join-Path $root '.env')
     Ensure-Environment
 
-    Write-Section 'Compose config'
+    Write-Section 'Compose config validation'
     Invoke-Compose -Arguments @('config', '--quiet')
-    Invoke-Compose -Arguments @('config')
 
-    if (-not $SkipClean) {
-        Write-Section 'Clean project stack'
+    if ($ResetData) {
+        Write-Section 'Clean project stack with data reset'
         Invoke-Compose -Arguments @('down', '--volumes', '--remove-orphans')
+    } else {
+        Write-Section 'Clean project stack'
+        Invoke-Compose -Arguments @('down', '--remove-orphans')
     }
 
     Write-Section 'Build'
@@ -263,13 +313,17 @@ try {
     Write-Host $versionOutput
 
     Write-Section 'EF migration history'
-    $migrationOutput = Get-MigrationHistory
-    Write-Host $migrationOutput
+    $migrationOutput = Get-EfMigrationsTableState
+    if ([string]::IsNullOrWhiteSpace($migrationOutput)) {
+        Write-Host 'No __EFMigrationsHistory table found.'
+    } else {
+        Write-Host $migrationOutput
+    }
 
     Write-Section 'Final status'
     Invoke-Compose -Arguments @('ps', '--all')
 } catch {
-    Write-Host $_
+    Write-Host (Redact-Text ($_.Exception.Message))
     Show-StatusAndLogs
     throw
 } finally {

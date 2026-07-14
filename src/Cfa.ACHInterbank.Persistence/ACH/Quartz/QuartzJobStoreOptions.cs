@@ -13,7 +13,26 @@ public sealed class QuartzJobStoreOptions
     public bool PerformSchemaValidation { get; set; } = true;
 
     public bool IsPersistentMode() => string.Equals(Mode, "Persistent", StringComparison.OrdinalIgnoreCase);
-    public string GetNormalizedProvider() => string.Equals(Provider, "Postgres", StringComparison.OrdinalIgnoreCase) ? "Postgres" : "SqlServer";
+    public string GetNormalizedProvider()
+    {
+        if (string.IsNullOrWhiteSpace(Provider))
+        {
+            throw new InvalidOperationException("Quartz job store provider is required. Supported values are 'Postgres' and 'SqlServer'.");
+        }
+
+        var normalizedProvider = Provider.Trim();
+        if (string.Equals(normalizedProvider, "Postgres", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Postgres";
+        }
+
+        if (string.Equals(normalizedProvider, "SqlServer", StringComparison.OrdinalIgnoreCase))
+        {
+            return "SqlServer";
+        }
+
+        throw new InvalidOperationException($"Unsupported Quartz job store provider '{Provider}'. Supported values are 'Postgres' and 'SqlServer'.");
+    }
 }
 
 public static class QuartzJobStoreOptionsFactory

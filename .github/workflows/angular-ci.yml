@@ -81,9 +81,9 @@ jobs:
         env:
           POSTGRES_DB: ACHInterbank
           POSTGRES_USER: example_user
-          POSTGRES_PASSWORD: example_password_change_me
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           DATABASE_APPLY_MIGRATIONS: "true"
-        run: docker compose -f ../../docker-compose.yml up -d --build postgres achinterbank-api achinterbank-spa
+        run: docker compose -f ../../docker-compose.yml -f ../../docker-compose.postgres.yml up -d --build postgres achinterbank-api achinterbank-spa
 
       - name: Wait for API readiness
         run: |
@@ -117,7 +117,7 @@ jobs:
 
       - name: Dump container logs on failure
         if: failure()
-        run: docker compose -f ../../docker-compose.yml logs --no-color postgres achinterbank-api achinterbank-spa
+        run: docker compose -f ../../docker-compose.yml -f ../../docker-compose.postgres.yml logs --no-color postgres achinterbank-api achinterbank-spa
 
       - name: Upload Playwright report
         if: always()

@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ACHInterbank}
       POSTGRES_USER: ${POSTGRES_USER:-example_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-example_password_change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}
     volumes:
       - ach_postgres_data:/var/lib/postgresql/data
     ports:
@@ -22,7 +22,7 @@ services:
   achinterbank-api:
     environment:
       Database__Provider: Postgres
-      ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-example_user};Password=${POSTGRES_PASSWORD:-example_password_change_me}
+      ConnectionStrings__PostgresConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ACHInterbank};Username=${POSTGRES_USER:-example_user};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}
     depends_on:
       postgres:
         condition: service_healthy

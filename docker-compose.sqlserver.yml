@@ -5,7 +5,7 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: ${MSSQL_PID:-Developer}
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Example_sqlServer_2026*}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria}
     volumes:
       - ach_sqlserver_data:/var/opt/mssql
     ports:
@@ -26,7 +26,7 @@ services:
   achinterbank-api:
     environment:
       Database__Provider: SqlServer
-      ConnectionStrings__SqlConnection: Server=sqlserver,1433;Database=${MSSQL_DB:-ACHInterbank};User Id=sa;Password=${MSSQL_SA_PASSWORD:-Example_sqlServer_2026*};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true
+      ConnectionStrings__SqlConnection: Server=sqlserver,1433;Database=${MSSQL_DB:-ACHInterbank};User Id=sa;Password=${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true
     depends_on:
       sqlserver:
         condition: service_healthy
