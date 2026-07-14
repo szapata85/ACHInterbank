@@ -9,12 +9,12 @@ WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && apt-get install -y --no-install-recommends curl libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*
 
 
 # This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.301 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj", "src/Cfa.ACHInterbank.Api/"]

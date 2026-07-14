@@ -5,7 +5,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Quartz;
 public sealed class QuartzJobStoreOptions
 {
     public string Mode { get; set; } = "RAM";
-    public string Provider { get; set; } = "Postgres";
+    public string Provider { get; set; } = "SqlServer";
     public string TablePrefix { get; set; } = "QRTZ_";
     public bool Clustered { get; set; }
     public int ClusterCheckinIntervalSeconds { get; set; } = 20;
@@ -13,7 +13,7 @@ public sealed class QuartzJobStoreOptions
     public bool PerformSchemaValidation { get; set; } = true;
 
     public bool IsPersistentMode() => string.Equals(Mode, "Persistent", StringComparison.OrdinalIgnoreCase);
-    public string GetNormalizedProvider() => string.Equals(Provider, "SqlServer", StringComparison.OrdinalIgnoreCase) ? "SqlServer" : "Postgres";
+    public string GetNormalizedProvider() => string.Equals(Provider, "Postgres", StringComparison.OrdinalIgnoreCase) ? "Postgres" : "SqlServer";
 }
 
 public static class QuartzJobStoreOptionsFactory
