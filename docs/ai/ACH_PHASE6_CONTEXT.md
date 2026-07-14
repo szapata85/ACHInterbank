@@ -1,3 +1,42 @@
+﻿<!-- LOCAL_CONTROLLED_SOAP_LIVE_AUTHORIZATION -->
+
+## Excepción autorizada: SOAP LIVE local controlado
+
+La declaración "Productivo NO-GO" aplica exclusivamente a:
+
+- endpoints externos de producción;
+- infraestructura productiva de CFA, ACH Colombia o CENIT;
+- credenciales productivas;
+- conexiones a redes financieras externas;
+- movimientos monetarios reales;
+- ejecución contra cuentas o sistemas core productivos.
+
+No aplica a pruebas técnicas LIVE locales expresamente autorizadas.
+
+Está permitido ejecutar SOAP real contra el servicio WCF local controlado:
+
+- Windows: http://localhost:7083/WSCFAACH.svc
+- Docker: http://host.docker.internal:7083/WSCFAACH.svc
+- HostHeader: localhost:7083
+
+Esta llamada corresponde a una prueba local de integración y no a producción.
+
+Condiciones obligatorias:
+
+1. API, SPA, SQL Server y WCF deben estar ejecutándose localmente.
+2. No se permite ningún endpoint SOAP diferente de localhost o host.docker.internal.
+3. Los archivos autorizados pueden provenir de producción, pero se usan exclusivamente como fixtures controlados de prueba.
+4. No se deben imprimir datos personales, cuentas completas, credenciales, tokens o XML completo.
+5. Se permite corregir código, configuración, ingestión y deduplicación durante la ejecución.
+6. Se permiten hasta tres uploads mientras no exista cola con intento ni ejecución SOAP.
+7. Se permite exactamente una llamada SOAP real por autorización.
+8. Después del primer intento SOAP quedan prohibidos nuevos uploads, retries y nuevos dispatch.
+9. La API debe restaurarse a DryRun al finalizar.
+10. Toda la evidencia de ingestión, cola, request, response y log debe conservarse.
+
+La autorización local no cambia el estado Productivo NO-GO del sistema.
+<!-- /LOCAL_CONTROLLED_SOAP_LIVE_AUTHORIZATION -->
+
 # ACHInterbank - Contexto Permanente IA - Fase 6 NACHA-M
 
 ## 1. Proposito del documento
@@ -909,3 +948,4 @@ Antes de implementar cualquier fase futura:
     - Resultado de tests.
     - Riesgos pendientes.
     - Estado productivo.
+
