@@ -440,7 +440,11 @@ test.describe('Proc_Transacciones pre-LIVE guardrails', () => {
       expect(liveSpec).toContain('http://localhost:843/health/live');
       expect(liveSpec).toContain('http://localhost:843/health/ready');
       expect(liveSpec).toContain('http://localhost:743/login');
-      expect(liveSpec).toContain('CENIT_TEST_ENTRY_NAME');
+      expect(liveSpec).toContain("process.env['ACH_TEST_FILE_PATH']");
+      expect(liveSpec).toContain("process.env['ACH_TEST_FILE_NAME']");
+      expect(liveSpec).toContain("name: fileName");
+      expect(liveSpec).not.toContain('CENIT_TEST_PACKAGE_PATH');
+      expect(liveSpec).not.toContain("uploadFileName = '0000004.002.1'");
       expect(liveSpec).not.toContain('buildIncomingProcTransaccionesCenitFixture');
       expect(liveSpec).not.toContain('readAuthorizedFixtureInput');
       expect(liveSpec).not.toContain('accelerateIncomingPostProcessing');

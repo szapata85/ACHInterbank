@@ -88,7 +88,15 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             }
         }
 
-        if (!request.ForceReprocess && canonicalCandidate is not null)
+        var authorizedPreDispatchRetry = !request.ForceReprocess
+            && canonicalCandidate is not null
+            && await IsAuthorizedPreDispatchBlockedRetryAsync(canonicalCandidate, ct);
+
+        if (authorizedPreDispatchRetry)
+        {
+            parentIngestionId = canonicalCandidate!.Id;
+        }
+        else if (!request.ForceReprocess && canonicalCandidate is not null)
         {
             var nextAttempt = await _context.IncomingNachaFileProcessingResults
                 .AsNoTracking()
@@ -113,6 +121,9 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             return new IncomingNachaIngestionResponse
             {
                 IngestionId = canonicalCandidate.Id,
+                OriginalFileName = canonicalCandidate.FileName,
+                FileHash = canonicalCandidate.FileHashSha256,
+                CorrelationId = canonicalCandidate.CorrelationId,
                 IngestionStatus = IncomingNachaIngestionStatus.Duplicado,
                 CycleResolutionStatus = canonicalCandidate.CycleResolutionStatus,
                 ParsingStatus = canonicalCandidate.ParsingStatus,
@@ -136,15 +147,26 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ReceivedAtUtc = DateTime.UtcNow,
             CorrelationId = correlationId,
             ParentIngestionId = parentIngestionId,
-            IsReprocess = request.ForceReprocess,
+            IsReprocess = request.ForceReprocess || authorizedPreDispatchRetry,
             IngestionStatus = IncomingNachaIngestionStatus.Recibido,
             ParsingStatus = IncomingNachaParsingStatus.NoEjecutado,
             CycleResolutionStatus = IncomingNachaCycleResolutionStatus.NoIntentado,
-            Notes = request.ForceReprocess
-                ? $"Reproceso autorizado. ParentIngestionId={parentIngestionId}"
-                : "Archivo recibido.",
-            ResolutionEvidenceJson = request.ForceReprocess
+            Notes = authorizedPreDispatchRetry
+                ? $"AUTHORIZED_RETRY_OF_PRE_DISPATCH_BLOCKED_INGESTION; PreviousIngestionId={canonicalCandidate!.Id}; PreviousFileHash={canonicalCandidate.FileHashSha256}; Reason=BlockedWithoutDispatchOrSoap; OccurredAtUtc={DateTime.UtcNow:O}"
+                : request.ForceReprocess
+                    ? $"Reproceso autorizado. ParentIngestionId={parentIngestionId}"
+                    : "Archivo recibido.",
+            ResolutionEvidenceJson = authorizedPreDispatchRetry
                 ? JsonSerializer.Serialize(new
+                {
+                    eventType = "AUTHORIZED_RETRY_OF_PRE_DISPATCH_BLOCKED_INGESTION",
+                    previousIngestionId = canonicalCandidate!.Id,
+                    previousFileHash = canonicalCandidate.FileHashSha256,
+                    reason = "BlockedWithoutDispatchOrSoap",
+                    occurredAtUtc = DateTime.UtcNow
+                })
+                : request.ForceReprocess
+                    ? JsonSerializer.Serialize(new
                 {
                     eventType = "ReprocesoAutorizado",
                     parentIngestionId,
@@ -192,6 +214,9 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                     return new IncomingNachaIngestionResponse
                     {
                         IngestionId = existing.Id,
+                        OriginalFileName = existing.FileName,
+                        FileHash = existing.FileHashSha256,
+                        CorrelationId = existing.CorrelationId,
                         IngestionStatus = IncomingNachaIngestionStatus.Duplicado,
                         CycleResolutionStatus = existing.CycleResolutionStatus,
                         ParsingStatus = existing.ParsingStatus,
@@ -399,6 +424,9 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         return new IncomingNachaIngestionResponse
         {
             IngestionId = ingestion.Id,
+            OriginalFileName = ingestion.FileName,
+            FileHash = ingestion.FileHashSha256,
+            CorrelationId = ingestion.CorrelationId,
             IngestionStatus = ingestion.IngestionStatus,
             CycleResolutionStatus = ingestion.CycleResolutionStatus,
             ParsingStatus = ingestion.ParsingStatus,
@@ -413,6 +441,38 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ErrorCount = processing?.ErrorCount ?? errors.Count,
             Errors = errors
         };
+    }
+
+    private async Task<bool> IsAuthorizedPreDispatchBlockedRetryAsync(
+        IncomingNachaFileIngestion ingestion,
+        CancellationToken ct)
+    {
+        if (ingestion.IngestionStatus != IncomingNachaIngestionStatus.Bloqueado)
+        {
+            return false;
+        }
+
+        var hasQueue = await _context.IncomingNachaDispatchQueue
+            .AsNoTracking()
+            .AnyAsync(x => x.IncomingNachaFileIngestionId == ingestion.Id, ct);
+        if (hasQueue)
+        {
+            return false;
+        }
+
+        var hasFunctionalClassification = await _context.IncomingNachaEntryClassifications
+            .AsNoTracking()
+            .AnyAsync(x => x.IncomingNachaFileIngestionId == ingestion.Id, ct);
+        if (hasFunctionalClassification)
+        {
+            return false;
+        }
+
+        var hasIntegrationExecution = await _context.IncomingNachaIntegrationExecution
+            .AsNoTracking()
+            .AnyAsync(x => x.DispatchQueue.IncomingNachaFileIngestionId == ingestion.Id, ct);
+
+        return !hasIntegrationExecution;
     }
 
     private static string ComputeSha256(byte[] bytes)

@@ -16,6 +16,9 @@ public sealed class IncomingNachaIngestionRequest
 public sealed class IncomingNachaIngestionResponse
 {
     public Guid IngestionId { get; init; }
+    public string OriginalFileName { get; init; } = string.Empty;
+    public string FileHash { get; init; } = string.Empty;
+    public string CorrelationId { get; init; } = string.Empty;
     public IncomingNachaIngestionStatus IngestionStatus { get; init; }
     public IncomingNachaCycleResolutionStatus CycleResolutionStatus { get; init; }
     public IncomingNachaParsingStatus ParsingStatus { get; init; }

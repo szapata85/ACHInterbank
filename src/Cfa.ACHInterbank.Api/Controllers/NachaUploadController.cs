@@ -33,7 +33,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
         /// </summary>
 
         private const long MaxUploadSizeBytes = 10 * 1024 * 1024; // 10 MB
-        private static readonly Regex OfficialNachaNamePattern = new(@"^\d{7}\.\d{3}\.[1-9]\d*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        // CENIT inbound files retain their complete four-segment external name.
+        // Do not normalize this to an .ach fixture name or derive it from a batch.
+        private static readonly Regex OfficialNachaNamePattern = new(@"^\d{7}\.\d{3}\.\d{8}\.\d+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             ".ach", ".nacha", ".txt"
@@ -86,7 +88,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     Success = false,
                     Partial = false,
                     Message = "Extensión de archivo no permitida.",
-                    Errors = ["Nombres oficiales permitidos: RRRRTTT.ZZZ.N (N entero positivo) o extensiones internas .ach, .nacha, .txt."],
+                    Errors = ["Nombres oficiales CENIT permitidos: RRRRTTT.ZZZ.YYYYMMDD.N, o extensiones internas .ach, .nacha, .txt."],
                     TraceId = traceId
                 });
             }
@@ -109,7 +111,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
                 var result = await _ingestionService.IngestAsync(new IncomingNachaIngestionRequest
                 {
                     FileStream = stream,
-                    FileName = file.FileName,
+                    FileName = fileName,
                     ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
                     RequestedBy = User?.Identity?.Name ?? "usuario-api",
                     CorrelationId = traceId,
@@ -132,6 +134,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     Errors = result.Errors,
                     TraceId = traceId,
                     IngestionId = result.IngestionId,
+                    OriginalFileName = result.OriginalFileName,
+                    FileHash = result.FileHash,
+                    CorrelationId = result.CorrelationId,
                     IngestionStatus = result.IngestionStatus.ToString(),
                     CycleResolutionStatus = result.CycleResolutionStatus.ToString(),
                     ParsingStatus = result.ParsingStatus.ToString(),
@@ -290,6 +295,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
         public IReadOnlyList<NachaValidationFailure> OperatorReturns { get; set; } = [];
         public string TraceId { get; set; } = string.Empty;
         public Guid? IngestionId { get; set; }
+        public string OriginalFileName { get; set; } = string.Empty;
+        public string FileHash { get; set; } = string.Empty;
+        public string CorrelationId { get; set; } = string.Empty;
         public string IngestionStatus { get; set; } = string.Empty;
         public string CycleResolutionStatus { get; set; } = string.Empty;
         public string ParsingStatus { get; set; } = string.Empty;

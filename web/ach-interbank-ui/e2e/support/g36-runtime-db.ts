@@ -677,6 +677,47 @@ export class G36RuntimeDb {
     return singleOrNull(rows, 'La correlaciÃ³n por FileName y ventana debe identificar una sola ingestiÃ³n.');
   }
 
+  async findIncomingNachaIngestionById(ingestionId: string): Promise<IncomingNachaIngestionRow | null> {
+    if (!ingestionId?.trim()) {
+      throw new Error('IngestionId es obligatorio para consultar la ingestiÃ³n NACHA.');
+    }
+
+    if (this.postgres) {
+      const rows = await this.postgres.query<IncomingNachaIngestionRow>(
+        `SELECT i."Id"::text AS id,
+                i."FileName" AS "fileName",
+                i."CorrelationId" AS "correlationId",
+                i."IngestionStatus" AS "ingestionStatus",
+                i."CycleResolutionStatus" AS "cycleResolutionStatus",
+                i."ParsingStatus" AS "parsingStatus",
+                i."ResolvedAchCycleId" AS "resolvedAchCycleId",
+                i."ResolvedClearingHouseId" AS "resolvedClearingHouseId",
+                i."OperationalDate" AS "operationalDate",
+                i."UploadedAtUtc" AS "uploadedAtUtc"
+         FROM "IncomingNachaFileIngestions" i
+         WHERE i."Id" = $1::uuid`,
+        [ingestionId]
+      );
+      return singleOrNull(rows, 'El IngestionId debe identificar una sola ingestiÃ³n NACHA.');
+    }
+
+    const rows = this.sqlQuery<IncomingNachaIngestionRow>(
+      `SELECT i.[Id] AS [id],
+              i.[FileName] AS [fileName],
+              i.[CorrelationId] AS [correlationId],
+              i.[IngestionStatus] AS [ingestionStatus],
+              i.[CycleResolutionStatus] AS [cycleResolutionStatus],
+              i.[ParsingStatus] AS [parsingStatus],
+              i.[ResolvedAchCycleId] AS [resolvedAchCycleId],
+              i.[ResolvedClearingHouseId] AS [resolvedClearingHouseId],
+              i.[OperationalDate] AS [operationalDate],
+              i.[UploadedAtUtc] AS [uploadedAtUtc]
+       FROM [IncomingNachaFileIngestions] i
+       WHERE i.[Id] = ${sqlString(ingestionId)}`
+    );
+    return singleOrNull(rows, 'El IngestionId debe identificar una sola ingestiÃ³n NACHA.');
+  }
+
   async assertIncomingProcTransaccionesReceiver(
     receiverAccount: string,
     receivingDfi: string,

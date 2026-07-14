@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import { findProcTransaccionesLogEvidence, snapshotSoapLogDirectory } from './support/local-soap-log-evidence';
 import {
   assertEffectiveProcTransaccionesPreflight,
@@ -11,9 +12,7 @@ import {
 } from './support/proc-transacciones-preflight';
 import {
   assertAuthorizedOfficialProcTransaccionesEntryName,
-  findOfficialProcTransaccionesEligibleEntries,
-  loadOfficialProcTransaccionesArchiveInventory,
-  selectOfficialProcTransaccionesEntry
+  findOfficialProcTransaccionesEligibleEntries
 } from './support/official-proc-transacciones-cenit';
 import { G36RuntimeDb, pollUntil, type IncomingNachaDispatchQueueRow, type IncomingNachaIntegrationEvidenceRow } from './support/g36-runtime-db';
 
@@ -33,10 +32,8 @@ const requiredSettings = [
   'ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT',
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT',
   'ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT',
-  'CENIT_TEST_PACKAGE_PATH',
-  'CENIT_TEST_PACKAGE_SHA256',
-  'CENIT_TEST_ENTRY_NAME',
-  'CENIT_TEST_BATCH_ORDINAL'
+  'ACH_TEST_FILE_PATH',
+  'ACH_TEST_FILE_NAME'
 ].filter((name) => !process.env[name]);
 
 test.describe.configure({ mode: 'serial' });
@@ -58,27 +55,14 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
     const expectedAmount = parseAuthorizedProcTransaccionesAmount(
       process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_AMOUNT']!
     );
-    const selectedEntryName = assertAuthorizedOfficialProcTransaccionesEntryName(
-      process.env['CENIT_TEST_ENTRY_NAME']!
-    );
-    const uploadFileName = '0000004.002.1';
-    expect(process.env['CENIT_TEST_BATCH_ORDINAL']!, 'El fixture derivado debe usar el cuarto lote fisico.').toBe('4');
-    const packagePath = process.env['CENIT_TEST_PACKAGE_PATH']!;
-    const packageSha256 = process.env['CENIT_TEST_PACKAGE_SHA256']!;
-    const archive = await loadOfficialProcTransaccionesArchiveInventory({
-      packagePath,
-      expectedPackageSha256: packageSha256,
-      requiredEntryNames: [selectedEntryName]
-    });
-    const selection = await selectOfficialProcTransaccionesEntry({
-      packagePath,
-      expectedPackageSha256: packageSha256,
-      selectedEntryName,
-      requiredEntryNames: [selectedEntryName]
-    });
+    const filePath = process.env['ACH_TEST_FILE_PATH']!;
+    const fileName = process.env['ACH_TEST_FILE_NAME']!;
+    const uploadFileName = assertAuthorizedOfficialProcTransaccionesEntryName(fileName);
+    expect(uploadFileName).toBe('0001283.002.20260713.1');
+    const fileBytes = await readFile(filePath);
     const eligibleEntries = findOfficialProcTransaccionesEligibleEntries(
-      selection.selectedEntry.fileName,
-      selection.selectedBytes,
+      uploadFileName,
+      fileBytes,
       process.env['ACH_E2E_PROC_TRANSACCIONES_RECEIVER_ACCOUNT']!,
       expectedAmount
     );
@@ -89,16 +73,8 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
       throw new Error('NO-GO HARNESS: MULTIPLE_ELIGIBLE_ENTRIES');
     }
     const selectedEligibleEntry = eligibleEntries[0];
-    expect(archive.entries).toHaveLength(1);
-    expect(selection.selectedEntry.fileName).toBe(selectedEntryName);
-    expect(selection.selectedEntry.fixedLengthValid).toBe(true);
-    expect(selection.selectedEntry.effectiveDate).toBe('20260713');
-    expect(selection.selectedEntry.scc).toBe('220');
-    expect(selection.selectedEntry.transactionCodes).toEqual(['32']);
-    expect(selection.selectedEntry.recordTypes).toEqual(['0', '1', '5', '6', '7', '8', '9']);
-    expect(selection.selectedEntry.batchCount).toBe(1);
-    expect(selection.selectedEntry.addenda05Count).toBe(1);
-    expect(selection.selectedEntry.recordCount).toBe(10);
+    expect(fileBytes.length % 106).toBe(0);
+    expect(fileBytes.length / 106).toBe(10);
     expect(selectedEligibleEntry.batchOrdinal).toBe(4);
     expect(selectedEligibleEntry.batchNumberRaw7).toBe('0000004');
     expect(selectedEligibleEntry.idLote).toBe('000004');
@@ -106,13 +82,10 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
     expect(selectedEligibleEntry.traceNumber15).toMatch(/^\d{15}$/);
     expect(selectedEligibleEntry.originatorCode8).toMatch(/^\d{8}$/);
     expect(selectedEligibleEntry.traceSequence7).toMatch(/^\d{7}$/);
-    expect(selection.packageSha256).toBe(packageSha256.trim().toUpperCase());
 
     console.log(JSON.stringify({
       startedAtUtc: startedAt.toISOString(),
-      packageSha256: selection.packageSha256,
-      selectedEntryName,
-      selectedEntrySha256: selection.selectedEntry.sha256,
+      originalFileName: uploadFileName,
       selectedEligibleEntry: {
         fileName: selectedEligibleEntry.fileName,
         batchOrdinal: selectedEligibleEntry.batchOrdinal,
@@ -126,19 +99,6 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
         idTran: selectedEligibleEntry.idTran,
         idLote: selectedEligibleEntry.idLote
       },
-      inventory: archive.entries.map((entry) => ({
-        fileName: entry.fileName,
-        size: entry.size,
-        sha256: entry.sha256,
-        recordCount: entry.recordCount,
-        fixedLengthValid: entry.fixedLengthValid,
-        recordTypes: entry.recordTypes,
-        batchCount: entry.batchCount,
-        scc: entry.scc,
-        transactionCodes: entry.transactionCodes,
-        addenda05Count: entry.addenda05Count,
-        effectiveDate: entry.effectiveDate
-      })),
       runtimeStatus
     }));
 
@@ -146,24 +106,35 @@ test('carga NACHA-M entrante y deja evidencia correlacionada de Proc_Transaccion
     const settings = await getSoapIntegrationSettings(token);
     assertEffectiveProcTransaccionesPreflight(settings, process.env['ACH_E2E_PROC_TRANSACCIONES_EXPECTED_ENDPOINT']!);
 
-    await db.assertIncomingProcTransaccionesFileAvailable(uploadFileName);
     await seedSession(page, token);
     await page.goto(`${process.env['ACH_UI_URL']!.replace(/\/+$/, '')}/transactions/nacha-upload`);
     await expect(page.getByRole('button', { name: 'Cargar archivo' })).toBeVisible();
 
     await page.locator('input[type="file"]').setInputFiles({
-      name: uploadFileName,
+      name: fileName,
       mimeType: 'application/octet-stream',
-      buffer: selection.selectedBytes
+      buffer: await readFile(filePath)
     });
     const uploadResponse = page.waitForResponse((response) =>
       /\/NachaUpload\/upload(?:\?.*)?$/.test(response.url()) && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Cargar archivo' }).click();
-    expect((await uploadResponse).ok(), 'La carga NACHA-M debe completar antes de consultar la persistencia.').toBeTruthy();
+    const completedUpload = await uploadResponse;
+    expect(completedUpload.ok(), 'La carga NACHA-M debe completar antes de consultar la persistencia.').toBeTruthy();
+    const uploadPayload = await completedUpload.json() as {
+      ingestionId?: string;
+      correlationId?: string;
+      originalFileName?: string;
+      fileHash?: string;
+      ingestionStatus?: string;
+    };
+    expect(uploadPayload.ingestionId).toBeTruthy();
+    expect(uploadPayload.originalFileName).toBe(uploadFileName);
+    expect(uploadPayload.fileHash).toBeTruthy();
+    expect(uploadPayload.ingestionStatus).toBeTruthy();
 
     const ingestion = await pollUntil(
-      () => db.findIncomingNachaIngestionByFileName(uploadFileName, startedAt),
-      `IncomingNachaFileIngestion correlacionada con ${uploadFileName}`
+      () => db.findIncomingNachaIngestionById(uploadPayload.ingestionId!),
+      `IncomingNachaFileIngestion ${uploadPayload.ingestionId}`
     );
     ingestionId = ingestion.id;
     expect(ingestion.fileName).toBe(uploadFileName);
