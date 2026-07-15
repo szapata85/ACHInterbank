@@ -66,14 +66,15 @@ public class CertificateManagementPhase1Tests
     public async Task RegisterPrivateCertificate_ShouldExtractMetadataWithoutPersistingPassword()
     {
         using var context = CreateContext(nameof(RegisterPrivateCertificate_ShouldExtractMetadataWithoutPersistingPassword));
-        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService(),
+            new DataProtectionCertificatePrivateMaterialProtector(new EphemeralDataProtectionProvider()));
         var (_, pfx) = CreateTestCertificate("CN=Private Test");
 
         var result = await service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
-            "CERT-PRV", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning, CertificateHolderType.Participant, pfx, "test-pass", "tester", CertificateStorageMode.ExternalSecretReference, "kv://cert/001"));
+            "CERT-PRV", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning, CertificateHolderType.Participant, pfx, "test-pass", "tester", CertificateStorageMode.DatabaseEncrypted, null));
 
         result.HasPrivateKey.Should().BeTrue();
-        context.DigitalCertificateVersions.Single().SecretRef.Should().Be("kv://cert/001");
+        context.DigitalCertificateVersions.Single().SecretRef.Should().StartWith("dbenc://");
     }
 
     [Fact]
@@ -84,23 +85,24 @@ public class CertificateManagementPhase1Tests
         var (_, pfx) = CreateTestCertificate();
 
         var act = () => service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
-            "CERT-PRV", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning, CertificateHolderType.Participant, pfx, "wrong", "tester", CertificateStorageMode.ExternalSecretReference, "kv://cert/001"));
+            "CERT-PRV", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning, CertificateHolderType.Participant, pfx, "wrong", "tester", CertificateStorageMode.DatabaseEncrypted, null));
 
         await act.Should().ThrowAsync<CertificateValidationException>();
     }
 
     [Fact]
-    public async Task RegisterPrivateCertificate_ShouldPersistProvidedSecretRef_ForExternalReferenceMode()
+    public async Task RegisterPrivateCertificate_ShouldRejectExternalReferenceMode()
     {
-        using var context = CreateContext(nameof(RegisterPrivateCertificate_ShouldPersistProvidedSecretRef_ForExternalReferenceMode));
+        using var context = CreateContext(nameof(RegisterPrivateCertificate_ShouldRejectExternalReferenceMode));
         var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
         var (_, pfx) = CreateTestCertificate("CN=Private Test");
 
-        var result = await service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
+        var act = () => service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
             "CERT-PRV-REF", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning, CertificateHolderType.Participant, pfx, "test-pass", "tester", CertificateStorageMode.ExternalSecretReference, "kv://certificates/test/ch-1/outboundsigning/v1"));
 
-        result.SecretRef.Should().Be("kv://certificates/test/ch-1/outboundsigning/v1");
-        context.DigitalCertificateVersions.Single().PrivateMaterialStorageMode.Should().Be(CertificateStorageMode.ExternalSecretReference);
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*base de datos*");
+        context.DigitalCertificateVersions.Should().BeEmpty();
     }
 
     [Fact]
@@ -151,7 +153,8 @@ public class CertificateManagementPhase1Tests
     public async Task CertificateTypes_ShouldRejectPfxAsPublicAndCerAsPrivate()
     {
         using var context = CreateContext(nameof(CertificateTypes_ShouldRejectPfxAsPublicAndCerAsPrivate));
-        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService(),
+            new DataProtectionCertificatePrivateMaterialProtector(new EphemeralDataProtectionProvider()));
         var (cer, pfx) = CreateTestCertificate();
 
         var publicAct = () => service.LoadPublicCertificateAsync(new LoadPublicCertificateRequest(
@@ -159,7 +162,7 @@ public class CertificateManagementPhase1Tests
             CertificateHolderType.ClearingHouse, pfx, "tester", "wrong.pfx"));
         var privateAct = () => service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
             "PRV", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning,
-            CertificateHolderType.Participant, cer, "test-pass", "tester", CertificateStorageMode.ExternalSecretReference, "kv://cert/1", "wrong.cer"));
+            CertificateHolderType.Participant, cer, "test-pass", "tester", CertificateStorageMode.DatabaseEncrypted, null, "wrong.cer"));
 
         await publicAct.Should().ThrowAsync<CertificateValidationException>();
         await privateAct.Should().ThrowAsync<CertificateValidationException>();

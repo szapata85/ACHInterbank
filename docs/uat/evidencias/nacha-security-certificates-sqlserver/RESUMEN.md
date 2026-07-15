@@ -23,7 +23,7 @@ GO para el ambiente local controlado SQL Server.
 - La recarga del catalogo ocurre solo despues de un upload exitoso; error, exito, doble envio, selector y password tienen estados independientes.
 - `canActivateChild` exige `CanManageCertificates`; las policies de escritura privada/publica se mantienen separadas y el backend sigue siendo autoridad.
 - El CER se valida como X.509 publico; el PFX se valida como PKCS#12 con llave privada, correspondencia de llave, vigencia, algoritmo, tamano y key usage.
-- El PFX original y su password se protegen con ASP.NET Core Data Protection autenticado. SQL Server guarda metadatos, certificado publico, blob protegido y referencia `dbenc://`; el key ring persiste fuera de SQL Server y del repositorio en un volumen Docker dedicado.
+- El PFX original y su password se protegen con ASP.NET Core Data Protection autenticado. SQL Server guarda metadatos, certificado publico, blob protegido, referencia `dbenc://` y el key ring compartido.
 - El middleware omite multipart/binarios y redacta password, token, authorization, cookie, secret, private key, raw data y PFX.
 - El actor se resuelve desde `unique_name`, nombre o `sub`; SQL Server registra `admin`.
 
@@ -54,7 +54,14 @@ GO para el ambiente local controlado SQL Server.
 
 ## Riesgo residual
 
-- El key ring local esta en un volumen Docker persistente. Para produccion externa debe protegerse con HSM, OpenBao/KMS o un protector de claves administrado y controles de backup/rotacion.
+- El acceso completo a la base de datos y sus backups puede comprometer el blob protegido y el key ring; este riesgo es aceptado por decision arquitectonica y los backups se tratan como informacion altamente sensible.
 - El certificado de firma de prueba vence en 2026-09; requiere rotacion antes de esa fecha.
 
-No se realizo commit ni push.
+## Persistencia del key ring en base de datos
+
+- El key ring se persiste mediante EF Core en la base de datos activa con `ApplicationName` fijo `Cfa.ACHInterbank`.
+- SQL Server fue validado en runtime real: migracion aplicada, clave creada, API eliminada y recreada, PFX recuperado y firma posterior valida.
+- El volumen `ach_api_dataprotection_keys` fue eliminado y no existen rutas locales alternativas para Data Protection.
+- No se usa HSM, OpenBao, Vault, KMS ni ningun servicio externo; la contrasena original del PFX no se persiste.
+- PostgreSQL conserva compatibilidad mediante codigo compartido, migracion, snapshot, compilacion y pruebas focalizadas; su E2E runtime queda diferido.
+- El acceso completo a la base de datos y sus backups puede comprometer el blob protegido y el key ring. El riesgo es aceptado por decision arquitectonica y los backups deben tratarse como informacion altamente sensible.

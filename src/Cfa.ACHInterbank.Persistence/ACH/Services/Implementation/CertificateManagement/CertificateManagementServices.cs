@@ -50,10 +50,9 @@ public class CertificateSecretProtectorService : ICertificateSecretProtector
             // Password must only be used in-memory and never persisted.
         }
 
-        var requiresRef = mode is CertificateStorageMode.ExternalSecretReference or CertificateStorageMode.KeyVaultReference;
-        if (requiresRef && string.IsNullOrWhiteSpace(secretRef))
+        if (mode != CertificateStorageMode.DatabaseEncrypted)
         {
-            throw new InvalidOperationException("SecretRef es obligatorio para el modo de almacenamiento seleccionado.");
+            throw new InvalidOperationException("Solo se admite material privado cifrado en la base de datos.");
         }
 
         return Task.CompletedTask;

@@ -20,6 +20,20 @@ test.describe.configure({ mode: 'serial' });
 test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 
 test.describe('Administracion real de certificados con SQL Server', () => {
+  test('smoke recupera certificados despues de recrear la API', async ({ page }) => {
+    const browserErrors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') browserErrors.push(message.text());
+    });
+    page.on('pageerror', (error) => browserErrors.push(error.message));
+
+    await loginThroughUi(page, adminUser, adminPassword);
+    await openCertificateScreen(page);
+    await assertBothCertificates(page);
+    await expect(page.locator('body')).not.toContainText('[object Object]');
+    expect(browserErrors).toEqual([]);
+  });
+
   test('exige el permiso de administracion antes de abrir la pantalla', async ({ page }) => {
     test.setTimeout(120_000);
     const suffix = `${Date.now()}`;

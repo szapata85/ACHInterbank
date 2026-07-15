@@ -786,7 +786,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Exact = true,
                             Icon = "dashboard",
                             IsActive = true,
-                            Label = "Dashboard",
+                            Label = "Panel principal",
                             MenuId = 1,
                             Order = 1,
                             Route = "/dashboard"
@@ -888,25 +888,48 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             Id = 20,
                             Exact = true,
-                            Icon = "view_column",
+                            Icon = "tune",
                             IsActive = true,
-                            Label = "Layouts NACHA",
+                            Label = "Configuración NACHA-M",
                             MenuId = 1,
                             Order = 2,
-                            ParentId = 4,
-                            Route = "/ach-cycles/nacha/layouts"
+                            Route = "/nacha-config-admin"
                         },
                         new
                         {
                             Id = 25,
                             Exact = true,
-                            Icon = "playlist_add_check",
+                            Icon = "fact_check",
                             IsActive = true,
-                            Label = "Definiciones NACHA",
+                            Label = "Perfiles oficiales",
                             MenuId = 1,
                             Order = 3,
-                            ParentId = 4,
-                            Route = "/ach-cycles/nacha/definitions"
+                            ParentId = 20,
+                            Route = "/nacha-config-admin/perfiles"
+                        },
+                        new
+                        {
+                            Id = 2802,
+                            Exact = true,
+                            Icon = "view_list",
+                            IsActive = true,
+                            Label = "Registros oficiales",
+                            MenuId = 1,
+                            Order = 4,
+                            ParentId = 20,
+                            Route = "/nacha-config-admin/records"
+                        },
+                        new
+                        {
+                            Id = 2803,
+                            Exact = true,
+                            Icon = "schema",
+                            IsActive = true,
+                            Label = "Variantes y campos",
+                            MenuId = 1,
+                            Order = 5,
+                            ParentId = 20,
+                            Route = "/nacha-config-admin/variants-fields"
                         },
                         new
                         {
@@ -1147,7 +1170,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Exact = true,
                             Icon = "rule",
                             IsActive = true,
-                            Label = "Reglas por camara",
+                            Label = "Reglas por cámara",
                             MenuId = 1,
                             Order = 6,
                             ParentId = 6,
@@ -1230,12 +1253,22 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             MenuItemId = 20,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
                         },
                         new
                         {
                             MenuItemId = 25,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
+                        },
+                        new
+                        {
+                            MenuItemId = 2802,
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
+                        },
+                        new
+                        {
+                            MenuItemId = 2803,
+                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
                         },
                         new
                         {
@@ -1448,11 +1481,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             MenuItemId = 34,
                             RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
-                        },
-                        new
-                        {
-                            MenuItemId = 25,
-                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
                         },
                         new
                         {
@@ -1804,6 +1832,12 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             Id = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf"),
                             Description = "Gestión de usuarios",
                             Name = "CanManageUsers"
+                        },
+                        new
+                        {
+                            Id = new Guid("13d4e160-8be4-43eb-b69b-c9c658c2dc74"),
+                            Description = "Administración de certificados digitales",
+                            Name = "CanManageCertificates"
                         });
                 });
 
@@ -1883,6 +1917,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         {
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("13d4e160-8be4-43eb-b69b-c9c658c2dc74")
                         },
                         new
                         {
@@ -2162,8 +2201,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<string>("AchCycleId")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<int>("ClearingHouseId")
                         .HasColumnType("integer");
@@ -2687,8 +2726,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<string>("ReturnCycleId")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<string>("ReturnReasonCode")
                         .IsRequired()
@@ -3267,10 +3306,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("InfofromOriginator")
                         .HasColumnType("text");
 
-                    b.Property<string>("PaymentRelatedInformation")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
                     b.Property<string>("InvoiceOrAccountNumber")
                         .HasColumnType("text");
 
@@ -3284,6 +3319,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("OriginalTraceNumber")
                         .HasMaxLength(15)
                         .HasColumnType("character varying(15)");
+
+                    b.Property<string>("PaymentRelatedInformation")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
 
                     b.Property<string>("PurposeOfTransaction")
                         .HasColumnType("text");
@@ -9596,8 +9635,16 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<int>("DigitalCertificateId")
                         .HasColumnType("integer");
 
+                    b.Property<byte[]>("EncryptedPrivateMaterial")
+                        .HasColumnType("bytea");
+
                     b.Property<int>("Environment")
                         .HasColumnType("integer");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("FileRef")
                         .HasMaxLength(500)
@@ -9715,6 +9762,9 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .IsUnique()
                         .HasDatabaseName("UX_DCV_Active_Context")
                         .HasFilter("\"Status\" = 2");
+
+                    b.HasIndex("FingerprintSha256", "ClearingHouseId", "Environment", "Purpose", "HolderType")
+                        .IsUnique();
 
                     b.ToTable("DigitalCertificateVersions", (string)null);
                 });
@@ -9954,6 +10004,25 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("RequestedAtUtc", "OperationType", "Status");
 
                     b.ToTable("NachaSecurityOperations", (string)null);
+                });
+
+            modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FriendlyName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Xml")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DataProtectionKeys");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationMappingRule", b =>

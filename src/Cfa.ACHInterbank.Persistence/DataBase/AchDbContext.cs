@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -18,7 +19,7 @@ using System.Text.Json;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
 
-public class AchDbContext : DbContext
+public class AchDbContext : DbContext, IDataProtectionKeyContext
 {
     private static readonly string[] AuditIgnoredProperties = ["CreatedAt", "UpdatedAt"];
     private static readonly TimeSpan ColombiaOffset = TimeSpan.FromHours(-5);
@@ -157,6 +158,7 @@ public class AchDbContext : DbContext
     public DbSet<CertificateUsageLog> CertificateUsageLogs => Set<CertificateUsageLog>();
     public DbSet<CertificateRotationHistory> CertificateRotationHistories => Set<CertificateRotationHistory>();
     public DbSet<CertificateLoadAudit> CertificateLoadAudits => Set<CertificateLoadAudit>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<DigitalEnvelopeOperationLog> DigitalEnvelopeOperationLogs => Set<DigitalEnvelopeOperationLog>();
     public DbSet<NachaSecurityOperation> NachaSecurityOperations => Set<NachaSecurityOperation>();
     public DbSet<BrandingSetting> BrandingSettings => Set<BrandingSetting>();

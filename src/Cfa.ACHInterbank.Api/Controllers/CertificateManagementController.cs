@@ -92,7 +92,7 @@ public class CertificateManagementController : ControllerBase
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Contraseña requerida", detail: "Ingresa la contraseña del archivo PKCS#12.");
         }
-        if (request.StorageMode is not (CertificateStorageMode.DatabaseEncrypted or CertificateStorageMode.ExternalSecretReference or CertificateStorageMode.KeyVaultReference))
+        if (request.StorageMode != CertificateStorageMode.DatabaseEncrypted)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Almacenamiento no permitido", detail: "El modo de almacenamiento privado indicado no está permitido.");
         }

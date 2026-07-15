@@ -58,6 +58,7 @@ public static class DependencyInjectionService
         services.AddLogging(loggingBuilder =>
         {
             loggingBuilder.SetMinimumLevel(LogLevel.Debug);
+            loggingBuilder.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.Information);
             loggingBuilder.AddNLog();
         });
 
@@ -144,6 +145,7 @@ public static class DependencyInjectionService
         app.MapGet("/health/ready", async (IServiceProvider services, CancellationToken ct) =>
         {
             var database = "Skipped";
+            var dataProtectionKeyRing = "Skipped";
             var statusCode = StatusCodes.Status200OK;
             var status = "Healthy";
 
@@ -163,17 +165,31 @@ public static class DependencyInjectionService
                         status = "Unhealthy";
                         statusCode = StatusCodes.Status503ServiceUnavailable;
                     }
+                    else
+                    {
+                        var hasKeys = await dbContext.DataProtectionKeys
+                            .AsNoTracking()
+                            .AnyAsync(timeoutCts.Token);
+                        dataProtectionKeyRing = hasKeys ? "Healthy" : "Unhealthy";
+                        if (!hasKeys)
+                        {
+                            status = "Unhealthy";
+                            statusCode = StatusCodes.Status503ServiceUnavailable;
+                        }
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
                 database = "Unhealthy";
+                dataProtectionKeyRing = "Unhealthy";
                 status = "Unhealthy";
                 statusCode = StatusCodes.Status503ServiceUnavailable;
             }
             catch
             {
                 database = "Unhealthy";
+                dataProtectionKeyRing = "Unhealthy";
                 status = "Unhealthy";
                 statusCode = StatusCodes.Status503ServiceUnavailable;
             }
@@ -183,6 +199,7 @@ public static class DependencyInjectionService
                 status,
                 check = "ready",
                 database,
+                dataProtectionKeyRing,
                 timestampUtc = DateTime.UtcNow
             }, statusCode: statusCode);
         }).AllowAnonymous();
