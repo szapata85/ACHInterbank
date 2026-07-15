@@ -7,12 +7,14 @@ import { AppComponent } from './app/app.component';
 import { AppRoutingModule } from './app/app-routing.module';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { CoreModule } from './app/core/core.module';
+import { provideChunkLoadRecovery } from './app/core/services/chunk-load-recovery.service';
 import { LayoutModule } from './app/layout/layout.module';
 import { SharedModule } from './app/shared/shared.module';
 
 bootstrapApplication(AppComponent, {
   providers: [
-    importProvidersFrom(BrowserAnimationsModule, CoreModule, SharedModule, LayoutModule, AppRoutingModule)
+    importProvidersFrom(BrowserAnimationsModule, CoreModule, SharedModule, LayoutModule, AppRoutingModule),
+    provideChunkLoadRecovery()
   ]
 })
   .catch((err) => console.error(err));
