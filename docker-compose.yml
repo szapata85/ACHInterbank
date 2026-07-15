@@ -16,6 +16,9 @@ services:
       EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}
       Database__ApplyMigrations: ${DATABASE_APPLY_MIGRATIONS:-false}
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
+      DigitalEnvelope__CertificateMaterialProtection__KeyRingPath: /var/lib/achinterbank/dataprotection-keys
+    volumes:
+      - ach_api_dataprotection_keys:/var/lib/achinterbank/dataprotection-keys
     ports:
       - "843:8080"
     healthcheck:
@@ -54,3 +57,4 @@ networks:
 volumes:
   ach_postgres_data:
   ach_sqlserver_data:
+  ach_api_dataprotection_keys:

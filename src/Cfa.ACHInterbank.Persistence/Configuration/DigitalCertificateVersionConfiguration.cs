@@ -11,6 +11,7 @@ public class DigitalCertificateVersionConfiguration : IEntityTypeConfiguration<D
         builder.ToTable("DigitalCertificateVersions");
         builder.HasKey(x => x.Id);
 
+        builder.Property(x => x.FileName).HasMaxLength(300).IsRequired();
         builder.Property(x => x.Subject).HasMaxLength(500).IsRequired();
         builder.Property(x => x.Issuer).HasMaxLength(500).IsRequired();
         builder.Property(x => x.SerialNumber).HasMaxLength(200).IsRequired();
@@ -35,6 +36,7 @@ public class DigitalCertificateVersionConfiguration : IEntityTypeConfiguration<D
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(x => x.Thumbprint);
+        builder.HasIndex(x => new { x.FingerprintSha256, x.ClearingHouseId, x.Environment, x.Purpose, x.HolderType }).IsUnique();
         builder.HasIndex(x => x.SerialNumber);
         builder.HasIndex(x => x.NotAfter);
         builder.HasIndex(x => new { x.ClearingHouseId, x.Environment, x.Purpose, x.HolderType });

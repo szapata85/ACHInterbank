@@ -2,6 +2,7 @@ export interface CertificateListItem {
   id: number;
   code: string;
   displayName: string;
+  fileName: string;
   clearingHouseId: number;
   environment: string;
   purpose: string;

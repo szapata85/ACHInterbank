@@ -153,9 +153,7 @@ public static class DependencyInjectionService
                     || ctx.User.HasClaim("permission", "CanReadAch")));
 
             options.AddPolicy(FineGrainedPermissions.CanManageCertificates,
-                policy => policy.RequireAssertion(ctx =>
-                    ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)
-                    || ctx.User.HasClaim("permission", "CanManageAch")));
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.CanManageCertificates));
 
             options.AddPolicy(FineGrainedPermissions.CanRunInteroperabilityHarness,
                 policy => policy.RequireAssertion(ctx =>
@@ -262,25 +260,26 @@ public static class DependencyInjectionService
                 || ctx.User.HasClaim("permission", "CanManageAch")));
             options.AddPolicy(P1Policies.CertificatesRead, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Certificates.Read)
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)
                 || ctx.User.HasClaim("permission", "CanReadAch")));
             options.AddPolicy(P1Policies.CertificatesUploadPublic, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Certificates.UploadPublic)
-                || ctx.User.HasClaim("permission", "CanManageAch")));
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)));
             options.AddPolicy(P1Policies.CertificatesRegisterPrivate, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Certificates.RegisterPrivate)
-                || ctx.User.HasClaim("permission", "CanManageAch")));
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)));
             options.AddPolicy(P1Policies.CertificatesActivate, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Certificates.Activate)
-                || ctx.User.HasClaim("permission", "CanManageAch")));
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)));
             options.AddPolicy(P1Policies.CertificatesRevoke, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Certificates.Revoke)
-                || ctx.User.HasClaim("permission", "CanManageAch")));
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)));
             options.AddPolicy(P1Policies.CertificatesValidate, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Certificates.Validate)
-                || ctx.User.HasClaim("permission", "CanReadAch")));
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)));
             options.AddPolicy(P1Policies.CertificatesAudit, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Certificates.Audit)
-                || ctx.User.HasClaim("permission", "CanReadAch")));
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)));
             options.AddPolicy(P1Policies.DigitalEnvelopeEncrypt, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.DigitalEnvelope.Encrypt)
                 || ctx.User.HasClaim("permission", "CanManageAch")));

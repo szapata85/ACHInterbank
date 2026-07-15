@@ -17,6 +17,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Mapping;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Quartz;
@@ -33,6 +34,18 @@ public static class DependencyInjectionService
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         services.Configure<NachaInboundSimulatorOptions>(configuration.GetSection(NachaInboundSimulatorOptions.SectionName));
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
+        var keyRingPath = configuration["DigitalEnvelope:CertificateMaterialProtection:KeyRingPath"];
+        if (string.IsNullOrWhiteSpace(keyRingPath))
+        {
+            keyRingPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ACHInterbank",
+                "DataProtectionKeys");
+        }
+        Directory.CreateDirectory(keyRingPath);
+        services.AddDataProtection()
+            .SetApplicationName("Cfa.ACHInterbank.CertificateMaterial")
+            .PersistKeysToFileSystem(new DirectoryInfo(keyRingPath));
         services.Configure<IncomingNachaDispatchResilienceOptions>(configuration.GetSection(IncomingNachaDispatchResilienceOptions.SectionName));
         services.Configure<OperationArtifactOptions>(configuration.GetSection(OperationArtifactOptions.SectionName));
         services.Configure<ProcContrapartidasDispatchOptions>(configuration.GetSection(ProcContrapartidasDispatchOptions.SectionName));
@@ -115,10 +128,12 @@ public static class DependencyInjectionService
         services.AddScoped<ICertificateRotationService, ACH.Services.Implementation.CertificateManagement.CertificateRotationService>();
         services.AddScoped<ICertificateValidationService, ACH.Services.Implementation.CertificateManagement.CertificateValidationService>();
         services.AddScoped<ICertificateSecretProtector, ACH.Services.Implementation.CertificateManagement.CertificateSecretProtectorService>();
+        services.AddSingleton<ICertificatePrivateMaterialProtector, ACH.Services.Implementation.CertificateManagement.DataProtectionCertificatePrivateMaterialProtector>();
         services.AddScoped<ICertificateAuditService, ACH.Services.Implementation.CertificateManagement.CertificateAuditService>();
         services.AddScoped<ICertificateUsageLogger, ACH.Services.Implementation.CertificateManagement.CertificateUsageLoggerService>();
         services.AddSingleton<IInMemoryCertificateSecretStore, ACH.Services.Implementation.CertificateManagement.InMemoryCertificateSecretStore>();
         services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.InMemoryCertificateSecretProvider>();
+        services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.DatabaseEncryptedCertificateSecretProvider>();
         services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.ExternalSecretReferenceCertificateProvider>();
         services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.KeyVaultCertificateSecretProvider>();
         services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.HsmCertificateSecretProvider>();

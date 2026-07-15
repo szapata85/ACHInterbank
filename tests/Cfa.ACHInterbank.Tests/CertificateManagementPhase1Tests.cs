@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.CertificateManagement;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -22,7 +24,17 @@ public class CertificateManagementPhase1Tests
         var options = new DbContextOptionsBuilder<AchDbContext>()
             .UseInMemoryDatabase(dbName)
             .Options;
-        return new AchDbContext(options);
+        var context = new AchDbContext(options);
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 1,
+            Name = "ACH Colombia",
+            Code = "ACHCOL",
+            OriginCode = "1",
+            ClearingHouseId = 1
+        });
+        context.SaveChanges();
+        return context;
     }
 
     private static (byte[] Cer, byte[] Pfx) CreateTestCertificate(string subject = "CN=Test Cert")
@@ -74,7 +86,7 @@ public class CertificateManagementPhase1Tests
         var act = () => service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
             "CERT-PRV", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning, CertificateHolderType.Participant, pfx, "wrong", "tester", CertificateStorageMode.ExternalSecretReference, "kv://cert/001"));
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<CertificateValidationException>();
     }
 
     [Fact]
@@ -89,6 +101,68 @@ public class CertificateManagementPhase1Tests
 
         result.SecretRef.Should().Be("kv://certificates/test/ch-1/outboundsigning/v1");
         context.DigitalCertificateVersions.Single().PrivateMaterialStorageMode.Should().Be(CertificateStorageMode.ExternalSecretReference);
+    }
+
+    [Fact]
+    public async Task RegisterPrivateCertificate_ShouldPersistOnlyAuthenticatedEncryptedMaterial()
+    {
+        using var context = CreateContext(nameof(RegisterPrivateCertificate_ShouldPersistOnlyAuthenticatedEncryptedMaterial));
+        var protector = new DataProtectionCertificatePrivateMaterialProtector(new EphemeralDataProtectionProvider());
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService(), protector);
+        var (_, pfx) = CreateTestCertificate("CN=Protected Private Test");
+
+        var result = await service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
+            "CERT-PRV-DB", "Private protected", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning,
+            CertificateHolderType.Participant, pfx, "test-pass", "tester", CertificateStorageMode.DatabaseEncrypted, null, "private.pfx"));
+
+        var stored = context.DigitalCertificateVersions.Single();
+        stored.EncryptedPrivateMaterial.Should().NotBeNullOrEmpty();
+        stored.EncryptedPrivateMaterial.Should().NotEqual(pfx);
+        stored.PrivateMaterialStorageMode.Should().Be(CertificateStorageMode.DatabaseEncrypted);
+        stored.SecretRef.Should().StartWith("dbenc://");
+        stored.HasPrivateKey.Should().BeTrue();
+        result.FileName.Should().Be("private.pfx");
+
+        var provider = new DatabaseEncryptedCertificateSecretProvider(context, protector);
+        var resolved = await provider.ResolveAsync(new CertificateSecretResolutionRequest(
+            stored.Id, stored.Purpose, stored.PrivateMaterialStorageMode, stored.SecretRef!, "tester"));
+        resolved.Success.Should().BeTrue();
+        resolved.Material!.HasPrivateKey.Should().BeTrue();
+        resolved.Material.Certificate.Dispose();
+    }
+
+    [Fact]
+    public async Task LoadPublicCertificate_ShouldRejectDuplicateFingerprintInSameContext()
+    {
+        using var context = CreateContext(nameof(LoadPublicCertificate_ShouldRejectDuplicateFingerprintInSameContext));
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var (cer, _) = CreateTestCertificate();
+        var request = new LoadPublicCertificateRequest(
+            "CERT-PUB-DUP", "Public", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundEncryption,
+            CertificateHolderType.ClearingHouse, cer, "tester", "public.cer");
+
+        await service.LoadPublicCertificateAsync(request);
+        var duplicate = () => service.LoadPublicCertificateAsync(request);
+
+        await duplicate.Should().ThrowAsync<CertificateConflictException>();
+    }
+
+    [Fact]
+    public async Task CertificateTypes_ShouldRejectPfxAsPublicAndCerAsPrivate()
+    {
+        using var context = CreateContext(nameof(CertificateTypes_ShouldRejectPfxAsPublicAndCerAsPrivate));
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var (cer, pfx) = CreateTestCertificate();
+
+        var publicAct = () => service.LoadPublicCertificateAsync(new LoadPublicCertificateRequest(
+            "PUB", "Public", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundEncryption,
+            CertificateHolderType.ClearingHouse, pfx, "tester", "wrong.pfx"));
+        var privateAct = () => service.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
+            "PRV", "Private", 1, CertificateEnvironment.Test, CertificatePurpose.OutboundSigning,
+            CertificateHolderType.Participant, cer, "test-pass", "tester", CertificateStorageMode.ExternalSecretReference, "kv://cert/1", "wrong.cer"));
+
+        await publicAct.Should().ThrowAsync<CertificateValidationException>();
+        await privateAct.Should().ThrowAsync<CertificateValidationException>();
     }
 
     [Fact]

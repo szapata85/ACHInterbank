@@ -36,7 +36,8 @@ internal static class CertificateManagementMapper
             v.UploadedAtUtc,
             v.UploadedBy,
             v.ActivatedAtUtc,
-            v.RevokedAtUtc);
+            v.RevokedAtUtc,
+            v.FileName);
 }
 
 [Scoped]
@@ -102,22 +103,54 @@ public class CertificateLoadService : ICertificateLoadService
 {
     private readonly AchDbContext _context;
     private readonly ICertificateSecretProtector _secretProtector;
+    private readonly ICertificatePrivateMaterialProtector? _privateMaterialProtector;
 
     public CertificateLoadService(
         AchDbContext context,
-        ICertificateSecretProtector secretProtector)
+        ICertificateSecretProtector secretProtector,
+        ICertificatePrivateMaterialProtector? privateMaterialProtector = null)
     {
         _context = context;
         _secretProtector = secretProtector;
+        _privateMaterialProtector = privateMaterialProtector;
     }
 
     public async Task<CertificateVersionDto> LoadPublicCertificateAsync(LoadPublicCertificateRequest request, CancellationToken cancellationToken = default)
     {
-        var cert = X509CertificateLoader.LoadCertificate(request.RawCertificate);
+        ValidatePublicContext(request.Purpose, request.HolderType);
+        await EnsureClearingHouseExistsAsync(request.ClearingHouseId, cancellationToken);
+
+        X509Certificate2 cert;
+        try
+        {
+            if (X509Certificate2.GetCertContentType(request.RawCertificate) == X509ContentType.Pkcs12)
+            {
+                throw new CertificateValidationException("Un PKCS#12 no puede registrarse como certificado público.");
+            }
+            cert = X509CertificateLoader.LoadCertificate(request.RawCertificate);
+        }
+        catch (CertificateValidationException)
+        {
+            throw;
+        }
+        catch (CryptographicException)
+        {
+            throw new CertificateValidationException("El archivo no contiene un certificado X.509 público válido.");
+        }
+
+        using (cert)
+        {
+            if (cert.HasPrivateKey)
+            {
+                throw new CertificateValidationException("El certificado público no puede contener llave privada.");
+            }
+            ValidateCertificate(cert, requiresPrivateKey: false);
+            await EnsureNotDuplicateAsync(cert, request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cancellationToken);
+
         var aggregate = await EnsureAggregateAsync(request.Code, request.DisplayName, request.UploadedBy, cancellationToken);
         var nextVersion = await GetNextVersionAsync(aggregate.Id, request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cancellationToken);
 
-        var entity = BuildVersionFromCertificate(request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cert, request.UploadedBy, CertificateMaterialType.PublicCertificate, CertificateStorageMode.DatabaseEncrypted, null);
+            var entity = BuildVersionFromCertificate(request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cert, request.UploadedBy, request.FileName, CertificateMaterialType.PublicCertificate, CertificateStorageMode.DatabaseEncrypted, null);
         entity.DigitalCertificateId = aggregate.Id;
         entity.VersionNumber = nextVersion;
         entity.RawPublicCertificate = cert.RawData;
@@ -134,43 +167,77 @@ public class CertificateLoadService : ICertificateLoadService
         await _context.SaveChangesAsync(cancellationToken);
         await _context.Entry(entity).Reference(x => x.DigitalCertificate).LoadAsync(cancellationToken);
         return entity.ToDto();
+        }
     }
 
     public async Task<CertificateVersionDto> RegisterPrivateCertificateAsync(RegisterPrivateCertificateRequest request, CancellationToken cancellationToken = default)
     {
+        ValidatePrivateContext(request.Purpose, request.HolderType);
+        await EnsureClearingHouseExistsAsync(request.ClearingHouseId, cancellationToken);
         await _secretProtector.EnsureAcceptableAsync(request.StorageMode, request.SecretRef, request.Password, cancellationToken);
 
         X509Certificate2 cert;
         try
         {
+            if (X509Certificate2.GetCertContentType(request.RawPkcs12) != X509ContentType.Pkcs12)
+            {
+                throw new CertificateValidationException("El archivo privado debe ser PKCS#12 (.pfx o .p12).");
+            }
             cert = X509CertificateLoader.LoadPkcs12(request.RawPkcs12, request.Password, X509KeyStorageFlags.EphemeralKeySet);
+        }
+        catch (CertificateValidationException)
+        {
+            throw;
         }
         catch (CryptographicException)
         {
-            throw new InvalidOperationException("Password o material PKCS#12 inválido.");
+            throw new CertificateValidationException("La contraseña es incorrecta o el archivo PKCS#12 no es válido.");
         }
 
-        var aggregate = await EnsureAggregateAsync(request.Code, request.DisplayName, request.UploadedBy, cancellationToken);
-        var nextVersion = await GetNextVersionAsync(aggregate.Id, request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cancellationToken);
-
-        var resolvedSecretRef = request.SecretRef;
-
-        var entity = BuildVersionFromCertificate(request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cert, request.UploadedBy, CertificateMaterialType.PrivateKeyPair, request.StorageMode, resolvedSecretRef);
-        entity.DigitalCertificateId = aggregate.Id;
-        entity.VersionNumber = nextVersion;
-
-        _context.DigitalCertificateVersions.Add(entity);
-        _context.CertificateLoadAudits.Add(new CertificateLoadAudit
+        using (cert)
         {
-            CertificateVersion = entity,
-            LoadSource = "private-upload",
-            ValidationResult = "SUCCESS",
-            LoadedBy = request.UploadedBy
-        });
+            if (!cert.HasPrivateKey)
+            {
+                throw new CertificateValidationException("El PKCS#12 no contiene una llave privada accesible.");
+            }
+            ValidateCertificate(cert, requiresPrivateKey: true);
+            VerifyCertificateAndPrivateKeyMatch(cert);
+            await EnsureNotDuplicateAsync(cert, request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
-        await _context.Entry(entity).Reference(x => x.DigitalCertificate).LoadAsync(cancellationToken);
-        return entity.ToDto();
+            byte[]? encryptedPrivateMaterial = null;
+            var resolvedSecretRef = request.SecretRef;
+            if (request.StorageMode == CertificateStorageMode.DatabaseEncrypted)
+            {
+                if (_privateMaterialProtector is null)
+                {
+                    throw new CertificateValidationException("El protector de material privado no está configurado.");
+                }
+                encryptedPrivateMaterial = _privateMaterialProtector.Protect(request.RawPkcs12, request.Password);
+                resolvedSecretRef = $"dbenc://{Guid.NewGuid():N}";
+            }
+
+            var aggregate = await EnsureAggregateAsync(request.Code, request.DisplayName, request.UploadedBy, cancellationToken);
+            var nextVersion = await GetNextVersionAsync(aggregate.Id, request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cancellationToken);
+
+            var entity = BuildVersionFromCertificate(request.ClearingHouseId, request.Environment, request.Purpose, request.HolderType, cert, request.UploadedBy, request.FileName, CertificateMaterialType.PrivateKeyPair, request.StorageMode, resolvedSecretRef);
+            entity.DigitalCertificateId = aggregate.Id;
+            entity.VersionNumber = nextVersion;
+            entity.RawPublicCertificate = cert.RawData;
+            entity.EncryptedPrivateMaterial = encryptedPrivateMaterial;
+
+            _context.DigitalCertificateVersions.Add(entity);
+            _context.CertificateLoadAudits.Add(new CertificateLoadAudit
+            {
+                CertificateVersion = entity,
+                LoadSource = "private-upload",
+                ValidationResult = "SUCCESS",
+                LoadedBy = request.UploadedBy
+            });
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await _context.Entry(entity).Reference(x => x.DigitalCertificate).LoadAsync(cancellationToken);
+            return entity.ToDto();
+        }
     }
 
     private async Task<DigitalCertificate> EnsureAggregateAsync(string code, string displayName, string actor, CancellationToken cancellationToken)
@@ -197,7 +264,132 @@ public class CertificateLoadService : ICertificateLoadService
         return (max ?? 0) + 1;
     }
 
-    private static DigitalCertificateVersion BuildVersionFromCertificate(int clearingHouseId, CertificateEnvironment environment, CertificatePurpose purpose, CertificateHolderType holderType, X509Certificate2 cert, string actor, CertificateMaterialType materialType, CertificateStorageMode storageMode, string? secretRef)
+    private async Task EnsureClearingHouseExistsAsync(int clearingHouseId, CancellationToken cancellationToken)
+    {
+        if (!await _context.ClearingHouses.AsNoTracking().AnyAsync(x => x.Id == clearingHouseId, cancellationToken))
+        {
+            throw new CertificateValidationException("La cámara compensadora indicada no existe.");
+        }
+    }
+
+    private async Task EnsureNotDuplicateAsync(
+        X509Certificate2 certificate,
+        int clearingHouseId,
+        CertificateEnvironment environment,
+        CertificatePurpose purpose,
+        CertificateHolderType holderType,
+        CancellationToken cancellationToken)
+    {
+        var fingerprint = SHA256.HashData(certificate.RawData);
+        var fingerprintHex = Convert.ToHexString(fingerprint);
+        var duplicate = await _context.DigitalCertificateVersions.AsNoTracking().AnyAsync(
+            x => x.FingerprintSha256 == fingerprintHex
+                 && x.ClearingHouseId == clearingHouseId
+                 && x.Environment == environment
+                 && x.Purpose == purpose
+                 && x.HolderType == holderType,
+            cancellationToken);
+        if (duplicate)
+        {
+            throw new CertificateConflictException("El certificado ya está registrado para el mismo titular, propósito y ambiente.");
+        }
+    }
+
+    private static void ValidatePublicContext(CertificatePurpose purpose, CertificateHolderType holderType)
+    {
+        if (purpose is not (CertificatePurpose.OutboundEncryption or CertificatePurpose.InboundSignatureValidation)
+            || holderType != CertificateHolderType.ClearingHouse)
+        {
+            throw new CertificateValidationException("El certificado público debe corresponder a una cámara compensadora y a un propósito público permitido.");
+        }
+    }
+
+    private static void ValidatePrivateContext(CertificatePurpose purpose, CertificateHolderType holderType)
+    {
+        if (purpose is not (CertificatePurpose.OutboundSigning or CertificatePurpose.InboundDecryption)
+            || holderType != CertificateHolderType.Participant)
+        {
+            throw new CertificateValidationException("El certificado privado debe corresponder a la entidad participante y a un propósito que requiera llave privada.");
+        }
+    }
+
+    private static void ValidateCertificate(X509Certificate2 certificate, bool requiresPrivateKey)
+    {
+        var now = DateTime.UtcNow;
+        if (certificate.NotBefore.ToUniversalTime() > now)
+        {
+            throw new CertificateValidationException("El certificado aún no está vigente.");
+        }
+        if (certificate.NotAfter.ToUniversalTime() <= now)
+        {
+            throw new CertificateValidationException("El certificado está vencido.");
+        }
+
+        using var rsa = certificate.GetRSAPublicKey();
+        using var ecdsa = certificate.GetECDsaPublicKey();
+        if (rsa is not null && rsa.KeySize < 2048)
+        {
+            throw new CertificateValidationException("La llave RSA debe tener al menos 2048 bits.");
+        }
+        if (ecdsa is not null && ecdsa.KeySize < 256)
+        {
+            throw new CertificateValidationException("La llave ECDSA debe tener al menos 256 bits.");
+        }
+        if (rsa is null && ecdsa is null)
+        {
+            throw new CertificateValidationException("El algoritmo de llave pública no está permitido.");
+        }
+
+        var signatureAlgorithm = certificate.SignatureAlgorithm?.FriendlyName ?? certificate.SignatureAlgorithm?.Value ?? string.Empty;
+        if (signatureAlgorithm.Contains("sha1", StringComparison.OrdinalIgnoreCase)
+            || signatureAlgorithm.Contains("md5", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new CertificateValidationException("El algoritmo de firma del certificado no está permitido.");
+        }
+
+        var keyUsage = certificate.Extensions.OfType<X509KeyUsageExtension>().FirstOrDefault();
+        if (keyUsage is null)
+        {
+            return;
+        }
+
+        var usages = keyUsage.KeyUsages;
+        var validUsage = requiresPrivateKey
+            ? usages.HasFlag(X509KeyUsageFlags.DigitalSignature) || usages.HasFlag(X509KeyUsageFlags.NonRepudiation)
+            : usages.HasFlag(X509KeyUsageFlags.KeyEncipherment)
+              || usages.HasFlag(X509KeyUsageFlags.DataEncipherment)
+              || usages.HasFlag(X509KeyUsageFlags.KeyAgreement);
+        if (!validUsage)
+        {
+            throw new CertificateValidationException(requiresPrivateKey
+                ? "El certificado no permite firma digital."
+                : "El certificado no permite cifrado o acuerdo de llave.");
+        }
+    }
+
+    private static void VerifyCertificateAndPrivateKeyMatch(X509Certificate2 certificate)
+    {
+        var challenge = RandomNumberGenerator.GetBytes(32);
+        using var rsaPrivate = certificate.GetRSAPrivateKey();
+        using var rsaPublic = certificate.GetRSAPublicKey();
+        if (rsaPrivate is not null && rsaPublic is not null)
+        {
+            var signature = rsaPrivate.SignData(challenge, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            if (rsaPublic.VerifyData(challenge, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)) return;
+        }
+
+        using var ecdsaPrivate = certificate.GetECDsaPrivateKey();
+        using var ecdsaPublic = certificate.GetECDsaPublicKey();
+        if (ecdsaPrivate is not null && ecdsaPublic is not null)
+        {
+            var signature = ecdsaPrivate.SignData(challenge, HashAlgorithmName.SHA256);
+            if (ecdsaPublic.VerifyData(challenge, signature, HashAlgorithmName.SHA256)) return;
+        }
+
+        throw new CertificateValidationException("La llave privada no corresponde al certificado público.");
+    }
+
+    private static DigitalCertificateVersion BuildVersionFromCertificate(int clearingHouseId, CertificateEnvironment environment, CertificatePurpose purpose, CertificateHolderType holderType, X509Certificate2 cert, string actor, string fileName, CertificateMaterialType materialType, CertificateStorageMode storageMode, string? secretRef)
     {
         string fingerprint;
         using (var sha256 = SHA256.Create())
@@ -206,6 +398,10 @@ public class CertificateLoadService : ICertificateLoadService
         }
 
         using var rsa = cert.GetRSAPublicKey();
+        using var ecdsa = cert.GetECDsaPublicKey();
+        var requiresExternalBinding = materialType == CertificateMaterialType.PrivateKeyPair
+            && storageMode is CertificateStorageMode.ExternalSecretReference or CertificateStorageMode.KeyVaultReference
+            && string.IsNullOrWhiteSpace(secretRef);
 
         return new DigitalCertificateVersion
         {
@@ -213,10 +409,9 @@ public class CertificateLoadService : ICertificateLoadService
             Environment = environment,
             Purpose = purpose,
             HolderType = holderType,
-            Status = string.IsNullOrWhiteSpace(secretRef) && materialType == CertificateMaterialType.PrivateKeyPair
-                ? CertificateStatus.PendingSecretBinding
-                : CertificateStatus.Draft,
+            Status = requiresExternalBinding ? CertificateStatus.PendingSecretBinding : CertificateStatus.Draft,
             MaterialType = materialType,
+            FileName = Path.GetFileName(fileName),
             Subject = cert.Subject,
             Issuer = cert.Issuer,
             SerialNumber = cert.SerialNumber,
@@ -225,8 +420,8 @@ public class CertificateLoadService : ICertificateLoadService
             NotBefore = cert.NotBefore,
             NotAfter = cert.NotAfter,
             HasPrivateKey = cert.HasPrivateKey,
-            KeyAlgorithm = rsa?.SignatureAlgorithm ?? cert.PublicKey.Oid?.FriendlyName ?? "Unknown",
-            KeySize = rsa?.KeySize ?? 0,
+            KeyAlgorithm = rsa?.SignatureAlgorithm ?? ecdsa?.SignatureAlgorithm ?? cert.PublicKey.Oid?.FriendlyName ?? "Unknown",
+            KeySize = rsa?.KeySize ?? ecdsa?.KeySize ?? 0,
             SignatureAlgorithm = cert.SignatureAlgorithm?.FriendlyName ?? cert.SignatureAlgorithm?.Value ?? string.Empty,
             PrivateMaterialStorageMode = storageMode,
             SecretRef = secretRef,

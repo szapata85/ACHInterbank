@@ -10,7 +10,8 @@ public record LoadPublicCertificateRequest(
     CertificatePurpose Purpose,
     CertificateHolderType HolderType,
     byte[] RawCertificate,
-    string UploadedBy);
+    string UploadedBy,
+    string FileName = "");
 
 public record RegisterPrivateCertificateRequest(
     string Code,
@@ -23,7 +24,8 @@ public record RegisterPrivateCertificateRequest(
     string Password,
     string UploadedBy,
     CertificateStorageMode StorageMode,
-    string? SecretRef);
+    string? SecretRef,
+    string FileName = "");
 
 public record ActivateCertificateVersionRequest(int VersionId, string ActivatedBy);
 
@@ -63,7 +65,8 @@ public record CertificateVersionDto(
     DateTime UploadedAtUtc,
     string UploadedBy,
     DateTime? ActivatedAtUtc,
-    DateTime? RevokedAtUtc);
+    DateTime? RevokedAtUtc,
+    string FileName = "");
 
 public record CertificateAuditDto(
     long Id,

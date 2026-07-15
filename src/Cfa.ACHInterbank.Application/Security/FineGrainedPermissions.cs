@@ -156,6 +156,7 @@ public static class FineGrainedPermissions
 
     public static IReadOnlyList<string> AllPermissions { get; } =
     [
+        CanManageCertificates,
         Transactions.Read, Transactions.Create, Transactions.BulkSubmit, Transactions.PolicyPreview,
         Nacha.Read, Nacha.Upload, Nacha.Export, Nacha.Generate, Nacha.Configure, Nacha.PublishConfig, Nacha.ArchiveConfig,
         NachaSecurity.Read, NachaSecurity.GenerateEncrypted, NachaSecurity.ManualEncrypt, NachaSecurity.ManualDecrypt, NachaSecurity.AuthorizeDownload,

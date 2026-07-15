@@ -76,6 +76,7 @@ public class DigitalCertificateVersion
     public CertificateStatus Status { get; set; } = CertificateStatus.Draft;
     public CertificateMaterialType MaterialType { get; set; } = CertificateMaterialType.PublicCertificate;
     public int VersionNumber { get; set; } = 1;
+    public string FileName { get; set; } = string.Empty;
     public string Subject { get; set; } = string.Empty;
     public string Issuer { get; set; } = string.Empty;
     public string SerialNumber { get; set; } = string.Empty;
@@ -88,6 +89,7 @@ public class DigitalCertificateVersion
     public int KeySize { get; set; }
     public string SignatureAlgorithm { get; set; } = string.Empty;
     public byte[]? RawPublicCertificate { get; set; }
+    public byte[]? EncryptedPrivateMaterial { get; set; }
     public CertificateStorageMode PrivateMaterialStorageMode { get; set; } = CertificateStorageMode.ExternalSecretReference;
     public string? SecretRef { get; set; }
     public string? FileRef { get; set; }

@@ -48,6 +48,11 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             },
             new RolePermission
             {
+                RoleId = RoleConfiguration.AdminRoleId,
+                PermissionId = PermissionConfiguration.ManageCertificatesPermissionId
+            },
+            new RolePermission
+            {
                 RoleId = RoleConfiguration.OperatorRoleId,
                 PermissionId = PermissionConfiguration.ManageAchPermissionId
             },

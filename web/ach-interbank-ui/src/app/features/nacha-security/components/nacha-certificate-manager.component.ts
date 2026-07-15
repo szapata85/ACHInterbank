@@ -1,17 +1,26 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { DigitalEnvelopeCertificatesService } from '../services/digital-envelope-certificates.service';
-import { DigitalEnvelopeCertificate, DigitalEnvelopeCertificateType } from '../models/digital-envelope-certificate.model';
 import { finalize } from 'rxjs';
+import { getHttpErrorMessage } from '../../../core/utils/http-error-message.util';
 import { SharedModule } from '../../../shared/shared.module';
+import { CertificateListItem } from '../models/certificate-management.model';
+import {
+  CertificateManagementApiService,
+  CertificateUploadContext
+} from '../services/certificate-management-api.service';
+import { DigitalEnvelopeCertificateType } from '../models/digital-envelope-certificate.model';
 
-interface CertificateSlot {
+const MAX_CERTIFICATE_SIZE = 10 * 1024 * 1024;
+
+interface CertificateSlot extends CertificateUploadContext {
   type: DigitalEnvelopeCertificateType;
   title: string;
   description: string;
   requiresPassword: boolean;
-  certificate?: DigitalEnvelopeCertificate;
+  accept: string;
+  allowedExtensions: readonly string[];
+  certificate?: CertificateListItem;
 }
 
 @Component({
@@ -23,36 +32,52 @@ interface CertificateSlot {
   imports: [CommonModule, ReactiveFormsModule, SharedModule]
 })
 export class NachaCertificateManagerComponent implements OnInit {
-  private readonly certificatesService = inject(DigitalEnvelopeCertificatesService);
+  private readonly certificatesService = inject(CertificateManagementApiService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly fileInputs: Partial<Record<DigitalEnvelopeCertificateType, HTMLInputElement>> = {};
 
   uploadingType?: DigitalEnvelopeCertificateType;
   loading = false;
   error?: string;
+  success?: string;
 
   readonly slots: CertificateSlot[] = [
     {
       type: 'EncryptionPublic',
       title: 'Certificado de cifrado (llave pública)',
-      description: 'Se usa para cifrar los sobres digitales que recibirá la cámara compensadora.',
-      requiresPassword: false
+      description: 'Certificado público de ACH Colombia usado para cifrar los sobres digitales.',
+      requiresPassword: false,
+      accept: '.cer,.crt,.pem',
+      allowedExtensions: ['.cer', '.crt', '.pem'],
+      code: 'ACHCOL-OUTBOUND-ENCRYPTION',
+      displayName: 'ACH Colombia - cifrado saliente',
+      clearingHouseId: 1,
+      environment: 'Test',
+      purpose: 'OutboundEncryption',
+      holderType: 'ClearingHouse'
     },
     {
       type: 'SigningKeyPair',
       title: 'Certificado de firma (par público/privado)',
-      description: 'Se usa para firmar los archivos NACHA-M y requiere la llave privada.',
-      requiresPassword: true
+      description: 'Certificado y llave privada de CFA usados para firma de archivos NACHA-M.',
+      requiresPassword: true,
+      accept: '.pfx,.p12',
+      allowedExtensions: ['.pfx', '.p12'],
+      code: 'CFA-OUTBOUND-SIGNING',
+      displayName: 'CFA - firma saliente',
+      clearingHouseId: 1,
+      environment: 'Test',
+      purpose: 'OutboundSigning',
+      holderType: 'Participant'
     }
   ];
 
-  forms: Record<DigitalEnvelopeCertificateType, FormGroup> = {
-    EncryptionPublic: this.fb.group({
-      file: [null, Validators.required]
-    }),
+  readonly forms: Record<DigitalEnvelopeCertificateType, FormGroup> = {
+    EncryptionPublic: this.fb.group({ file: [null, Validators.required] }),
     SigningKeyPair: this.fb.group({
       file: [null, Validators.required],
-      password: ['']
+      password: ['', Validators.required]
     })
   } as Record<DigitalEnvelopeCertificateType, FormGroup>;
 
@@ -61,17 +86,45 @@ export class NachaCertificateManagerComponent implements OnInit {
   }
 
   onFileSelected(type: DigitalEnvelopeCertificateType, event: Event): void {
+    this.clearMessages();
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    const form = this.forms[type];
-    form.patchValue({ file });
-    form.markAsDirty();
+    const file = input.files?.[0] ?? null;
+    const control = this.forms[type].get('file');
+    this.fileInputs[type] = input;
+    control?.setValue(file);
+    control?.markAsTouched();
+
+    if (!file) {
+      control?.setErrors({ required: true });
+      return;
+    }
+
+    const slot = this.getSlot(type);
+    const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if (!slot.allowedExtensions.includes(extension)) {
+      control?.setErrors({ extension: true });
+    } else if (file.size === 0) {
+      control?.setErrors({ empty: true });
+    } else if (file.size > MAX_CERTIFICATE_SIZE) {
+      control?.setErrors({ maxSize: true });
+    } else {
+      control?.setErrors(null);
+    }
+
+    this.cdr.markForCheck();
   }
 
   upload(type: DigitalEnvelopeCertificateType): void {
+    if (this.uploadingType) {
+      return;
+    }
+
+    this.clearMessages();
     const form = this.forms[type];
     if (form.invalid) {
       form.markAllAsTouched();
+      this.error = 'Revisa el archivo y los campos obligatorios antes de continuar.';
+      this.cdr.markForCheck();
       return;
     }
 
@@ -80,49 +133,64 @@ export class NachaCertificateManagerComponent implements OnInit {
       return;
     }
 
-    const password = form.get('password')?.value as string | undefined;
+    const slot = this.getSlot(type);
+    const password = String(form.get('password')?.value ?? '');
     this.uploadingType = type;
-    this.error = undefined;
     this.cdr.markForCheck();
 
-    this.certificatesService
-      .upload(type, file, password)
+    const request = type === 'EncryptionPublic'
+      ? this.certificatesService.uploadPublic(slot, file)
+      : this.certificatesService.uploadPrivate(slot, file, password);
+
+    request
       .pipe(
         finalize(() => {
           this.uploadingType = undefined;
-          this.loadCertificates();
+          form.get('password')?.reset('');
+          this.cdr.markForCheck();
         })
       )
       .subscribe({
-        next: () => {
+        next: (certificate) => {
+          slot.certificate = certificate;
+          this.success = `${file.name} se cargó correctamente.`;
           form.reset();
+          const input = this.fileInputs[type];
+          if (input) {
+            input.value = '';
+          }
+          this.loadCertificates();
         },
         error: (err) => {
-          this.error = err?.error ?? 'No se pudo cargar el certificado.';
+          this.error = getHttpErrorMessage(err, 'No se pudo cargar el certificado.');
           this.cdr.markForCheck();
         }
       });
   }
 
-  deleteCertificate(certificate: DigitalEnvelopeCertificate): void {
-    this.loading = true;
-    this.error = undefined;
-    this.cdr.markForCheck();
+  fileError(type: DigitalEnvelopeCertificateType): string | undefined {
+    const control = this.forms[type].get('file');
+    if (!control?.touched || !control.errors) {
+      return undefined;
+    }
+    if (control.errors['extension']) return `Formato no permitido. Usa ${this.getSlot(type).accept}.`;
+    if (control.errors['empty']) return 'El archivo está vacío.';
+    if (control.errors['maxSize']) return 'El archivo supera el máximo de 10 MB.';
+    if (control.errors['required']) return 'Selecciona un archivo.';
+    return 'El archivo no es válido.';
+  }
 
-    this.certificatesService
-      .delete(certificate.id)
-      .pipe(finalize(() => this.loadCertificates()))
-      .subscribe({
-        error: (err) => {
-          this.error = err?.error ?? 'No se pudo eliminar el certificado.';
-          this.cdr.markForCheck();
-        }
-      });
+  passwordError(type: DigitalEnvelopeCertificateType): string | undefined {
+    const control = this.forms[type].get('password');
+    return control?.touched && control.hasError('required') ? 'Ingresa la contraseña del archivo privado.' : undefined;
+  }
+
+  private getSlot(type: DigitalEnvelopeCertificateType): CertificateSlot {
+    return this.slots.find((slot) => slot.type === type)!;
   }
 
   private loadCertificates(): void {
     this.loading = true;
-    this.error = undefined;
     this.cdr.markForCheck();
 
     this.certificatesService
@@ -134,14 +202,21 @@ export class NachaCertificateManagerComponent implements OnInit {
       .subscribe({
         next: (certificates) => {
           this.slots.forEach((slot) => {
-            slot.certificate = certificates.find((c) => c.type === slot.type);
+            slot.certificate = certificates.find((certificate) => certificate.code === slot.code);
           });
           this.cdr.markForCheck();
         },
         error: (err) => {
-          this.error = err?.error ?? 'No se pudieron obtener los certificados.';
+          if (!this.error) {
+            this.error = getHttpErrorMessage(err, 'No se pudieron obtener los certificados.');
+          }
           this.cdr.markForCheck();
         }
       });
+  }
+
+  private clearMessages(): void {
+    this.error = undefined;
+    this.success = undefined;
   }
 }

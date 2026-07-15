@@ -4,11 +4,15 @@ using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http.Metadata;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("nacha-security/certificates/management")]
+[Route("api/nacha-security/certificates/management")]
 [Authorize]
 public class CertificateManagementController : ControllerBase
 {
@@ -36,53 +40,97 @@ public class CertificateManagementController : ControllerBase
     [EndpointDescription("Qué hace: registra una nueva versión de certificado público para uso operativo. Cuándo se usa: en alta/rotación de certificados de intercambio. Perfil consumidor: seguridad y operación ACH. Permiso requerido: FineGrainedPermissions.CanManageCertificates. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: carga de certificado incorrecto rompe validación de firmas/cifrado. Errores esperados: 400 archivo requerido o metadatos inválidos; 401/403. Relación ACH/CENIT/NACHA-M: base de confianza para operaciones NACHA-M seguras. Precauciones para desarrollo u operación: validar emisor, vigencia y ambiente antes de publicar.")]
     [HttpPost("public")]
     [Authorize(Policy = P1Policies.CertificatesUploadPublic)]
-    [RequestSizeLimit(15 * 1024 * 1024)]
+    [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<ActionResult<CertificateVersionApiDto>> UploadPublicAsync([FromForm] UploadPublicCertificateApiRequest request, CancellationToken cancellationToken)
     {
-        if (request.File == null || request.File.Length == 0) return BadRequest("Archivo requerido.");
+        var requestError = ValidateUploadRequest(request, [".cer", ".crt", ".pem"]);
+        if (requestError is not null) return requestError;
 
         await using var ms = new MemoryStream();
-        await request.File.CopyToAsync(ms, cancellationToken);
+        await request.File!.CopyToAsync(ms, cancellationToken);
+        var rawCertificate = ms.ToArray();
 
-        var dto = await _loadService.LoadPublicCertificateAsync(new LoadPublicCertificateRequest(
-            request.Code,
-            request.DisplayName,
-            request.ClearingHouseId,
-            request.Environment,
-            request.Purpose,
-            request.HolderType,
-            ms.ToArray(),
-            User?.Identity?.Name ?? "api"), cancellationToken);
+        try
+        {
+            var dto = await _loadService.LoadPublicCertificateAsync(new LoadPublicCertificateRequest(
+                request.Code.Trim(),
+                request.DisplayName.Trim(),
+                request.ClearingHouseId,
+                request.Environment,
+                request.Purpose,
+                request.HolderType,
+                rawCertificate,
+                ResolveActor(),
+                Path.GetFileName(request.File.FileName)), cancellationToken);
 
-        return Ok(ToApiDto(dto));
+            return Ok(ToApiDto(dto));
+        }
+        catch (CertificateConflictException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: "Certificado duplicado", detail: ex.Message);
+        }
+        catch (CertificateValidationException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Certificado público inválido", detail: ex.Message);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(rawCertificate);
+        }
     }
 
     [EndpointSummary("Registrar certificado privado")]
     [EndpointDescription("Qué hace: registra material privado o referencia segura para operaciones criptográficas. Cuándo se usa: durante aprovisionamiento/rotación de llaves. Perfil consumidor: seguridad bancaria. Permiso requerido: FineGrainedPermissions.CanManageCertificates. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: manejo inseguro de clave privada compromete confidencialidad. Errores esperados: 400 archivo/contraseña/secreto inválido; 401/403. Relación ACH/CENIT/NACHA-M: habilita firmado/cifrado de artefactos NACHA-M. Precauciones para desarrollo u operación: usar almacenamiento seguro y mínimo privilegio.")]
     [HttpPost("private")]
     [Authorize(Policy = P1Policies.CertificatesRegisterPrivate)]
-    [RequestSizeLimit(15 * 1024 * 1024)]
+    [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<ActionResult<CertificateVersionApiDto>> UploadPrivateAsync([FromForm] UploadPrivateCertificateApiRequest request, CancellationToken cancellationToken)
     {
-        if (request.File == null || request.File.Length == 0) return BadRequest("Archivo requerido.");
+        var requestError = ValidateUploadRequest(request, [".pfx", ".p12"]);
+        if (requestError is not null) return requestError;
+        if (string.IsNullOrEmpty(request.Password))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Contraseña requerida", detail: "Ingresa la contraseña del archivo PKCS#12.");
+        }
+        if (request.StorageMode is not (CertificateStorageMode.DatabaseEncrypted or CertificateStorageMode.ExternalSecretReference or CertificateStorageMode.KeyVaultReference))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Almacenamiento no permitido", detail: "El modo de almacenamiento privado indicado no está permitido.");
+        }
 
         await using var ms = new MemoryStream();
-        await request.File.CopyToAsync(ms, cancellationToken);
+        await request.File!.CopyToAsync(ms, cancellationToken);
+        var rawPkcs12 = ms.ToArray();
 
-        var dto = await _loadService.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
-            request.Code,
-            request.DisplayName,
-            request.ClearingHouseId,
-            request.Environment,
-            request.Purpose,
-            request.HolderType,
-            ms.ToArray(),
-            request.Password,
-            User?.Identity?.Name ?? "api",
-            request.StorageMode,
-            request.SecretRef), cancellationToken);
+        try
+        {
+            var dto = await _loadService.RegisterPrivateCertificateAsync(new RegisterPrivateCertificateRequest(
+                request.Code.Trim(),
+                request.DisplayName.Trim(),
+                request.ClearingHouseId,
+                request.Environment,
+                request.Purpose,
+                request.HolderType,
+                rawPkcs12,
+                request.Password,
+                ResolveActor(),
+                request.StorageMode,
+                request.SecretRef,
+                Path.GetFileName(request.File.FileName)), cancellationToken);
 
-        return Ok(ToApiDto(dto));
+            return Ok(ToApiDto(dto));
+        }
+        catch (CertificateConflictException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: "Certificado duplicado", detail: ex.Message);
+        }
+        catch (CertificateValidationException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Certificado privado inválido", detail: ex.Message);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(rawPkcs12);
+        }
     }
 
     [EndpointSummary("Consulta de certificados por filtros de gestión")]
@@ -111,7 +159,7 @@ public class CertificateManagementController : ControllerBase
     [Authorize(Policy = P1Policies.CertificatesActivate)]
     public async Task<ActionResult<CertificateVersionApiDto>> ActivateAsync(int id, CancellationToken cancellationToken)
     {
-        var dto = await _activationService.ActivateVersionAsync(new ActivateCertificateVersionRequest(id, User?.Identity?.Name ?? "api"), cancellationToken);
+        var dto = await _activationService.ActivateVersionAsync(new ActivateCertificateVersionRequest(id, ResolveActor()), cancellationToken);
         return Ok(ToApiDto(dto));
     }
 
@@ -121,7 +169,7 @@ public class CertificateManagementController : ControllerBase
     [Authorize(Policy = P1Policies.CertificatesRevoke)]
     public async Task<ActionResult<CertificateVersionApiDto>> RevokeAsync(int id, [FromBody] RevokeVersionBody body, CancellationToken cancellationToken)
     {
-        var dto = await _activationService.RevokeVersionAsync(new RevokeCertificateVersionRequest(id, User?.Identity?.Name ?? "api", body.Reason ?? "Revoked by API"), cancellationToken);
+        var dto = await _activationService.RevokeVersionAsync(new RevokeCertificateVersionRequest(id, ResolveActor(), body.Reason ?? "Revoked by API"), cancellationToken);
         return Ok(ToApiDto(dto));
     }
 
@@ -149,6 +197,7 @@ public class CertificateManagementController : ControllerBase
             Id = dto.Id,
             Code = dto.Code,
             DisplayName = dto.DisplayName,
+            FileName = dto.FileName,
             ClearingHouseId = dto.ClearingHouseId,
             Environment = dto.Environment,
             Purpose = dto.Purpose,
@@ -179,6 +228,35 @@ public class CertificateManagementController : ControllerBase
         return secretRef.Length <= 4 ? "****" : $"****{secretRef[^4..]}";
     }
 
+    private string ResolveActor()
+        => User.FindFirstValue(JwtRegisteredClaimNames.UniqueName)
+            ?? User.FindFirstValue(ClaimTypes.Name)
+            ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? "api";
+
+    private ActionResult? ValidateUploadRequest(UploadPublicCertificateApiRequest request, IReadOnlyCollection<string> allowedExtensions)
+    {
+        if (request.File == null || request.File.Length == 0)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Archivo requerido", detail: "Selecciona un archivo de certificado no vacío.");
+        }
+        if (request.File.Length > 10 * 1024 * 1024)
+        {
+            return Problem(statusCode: StatusCodes.Status413PayloadTooLarge, title: "Archivo demasiado grande", detail: "El archivo supera el máximo de 10 MB.");
+        }
+        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
+        if (!allowedExtensions.Contains(extension))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Extensión no permitida", detail: $"Extensiones permitidas: {string.Join(", ", allowedExtensions)}.");
+        }
+        if (string.IsNullOrWhiteSpace(request.Code) || request.Code.Length > 120
+            || string.IsNullOrWhiteSpace(request.DisplayName) || request.DisplayName.Length > 200)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Metadatos inválidos", detail: "Código y nombre son obligatorios y deben respetar sus longitudes máximas.");
+        }
+        return null;
+    }
+
     public class UploadPublicCertificateApiRequest
     {
         public string Code { get; set; } = string.Empty;
@@ -193,7 +271,7 @@ public class CertificateManagementController : ControllerBase
     public sealed class UploadPrivateCertificateApiRequest : UploadPublicCertificateApiRequest
     {
         public string Password { get; set; } = string.Empty;
-        public CertificateStorageMode StorageMode { get; set; } = CertificateStorageMode.ExternalSecretReference;
+        public CertificateStorageMode StorageMode { get; set; } = CertificateStorageMode.DatabaseEncrypted;
         public string? SecretRef { get; set; }
     }
 
@@ -207,6 +285,7 @@ public class CertificateManagementController : ControllerBase
         public int Id { get; set; }
         public string Code { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
         public int ClearingHouseId { get; set; }
         public CertificateEnvironment Environment { get; set; }
         public CertificatePurpose Purpose { get; set; }

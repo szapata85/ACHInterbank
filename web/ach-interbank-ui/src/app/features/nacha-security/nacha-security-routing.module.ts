@@ -15,10 +15,11 @@ const routes: Routes = [
   {
     path: '',
     canActivate: [permissionGuard],
-    data: { permissions: [NACHA_SECURITY_PERMISSIONS.canReadAch], breadcrumb: 'Seguridad NACHA', title: 'Seguridad NACHA' },
+    canActivateChild: [permissionGuard],
+    data: { breadcrumb: 'Seguridad NACHA', title: 'Seguridad NACHA' },
     children: [
       { path: 'dashboard', component: NachaSecurityDashboardComponent, data: { breadcrumb: 'Panel', title: 'Panel seguridad NACHA', permissions: [NACHA_SECURITY_PERMISSIONS.canReadAch] } },
-      { path: 'certificates', component: NachaCertificateManagerComponent, data: { breadcrumb: 'Certificados', title: 'Gobierno de certificados', permissions: [NACHA_SECURITY_PERMISSIONS.canManageCertificates, NACHA_SECURITY_PERMISSIONS.canManageAch] } },
+      { path: 'certificates', component: NachaCertificateManagerComponent, data: { breadcrumb: 'Certificados', title: 'Gobierno de certificados', permissions: [NACHA_SECURITY_PERMISSIONS.canManageCertificates] } },
       { path: 'certificates/:id/versions', component: CertificateVersionsComponent, data: { breadcrumb: 'Versiones', title: 'Versiones de certificado', permissions: [NACHA_SECURITY_PERMISSIONS.canManageCertificates, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },
       { path: 'nacha/generate', component: NachaGenerateOperationComponent, data: { breadcrumb: 'Generar NACHA', title: 'Generar NACHA-M', permissions: [NACHA_SECURITY_PERMISSIONS.canGenerateNacha, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },
       { path: 'nacha/generate-encrypted', component: NachaGenerateEncryptedOperationComponent, data: { breadcrumb: 'Generar cifrado', title: 'Generar NACHA-M cifrado', permissions: [NACHA_SECURITY_PERMISSIONS.canGenerateEncryptedNacha, NACHA_SECURITY_PERMISSIONS.canManageAch, NACHA_SECURITY_PERMISSIONS.canReadAch] } },

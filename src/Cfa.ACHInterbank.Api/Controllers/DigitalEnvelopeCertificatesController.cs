@@ -33,50 +33,18 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
         var response = certificates.Select(MapToResponse);
         return Ok(response);
     }
-    [EndpointSummary("Cargar o actualizar certificado de sobre digital")]
-    [EndpointDescription("Qué hace: carga certificado público o con clave privada y registra/actualiza su información en catálogo. Cuándo se usa: en alta, renovación o corrección de material criptográfico de sobre digital. Perfil consumidor: administradores de seguridad y operación ACH autorizada. Permiso requerido: policy del controller/método vigente en código. Tipo de operación: modifica información. Genera auditoría: sí, por trazabilidad de altas y cambios. Riesgos operativos: cargar archivo o contraseña incorrecta puede dejar inoperante el cifrado/descifrado. Errores esperados: 400 por archivo/contraseña inválidos; 401/403 por autorización; 500 por fallas internas. Relación ACH/CENIT/NACHA-M: soporta protección de archivos NACHA-M en tránsito mediante sobre digital. Precauciones para desarrollo u operación: validar formato, cadena de confianza y vigencia antes de activar uso operativo.")]
+    [EndpointSummary("Endpoint de carga retirado")]
+    [EndpointDescription("La carga simplificada fue retirada para impedir persistencia de contraseñas o material privado sin protección. Use los endpoints de gestión público y privado.")]
     [HttpPost]
     [Authorize(Policy = P1Policies.CertificatesUploadPublic)]
-    [RequestSizeLimit(15 * 1024 * 1024)]
-    public async Task<ActionResult<DigitalEnvelopeCertificateResponse>> UploadAsync([FromForm] UploadCertificateRequest request, CancellationToken cancellationToken)
+    public ActionResult UploadAsync()
     {
-        if (request.File == null || request.File.Length == 0)
+        return StatusCode(StatusCodes.Status410Gone, new ProblemDetails
         {
-            return BadRequest("No se ha proporcionado ningún archivo de certificado.");
-        }
-
-        await using var memory = new MemoryStream();
-        await request.File.CopyToAsync(memory, cancellationToken);
-        var rawData = memory.ToArray();
-
-        X509Certificate2 certificate;
-        try
-        {
-            certificate = string.IsNullOrWhiteSpace(request.Password)
-                ? X509CertificateLoader.LoadCertificate(rawData)
-                : X509CertificateLoader.LoadPkcs12(rawData, request.Password, X509KeyStorageFlags.MachineKeySet);
-        }
-        catch (CryptographicException)
-        {
-            return BadRequest("El certificado o la contraseña son inválidos.");
-        }
-
-        var entity = new DigitalEnvelopeCertificate
-        {
-            FileName = request.File.FileName,
-            RawData = rawData,
-            Password = request.Password,
-            Type = request.Type,
-            HasPrivateKey = certificate.HasPrivateKey,
-            Subject = certificate.Subject,
-            Issuer = certificate.Issuer,
-            Thumbprint = certificate.Thumbprint,
-            NotBefore = certificate.NotBefore,
-            NotAfter = certificate.NotAfter
-        };
-
-        var saved = await _service.UpsertAsync(entity, cancellationToken);
-        return Ok(MapToResponse(saved));
+            Status = StatusCodes.Status410Gone,
+            Title = "Endpoint retirado",
+            Detail = "Use /nacha-security/certificates/management/public o /nacha-security/certificates/management/private."
+        });
     }
     [EndpointSummary("Eliminar certificado de sobre digital")]
     [EndpointDescription("Qué hace: elimina un certificado registrado en inventario de sobre digital. Cuándo se usa: en limpieza controlada o retiro operativo. Perfil consumidor: seguridad bancaria y administradores ACH. Permiso requerido: policy del controller/método vigente en código. Tipo de operación: modifica información. Genera auditoría: sí. Riesgos operativos: borrar certificado activo puede interrumpir cifrado/validación. Errores esperados: 404 no encontrado; 409 por reglas de uso; 401/403. Relación ACH/CENIT/NACHA-M: gestiona material de confianza para NACHA-M seguro. Precauciones para desarrollo u operación: validar dependencia activa antes de eliminar.")]
@@ -103,18 +71,6 @@ public class DigitalEnvelopeCertificatesController : ControllerBase
             NotAfter = certificate.NotAfter,
             UploadedAt = certificate.UploadedAt
         };
-    }
-
-    public class UploadCertificateRequest
-    {
-        [FromForm(Name = "file")]
-        public IFormFile? File { get; set; }
-
-        [FromForm(Name = "type")]
-        public DigitalEnvelopeCertificateType Type { get; set; }
-
-        [FromForm(Name = "password")]
-        public string? Password { get; set; }
     }
 
     public class DigitalEnvelopeCertificateResponse

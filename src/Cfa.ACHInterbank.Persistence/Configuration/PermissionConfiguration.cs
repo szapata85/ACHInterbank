@@ -11,6 +11,7 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
     public static readonly Guid ReadAliasesPermissionId = Guid.Parse("0ee0a30f-48b6-4b8c-9afd-0dfb3d4770e7");
     public static readonly Guid ReadCatalogsPermissionId = Guid.Parse("dd0e54be-b6df-4ab3-8783-0f72b6e774a2");
     public static readonly Guid ManageUsersPermissionId = Guid.Parse("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf");
+    public static readonly Guid ManageCertificatesPermissionId = Guid.Parse("13d4e160-8be4-43eb-b69b-c9c658c2dc74");
 
     public void Configure(EntityTypeBuilder<Permission> builder)
     {
@@ -52,6 +53,12 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
                 Id = ManageUsersPermissionId,
                 Name = "CanManageUsers",
                 Description = "Gestión de usuarios"
+            },
+            new Permission
+            {
+                Id = ManageCertificatesPermissionId,
+                Name = "CanManageCertificates",
+                Description = "Administración de certificados digitales"
             });
     }
 }
