@@ -14,14 +14,25 @@
     </div>
 
     <form class="upload" [formGroup]="encryptForm" (ngSubmit)="submitEncrypt()">
+      <label class="field">
+        <span>Certificado destinatario</span>
+        <select formControlName="certificateVersionId" aria-label="Certificado para cifrar">
+          <option [ngValue]="null">Seleccionar certificado</option>
+          <option *ngFor="let certificate of encryptionCertificates" [ngValue]="certificate.id">
+            {{ certificate.displayName }} · {{ certificate.fileName }} · {{ certificate.thumbprintMasked }}
+          </option>
+        </select>
+      </label>
+
       <label class="file-input">
-        <input type="file" (change)="onFileSelected('encrypt', $event)" />
+        <input aria-label="Archivo para cifrar" type="file" (change)="onFileSelected('encrypt', $event)" />
         <span>{{ encryptForm.value.file?.name || 'Seleccionar archivo' }}</span>
       </label>
 
-      <button appButton type="submit" [disabled]="encrypting">
+      <button appButton type="submit" [disabled]="encrypting || decrypting || loadingCertificates || encryptForm.invalid">
         {{ encrypting ? 'Cifrando...' : 'Cifrar archivo' }}
       </button>
+      <p class="result" *ngIf="lastEncryptedFileName">Generado: {{ lastEncryptedFileName }}</p>
     </form>
   </div>
 
@@ -35,14 +46,25 @@
     </div>
 
     <form class="upload" [formGroup]="decryptForm" (ngSubmit)="submitDecrypt()">
+      <label class="field">
+        <span>Identidad privada</span>
+        <select formControlName="certificateVersionId" aria-label="Certificado para descifrar">
+          <option [ngValue]="null">Seleccionar certificado</option>
+          <option *ngFor="let certificate of decryptionCertificates" [ngValue]="certificate.id">
+            {{ certificate.displayName }} · {{ certificate.fileName }} · {{ certificate.thumbprintMasked }}
+          </option>
+        </select>
+      </label>
+
       <label class="file-input">
-        <input type="file" (change)="onFileSelected('decrypt', $event)" />
+        <input aria-label="Archivo .ENV para descifrar" type="file" accept=".ENV,.env" (change)="onFileSelected('decrypt', $event)" />
         <span>{{ decryptForm.value.file?.name || 'Seleccionar archivo' }}</span>
       </label>
 
-      <button appButton type="submit" [disabled]="decrypting">
+      <button appButton type="submit" [disabled]="encrypting || decrypting || loadingCertificates || decryptForm.invalid">
         {{ decrypting ? 'Descifrando...' : 'Descifrar archivo' }}
       </button>
+      <p class="result" *ngIf="lastDecryptedFileName">Recuperado: {{ lastDecryptedFileName }}</p>
     </form>
   </div>
 </section>

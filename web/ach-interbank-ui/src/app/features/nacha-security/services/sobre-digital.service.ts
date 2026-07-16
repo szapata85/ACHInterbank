@@ -3,26 +3,47 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 
+export interface SobreDigitalCertificate {
+  id: number;
+  code: string;
+  displayName: string;
+  fileName: string;
+  purpose: number;
+  hasPrivateKey: boolean;
+  thumbprintMasked: string;
+  notBefore: string;
+  notAfter: string;
+  canEncrypt: boolean;
+  canDecrypt: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SobreDigitalService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiService);
+  private readonly basePath = 'api/nacha-security/digital-envelope';
 
-  encrypt(file: File): Observable<HttpResponse<Blob>> {
+  listCertificates(): Observable<SobreDigitalCertificate[]> {
+    return this.http.get<SobreDigitalCertificate[]>(this.api.resolveUrl(`${this.basePath}/certificates`));
+  }
+
+  encrypt(file: File, certificateVersionId: number): Observable<HttpResponse<Blob>> {
     const form = new FormData();
     form.append('file', file);
+    form.append('certificateVersionId', certificateVersionId.toString());
 
-    return this.http.post(this.api.resolveUrl('SobreDigital/encrypt'), form, {
+    return this.http.post(this.api.resolveUrl(`${this.basePath}/encrypt`), form, {
       observe: 'response',
       responseType: 'blob'
     });
   }
 
-  decrypt(file: File): Observable<HttpResponse<Blob>> {
+  decrypt(file: File, certificateVersionId: number): Observable<HttpResponse<Blob>> {
     const form = new FormData();
     form.append('file', file);
+    form.append('certificateVersionId', certificateVersionId.toString());
 
-    return this.http.post(this.api.resolveUrl('SobreDigital/decrypt'), form, {
+    return this.http.post(this.api.resolveUrl(`${this.basePath}/decrypt`), form, {
       observe: 'response',
       responseType: 'blob'
     });

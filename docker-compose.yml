@@ -16,6 +16,11 @@ services:
       EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}
       Database__ApplyMigrations: ${DATABASE_APPLY_MIGRATIONS:-false}
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
+      DigitalEnvelope__CertificateBootstrap__Enabled: ${DIGITAL_ENVELOPE_CERTIFICATE_BOOTSTRAP_ENABLED:-true}
+      DigitalEnvelope__CertificateBootstrap__DirectoryPath: ${DIGITAL_ENVELOPE_CERTIFICATE_BOOTSTRAP_CONTAINER_PATH:-/app/certificates/uat}
+      DigitalEnvelope__CertificateBootstrap__PfxPassword: ${DIGITAL_ENVELOPE_BOOTSTRAP_PFX_PASSWORD:-}
+    volumes:
+      - ./docs/uat/certificados_pruebas:/app/certificates/uat:ro
     ports:
       - "843:8080"
     healthcheck:

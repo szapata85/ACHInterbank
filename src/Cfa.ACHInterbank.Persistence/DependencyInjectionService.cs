@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
+using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
@@ -35,6 +36,7 @@ public static class DependencyInjectionService
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         services.Configure<NachaInboundSimulatorOptions>(configuration.GetSection(NachaInboundSimulatorOptions.SectionName));
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
+        services.Configure<DigitalEnvelopeCertificateBootstrapOptions>(configuration.GetSection(DigitalEnvelopeCertificateBootstrapOptions.SectionName));
         services.Configure<IncomingNachaDispatchResilienceOptions>(configuration.GetSection(IncomingNachaDispatchResilienceOptions.SectionName));
         services.Configure<OperationArtifactOptions>(configuration.GetSection(OperationArtifactOptions.SectionName));
         services.Configure<ProcContrapartidasDispatchOptions>(configuration.GetSection(ProcContrapartidasDispatchOptions.SectionName));
@@ -128,6 +130,8 @@ public static class DependencyInjectionService
         services.AddScoped<ICertificateSecretProvider, ACH.Services.Implementation.CertificateManagement.DatabaseEncryptedCertificateSecretProvider>();
         services.AddScoped<ICertificateSecretProviderResolver, ACH.Services.Implementation.CertificateManagement.CertificateSecretProviderResolver>();
         services.AddScoped<ICertificateSecretResolver, ACH.Services.Implementation.CertificateManagement.CertificateSecretResolver>();
+        services.AddScoped<IManagedDigitalEnvelopeService, ACH.Services.Implementation.CertificateManagement.ManagedDigitalEnvelopeService>();
+        services.AddHostedService<ACH.Services.Implementation.CertificateManagement.CertificateBootstrapHostedService>();
 
         services.AddScoped<IExternalFileNameSequenceProvider, PostgresExternalFileNameSequenceService>();
         services.AddScoped<IExternalFileNameSequenceProvider, SqlServerExternalFileNameSequenceService>();

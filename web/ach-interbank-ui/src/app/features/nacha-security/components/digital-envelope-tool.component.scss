@@ -60,6 +60,26 @@
   gap: 0.75rem;
   margin-top: 1.25rem;
 
+  .field {
+    display: grid;
+    gap: 0.35rem;
+
+    span {
+      color: var(--color-text);
+      font-weight: 600;
+    }
+
+    select {
+      width: 100%;
+      min-height: 2.75rem;
+      border: 1px solid #c8ceda;
+      border-radius: var(--radius-md);
+      padding: 0.6rem 0.75rem;
+      background: var(--color-surface);
+      color: var(--color-text);
+    }
+  }
+
   .file-input {
     display: inline-flex;
     align-items: center;
@@ -78,5 +98,11 @@
       font-weight: 600;
       word-break: break-word;
     }
+  }
+
+  .result {
+    margin: 0;
+    color: #047857;
+    font-weight: 600;
   }
 }

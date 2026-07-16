@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { finalize } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
-import { SobreDigitalService } from '../services/sobre-digital.service';
+import { SobreDigitalCertificate, SobreDigitalService } from '../services/sobre-digital.service';
 import { sanitizeDownloadFileName } from '../utils/download-file-name.util';
 
 @Component({
@@ -15,7 +16,7 @@ import { sanitizeDownloadFileName } from '../utils/download-file-name.util';
   styleUrls: ['./digital-envelope-tool.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class DigitalEnvelopeToolComponent {
+export class DigitalEnvelopeToolComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(SobreDigitalService);
   private readonly notifications = inject(NotificationService);
@@ -23,14 +24,43 @@ export class DigitalEnvelopeToolComponent {
 
   encrypting = false;
   decrypting = false;
+  loadingCertificates = true;
+  encryptionCertificates: SobreDigitalCertificate[] = [];
+  decryptionCertificates: SobreDigitalCertificate[] = [];
+  lastEncryptedFileName: string | null = null;
+  lastDecryptedFileName: string | null = null;
 
   readonly encryptForm = this.fb.group({
+    certificateVersionId: [null as number | null, Validators.required],
     file: [null as File | null, Validators.required]
   });
 
   readonly decryptForm = this.fb.group({
+    certificateVersionId: [null as number | null, Validators.required],
     file: [null as File | null, Validators.required]
   });
+
+  ngOnInit(): void {
+    this.service.listCertificates().subscribe({
+      next: (certificates) => {
+        this.encryptionCertificates = certificates.filter((certificate) => certificate.canEncrypt);
+        this.decryptionCertificates = certificates.filter((certificate) => certificate.canDecrypt);
+        if (this.encryptionCertificates.length === 1) {
+          this.encryptForm.patchValue({ certificateVersionId: this.encryptionCertificates[0].id });
+        }
+        if (this.decryptionCertificates.length === 1) {
+          this.decryptForm.patchValue({ certificateVersionId: this.decryptionCertificates[0].id });
+        }
+        this.loadingCertificates = false;
+        this.cdr.markForCheck();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.loadingCertificates = false;
+        void this.notifyHttpError(error, 'No fue posible consultar los certificados activos.');
+        this.cdr.markForCheck();
+      }
+    });
+  }
 
   onFileSelected(formType: 'encrypt' | 'decrypt', event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -52,7 +82,8 @@ export class DigitalEnvelopeToolComponent {
     }
 
     const file = this.encryptForm.value.file;
-    if (!file) {
+    const certificateVersionId = this.encryptForm.value.certificateVersionId;
+    if (!file || !certificateVersionId) {
       return;
     }
 
@@ -60,7 +91,7 @@ export class DigitalEnvelopeToolComponent {
     this.cdr.markForCheck();
 
     this.service
-      .encrypt(file)
+      .encrypt(file, certificateVersionId)
       .pipe(finalize(() => {
         this.encrypting = false;
         this.cdr.markForCheck();
@@ -68,11 +99,14 @@ export class DigitalEnvelopeToolComponent {
       .subscribe({
         next: (response) => {
           const fallbackName = `${file.name}.ENV`;
-          this.downloadResponse(response, fallbackName);
-          this.encryptForm.reset();
+          this.lastEncryptedFileName = this.downloadResponse(response, fallbackName);
+          this.notifications.success(`Archivo cifrado: ${this.lastEncryptedFileName}`);
+          this.encryptForm.patchValue({ file: null });
+          this.encryptForm.markAsPristine();
+          this.cdr.markForCheck();
         },
-        error: () => {
-          this.notifications.error('No fue posible cifrar el archivo.');
+        error: (error: HttpErrorResponse) => {
+          void this.notifyHttpError(error, 'No fue posible cifrar el archivo.');
         }
       });
   }
@@ -84,7 +118,13 @@ export class DigitalEnvelopeToolComponent {
     }
 
     const file = this.decryptForm.value.file;
-    if (!file) {
+    const certificateVersionId = this.decryptForm.value.certificateVersionId;
+    if (!file || !certificateVersionId) {
+      return;
+    }
+
+    if (!file.name.toUpperCase().endsWith('.ENV')) {
+      this.notifications.error('El archivo para descifrar debe terminar en .ENV.');
       return;
     }
 
@@ -92,7 +132,7 @@ export class DigitalEnvelopeToolComponent {
     this.cdr.markForCheck();
 
     this.service
-      .decrypt(file)
+      .decrypt(file, certificateVersionId)
       .pipe(finalize(() => {
         this.decrypting = false;
         this.cdr.markForCheck();
@@ -100,16 +140,19 @@ export class DigitalEnvelopeToolComponent {
       .subscribe({
         next: (response) => {
           const defaultName = file.name.replace(/\.env$/i, '') || `NACHA_${this.buildTimestamp()}.txt`;
-          this.downloadResponse(response, defaultName);
-          this.decryptForm.reset();
+          this.lastDecryptedFileName = this.downloadResponse(response, defaultName);
+          this.notifications.success(`Archivo recuperado: ${this.lastDecryptedFileName}`);
+          this.decryptForm.patchValue({ file: null });
+          this.decryptForm.markAsPristine();
+          this.cdr.markForCheck();
         },
-        error: () => {
-          this.notifications.error('No fue posible descifrar el archivo.');
+        error: (error: HttpErrorResponse) => {
+          void this.notifyHttpError(error, 'No fue posible descifrar el archivo.');
         }
       });
   }
 
-  private downloadResponse(response: { body: Blob | null; headers: { get: (name: string) => string | null } }, fallbackName: string): void {
+  private downloadResponse(response: { body: Blob | null; headers: { get: (name: string) => string | null } }, fallbackName: string): string {
     const fileName = sanitizeDownloadFileName(this.extractFileName(response.headers.get('content-disposition')), fallbackName);
     const blob = response.body ?? new Blob();
     const url = window.URL.createObjectURL(blob);
@@ -117,9 +160,27 @@ export class DigitalEnvelopeToolComponent {
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+    return fileName;
+  }
 
-    window.URL.revokeObjectURL(url);
+  private async notifyHttpError(error: HttpErrorResponse, fallback: string): Promise<void> {
+    let message = fallback;
+    if (error.error instanceof Blob && error.error.size > 0) {
+      try {
+        const problem = JSON.parse(await error.error.text()) as { detail?: string; title?: string };
+        message = problem.detail || problem.title || fallback;
+      } catch {
+        // Keep the safe functional fallback; never render an HTML proxy error body.
+      }
+    } else if (typeof error.error?.detail === 'string') {
+      message = error.error.detail;
+    }
+    this.notifications.error(message);
+    this.cdr.markForCheck();
   }
 
   private extractFileName(contentDisposition: string | null): string | null {

@@ -221,6 +221,8 @@ ClientBin/
 *.dbproj.schemaview
 *.jfm
 *.pfx
+*.p12
+docs/uat/certificados_pruebas/pass.txt
 *.publishsettings
 orleans.codegen.cs
 

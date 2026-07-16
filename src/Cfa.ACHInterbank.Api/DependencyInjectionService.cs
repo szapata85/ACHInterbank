@@ -36,7 +36,7 @@ public static class DependencyInjectionService
 
         services.Configure<FormOptions>(options =>
         {
-            options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10 MB
+            options.MultipartBodyLengthLimit = 50 * 1024 * 1024; // Sobre digital: máximo controlado de 50 MB.
             options.MultipartHeadersLengthLimit = 16 * 1024;
         });
 

@@ -90,15 +90,14 @@ public class CryptoServiceScoped : ICryptoServiceScoped
 
             aes.KeySize = 256;
             aes.GenerateKey();
-            aes.GenerateIV();
 
-            // IV = serial + random
+            // El perfil ACH V32 deriva el IV del identifier; cifrado y descifrado deben usar la misma regla.
             string identifier = certificadoFirmante.SerialNumber + Guid.NewGuid().ToString("N");
-            //byte[] iv = aes.IV;
+            byte[] iv = GenerarIVDesdeIdentifier(identifier.ToUpperInvariant());
 
             // Cifrar el mensaje firmado
             byte[] mensajeFirmadoBytes = Encoding.UTF8.GetBytes(mensajeFirmado);
-            byte[] mensajeCifrado = CifrarAES(mensajeFirmadoBytes, aes.Key, aes.IV);
+            byte[] mensajeCifrado = CifrarAES(mensajeFirmadoBytes, aes.Key, iv);
 
             // Cifrar la llave AES con el certificado del receptor
 
