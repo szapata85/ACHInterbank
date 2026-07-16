@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -11,13 +12,18 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
 {
     private readonly AchDbContext _context;
     private readonly IBankHoliday _holidayService;
+    private readonly ITransactionPrerequisitePolicyService? _prerequisitePolicyService;
 
     private sealed record PrenoteLookupKey(int DestinationInstitutionId, string DestinationAccountNumber, string TransactionCode);
 
-    public NachaTransactionValidationService(AchDbContext context, IBankHoliday holidayService)
+    public NachaTransactionValidationService(
+        AchDbContext context,
+        IBankHoliday holidayService,
+        ITransactionPrerequisitePolicyService? prerequisitePolicyService = null)
     {
         _context = context;
         _holidayService = holidayService;
+        _prerequisitePolicyService = prerequisitePolicyService;
     }
 
     public async Task ValidateTransactionsForSendAsync(IReadOnlyList<AchTransaction> transactions, CancellationToken ct = default)
@@ -34,6 +40,17 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
             if (!tx.IsPrenotification)
             {
                 var prenoteDate = GetPrenoteDate(tx, prenoteLookup);
+                if (_prerequisitePolicyService is not null)
+                {
+                    var validation = await _prerequisitePolicyService.ValidateForNachaExportAsync(tx, prenoteDate, ct);
+                    if (!validation.IsValid)
+                    {
+                        throw new NachaGenerationException(validation.Code, validation.Message);
+                    }
+
+                    continue;
+                }
+
                 if (!RequiresLegacyMandatoryPrenote(tx.TransactionCode))
                 {
                     continue;

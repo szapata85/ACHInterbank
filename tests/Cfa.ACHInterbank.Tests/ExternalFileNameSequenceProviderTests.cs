@@ -43,13 +43,14 @@ public class ExternalFileNameSequenceProviderTests
     }
 
     [Fact]
-    public async Task SqlServerAdapter_Throws_NotSupportedException_ClearMessage()
+    public async Task SqlServerAdapter_Enforces_AchDailyLimit_36()
     {
-        var adapter = new SqlServerExternalFileNameSequenceService();
+        await using var harness = await CreateHarnessAsync();
+        var adapter = new TestSqlServerAdapter(harness.Context, 37);
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(() => adapter.ReserveNextSequenceAsync(CreateContext()));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => adapter.ReserveNextSequenceAsync(CreateContext()));
 
-        Assert.Contains("not implemented", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("36 archivos", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -138,6 +139,19 @@ public class ExternalFileNameSequenceProviderTests
         }
 
         protected override Task<int> ExecuteUpsertAsync(ExternalFileNameContext context, CancellationToken ct)
+            => Task.FromResult(_next);
+    }
+
+    private sealed class TestSqlServerAdapter : SqlServerExternalFileNameSequenceService
+    {
+        private readonly int _next;
+
+        public TestSqlServerAdapter(AchDbContext context, int next) : base(context)
+        {
+            _next = next;
+        }
+
+        protected override Task<int> ExecuteReservationAsync(ExternalFileNameContext context, CancellationToken ct)
             => Task.FromResult(_next);
     }
 

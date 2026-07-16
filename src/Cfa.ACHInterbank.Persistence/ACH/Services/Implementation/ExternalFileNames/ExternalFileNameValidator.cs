@@ -96,6 +96,34 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                 }
             }
         }
+        else if (ExternalFileNameSupport.IsCenitNachaOut(context))
+        {
+            if (!CenitOfficialFileNameParser.TryParseCenitFileName(components.FullName, out var parsed))
+            {
+                issues.Add(Hard(
+                    "CENIT_NAME_PATTERN",
+                    "CENIT_PATTERN_INVALID",
+                    "Regla HARD BLOCK CENIT: patrón requerido RRRRTTT.CCC.YYYYMMDD.S sin extensión.",
+                    "CENIT-DSP-152-Anexo-2 / convención operativa vigente"));
+            }
+            else
+            {
+                var expectedOrigin = components.Prefix ?? context.ClearingHouseOriginCode;
+                if (!string.IsNullOrWhiteSpace(expectedOrigin)
+                    && !string.Equals(expectedOrigin[^Math.Min(7, expectedOrigin.Length)..], parsed!.OriginCode, StringComparison.Ordinal))
+                {
+                    issues.Add(Hard("CENIT_ORIGIN_MISMATCH", "CENIT_ORIGIN_MISMATCH", "El código de origen del nombre CENIT no coincide con la entidad configurada.", "CENIT-DSP-152-Anexo-2"));
+                }
+                else if (context.CycleNumber is > 0 && context.CycleNumber.Value != parsed!.CycleNumber)
+                {
+                    issues.Add(Hard("CENIT_CYCLE_MISMATCH", "CENIT_CYCLE_MISMATCH", "El ciclo del nombre CENIT no coincide con el ciclo operativo.", "CENIT-DSP-152-Anexo-2"));
+                }
+                else if (DateOnly.FromDateTime(context.ProcessingDate) != parsed!.FileDate)
+                {
+                    issues.Add(Hard("CENIT_DATE_MISMATCH", "CENIT_DATE_MISMATCH", "La fecha del nombre CENIT no coincide con la fecha operativa.", "CENIT-DSP-152-Anexo-2"));
+                }
+            }
+        }
         else if (ExternalFileNameSupport.IsAch(context))
         {
             var parsed = ExternalFileNameSupport.Parse(context, components.FullName);

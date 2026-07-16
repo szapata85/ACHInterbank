@@ -45,7 +45,7 @@ public class EfGenericExternalFileNameSequenceService : IExternalFileNameSequenc
         row.UpdatedAtUtc = DateTime.UtcNow;
         row.RowVersion = [(byte)(row.LastValue % 255 == 0 ? 1 : row.LastValue % 255)];
 
-        if ((ExternalFileNameSupport.IsAch(context) || ExternalFileNameSupport.IsReturnOut(context)) && row.LastValue > 36)
+        if ((ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)) && row.LastValue > 36)
         {
             throw new InvalidOperationException("Regla ACH HARD BLOCK: mÃ¡ximo 36 archivos diarios por participante.");
         }

@@ -14,6 +14,22 @@ internal static class ExternalFileNameSupport
 
     public static ExternalFileNameComponents Parse(ExternalFileNameContext context, string externalFileName)
     {
+        if (IsCenitNachaOut(context))
+        {
+            if (!CenitOfficialFileNameParser.TryParseCenitFileName(externalFileName, out var parsed))
+            {
+                return new ExternalFileNameComponents { FullName = externalFileName };
+            }
+
+            return new ExternalFileNameComponents
+            {
+                FullName = externalFileName,
+                Prefix = parsed!.OriginCode,
+                ExternalSequence = parsed.Suffix,
+                CycleNumber = parsed.CycleNumber
+            };
+        }
+
         if (IsAch(context))
         {
             var match = AchRegex.Match(externalFileName);
@@ -89,6 +105,12 @@ internal static class ExternalFileNameSupport
     public static bool IsCenit(ExternalFileNameContext context) =>
         string.Equals(context.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsCenitNachaOut(ExternalFileNameContext context) =>
+        IsCenit(context) && IsAch(context);
+
+    public static bool IsAchColombiaNachaOut(ExternalFileNameContext context) =>
+        IsAch(context) && !IsCenit(context);
+
     public static bool IsStaReject(ExternalFileNameContext context) =>
         IsCenit(context) && context.ExternalFileType == ExternalFileType.StaReject;
 
@@ -113,6 +135,27 @@ internal static class ExternalFileNameSupport
 
         var normalizedOriginCode = originCode[^7..];
         return $"{normalizedOriginCode}.{sequence:D3}.{cycleNumber}";
+    }
+
+    public static string BuildCenitName(string originCode, int cycleNumber, DateTime processingDate, int suffix)
+    {
+        if (string.IsNullOrWhiteSpace(originCode) || !originCode.All(char.IsDigit) || originCode.Length < 7)
+        {
+            throw new InvalidOperationException("Para CENIT el código de origen debe contener exactamente 7 dígitos.");
+        }
+
+        if (cycleNumber is < 1 or > 999)
+        {
+            throw new InvalidOperationException("Para CENIT el número de ciclo debe estar entre 001 y 999.");
+        }
+
+        if (suffix < 1)
+        {
+            throw new InvalidOperationException("Para CENIT el sufijo consecutivo debe ser un entero positivo.");
+        }
+
+        var normalizedOriginCode = originCode[^7..];
+        return $"{normalizedOriginCode}.{cycleNumber:D3}.{processingDate:yyyyMMdd}.{suffix}";
     }
 
     public static string BuildReturnName(string originCode, int sequence)

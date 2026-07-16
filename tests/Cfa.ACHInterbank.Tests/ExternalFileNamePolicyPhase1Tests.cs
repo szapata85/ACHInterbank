@@ -213,11 +213,36 @@ public class ExternalFileNamePolicyPhase1Tests
             Direction = ExternalFileDirection.Outbound
         });
 
-        Assert.Equal("8765321.001.6", name.FullName);
+        Assert.Equal("8765321.006.20260520.1", name.FullName);
         Assert.Equal("8765321", name.Prefix);
         Assert.Equal(1, name.ExternalSequence);
         Assert.Equal(6, name.CycleNumber);
-        Assert.Equal('A', name.FileIdModifier);
+        Assert.Null(name.FileIdModifier);
+    }
+
+    [Fact]
+    public async Task CenitValidator_AcceptsConfiguredOriginCycleAndProcessingDate()
+    {
+        var validator = CreateValidator();
+        var result = await validator.ValidateAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 2,
+            ClearingHouseCode = "CENIT",
+            ClearingHouseOriginCode = "00001007",
+            CycleNumber = 6,
+            ProcessingDate = new DateTime(2026, 05, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }, new ExternalFileNameComponents
+        {
+            FullName = "8765321.006.20260520.1",
+            Prefix = "8765321",
+            ExternalSequence = 1,
+            CycleNumber = 6
+        });
+
+        Assert.False(result.IsHardBlocked);
     }
 
     [Fact]

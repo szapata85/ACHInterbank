@@ -469,7 +469,7 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
         var clearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH";
-        var batchNumberAssignment = await _batchNumberGenerator.AssignBatchNumbersAsync(orderedBatches, clearingHouseCode, context.Cycle.ProcessingDate, ct);
+        var batchNumberAssignment = await ResolveBatchNumberAssignmentAsync(orderedBatches, clearingHouseCode, context.Cycle.ProcessingDate, ct);
         var batchSequenceById = batchNumberAssignment.BatchNumberByBatchId;
 
         if (!orderedBatches.Any())
@@ -723,7 +723,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var clearingHouseCode = ResolveClearingHouseCode(context);
         var resolution = await ResolveOfficialRuntimeConfigAsync(context, officialRecordCodes, ct);
         var lineLength = RequireOfficialLayout(resolution, "9").TotalLength;
-        var batchNumberAssignment = await _batchNumberGenerator.AssignBatchNumbersAsync(
+        var batchNumberAssignment = await ResolveBatchNumberAssignmentAsync(
             orderedBatches,
             clearingHouseCode,
             context.Cycle.ProcessingDate,
@@ -784,7 +784,9 @@ public class NachaFileBuilder : INachaFileBuilder
 
             var description = (batch.CompanyEntryDescription ?? string.Empty).Trim().ToUpperInvariant();
             var secCode = ResolveStandardEntryClassCode(batch, batchTransactions, companyEntryDescriptionCatalog);
-            var batchDescription = creditLikeCount > 1 ? "MULTICREDIT" : description;
+            var batchDescription = creditLikeCount > 1
+                ? ResolveMassCreditDescription(RequireOfficialLayout(resolution, "5"))
+                : description;
 
             batchCalculations[batch.Id] = new BatchCalculation(
                 Transactions: batchTransactions,
@@ -948,6 +950,30 @@ public class NachaFileBuilder : INachaFileBuilder
         return count;
     }
 
+    private Task<BatchNumberAssignmentResult> ResolveBatchNumberAssignmentAsync(
+        IReadOnlyList<AchBatch> orderedBatches,
+        string clearingHouseCode,
+        DateTime processingDate,
+        CancellationToken ct)
+    {
+        var hasCompletePersistedAssignment = orderedBatches.Count > 0
+            && orderedBatches.All(batch => batch.BatchSequenceNumber > 0)
+            && orderedBatches
+                .GroupBy(batch => (batch.OriginOrOdfi ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                .All(group => group.Select(batch => batch.BatchSequenceNumber).Distinct().Count() == group.Count());
+
+        if (!hasCompletePersistedAssignment)
+        {
+            return _batchNumberGenerator.AssignBatchNumbersAsync(orderedBatches, clearingHouseCode, processingDate, ct);
+        }
+
+        return Task.FromResult(new BatchNumberAssignmentResult(
+            orderedBatches.ToDictionary(batch => batch.Id, batch => batch.BatchSequenceNumber),
+            "PERSISTED_BATCH_SEQUENCE",
+            orderedBatches.Select(batch => (batch.OriginOrOdfi ?? string.Empty).Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+            []));
+    }
+
     private async Task<IReadOnlyList<EntryDetailRecord>> BuildEntryDetailRecordsOfficialAsync(
         IReadOnlyList<AchTransaction> transactions,
         CfgLayoutVariant record6Layout,
@@ -983,6 +1009,15 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return field.Length;
+    }
+
+    private static string ResolveMassCreditDescription(CfgLayoutVariant layout)
+    {
+        const string normativeDescription = "MULTICREDIT";
+        var configuredLength = ResolveOfficialFieldLength(layout, "COMPANYENTRYDESCRIPTION");
+        return normativeDescription.Length <= configuredLength
+            ? normativeDescription
+            : normativeDescription[..configuredLength];
     }
 
     private static string ResolveEntryHashSourceFieldPath(CfgLayoutVariant record6Layout)
@@ -1655,8 +1690,8 @@ public class NachaFileBuilder : INachaFileBuilder
         return new NachaConfigResolutionRequest
         {
             ClearingHouseCode = ResolveClearingHouseCode(context),
-            FlowTypeCode = ResolveFlowCode(context.Transactions),
-            DirectionCode = ResolveDirectionCode(context.Transactions),
+            FlowTypeCode = NachaProfileDimensionResolver.ResolveFlowCode(context.Transactions),
+            DirectionCode = NachaProfileDimensionResolver.ResolveDirectionCode(context.Transactions),
             ServiceClassCode = serviceClassCode,
             ProcessDateUtc = context.Cycle.ProcessingDate,
             RecordCodes = recordCodes.ToList(),
@@ -2141,8 +2176,8 @@ public class NachaFileBuilder : INachaFileBuilder
             };
         }
 
-        var flow = ResolveFlowCode(context.Transactions);
-        var direction = ResolveDirectionCode(context.Transactions);
+        var flow = NachaProfileDimensionResolver.ResolveFlowCode(context.Transactions);
+        var direction = NachaProfileDimensionResolver.ResolveDirectionCode(context.Transactions);
         var serviceClassCode = context.Batches
             .Select(x => x.ServiceClassCode)
             .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
@@ -2169,28 +2204,6 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return resolution;
-    }
-
-    private static string ResolveFlowCode(IReadOnlyList<AchTransaction> transactions)
-    {
-        if (transactions.Any(x => x.Type is TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
-        {
-            return "RETORNO";
-        }
-
-        if (transactions.Any(x => x.Type == TransactionTypeEnum.Prenotification))
-        {
-            return "PRENOTIFICACION";
-        }
-
-        return "ORIGINAL";
-    }
-
-    private static string ResolveDirectionCode(IReadOnlyList<AchTransaction> transactions)
-    {
-        return transactions.Any(x => x.Type is TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
-            ? "ENTRADA"
-            : "SALIDA";
     }
 
     private async Task<string?> TryRenderRecord6WithMappingEngineAsync(
@@ -2689,7 +2702,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
         public static FileHeaderRecord From(AchCycle cycle, IReadOnlyCollection<AchTransaction> transactions, NachaHeader? header, string? fileIdModifier = null)
         {
-            var now = DateTime.UtcNow;
+            var snapshotTime = NachaFileSnapshotTimeResolver.Resolve(cycle);
             var firstTransaction = transactions
                 .OrderBy(t => t.Id)
                 .FirstOrDefault();
@@ -2717,8 +2730,8 @@ public class NachaFileBuilder : INachaFileBuilder
                 PriorityCode = CoalesceNonEmpty(header?.PriorityCode, "01"),
                 ImmediateDestination = destinationDfi,
                 ImmediateOrigin = originDfi,
-                FileCreationDate = ParseDate(header?.FileCreationDate) ?? now,
-                FileCreationTime = ParseTime(header?.FileCreationTime) ?? now,
+                FileCreationDate = ParseDate(header?.FileCreationDate) ?? snapshotTime,
+                FileCreationTime = ParseTime(header?.FileCreationTime) ?? snapshotTime,
                 FileIdModifier = CoalesceNonEmpty(fileIdModifier, header?.FileIdModifier, "A"),
                 RecordSize = string.IsNullOrWhiteSpace(header?.RecordSize) ? "106" : header!.RecordSize,
                 BlockingFactor = string.IsNullOrWhiteSpace(header?.BlockingFactor) ? "10" : header!.BlockingFactor,

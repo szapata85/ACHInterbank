@@ -9,9 +9,21 @@ import { NotificationService } from '../../../core/services/notification.service
 import { ExportableAchCycle } from '../models/ach-cycle-export.model';
 import { ClearingHouseOption } from '../models/ach-cycle.model';
 import { ClearingHousesApiService } from '../services/ach-cycles-api.service';
+import { finalize } from 'rxjs/operators';
 
 interface ExportableAchCycleView extends ExportableAchCycle {
   processingDateText: string;
+}
+
+interface ExportProblemDetails {
+  title?: string;
+  detail?: string;
+  mensaje?: string;
+  message?: string;
+  codigo?: string;
+  code?: string;
+  traceId?: string;
+  errors?: Record<string, string[] | string>;
 }
 
 @Component({
@@ -85,11 +97,13 @@ export class NachaExportComponent implements OnInit {
         const actionElement = target?.closest<HTMLElement>('[data-action]');
         const action = actionElement?.getAttribute('data-action');
 
-        if (action === 'generar-nacha') {
-          this.download(params.data, false);
-        }
-        if (action === 'generar-sobre') {
-          this.download(params.data, true);
+        switch (action) {
+          case 'generar-nacha':
+            this.download(params.data, false);
+            return;
+          case 'generar-sobre':
+            this.download(params.data, true);
+            return;
         }
       }
     }
@@ -165,7 +179,13 @@ export class NachaExportComponent implements OnInit {
 
     this.downloadingId = cycleId;
     this.refrescarAccionesGrilla();
-    this.api.downloadFile(cycleId, encrypted).subscribe({
+    this.api.downloadFile(cycleId, encrypted).pipe(
+      finalize(() => {
+        this.downloadingId = null;
+        this.refrescarAccionesGrilla();
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
       next: (response) => {
         const fileName = this.extractFileName(response.headers.get('content-disposition')) ??
           `NACHA_${cycleId}_${this.buildTimestamp()}.${encrypted ? 'ENV' : 'txt'}`;
@@ -177,10 +197,7 @@ export class NachaExportComponent implements OnInit {
         link.download = fileName;
         link.click();
 
-        window.URL.revokeObjectURL(url);
-        this.downloadingId = null;
-        this.refrescarAccionesGrilla();
-        this.cdr.markForCheck();
+        window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
       },
       error: (error: HttpErrorResponse) => {
         void this.handleDownloadError(error, encrypted);
@@ -242,8 +259,6 @@ export class NachaExportComponent implements OnInit {
 
   private async handleDownloadError(error: HttpErrorResponse, encrypted: boolean): Promise<void> {
     this.notifications.error(await this.buildDownloadErrorMessage(error, encrypted));
-    this.downloadingId = null;
-    this.refrescarAccionesGrilla();
     this.cdr.markForCheck();
   }
 
@@ -252,22 +267,26 @@ export class NachaExportComponent implements OnInit {
       ? 'No fue posible generar el archivo NACHA-M con Sobre Digital.'
       : 'No fue posible generar el archivo NACHA-M.';
 
-    if (error.status !== 422) {
-      return fallback;
-    }
-
     const parsed = await this.parseErrorBody(error.error);
-    const message = parsed?.mensaje ?? parsed?.message;
+    const fieldErrors = parsed?.errors
+      ? Object.values(parsed.errors).flatMap(value => Array.isArray(value) ? value : [value]).filter(Boolean)
+      : [];
+    const message = parsed?.detail ?? parsed?.mensaje ?? parsed?.message ?? parsed?.title ?? fieldErrors[0];
     const code = parsed?.codigo ?? parsed?.code;
+    const trace = parsed?.traceId;
 
-    if (message && code) {
-      return `${message} (${code})`;
+    if (message) {
+      const codeText = code ? ` (${code})` : '';
+      const traceText = trace ? ` [traceId: ${trace}]` : '';
+      return `${message}${codeText}${traceText}`;
     }
 
-    return message ?? 'El ciclo no cumple las condiciones funcionales para exportar NACHA-M.';
+    return error.status === 422
+      ? 'El ciclo no cumple las condiciones funcionales para exportar NACHA-M.'
+      : fallback;
   }
 
-  private async parseErrorBody(error: unknown): Promise<{ mensaje?: string; message?: string; codigo?: string; code?: string } | null> {
+  private async parseErrorBody(error: unknown): Promise<ExportProblemDetails | null> {
     if (!error) {
       return null;
     }
@@ -281,7 +300,7 @@ export class NachaExportComponent implements OnInit {
     }
 
     if (typeof error === 'object') {
-      return error as { mensaje?: string; message?: string; codigo?: string; code?: string };
+      return error as ExportProblemDetails;
     }
 
     return null;

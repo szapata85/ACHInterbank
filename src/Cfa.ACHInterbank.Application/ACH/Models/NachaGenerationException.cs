@@ -1,4 +1,4 @@
-namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+namespace Cfa.ACHInterbank.Application.ACH.Models;
 
 public sealed class NachaGenerationException : InvalidOperationException
 {

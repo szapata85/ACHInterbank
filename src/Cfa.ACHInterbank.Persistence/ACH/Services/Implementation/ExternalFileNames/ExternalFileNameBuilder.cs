@@ -30,6 +30,29 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
             return ExternalFileNameSupport.Parse(context, context.ProvidedExternalFileName.Trim());
         }
 
+        if (ExternalFileNameSupport.IsCenitNachaOut(context))
+        {
+            var namingRule = _namingRuleService is null
+                ? null
+                : await _namingRuleService.GetActiveOutboundRuleAsync(context.ClearingHouseId, context.ProcessingDate, ct);
+            var sequence = await _sequenceService.ReserveNextSequenceAsync(context, ct);
+            var originCode = namingRule?.OriginEntityCode ?? context.ClearingHouseOriginCode ?? string.Empty;
+            var cycleNumber = ResolveCycleNumber(context);
+            var externalName = ExternalFileNameSupport.BuildCenitName(
+                originCode,
+                cycleNumber,
+                context.ProcessingDate,
+                sequence);
+
+            return new ExternalFileNameComponents
+            {
+                FullName = externalName,
+                Prefix = originCode,
+                ExternalSequence = sequence,
+                CycleNumber = cycleNumber
+            };
+        }
+
         if (ExternalFileNameSupport.IsAch(context))
         {
             var namingRule = _namingRuleService is null

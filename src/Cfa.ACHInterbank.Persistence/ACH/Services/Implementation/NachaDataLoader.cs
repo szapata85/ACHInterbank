@@ -1,6 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
-using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -53,8 +52,8 @@ public class NachaDataLoader : INachaDataLoader
             .Include(t => t.AchBatch)
             .Include(t => t.SourceInstitution)
             .Include(t => t.DestinationInstitution)
-            .Where(t => t.AchCycleId == cycleId)
-            .Where(t => t.State == AchTransferStateEnum.Pending)
+            .Where(t => t.AchCycleId == cycleId
+                        && NachaExportEligibility.ExportableStates.Contains(t.State))
             .ToListAsync(ct);
 
         var transactionBatches = transactions

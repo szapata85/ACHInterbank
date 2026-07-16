@@ -54,6 +54,30 @@ public class NachaFileBuilderBatchNumberHardeningTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task BuildNachaFileAsync_WithPersistedBatchNumber_ShouldBeDeterministicAndNotReserveAgain()
+    {
+        var setup = CreateBaseSut(mode: "HYBRID", persistedBatchNumber: 42);
+        object? record5 = null;
+        object? record8 = null;
+        setup.Renderer.Setup(x => x.RenderRecordAsync("5", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()))
+            .Callback<string, object, NachaRecordLayout>((_, entity, _) => record5 = entity)
+            .ReturnsAsync(new string('5', 106));
+        setup.Renderer.Setup(x => x.RenderRecordAsync("8", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()))
+            .Callback<string, object, NachaRecordLayout>((_, entity, _) => record8 = entity)
+            .ReturnsAsync(new string('8', 106));
+
+        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        ReadIntProperty(record5!, "BatchNumber").Should().Be(42);
+        ReadIntProperty(record8!, "BatchNumber").Should().Be(42);
+        setup.BatchGenerator.Verify(x => x.AssignBatchNumbersAsync(
+            It.IsAny<IReadOnlyList<AchBatch>>(),
+            It.IsAny<string>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static int ReadIntProperty(object instance, string propertyName)
     {
         var prop = instance.GetType().GetProperty(propertyName);
@@ -61,7 +85,7 @@ public class NachaFileBuilderBatchNumberHardeningTests
         return (int)(prop!.GetValue(instance) ?? 0);
     }
 
-    private static SutSetup CreateBaseSut(string mode)
+    private static SutSetup CreateBaseSut(string mode, int persistedBatchNumber = 0)
     {
         var loader = new Mock<INachaDataLoader>(MockBehavior.Strict);
         var renderer = new Mock<INachaFixedWidthRecordRenderer>(MockBehavior.Strict);
@@ -86,7 +110,7 @@ public class NachaFileBuilderBatchNumberHardeningTests
             TraceNumber = "123456780000001",
             Addendas = []
         };
-        var batch = new AchBatch { Id = 100, AchCycle = cycle, AchCycleId = cycle.Id, CompanyIdentification = "1234567890", CompanyName = "CO", OriginOrOdfi = "12345678", ServiceClassCode = "220", EffectiveEntryDate = DateTime.UtcNow, Transactions = [tx], CompanyEntryDescription = "PAGOS" };
+        var batch = new AchBatch { Id = 100, AchCycle = cycle, AchCycleId = cycle.Id, CompanyIdentification = "1234567890", CompanyName = "CO", OriginOrOdfi = "12345678", ServiceClassCode = "220", EffectiveEntryDate = DateTime.UtcNow, Transactions = [tx], CompanyEntryDescription = "PAGOS", BatchSequenceNumber = persistedBatchNumber };
 
         loader.Setup(x => x.LoadBatchesByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>())).ReturnsAsync([batch]);
         loader.Setup(x => x.LoadHeaderAsync(cycle.Id, It.IsAny<CancellationToken>())).ReturnsAsync((NachaHeader?)null);

@@ -1,17 +1,125 @@
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Data;
+using System.Data.Common;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 
 [Scoped]
 public class SqlServerExternalFileNameSequenceService : IExternalFileNameSequenceProvider
 {
+    private readonly AchDbContext _context;
+
+    public SqlServerExternalFileNameSequenceService(AchDbContext context)
+    {
+        _context = context;
+    }
+
     public bool CanHandle(string? providerName)
         => providerName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true;
 
-    public Task<int> ReserveNextSequenceAsync(ExternalFileNameContext context, CancellationToken ct = default)
+    public async Task<int> ReserveNextSequenceAsync(ExternalFileNameContext context, CancellationToken ct = default)
     {
-        throw new NotSupportedException(
-            "External filename sequence reservation optimized for SQL Server is not implemented yet. Configure provider adapter or enable EF generic fallback explicitly.");
+        var next = await ExecuteReservationAsync(context, ct);
+
+        if ((ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)) && next > 36)
+        {
+            throw new InvalidOperationException("Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.");
+        }
+
+        return next;
+    }
+
+    protected virtual async Task<int> ExecuteReservationAsync(ExternalFileNameContext context, CancellationToken ct)
+    {
+        var connection = _context.Database.GetDbConnection();
+        var openedHere = connection.State != ConnectionState.Open;
+        if (openedHere)
+        {
+            await connection.OpenAsync(ct);
+        }
+
+        var ambientTransaction = _context.Database.CurrentTransaction?.GetDbTransaction();
+        DbTransaction? ownedTransaction = null;
+        try
+        {
+            ownedTransaction = ambientTransaction is null
+                ? await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+                : null;
+
+            await using var command = connection.CreateCommand();
+            command.Transaction = ambientTransaction ?? ownedTransaction;
+            command.CommandText = """
+                DECLARE @next int;
+
+                UPDATE dbo.ExternalFileSequences WITH (UPDLOCK, HOLDLOCK)
+                SET LastValue = LastValue + 1,
+                    UpdatedAtUtc = SYSUTCDATETIME(),
+                    RowVersion = CONVERT(varbinary(8), LastValue + 1),
+                    @next = LastValue + 1
+                WHERE ClearingHouseId = @clearingHouseId
+                  AND ScopeCode = @scopeCode
+                  AND SequenceDate = @sequenceDate;
+
+                IF @@ROWCOUNT = 0
+                BEGIN
+                    INSERT INTO dbo.ExternalFileSequences
+                        (ClearingHouseId, ScopeCode, SequenceDate, LastValue, UpdatedAtUtc, RowVersion)
+                    VALUES
+                        (@clearingHouseId, @scopeCode, @sequenceDate, 1, SYSUTCDATETIME(), 0x01);
+                    SET @next = 1;
+                END;
+
+                SELECT @next;
+                """;
+            AddParameter(command, "@clearingHouseId", context.ClearingHouseId);
+            AddParameter(command, "@scopeCode", ExternalFileNameSupport.GetSequenceScopeCode(context));
+            AddParameter(command, "@sequenceDate", context.ProcessingDate.Date);
+
+            var scalar = await command.ExecuteScalarAsync(ct);
+            if (scalar is null || scalar is DBNull)
+            {
+                throw new InvalidOperationException("SQL Server no devolvió el consecutivo reservado para el nombre externo.");
+            }
+
+            if (ownedTransaction is not null)
+            {
+                await ownedTransaction.CommitAsync(ct);
+            }
+
+            return Convert.ToInt32(scalar);
+        }
+        catch
+        {
+            if (ownedTransaction is not null)
+            {
+                await ownedTransaction.RollbackAsync(CancellationToken.None);
+            }
+
+            throw;
+        }
+        finally
+        {
+            if (ownedTransaction is not null)
+            {
+                await ownedTransaction.DisposeAsync();
+            }
+
+            if (openedHere)
+            {
+                await connection.CloseAsync();
+            }
+        }
+    }
+
+    private static void AddParameter(DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
     }
 }

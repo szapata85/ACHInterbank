@@ -1,8 +1,10 @@
 using System.Globalization;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
+using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
 using Cfa.ACHInterbank.Api.Encryption;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Microsoft.AspNetCore.Authorization;
@@ -10,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http.Metadata;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -18,32 +21,35 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class NachaExportController : ControllerBase
 {
     private readonly INachaFileBuilder _nachaBuilder;
-    private readonly ICryptoServiceScoped _crypto;
+    private readonly INachaExportDigitalEnvelopeService _digitalEnvelope;
     private readonly IAchCycleAppService _cycleService;
     private readonly IClearingHouseService _clearingHouseService;
     private readonly IDigitalEnvelopePolicy _envelopePolicy;
     private readonly INachaFileIdentifierMapService _identifierMapService;
     private readonly IAchFileExportAuditService _fileExportAuditService;
     private readonly IExternalFileNamePolicy _externalFileNamePolicy;
+    private readonly ILogger<NachaExportController> _logger;
 
     public NachaExportController(
         INachaFileBuilder nachaBuilder,
-        ICryptoServiceScoped crypto,
+        INachaExportDigitalEnvelopeService digitalEnvelope,
         IAchCycleAppService cycleService,
         IClearingHouseService clearingHouseService,
         IDigitalEnvelopePolicy envelopePolicy,
         INachaFileIdentifierMapService identifierMapService,
         IAchFileExportAuditService fileExportAuditService,
-        IExternalFileNamePolicy externalFileNamePolicy)
+        IExternalFileNamePolicy externalFileNamePolicy,
+        ILogger<NachaExportController>? logger = null)
     {
         _nachaBuilder = nachaBuilder;
-        _crypto = crypto;
+        _digitalEnvelope = digitalEnvelope;
         _cycleService = cycleService;
         _clearingHouseService = clearingHouseService;
         _envelopePolicy = envelopePolicy;
         _identifierMapService = identifierMapService;
         _fileExportAuditService = fileExportAuditService;
         _externalFileNamePolicy = externalFileNamePolicy;
+        _logger = logger ?? NullLogger<NachaExportController>.Instance;
     }
     [EndpointSummary("Exportar archivo NACHA de un ciclo")]
     [EndpointDescription("Qué hace: genera/retorna archivo NACHA del ciclo con política de nombre externo y control de duplicados. Cuándo se usa: en cierre de ciclo para entrega interbancaria. Perfil consumidor: operación ACH de compensación. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por auditoría de exportación y nombre externo. Riesgos operativos: exportar ciclo no listo produce archivo inconsistente. Errores esperados: 404 ciclo/cámara no encontrada; 409 por política de nombre duplicado; 400 por validación. Relación ACH/CENIT/NACHA-M: salida NACHA-M oficial para flujo ACH/CENIT. Precauciones para desarrollo u operación: verificar estado de ciclo y correlación externa antes de distribuir.")]
@@ -87,9 +93,13 @@ public class NachaExportController : ControllerBase
 
             return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
         }
-        catch (InvalidOperationException ex)
+        catch (NachaGenerationException ex)
         {
-            return ExportPreconditionFailed(cycleId, ex);
+            return ExportPreconditionFailed(cycleId, ex.Code, ex.Message);
+        }
+        catch (InvalidOperationException ex) when (TryResolveNachaExportErrorCode(ex.Message, out var code))
+        {
+            return ExportPreconditionFailed(cycleId, code, ex.Message);
         }
     }
     [EndpointSummary("Exportar NACHA con sobre digital")]
@@ -122,29 +132,63 @@ public class NachaExportController : ControllerBase
             var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, internalFileName, nachaContent, ct);
             string fileName = fileNamePolicyResult.ExternalFileName;
             string normalizedNachaContent = NormalizeFileHeaderIdentifier(nachaContent, fileNamePolicyResult.Components.FileIdModifier);
-            await _fileExportAuditService.RecordGeneratedFileAsync(
-                cycle.Id,
-                cycle.ClearingHouseId,
-                "NACHA",
-                fileName,
-                CountRecords(normalizedNachaContent),
-                CountTransactions(normalizedNachaContent),
-                forceEncryption || _envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId),
-                ct);
-
-            if (!forceEncryption && !_envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId))
+            var shouldEncrypt = forceEncryption || _envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId);
+            if (!shouldEncrypt)
             {
+                await _fileExportAuditService.RecordGeneratedFileAsync(
+                    cycle.Id,
+                    cycle.ClearingHouseId,
+                    "NACHA",
+                    fileName,
+                    CountRecords(normalizedNachaContent),
+                    CountTransactions(normalizedNachaContent),
+                    false,
+                    ct);
                 return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
             }
 
-            byte[] digitalEnvelope = await _crypto.CreateEnvelopeAsync(Encoding.ASCII.GetBytes(normalizedNachaContent), fileName);
-            string envelopeFileName = $"{fileName}.ENV";
-
-            return File(digitalEnvelope, "application/xml", envelopeFileName);
+            var plainBytes = Encoding.ASCII.GetBytes(normalizedNachaContent);
+            try
+            {
+                var plainHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(plainBytes));
+                var envelope = await _digitalEnvelope.EncryptAsync(
+                    cycle.ClearingHouseId,
+                    fileName,
+                    plainBytes,
+                    User?.Identity?.Name ?? "system",
+                    ct);
+                await _fileExportAuditService.RecordGeneratedFileAsync(
+                    cycle.Id,
+                    cycle.ClearingHouseId,
+                    "NACHA",
+                    fileName,
+                    CountRecords(normalizedNachaContent),
+                    CountTransactions(normalizedNachaContent),
+                    true,
+                    ct);
+                if (ControllerContext.HttpContext is not null)
+                {
+                    Response.Headers["X-Cryptographic-Profile"] = envelope.CryptographicProfile;
+                    Response.Headers["X-Plaintext-SHA256"] = plainHash;
+                }
+                return File(envelope.Content, envelope.ContentType, envelope.FileName);
+            }
+            finally
+            {
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(plainBytes);
+            }
         }
-        catch (InvalidOperationException ex)
+        catch (ManagedDigitalEnvelopeException ex)
         {
-            return ExportPreconditionFailed(cycleId, ex);
+            return DigitalEnvelopeFailed(cycleId, ex);
+        }
+        catch (NachaGenerationException ex)
+        {
+            return ExportPreconditionFailed(cycleId, ex.Code, ex.Message);
+        }
+        catch (InvalidOperationException ex) when (TryResolveNachaExportErrorCode(ex.Message, out var code))
+        {
+            return ExportPreconditionFailed(cycleId, code, ex.Message);
         }
     }
 
@@ -152,30 +196,74 @@ public class NachaExportController : ControllerBase
         => string.IsNullOrWhiteSpace(nachaContent);
 
     private UnprocessableEntityObjectResult EmptyExport(string cycleId)
-        => UnprocessableEntity(new
-        {
-            codigo = "NACHA_NO_EXPORTABLE_CONTENT",
-            mensaje = "No hay transacciones exportables para el ciclo. No se generó archivo NACHA-M.",
-            cicloId = cycleId
-        });
+        => UnprocessableEntity(CreateProblemDetails(
+            StatusCodes.Status422UnprocessableEntity,
+            "Ciclo sin contenido exportable",
+            "No hay transacciones exportables para el ciclo. No se generó archivo NACHA-M.",
+            "NACHA_NO_EXPORTABLE_CONTENT",
+            cycleId));
 
-    private UnprocessableEntityObjectResult ExportPreconditionFailed(string cycleId, InvalidOperationException ex)
+    private UnprocessableEntityObjectResult ExportPreconditionFailed(string cycleId, string code, string message)
     {
-        var message = ex.Message ?? "No fue posible generar el archivo NACHA-M.";
-        var code = ResolveNachaExportErrorCode(message);
         var userMessage = code == "NACHA_EXPORT_PREREQUISITE_FAILED"
             ? $"{message} No se generó archivo NACHA-M."
             : message;
 
-        return UnprocessableEntity(new
-        {
-            codigo = code,
-            mensaje = userMessage,
-            cicloId = cycleId
-        });
+        _logger.LogWarning(
+            "NACHA export rejected. CycleId={CycleId} Phase={Phase} ErrorCode={ErrorCode}",
+            cycleId,
+            "Generation",
+            code);
+        return UnprocessableEntity(CreateProblemDetails(
+            StatusCodes.Status422UnprocessableEntity,
+            "No fue posible generar el archivo NACHA-M",
+            userMessage,
+            code,
+            cycleId));
     }
 
-    private static string ResolveNachaExportErrorCode(string message)
+    private IActionResult DigitalEnvelopeFailed(string cycleId, ManagedDigitalEnvelopeException exception)
+    {
+        var status = exception.ErrorCode switch
+        {
+            "CERTIFICATE_NOT_FOUND" => StatusCodes.Status404NotFound,
+            "CERTIFICATE_INACTIVE" or "CERTIFICATE_EXPIRED" or "CERTIFICATE_NOT_YET_VALID"
+                or "CERTIFICATE_PURPOSE_INVALID" or "CERTIFICATE_PRIVATE_KEY_REQUIRED"
+                or "CERTIFICATE_PRIVATE_KEY_UNAVAILABLE" or "SIGNING_CERTIFICATE_NOT_FOUND"
+                => StatusCodes.Status409Conflict,
+            "FILE_TOO_LARGE" => StatusCodes.Status413PayloadTooLarge,
+            "ENVELOPE_INVALID" or "ENVELOPE_INTEGRITY_INVALID" or "SIGNED_CONTENT_INVALID"
+                => StatusCodes.Status422UnprocessableEntity,
+            _ => StatusCodes.Status400BadRequest
+        };
+        _logger.LogWarning(
+            "NACHA envelope export rejected. CycleId={CycleId} Phase={Phase} ErrorCode={ErrorCode}",
+            cycleId,
+            "DigitalEnvelope",
+            exception.ErrorCode);
+        return StatusCode(status, CreateProblemDetails(
+            status,
+            "No fue posible proteger el archivo NACHA-M",
+            exception.Message,
+            exception.ErrorCode,
+            cycleId));
+    }
+
+    private ProblemDetails CreateProblemDetails(int status, string title, string detail, string code, string cycleId)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = status,
+            Title = title,
+            Detail = detail
+        };
+        problem.Extensions["code"] = code;
+        problem.Extensions["cycleId"] = cycleId;
+        problem.Extensions["traceId"] = HttpContext?.TraceIdentifier ?? System.Diagnostics.Activity.Current?.Id ?? "unavailable";
+        return problem;
+    }
+
+    private static bool TryResolveNachaExportErrorCode(string message, out string code)
     {
         var knownCodes = new[]
         {
@@ -191,22 +279,25 @@ public class NachaExportController : ControllerBase
             "NACHA_LEGACY_GENERATION_DISABLED"
         };
 
-        foreach (var code in knownCodes)
+        foreach (var knownCode in knownCodes)
         {
-            if (message.StartsWith(code, StringComparison.OrdinalIgnoreCase))
+            if (message.StartsWith(knownCode, StringComparison.OrdinalIgnoreCase))
             {
-                return code;
+                code = knownCode;
+                return true;
             }
         }
 
         if (message.Contains("Error Fatal ID", StringComparison.OrdinalIgnoreCase))
         {
-            return "NACHA_VALIDATION_ERROR";
+            code = "NACHA_VALIDATION_ERROR";
+            return true;
         }
 
         if (message.Contains("prenotificaci", StringComparison.OrdinalIgnoreCase))
         {
-            return "NACHA_EXPORT_PREREQUISITE_FAILED";
+            code = "NACHA_EXPORT_PREREQUISITE_FAILED";
+            return true;
         }
 
         if (message.Contains("no tiene transacciones", StringComparison.OrdinalIgnoreCase)
@@ -214,10 +305,12 @@ public class NachaExportController : ControllerBase
             || message.Contains("no se encontraron lotes", StringComparison.OrdinalIgnoreCase)
             || message.Contains("no contiene transacciones exportables", StringComparison.OrdinalIgnoreCase))
         {
-            return "NACHA_NO_EXPORTABLE_CONTENT";
+            code = "NACHA_NO_EXPORTABLE_CONTENT";
+            return true;
         }
 
-        return "NACHA_EXPORT_ERROR";
+        code = string.Empty;
+        return false;
     }
 
     private static string BuildInternalNachaFileName(AchCycleDto cycle)

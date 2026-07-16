@@ -69,4 +69,43 @@ public class RequestResponseLoggingMiddlewareSecurityTests
         Assert.Contains("[REDACTED]", log);
         Assert.DoesNotContain(passwordMarker, log);
     }
+
+    [Fact]
+    public async Task Middleware_ShouldRestoreOriginalResponseBody_WhenDownstreamThrows()
+    {
+        var logger = new Mock<ILoggerManager>();
+        var context = new DefaultHttpContext();
+        var originalResponseBody = new MemoryStream();
+        context.Response.Body = originalResponseBody;
+        var middleware = new RequestResponseLoggingMiddleware(
+            _ => throw new InvalidOperationException("controlled failure"),
+            logger.Object);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => middleware.Invoke(context));
+
+        Assert.Same(originalResponseBody, context.Response.Body);
+        Assert.True(context.Response.Body.CanWrite);
+    }
+
+    [Fact]
+    public async Task Middleware_ShouldNotLogDownloadedFileContents()
+    {
+        const string fileMarker = "SENSITIVE-NACHA-CONTENT";
+        var logger = new Mock<ILoggerManager>();
+        var messages = new List<string>();
+        logger.Setup(x => x.LogInfo(It.IsAny<string>())).Callback<string>(messages.Add);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        var middleware = new RequestResponseLoggingMiddleware(async httpContext =>
+        {
+            httpContext.Response.Headers["Content-Disposition"] = "attachment; filename=test.out";
+            await httpContext.Response.WriteAsync(fileMarker);
+        }, logger.Object);
+
+        await middleware.Invoke(context);
+
+        var log = string.Join(Environment.NewLine, messages);
+        Assert.Contains("[DOWNLOAD CONTENT OMITTED:", log, StringComparison.Ordinal);
+        Assert.DoesNotContain(fileMarker, log, StringComparison.Ordinal);
+    }
 }

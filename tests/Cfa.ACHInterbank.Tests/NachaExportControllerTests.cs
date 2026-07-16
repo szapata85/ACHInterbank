@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Cfa.ACHInterbank.Api.Controllers;
@@ -8,8 +9,10 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
+using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Moq;
 using Xunit;
 
@@ -43,7 +46,7 @@ public class NachaExportControllerTests
     {
         const string identifier = "1b12995d45906869e194e237f3db64bfd7e07d2f";
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
         var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
@@ -80,10 +83,9 @@ public class NachaExportControllerTests
         var result = await controller.Export(cycleId, CancellationToken.None);
 
         var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
-        var payload = unprocessable.Value;
-        Assert.NotNull(payload);
-        Assert.Contains("NACHA_NO_EXPORTABLE_CONTENT", payload.ToString());
-        Assert.Contains(cycleId, payload.ToString());
+        var problem = Assert.IsType<ProblemDetails>(unprocessable.Value);
+        Assert.Equal("NACHA_NO_EXPORTABLE_CONTENT", problem.Extensions["code"]);
+        Assert.Equal(cycleId, problem.Extensions["cycleId"]);
     }
 
     [Fact]
@@ -94,7 +96,7 @@ public class NachaExportControllerTests
 
         var result = await controller.Export(cycleId, CancellationToken.None);
 
-        var payload = Assert.IsType<UnprocessableEntityObjectResult>(result).Value?.ToString()?.ToLowerInvariant() ?? string.Empty;
+        var payload = JsonSerializer.Serialize(Assert.IsType<UnprocessableEntityObjectResult>(result).Value).ToLowerInvariant();
         Assert.DoesNotContain("password", payload);
         Assert.DoesNotContain("token", payload);
         Assert.DoesNotContain("secret", payload);
@@ -119,7 +121,7 @@ public class NachaExportControllerTests
         const string externalFileName = "NACHA_cycle-42_20260520.txt";
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
         var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
@@ -176,7 +178,7 @@ public class NachaExportControllerTests
         byte[] expectedEnvelope = Encoding.UTF8.GetBytes("<envelope/>\n");
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
         var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
@@ -200,8 +202,19 @@ public class NachaExportControllerTests
             .Setup(s => s.RecordGeneratedFileAsync(cycleId, 7, "NACHA", externalFileName, 0, 0, true, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         crypto
-            .Setup(c => c.CreateEnvelopeAsync(It.Is<byte[]>(d => Encoding.ASCII.GetString(d) == nachaContent), externalFileName))
-            .ReturnsAsync(expectedEnvelope);
+            .Setup(c => c.EncryptAsync(
+                7,
+                externalFileName,
+                It.Is<byte[]>(d => Encoding.ASCII.GetString(d) == nachaContent),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ManagedDigitalEnvelopeResult(
+                expectedEnvelope,
+                $"{externalFileName}.ENV",
+                "application/octet-stream",
+                101,
+                "TEST-THUMBPRINT",
+                "ACH-V32 TEST"));
         externalFileNamePolicy
             .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ExternalFileNameContext ctx, CancellationToken _) => new ExternalFileNamePolicyResult
@@ -219,13 +232,18 @@ public class NachaExportControllerTests
             identifierMapService.Object,
             auditService.Object,
             externalFileNamePolicy.Object);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
 
         var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
         var fileResult = Assert.IsType<FileContentResult>(result);
-        Assert.Equal("application/xml", fileResult.ContentType);
+        Assert.Equal("application/octet-stream", fileResult.ContentType);
         Assert.Equal($"{externalFileName}.ENV", fileResult.FileDownloadName);
         Assert.Equal(expectedEnvelope, fileResult.FileContents);
+        Assert.Equal("ACH-V32 TEST", controller.Response.Headers["X-Cryptographic-Profile"]);
+        Assert.Equal(
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.ASCII.GetBytes(nachaContent))),
+            controller.Response.Headers["X-Plaintext-SHA256"]);
 
         auditService.VerifyAll();
         crypto.VerifyAll();
@@ -238,7 +256,7 @@ public class NachaExportControllerTests
         var nachaContent = new string('1', 106) + new string('5', 106);
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
         var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
@@ -297,7 +315,7 @@ public class NachaExportControllerTests
         const string fatalMessage = "Error Fatal ID 22: la transacción 2 no tiene Nombre del Usuario Receptor válido para posiciones 63-84 del registro tipo 6.";
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
         var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
@@ -328,9 +346,9 @@ public class NachaExportControllerTests
         var result = await controller.Export(cycleId, CancellationToken.None);
 
         var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
-        var payload = unprocessable.Value?.ToString() ?? string.Empty;
-        Assert.Contains("NACHA_VALIDATION_ERROR", payload);
-        Assert.Contains("Error Fatal ID 22", payload);
+        var problem = Assert.IsType<ProblemDetails>(unprocessable.Value);
+        Assert.Equal("NACHA_VALIDATION_ERROR", problem.Extensions["code"]);
+        Assert.Contains("Error Fatal ID 22", problem.Detail);
     }
 
     [Fact]
@@ -339,7 +357,7 @@ public class NachaExportControllerTests
         const string cycleId = "cycle-empty-export";
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
         var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
@@ -370,9 +388,9 @@ public class NachaExportControllerTests
         var result = await controller.Export(cycleId, CancellationToken.None);
 
         var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
-        var payload = unprocessable.Value?.ToString() ?? string.Empty;
-        Assert.Contains("NACHA_NO_EXPORTABLE_CONTENT", payload);
-        Assert.Contains("No se gener", payload);
+        var problem = Assert.IsType<ProblemDetails>(unprocessable.Value);
+        Assert.Equal("NACHA_NO_EXPORTABLE_CONTENT", problem.Extensions["code"]);
+        Assert.Contains("No se gener", problem.Detail);
         auditService.Verify(
             x => x.RecordGeneratedFileAsync(
                 It.IsAny<string>(),
@@ -393,7 +411,7 @@ public class NachaExportControllerTests
         const string message = "La transaccion 4 no tiene prenotificacion previa.";
 
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
         var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
@@ -424,15 +442,15 @@ public class NachaExportControllerTests
         var result = await controller.Export(cycleId, CancellationToken.None);
 
         var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
-        var payload = unprocessable.Value?.ToString() ?? string.Empty;
-        Assert.Contains("NACHA_EXPORT_PREREQUISITE_FAILED", payload);
-        Assert.Contains("prenotificacion", payload);
+        var problem = Assert.IsType<ProblemDetails>(unprocessable.Value);
+        Assert.Equal("NACHA_EXPORT_PREREQUISITE_FAILED", problem.Extensions["code"]);
+        Assert.Contains("prenotificacion", problem.Detail);
     }
 
     private static NachaExportController BuildControllerForEmptyExport(string cycleId)
     {
         var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
-        var crypto = new Mock<ICryptoServiceScoped>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
         var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
         var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
         var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);

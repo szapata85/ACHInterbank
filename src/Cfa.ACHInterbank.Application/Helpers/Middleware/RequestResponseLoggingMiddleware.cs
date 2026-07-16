@@ -32,27 +32,37 @@ public class RequestResponseLoggingMiddleware
         using var responseBodyStream = new MemoryStream();
         context.Response.Body = responseBodyStream;
 
-        // Continuar con el pipeline
-        await _requestDelegate(context);
+        try
+        {
+            await _requestDelegate(context);
 
-        context.Response.Body.Seek(0, SeekOrigin.Begin);
-        var responseBody = await ReadStreamAsync(context.Response.Body);
-        context.Response.Body.Seek(0, SeekOrigin.Begin);
-        var sanitizedResponseBody = SanitizePayload(responseBody, context.Response.ContentType);
+            context.Response.Body.Seek(0, SeekOrigin.Begin);
+            var responseBody = await ReadStreamAsync(context.Response.Body);
+            context.Response.Body.Seek(0, SeekOrigin.Begin);
+            var isDownload = context.Response.Headers["Content-Disposition"].ToString()
+                .StartsWith("attachment", StringComparison.OrdinalIgnoreCase);
+            var sanitizedResponseBody = isDownload
+                ? $"[DOWNLOAD CONTENT OMITTED: {responseBodyStream.Length} bytes]"
+                : SanitizePayload(responseBody, context.Response.ContentType);
 
-        var LogTransactional = string.Empty;
-        LogTransactional = $"Solicitud \n Method -> {context.Request.Method}";
-        LogTransactional += $"\n Request Uri -> {context.Request.Path}";
-        LogTransactional += $"\n Datos -> {requestData}";
-        LogTransactional += $"\n Cabeceras -> {JsonConvert.SerializeObject(requestHeaders)}";
-        _loggerManager.LogInfo(LogTransactional);
+            var LogTransactional = string.Empty;
+            LogTransactional = $"Solicitud \n Method -> {context.Request.Method}";
+            LogTransactional += $"\n Request Uri -> {context.Request.Path}";
+            LogTransactional += $"\n Datos -> {requestData}";
+            LogTransactional += $"\n Cabeceras -> {JsonConvert.SerializeObject(requestHeaders)}";
+            _loggerManager.LogInfo(LogTransactional);
 
-        LogTransactional = $"Respuesta \n Method -> {context.Request.Method}";
-        LogTransactional += $"\n Request Uri -> {context.Request.Path}";
-        LogTransactional += $"\n Datos -> {sanitizedResponseBody}";
-        _loggerManager.LogInfo(LogTransactional);
+            LogTransactional = $"Respuesta \n Method -> {context.Request.Method}";
+            LogTransactional += $"\n Request Uri -> {context.Request.Path}";
+            LogTransactional += $"\n Datos -> {sanitizedResponseBody}";
+            _loggerManager.LogInfo(LogTransactional);
 
-        await responseBodyStream.CopyToAsync(originalResponseBodyStream);
+            await responseBodyStream.CopyToAsync(originalResponseBodyStream);
+        }
+        finally
+        {
+            context.Response.Body = originalResponseBodyStream;
+        }
     }
 
     private async Task<string> ReadStreamAsync(Stream stream)

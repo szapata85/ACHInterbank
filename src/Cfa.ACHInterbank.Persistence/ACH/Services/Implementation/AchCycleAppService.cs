@@ -125,7 +125,9 @@ public class AchCycleAppService : IAchCycleAppService
     {
         var query = _context.AchCycles
             .AsNoTracking()
-            .Where(cycle => cycle.Transactions.Any())
+            .Where(cycle => _context.AchTransactions.Any(transaction =>
+                transaction.AchCycleId == cycle.Id
+                && NachaExportEligibility.ExportableStates.Contains(transaction.State)))
             .AsQueryable();
 
         if (clearingHouseId.HasValue)
@@ -136,13 +138,15 @@ public class AchCycleAppService : IAchCycleAppService
         if (startDate.HasValue)
         {
             var start = startDate.Value.Date;
-            query = query.Where(cycle => cycle.Transactions.Any(t => t.EffectiveEntryDate >= start));
+            query = query.Where(cycle => _context.AchTransactions.Any(transaction =>
+                transaction.AchCycleId == cycle.Id && transaction.EffectiveEntryDate >= start));
         }
 
         if (endDate.HasValue)
         {
             var end = endDate.Value.Date;
-            query = query.Where(cycle => cycle.Transactions.Any(t => t.EffectiveEntryDate <= end));
+            query = query.Where(cycle => _context.AchTransactions.Any(transaction =>
+                transaction.AchCycleId == cycle.Id && transaction.EffectiveEntryDate <= end));
         }
 
         return await query
@@ -152,13 +156,21 @@ public class AchCycleAppService : IAchCycleAppService
                 CycleId = cycle.Id,
                 ExportIdentifier = cycle.Id,
                 CycleName = cycle.CycleName,
-                ProcessingDate = cycle.Transactions.Min(t => t.EffectiveEntryDate),
+                ProcessingDate = cycle.ProcessingDate,
                 ClearingHouseName = cycle.ClearingHouse != null ? cycle.ClearingHouse.Name : null,
-                TransactionCount = cycle.Transactions.Count,
-                IsExportable = cycle.Batches.Any(),
-                ExportUnavailableReason = cycle.Batches.Any()
+                TransactionCount = _context.AchTransactions.Count(transaction =>
+                    transaction.AchCycleId == cycle.Id
+                    && NachaExportEligibility.ExportableStates.Contains(transaction.State)),
+                IsExportable = _context.AchBatches.Any(batch => batch.AchCycleId == cycle.Id)
+                    && _context.AchTransactions.Any(transaction =>
+                        transaction.AchCycleId == cycle.Id
+                        && NachaExportEligibility.ExportableStates.Contains(transaction.State)),
+                ExportUnavailableReason = _context.AchBatches.Any(batch => batch.AchCycleId == cycle.Id)
+                    && _context.AchTransactions.Any(transaction =>
+                        transaction.AchCycleId == cycle.Id
+                        && NachaExportEligibility.ExportableStates.Contains(transaction.State))
                     ? null
-                    : "El ciclo tiene transacciones, pero no tiene lotes NACHA-M exportables asociados."
+                    : "El ciclo no tiene lotes y transacciones NACHA-M en estado exportable."
             })
             .OrderByDescending(cycle => cycle.ProcessingDate)
             .ThenBy(cycle => cycle.Id)

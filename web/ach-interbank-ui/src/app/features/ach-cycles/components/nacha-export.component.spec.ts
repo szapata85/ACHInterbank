@@ -1,7 +1,7 @@
 import { HttpErrorResponse, HttpHeaders, HttpResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ClearingHousesApiService } from '../services/ach-cycles-api.service';
 import { NachaExportApiService } from '../services/nacha-export-api.service';
@@ -160,6 +160,42 @@ describe('NachaExportComponent', () => {
     } as any);
 
     expect(api.downloadFile).toHaveBeenCalledWith('42', false);
+    expect(api.downloadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('OnCellClicked_EncryptedAction_ShouldOnlyCallEnvelopeEndpointOnce', () => {
+    const actionColumn = component.columnas.find(column => column.colId === 'acciones');
+    const button = document.createElement('button');
+    button.setAttribute('data-action', 'generar-sobre');
+
+    actionColumn?.onCellClicked?.({
+      data: {
+        id: 'hash-metadata',
+        cycleId: '42',
+        cycleName: 'Exportable',
+        processingDate: '2026-05-25T00:00:00Z',
+        transactionCount: 1,
+        isExportable: true
+      },
+      event: { target: button }
+    } as any);
+
+    expect(api.downloadFile).toHaveBeenCalledOnceWith('42', true);
+  });
+
+  it('Download_ShouldBlockConcurrentClicksUntilTheRequestCompletes', () => {
+    const pending = new Subject<HttpResponse<Blob>>();
+    api.downloadFile.and.returnValue(pending);
+    const cycle = {
+      id: 'cycle-42', cycleId: '42', cycleName: 'Exportable',
+      processingDate: '2026-05-25T00:00:00Z', transactionCount: 1, isExportable: true
+    };
+
+    component.download(cycle, false);
+    component.download(cycle, true);
+
+    expect(api.downloadFile).toHaveBeenCalledTimes(1);
+    pending.complete();
   });
 
   it('OnCellClicked_ShouldNotDownloadOnRegularCellClick', () => {
@@ -223,6 +259,26 @@ describe('NachaExportComponent', () => {
 
     expect(notifications.error).toHaveBeenCalledWith(
       'El ciclo no cumple las condiciones funcionales para exportar NACHA-M.'
+    );
+  });
+
+  it('Download_ShouldReadProblemDetailsBlobForAnyHttpStatusAndIncludeTraceId', async () => {
+    const problem = new Blob([JSON.stringify({
+      title: 'Certificado no disponible',
+      detail: 'No existe un certificado vigente para cifrar el archivo.',
+      code: 'CERTIFICATE_NOT_FOUND',
+      traceId: 'trace-safe-42'
+    })], { type: 'application/problem+json' });
+    api.downloadFile.and.returnValue(throwError(() => new HttpErrorResponse({ status: 409, error: problem })));
+
+    component.download({
+      id: 'cycle-42', cycleId: 'cycle-42', cycleName: 'Exportable',
+      processingDate: '2026-05-25T00:00:00Z', transactionCount: 1, isExportable: true
+    }, true);
+    await waitForAsyncErrorHandling();
+
+    expect(notifications.error).toHaveBeenCalledWith(
+      'No existe un certificado vigente para cifrar el archivo. (CERTIFICATE_NOT_FOUND) [traceId: trace-safe-42]'
     );
   });
 });

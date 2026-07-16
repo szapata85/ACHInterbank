@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -34,6 +35,9 @@ public class BulkTransactionScenarioSeederTests
         Assert.Contains(references, r => r.StartsWith("SEED-BULK-MIXED-"));
         Assert.Contains(references, r => r.StartsWith("SEED-BULK-VOLUME-"));
         Assert.Contains(references, r => r.StartsWith("SEED-BULK-PARTIAL-EXIST-"));
+
+        Assert.False(await context.AchTransactions.AnyAsync(
+            x => x.Reference.StartsWith("SEED-BULK-") && x.Type == TransactionTypeEnum.Reversal));
     }
 
     [Fact]
@@ -55,6 +59,63 @@ public class BulkTransactionScenarioSeederTests
         var countAfterSecondRun = await context.AchTransactions.CountAsync(t => t.Reference.StartsWith("SEED-BULK-"));
 
         Assert.Equal(countAfterFirstRun, countAfterSecondRun);
+    }
+
+    [Fact]
+    public async Task SeedAsync_EnsuresMaturePrenotificationForEverySeedDebit()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        SeedPrerequisites(context);
+
+        var environment = new Mock<IHostEnvironment>();
+        environment.SetupProperty(x => x.EnvironmentName, Environments.Development);
+        var seeder = new BulkTransactionScenarioSeeder(context, environment.Object);
+
+        await seeder.SeedAsync();
+
+        var debits = await context.AchTransactions
+            .AsNoTracking()
+            .Where(x => x.Reference.StartsWith("SEED-BULK-")
+                        && x.Type == TransactionTypeEnum.Debit
+                        && !x.IsPrenotification)
+            .ToListAsync();
+        var prenotifications = await context.AchTransactions
+            .AsNoTracking()
+            .Where(x => x.Reference.StartsWith("SEED-BULK-PRE-") && x.IsPrenotification)
+            .ToListAsync();
+        var debitLikeAddendas = await context.AchTransactionAddendas
+            .AsNoTracking()
+            .Include(x => x.Transaction)
+            .ThenInclude(x => x.AchBatch)
+            .Where(x => x.Transaction.Reference.StartsWith("SEED-BULK-")
+                        && x.BusinessType == AchAddendaBusinessType.Debit)
+            .ToListAsync();
+
+        Assert.NotEmpty(debits);
+        Assert.Equal(debits.Count, prenotifications.Count);
+        Assert.NotEmpty(debitLikeAddendas);
+        Assert.All(debitLikeAddendas, addenda =>
+        {
+            Assert.Equal(addenda.Transaction.CompanyIdentification, addenda.CollectorId);
+            Assert.Equal(addenda.Transaction.RecipientIdNumber, addenda.ReceiverCustomerCode);
+            Assert.False(string.IsNullOrWhiteSpace(addenda.ServiceDescription));
+            Assert.StartsWith("MULTICREDIT", addenda.Transaction.AchBatch.CompanyEntryDescription, StringComparison.Ordinal);
+            Assert.True(addenda.Purpose is null || addenda.Purpose.Length <= 10);
+        });
+        Assert.All(debits, debit =>
+        {
+            Assert.Equal(8, debit.OriginatingDFI.Length);
+            Assert.Equal(8, debit.ReceivingDFI.Length);
+            var prenote = Assert.Single(prenotifications, x => x.OriginalTraceRef == debit.TraceNumber);
+            Assert.Equal(debit.DestinationInstitutionId, prenote.DestinationInstitutionId);
+            Assert.Equal(debit.DestinationAccountNumber, prenote.DestinationAccountNumber);
+            Assert.True(prenote.EffectiveEntryDate < debit.EffectiveEntryDate);
+            Assert.Equal(0m, prenote.Amount);
+            Assert.Equal(
+                debit.TransactionCode == "27" ? "28" : "38",
+                prenote.TransactionCode);
+        });
     }
 
     private static void SeedPrerequisites(AchDbContext context)

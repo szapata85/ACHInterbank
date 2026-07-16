@@ -24,7 +24,7 @@ public class PostgresExternalFileNameSequenceService : IExternalFileNameSequence
     {
         var next = await ExecuteUpsertAsync(context, ct);
 
-        if ((ExternalFileNameSupport.IsAch(context) || ExternalFileNameSupport.IsReturnOut(context)) && next > 36)
+        if ((ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)) && next > 36)
         {
             throw new InvalidOperationException("Regla ACH HARD BLOCK: mÃ¡ximo 36 archivos diarios por participante.");
         }
