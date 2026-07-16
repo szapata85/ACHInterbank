@@ -55,13 +55,16 @@ public static class DependencyInjectionService
 
                 pipeline.AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
 
-                pipeline.AddRetry(new HttpRetryStrategyOptions
+                if (maxRetryAttempts > 0)
                 {
-                    MaxRetryAttempts = maxRetryAttempts,
-                    BackoffType = DelayBackoffType.Exponential,
-                    Delay = TimeSpan.FromSeconds(retryBaseDelaySeconds),
-                    UseJitter = true
-                });
+                    pipeline.AddRetry(new HttpRetryStrategyOptions
+                    {
+                        MaxRetryAttempts = maxRetryAttempts,
+                        BackoffType = DelayBackoffType.Exponential,
+                        Delay = TimeSpan.FromSeconds(retryBaseDelaySeconds),
+                        UseJitter = true
+                    });
+                }
 
                 pipeline.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
                 {

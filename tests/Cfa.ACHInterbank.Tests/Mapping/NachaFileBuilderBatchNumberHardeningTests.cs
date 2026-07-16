@@ -18,6 +18,31 @@ namespace Cfa.ACHInterbank.Tests.Mapping;
 public class NachaFileBuilderBatchNumberHardeningTests
 {
     [Fact]
+    public async Task TwoAchFiles_SameDay_MustNotUseDailyResetGeneratorOrSequenceStoreForT5T8()
+    {
+        var firstFile = CreateBaseSut(mode: "HYBRID", persistedBatchNumber: 900);
+        var secondFile = CreateBaseSut(mode: "HYBRID", persistedBatchNumber: 901);
+
+        await firstFile.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        await secondFile.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        firstFile.BatchGenerator.Verify(
+            x => x.AssignBatchNumbersAsync(
+                It.IsAny<IReadOnlyList<AchBatch>>(),
+                It.IsAny<string>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        secondFile.BatchGenerator.Verify(
+            x => x.AssignBatchNumbersAsync(
+                It.IsAny<IReadOnlyList<AchBatch>>(),
+                It.IsAny<string>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task BuildNachaFileAsync_R5AndR8_ShouldUseSameBatchNumberPerBatch()
     {
         var setup = CreateBaseSut(mode: "HYBRID");

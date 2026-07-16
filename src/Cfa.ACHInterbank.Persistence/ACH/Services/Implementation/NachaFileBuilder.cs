@@ -2,6 +2,7 @@
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
 using Cfa.ACHInterbank.Application.ACH.Models.Mapping;
 using Cfa.ACHInterbank.Application.Helpers.ACH;
@@ -49,6 +50,7 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly ILogger<NachaFileBuilder>? _logger;
     private readonly ITransactionPrerequisitePolicyService? _prerequisitePolicyService;
     private readonly INachaControlTotalsCalculator _controlTotalsCalculator;
+    private readonly IOperationalTimeSnapshotProvider _operationalTimeProvider;
 
     public NachaFileBuilder(
         AchDbContext context,
@@ -69,7 +71,8 @@ public class NachaFileBuilder : INachaFileBuilder
         ILogger<NachaFileBuilder>? logger = null,
         IBatchNumberGenerator? batchNumberGenerator = null,
         ITransactionPrerequisitePolicyService? prerequisitePolicyService = null,
-        INachaControlTotalsCalculator? controlTotalsCalculator = null)
+        INachaControlTotalsCalculator? controlTotalsCalculator = null,
+        IOperationalTimeSnapshotProvider? operationalTimeProvider = null)
     {
         _context = context;
         _holidayService = holidayService;
@@ -90,6 +93,7 @@ public class NachaFileBuilder : INachaFileBuilder
         _logger = logger;
         _prerequisitePolicyService = prerequisitePolicyService;
         _controlTotalsCalculator = controlTotalsCalculator ?? new NachaControlTotalsCalculator();
+        _operationalTimeProvider = operationalTimeProvider ?? new OperationalTimeSnapshotProvider();
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -725,6 +729,11 @@ public class NachaFileBuilder : INachaFileBuilder
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
         }
 
+        var operationalSnapshot = _operationalTimeProvider.GetOrCreate(
+            $"NACHA:{context.Cycle.Id}",
+            DateOnly.FromDateTime(context.Cycle.ProcessingDate),
+            TimeOnly.FromTimeSpan(context.Cycle.CutoffTime));
+
         var officialRecordCodes = new[] { "1", "5", "6", "7", "8", "9" };
         var clearingHouseCode = ResolveClearingHouseCode(context);
         var resolution = await ResolveOfficialRuntimeConfigAsync(context, officialRecordCodes, ct);
@@ -732,7 +741,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var batchNumberAssignment = await ResolveBatchNumberAssignmentAsync(
             orderedBatches,
             clearingHouseCode,
-            context.Cycle.ProcessingDate,
+            operationalSnapshot.BogotaTimestamp,
             ct);
         var batchSequenceById = batchNumberAssignment.BatchNumberByBatchId;
 
@@ -745,10 +754,10 @@ public class NachaFileBuilder : INachaFileBuilder
             ProfileCode = resolution.Profile?.ProfileCode,
             ProfileVersion = resolution.Profile is null ? null : $"{resolution.Profile.VersionMajor}.{resolution.Profile.VersionMinor}",
             ProfileStatus = resolution.Profile?.Status?.Code,
-            EffectiveDate = context.Cycle.ProcessingDate,
+            EffectiveDate = operationalSnapshot.BogotaTimestamp,
             LegacyFallbackUsed = false,
             Phase = "6B.3B",
-            CorrelationId = $"NACHA-GEN-{DateTime.UtcNow:yyyyMMddHHmmss}"
+            CorrelationId = $"NACHA-GEN-{operationalSnapshot.CapturedAtUtc:yyyyMMddHHmmss}"
         };
         audit.Trace.AddRange(resolution.Trace);
         audit.Trace.AddRange(batchNumberAssignment.ScopeTrace.Select(scopeTrace =>
@@ -847,7 +856,7 @@ public class NachaFileBuilder : INachaFileBuilder
             recordCount += AppendOfficialRecords(
                 sb,
                 "1",
-                [FileHeaderRecord.From(context.Cycle, context.Transactions, header, fileIdModifier)],
+                [FileHeaderRecord.From(context.Cycle, context.Transactions, header, operationalSnapshot, fileIdModifier)],
                 RequireOfficialLayout(resolution, "1"),
                 audit,
                 ref lineNumber);
@@ -858,7 +867,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 recordCount += AppendOfficialRecords(
                     sb,
                     "5",
-                    [BatchHeaderRecord.From(batch, calculation.StandardEntryClassCode, batchSequenceById[batch.Id], calculation.BatchEntryDescription)],
+                    [BatchHeaderRecord.From(batch, calculation.StandardEntryClassCode, batchSequenceById[batch.Id], calculation.BatchEntryDescription, operationalSnapshot)],
                     RequireOfficialLayout(resolution, "5"),
                     audit,
                     ref lineNumber);
@@ -992,7 +1001,7 @@ public class NachaFileBuilder : INachaFileBuilder
             audit.ErrorCode = ex.Code;
             audit.TotalRecords = lineNumber - 1;
             audit.TotalFields = audit.FieldTraceEntries.Count;
-            await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct);
+            await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct, operationalSnapshot.CapturedAtUtc);
             throw;
         }
 
@@ -1000,7 +1009,7 @@ public class NachaFileBuilder : INachaFileBuilder
         audit.TotalRecords = fileContent.Length / lineLength;
         audit.TotalFields = audit.FieldTraceEntries.Count;
         audit.FileHash = Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(fileContent)));
-        await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct);
+        await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct, operationalSnapshot.CapturedAtUtc);
         _nachaSemanticValidator.Validate(fileContent, context);
         return fileContent;
     }
@@ -3283,7 +3292,11 @@ public class NachaFileBuilder : INachaFileBuilder
             : "ACH_BLANK_OR_JULIAN3";
     }
 
-    private async Task PersistGenerationAuditAsync(NachaGenerationAuditResult audit, int? profileId, CancellationToken ct)
+    private async Task PersistGenerationAuditAsync(
+        NachaGenerationAuditResult audit,
+        int? profileId,
+        CancellationToken ct,
+        DateTime? capturedAtUtc = null)
     {
         if (!profileId.HasValue)
         {
@@ -3306,9 +3319,9 @@ public class NachaFileBuilder : INachaFileBuilder
                 ChangeType = "GENERATION_TRACE",
                 BeforeJson = null,
                 AfterJson = JsonSerializer.Serialize(audit),
-                ChangedAtUtc = DateTime.UtcNow,
+                ChangedAtUtc = capturedAtUtc ?? DateTime.UtcNow,
                 ChangedBy = "system-runtime",
-                CorrelationId = $"NACHA-GEN-{DateTime.UtcNow:yyyyMMddHHmmss}"
+                CorrelationId = $"NACHA-GEN-{(capturedAtUtc ?? DateTime.UtcNow):yyyyMMddHHmmss}"
             });
             await _context.SaveChangesAsync(ct);
         }
@@ -3422,10 +3435,14 @@ public class NachaFileBuilder : INachaFileBuilder
         public string? CycleName { get; init; }
         public DateTime ProcessingDate { get; init; }
 
-        public static FileHeaderRecord From(AchCycle cycle, IReadOnlyCollection<AchTransaction> transactions, NachaHeader? header, string? fileIdModifier = null)
+        public static FileHeaderRecord From(
+            AchCycle cycle,
+            IReadOnlyCollection<AchTransaction> transactions,
+            NachaHeader? header,
+            OperationalTimeSnapshot operationalSnapshot,
+            string? fileIdModifier = null)
         {
-            var snapshotTime = NachaFileSnapshotTimeResolver.Resolve(cycle);
-            var generationTimestamp = ResolveGenerationTimestamp(header, snapshotTime);
+            var generationTimestamp = ResolveGenerationTimestamp(header, operationalSnapshot.BogotaTimestamp);
             var firstTransaction = transactions
                 .OrderBy(t => t.Id)
                 .FirstOrDefault();
@@ -3463,8 +3480,23 @@ public class NachaFileBuilder : INachaFileBuilder
                 ImmediateOriginName = originName,
                 ReferenceCode = CoalesceNonEmpty(header?.ReferenceCode),
                 CycleName = cycle.CycleName,
-                ProcessingDate = cycle.ProcessingDate
+                ProcessingDate = operationalSnapshot.BogotaTimestamp
             };
+        }
+
+        public static FileHeaderRecord From(
+            AchCycle cycle,
+            IReadOnlyCollection<AchTransaction> transactions,
+            NachaHeader? header,
+            string? fileIdModifier = null)
+        {
+            var legacyTimestamp = NachaFileSnapshotTimeResolver.Resolve(cycle);
+            var snapshot = new OperationalTimeSnapshot(
+                legacyTimestamp.ToUniversalTime(),
+                DateTime.SpecifyKind(legacyTimestamp, DateTimeKind.Unspecified),
+                DateOnly.FromDateTime(cycle.ProcessingDate),
+                OperationalTimeSnapshotProvider.IanaTimeZoneId);
+            return From(cycle, transactions, header, snapshot, fileIdModifier);
         }
 
         private static string? CoalesceNonEmpty(params string?[] values)
@@ -3576,7 +3608,12 @@ public class NachaFileBuilder : INachaFileBuilder
         public string OriginatingDFI { get; init; } = string.Empty;
         public int BatchNumber { get; init; }
 
-        public static BatchHeaderRecord From(AchBatch batch, string standardEntryClassCode, int batchNumber, string companyEntryDescription)
+        public static BatchHeaderRecord From(
+            AchBatch batch,
+            string standardEntryClassCode,
+            int batchNumber,
+            string companyEntryDescription,
+            OperationalTimeSnapshot operationalSnapshot)
         {
             if (standardEntryClassCode is not ("PPD" or "CCD"))
             {
@@ -3591,13 +3628,30 @@ public class NachaFileBuilder : INachaFileBuilder
                 CompanyIdentification = batch.CompanyIdentification,
                 StandardEntryClassCode = standardEntryClassCode,
                 CompanyEntryDescription = companyEntryDescription,
-                CompanyDescriptiveDate = batch.EffectiveEntryDate,
-                EffectiveEntryDate = batch.EffectiveEntryDate,
+                CompanyDescriptiveDate = batch.EffectiveEntryDate == default ? operationalSnapshot.BogotaTimestamp : batch.EffectiveEntryDate,
+                EffectiveEntryDate = batch.EffectiveEntryDate == default ? operationalSnapshot.BogotaTimestamp : batch.EffectiveEntryDate,
                 SettlementDate = string.Empty,
                 OriginatorStatusCode = "1",
                 OriginatingDFI = batch.OriginOrOdfi,
                 BatchNumber = batchNumber
             };
+        }
+
+        public static BatchHeaderRecord From(
+            AchBatch batch,
+            string standardEntryClassCode,
+            int batchNumber,
+            string companyEntryDescription)
+        {
+            var fallback = batch.EffectiveEntryDate == default
+                ? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Unspecified)
+                : DateTime.SpecifyKind(batch.EffectiveEntryDate, DateTimeKind.Unspecified);
+            var snapshot = new OperationalTimeSnapshot(
+                DateTime.SpecifyKind(fallback, DateTimeKind.Utc),
+                fallback,
+                DateOnly.FromDateTime(fallback),
+                OperationalTimeSnapshotProvider.IanaTimeZoneId);
+            return From(batch, standardEntryClassCode, batchNumber, companyEntryDescription, snapshot);
         }
     }
 

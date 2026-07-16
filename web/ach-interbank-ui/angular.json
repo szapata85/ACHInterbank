@@ -28,6 +28,14 @@
             ]
           },
           "configurations": {
+            "local-e3": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.e3-local.ts"
+                }
+              ]
+            },
             "production": {
               "fileReplacements": [
                 {
@@ -54,6 +62,9 @@
             "buildTarget": "ach-interbank-ui:build"
           },
           "configurations": {
+            "local-e3": {
+              "buildTarget": "ach-interbank-ui:build:local-e3"
+            },
             "production": {
               "buildTarget": "ach-interbank-ui:build:production"
             }

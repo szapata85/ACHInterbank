@@ -75,6 +75,30 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         string triggeredBy,
         int chunkSize,
         CancellationToken ct = default)
+        => await ProcessPendingAsync(cycleId, clearingHouseId, triggeredBy, chunkSize, null, ct);
+
+    public async Task<ContrapartidaCycleDispatchResult> ProcessTransactionAsync(
+        string cycleId,
+        int clearingHouseId,
+        int transactionId,
+        string triggeredBy,
+        CancellationToken ct = default)
+    {
+        if (transactionId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transactionId), "El identificador de transaccion debe ser positivo.");
+        }
+
+        return await ProcessPendingAsync(cycleId, clearingHouseId, triggeredBy, 1, transactionId, ct);
+    }
+
+    private async Task<ContrapartidaCycleDispatchResult> ProcessPendingAsync(
+        string cycleId,
+        int clearingHouseId,
+        string triggeredBy,
+        int chunkSize,
+        int? transactionId,
+        CancellationToken ct)
     {
         chunkSize = Math.Clamp(chunkSize, 10, 2000);
         var safeTriggeredBy = string.IsNullOrWhiteSpace(triggeredBy) ? "quartz:contrapartida" : triggeredBy.Trim();
@@ -99,6 +123,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             var pendingItemIds = await _context.ContrapartidaDispatchItems
                 .AsNoTracking()
                 .Where(i => i.AchCycleId == cycleId && i.ClearingHouseId == clearingHouseId)
+                .Where(i => !transactionId.HasValue || i.AchTransactionId == transactionId.Value)
                 .Where(i => EligibleStates.Contains(i.State))
                 .Where(i => !i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= DateTime.UtcNow)
                 .OrderBy(i => i.Id)

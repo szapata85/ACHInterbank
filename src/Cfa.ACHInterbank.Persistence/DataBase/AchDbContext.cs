@@ -106,6 +106,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<ExternalFileSequence> ExternalFileSequences => Set<ExternalFileSequence>();
     public DbSet<ExternalFileNameRegistry> ExternalFileNameRegistry => Set<ExternalFileNameRegistry>();
     public DbSet<ExternalFileNameValidationLog> ExternalFileNameValidationLog => Set<ExternalFileNameValidationLog>();
+    public DbSet<ExternalFileNameReservation> ExternalFileNameReservations => Set<ExternalFileNameReservation>();
     public DbSet<AchReturnCode> AchReturnCodes => Set<AchReturnCode>();
     public DbSet<AchFileRejectionCode> AchFileRejectionCodes => Set<AchFileRejectionCode>();
     public DbSet<AchTransactionTypePolicy> AchTransactionTypePolicies => Set<AchTransactionTypePolicy>();

@@ -11,6 +11,13 @@ public interface IContrapartidaDispatchJobService
         int chunkSize,
         CancellationToken ct = default);
 
+    Task<ContrapartidaCycleDispatchResult> ProcessTransactionAsync(
+        string cycleId,
+        int clearingHouseId,
+        int transactionId,
+        string triggeredBy,
+        CancellationToken ct = default);
+
     Task<ContrapartidaBatchRetryResult> RetryBatchAsync(
         ContrapartidaDispatchRetryRequest request,
         CancellationToken ct = default);

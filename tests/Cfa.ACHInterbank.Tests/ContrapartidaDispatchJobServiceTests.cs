@@ -159,6 +159,68 @@ public class ContrapartidaDispatchJobServiceTests
     }
 
     [Fact]
+    public async Task ProcessTransactionAsync_DebeAislarLaTransaccionObjetivo()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options;
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        var targetId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        var unrelatedId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>();
+        mapper
+            .Setup(x => x.ResolveAsync(
+                It.IsAny<AchCycle>(),
+                It.Is<IReadOnlyCollection<AchTransaction>>(items => items.Count == 1 && items.Single().Id == targetId),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcContrapartidasRequestResolution
+            {
+                Contract = ContratoValido(),
+                MappingSetId = Guid.NewGuid(),
+                MappingVersion = 1,
+                MappingSnapshotHash = "targeted-hash",
+                UsedFallback = false
+            });
+        mapper.Setup(x => x.BuildSoapBody(It.IsAny<ProcContrapartidasRequestContract>())).Returns("<request/>");
+
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<response/>");
+        var parser = new Mock<IProcContrapartidasResponseParser>();
+        parser.Setup(x => x.Parse("<response/>"))
+            .Returns(new ProcContrapartidasParsedResponse(
+                true, false, false, false, string.Empty, string.Empty, "<response/>", "00",
+                new Dictionary<int, ProcContrapartidasParsedItemResponse>
+                {
+                    [targetId] = new(targetId, true, false, "00", "Aplicado")
+                }));
+
+        var sut = new ContrapartidaDispatchJobService(
+            context,
+            soap.Object,
+            mapper.Object,
+            parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions(),
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+
+        var result = await sut.ProcessTransactionAsync(cycleId, 1, targetId, "uat-targeted", CancellationToken.None);
+
+        Assert.Equal(1, result.Processed);
+        var items = await context.ContrapartidaDispatchItems.OrderBy(x => x.AchTransactionId).ToListAsync();
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.ReportedToContrapartida,
+            items.Single(x => x.AchTransactionId == targetId).State);
+        Assert.Equal(ContrapartidaDispatchItemStateEnum.PendingContrapartidaReport,
+            items.Single(x => x.AchTransactionId == unrelatedId).State);
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task ProcessCycleAsync_DebeEnviarAReintento_CuandoRespuestaEsRetryable()
     {
         using var connection = new SqliteConnection("DataSource=:memory:");

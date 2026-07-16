@@ -17,7 +17,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -6837,6 +6837,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<long?>("GenerationReservationId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("InternalFileName")
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
@@ -6865,11 +6868,97 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasKey("Id");
 
+                    b.HasIndex("GenerationReservationId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ExternalFileNameRegistry_GenerationReservation")
+                        .HasFilter("[GenerationReservationId] IS NOT NULL");
+
                     b.HasIndex("ClearingHouseId", "ExternalFileName", "ProcessingDate");
 
                     b.HasIndex("ClearingHouseId", "CycleId", "ExternalFileType", "CreatedAtUtc");
 
                     b.ToTable("ExternalFileNameRegistry", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames.ExternalFileNameReservation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ExternalFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("FileIdModifier")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("IdempotencyKeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime>("LastAccessedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("OperationalDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("RequestFingerprintHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime>("ReservedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ScopeCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClearingHouseId", "IdempotencyKeyHash")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ExternalFileNameReservations_Idempotency");
+
+                    b.HasIndex("OperationalDate", "Status");
+
+                    b.HasIndex("ClearingHouseId", "ScopeCode", "OperationalDate", "Sequence")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ExternalFileNameReservations_Sequence");
+
+                    b.ToTable("ExternalFileNameReservations", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames.ExternalFileNameValidationLog", b =>
@@ -11054,6 +11143,14 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasForeignKey("NachaID");
 
                     b.Navigation("NachaHeader");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames.ExternalFileNameRegistry", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames.ExternalFileNameReservation", null)
+                        .WithMany()
+                        .HasForeignKey("GenerationReservationId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames.ExternalFileNameValidationLog", b =>

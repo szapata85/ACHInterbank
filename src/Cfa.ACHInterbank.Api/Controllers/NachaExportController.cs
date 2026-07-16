@@ -29,6 +29,7 @@ public class NachaExportController : ControllerBase
     private readonly IAchFileExportAuditService _fileExportAuditService;
     private readonly IExternalFileNamePolicy _externalFileNamePolicy;
     private readonly ILogger<NachaExportController> _logger;
+    private readonly IOperationalTimeSnapshotProvider _operationalTimeProvider;
 
     public NachaExportController(
         INachaFileBuilder nachaBuilder,
@@ -39,7 +40,8 @@ public class NachaExportController : ControllerBase
         INachaFileIdentifierMapService identifierMapService,
         IAchFileExportAuditService fileExportAuditService,
         IExternalFileNamePolicy externalFileNamePolicy,
-        ILogger<NachaExportController>? logger = null)
+        ILogger<NachaExportController>? logger = null,
+        IOperationalTimeSnapshotProvider? operationalTimeProvider = null)
     {
         _nachaBuilder = nachaBuilder;
         _digitalEnvelope = digitalEnvelope;
@@ -50,6 +52,8 @@ public class NachaExportController : ControllerBase
         _fileExportAuditService = fileExportAuditService;
         _externalFileNamePolicy = externalFileNamePolicy;
         _logger = logger ?? NullLogger<NachaExportController>.Instance;
+        _operationalTimeProvider = operationalTimeProvider
+            ?? new Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.OperationalTimeSnapshotProvider();
     }
     [EndpointSummary("Exportar archivo NACHA de un ciclo")]
     [EndpointDescription("Qué hace: genera/retorna archivo NACHA del ciclo con política de nombre externo y control de duplicados. Cuándo se usa: en cierre de ciclo para entrega interbancaria. Perfil consumidor: operación ACH de compensación. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por auditoría de exportación y nombre externo. Riesgos operativos: exportar ciclo no listo produce archivo inconsistente. Errores esperados: 404 ciclo/cámara no encontrada; 409 por política de nombre duplicado; 400 por validación. Relación ACH/CENIT/NACHA-M: salida NACHA-M oficial para flujo ACH/CENIT. Precauciones para desarrollo u operación: verificar estado de ciclo y correlación externa antes de distribuir.")]
@@ -399,6 +403,10 @@ public class NachaExportController : ControllerBase
         string nachaContent,
         CancellationToken ct)
     {
+        var operationalSnapshot = _operationalTimeProvider.GetOrCreate(
+            $"NACHA:{cycle.Id}",
+            DateOnly.FromDateTime(cycle.ProcessingDate),
+            TimeOnly.FromTimeSpan(cycle.CutoffTime));
         var context = new ExternalFileNameContext
         {
             ClearingHouseId = clearingHouse.Id,
@@ -407,7 +415,9 @@ public class NachaExportController : ControllerBase
             CycleId = cycle.Id,
             CycleName = cycle.CycleName,
             CycleNumber = ResolveCycleNumber(cycle.CycleName),
-            ProcessingDate = cycle.ProcessingDate,
+            ProcessingDate = operationalSnapshot.BogotaTimestamp,
+            OperationalTimeSnapshot = operationalSnapshot,
+            IdempotencyKey = $"NACHA_OUT|CH:{clearingHouse.Id}|CYCLE:{cycle.Id}",
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound,

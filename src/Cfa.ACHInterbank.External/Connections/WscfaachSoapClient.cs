@@ -142,7 +142,7 @@ public class WscfaachSoapClient : IWscfaachSoapClient
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogError($"SOAP error {action}: {response.StatusCode} - {responseContent}");
+            _logger.LogError($"SOAP error {action}: HTTP {(int)response.StatusCode} ({response.StatusCode}). Response body redacted.");
             throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
         }
 

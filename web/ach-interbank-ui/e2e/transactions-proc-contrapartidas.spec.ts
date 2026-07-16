@@ -101,6 +101,7 @@ const hasRuntimeCredentials = Boolean(process.env['ACH_USER'] && process.env['AC
 const hasSoapLogSource = Boolean(process.env['SOAP_LOCAL_WSCFAACH_LOG'] || process.env['SOAP_LOCAL_LOG_DIR']);
 
 test.describe.configure({ mode: 'serial' });
+test.use({ trace: 'off', screenshot: 'off', video: 'off' });
 test.skip(!shouldRun, 'RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E=true y ALLOW_LOCAL_MONETARY_SOAP_E2E=true son requeridos para esta prueba local/UAT.');
 test.skip(!hasRuntimeCredentials, 'ACH_USER y ACH_PASS deben venir del entorno; el spec no contiene credenciales.');
 test.skip(!hasSoapLogSource, 'SOAP_LOCAL_WSCFAACH_LOG o SOAP_LOCAL_LOG_DIR es requerido para validar evidencia del SOAP local.');
@@ -110,7 +111,6 @@ const apiBaseUrl = (process.env['ACH_API_URL'] ?? 'http://localhost:843').replac
 const username = process.env['ACH_USER'] ?? '';
 const password = process.env['ACH_PASS'] ?? '';
 const wscfaachEndpoint = process.env['SOAP_LOCAL_WSCFAACH_URL'] ?? 'http://localhost:7083/WSCFAACH.svc';
-const axonEndpoint = process.env['SOAP_LOCAL_AXON_RESPONSE_URL'] ?? 'http://localhost:7083/WSAxonRespuestaTransacciones.svc';
 const configureSoapSettings = process.env['PROC_CONTRA_CONFIGURE_SOAP_SETTINGS'] !== 'false';
 const runSeed = process.env['PROC_CONTRA_RUN_SEED'] === 'true';
 const targetInstitutionName = process.env['PROC_CONTRA_DESTINATION_INSTITUTION_NAME'] ?? '';
@@ -125,7 +125,7 @@ const soapSettingsPath = '/api/users/soap-integrations';
 const contrapartidaDispatchPath = '/api/uat/contrapartidas/dispatch-cycle';
 
 test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOAP local', async ({ page }, testInfo) => {
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   const startedAt = new Date();
   const db = new G36RuntimeDb(dispatchTriggeredBy);
   let originalSoapSettings: SoapIntegrationSettings | null = null;
@@ -143,13 +143,15 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
   const serviceDescription = 'SERVQA';
   const amount = 1500;
 
-  const runtime = await authenticateRuntime();
-  await page.addInitScript((accessToken) => {
-    window.sessionStorage.setItem('ach.interbank.access_token', accessToken);
-  }, runtime.token);
+  const runtime = await authenticateThroughSpa(page);
 
   try {
     await db.assertReady();
+
+    await page.goto(joinUrl(uiBaseUrl, '/transactions/create'));
+    await expect(page, `La SPA debe conservar la ruta de creacion; URL actual=${page.url()}`)
+      .toHaveURL(/\/transactions\/create(?:\?.*)?$/);
+    await expect(page.getByRole('heading', { name: /Crear transaccion ACH|Crear transacción ACH/i })).toBeVisible();
 
     if (runSeed) {
       await seedDatabase(runtime.token);
@@ -209,9 +211,6 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
       destinationInstitutionId: targetInstitution.id
     });
 
-    await page.goto(joinUrl(uiBaseUrl, '/transactions/create'));
-    await expect(page.getByRole('heading', { name: /Crear transaccion ACH|Crear transacción ACH/i })).toBeVisible();
-
     await fillTransactionFormFromUi(page, {
       reference,
       amount,
@@ -225,11 +224,6 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
       sourceCompanyName,
       targetInstitutionName: targetInstitution.name,
       companyEntryDescriptionLabel: companyEntryDescription.term ?? companyEntryDescription.description ?? ''
-    });
-
-    await testInfo.attach('transactions-create-filled.png', {
-      body: await page.screenshot({ fullPage: true }),
-      contentType: 'image/png'
     });
 
     const createResponsePromise = page.waitForResponse((response) =>
@@ -248,7 +242,10 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
 
     await expect(page).toHaveURL(/\/transactions(?:\/list)?(?:\?.*)?$/);
     await testInfo.attach('transactions-list-after-create.png', {
-      body: await page.screenshot({ fullPage: true }),
+      body: await page.screenshot({
+        fullPage: false,
+        mask: [page.locator('input'), page.locator('textarea'), page.locator('tbody')]
+      }),
       contentType: 'image/png'
     });
 
@@ -259,6 +256,7 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     );
 
     expect([2, 'Debit']).toContain(transaction.type);
+    expect(transaction.clearingHouseId, 'La prueba LIVE autorizada debe permanecer exclusivamente en ACH Colombia.').toBe(1);
     expect(transaction.sourceInstitutionId, 'La transaccion debe originarse desde CFA IsDefaultSource=true.').toBe(defaultSource!.id);
     expect(transaction.destinationInstitutionId, 'La entidad destino debe ser externa.').toBe(targetInstitution.id);
     expect(transaction.destinationInstitutionId).not.toBe(defaultSource!.id);
@@ -274,6 +272,7 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     const dispatchResult = await apiPostJson<ContrapartidaDispatchResult>(contrapartidaDispatchPath, runtime.token, {
       cycleId: transaction.achCycleId,
       clearingHouseId: transaction.clearingHouseId,
+      transactionId: transaction.id,
       triggeredBy: dispatchTriggeredBy,
       chunkSize: 50
     }, {
@@ -282,7 +281,7 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
 
     expect(dispatchResult.cycleId).toBe(transaction.achCycleId);
     expect(dispatchResult.clearingHouseId).toBe(transaction.clearingHouseId);
-    expect(dispatchResult.processed ?? 0, 'El dispatch debe procesar al menos una transaccion.').toBeGreaterThan(0);
+    expect(dispatchResult.processed, 'El dispatch UAT dirigido debe procesar solamente la transaccion sintetica.').toBe(1);
 
     const evidence = await pollUntil(
       async () => db.findDispatchEvidence(reference),
@@ -434,17 +433,26 @@ function fieldByLabel(page: Page, labelText: string) {
     .first();
 }
 
-async function authenticateRuntime(): Promise<{ token: string }> {
-  const response = await fetch(joinUrl(apiBaseUrl, loginPath), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
+async function authenticateThroughSpa(page: Page): Promise<{ token: string }> {
+  await page.goto(joinUrl(uiBaseUrl, '/login'));
+  await expect(page.getByRole('heading', { name: 'Ingreso al portal ACH Interbank' })).toBeVisible();
 
-  expect(response.ok, 'Debe autenticarse contra el API local/UAT real.').toBeTruthy();
-  const payload = await response.json() as AuthLoginResponse;
+  await page.getByLabel('Usuario').fill(username);
+  await page.locator('input[formcontrolname="password"]').fill(password);
+  const loginResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && normalizeUrlPath(response.url()).endsWith(loginPath));
+
+  await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
+  const loginResponse = await loginResponsePromise;
+  expect(loginResponse.ok(), `Login SPA local debe responder OK. Status=${loginResponse.status()}`).toBeTruthy();
+  const payload = await loginResponse.json() as AuthLoginResponse;
   const token = payload.data?.token;
-  expect(token, 'El login debe devolver access token.').toBeTruthy();
+  expect(token, 'El login SPA debe devolver access token.').toBeTruthy();
+  await expect(page).not.toHaveURL(/\/login(?:\?.*)?$/);
+
+  const storedToken = await page.evaluate(() => window.sessionStorage.getItem('ach.interbank.access_token'));
+  expect(storedToken, 'La SPA debe persistir la sesion autenticada en sessionStorage.').toBe(token);
   return { token: token as string };
 }
 
@@ -568,8 +576,14 @@ function resolveTargetInstitution(institutions: FinancialInstitution[], defaultS
 function buildLocalSoapSettings(settings: SoapIntegrationSettings): SoapIntegrationSettings {
   const cloned = JSON.parse(JSON.stringify(settings)) as SoapIntegrationSettings;
   setMappingEndpoint(cloned.wscfaachMappings, 'Proc_Contrapartidas', wscfaachEndpoint, 'http://tempuri.org/IWSCFAACH/Proc_Contrapartidas');
-  setMappingEndpoint(cloned.wscfaachMappings, 'Proc_Transacciones', wscfaachEndpoint, 'http://tempuri.org/IWSCFAACH/Proc_Transacciones');
-  setMappingEndpoint(cloned.wsAxonRespuestaTransaccionesMappings, 'RegistrarRespuestaTransaccion', axonEndpoint, 'http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion');
+  for (const mapping of cloned.wscfaachMappings) {
+    if (mapping.methodName.toLowerCase() !== 'proc_contrapartidas') {
+      mapping.enabled = false;
+    }
+  }
+  for (const mapping of cloned.wsAxonRespuestaTransaccionesMappings) {
+    mapping.enabled = false;
+  }
   assertNoMetodoMapping(cloned);
   return cloned;
 }

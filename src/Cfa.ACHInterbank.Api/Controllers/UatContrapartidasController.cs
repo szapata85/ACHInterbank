@@ -45,12 +45,21 @@ public sealed class UatContrapartidasController : ControllerBase
             });
         }
 
-        var result = await _dispatchJobService.ProcessCycleAsync(
-            request.CycleId.Trim(),
-            request.ClearingHouseId,
-            string.IsNullOrWhiteSpace(request.TriggeredBy) ? "g34-playwright" : request.TriggeredBy.Trim(),
-            request.ChunkSize <= 0 ? 50 : request.ChunkSize,
-            ct);
+        var cycleId = request.CycleId.Trim();
+        var triggeredBy = string.IsNullOrWhiteSpace(request.TriggeredBy) ? "g34-playwright" : request.TriggeredBy.Trim();
+        var result = request.TransactionId.HasValue
+            ? await _dispatchJobService.ProcessTransactionAsync(
+                cycleId,
+                request.ClearingHouseId,
+                request.TransactionId.Value,
+                triggeredBy,
+                ct)
+            : await _dispatchJobService.ProcessCycleAsync(
+                cycleId,
+                request.ClearingHouseId,
+                triggeredBy,
+                request.ChunkSize <= 0 ? 50 : request.ChunkSize,
+                ct);
 
         return Ok(result);
     }
@@ -102,4 +111,6 @@ public sealed class UatContrapartidasDispatchCycleRequest
     public string? TriggeredBy { get; set; }
 
     public int ChunkSize { get; set; } = 50;
+
+    public int? TransactionId { get; set; }
 }

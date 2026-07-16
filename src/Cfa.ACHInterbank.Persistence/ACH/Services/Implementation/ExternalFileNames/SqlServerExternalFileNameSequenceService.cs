@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Data.Common;
 
@@ -23,7 +24,17 @@ public class SqlServerExternalFileNameSequenceService : IExternalFileNameSequenc
 
     public async Task<int> ReserveNextSequenceAsync(ExternalFileNameContext context, CancellationToken ct = default)
     {
-        var next = await ExecuteReservationAsync(context, ct);
+        int next;
+        try
+        {
+            next = await ExecuteReservationAsync(context, ct);
+        }
+        catch (SqlException ex) when (ex.Number == 51036)
+        {
+            throw new InvalidOperationException(
+                "Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.",
+                ex);
+        }
 
         if ((ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)) && next > 36)
         {
@@ -57,19 +68,30 @@ public class SqlServerExternalFileNameSequenceService : IExternalFileNameSequenc
 
                 UPDATE dbo.ExternalFileSequences WITH (UPDLOCK, HOLDLOCK)
                 SET LastValue = LastValue + 1,
-                    UpdatedAtUtc = SYSUTCDATETIME(),
+                    UpdatedAtUtc = @updatedAtUtc,
                     RowVersion = CONVERT(varbinary(8), LastValue + 1),
                     @next = LastValue + 1
                 WHERE ClearingHouseId = @clearingHouseId
                   AND ScopeCode = @scopeCode
-                  AND SequenceDate = @sequenceDate;
+                  AND SequenceDate = @sequenceDate
+                  AND LastValue < @maxValue;
 
                 IF @@ROWCOUNT = 0
                 BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM dbo.ExternalFileSequences WITH (UPDLOCK, HOLDLOCK)
+                        WHERE ClearingHouseId = @clearingHouseId
+                          AND ScopeCode = @scopeCode
+                          AND SequenceDate = @sequenceDate)
+                    BEGIN
+                        THROW 51036, 'ACH_EXTERNAL_SEQUENCE_LIMIT', 1;
+                    END;
+
                     INSERT INTO dbo.ExternalFileSequences
                         (ClearingHouseId, ScopeCode, SequenceDate, LastValue, UpdatedAtUtc, RowVersion)
                     VALUES
-                        (@clearingHouseId, @scopeCode, @sequenceDate, 1, SYSUTCDATETIME(), 0x01);
+                        (@clearingHouseId, @scopeCode, @sequenceDate, 1, @updatedAtUtc, 0x01);
                     SET @next = 1;
                 END;
 
@@ -77,7 +99,15 @@ public class SqlServerExternalFileNameSequenceService : IExternalFileNameSequenc
                 """;
             AddParameter(command, "@clearingHouseId", context.ClearingHouseId);
             AddParameter(command, "@scopeCode", ExternalFileNameSupport.GetSequenceScopeCode(context));
-            AddParameter(command, "@sequenceDate", context.ProcessingDate.Date);
+            AddParameter(command, "@sequenceDate",
+                context.OperationalTimeSnapshot?.OperationalDate.ToDateTime(TimeOnly.MinValue)
+                ?? context.ProcessingDate.Date);
+            AddParameter(command, "@maxValue",
+                ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)
+                    ? 36
+                    : int.MaxValue);
+            AddParameter(command, "@updatedAtUtc",
+                context.OperationalTimeSnapshot?.CapturedAtUtc ?? DateTime.UtcNow);
 
             var scalar = await command.ExecuteScalarAsync(ct);
             if (scalar is null || scalar is DBNull)

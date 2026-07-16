@@ -4,7 +4,9 @@ using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.External.Connections;
+using Cfa.ACHInterbank.External;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
 
@@ -12,6 +14,29 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class WscfaachSoapClientCharacterizationTests
 {
+    [Fact]
+    public void AddExternal_WithZeroRetries_CreatesSoapHttpClientWithoutValidationFailure()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Resilience:Soap:MaxRetryAttempts"] = "0",
+                ["appSettings:tokenManager:issuerJwt"] = "synthetic-test-issuer",
+                ["appSettings:tokenManager:audienceJwt"] = "synthetic-test-audience",
+                ["appSettings:tokenManager:secretKetJwt"] = "synthetic-unit-test-key-32-bytes-minimum"
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddExternal(configuration);
+        using var provider = services.BuildServiceProvider();
+
+        var client = provider.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(nameof(WscfaachSoapClient));
+
+        Assert.NotNull(client);
+    }
+
     [Fact]
     public async Task ProcTransaccionesAsync_WithExistingEnvelope_SendsSingleOutboundEnvelopeWithoutOtherSoapMethods()
     {
@@ -64,7 +89,58 @@ public class WscfaachSoapClientCharacterizationTests
         Assert.Contains(body, request.Body);
     }
 
+    [Fact]
+    public async Task ProcContrapartidasAsync_SendsOnlyExpectedMethodWithoutMetodo()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var settings = Settings(server.Url, "Proc_Contrapartidas");
+        var sut = new WscfaachSoapClient(
+            Mock.Of<ILoggerManager>(), settings.Object, new StaticHttpClientFactory(), new ConfigurationBuilder().Build());
+
+        await sut.ProcContrapartidasAsync("<Proc_Contrapartidas xmlns=\"http://tempuri.org/\"><OFIDTX>1</OFIDTX></Proc_Contrapartidas>");
+
+        var request = Assert.Single(server.Requests);
+        Assert.Contains("Proc_Contrapartidas", request.Body);
+        Assert.DoesNotContain("<METODO>", request.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Proc_Transacciones", request.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RegistrarRespuestaTransaccion", request.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PLValidarUsuarioBV", request.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("http://tempuri.org/IWSCFAACH/Proc_Contrapartidas", request.SoapAction);
+    }
+
+    [Fact]
+    public async Task SoapHttpError_DoesNotWriteResponseBodyToLogOrException()
+    {
+        const string sensitiveResponse = "SENSITIVE-FINANCIAL-PAYLOAD";
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent(sensitiveResponse) });
+        var logger = new Mock<ILoggerManager>();
+        var sut = new WscfaachSoapClient(
+            logger.Object, Settings(server.Url, "Proc_Contrapartidas").Object,
+            new StaticHttpClientFactory(), new ConfigurationBuilder().Build());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ProcContrapartidasAsync("<Proc_Contrapartidas xmlns=\"http://tempuri.org/\"/>"));
+
+        Assert.DoesNotContain(sensitiveResponse, error.Message);
+        logger.Verify(x => x.LogError(It.Is<string>(message =>
+            message.Contains("Response body redacted", StringComparison.Ordinal)
+            && !message.Contains(sensitiveResponse, StringComparison.Ordinal))), Times.Once);
+    }
+
     private static WscfaachSoapClient BuildClient(string endpoint)
+    {
+        var settings = Settings(endpoint, "Proc_Transacciones");
+
+        return new WscfaachSoapClient(
+            Mock.Of<ILoggerManager>(),
+            settings.Object,
+            new StaticHttpClientFactory(),
+            new ConfigurationBuilder().Build());
+    }
+
+    private static Mock<ISoapIntegrationSettingsService> Settings(string endpoint, string methodName)
     {
         var settings = new Mock<ISoapIntegrationSettingsService>();
         settings.Setup(x => x.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new SoapIntegrationSettingsDto
@@ -73,19 +149,14 @@ public class WscfaachSoapClientCharacterizationTests
             [
                 new SoapEndpointMethodMappingDto
                 {
-                    MethodName = "Proc_Transacciones",
+                    MethodName = methodName,
                     Enabled = true,
                     Endpoint = endpoint,
-                    SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones"
+                    SoapAction = $"http://tempuri.org/IWSCFAACH/{methodName}"
                 }
             ]
         });
-
-        return new WscfaachSoapClient(
-            Mock.Of<ILoggerManager>(),
-            settings.Object,
-            new StaticHttpClientFactory(),
-            new ConfigurationBuilder().Build());
+        return settings;
     }
 
     private static int CountOccurrences(string value, string pattern, StringComparison comparison)
