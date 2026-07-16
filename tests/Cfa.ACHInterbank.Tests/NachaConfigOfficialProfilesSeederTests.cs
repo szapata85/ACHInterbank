@@ -291,13 +291,20 @@ public class NachaConfigOfficialProfilesSeederTests
 
     private static void AssertFieldsForAllRecords(CfgProfile profile)
     {
-        profile.LayoutVariants.Select(x => x.RecordCode.Code).Should().BeEquivalentTo(RequiredRecords);
+        profile.LayoutVariants.Select(x => x.RecordCode.Code).Distinct().Should().BeEquivalentTo(RequiredRecords);
         profile.LayoutVariants.Should().OnlyContain(x => x.StatusId == profile.StatusId);
         foreach (var recordCode in RequiredRecords)
         {
-            var variant = profile.LayoutVariants.Single(x => x.RecordCode.Code == recordCode);
-            variant.Fields.Should().NotBeEmpty($"record {recordCode} must have fields");
-            variant.Fields.Should().OnlyContain(x => x.IsEnabled);
+            var variants = profile.LayoutVariants.Where(x => x.RecordCode.Code == recordCode).ToList();
+            variants.Should().NotBeEmpty($"record {recordCode} must have at least one variant");
+            variants.Should().OnlyContain(variant => variant.Fields.Count > 0);
+            variants.SelectMany(variant => variant.Fields).Should().OnlyContain(field => field.IsEnabled);
+        }
+
+        if (profile.ClearingHouse.Code == "ACH")
+        {
+            profile.LayoutVariants.Where(variant => variant.RecordCode.Code == "7").Select(variant => variant.VariantCode)
+                .Should().BeEquivalentTo("ACH_R7_CREDIT_V2", "ACH_R7_DEBIT_V2");
         }
     }
 }

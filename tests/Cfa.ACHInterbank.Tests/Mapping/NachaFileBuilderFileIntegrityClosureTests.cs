@@ -110,7 +110,12 @@ public class NachaFileBuilderFileIntegrityClosureTests
 
         var dbOptions = new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new AchDbContext(dbOptions);
-        var options = Options.Create(new NachaGenerationOptions { Mode = "LEGACY" });
+        var options = Options.Create(new NachaGenerationOptions
+        {
+            Mode = "LEGACY",
+            ExecutionScope = "DEVELOPMENT",
+            AllowNonHomologatedCenitDevelopment = true
+        });
 
         var sut = new NachaFileBuilder(db, holiday.Object, loader.Object, validation.Object, renderer.Object, recordProvider.Object, semantic.Object,
             null, null, null, null, null, null, null, options, null, batchGenerator.Object);
@@ -128,7 +133,7 @@ public class NachaFileBuilderFileIntegrityClosureTests
         records[5][0].Should().Be('9');
         records.Skip(6).Should().OnlyContain(x => x.All(ch => ch == '9'));
 
-        ReadIntProperty(record8!, "BatchNumber").Should().Be(15);
+        ReadIntProperty(record8!, "BatchNumber").Should().Be(chamberName == "ACH Colombia" ? 1 : 15);
         ReadIntProperty(record9!, "BatchCount").Should().Be(1);
         ReadIntProperty(record9!, "BlockCount").Should().Be(1);
         ReadIntProperty(record9!, "EntryAddendaCount").Should().Be(2);

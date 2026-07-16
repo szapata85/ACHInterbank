@@ -158,13 +158,17 @@ namespace Cfa.ACHInterbank.Api.Controllers
             }
             catch (ArgumentException ex)
             {
-                _logger.LogWarning(ex, "Validación de archivo NACHA falló {FileName}", file.FileName);
+                var incidentId = Guid.NewGuid().ToString("N");
+                _logger.LogWarning(
+                    "NACHA_UPLOAD_VALIDATION_FAILED|Incident={Incident}|ExceptionType={ExceptionType}",
+                    incidentId,
+                    ex.GetType().Name);
                 return BadRequest(new NachaUploadResponseDto
                 {
                     Success = false,
                     Partial = false,
                     Message = "No fue posible validar el archivo.",
-                    Errors = [ex.Message],
+                    Errors = [$"NACHA_UPLOAD_VALIDATION_FAILED;Incident={incidentId}"],
                     TraceId = traceId
                 });
             }
@@ -181,13 +185,17 @@ namespace Cfa.ACHInterbank.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al procesar archivo NACHA-M {FileName}", file.FileName);
+                var incidentId = Guid.NewGuid().ToString("N");
+                _logger.LogError(
+                    "NACHA_UPLOAD_PROCESSING_FAILED|Incident={Incident}|ExceptionType={ExceptionType}",
+                    incidentId,
+                    ex.GetType().Name);
                 return StatusCode(StatusCodes.Status500InternalServerError, new NachaUploadResponseDto
                 {
                     Success = false,
                     Partial = false,
                     Message = "No fue posible procesar el archivo.",
-                    Errors = ["Error interno del servidor."],
+                    Errors = [$"NACHA_UPLOAD_PROCESSING_FAILED;Incident={incidentId}"],
                     TraceId = traceId
                 });
             }

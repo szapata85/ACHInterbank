@@ -106,13 +106,15 @@ public class NachaFileBuilder : INachaFileBuilder
         var nachaHeader = await _dataLoader.LoadHeaderAsync(cycle.Id, ct);
 
         var transactions = batches.SelectMany(b => b.Transactions).ToList();
-        await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
         var context = new NachaBuildContext
         {
             Cycle = cycle,
             Batches = batches,
             Transactions = transactions
         };
+        EnforceCenitLiveGenerationGate(context);
+        EnforceLiveOfficialMode(context);
+        await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
         if (IsOfficialTableDrivenMode())
         {
             return await BuildOfficialTableDrivenFileAsync(context, nachaHeader, ct);
@@ -140,6 +142,8 @@ public class NachaFileBuilder : INachaFileBuilder
             throw new InvalidOperationException($"El ciclo {cycleId} no tiene lotes asociados para exportar.");
 
         var nachaHeader = await _dataLoader.LoadHeaderAsync(cycle.Id, ct);
+        EnforceCenitLiveGenerationGate(context);
+        EnforceLiveOfficialMode(context);
         await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
         if (IsOfficialTableDrivenMode())
         {
@@ -467,7 +471,7 @@ public class NachaFileBuilder : INachaFileBuilder
         NachaHeader? header,
         CancellationToken ct)
     {
-        var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
+        var orderedBatches = context.Batches.ToList();
         var clearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH";
         var batchNumberAssignment = await ResolveBatchNumberAssignmentAsync(orderedBatches, clearingHouseCode, context.Cycle.ProcessingDate, ct);
         var batchSequenceById = batchNumberAssignment.BatchNumberByBatchId;
@@ -672,7 +676,7 @@ public class NachaFileBuilder : INachaFileBuilder
                     var blockCount = (int)Math.Ceiling(totalRecords / 10m);
                     var paddingNeeded = (blockCount * 10) - totalRecords;
                     var fileControl = FileControlRecord.From(context.Cycle, orderedBatches, batchCount, blockCount, entryAddendaCount, totalDebit, totalCredit);
-                    audit.Trace.Add($"FileIntegrity:BatchCount={batchCount};EntryAddendaCount={entryAddendaCount};TotalDebit={totalDebit};TotalCredit={totalCredit};BlockCount={blockCount};PaddingNeeded={paddingNeeded}");
+                    audit.Trace.Add($"FileIntegrity:BatchCount={batchCount};EntryAddendaCount={entryAddendaCount};MonetaryTotals=REDACTED;BlockCount={blockCount};PaddingNeeded={paddingNeeded}");
 
                     recordCount += await AppendResolvedOrLegacyAsync(
                         sb,
@@ -713,7 +717,9 @@ public class NachaFileBuilder : INachaFileBuilder
         NachaHeader? header,
         CancellationToken ct)
     {
-        var orderedBatches = context.Batches.OrderBy(b => b.Id).ToList();
+        // The loader preserves the caller/business order. ACHCOL batch numbers are file-local
+        // ordinals and must never be derived, directly or indirectly, from a technical PK.
+        var orderedBatches = context.Batches.ToList();
         if (!orderedBatches.Any())
         {
             throw new InvalidOperationException("No se encontraron lotes para exportar.");
@@ -757,6 +763,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
         var recordCount = 0;
         var batchCount = orderedBatches.Count;
+        var isAchColOfficial = string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase);
         var dailySequence = header?.CycleNumber > 0 ? header.CycleNumber : 1;
         var fileIdModifier = _controlTotalsCalculator.ResolveFileIdModifier(dailySequence);
         audit.FileIdModifier = new NachaFileIdModifierAudit { DailySequence = dailySequence, ResolvedValue = fileIdModifier };
@@ -828,6 +835,15 @@ public class NachaFileBuilder : INachaFileBuilder
                 ValidateOfficialLayout(recordCode, RequireOfficialLayout(resolution, recordCode), audit);
             }
 
+            if (string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+                && resolution.LayoutVariantsByRecordCode.TryGetValue("7", out var type7Layouts))
+            {
+                foreach (var type7Layout in type7Layouts)
+                {
+                    ValidateOfficialLayout("7", type7Layout, audit);
+                }
+            }
+
             recordCount += AppendOfficialRecords(
                 sb,
                 "1",
@@ -847,16 +863,73 @@ public class NachaFileBuilder : INachaFileBuilder
                     audit,
                     ref lineNumber);
 
-                var entryDetails = await BuildEntryDetailRecordsOfficialAsync(calculation.Transactions, RequireOfficialLayout(resolution, "6"), ct);
-                recordCount += AppendOfficialRecords(sb, "6", entryDetails, RequireOfficialLayout(resolution, "6"), audit, ref lineNumber);
                 var type7Candidates = type7CandidatesByBatchId[batch.Id];
-                recordCount += AppendOfficialRecords(
-                    sb,
-                    "7",
-                    type7Candidates.Select(x => (object)x.FieldValues).ToList(),
-                    RequireOfficialLayout(resolution, "7"),
-                    audit,
-                    ref lineNumber);
+                var type7ByTransaction = type7Candidates
+                    .GroupBy(candidate => candidate.Transaction.Id)
+                    .ToDictionary(group => group.Key, group => group.ToList());
+                var entryDetails = await BuildEntryDetailRecordsOfficialAsync(
+                    calculation.Transactions,
+                    RequireOfficialLayout(resolution, "6"),
+                    type7ByTransaction,
+                    ct);
+
+                foreach (var entryDetail in entryDetails)
+                {
+                    recordCount += AppendOfficialRecords(
+                        sb,
+                        "6",
+                        [entryDetail],
+                        RequireOfficialLayout(resolution, "6"),
+                        audit,
+                        ref lineNumber);
+
+                    if (!type7ByTransaction.TryGetValue(entryDetail.TransactionId, out var associatedAddendas))
+                    {
+                        if (entryDetail.AddendumIndicator == "1")
+                        {
+                            throw BuildCrossFieldException(
+                                "ACHCOL-T6-ADDENDA-INDICATOR",
+                                "6/7",
+                                "ADDENDARECORDINDICATOR",
+                                87,
+                                1,
+                                "El indicador declara adenda, pero no existe T7 asociado.");
+                        }
+
+                        continue;
+                    }
+
+                    foreach (var candidate in associatedAddendas.OrderBy(item => item.Addenda.SequenceNumber ?? 1))
+                    {
+                        if (isAchColOfficial)
+                        {
+                            ValidateType7Association(entryDetail, candidate);
+                        }
+
+                        var type7Layout = isAchColOfficial
+                            ? ResolveType7Layout(resolution, candidate)
+                            : RequireOfficialLayout(resolution, "7");
+                        recordCount += AppendOfficialRecords(
+                            sb,
+                            "7",
+                            [candidate.FieldValues],
+                            type7Layout,
+                            audit,
+                            ref lineNumber);
+                    }
+                }
+
+                var renderedTransactionIds = entryDetails.Select(entry => entry.TransactionId).ToHashSet();
+                if (isAchColOfficial && type7Candidates.Any(candidate => !renderedTransactionIds.Contains(candidate.Transaction.Id)))
+                {
+                    throw BuildCrossFieldException(
+                        "ACHCOL-T7-TRACE-SUFFIX-MATCH",
+                        "7",
+                        "TRACESUFFIX",
+                        88,
+                        7,
+                        "Existe un T7 sin T6 perteneciente al lote renderizado.");
+                }
 
                 var batchTotals = controlTotalsByBatchId[batch.Id];
                 var batchControlLine = lineNumber;
@@ -877,7 +950,7 @@ public class NachaFileBuilder : INachaFileBuilder
             }
 
             var fileControl = FileControlRecord.From(context.Cycle, fileTotals);
-            audit.Trace.Add($"FileIntegrity:BatchCount={batchCount};EntryAddendaCount={fileTotals.EntryAddendaCount};TotalDebit={fileTotals.TotalDebitAmountInCents};TotalCredit={fileTotals.TotalCreditAmountInCents};BlockCount={fileTotals.BlockCount};PaddingNeeded={fileTotals.PaddingRecordCount}");
+            audit.Trace.Add($"FileIntegrity:BatchCount={batchCount};EntryAddendaCount={fileTotals.EntryAddendaCount};MonetaryTotals=REDACTED;BlockCount={fileTotals.BlockCount};PaddingNeeded={fileTotals.PaddingRecordCount}");
             var fileControlLine = lineNumber;
             recordCount += AppendOfficialRecords(sb, "9", [fileControl], RequireOfficialLayout(resolution, "9"), audit, ref lineNumber);
             ValidateRenderedControlTotals(audit, "9", fileControlLine, RequireOfficialLayout(resolution, "9"), fileTotals);
@@ -902,10 +975,11 @@ public class NachaFileBuilder : INachaFileBuilder
                         SourceType = "CALCULATED",
                         CalculationType = "PaddingRecord",
                         RawValueSanitized = "9",
-                        RenderedValue = paddingRecord,
+                        RenderedValue = "[PADDING;Length=106]",
+                        RuntimeRenderedValue = paddingRecord,
                         RenderedLength = lineLength,
                         ValidationStatus = "Ok",
-                        GeneratedLinePreviewSanitized = paddingRecord,
+                        GeneratedLinePreviewSanitized = $"RecordType=9;Length={lineLength};Category=PADDING",
                         ValueStartIndex = 1,
                         ValueEndIndex = lineLength
                     });
@@ -956,6 +1030,32 @@ public class NachaFileBuilder : INachaFileBuilder
         DateTime processingDate,
         CancellationToken ct)
     {
+        if (string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase))
+        {
+            if (orderedBatches.Count > 9_999_999)
+            {
+                throw new NachaGenerationException(
+                    "NACHA_BATCH_NUMBER_OVERFLOW",
+                    "La cantidad de lotes excede la capacidad normativa de siete posiciones.",
+                    ruleId: "ACHCOL-T5-BATCH-NUMBER",
+                    chamber: "ACHCOL",
+                    recordType: "5/8",
+                    fieldName: "BATCHNUMBER",
+                    cause: "Ordinal de lote fuera de rango.",
+                    startPosition: 92,
+                    expectedLength: 7);
+            }
+
+            var assignments = orderedBatches
+                .Select((batch, index) => new { batch.Id, Number = index + 1 })
+                .ToDictionary(item => item.Id, item => item.Number);
+            return Task.FromResult(new BatchNumberAssignmentResult(
+                assignments,
+                "ACHCOL_FILE_LOCAL_ORDINAL",
+                1,
+                [new BatchNumberScopeTrace("ACHCOL_FILE_LOCAL_ORDINAL", "CURRENT_FILE", 0, orderedBatches.Count, true, orderedBatches.Count)]));
+        }
+
         var hasCompletePersistedAssignment = orderedBatches.Count > 0
             && orderedBatches.All(batch => batch.BatchSequenceNumber > 0)
             && orderedBatches
@@ -977,6 +1077,7 @@ public class NachaFileBuilder : INachaFileBuilder
     private async Task<IReadOnlyList<EntryDetailRecord>> BuildEntryDetailRecordsOfficialAsync(
         IReadOnlyList<AchTransaction> transactions,
         CfgLayoutVariant record6Layout,
+        IReadOnlyDictionary<int, List<NachaType7RecordCandidate>> type7ByTransaction,
         CancellationToken ct)
     {
         var records = new List<EntryDetailRecord>(transactions.Count);
@@ -986,17 +1087,127 @@ public class NachaFileBuilder : INachaFileBuilder
         foreach (var transaction in transactions.OrderBy(t => t.Id))
         {
             var receiverName = await ResolveReceiverNameForType6Async(transaction, receiverLookup, ct);
-            var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
-            if (string.IsNullOrWhiteSpace(normalizedReceiverName))
+            if (string.IsNullOrWhiteSpace(receiverName))
             {
-                throw new InvalidOperationException($"Error Fatal ID 22: la transacción {transaction.Id} no tiene Nombre del Usuario Receptor válido para registro tipo 6.");
+                throw new NachaGenerationException(
+                    "NACHA_FIELD_RULE_FAILED",
+                    "El nombre del receptor es obligatorio para el registro tipo 6.",
+                    ruleId: "ACHCOL-T6-INDIVIDUAL-NAME",
+                    chamber: "ACHCOL",
+                    recordType: "6",
+                    fieldName: "INDIVIDUALNAME",
+                    cause: "Valor requerido ausente.",
+                    startPosition: 63,
+                    expectedLength: 22);
             }
 
-            records.Add(EntryDetailRecord.From(transaction, normalizedReceiverName, receivingDfiLength));
+            records.Add(EntryDetailRecord.From(
+                transaction,
+                receiverName,
+                receivingDfiLength,
+                type7ByTransaction.TryGetValue(transaction.Id, out var addendas) && addendas.Count > 0));
         }
 
         return records;
     }
+
+    private static CfgLayoutVariant ResolveType7Layout(
+        NachaConfigResolutionResult resolution,
+        NachaType7RecordCandidate candidate)
+    {
+        if (!resolution.LayoutVariantsByRecordCode.TryGetValue("7", out var variants) || variants.Count == 0)
+        {
+            throw new NachaGenerationException(
+                "NACHA_REQUIRED_RECORD_MISSING",
+                "Falta layout publicado para el registro tipo 7 requerido por una entrada con adenda.",
+                ruleId: "ACHCOL-T7-ADDENDA-TYPE",
+                chamber: "ACHCOL",
+                recordType: "7",
+                fieldName: "ADDENDATYPE",
+                cause: "Variante de adenda requerida ausente.",
+                startPosition: 2,
+                expectedLength: 2);
+        }
+
+        var variantCode = candidate.Addenda.BusinessType switch
+        {
+            Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Credit => AchColOfficialNachaLayout.Type7CreditVariant,
+            Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Debit => AchColOfficialNachaLayout.Type7DebitVariant,
+            _ => string.Empty
+        };
+
+        if (string.IsNullOrWhiteSpace(variantCode)
+            || variants.FirstOrDefault(variant => string.Equals(variant.VariantCode, variantCode, StringComparison.OrdinalIgnoreCase)) is not { } selected)
+        {
+            throw BuildCrossFieldException(
+                "ACHCOL-T7-ADDENDA-TYPE",
+                "7",
+                "ADDENDATYPE",
+                2,
+                2,
+                "La variante de adenda no está demostrada o publicada para ACHCOL.");
+        }
+
+        return selected;
+    }
+
+    private static void ValidateType7Association(EntryDetailRecord entry, NachaType7RecordCandidate candidate)
+    {
+        if (entry.AddendumIndicator != "1")
+        {
+            throw BuildCrossFieldException(
+                "ACHCOL-T6-ADDENDA-INDICATOR",
+                "6/7",
+                "ADDENDARECORDINDICATOR",
+                87,
+                1,
+                "Existe T7, pero el T6 asociado no declara adenda.");
+        }
+
+        var trace = entry.TraceNumber?.Trim() ?? string.Empty;
+        if (trace.Length != 15 || trace.Any(character => !char.IsDigit(character)))
+        {
+            throw BuildCrossFieldException(
+                "ACHCOL-T6-TRACE-NUMBER",
+                "6",
+                "TRACENUMBER",
+                88,
+                15,
+                "Trace Number debe contener exactamente quince dígitos.");
+        }
+
+        var suffix = candidate.FieldValues.TryGetValue("TraceSuffix", out var rawSuffix)
+            ? Convert.ToString(rawSuffix, CultureInfo.InvariantCulture)?.Trim() ?? string.Empty
+            : string.Empty;
+        if (!string.Equals(suffix, trace[^7..], StringComparison.Ordinal))
+        {
+            throw BuildCrossFieldException(
+                "ACHCOL-T7-TRACE-SUFFIX-MATCH",
+                "6/7",
+                "TRACESUFFIX",
+                88,
+                7,
+                "El sufijo T7 no coincide con el Trace Number del T6 asociado.");
+        }
+    }
+
+    private static NachaGenerationException BuildCrossFieldException(
+        string ruleId,
+        string recordType,
+        string fieldName,
+        int startPosition,
+        int expectedLength,
+        string cause)
+        => new(
+            "NACHA_CROSS_FIELD_VALIDATION_FAILED",
+            "Falló una validación cruzada NACHA-M.",
+            ruleId,
+            "ACHCOL",
+            recordType,
+            fieldName,
+            cause,
+            startPosition,
+            expectedLength);
 
     private static int ResolveOfficialFieldLength(CfgLayoutVariant layout, string fieldCode)
     {
@@ -1131,11 +1342,11 @@ public class NachaFileBuilder : INachaFileBuilder
             string.Equals(x.RecordType, recordCode, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(x.FieldName, fieldCode, StringComparison.OrdinalIgnoreCase));
 
-        if (trace is null || !string.Equals(trace.RenderedValue, expected, StringComparison.Ordinal))
+        if (trace is null || !string.Equals(trace.RuntimeRenderedValue, expected, StringComparison.Ordinal))
         {
             throw new NachaGenerationException(
                 "NACHA_CONTROL_TOTAL_MISMATCH",
-                $"El valor renderizado de {recordCode}.{fieldCode} no coincide con el calculado. Calculado='{expected}', Renderizado='{trace?.RenderedValue ?? "<missing>"}'.");
+                $"El valor renderizado de {recordCode}.{fieldCode} no coincide con el calculado.");
         }
     }
 
@@ -1381,7 +1592,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 var renderer = _type7LegacyRenderer ?? new NachaType7LegacyRenderer();
                 if (!rolloutDecision.AllowLegacyFallback)
                 {
-                    throw new InvalidOperationException($"Rollout policy bloqueó fallback type7 para candidato Trace={candidate.Transaction.TraceNumber}.");
+                    throw new InvalidOperationException("Rollout policy bloqueó fallback type7 para un candidato; el identificador financiero fue omitido.");
                 }
 
                 rendered = renderer.Render(candidate.Batch, candidate.Transaction, candidate.Addenda);
@@ -1465,12 +1676,12 @@ public class NachaFileBuilder : INachaFileBuilder
 
         foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
         {
-            audit.Trace.Add($"R7:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:FINAL={trace.FinalValue}:FB={trace.FallbackStrategy}");
+            audit.Trace.Add($"R7:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:FB={trace.FallbackStrategy};VALUES=REDACTED");
         }
 
         if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
         {
-            audit.Warnings.Add($"Type7 mapping engine devolvió fallback para Trace={candidate.Transaction.TraceNumber}.");
+            audit.Warnings.Add("Type7 mapping engine devolvió fallback; identificadores y valores omitidos.");
             return null;
         }
 
@@ -1676,7 +1887,87 @@ public class NachaFileBuilder : INachaFileBuilder
             throw new NachaGenerationException("NACHA_LEGACY_GENERATION_DISABLED", "El resolver solicitó fallback legacy en modo oficial table-driven.");
         }
 
+        EnforceCenitHomologationGate(request.ClearingHouseCode, resolution.Profile);
+
         return resolution;
+    }
+
+    private void EnforceCenitHomologationGate(string clearingHouseCode, CfgProfile profile)
+    {
+        if (!string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var executionScope = (_generationOptions.ExecutionScope ?? "LIVE").Trim();
+        var isLive = string.Equals(executionScope, "LIVE", StringComparison.OrdinalIgnoreCase);
+        var isPlaceholder = ReadProfileFlag(profile, "IsPlaceholder", defaultValue: true);
+        var isHomologated = ReadProfileFlag(profile, "IsHomologated", defaultValue: false);
+        var hasNormativeVersion = profile.Tags.Any(tag =>
+            string.Equals(tag.TagKey, "NormativeVersion", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(tag.TagValue)
+            && !tag.TagValue.Contains("NOT-DEMONSTRATED", StringComparison.OrdinalIgnoreCase));
+
+        if (isLive || isPlaceholder || !isHomologated || !hasNormativeVersion)
+        {
+            if (!isLive && _generationOptions.AllowNonHomologatedCenitDevelopment)
+            {
+                return;
+            }
+
+            throw new NachaGenerationException(
+                "CENIT_NOT_HOMOLOGATED",
+                "CENIT permanece NO-GO / NOT HOMOLOGATED / BLOCKED FOR LIVE. Falta especificación técnica oficial y homologación explícita.",
+                ruleId: "CENIT-FORMAT-NACHAM",
+                chamber: "CENIT",
+                recordType: "FILE",
+                fieldName: "PROFILE",
+                cause: "Perfil no homologado para el alcance solicitado.");
+        }
+    }
+
+    private void EnforceCenitLiveGenerationGate(NachaBuildContext context)
+    {
+        var clearingHouseCode = ResolveClearingHouseCode(context);
+        if (!string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(_generationOptions.ExecutionScope?.Trim(), "LIVE", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        throw new NachaGenerationException(
+            "CENIT_NOT_HOMOLOGATED",
+            "CENIT permanece NO-GO / NOT HOMOLOGATED / BLOCKED FOR LIVE.",
+            ruleId: "CENIT-FORMAT-NACHAM",
+            chamber: "CENIT",
+            recordType: "FILE",
+            fieldName: "PROFILE",
+            cause: "Generación LIVE bloqueada antes de seleccionar motor o perfil.");
+    }
+
+    private void EnforceLiveOfficialMode(NachaBuildContext context)
+    {
+        if (!string.Equals(_generationOptions.ExecutionScope?.Trim(), "LIVE", StringComparison.OrdinalIgnoreCase)
+            || IsOfficialTableDrivenMode())
+        {
+            return;
+        }
+
+        throw new NachaGenerationException(
+            "NACHA_LIVE_OFFICIAL_MODE_REQUIRED",
+            "La generación LIVE exige el motor oficial table-driven; HYBRID y legacy quedan aislados a desarrollo controlado.",
+            ruleId: "ACHCOL-GENERATION-FAIL-CLOSED",
+            chamber: ResolveClearingHouseCode(context),
+            recordType: "FILE",
+            fieldName: "GENERATION_MODE",
+            cause: "Modo no oficial solicitado para alcance LIVE.");
+    }
+
+    private static bool ReadProfileFlag(CfgProfile profile, string key, bool defaultValue)
+    {
+        var value = profile.Tags.FirstOrDefault(tag =>
+            string.Equals(tag.TagKey, key, StringComparison.OrdinalIgnoreCase))?.TagValue;
+        return bool.TryParse(value, out var parsed) ? parsed : defaultValue;
     }
 
     private NachaConfigResolutionRequest BuildConfigResolutionRequest(
@@ -1757,7 +2048,7 @@ public class NachaFileBuilder : INachaFileBuilder
             "1" => new[] { "RECORDTYPE", "IMMEDIATEDESTINATION", "IMMEDIATEORIGIN", "FILECREATIONDATE", "FILECREATIONTIME", "FILEIDMODIFIER" },
             "5" => new[] { "RECORDTYPE", "SERVICECLASSCODE", "COMPANYNAME", "COMPANYIDENTIFICATION", "COMPANYENTRYDESCRIPTION", "BATCHNUMBER" },
             "6" => new[] { "RECORDTYPE", "TRANSACTIONCODE", "RECEIVINGDFI", "CHECKDIGIT", "DFIACCOUNTNUMBER", "AMOUNT", "TRACENUMBER" },
-            "7" => new[] { "RECORDTYPE", "ADDENDATYPE", "PAYMENTRELATEDINFORMATION", "SEQUENCENUMBER", "TRACESUFFIX" },
+            "7" => Array.Empty<string>(),
             "8" => new[] { "RECORDTYPE", "SERVICECLASSCODE", "ENTRYADDENDACOUNT", "ENTRYHASH", "TOTALDEBITAMOUNT", "TOTALCREDITAMOUNT", "BATCHNUMBER" },
             "9" => new[] { "RECORDTYPE", "BATCHCOUNT", "BLOCKCOUNT", "ENTRYADDENDACOUNT", "ENTRYHASH", "TOTALDEBITAMOUNT", "TOTALCREDITAMOUNT" },
             _ => Array.Empty<string>()
@@ -1820,7 +2111,87 @@ public class NachaFileBuilder : INachaFileBuilder
                 throw new NachaGenerationException("NACHA_CALCULATION_FAILED", $"Campo calculado {field.FieldCode} no tiene calculationType.");
             }
         }
+
+        if (string.Equals(audit?.ClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateAchColOfficialLayoutSnapshot(recordCode, layout);
+        }
     }
+
+    private static void ValidateAchColOfficialLayoutSnapshot(string recordCode, CfgLayoutVariant layout)
+    {
+        if (layout.TotalLength != AchColOfficialNachaLayout.RecordLength)
+        {
+            throw new NachaGenerationException(
+                "NACHA_PROFILE_LAYOUT_MISMATCH",
+                "El layout publicado no coincide con el snapshot normativo ACHCOL.",
+                "ACHCOL-PHYSICAL-RECORD-LENGTH",
+                "ACHCOL",
+                recordCode,
+                "RECORD",
+                "Longitud física distinta de 106.",
+                1,
+                AchColOfficialNachaLayout.RecordLength);
+        }
+
+        var expectedFields = AchColOfficialNachaLayout.ForVariant(recordCode, layout.VariantCode);
+        var actualFields = layout.Fields.Where(field => field.IsEnabled).ToList();
+        foreach (var expected in expectedFields)
+        {
+            var actual = actualFields.FirstOrDefault(field =>
+                string.Equals(field.FieldCode, expected.FieldCode, StringComparison.OrdinalIgnoreCase));
+            if (actual is null
+                || actual.StartPosition != expected.StartPosition
+                || actual.Length != expected.Length
+                || actual.Justification != expected.Justification
+                || actual.PadChar != expected.PadChar
+                || !string.Equals(actual.FormatMask, expected.Format, StringComparison.Ordinal))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_PROFILE_LAYOUT_MISMATCH",
+                    expected,
+                    "Posición, longitud, alineación, relleno o formato no coincide con MAN-004 V32.");
+            }
+
+            if (!actual.Rules.Any(rule => rule.IsEnabled && string.Equals(rule.RuleCode, expected.RuleId, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_REQUIRED_RULE_MISSING",
+                    expected,
+                    "CfgFieldRule ejecutable ausente para el campo crítico.");
+            }
+
+            if (ContainsForbiddenOfficialTransformation(actual.TransformationPipelineJson)
+                || !string.IsNullOrWhiteSpace(actual.SourceDefinition?.FallbackPolicyJson))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_SILENT_TRANSFORMATION_FORBIDDEN",
+                    expected,
+                    "La ruta oficial no admite truncamiento, substring ni fallback silencioso.");
+            }
+        }
+
+        var expectedCodes = expectedFields.Select(field => field.FieldCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unexpected = actualFields.FirstOrDefault(field => !expectedCodes.Contains(field.FieldCode));
+        if (unexpected is not null)
+        {
+            throw new NachaGenerationException(
+                "NACHA_PROFILE_LAYOUT_MISMATCH",
+                "El layout publicado contiene un campo no contemplado por el snapshot ACHCOL.",
+                "ACHCOL-PHYSICAL-RECORD-LENGTH",
+                "ACHCOL",
+                recordCode,
+                unexpected.FieldCode,
+                "Campo habilitado no reconocido.",
+                unexpected.StartPosition,
+                unexpected.Length);
+        }
+    }
+
+    private static bool ContainsForbiddenOfficialTransformation(string? pipelineJson)
+        => !string.IsNullOrWhiteSpace(pipelineJson)
+           && (pipelineJson.Contains("truncate", StringComparison.OrdinalIgnoreCase)
+               || pipelineJson.Contains("substring", StringComparison.OrdinalIgnoreCase));
 
     private string RenderOfficialRecord(
         string recordCode,
@@ -1842,14 +2213,13 @@ public class NachaFileBuilder : INachaFileBuilder
             {
                 raw = ResolveOfficialRawValue(recordCode, record, field);
                 value = FormatOfficialValue(raw, field);
-                if (value.Length > field.Length)
-                {
-                    throw new NachaGenerationException("NACHA_FIELD_LENGTH_INVALID", $"El campo {field.FieldCode} en RecordCode={recordCode} excede longitud {field.Length}.");
-                }
+                value = ExecuteOfficialFieldRules(recordCode, field, value, audit.ClearingHouseCode);
 
                 value = field.Justification == 'R'
                     ? value.PadLeft(field.Length, field.PadChar)
                     : value.PadRight(field.Length, field.PadChar);
+
+                ValidateRenderedOfficialField(recordCode, field, value, audit.ClearingHouseCode);
 
                 value.CopyTo(0, buffer, field.StartPosition - 1, value.Length);
                 recordEntries.Add(CreateOfficialTraceEntry(audit, recordCode, recordSequence, lineNumber, layout, field, raw, value, "Ok", null, null));
@@ -1862,14 +2232,241 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         var line = new string(buffer);
+        var lineEvidence = BuildSafeRecordEvidence(recordCode, line);
         foreach (var entry in recordEntries)
         {
-            entry.GeneratedLinePreviewSanitized = SanitizeTraceValue(line);
+            entry.GeneratedLinePreviewSanitized = lineEvidence;
             audit.FieldTraceEntries.Add(entry);
         }
 
         return line;
     }
+
+    private static string ExecuteOfficialFieldRules(
+        string recordCode,
+        CfgLayoutField field,
+        string value,
+        string? clearingHouseCode)
+    {
+        var rules = field.Rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.Order).ToList();
+        if (string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase) && rules.Count == 0)
+        {
+            var descriptor = AchColOfficialNachaLayout.Field(recordCode, field.FieldCode, field.LayoutVariant?.VariantCode);
+            throw BuildFieldRuleException("NACHA_REQUIRED_RULE_MISSING", descriptor, "CfgFieldRule ejecutable ausente.");
+        }
+
+        var current = value;
+        foreach (var rule in rules)
+        {
+            FieldRuleRuntimeConfig config;
+            try
+            {
+                config = ParseFieldRuleRuntimeConfig(rule, field, recordCode);
+            }
+            catch (JsonException)
+            {
+                throw BuildRuleException(
+                    "NACHA_RULE_CONFIG_INVALID",
+                    rule.RuleCode,
+                    clearingHouseCode,
+                    recordCode,
+                    field,
+                    "RuleConfigJson no es válido.");
+            }
+
+            current = config.Normalizer switch
+            {
+                "NONE" => current,
+                "TRIM" => current.Trim(),
+                "UPPER" => current.ToUpperInvariant(),
+                "TRIM_UPPER" => current.Trim().ToUpperInvariant(),
+                _ => throw BuildRuleException(
+                    "NACHA_NORMALIZER_NOT_ALLOWED",
+                    rule.RuleCode,
+                    clearingHouseCode,
+                    recordCode,
+                    field,
+                    "Normalizador no autorizado por el motor oficial.")
+            };
+
+            var isBlank = string.IsNullOrWhiteSpace(current);
+            if (config.Required && isBlank)
+            {
+                throw BuildRuleException("NACHA_REQUIRED_FIELD_MISSING", rule.RuleCode, clearingHouseCode, recordCode, field, "Valor obligatorio ausente.");
+            }
+
+            if (!isBlank)
+            {
+                ValidateOfficialDataType(config, current, rule.RuleCode, clearingHouseCode, recordCode, field);
+                ValidateAllowedRepertoire(config, current, rule.RuleCode, clearingHouseCode, recordCode, field);
+
+                if (config.AllowedValues.Count > 0 && !config.AllowedValues.Contains(current, StringComparer.OrdinalIgnoreCase))
+                {
+                    throw BuildRuleException("NACHA_ALLOWED_VALUE_INVALID", rule.RuleCode, clearingHouseCode, recordCode, field, "Valor fuera del catálogo permitido.");
+                }
+            }
+
+            if (current.Length > field.Length)
+            {
+                throw BuildRuleException("NACHA_FIELD_LENGTH_INVALID", rule.RuleCode, clearingHouseCode, recordCode, field, "Overflow; la política oficial es REJECT.");
+            }
+
+            if (!string.Equals(config.OverflowPolicy, "REJECT", StringComparison.OrdinalIgnoreCase))
+            {
+                throw BuildRuleException("NACHA_OVERFLOW_POLICY_INVALID", rule.RuleCode, clearingHouseCode, recordCode, field, "La ruta oficial exige overflowPolicy=REJECT.");
+            }
+        }
+
+        return current;
+    }
+
+    private static void ValidateOfficialDataType(
+        FieldRuleRuntimeConfig config,
+        string value,
+        string ruleId,
+        string? clearingHouseCode,
+        string recordCode,
+        CfgLayoutField field)
+    {
+        var valid = config.DataType switch
+        {
+            "NUMERIC" => value.All(char.IsDigit),
+            "DATE" => DateTime.TryParseExact(value, config.Format ?? "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
+            "TIME" => DateTime.TryParseExact(value, config.Format ?? "HHmm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
+            "RESERVED" => value.All(char.IsWhiteSpace),
+            "ALPHANUMERIC" => true,
+            _ => false
+        };
+
+        if (!valid)
+        {
+            throw BuildRuleException("NACHA_FIELD_TYPE_INVALID", ruleId, clearingHouseCode, recordCode, field, "Tipo o formato del campo inválido.");
+        }
+    }
+
+    private static void ValidateAllowedRepertoire(
+        FieldRuleRuntimeConfig config,
+        string value,
+        string ruleId,
+        string? clearingHouseCode,
+        string recordCode,
+        CfgLayoutField field)
+    {
+        if (config.DataType is "NUMERIC" or "DATE" or "TIME" or "RESERVED")
+        {
+            return;
+        }
+
+        const string permittedSpecials = " .,:;-*/&#$%=";
+        if (value.Any(character => char.IsControl(character)
+                                   || character > 0x7F
+                                   || (!(character is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9')
+                                       && !permittedSpecials.Contains(character))))
+        {
+            throw BuildRuleException("NACHA_CHARACTER_REPERTOIRE_INVALID", ruleId, clearingHouseCode, recordCode, field, "El campo contiene caracteres fuera del repertorio permitido.");
+        }
+    }
+
+    private static void ValidateRenderedOfficialField(
+        string recordCode,
+        CfgLayoutField field,
+        string rendered,
+        string? clearingHouseCode)
+    {
+        if (rendered.Length != field.Length)
+        {
+            throw BuildRuleException("NACHA_RENDERED_LENGTH_INVALID", ResolveRuleId(field), clearingHouseCode, recordCode, field, "Longitud renderizada distinta de la longitud configurada.");
+        }
+
+        if (field.Justification == 'R'
+            && field.PadChar == '0'
+            && !string.IsNullOrWhiteSpace(rendered)
+            && rendered.Any(character => !char.IsDigit(character)))
+        {
+            throw BuildRuleException("NACHA_NUMERIC_RENDER_INVALID", ResolveRuleId(field), clearingHouseCode, recordCode, field, "Campo numérico renderizado contiene caracteres no numéricos.");
+        }
+    }
+
+    private static FieldRuleRuntimeConfig ParseFieldRuleRuntimeConfig(CfgFieldRule rule, CfgLayoutField field, string recordCode)
+    {
+        using var document = JsonDocument.Parse(rule.RuleConfigJson ?? "{}");
+        var root = document.RootElement;
+        var configuredRecord = ReadJsonString(root, "recordType");
+        var configuredField = ReadJsonString(root, "field");
+        var configuredStart = root.TryGetProperty("startPosition", out var start) ? start.GetInt32() : 0;
+        var configuredLength = root.TryGetProperty("length", out var length) ? length.GetInt32() : 0;
+        if (!string.Equals(configuredRecord, recordCode, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(configuredField, field.FieldCode, StringComparison.OrdinalIgnoreCase)
+            || configuredStart != field.StartPosition
+            || configuredLength != field.Length)
+        {
+            throw BuildRuleException("NACHA_RULE_METADATA_MISMATCH", rule.RuleCode, "ACHCOL", recordCode, field, "La metadata de CfgFieldRule no corresponde al descriptor renderizado.");
+        }
+
+        var allowedValues = root.TryGetProperty("allowedValues", out var allowed) && allowed.ValueKind == JsonValueKind.Array
+            ? allowed.EnumerateArray().Select(item => item.GetString()).Where(item => item is not null).Cast<string>().ToArray()
+            : Array.Empty<string>();
+
+        return new FieldRuleRuntimeConfig(
+            ReadJsonString(root, "dataType").ToUpperInvariant(),
+            root.TryGetProperty("required", out var required) && required.GetBoolean(),
+            ReadJsonString(root, "normalizer", "NONE").ToUpperInvariant(),
+            ReadJsonString(root, "overflowPolicy", "REJECT").ToUpperInvariant(),
+            ReadJsonString(root, "format", null),
+            allowedValues);
+    }
+
+    private static string ReadJsonString(JsonElement root, string propertyName, string? defaultValue = "")
+        => root.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
+            ? property.GetString() ?? defaultValue ?? string.Empty
+            : defaultValue ?? string.Empty;
+
+    private static string ResolveRuleId(CfgLayoutField field)
+        => field.Rules.FirstOrDefault(rule => rule.IsEnabled)?.RuleCode ?? "NACHA-RULE-METADATA";
+
+    private static NachaGenerationException BuildRuleException(
+        string code,
+        string ruleId,
+        string? clearingHouseCode,
+        string recordCode,
+        CfgLayoutField field,
+        string cause)
+        => new(
+            code,
+            "El campo no cumple la política oficial NACHA-M.",
+            ruleId,
+            string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase) ? "ACHCOL" : clearingHouseCode,
+            recordCode,
+            field.FieldCode,
+            cause,
+            field.StartPosition,
+            field.Length);
+
+    private static NachaGenerationException BuildFieldRuleException(
+        string code,
+        AchColOfficialFieldDescriptor descriptor,
+        string cause)
+        => new(
+            code,
+            "El perfil no cumple el descriptor oficial ACHCOL.",
+            descriptor.RuleId,
+            "ACHCOL",
+            descriptor.RecordCode,
+            descriptor.FieldCode,
+            cause,
+            descriptor.StartPosition,
+            descriptor.Length);
+
+    private static string BuildSafeRecordEvidence(string recordCode, string line)
+        => $"RecordType={recordCode};Length={line.Length};SHA256={Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(line)))[..16]}";
+
+    private sealed record FieldRuleRuntimeConfig(
+        string DataType,
+        bool Required,
+        string Normalizer,
+        string OverflowPolicy,
+        string? Format,
+        IReadOnlyList<string> AllowedValues);
 
     private static NachaGenerationTraceEntry CreateOfficialTraceEntry(
         NachaGenerationAuditResult audit,
@@ -1904,17 +2501,18 @@ public class NachaFileBuilder : INachaFileBuilder
             PositionStart = field.StartPosition,
             PositionEnd = field.StartPosition + field.Length - 1,
             Length = field.Length,
-            DataType = InferTraceDataType(field, raw),
-            Required = true,
+            DataType = ResolveConfiguredTraceDataType(field, raw),
+            Required = ResolveConfiguredRequired(field),
             SourceType = sourceType,
             SourceFieldPath = source.PropertyPath,
-            ConstantValueSanitized = source.ConstantValue is null ? null : SanitizeTraceValue(source.ConstantValue),
+            ConstantValueSanitized = source.ConstantValue is null ? null : SanitizeTraceValue(source.ConstantValue, field),
             CalculationType = calculationType,
             TransformationApplied = field.FormatMask,
             PaddingDirection = field.Justification == 'R' ? "Left" : "Right",
             PaddingChar = field.PadChar.ToString(),
-            RawValueSanitized = SanitizeTraceValue(raw),
-            RenderedValue = SanitizeTraceValue(rendered),
+            RawValueSanitized = SanitizeTraceValue(raw, field),
+            RenderedValue = SanitizeTraceValue(rendered, field),
+            RuntimeRenderedValue = rendered,
             RenderedLength = rendered?.Length ?? 0,
             ValidationStatus = validationStatus,
             ErrorCode = errorCode,
@@ -1969,6 +2567,58 @@ public class NachaFileBuilder : INachaFileBuilder
             : "string";
     }
 
+    private static string ResolveConfiguredTraceDataType(CfgLayoutField field, object? raw)
+    {
+        var configured = ReadRuleConfigString(field, "dataType");
+        return string.IsNullOrWhiteSpace(configured)
+            ? InferTraceDataType(field, raw)
+            : configured.ToLowerInvariant();
+    }
+
+    private static bool ResolveConfiguredRequired(CfgLayoutField field)
+    {
+        foreach (var rule in field.Rules.Where(rule => rule.IsEnabled))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(rule.RuleConfigJson ?? "{}");
+                if (document.RootElement.TryGetProperty("required", out var required)
+                    && required.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                {
+                    return required.GetBoolean();
+                }
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private static string ReadRuleConfigString(CfgLayoutField field, string propertyName)
+    {
+        foreach (var rule in field.Rules.Where(rule => rule.IsEnabled))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(rule.RuleConfigJson ?? "{}");
+                if (document.RootElement.TryGetProperty(propertyName, out var value)
+                    && value.ValueKind == JsonValueKind.String)
+                {
+                    return value.GetString() ?? string.Empty;
+                }
+            }
+            catch (JsonException)
+            {
+                return string.Empty;
+            }
+        }
+
+        return string.Empty;
+    }
+
     private static string? SanitizeTraceValue(object? value)
     {
         if (value is null)
@@ -1997,6 +2647,39 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return text.Length <= 140 ? text : text[..140];
+    }
+
+    private static string? SanitizeTraceValue(object? value, CfgLayoutField field)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var sensitivity = ReadRuleConfigString(field, "sensitivity");
+        if (string.IsNullOrWhiteSpace(sensitivity) && IsSensitiveNachaField(field.FieldCode))
+        {
+            sensitivity = "FINANCIAL_OR_PERSONAL";
+        }
+
+        if (!string.IsNullOrWhiteSpace(sensitivity)
+            && !string.Equals(sensitivity, "NONE", StringComparison.OrdinalIgnoreCase))
+        {
+            var length = Convert.ToString(value, CultureInfo.InvariantCulture)?.Length ?? 0;
+            return $"[REDACTED;Category={sensitivity.ToUpperInvariant()};Length={length}]";
+        }
+
+        return SanitizeTraceValue(value);
+    }
+
+    private static bool IsSensitiveNachaField(string fieldCode)
+    {
+        var normalized = fieldCode.Replace("_", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        return new[]
+        {
+            "ACCOUNT", "NAME", "IDENTIFICATION", "AMOUNT", "TRACE", "REFERENCE", "CUSTOMER", "CLIENT",
+            "IMMEDIATEORIGIN", "IMMEDIATEDESTINATION", "ORIGINATINGDFI", "RECEIVINGDFI", "BATCHNUMBER"
+        }.Any(token => normalized.Contains(token, StringComparison.Ordinal));
     }
 
     private object? ResolveOfficialRawValue(string recordCode, object record, CfgLayoutField field)
@@ -2051,9 +2734,9 @@ public class NachaFileBuilder : INachaFileBuilder
                 }
             }
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            throw new NachaGenerationException("NACHA_CALCULATION_FAILED", $"ExpressionDsl inválido: {ex.Message}");
+            throw new NachaGenerationException("NACHA_CALCULATION_FAILED", "ExpressionDsl inválido; detalle interno omitido.");
         }
 
         throw new NachaGenerationException("NACHA_CALCULATION_FAILED", "ExpressionDsl no declara calculationType.");
@@ -2139,17 +2822,27 @@ public class NachaFileBuilder : INachaFileBuilder
 
         if (raw is decimal decimalValue)
         {
-            return ((long)(decimalValue * 100)).ToString(CultureInfo.InvariantCulture);
+            return FormatAmountInCents(decimalValue, field);
         }
 
         if (raw is double doubleValue)
         {
-            return ((long)(doubleValue * 100)).ToString(CultureInfo.InvariantCulture);
+            if (double.IsNaN(doubleValue) || double.IsInfinity(doubleValue))
+            {
+                throw BuildRuleException("NACHA_FIELD_TYPE_INVALID", ResolveRuleId(field), "ACH", field.LayoutVariant?.RecordCode?.Code ?? string.Empty, field, "Monto no finito.");
+            }
+
+            return FormatAmountInCents((decimal)doubleValue, field);
         }
 
         if (raw is float floatValue)
         {
-            return ((long)(floatValue * 100)).ToString(CultureInfo.InvariantCulture);
+            if (float.IsNaN(floatValue) || float.IsInfinity(floatValue))
+            {
+                throw BuildRuleException("NACHA_FIELD_TYPE_INVALID", ResolveRuleId(field), "ACH", field.LayoutVariant?.RecordCode?.Code ?? string.Empty, field, "Monto no finito.");
+            }
+
+            return FormatAmountInCents((decimal)floatValue, field);
         }
 
         if (raw is IFormattable formattable)
@@ -2158,6 +2851,33 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         return raw.ToString() ?? string.Empty;
+    }
+
+    private static string FormatAmountInCents(decimal amount, CfgLayoutField field)
+    {
+        decimal cents;
+        try
+        {
+            cents = checked(amount * 100m);
+        }
+        catch (OverflowException)
+        {
+            throw BuildRuleException("NACHA_FIELD_LENGTH_INVALID", ResolveRuleId(field), "ACH", field.LayoutVariant?.RecordCode?.Code ?? string.Empty, field, "Overflow monetario.");
+        }
+
+        if (amount < 0m || cents != decimal.Truncate(cents))
+        {
+            throw BuildRuleException("NACHA_FIELD_TYPE_INVALID", ResolveRuleId(field), "ACH", field.LayoutVariant?.RecordCode?.Code ?? string.Empty, field, "El monto debe ser no negativo y expresable en centavos exactos.");
+        }
+
+        try
+        {
+            return checked((long)cents).ToString(CultureInfo.InvariantCulture);
+        }
+        catch (OverflowException)
+        {
+            throw BuildRuleException("NACHA_FIELD_LENGTH_INVALID", ResolveRuleId(field), "ACH", field.LayoutVariant?.RecordCode?.Code ?? string.Empty, field, "Overflow monetario.");
+        }
     }
 
     private async Task<NachaConfigResolutionResult> ResolveRuntimeConfigAsync(
@@ -2245,7 +2965,7 @@ public class NachaFileBuilder : INachaFileBuilder
             var issuesText = trace.ValidationIssues.Count == 0
                 ? "none"
                 : string.Join("|", trace.ValidationIssues.Select(x => $"{x.RuleCode}:{x.Severity}"));
-            audit.Trace.Add($"R6:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:TF={transforms}:RULES={issuesText}:FB={trace.FallbackStrategy}:FINAL={trace.FinalValue}");
+            audit.Trace.Add($"R6:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:VALUES=REDACTED:TF={transforms}:RULES={issuesText}:FB={trace.FallbackStrategy}");
         }
 
         if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
@@ -2378,7 +3098,7 @@ public class NachaFileBuilder : INachaFileBuilder
         foreach (var trace in mapped.FieldTraces.Take(_generationOptions.Record6MappingDiagnostics ? mapped.FieldTraces.Count : 5))
         {
             var transforms = trace.TransformSteps.Count == 0 ? "none" : string.Join(",", trace.TransformSteps);
-            audit.Trace.Add($"R{recordCode}:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:RAW={trace.RawValue}:TF={transforms}:FB={trace.FallbackStrategy}:FINAL={trace.FinalValue}");
+            audit.Trace.Add($"R{recordCode}:{trace.FieldCode}:SRC={trace.SourceUsed}:CAN={trace.CanonicalKey}:VALUES=REDACTED:TF={transforms}:FB={trace.FallbackStrategy}");
         }
 
         if (!mapped.Success && mapped.ValuesByFieldCode.Count == 0)
@@ -2524,7 +3244,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 totalDiffs++;
                 if (diffs.Count < 3)
                 {
-                    diffs.Add($"pos={i + 1},legacy='{legacyRendered[i]}',new='{newRendered[i]}'");
+                    diffs.Add($"pos={i + 1}");
                 }
             }
         }
@@ -2594,7 +3314,9 @@ public class NachaFileBuilder : INachaFileBuilder
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "No fue posible persistir traza de generación NACHA.");
+            _logger?.LogWarning(
+                "NACHA_GENERATION_AUDIT_PERSIST_FAILED ErrorType={ErrorType}",
+                ex.GetType().Name);
         }
     }
 
@@ -2703,6 +3425,7 @@ public class NachaFileBuilder : INachaFileBuilder
         public static FileHeaderRecord From(AchCycle cycle, IReadOnlyCollection<AchTransaction> transactions, NachaHeader? header, string? fileIdModifier = null)
         {
             var snapshotTime = NachaFileSnapshotTimeResolver.Resolve(cycle);
+            var generationTimestamp = ResolveGenerationTimestamp(header, snapshotTime);
             var firstTransaction = transactions
                 .OrderBy(t => t.Id)
                 .FirstOrDefault();
@@ -2730,15 +3453,15 @@ public class NachaFileBuilder : INachaFileBuilder
                 PriorityCode = CoalesceNonEmpty(header?.PriorityCode, "01"),
                 ImmediateDestination = destinationDfi,
                 ImmediateOrigin = originDfi,
-                FileCreationDate = ParseDate(header?.FileCreationDate) ?? snapshotTime,
-                FileCreationTime = ParseTime(header?.FileCreationTime) ?? snapshotTime,
+                FileCreationDate = generationTimestamp,
+                FileCreationTime = generationTimestamp,
                 FileIdModifier = CoalesceNonEmpty(fileIdModifier, header?.FileIdModifier, "A"),
                 RecordSize = string.IsNullOrWhiteSpace(header?.RecordSize) ? "106" : header!.RecordSize,
                 BlockingFactor = string.IsNullOrWhiteSpace(header?.BlockingFactor) ? "10" : header!.BlockingFactor,
                 FormatCode = string.IsNullOrWhiteSpace(header?.FormatCode) ? "1" : header!.FormatCode,
                 ImmediateDestinationName = destinationName,
                 ImmediateOriginName = originName,
-                ReferenceCode = CoalesceNonEmpty(header?.ReferenceCode, cycle.CycleName),
+                ReferenceCode = CoalesceNonEmpty(header?.ReferenceCode),
                 CycleName = cycle.CycleName,
                 ProcessingDate = cycle.ProcessingDate
             };
@@ -2749,14 +3472,60 @@ public class NachaFileBuilder : INachaFileBuilder
             return values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
         }
 
-        private static DateTime? ParseDate(string? value)
+        private static DateTime ResolveGenerationTimestamp(NachaHeader? header, DateTime fallback)
         {
-            return DateTime.TryParse(value, out var parsed) ? parsed : null;
-        }
+            var date = fallback.Date;
+            var time = fallback.TimeOfDay;
 
-        private static DateTime? ParseTime(string? value)
-        {
-            return DateTime.TryParse(value, out var parsed) ? parsed : null;
+            if (!string.IsNullOrWhiteSpace(header?.FileCreationDate))
+            {
+                if (!DateTime.TryParseExact(
+                        header.FileCreationDate.Trim(),
+                        "yyyyMMdd",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out var parsedDate))
+                {
+                    throw new NachaGenerationException(
+                        "NACHA_FIELD_RULE_FAILED",
+                        "La fecha de creación no cumple el formato configurado.",
+                        ruleId: "ACHCOL-T1-FILE-CREATION-DATE",
+                        chamber: "ACHCOL",
+                        recordType: "1",
+                        fieldName: "FILECREATIONDATE",
+                        cause: "Formato distinto de yyyyMMdd.",
+                        startPosition: 24,
+                        expectedLength: 8);
+                }
+
+                date = parsedDate.Date;
+            }
+
+            if (!string.IsNullOrWhiteSpace(header?.FileCreationTime))
+            {
+                if (!DateTime.TryParseExact(
+                        header.FileCreationTime.Trim(),
+                        "HHmm",
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out var parsedTime))
+                {
+                    throw new NachaGenerationException(
+                        "NACHA_FIELD_RULE_FAILED",
+                        "La hora de creación no cumple el formato configurado.",
+                        ruleId: "ACHCOL-T1-FILE-CREATION-TIME",
+                        chamber: "ACHCOL",
+                        recordType: "1",
+                        fieldName: "FILECREATIONTIME",
+                        cause: "Formato distinto de HHmm.",
+                        startPosition: 32,
+                        expectedLength: 4);
+                }
+
+                time = parsedTime.TimeOfDay;
+            }
+
+            return DateTime.SpecifyKind(date.Add(time), fallback.Kind);
         }
     }
 
@@ -2849,6 +3618,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private sealed record EntryDetailRecord
     {
+        public int TransactionId { get; init; }
         public string TransactionCode { get; init; } = string.Empty;
         public string ReceivingDFI { get; init; } = string.Empty;
         public string CheckDigit { get; init; } = string.Empty;
@@ -2861,7 +3631,7 @@ public class NachaFileBuilder : INachaFileBuilder
         public string TraceNumber { get; init; } = string.Empty;
         public string CompanyIdentification { get; init; } = string.Empty;
 
-        public static EntryDetailRecord From(AchTransaction tx, string receiverName, int receivingDfiLength)
+        public static EntryDetailRecord From(AchTransaction tx, string receiverName, int receivingDfiLength, bool hasAddenda = true)
         {
             var receivingDfi = (tx.ReceivingDFI ?? string.Empty).Trim();
             if (receivingDfi.Length != receivingDfiLength || receivingDfi.Any(c => !char.IsDigit(c)))
@@ -2885,6 +3655,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
             return new EntryDetailRecord
             {
+                TransactionId = tx.Id,
                 TransactionCode = tx.TransactionCode,
                 ReceivingDFI = receivingDfi,
                 CheckDigit = checkDigit,
@@ -2893,7 +3664,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 RecipientIdNumber = tx.RecipientIdNumber,
                 ReceiverName = receiverName,
                 DiscretionaryData = tx.DiscretionaryData,
-                AddendumIndicator = "1",
+                AddendumIndicator = hasAddenda ? "1" : "0",
                 TraceNumber = tx.TraceNumber,
                 CompanyIdentification = tx.CompanyIdentification
             };
@@ -2911,11 +3682,18 @@ public class NachaFileBuilder : INachaFileBuilder
         foreach (var transaction in transactions.OrderBy(t => t.Id))
         {
             var receiverName = await ResolveReceiverNameForType6Async(transaction, receiverLookup, ct);
+            if (string.IsNullOrWhiteSpace(receiverName))
+            {
+                receiverName = !string.IsNullOrWhiteSpace(transaction.RecipientIdNumber)
+                    ? transaction.RecipientIdNumber
+                    : $"USUARIO {transaction.Id}";
+            }
+
             var normalizedReceiverName = NachaReceiverNameHelper.SanitizeForType6(receiverName);
 
             if (string.IsNullOrWhiteSpace(normalizedReceiverName))
             {
-                throw new InvalidOperationException($"Error Fatal ID 22: la transacción {transaction.Id} no tiene Nombre del Usuario Receptor válido para posiciones 63-84 del registro tipo 6. Revise Cliente/Tercero asociado y número de cuenta destino.");
+                throw new InvalidOperationException("Error Fatal ID 22: el flujo legacy de desarrollo no pudo resolver el nombre del receptor.");
             }
 
             records.Add(EntryDetailRecord.From(transaction, normalizedReceiverName, receivingDfiLength));
@@ -2992,12 +3770,7 @@ public class NachaFileBuilder : INachaFileBuilder
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(transaction.RecipientIdNumber))
-        {
-            return transaction.RecipientIdNumber;
-        }
-
-        return $"USUARIO {transaction.Id}";
+        return string.Empty;
     }
 
     private static string BuildReceiverName(Customer customer)

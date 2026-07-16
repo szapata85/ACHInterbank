@@ -76,7 +76,7 @@ public class AchPreproductionCertificationTests
     [InlineData(TransactionTypeEnum.Debit, "27", false, 2500, "900000002", "CLIENTE DEBITO", "RECAUDOS", "123456780000002")]
     [InlineData(TransactionTypeEnum.Prenotification, "23", true, 0, "", "CLIENTE PRENOTE", "PAGOS PSE", "123456780000003")]
     [InlineData(TransactionTypeEnum.Reversal, "27", false, 4100, "900000004", "CLIENTE REVERSO", "REVERSO", "123456780000004")]
-    public async Task BuildNachaFileAsync_MatchesGoldenMasterForFinalCertification(
+    public async Task LegacyGoldenScenario_ShouldBeBlockedForLiveAndNotCountAsCertification(
         TransactionTypeEnum type,
         string transactionCode,
         bool isPrenotification,
@@ -104,12 +104,13 @@ public class AchPreproductionCertificationTests
             renderer,
             recordDataProvider,
             new NachaSemanticValidator(),
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "LIVE" }));
 
-        var content = await builder.BuildNachaFileAsync([100], CancellationToken.None);
-        var expected = BuildExpectedNachaGoldenMaster(type, transactionCode, isPrenotification, amount, recipientIdNumber, receiverName, batchDescription, traceNumber);
+        var exception = await Assert.ThrowsAsync<NachaGenerationException>(
+            () => builder.BuildNachaFileAsync([100], CancellationToken.None));
 
-        Assert.Equal(expected, content);
+        Assert.Equal("NACHA_LIVE_OFFICIAL_MODE_REQUIRED", exception.Code);
+        Assert.Equal("ACHCOL-GENERATION-FAIL-CLOSED", exception.RuleId);
     }
 
     [Fact]

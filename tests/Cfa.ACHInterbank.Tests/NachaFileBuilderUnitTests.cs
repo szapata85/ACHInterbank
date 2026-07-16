@@ -213,7 +213,7 @@ public class NachaFileBuilderUnitTests
             renderer.Object,
             recordDataProvider.Object,
             semanticValidator.Object,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
     }
 
     private static SqliteConnection CreateOpenConnection()

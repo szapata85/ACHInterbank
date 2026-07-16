@@ -28,16 +28,14 @@ public class NachaFunctionalValidationTests
     private static readonly Regex OfficialNamePattern = new(@"^\d{7}\.\d{3}\.1$", RegexOptions.Compiled);
 
     [Fact]
-    public async Task GenerateAchColombiaOutgoingFile_ShouldMatchGoldenFile()
+    public async Task GenerateAchColombiaOutgoingFile_ShouldHaveValidPhysicalStructure()
     {
         await using var context = await SeedOfficialProfilesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
-        var scenario = AchScenario();
-
         var generated = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
         NachaFixedWidthAssertions.ShouldHaveValidFixedWidthStructure(generated);
-        NachaGoldenFileComparer.ShouldMatchGoldenFile(generated, generated, new(scenario.CompareByteByByte, scenario.NormalizeLineEndingsBeforeComparison));
+        generated.Should().NotContain("\r").And.NotContain("\n");
     }
 
     [Fact]
@@ -48,29 +46,31 @@ public class NachaFunctionalValidationTests
 
         var generated = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        NachaGoldenFileComparer.ShouldMatchPhysicalGoldenFile(NachaTestDataPaths.AchColombiaOutgoing001, generated);
+        var fixturePath = Path.Combine(AppContext.BaseDirectory, "fixtures", "nacha-m", "ACHCOL", "valid", "achcol-v32-minimal.nacha.b64");
+        var expected = Encoding.ASCII.GetString(Convert.FromBase64String(await File.ReadAllTextAsync(fixturePath)));
+        generated.Should().Be(expected);
     }
 
     [Fact]
-    public void AchColombiaOutgoingGoldenFile_ShouldHaveValidFixedWidth()
+    public void AchColombiaExecution2SyntheticGolden_ShouldHaveValidFixedWidth()
     {
-        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaOutgoing001);
+        var content = ReadExecution2AchColSyntheticGolden();
 
         NachaFixedWidthAssertions.ShouldHaveValidFixedWidthStructure(content);
     }
 
     [Fact]
-    public void AchColombiaOutgoingGoldenFile_ShouldHaveValidPadding()
+    public void AchColombiaExecution2SyntheticGolden_ShouldHaveValidPadding()
     {
-        var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaOutgoing001);
+        var content = ReadExecution2AchColSyntheticGolden();
 
         NachaFixedWidthAssertions.ShouldHaveValidPadding(content);
     }
 
     [Fact]
-    public void AchColombiaOutgoingGoldenFile_ShouldHaveValidControlTotals()
+    public void AchColombiaExecution2SyntheticGolden_ShouldHaveValidControlTotals()
     {
-        var records = NachaFixedWidthAssertions.SplitRecords(NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.AchColombiaOutgoing001));
+        var records = NachaFixedWidthAssertions.SplitRecords(ReadExecution2AchColSyntheticGolden());
 
         records.Single(x => x[0] == '8').Substring(4, 6).Should().Be("000002");
         records.First(x => x[0] == '9' && !NachaFixedWidthAssertions.IsPaddingRecord(x)).Substring(13, 8).Should().Be("00000002");
@@ -133,28 +133,20 @@ public class NachaFunctionalValidationTests
     public async Task GenerateCenitOutgoingFile_ShouldMatchGoldenFile()
     {
         await using var context = await SeedOfficialProfilesAsync();
-        var setup = CreateOfficialSut(context, "CENIT");
-
-        var generated = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
-
-        generated.Should().Contain("CENIT");
-        NachaFixedWidthAssertions.ShouldHaveValidFixedWidthStructure(generated);
-        NachaGoldenFileComparer.ShouldMatchGoldenFile(generated, generated);
+        var exception = await AssertCenitLiveBlockedAsync(context);
+        exception.Code.Should().Be("CENIT_NOT_HOMOLOGATED");
     }
 
     [Fact]
     public async Task GenerateCenitOutgoingFile_ShouldMatchPhysicalGoldenFile()
     {
         await using var context = await SeedOfficialProfilesAsync();
-        var setup = CreateOfficialSut(context, "CENIT");
-
-        var generated = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
-
-        NachaGoldenFileComparer.ShouldMatchPhysicalGoldenFile(NachaTestDataPaths.CenitOutgoing001, generated);
+        var exception = await AssertCenitLiveBlockedAsync(context);
+        exception.Message.Should().Contain("NOT HOMOLOGATED").And.NotContain("123456789");
     }
 
     [Fact]
-    public void CenitOutgoingGoldenFile_ShouldHaveValidFixedWidth()
+    public void CenitLegacyPlaceholderFixture_ShouldHaveCharacterizedFixedWidth()
     {
         var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitOutgoing001);
 
@@ -162,7 +154,7 @@ public class NachaFunctionalValidationTests
     }
 
     [Fact]
-    public void CenitOutgoingGoldenFile_ShouldHaveValidPadding()
+    public void CenitLegacyPlaceholderFixture_ShouldHaveCharacterizedPadding()
     {
         var content = NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitOutgoing001);
 
@@ -170,7 +162,7 @@ public class NachaFunctionalValidationTests
     }
 
     [Fact]
-    public void CenitOutgoingGoldenFile_ShouldHaveValidControlTotals()
+    public void CenitLegacyPlaceholderFixture_ShouldRetainCharacterizedControlTotals()
     {
         var records = NachaFixedWidthAssertions.SplitRecords(NachaTestDataPaths.ReadRequiredText(NachaTestDataPaths.CenitOutgoing001));
 
@@ -182,52 +174,44 @@ public class NachaFunctionalValidationTests
     public async Task GenerateCenitOutgoingFile_ShouldResolveCenitProfile()
     {
         await using var context = await SeedOfficialProfilesAsync();
-        var setup = CreateOfficialSut(context, "CENIT");
+        var resolution = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = ["1", "5", "6", "7", "8", "9"]
+        });
 
-        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
-        var trace = await LoadLatestTraceAsync(context);
-
-        trace.ClearingHouseCode.Should().Be("CENIT");
-        trace.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
+        resolution.Success.Should().BeTrue();
+        resolution.Profile!.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
+        resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "IsPlaceholder" && tag.TagValue == "true");
+        resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "IsHomologated" && tag.TagValue == "false");
     }
 
     [Fact]
     public async Task GenerateCenitOutgoingFile_ShouldHaveValidBatchAndFileTotals()
     {
         await using var context = await SeedOfficialProfilesAsync();
-        var setup = CreateOfficialSut(context, "CENIT");
-
-        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
-        var trace = await LoadLatestTraceAsync(context);
-
-        trace.FileTotals!.BatchCount.Should().Be(1);
-        trace.FileTotals.EntryAddendaCount.Should().Be(2);
-        trace.FileTotals.TotalCreditAmountInCents.Should().Be(10000);
-        trace.FileTotals.TotalDebitAmountInCents.Should().Be(0);
+        var exception = await AssertCenitLiveBlockedAsync(context);
+        exception.RuleId.Should().Be("CENIT-FORMAT-NACHAM");
     }
 
     [Fact]
     public async Task GenerateCenitOutgoingFile_ShouldHaveValidPadding()
     {
         await using var context = await SeedOfficialProfilesAsync();
-        var setup = CreateOfficialSut(context, "CENIT");
-
-        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
-
-        NachaFixedWidthAssertions.ShouldHaveValidPadding(content);
+        var exception = await AssertCenitLiveBlockedAsync(context);
+        exception.Code.Should().Be("CENIT_NOT_HOMOLOGATED");
     }
 
     [Fact]
     public async Task GenerateCenitOutgoingFile_ShouldWriteFunctionalTrace()
     {
         await using var context = await SeedOfficialProfilesAsync();
-        var setup = CreateOfficialSut(context, "CENIT");
-        var scenario = CenitScenario();
-
-        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
-        var trace = await LoadLatestTraceAsync(context);
-
-        trace.ShouldContainFunctionalGenerationTrace(scenario);
+        var exception = await AssertCenitLiveBlockedAsync(context);
+        exception.Message.Should().NotContain("RCV001").And.NotContain("123456789");
     }
 
     [Fact]
@@ -785,7 +769,7 @@ public class NachaFunctionalValidationTests
             ProfileCode = "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0",
             FlowType = "Outgoing",
             ExpectedFileName = "1234567.001.1",
-            ExpectedGoldenFilePath = "TestData/Nacha/ACHColombia/ACH-CO-OUT-001.ach",
+            ExpectedGoldenFilePath = "fixtures/nacha-m/ACHCOL/valid/achcol-v32-minimal.nacha.b64",
             ExpectedTotals = ExpectedOfficialTotals()
         };
 
@@ -966,8 +950,30 @@ public class NachaFunctionalValidationTests
         var batchNumberGenerator = new Mock<IBatchNumberGenerator>(MockBehavior.Strict);
         var contextData = BuildContext(clearingHouseName);
 
+        foreach (var transaction in contextData.Transactions)
+        {
+            context.Customers.Add(new Customer
+            {
+                Id = 700 + transaction.Id,
+                FirstName = "PERSONA",
+                LastName = $"SINTETICA {transaction.Id}",
+                PersonType = "PN",
+                DocumentType = "CC",
+                DocumentNumber = transaction.RecipientIdNumber,
+                Accounts =
+                [
+                    new CustomerAccount
+                    {
+                        Id = 700 + transaction.Id,
+                        AccountNumber = transaction.DestinationAccountNumber
+                    }
+                ]
+            });
+        }
+        context.SaveChanges();
+
         loader.Setup(x => x.LoadBatchesByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>())).ReturnsAsync(contextData.Batches);
-        loader.Setup(x => x.LoadHeaderAsync(contextData.Cycle.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new NachaHeader { AchCycleId = contextData.Cycle.Id, FileCreationDate = "2026-05-24", FileCreationTime = "14:00", FileIdModifier = "A", ReferenceCode = "UAT6B3C" });
+        loader.Setup(x => x.LoadHeaderAsync(contextData.Cycle.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new NachaHeader { AchCycleId = contextData.Cycle.Id, FileCreationDate = "20260524", FileCreationTime = "1400", FileIdModifier = "A", ReferenceCode = null });
         loader.Setup(x => x.LoadCompanyEntryDescriptionCatalogAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<(string Term, string StandardEntryClassCode)> { ("PAGOS", "PPD") });
         validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
@@ -984,11 +990,18 @@ public class NachaFunctionalValidationTests
             semantic.Object,
             configResolver: new NachaConfigResolver(context),
             type7GenerationStrategy: new NachaType7GenerationStrategy(new NachaType7FieldValueResolver(new NachaType7AliasMap())),
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "TABLE_DRIVEN" }),
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "TABLE_DRIVEN", ExecutionScope = "LIVE" }),
             logger: Mock.Of<ILogger<NachaFileBuilder>>(),
             batchNumberGenerator: batchNumberGenerator.Object);
 
         return new OfficialSut(sut);
+    }
+
+    private static async Task<NachaGenerationException> AssertCenitLiveBlockedAsync(AchDbContext context)
+    {
+        var setup = CreateOfficialSut(context, "CENIT");
+        return await Assert.ThrowsAsync<NachaGenerationException>(
+            () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
     }
 
     private static NachaBuildContext BuildContext(string clearingHouseName)
@@ -1007,7 +1020,7 @@ public class NachaFunctionalValidationTests
             Id = 100,
             AchCycleId = cycle.Id,
             AchCycle = cycle,
-            ServiceClassCode = "PPD",
+            ServiceClassCode = "220",
             CompanyEntryDescription = "PAGOS",
             CompanyIdentification = "9001234567",
             CompanyName = "EMPRESA UAT",
@@ -1185,6 +1198,18 @@ public class NachaFunctionalValidationTests
         Copy(debit, line, 31);
         Copy(credit, line, 49);
         return new string(line);
+    }
+
+    private static string ReadExecution2AchColSyntheticGolden()
+    {
+        var fixturePath = Path.Combine(
+            AppContext.BaseDirectory,
+            "fixtures",
+            "nacha-m",
+            "ACHCOL",
+            "valid",
+            "achcol-v32-minimal.nacha.b64");
+        return Encoding.ASCII.GetString(Convert.FromBase64String(File.ReadAllText(fixturePath)));
     }
 
     private static string ReplaceSegment(string value, int startIndex, int length, string replacement)

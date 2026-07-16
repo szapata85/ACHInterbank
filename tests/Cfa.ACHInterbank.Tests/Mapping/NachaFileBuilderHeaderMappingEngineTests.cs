@@ -133,6 +133,7 @@ public class NachaFileBuilderHeaderMappingEngineTests
         var options = Options.Create(new NachaGenerationOptions
         {
             Mode = shadowMode ? "SHADOW_COMPARE" : "HYBRID",
+            ExecutionScope = "DEVELOPMENT",
             EnableRecord1MappingEngine = enableRecord1,
             EnableRecord5MappingEngine = enableRecord5,
             Record6MappingDiagnostics = true

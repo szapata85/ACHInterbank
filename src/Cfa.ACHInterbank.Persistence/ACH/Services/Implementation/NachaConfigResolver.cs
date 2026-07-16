@@ -31,6 +31,7 @@ public class NachaConfigResolver : INachaConfigResolver
             .Include(x => x.FlowType)
             .Include(x => x.Direction)
             .Include(x => x.ServiceClass)
+            .Include(x => x.Tags)
             .Include(x => x.Records)
                 .ThenInclude(x => x.RecordCode)
             .Where(x => x.ClearingHouse.Code == request.ClearingHouseCode
@@ -89,6 +90,7 @@ public class NachaConfigResolver : INachaConfigResolver
             .ToListAsync(ct);
 
         var selectedLayouts = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
+        var variantsByRecordCode = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var recordCode in neededRecordCodes)
         {
@@ -97,6 +99,8 @@ public class NachaConfigResolver : INachaConfigResolver
                 .OrderByDescending(x => x.IsDefaultForRecord)
                 .ThenBy(x => x.Priority)
                 .ToList();
+
+            variantsByRecordCode[recordCode] = candidates.AsReadOnly();
 
             if (candidates.Count == 0)
             {
@@ -129,6 +133,7 @@ public class NachaConfigResolver : INachaConfigResolver
             UsedFallback = selectedLayouts.Count != neededRecordCodes.Count,
             Profile = profile,
             LayoutsByRecordCode = selectedLayouts,
+            LayoutVariantsByRecordCode = variantsByRecordCode,
             Trace = trace,
             Warnings = warnings
         };

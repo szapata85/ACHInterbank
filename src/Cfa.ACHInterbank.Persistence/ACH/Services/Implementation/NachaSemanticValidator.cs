@@ -19,6 +19,10 @@ public class NachaSemanticValidator : INachaSemanticValidator
     private const int NewTraceLength = 15;
     private const int EntrySequenceStart = 99;
     private const int EntrySequenceLength = 7;
+    private const int AddendaIndicatorStart = 86;
+    private const int TraceSuffixStart = 95;
+    private const int AddendaTraceSuffixStart = 87;
+    private const int TraceSuffixLength = 7;
     private const string RequiredMassCreditDescription = "MULTICREDIT";
 
     public void Validate(string fileContent, NachaBuildContext context)
@@ -39,147 +43,302 @@ public class NachaSemanticValidator : INachaSemanticValidator
             .Select(index => fileContent.Substring(index * RecordLength, RecordLength))
             .ToList();
 
-        if (records[0][0] != '1' || !records.Any(r => r[0] == '5') || !records.Any(r => r[0] == '8') || !records.Any(r => r[0] == '9'))
+        if (records[0][0] != '1' || !records.Any(record => record[0] == '5')
+                                  || !records.Any(record => record[0] == '8')
+                                  || !records.Any(record => record[0] == '9'))
         {
-            throw new InvalidOperationException("El archivo NACHA debe contener registros tipo 1, 5, 8 y 9 en la secuencia esperada.");
+            throw new InvalidOperationException("El archivo NACHA debe contener T1, T5, T8 y T9 en la secuencia esperada.");
         }
 
-        var orderedBatches = context.Batches.OrderBy(batch => batch.Id).ToList();
+        var orderedBatches = context.Batches.ToList();
         if (records.Count(record => record[0] == '5') != orderedBatches.Count)
         {
-            throw new InvalidOperationException("La cantidad de encabezados de lote tipo 5 no coincide con los lotes exportados.");
+            throw new InvalidOperationException("La cantidad de T5 no coincide con los lotes exportados.");
         }
 
         var currentRecordIndex = 1;
-        foreach (var batch in orderedBatches)
+        for (var batchOrdinal = 0; batchOrdinal < orderedBatches.Count; batchOrdinal++)
         {
-            EnsureRecordType(records, currentRecordIndex, '5', $"Se esperaba encabezado tipo 5 para el lote {batch.Id}.");
-            var batchHeaderRecord = records[currentRecordIndex];
-            currentRecordIndex++;
+            var batch = orderedBatches[batchOrdinal];
+            EnsureRecordType(records, currentRecordIndex, '5', $"Se esperaba T5 para el lote ordinal {batchOrdinal + 1}.");
+            var batchHeaderRecord = records[currentRecordIndex++];
 
             var batchTransactions = context.Transactions
-                .Where(tx => tx.AchBatchId == batch.Id)
-                .OrderBy(tx => tx.Id)
+                .Where(transaction => transaction.AchBatchId == batch.Id)
+                .OrderBy(transaction => transaction.Id)
                 .ToList();
-            if (!batchTransactions.Any())
+            if (batchTransactions.Count == 0)
             {
-                throw new InvalidOperationException($"El lote {batch.Id} no contiene transacciones exportables.");
+                throw new InvalidOperationException($"El lote ordinal {batchOrdinal + 1} no contiene entradas exportables.");
             }
 
-            var creditLikeTransactions = batchTransactions.Where(IsCreditLike).ToList();
-            var exportedDescription = batchHeaderRecord.Substring(BatchHeaderDescriptionStart, BatchHeaderDescriptionLength).Trim();
-            var expectedDescription = RequiredMassCreditDescription.Length > BatchHeaderDescriptionLength
-                ? RequiredMassCreditDescription[..BatchHeaderDescriptionLength]
-                : RequiredMassCreditDescription;
+            ValidateBatchSemantics(batch, batchTransactions, batchHeaderRecord, batchOrdinal);
 
-            if (creditLikeTransactions.Count > 1 && !string.Equals(exportedDescription, expectedDescription, StringComparison.OrdinalIgnoreCase))
+            if (MatchesInterleavedShape(records, currentRecordIndex, batchTransactions.Count))
             {
-                throw new InvalidOperationException($"El lote {batch.Id} debe usar la descripción MULTICREDIT para créditos/prenotificaciones masivas.");
+                ValidateInterleavedEntries(records, ref currentRecordIndex, batchTransactions, batchOrdinal);
+            }
+            else
+            {
+                // Compatibility is restricted to DEVELOPMENT by NachaFileBuilder's LIVE gate.
+                // It remains readable only for isolated legacy/shadow diagnostics.
+                ValidateLegacyGroupedEntries(records, ref currentRecordIndex, batchTransactions, batchOrdinal);
             }
 
-            if (creditLikeTransactions.Any() && batch.EffectiveEntryDate == default)
-            {
-                throw new InvalidOperationException($"El lote {batch.Id} requiere Fecha Descriptiva en tipo 5 para créditos y prenotificaciones crédito.");
-            }
-
-            if (batchTransactions.Any(tx => tx.Addendas.Count == 0))
-            {
-                throw new InvalidOperationException($"El lote {batch.Id} contiene transacciones sin addenda asociada.");
-            }
-
-            foreach (var tx in batchTransactions)
-            {
-                EnsureRecordType(records, currentRecordIndex, '6', $"La transacción {tx.Id} debe generar un registro tipo 6.");
-                currentRecordIndex++;
-
-                if (tx.IsPrenotification && tx.Amount != 0)
-                {
-                    throw new InvalidOperationException($"La transacción {tx.Id} es prenotificación y debe exportarse con monto cero.");
-                }
-
-                if (!tx.IsPrenotification && tx.Amount <= 0)
-                {
-                    throw new InvalidOperationException($"La transacción {tx.Id} debe exportarse con monto monetario mayor a cero.");
-                }
-            }
-
-            foreach (var tx in batchTransactions)
-            {
-                foreach (var addenda in tx.Addendas)
-                {
-                    EnsureRecordType(records, currentRecordIndex, '7', $"La transacción {tx.Id} debe generar un registro tipo 7 por cada addenda.");
-                    var addendaRecord = records[currentRecordIndex];
-                    currentRecordIndex++;
-
-                    if (addenda.BusinessType == AchAddendaBusinessType.Return && tx.Type is not (TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
-                    {
-                        throw new InvalidOperationException($"La transacción {tx.Id} tiene una addenda de devolución incompatible con su tipo efectivo.");
-                    }
-
-                    if (addenda.AddendaType == "99" && tx.Type is not (TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
-                    {
-                        throw new InvalidOperationException($"La transacción {tx.Id} solo puede usar addenda 99 cuando el tipo efectivo es Return.");
-                    }
-
-                    if (addenda.AddendaType == "05" && tx.Type == TransactionTypeEnum.Return)
-                    {
-                        throw new InvalidOperationException($"La transacción {tx.Id} de tipo Return debe usar addenda 99.");
-                    }
-
-                    ValidateAddendaRecord(tx, addenda, addendaRecord);
-                }
-            }
-
-            EnsureRecordType(records, currentRecordIndex, '8', $"El lote {batch.Id} debe cerrar con un registro tipo 8.");
+            EnsureRecordType(records, currentRecordIndex, '8', $"El lote ordinal {batchOrdinal + 1} debe cerrar con T8.");
             currentRecordIndex++;
         }
 
-        EnsureRecordType(records, currentRecordIndex, '9', "El archivo NACHA debe cerrar con un registro tipo 9 de control.");
+        EnsureRecordType(records, currentRecordIndex, '9', "El archivo NACHA debe cerrar con T9 de control.");
         currentRecordIndex++;
 
         for (var index = currentRecordIndex; index < records.Count; index++)
         {
             if (records[index] != new string('9', RecordLength))
             {
-                throw new InvalidOperationException("Los registros de padding posteriores al tipo 9 deben contener únicamente el carácter 9.");
+                throw new InvalidOperationException("El padding posterior a T9 debe contener únicamente el carácter 9.");
             }
         }
     }
 
-    private static void ValidateAddendaRecord(Domain.Models.ACH.AchTransaction transaction, Domain.Models.ACH.AchTransactionAddenda addenda, string addendaRecord)
+    private static void ValidateBatchSemantics(
+        Domain.Models.ACH.AchBatch batch,
+        IReadOnlyList<Domain.Models.ACH.AchTransaction> transactions,
+        string batchHeaderRecord,
+        int batchOrdinal)
+    {
+        var creditLikeTransactions = transactions.Where(IsCreditLike).ToList();
+        var exportedDescription = batchHeaderRecord.Substring(BatchHeaderDescriptionStart, BatchHeaderDescriptionLength).Trim();
+        var expectedDescription = RequiredMassCreditDescription[..BatchHeaderDescriptionLength];
+
+        if (creditLikeTransactions.Count > 1
+            && !string.Equals(exportedDescription, expectedDescription, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"El lote ordinal {batchOrdinal + 1} debe usar MULTICREDIT para créditos/prenotificaciones masivas.");
+        }
+
+        if (creditLikeTransactions.Count > 0 && batch.EffectiveEntryDate == default)
+        {
+            throw new InvalidOperationException($"El lote ordinal {batchOrdinal + 1} requiere Fecha Descriptiva en T5 para el flujo vigente.");
+        }
+    }
+
+    private static bool MatchesInterleavedShape(
+        IReadOnlyList<string> records,
+        int startIndex,
+        int transactionCount)
+    {
+        var index = startIndex;
+        for (var entryOrdinal = 0; entryOrdinal < transactionCount; entryOrdinal++)
+        {
+            if (index >= records.Count || records[index][0] != '6')
+            {
+                return false;
+            }
+
+            var indicator = records[index][AddendaIndicatorStart];
+            index++;
+            if (indicator == '1')
+            {
+                if (index >= records.Count || records[index][0] != '7')
+                {
+                    return false;
+                }
+
+                while (index < records.Count && records[index][0] == '7')
+                {
+                    index++;
+                }
+            }
+            else if (indicator != '0')
+            {
+                return false;
+            }
+        }
+
+        return index < records.Count && records[index][0] == '8';
+    }
+
+    private static void ValidateInterleavedEntries(
+        IReadOnlyList<string> records,
+        ref int currentRecordIndex,
+        IReadOnlyList<Domain.Models.ACH.AchTransaction> transactions,
+        int batchOrdinal)
+    {
+        for (var entryOrdinal = 0; entryOrdinal < transactions.Count; entryOrdinal++)
+        {
+            var transaction = transactions[entryOrdinal];
+            EnsureRecordType(records, currentRecordIndex, '6', $"La entrada ordinal {entryOrdinal + 1} del lote {batchOrdinal + 1} debe generar T6.");
+            var entryRecord = records[currentRecordIndex++];
+            ValidateEntryAmount(transaction, batchOrdinal, entryOrdinal);
+
+            var indicator = entryRecord[AddendaIndicatorStart];
+            if (indicator == '0')
+            {
+                if (currentRecordIndex < records.Count && records[currentRecordIndex][0] == '7')
+                {
+                    throw new InvalidOperationException($"ACHCOL-T6-ADDENDA-INDICATOR falló en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+                }
+
+                continue;
+            }
+
+            if (indicator != '1')
+            {
+                throw new InvalidOperationException($"ACHCOL-T6-ADDENDA-INDICATOR contiene un valor no permitido en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+            }
+
+            var addendaOrdinal = 0;
+            while (currentRecordIndex < records.Count && records[currentRecordIndex][0] == '7')
+            {
+                var addendaRecord = records[currentRecordIndex++];
+                ValidateTraceSuffix(entryRecord, addendaRecord, batchOrdinal, entryOrdinal);
+                if (addendaOrdinal < transaction.Addendas.Count)
+                {
+                    var addenda = transaction.Addendas.ElementAt(addendaOrdinal);
+                    ValidateAddendaCompatibility(transaction, addenda, batchOrdinal, entryOrdinal);
+                    ValidateAddendaRecord(addenda, addendaRecord, batchOrdinal, entryOrdinal);
+                }
+
+                addendaOrdinal++;
+            }
+
+            if (addendaOrdinal == 0)
+            {
+                throw new InvalidOperationException($"El indicador T6 declara addenda sin T7 asociado en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+            }
+
+            if (transaction.Addendas.Count > 0 && addendaOrdinal != transaction.Addendas.Count)
+            {
+                throw new InvalidOperationException($"La cantidad de T7 no coincide con el modelo canónico en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+            }
+        }
+    }
+
+    private static void ValidateLegacyGroupedEntries(
+        IReadOnlyList<string> records,
+        ref int currentRecordIndex,
+        IReadOnlyList<Domain.Models.ACH.AchTransaction> transactions,
+        int batchOrdinal)
+    {
+        var entryRecords = new List<string>(transactions.Count);
+        for (var entryOrdinal = 0; entryOrdinal < transactions.Count; entryOrdinal++)
+        {
+            EnsureRecordType(records, currentRecordIndex, '6', $"La entrada ordinal {entryOrdinal + 1} del lote {batchOrdinal + 1} debe generar T6.");
+            entryRecords.Add(records[currentRecordIndex++]);
+            ValidateEntryAmount(transactions[entryOrdinal], batchOrdinal, entryOrdinal);
+        }
+
+        for (var entryOrdinal = 0; entryOrdinal < transactions.Count; entryOrdinal++)
+        {
+            var transaction = transactions[entryOrdinal];
+            foreach (var addenda in transaction.Addendas)
+            {
+                EnsureRecordType(records, currentRecordIndex, '7', $"La entrada ordinal {entryOrdinal + 1} debe generar T7 para cada addenda.");
+                var addendaRecord = records[currentRecordIndex++];
+                ValidateAddendaCompatibility(transaction, addenda, batchOrdinal, entryOrdinal);
+                ValidateAddendaRecord(addenda, addendaRecord, batchOrdinal, entryOrdinal);
+            }
+        }
+    }
+
+    private static void ValidateEntryAmount(
+        Domain.Models.ACH.AchTransaction transaction,
+        int batchOrdinal,
+        int entryOrdinal)
+    {
+        if (transaction.IsPrenotification && transaction.Amount != 0)
+        {
+            throw new InvalidOperationException($"La entrada ordinal {entryOrdinal + 1} del lote {batchOrdinal + 1} es prenotificación y requiere monto cero.");
+        }
+
+        if (!transaction.IsPrenotification && transaction.Amount <= 0)
+        {
+            throw new InvalidOperationException($"La entrada ordinal {entryOrdinal + 1} del lote {batchOrdinal + 1} requiere monto mayor a cero.");
+        }
+    }
+
+    private static void ValidateTraceSuffix(string entryRecord, string addendaRecord, int batchOrdinal, int entryOrdinal)
+    {
+        if (addendaRecord.Substring(1, 2) != "05")
+        {
+            return;
+        }
+
+        if (!string.Equals(
+                entryRecord.Substring(TraceSuffixStart, TraceSuffixLength),
+                addendaRecord.Substring(AddendaTraceSuffixStart, TraceSuffixLength),
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"ACHCOL-T7-TRACE-SUFFIX-MATCH falló en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
+    }
+
+    private static void ValidateAddendaCompatibility(
+        Domain.Models.ACH.AchTransaction transaction,
+        Domain.Models.ACH.AchTransactionAddenda addenda,
+        int batchOrdinal,
+        int entryOrdinal)
+    {
+        if (addenda.BusinessType == AchAddendaBusinessType.Return
+            && transaction.Type is not (TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
+        {
+            throw new InvalidOperationException($"La variante de devolución es incompatible en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
+
+        if (addenda.AddendaType == "99"
+            && transaction.Type is not (TransactionTypeEnum.Return or TransactionTypeEnum.Reversal))
+        {
+            throw new InvalidOperationException($"La addenda 99 no aplica en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
+
+        if (addenda.AddendaType == "05" && transaction.Type == TransactionTypeEnum.Return)
+        {
+            throw new InvalidOperationException($"La variante de addenda no aplica en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
+    }
+
+    private static void ValidateAddendaRecord(
+        Domain.Models.ACH.AchTransactionAddenda addenda,
+        string addendaRecord,
+        int batchOrdinal,
+        int entryOrdinal)
     {
         var addendaType = addendaRecord.Substring(1, 2);
         if (!string.Equals(addendaType, addenda.AddendaType, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException($"La transacción {transaction.Id} tiene inconsistencia entre la addenda declarada ({addenda.AddendaType}) y el registro tipo 7 exportado ({addendaType}).");
+            throw new InvalidOperationException($"El tipo de addenda no coincide en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
         }
 
-        if (addendaType == "99")
+        if (addendaType != "99")
         {
-            var returnReason = addendaRecord.Substring(ReturnReasonStart, ReturnReasonLength).Trim();
-            var originalTrace = addendaRecord.Substring(OriginalTraceStart, OriginalTraceLength).Trim();
-            var newTrace = addendaRecord.Substring(NewTraceStart, NewTraceLength).Trim();
-            var entrySequence = addendaRecord.Substring(EntrySequenceStart, EntrySequenceLength).Trim();
+            return;
+        }
 
-            if (!(returnReason.Length == 3 && returnReason.StartsWith('R')) && !string.Equals(returnReason, "DEV14", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException($"La transacción {transaction.Id} debe exportar una causal de devolución Rxx o DEV14 en la addenda tipo 99.");
-            }
+        var returnReason = addendaRecord.Substring(ReturnReasonStart, ReturnReasonLength).Trim();
+        var originalTrace = addendaRecord.Substring(OriginalTraceStart, OriginalTraceLength).Trim();
+        var newTrace = addendaRecord.Substring(NewTraceStart, NewTraceLength).Trim();
+        var entrySequence = addendaRecord.Substring(EntrySequenceStart, EntrySequenceLength).Trim();
 
-            if (originalTrace.Length != 15 || originalTrace.Any(c => !char.IsDigit(c)))
-            {
-                throw new InvalidOperationException($"La transacción {transaction.Id} debe exportar el trace original de 15 dígitos en la addenda tipo 99.");
-            }
+        if (!(returnReason.Length == 3 && returnReason.StartsWith('R'))
+            && !string.Equals(returnReason, "DEV14", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"La causal de devolución es inválida en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
 
-            if (newTrace.Length != 15 || newTrace.Any(c => !char.IsDigit(c)))
-            {
-                throw new InvalidOperationException($"La transacción {transaction.Id} debe exportar el nuevo trace de 15 dígitos en la addenda tipo 99.");
-            }
+        if (originalTrace.Length != 15 || originalTrace.Any(character => !char.IsDigit(character)))
+        {
+            throw new InvalidOperationException($"El trace original no cumple longitud/tipo en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
 
-            if (entrySequence.Length != 7 || entrySequence.Any(c => !char.IsDigit(c)))
-            {
-                throw new InvalidOperationException($"La transacción {transaction.Id} debe exportar la secuencia tipo 6 de 7 dígitos en la addenda tipo 99.");
-            }
+        if (newTrace.Length != 15 || newTrace.Any(character => !char.IsDigit(character)))
+        {
+            throw new InvalidOperationException($"El nuevo trace no cumple longitud/tipo en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
+
+        if (entrySequence.Length != 7 || entrySequence.Any(character => !char.IsDigit(character)))
+        {
+            throw new InvalidOperationException($"La secuencia asociada no cumple longitud/tipo en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
         }
     }
 

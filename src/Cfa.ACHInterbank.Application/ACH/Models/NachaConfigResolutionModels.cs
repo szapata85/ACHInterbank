@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
+using System.Text.Json.Serialization;
 
 namespace Cfa.ACHInterbank.Application.ACH.Models;
 
@@ -19,6 +20,8 @@ public class NachaConfigResolutionResult
     public bool UsedFallback { get; set; }
     public CfgProfile? Profile { get; init; }
     public IReadOnlyDictionary<string, CfgLayoutVariant> LayoutsByRecordCode { get; init; } = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<string, IReadOnlyList<CfgLayoutVariant>> LayoutVariantsByRecordCode { get; init; }
+        = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>(StringComparer.OrdinalIgnoreCase);
     public List<string> Trace { get; init; } = [];
     public List<string> Warnings { get; init; } = [];
 }
@@ -120,6 +123,8 @@ public class NachaGenerationTraceEntry
     public string PaddingChar { get; set; } = " ";
     public string? RawValueSanitized { get; set; }
     public string? RenderedValue { get; set; }
+    [JsonIgnore]
+    public string? RuntimeRenderedValue { get; set; }
     public int RenderedLength { get; set; }
     public string ValidationStatus { get; set; } = "Ok";
     public string? ErrorCode { get; set; }

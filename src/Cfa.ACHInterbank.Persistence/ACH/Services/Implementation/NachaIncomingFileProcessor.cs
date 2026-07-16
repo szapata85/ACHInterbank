@@ -68,8 +68,12 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Fallo controlado en procesamiento NACHA-M entrante 6B.4 para {FileName}", fileName);
-            errors.Add(ex.Message);
+            var incidentId = Guid.NewGuid().ToString("N");
+            _logger.LogWarning(
+                "NACHA_INCOMING_PROCESSING_FAILED|Incident={Incident}|ExceptionType={ExceptionType}",
+                incidentId,
+                ex.GetType().Name);
+            errors.Add($"NACHA_INCOMING_PROCESSING_FAILED;Incident={incidentId}");
             return BuildFailed(request, fileName, correlationId, isReturnFile, errors, warnings);
         }
 

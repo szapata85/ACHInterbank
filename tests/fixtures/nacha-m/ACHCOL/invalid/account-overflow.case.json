@@ -1,0 +1,8 @@
+{
+  "caseId": "ACHCOL-T6-ACCOUNT-NUMBER-OVERFLOW",
+  "baseFixture": "../valid/achcol-v32-minimal.nacha.b64",
+  "mutation": "Replace T6 positions 13-29 with a synthetic value longer than 17 before render",
+  "expectedError": "NACHA_FIELD_LENGTH_INVALID",
+  "expectedRuleId": "ACHCOL-T6-ACCOUNT-NUMBER",
+  "containsRealData": false
+}

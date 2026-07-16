@@ -36,12 +36,17 @@ public class NachaFileBuilderBatchNumberHardeningTests
 
         record5.Should().NotBeNull();
         record8.Should().NotBeNull();
-        ReadIntProperty(record5!, "BatchNumber").Should().Be(77);
-        ReadIntProperty(record8!, "BatchNumber").Should().Be(77);
+        ReadIntProperty(record5!, "BatchNumber").Should().Be(1);
+        ReadIntProperty(record8!, "BatchNumber").Should().Be(1);
+        setup.BatchGenerator.Verify(x => x.AssignBatchNumbersAsync(
+            It.IsAny<IReadOnlyList<AchBatch>>(),
+            It.IsAny<string>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task BuildNachaFileAsync_ShadowCompare_ShouldRequestBatchNumberOnce()
+    public async Task BuildNachaFileAsync_ShadowCompare_ShouldKeepAchColBatchOrdinalFileLocal()
     {
         var setup = CreateBaseSut(mode: "SHADOW_COMPARE");
 
@@ -51,11 +56,11 @@ public class NachaFileBuilderBatchNumberHardeningTests
             It.IsAny<IReadOnlyList<AchBatch>>(),
             It.IsAny<string>(),
             It.IsAny<DateTime>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task BuildNachaFileAsync_WithPersistedBatchNumber_ShouldBeDeterministicAndNotReserveAgain()
+    public async Task BuildNachaFileAsync_WithPersistedTechnicalBatchNumber_ShouldStillUseFileLocalOrdinal()
     {
         var setup = CreateBaseSut(mode: "HYBRID", persistedBatchNumber: 42);
         object? record5 = null;
@@ -69,8 +74,8 @@ public class NachaFileBuilderBatchNumberHardeningTests
 
         await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        ReadIntProperty(record5!, "BatchNumber").Should().Be(42);
-        ReadIntProperty(record8!, "BatchNumber").Should().Be(42);
+        ReadIntProperty(record5!, "BatchNumber").Should().Be(1);
+        ReadIntProperty(record8!, "BatchNumber").Should().Be(1);
         setup.BatchGenerator.Verify(x => x.AssignBatchNumbersAsync(
             It.IsAny<IReadOnlyList<AchBatch>>(),
             It.IsAny<string>(),
@@ -155,6 +160,7 @@ public class NachaFileBuilderBatchNumberHardeningTests
         var options = Options.Create(new NachaGenerationOptions
         {
             Mode = mode,
+            ExecutionScope = "DEVELOPMENT",
             EnableRecord5MappingEngine = true,
             EnableRecord8MappingEngine = true
         });

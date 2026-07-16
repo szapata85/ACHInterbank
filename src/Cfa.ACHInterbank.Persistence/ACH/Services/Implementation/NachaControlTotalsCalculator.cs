@@ -147,7 +147,7 @@ public sealed class NachaControlTotalsCalculator : INachaControlTotalsCalculator
         var digits = new string(text.Where(char.IsDigit).ToArray());
         if (digits.Length == 0 || !long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
         {
-            throw new NachaGenerationException("NACHA_ENTRY_HASH_NOT_NUMERIC", $"El campo {sourceFieldPath} no puede convertirse a número para calcular EntryHash. Valor recibido: '{text}'.");
+            throw new NachaGenerationException("NACHA_ENTRY_HASH_NOT_NUMERIC", $"El campo {sourceFieldPath} no puede convertirse a número para calcular EntryHash.");
         }
 
         return value;

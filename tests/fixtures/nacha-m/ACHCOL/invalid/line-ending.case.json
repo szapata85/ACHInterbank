@@ -1,0 +1,7 @@
+{
+  "caseId": "ACHCOL-PHYSICAL-NO-LINE-ENDINGS",
+  "baseFixture": "../valid/achcol-v32-minimal.nacha.b64",
+  "mutation": "Append CRLF bytes",
+  "expectedError": "ACHCOL-PHYSICAL-NO-LINE-ENDINGS",
+  "containsRealData": false
+}

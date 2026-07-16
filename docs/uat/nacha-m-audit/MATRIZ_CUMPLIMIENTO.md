@@ -55,3 +55,38 @@ Estados permitidos aplicados: `Cumple`, `No cumple`, `No demostrado`, `No aplica
 |---|---|---|
 | ACH Colombia | **NO-GO** | Campos críticos desplazados, fechas/lotes/Trace/adendas/totales no conformes y privacidad insuficiente |
 | CENIT | **NO-GO** | Reglas críticas no demostradas por ausencia de ficha técnica/Manual STA, además de brechas comunes de implementación y privacidad |
+
+## Revaluación posterior a Ejecución 2 (2026-07-16)
+
+| Control | ACHCOL | CENIT | Evidencia Ejecución 2 | Riesgo residual / bloqueante LIVE |
+|---|---|---|---|---|
+| C-001 a C-006 — físico/T1 | Cumple técnicamente en pruebas sintéticas | No demostrado | descriptor 106, offsets T1, parser byte-oriented | Encoding, naming y homologación externa ACHCOL; toda regla CENIT |
+| C-007 a C-012 — T5/lote | Cumple técnicamente para variante probada | No demostrado | fechas 8, lote local por archivo, T5/T8 | Settlement/descriptive date por flujo; fase 3 persistencia |
+| C-013 a C-017 — T6/T7 | Cumple técnicamente para variantes implementadas | No demostrado | monto 18, indicador/Trace, intercalado, sufijo | Prenotas, múltiples addendas y conflicto de versión de ficha T7 |
+| C-018 — variantes T7 | Parcialmente cumple | No demostrado | variantes crédito/débito separadas | Cobertura normativa completa por flujo no demostrada |
+| C-019 a C-024 — T8/T9 | Cumple técnicamente | No demostrado | conteos/hash conservados, totales 18, lote 100–106 | Vectores oficiales externos |
+| C-025 — naming | No demostrado | No demostrado | no se cambió por inferencia | Bloqueante LIVE |
+| C-026 — perfiles separados | Cumple | Cumple como separación, no como layout | perfiles/tags/snapshot | CENIT permanece placeholder |
+| C-027 — fail-fast | Cumple para LIVE | Cumple como bloqueo | TABLE_DRIVEN obligatorio; CENIT gate | Legacy sólo DEVELOPMENT |
+| C-028 — table-driven | Cumple en offsets/reglas ACHCOL; parcial global | No demostrado | layout inmutable, seeder y parser compartidos | aliases/legacy controlado; CENIT sin norma |
+| C-029 — metadata | Cumple técnicamente sin cambio de esquema | No demostrado | JSON ejecutable de `CfgFieldRule` | Tipado persistente requeriría migración futura |
+| C-030 — validación cerrada | Cumple ACHCOL oficial | No demostrado | pipeline completo y negativas | Nuevas variantes requieren matriz aprobada |
+| C-031 — truncamiento | Cumple en LIVE oficial | LIVE bloqueado | overflow `REJECT`; HYBRID prohibido en LIVE | Legacy desarrollo conserva compatibilidad aislada |
+| C-032 — consecutivo externo | No modificado | No modificado | fuera de alcance | Ejecución 3 SQL Server/PostgreSQL |
+| C-033 — lote normativo | Cumple dentro del archivo | No demostrado | pruebas reinicio/multilote | Idempotencia externa independiente queda fase 3 |
+| C-034 — America/Bogota | Parcial | Parcial | snapshot coherente | persistencia/clock operacional fase 3 |
+| C-035 — duplicados | No demostrado | No demostrado | fuera de alcance | Bloqueante LIVE |
+| C-036 — parser físico | Cumple ACHCOL | No demostrado | byte stream, 106, no residuos, round-trip | Perfil CENIT oficial ausente |
+| C-037 — privacidad Git | Hallazgo previo no corregido en esta fase | Igual | referencias reales no se usaron | Retiro del índice/historial requiere ejecución autorizada separada |
+| C-038/C-039 — trazas/logs | Parcialmente cumple en superficies modificadas | Parcialmente mitigado por gate | excepciones estructuradas, redacción y tests | Retención/históricos/revisión global pendiente |
+| C-040/C-041 — golden/negativas | Cumple internamente | No aplica como válido | fixture sintético ACHCOL + casos inválidos; CENIT rechazo | Golden interno no es certificación externa |
+| C-042 — SQL/PG | No ejecutado | No ejecutado | exclusión explícita | Ejecución 3/4 |
+| C-043 — aprobación humana | No demostrado | No demostrado | no solicitada ni inferida | Bloqueante LIVE |
+| C-044 — datos en pruebas | Cumple en fixtures nuevos | Cumple en fixture de rechazo | contenido completamente sintético | Revisar históricos legacy en fase de privacidad |
+
+### Resultado agregado de Ejecución 2
+
+| Cámara | Decisión | Justificación |
+|---|---|---|
+| ACH Colombia | **NO-GO** | Correcciones críticas del layout y suite offline confirmadas, pero naming, encoding contractual, conflicto documental T7, persistencia/concurrencia, certificación externa y aprobación humana siguen bloqueantes |
+| CENIT | **NO-GO / NOT HOMOLOGATED / BLOCKED FOR LIVE** | No existe especificación suficiente; el gate LIVE está probado y no se hereda el layout ACHCOL |

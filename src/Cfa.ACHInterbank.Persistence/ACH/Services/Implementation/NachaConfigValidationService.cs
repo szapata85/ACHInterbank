@@ -58,6 +58,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                     .ThenInclude(x => x.Rules)
                         .ThenInclude(x => x.RuleType)
             .Include(x => x.ClearingHouse)
+            .Include(x => x.Tags)
             .FirstOrDefaultAsync(x => x.Id == profileId, ct);
 
         if (profile is null)
@@ -206,6 +207,16 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                                     Mensaje = $"Field {field.FieldCode} usa transform {type} no soportado en fase 1."
                                 });
                             }
+
+                            if (chamberCode == "ACH" && type is "truncate" or "substring" or "null_to_default")
+                            {
+                                issues.Add(new NachaConfigValidationIssueDto
+                                {
+                                    Severidad = "ERROR",
+                                    Codigo = "OFFICIAL_TRANSFORM_FAIL_CLOSED",
+                                    Mensaje = $"Field {field.FieldCode} usa una transformación silenciosa prohibida para ACHCOL oficial."
+                                });
+                            }
                         }
                     }
                     catch
@@ -282,6 +293,20 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             }
 
             ValidateHeaderNormativeRequirements(issues, chamberCode, variant, ordered);
+            if (chamberCode == "ACH")
+            {
+                ValidateAchColExactLayoutAndRules(issues, variant, ordered);
+            }
+        }
+
+        if (chamberCode == "CENIT")
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "CENIT_NOT_HOMOLOGATED",
+                Mensaje = "CENIT permanece NO-GO / NOT HOMOLOGATED; no puede aprobarse ni publicarse para LIVE."
+            });
         }
 
         var conflictingEffective = await _context.CfgProfiles
@@ -308,7 +333,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["PRIORITYCODE"] = 2,
         ["IMMEDIATEDESTINATION"] = 10,
         ["IMMEDIATEORIGIN"] = 10,
-        ["FILECREATIONDATE"] = 6,
+        ["FILECREATIONDATE"] = 8,
         ["FILECREATIONTIME"] = 4,
         ["FILEIDMODIFIER"] = 1,
         ["RECORDSIZE"] = 3,
@@ -327,8 +352,8 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["COMPANYIDENTIFICATION"] = 10,
         ["STANDARDENTRYCLASSCODE"] = 3,
         ["COMPANYENTRYDESCRIPTION"] = 10,
-        ["COMPANYDESCRIPTIVEDATE"] = 6,
-        ["EFFECTIVEENTRYDATE"] = 6,
+        ["COMPANYDESCRIPTIVEDATE"] = 8,
+        ["EFFECTIVEENTRYDATE"] = 8,
         ["SETTLEMENTDATE"] = 3,
         ["ORIGINATORSTATUSCODE"] = 1,
         ["ORIGINATINGDFI"] = 8,
@@ -339,8 +364,8 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["SERVICECLASSCODE"] = 3,
         ["ENTRYADDENDACOUNT"] = 6,
         ["ENTRYHASH"] = 10,
-        ["TOTALDEBITAMOUNT"] = 12,
-        ["TOTALCREDITAMOUNT"] = 12,
+        ["TOTALDEBITAMOUNT"] = 18,
+        ["TOTALCREDITAMOUNT"] = 18,
         ["COMPANYIDENTIFICATION"] = 10,
         ["ORIGINATINGDFI"] = 8,
         ["BATCHNUMBER"] = 7
@@ -351,9 +376,135 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         ["BLOCKCOUNT"] = 6,
         ["ENTRYADDENDACOUNT"] = 8,
         ["ENTRYHASH"] = 10,
-        ["TOTALDEBITAMOUNT"] = 12,
-        ["TOTALCREDITAMOUNT"] = 12
+        ["TOTALDEBITAMOUNT"] = 18,
+        ["TOTALCREDITAMOUNT"] = 18
     };
+
+    private static void ValidateAchColExactLayoutAndRules(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        CfgLayoutVariant variant,
+        IReadOnlyCollection<CfgLayoutField> orderedFields)
+    {
+        IReadOnlyList<AchColOfficialFieldDescriptor> expected;
+        try
+        {
+            expected = AchColOfficialNachaLayout.ForVariant(variant.RecordCode.Code, variant.VariantCode);
+        }
+        catch (InvalidOperationException)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "ACHCOL_LAYOUT_NOT_DEMONSTRATED",
+                Mensaje = $"La variante {variant.VariantCode} no tiene descriptor ACHCOL V32 aprobado."
+            });
+            return;
+        }
+
+        if (variant.TotalLength != AchColOfficialNachaLayout.RecordLength)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "ACHCOL_RECORD_LENGTH",
+                Mensaje = $"La variante {variant.VariantCode} debe declarar longitud 106."
+            });
+        }
+
+        var configured = orderedFields
+            .GroupBy(field => field.FieldCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var descriptor in expected)
+        {
+            if (!configured.TryGetValue(descriptor.FieldCode, out var field))
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_FIELD_MISSING", "no está configurado");
+                continue;
+            }
+
+            if (field.StartPosition != descriptor.StartPosition
+                || field.Length != descriptor.Length
+                || char.ToUpperInvariant(field.Justification) != descriptor.Justification
+                || field.PadChar != descriptor.PadChar)
+            {
+                AddAchColDescriptorIssue(
+                    issues,
+                    descriptor,
+                    "ACHCOL_FIELD_LAYOUT_MISMATCH",
+                    $"debe ocupar {descriptor.StartPosition}-{descriptor.EndPosition}, alineación {descriptor.Justification} y relleno U+{(int)descriptor.PadChar:X4}");
+            }
+
+            if (!string.Equals(field.FormatMask?.Trim(), descriptor.Format ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(descriptor.Format))
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_FIELD_FORMAT_MISMATCH", $"debe usar formato {descriptor.Format}");
+            }
+
+            var rule = field.Rules.FirstOrDefault(candidate =>
+                candidate.IsEnabled
+                && string.Equals(candidate.RuleCode, descriptor.RuleId, StringComparison.OrdinalIgnoreCase));
+            if (rule is null)
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_NOT_EXECUTABLE", $"no tiene CfgFieldRule habilitada con RuleId {descriptor.RuleId}");
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(rule.RuleConfigJson))
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_METADATA_MISSING", "no tiene metadata normativa ejecutable");
+                continue;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(rule.RuleConfigJson);
+                var root = document.RootElement;
+                var overflow = root.TryGetProperty("overflowPolicy", out var overflowElement)
+                    ? overflowElement.GetString()
+                    : null;
+                var source = root.TryGetProperty("normativeSource", out var sourceElement)
+                    ? sourceElement.GetString()
+                    : null;
+                var version = root.TryGetProperty("normativeVersion", out var versionElement)
+                    ? versionElement.GetString()
+                    : null;
+                if (!string.Equals(overflow, "REJECT", StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(source, descriptor.NormativeSource, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(version, descriptor.NormativeVersion, StringComparison.OrdinalIgnoreCase))
+                {
+                    AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_METADATA_INVALID", "no declara overflow REJECT y trazabilidad MAN-004 V32");
+                }
+            }
+            catch (JsonException)
+            {
+                AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_METADATA_INVALID", "tiene RuleConfigJson inválido");
+            }
+        }
+
+        var expectedCodes = expected.Select(field => field.FieldCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var unexpected in orderedFields.Where(field => !expectedCodes.Contains(field.FieldCode)))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "ACHCOL_UNEXPECTED_FIELD",
+                Mensaje = $"La variante {variant.VariantCode} contiene un campo no demostrado por su descriptor oficial: {unexpected.FieldCode}."
+            });
+        }
+    }
+
+    private static void AddAchColDescriptorIssue(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        AchColOfficialFieldDescriptor descriptor,
+        string code,
+        string cause)
+        => issues.Add(new NachaConfigValidationIssueDto
+        {
+            Severidad = "ERROR",
+            Codigo = code,
+            Mensaje = $"{descriptor.RuleId}: record {descriptor.RecordCode}, campo {descriptor.FieldCode}, posición {descriptor.StartPosition}, longitud {descriptor.Length}: {cause}."
+        });
 
     private static void ValidateHeaderNormativeRequirements(
         ICollection<NachaConfigValidationIssueDto> issues,
@@ -498,7 +649,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         string chamberCode,
         IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
     {
-        ValidateFormatMask(issues, fieldsByCode, "FILECREATIONDATE", "yyMMdd");
+        ValidateFormatMask(issues, fieldsByCode, "FILECREATIONDATE", "yyyyMMdd");
         ValidateFormatMask(issues, fieldsByCode, "FILECREATIONTIME", "HHmm");
         ValidateConstantValue(issues, fieldsByCode, "RECORDSIZE", "106");
         ValidateConstantValue(issues, fieldsByCode, "BLOCKINGFACTOR", "10");
@@ -536,8 +687,8 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         string chamberCode,
         IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
     {
-        ValidateFormatMask(issues, fieldsByCode, "EFFECTIVEENTRYDATE", "yyMMdd");
-        ValidateFormatMask(issues, fieldsByCode, "COMPANYDESCRIPTIVEDATE", "yyMMdd", allowMissingMask: true);
+        ValidateFormatMask(issues, fieldsByCode, "EFFECTIVEENTRYDATE", "yyyyMMdd");
+        ValidateFormatMask(issues, fieldsByCode, "COMPANYDESCRIPTIVEDATE", "yyyyMMdd", allowMissingMask: true);
 
         if (TryGetConstant(fieldsByCode, "STANDARDENTRYCLASSCODE", out var secCode)
             && secCode is not ("PPD" or "CCD"))

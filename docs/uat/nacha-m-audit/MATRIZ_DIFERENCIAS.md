@@ -46,3 +46,27 @@ Los valores se expresan como patrones, presencia/ausencia o categorías. No se r
 - Fechas, identificadores, nombres, importes, referencias y Trace Numbers: son datos transaccionales diferentes y no se compararon por igualdad.
 - El único carácter monobyte no ASCII del archivo del tercero no se clasificó como inválido porque el MAN-004 incluye esa letra en su repertorio; la codificación exacta sigue pendiente.
 
+## Cierre de diferencias — Ejecución 2 (2026-07-16)
+
+No se reutilizaron archivos reales ni de terceros como fixture u oracle. Los estados siguientes reflejan código y pruebas sintéticas, no certificación de cámara.
+
+| Diferencia | Estado anterior | Corrección aplicada | Evidencia | Estado Ejecución 2 | Riesgo residual |
+|---|---|---|---|---|---|
+| DIF-001 / longitud física | Cumple | Parser y builder comparten longitud 106 | suite normativa + round-trip | Cerrada técnicamente | Encoding contractual |
+| DIF-002 / bloques y padding | Cumple parcial | Bloques posteriores al conteo físico; filler sólo al final | golden sintético | Cerrada técnicamente | Vector externo |
+| DIF-003 / encoding | No demostrado | Repertorio fail-closed y fixture ASCII sin BOM | negativas de caracteres/BOM | Parcialmente mitigada | Codificación contractual exacta no demostrada |
+| DIF-004 a DIF-010 / T1 | No cumple | Offsets MAN-004 V32, snapshot coherente, ReferenceCode independiente | prueba byte a byte | Cerradas técnicamente salvo contenido/naming | ZZZ/FileId, contenido ReferenceCode y contrato |
+| DIF-011 a DIF-014 / T5 y lotes | No cumple | Fechas de 8; lote local 1..n; match T5/T8 | pruebas uno/multilote/dos archivos | Cerradas técnicamente | Settlement por flujo; persistencia externa fase 3 |
+| DIF-015 a DIF-018 / T6 | No cumple | Monto 18; ID/nombre; indicador y Trace oficiales | offsets, overflow, repertorio, round-trip | Cerradas técnicamente | Prenotas y unicidad persistente Trace |
+| DIF-019 / orden T6/T7 | No cumple | Emisión por unidad Entry + Addenda inmediata | multilote y comparación byte a byte | Cerrada técnicamente | Múltiples addendas por entrada no homologadas |
+| DIF-020 / sufijo T7 | No cumple | Sufijo 88–94 cruza con últimas siete del T6 inmediato | negativas + parser | Cerrada técnicamente | Conflicto documental V32/V31 |
+| DIF-021 / totales T8 | No cumple | Débito/crédito de 18 | golden sintético + calculator | Cerrada técnicamente | Vector externo |
+| DIF-022 / conteo/hash T8 | Cumple | Cálculo conservado y reconciliado | controles funcionales | Confirmada | Vector externo |
+| DIF-023 / controles T9 | Cumple | Cálculo conservado y validación física | controles funcionales | Confirmada | Vector externo |
+| DIF-024 / totales/reservado T9 | No cumple | Totales 18; reservado 68–106 | golden sintético | Cerrada técnicamente | Vector externo |
+| DIF-025 / nombre ACHCOL | No demostrado | No se modificó sin contrato | No aplica | No demostrado — bloqueante LIVE | Naming/interfaz CFA |
+| DIF-026 a DIF-031 / CENIT | No demostrado | Gate CENIT LIVE; no se copió layout ACHCOL | test fail-closed | Riesgo contenido, regla no demostrada | Manual/layout/naming/encoding/homologación CENIT |
+| DIF-032 / perfiles separados | Cumple | Snapshot y tags por cámara preservados | resolver/seeder tests | Cumple | Revisión al incorporar norma CENIT |
+| DIF-033 / lógica dispersa | No cumple | Offsets y reglas ACHCOL centralizados; parser converge; cálculo core conservado | tests table-driven | Parcialmente cerrada | Legacy desarrollo y aliases requieren deuda controlada |
+| DIF-034 / privacidad | No cumple | Redacción de middleware, builder, parser, auditoría y errores | tests de no reconstrucción | Parcialmente cerrada | Históricos/retención/revisión global pendientes |
+| DIF-035 / parser | No cumple | Lectura por bytes, 106 exactos, sin residuos/EOL/BOM | negativas y round-trip | Cerrada técnicamente ACHCOL | CENIT no tiene perfil oficial |

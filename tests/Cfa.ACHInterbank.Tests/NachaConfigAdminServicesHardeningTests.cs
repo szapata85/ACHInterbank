@@ -550,18 +550,20 @@ public sealed class NachaConfigAdminServicesHardeningTests
     }
 
     [Fact]
-    public async Task PublishAsync_ShouldSucceed_AndPersistSnapshotAndHistory()
+    public async Task PublishAsync_ShouldRejectAchDraftThatDoesNotMatchOfficialDescriptor()
     {
         await using var context = await CreateSqliteContextAsync();
         var profile = await SeedProfileGraphAsync(context);
         var validation = new NachaConfigValidationService(context);
         var publication = new NachaConfigPublicationService(context, validation);
+        var validationResult = await validation.ValidateBeforePublishAsync(profile.Id);
 
         var result = await publication.PublishAsync(profile.Id, "publisher", Convert.ToBase64String(profile.RowVersion));
 
-        result.Publicado.Should().BeTrue();
-        context.HistConfigSnapshots.Should().Contain(x => x.ProfileId == profile.Id && x.SnapshotType == "PUBLISH");
-        context.HistConfigChanges.Should().Contain(x => x.ProfileId == profile.Id && x.ChangeType == "PUBLISH");
+        result.Publicado.Should().BeFalse();
+        validationResult.Issues.Should().Contain(issue => issue.Codigo.StartsWith("ACHCOL_", StringComparison.Ordinal));
+        context.HistConfigSnapshots.Should().NotContain(x => x.ProfileId == profile.Id && x.SnapshotType == "PUBLISH");
+        context.HistConfigChanges.Should().NotContain(x => x.ProfileId == profile.Id && x.ChangeType == "PUBLISH");
     }
 
     [Fact]

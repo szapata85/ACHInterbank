@@ -82,6 +82,7 @@ public class Type7CommonMappingConvergenceTests
         var options = Options.Create(new NachaGenerationOptions
         {
             Mode = "SHADOW_COMPARE",
+            ExecutionScope = "DEVELOPMENT",
             EnableType7TableDriven = true,
             EnableType7CommonMappingEngine = true,
             Type7EnableTableDrivenForClearingHouses = ["ACH"]

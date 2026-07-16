@@ -4,6 +4,8 @@ public class NachaGenerationOptions
 {
     public const string SectionName = "NachaGeneration";
     public string Mode { get; set; } = "TABLE_DRIVEN";
+    public string ExecutionScope { get; set; } = "LIVE";
+    public bool AllowNonHomologatedCenitDevelopment { get; set; }
     public bool EnableType7TableDriven { get; set; }
     public bool FailOnResolverAmbiguity { get; set; }
     public bool EnableRecord6MappingEngine { get; set; }

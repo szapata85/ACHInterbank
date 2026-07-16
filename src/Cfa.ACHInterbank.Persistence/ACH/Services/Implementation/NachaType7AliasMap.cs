@@ -11,6 +11,7 @@ public sealed class NachaType7AliasMap : INachaType7AliasMap
         {
             ["AddendaType"] = ["AddendaType", "TipoAddenda", "TypeCode"],
             ["BusinessType"] = ["BusinessType", "TipoNegocio"],
+            ["OriginatorIdentification"] = ["OriginatorIdentification", "IdentificacionUsuarioOriginador"],
             ["Purpose"] = ["Purpose", "Proposito", "DescripcionProposito"],
             ["Reference"] = ["Reference", "Referencia"],
             ["CollectorId"] = ["CollectorId", "IdentificacionRecaudador"],

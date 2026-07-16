@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Features;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -29,13 +30,17 @@ public class GlobalExceptionMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Unhandled exception: {ex.Message} - {ex.StackTrace}");
-            await WriteCrashLogAsync(context, ex);
-            await HandleExceptionAsync(context, ex);
+            var incidentId = Guid.NewGuid().ToString("N");
+            var ruleId = ex is NachaGenerationException nachaException
+                ? nachaException.RuleId ?? nachaException.Code
+                : "UNHANDLED";
+            _logger.LogError($"Unhandled exception. Incident={incidentId}; ErrorType={ex.GetType().Name}; RuleId={ruleId}");
+            await WriteCrashLogAsync(context, ex, incidentId, ruleId);
+            await HandleExceptionAsync(context, ex, incidentId);
         }
     }
 
-    private async Task WriteCrashLogAsync(HttpContext context, Exception exception)
+    private async Task WriteCrashLogAsync(HttpContext context, Exception exception, string incidentId, string ruleId)
     {
         try
         {
@@ -48,11 +53,11 @@ public class GlobalExceptionMiddleware
 
             var message = new StringBuilder()
                 .AppendLine($"[{DateTimeOffset.UtcNow:O}] Unhandled exception")
+                .AppendLine($"Incident: {incidentId}")
+                .AppendLine($"ErrorType: {exception.GetType().Name}")
+                .AppendLine($"RuleId: {ruleId}")
                 .AppendLine($"Method: {context.Request.Method}")
                 .AppendLine($"Path: {context.Request.Path}")
-                .AppendLine($"Query: {context.Request.QueryString}")
-                .AppendLine($"Message: {exception.Message}")
-                .AppendLine(exception.StackTrace)
                 .AppendLine(new string('-', 80))
                 .ToString();
 
@@ -64,7 +69,7 @@ public class GlobalExceptionMiddleware
         }
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private static Task HandleExceptionAsync(HttpContext context, Exception exception, string incidentId)
     {
         if (context.Response.HasStarted || context.Response.Body == null || !context.Response.Body.CanWrite)
         {
@@ -75,7 +80,10 @@ public class GlobalExceptionMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
-        var response = ResponseApiService.Response(context.Response.StatusCode, null!, exception.Message);
+        var safeMessage = exception is NachaGenerationException nachaException
+            ? nachaException.Message
+            : $"Error interno. Incidente {incidentId}.";
+        var response = ResponseApiService.Response(context.Response.StatusCode, null!, safeMessage);
         var payload = JsonConvert.SerializeObject(response);
 
         return context.Response.WriteAsync(payload);

@@ -11,7 +11,13 @@ namespace Cfa.ACHInterbank.Application.Helpers.Middleware;
 public class RequestResponseLoggingMiddleware
 {
     private const string Redacted = "[REDACTED]";
-    private static readonly string[] SensitiveNames = ["password", "pass", "token", "authorization", "cookie", "secret", "privatekey", "rawdata", "pfx"];
+    private static readonly string[] SensitiveNames =
+    [
+        "password", "pass", "token", "authorization", "cookie", "secret", "privatekey", "rawdata", "pfx",
+        "account", "cuenta", "document", "identification", "identificacion", "nit", "name", "nombre",
+        "amount", "monto", "value", "valor", "reference", "referencia", "trace", "customer", "cliente",
+        "clientcode", "codigocliente", "batch", "lote", "record", "registro", "nacha", "filecontent", "contenido"
+    ];
     private readonly RequestDelegate _requestDelegate;
     private readonly ILoggerManager _loggerManager;
 
@@ -115,7 +121,7 @@ public class RequestResponseLoggingMiddleware
         }
         catch (JsonReaderException)
         {
-            return payload.Length <= 2048 ? payload : $"{payload[..2048]}[TRUNCATED]";
+            return $"[NON-JSON CONTENT OMITTED: {Encoding.UTF8.GetByteCount(payload)} bytes]";
         }
     }
 

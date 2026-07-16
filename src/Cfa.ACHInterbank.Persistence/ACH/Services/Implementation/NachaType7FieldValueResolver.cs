@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using System.Globalization;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -23,12 +24,13 @@ public sealed class NachaType7FieldValueResolver : INachaType7FieldValueResolver
             ["RecordCode"] = "7",
             ["AddendaType"] = addenda.AddendaType,
             ["BusinessType"] = addenda.BusinessType.ToString().ToUpperInvariant(),
+            ["OriginatorIdentification"] = transaction.CompanyIdentification,
             ["Purpose"] = addenda.Purpose ?? batch.CompanyEntryDescription,
             ["Reference"] = addenda.Reference,
             ["CollectorId"] = addenda.CollectorId,
             ["ReceiverCustomerCode"] = addenda.ReceiverCustomerCode,
             ["ServiceDescription"] = addenda.ServiceDescription,
-            ["SequenceNumber"] = addenda.SequenceNumber ?? 1,
+            ["SequenceNumber"] = (addenda.SequenceNumber ?? 1).ToString("0000", CultureInfo.InvariantCulture),
             ["TraceSuffix"] = traceSuffix,
             ["ReturnReasonCode"] = addenda.ReturnReasonCode,
             ["OriginalTraceNumber"] = addenda.OriginalTraceNumber,

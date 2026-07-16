@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
@@ -309,12 +310,18 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             await _context.SaveChangesAsync(cancellationToken);
             return ToDto(operation);
         }
+        catch (NachaGenerationException ex)
+        {
+            MarkAsFailed(operation, ex.Code, ex.Message);
+            await _context.SaveChangesAsync(cancellationToken);
+            return ToDto(operation);
+        }
         catch (InvalidOperationException ex)
         {
             var code = ResolveNachaGenerationErrorCode(ex.Message);
             var message = code == "NACHA_EXPORT_PREREQUISITE_FAILED"
-                ? $"{ex.Message} No se generó archivo NACHA-M."
-                : ex.Message;
+                ? "No se cumplieron las precondiciones de exportación. No se generó archivo NACHA-M."
+                : "No fue posible generar el archivo NACHA-M solicitado.";
             MarkAsFailed(operation, code, message);
             await _context.SaveChangesAsync(cancellationToken);
             return ToDto(operation);
@@ -322,7 +329,10 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         catch (Exception ex)
         {
             MarkAsFailed(operation, "NACHA_OPERATION_FAILED", "No fue posible procesar la operación solicitada.");
-            _logger.LogError(ex, "Nacha operation failed. OperationId={OperationId}", operation.OperationId);
+            _logger.LogError(
+                "NACHA_OPERATION_FAILED|OperationId={OperationId}|ExceptionType={ExceptionType}",
+                operation.OperationId,
+                ex.GetType().Name);
             await _context.SaveChangesAsync(cancellationToken);
             return ToDto(operation);
         }

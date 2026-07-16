@@ -47,6 +47,18 @@ El manual operativo confirma el intercambio de transacciones en formato NACHAM y
 | CENIT-FILENAME-DETAIL-COUNT | CENIT | Nombre/archivo | Conteo declarado | N/D | N/D | N/D | N | M si aplica STA | N/D | N/D | Rechazo D05 | Conteo del nombre igual al contenido | Crítica | CENIT Anexo B, causal D05; Manual STA ausente | Filename validator | Postgres filename tests | No demostrado | Obtener estructura completa del nombre STA y aplicabilidad a NACHA-M outbound |
 | CENIT-CYCLE-OPERATIONAL-WINDOW | CENIT | Metadato | Ciclo operacional | N/A | N/A | N/A | N | M | N/A | N/A | Ciclos/ventanas del manual vigente | Fecha valor y envío dentro de ventana | Crítica | CENIT Anexo 2, numerales operativos de ciclos | Cycle scheduler; naming | Cycle tests | No demostrado | Validar calendario vigente, generación auditada y America/Bogota con aprobación operativa |
 
+## Actualización de control — Ejecución 2 (2026-07-16)
+
+- Estado normativo: **NO-GO / NOT HOMOLOGATED / BLOCKED FOR LIVE**.
+- No se modificaron posiciones CENIT ni se reutilizó el layout ACHCOL como norma.
+- `NachaFileBuilder` aplica un gate fail-closed antes de resolver/renderizar un perfil CENIT en alcance LIVE.
+- El seeder/resolver conserva tags explícitos `IsPlaceholder=true` e `IsHomologated=false`.
+- La configuración de desarrollo puede permitir caracterización controlada; la configuración LIVE no puede eludir el gate.
+- `OfficialNachaGenerationTableDrivenTests.CenitLive_ShouldRemainFailClosed_WhileAchColIsNotBlockedByGate` confirma el rechazo sin exponer datos.
+- El único fixture nuevo CENIT es `tests/fixtures/nacha-m/CENIT/invalid/not-homologated.case.json`; no representa un archivo normativamente válido.
+
+Todas las reglas de layout, naming, encoding, ciclo, lote, T1/T5/T6/T7/T8/T9, controles, persistencia y homologación permanecen **No demostradas — bloqueantes para LIVE** hasta recibir fuente técnica oficial vigente aplicable a CFA.
+
 ## Brecha documental bloqueante
 
 Se requiere, como mínimo, la ficha técnica NACHA-M de CENIT aplicable a CFA y el Manual de Especificaciones del Formato para STA que el Anexo 2 cita. Hasta obtenerlos, no es válido aprobar posiciones, longitudes, “Ciclo 1”, lotes, Trace Number, controles ni nombre físico por similitud con ACH Colombia o con el archivo del tercero.

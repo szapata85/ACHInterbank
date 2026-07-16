@@ -14,6 +14,12 @@ public static class NachaReceiverNameHelper
 
     public static string SanitizeForType6(string? rawName)
     {
+        var compact = NormalizeForType6WithoutTruncation(rawName);
+        return compact.Length <= FieldLength ? compact : compact[..FieldLength];
+    }
+
+    public static string NormalizeForType6WithoutTruncation(string? rawName)
+    {
         if (string.IsNullOrWhiteSpace(rawName))
         {
             return string.Empty;
@@ -31,11 +37,6 @@ public static class NachaReceiverNameHelper
         }
 
         var compact = string.Join(' ', builder.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        if (compact.Length > FieldLength)
-        {
-            compact = compact[..FieldLength];
-        }
-
         return compact;
     }
 

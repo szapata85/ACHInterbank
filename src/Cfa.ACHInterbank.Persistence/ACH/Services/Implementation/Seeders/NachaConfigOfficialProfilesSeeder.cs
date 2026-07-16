@@ -34,6 +34,10 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Description: "Perfil oficial UAT/local table-driven para ACH Colombia. Fuente normativa: MAN-004 V32.",
             ClearingHouseCode: "ACH",
             NormativeSource: "MAN-004 V32",
+            NormativeVersion: "V32",
+            ApprovedRuleMatrix: "MATRIZ_REGLAS_ACHCOL.md@2026-07-16",
+            IsPlaceholder: false,
+            IsHomologated: false,
             RoutingOrigin: "000101006",
             RoutingDestination: "000128300",
             ImmediateDestinationName: "ACH COLOMBIA",
@@ -46,6 +50,10 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Description: "Perfil oficial UAT/local table-driven para CENIT. Fuente normativa pendiente de homologacion formal: CENIT/DSP-152 placeholder.",
             ClearingHouseCode: "CENIT",
             NormativeSource: "CENIT/DSP-152 placeholder UAT",
+            NormativeVersion: "NOT-DEMONSTRATED",
+            ApprovedRuleMatrix: "MATRIZ_REGLAS_CENIT.md@NO-GO",
+            IsPlaceholder: true,
+            IsHomologated: false,
             RoutingOrigin: "01111111",
             RoutingDestination: "02222222",
             ImmediateDestinationName: "CENIT",
@@ -62,6 +70,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 .Include(x => x.LayoutVariants)
                     .ThenInclude(x => x.Fields)
                         .ThenInclude(x => x.SourceDefinition)
+                .Include(x => x.LayoutVariants)
+                    .ThenInclude(x => x.Fields)
+                        .ThenInclude(x => x.Rules)
                 .FirstOrDefaultAsync(x => x.ProfileCode == spec.ProfileCode);
 
             if (profile is null)
@@ -86,31 +97,60 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profile.EffectiveTo = null;
             profile.StatusId = catalog.Statuses["PUBLICADO"];
             profile.VersionMajor = 1;
-            profile.VersionMinor = 0;
+            profile.VersionMinor = spec.IsPlaceholder ? 0 : 1;
             profile.PublishedAt = PublishedAt;
-            profile.PublishedBy = "system-phase-6b1";
+            profile.PublishedBy = spec.IsPlaceholder ? "system-phase-6b1" : "system-nacha-execution-2";
             profile.RowVersion = BuildRowVersion(spec.Prefix);
             profile.UpdatedAt = AuditTimestamp;
 
             await _context.SaveChangesAsync();
 
             await EnsureTagAsync(profile, "NormativeSource", spec.NormativeSource);
-            await EnsureTagAsync(profile, "Phase", "6B.1");
+            await EnsureTagAsync(profile, "NormativeVersion", spec.NormativeVersion);
+            await EnsureTagAsync(profile, "IsPlaceholder", spec.IsPlaceholder ? "true" : "false");
+            await EnsureTagAsync(profile, "IsHomologated", spec.IsHomologated ? "true" : "false");
+            await EnsureTagAsync(profile, "ApprovedRuleMatrix", spec.ApprovedRuleMatrix);
+            await EnsureTagAsync(profile, "Phase", spec.IsPlaceholder ? "6B.1" : "NACHA-EXECUTION-2");
             await EnsureTagAsync(profile, "ProductionDecision", "NO-GO");
 
             var sequence = 10;
             foreach (var recordCode in RecordCodes)
             {
-                var variant = await EnsureVariantAsync(profile, spec, recordCode, sequence, catalog);
+                var variant = await EnsureVariantAsync(
+                    profile,
+                    spec,
+                    recordCode,
+                    sequence,
+                    catalog,
+                    recordCode == "7" && !spec.IsPlaceholder ? AchColOfficialNachaLayout.Type7CreditVariant : null,
+                    isDefault: true,
+                    selectionPredicateJson: null);
                 await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
+
+                if (recordCode == "7" && !spec.IsPlaceholder)
+                {
+                    await EnsureVariantAsync(
+                        profile,
+                        spec,
+                        recordCode,
+                        sequence + 1,
+                        catalog,
+                        AchColOfficialNachaLayout.Type7DebitVariant,
+                        isDefault: false,
+                        selectionPredicateJson: JsonSerializer.Serialize(new { BusinessType = "DEBIT" }));
+                }
+
                 sequence += 10;
             }
         }
 
         async Task EnsureTagAsync(CfgProfile profile, string key, string value)
         {
-            if (profile.Tags.Any(x => x.TagKey == key && x.TagValue == value))
+            var existing = profile.Tags.FirstOrDefault(x => x.TagKey == key);
+            if (existing is not null)
             {
+                existing.TagValue = value;
+                existing.UpdatedAt = AuditTimestamp;
                 return;
             }
 
@@ -130,9 +170,12 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ProfileSpec spec,
             string recordCode,
             int sequence,
-            CatalogIds catalog)
+            CatalogIds catalog,
+            string? explicitVariantCode,
+            bool isDefault,
+            string? selectionPredicateJson)
         {
-            var variantCode = $"{spec.Prefix}_R{recordCode}_BASE_V1";
+            var variantCode = explicitVariantCode ?? $"{spec.Prefix}_R{recordCode}_BASE_V1";
             var variant = profile.LayoutVariants.FirstOrDefault(x => x.VariantCode == variantCode);
             if (variant is null)
             {
@@ -149,20 +192,28 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             variant.RecordCodeId = catalog.RecordCodes[recordCode];
             variant.NameEs = $"Registro {recordCode} oficial {spec.ClearingHouseCode}";
             variant.Description = $"Variant oficial UAT/local para registro {recordCode}; perfil {profile.ProfileCode}.";
-            variant.Priority = 10;
+            variant.Priority = isDefault ? 10 : 20;
             variant.EffectiveFrom = EffectiveFrom;
             variant.EffectiveTo = null;
             variant.StatusId = catalog.Statuses["PUBLICADO"];
             variant.TotalLength = 106;
-            variant.SelectionPredicateJson = null;
-            variant.IsDefaultForRecord = true;
+            variant.SelectionPredicateJson = selectionPredicateJson;
+            variant.IsDefaultForRecord = isDefault;
             variant.UpdatedAt = AuditTimestamp;
 
             await _context.SaveChangesAsync();
 
-            foreach (var field in BuildFields(spec, recordCode))
+            var expectedFields = BuildFields(spec, recordCode, variantCode);
+            var expectedCodes = expectedFields.Select(field => field.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var obsoleteField in variant.Fields.Where(field => !expectedCodes.Contains(field.FieldCode)))
             {
-                await EnsureFieldAsync(variant, field, catalog);
+                obsoleteField.IsEnabled = false;
+                obsoleteField.UpdatedAt = AuditTimestamp;
+            }
+
+            foreach (var field in expectedFields)
+            {
+                await EnsureFieldAsync(variant, field, spec, recordCode, catalog);
             }
 
             return variant;
@@ -200,7 +251,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             await _context.SaveChangesAsync();
         }
 
-        async Task EnsureFieldAsync(CfgLayoutVariant variant, FieldSpec field, CatalogIds catalog)
+        async Task EnsureFieldAsync(CfgLayoutVariant variant, FieldSpec field, ProfileSpec spec, string recordCode, CatalogIds catalog)
         {
             var layoutField = variant.Fields.FirstOrDefault(x => x.FieldCode == field.Code);
             if (layoutField is null)
@@ -251,6 +302,65 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             layoutField.UpdatedAt = AuditTimestamp;
 
             await _context.SaveChangesAsync();
+
+            if (!spec.IsPlaceholder)
+            {
+                var descriptor = AchColOfficialNachaLayout.Field(recordCode, field.Code, variant.VariantCode);
+                await EnsureExecutableRuleAsync(layoutField, descriptor, catalog);
+            }
+        }
+
+        async Task EnsureExecutableRuleAsync(
+            CfgLayoutField field,
+            AchColOfficialFieldDescriptor descriptor,
+            CatalogIds catalog)
+        {
+            var rule = field.Rules.FirstOrDefault(existing => existing.RuleCode == descriptor.RuleId);
+            if (rule is null)
+            {
+                rule = new CfgFieldRule
+                {
+                    LayoutField = field,
+                    RuleCode = descriptor.RuleId,
+                    CreatedAt = AuditTimestamp,
+                    UpdatedAt = AuditTimestamp
+                };
+                _context.CfgFieldRules.Add(rule);
+            }
+
+            rule.RuleTypeId = catalog.RuleTypes[descriptor.DataType is NachaFieldDataType.Date or NachaFieldDataType.Time
+                ? "DATE_FORMAT"
+                : descriptor.AllowedValues?.Count > 0 ? "ENUM" : "REGEX"];
+            rule.ErrorCode = "NACHA_FIELD_RULE_FAILED";
+            rule.ErrorMessageEs = "El campo no cumple la regla normativa configurada.";
+            rule.Severity = descriptor.Severity;
+            rule.ConditionDsl = null;
+            rule.RuleConfigJson = JsonSerializer.Serialize(new
+            {
+                ruleId = descriptor.RuleId,
+                chamber = "ACHCOL",
+                recordType = descriptor.RecordCode,
+                field = descriptor.FieldCode,
+                startPosition = descriptor.StartPosition,
+                length = descriptor.Length,
+                dataType = descriptor.DataType.ToString().ToUpperInvariant(),
+                required = descriptor.Required,
+                justification = descriptor.Justification.ToString(),
+                padChar = descriptor.PadChar.ToString(),
+                format = descriptor.Format,
+                allowedValues = descriptor.AllowedValues,
+                sensitivity = descriptor.Sensitivity.ToString().ToUpperInvariant(),
+                overflowPolicy = descriptor.OverflowPolicy,
+                normalizer = descriptor.Normalizer,
+                normativeSource = descriptor.NormativeSource,
+                normativeVersion = descriptor.NormativeVersion,
+                normativeSection = descriptor.NormativeSection,
+                severity = descriptor.Severity
+            });
+            rule.Order = 10;
+            rule.IsEnabled = true;
+            rule.UpdatedAt = AuditTimestamp;
+            await _context.SaveChangesAsync();
         }
     }
 
@@ -262,7 +372,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             await _context.CatDirections.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
             await _context.CatConfigStatuses.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
             await _context.CatRecordCodes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
-            await _context.CatDataSourceTypes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id));
+            await _context.CatDataSourceTypes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
+            await _context.CatRuleTypes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id));
     }
 
     private static byte[] BuildRowVersion(string prefix)
@@ -270,8 +381,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         return prefix == "CENIT" ? [6, 11, 2, 1] : [6, 11, 1, 1];
     }
 
-    private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode)
+    private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode, string variantCode)
     {
+        if (!profile.IsPlaceholder)
+        {
+            return BuildAchColFields(profile, recordCode, variantCode);
+        }
+
         return recordCode switch
         {
             "1" => BuildRecord1(profile),
@@ -282,6 +398,125 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             "9" => BuildRecord9(),
             _ => []
         };
+    }
+
+    private static IReadOnlyList<FieldSpec> BuildAchColFields(ProfileSpec profile, string recordCode, string variantCode)
+        => AchColOfficialNachaLayout.ForVariant(recordCode, variantCode)
+            .Select(descriptor => BuildAchColField(profile, descriptor))
+            .ToList();
+
+    private static FieldSpec BuildAchColField(ProfileSpec profile, AchColOfficialFieldDescriptor descriptor)
+    {
+        var code = descriptor.FieldCode;
+        var constant = (descriptor.RecordCode, code) switch
+        {
+            (_, "RECORDTYPE") => descriptor.RecordCode,
+            ("1", "PRIORITYCODE") => "01",
+            ("1", "IMMEDIATEDESTINATION") => profile.RoutingDestination,
+            ("1", "IMMEDIATEORIGIN") => profile.RoutingOrigin,
+            ("1", "RECORDSIZE") => "106",
+            ("1", "BLOCKINGFACTOR") => "10",
+            ("1", "FORMATCODE") => "1",
+            ("1", "IMMEDIATEDESTINATIONNAME") => profile.ImmediateDestinationName,
+            ("1", "IMMEDIATEORIGINNAME") => profile.ImmediateOriginName,
+            ("5", "ORIGINATORSTATUSCODE") => "1",
+            _ => null
+        };
+
+        if (constant is not null)
+        {
+            return new FieldSpec(
+                code,
+                code,
+                descriptor.StartPosition,
+                descriptor.Length,
+                descriptor.PadChar,
+                descriptor.Justification,
+                descriptor.Format,
+                "CONSTANTE",
+                constant,
+                null,
+                null,
+                null,
+                null);
+        }
+
+        if (descriptor.DataType == NachaFieldDataType.Reserved)
+        {
+            var expression = JsonSerializer.Serialize(new { source = "runtime", calculationType = "Filler" });
+            return new FieldSpec(
+                code,
+                code,
+                descriptor.StartPosition,
+                descriptor.Length,
+                descriptor.PadChar,
+                descriptor.Justification,
+                descriptor.Format,
+                "EXPRESION",
+                null,
+                null,
+                null,
+                expression,
+                null);
+        }
+
+        var entityFields = descriptor.RecordCode switch
+        {
+            "6" => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "TRANSACTIONCODE", "RECEIVINGDFI", "DFIACCOUNTNUMBER", "AMOUNT",
+                "INDIVIDUALIDENTIFICATION", "DISCRETIONARYDATA", "TRACENUMBER"
+            },
+            "7" => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "ADDENDATYPE", "ORIGINATORIDENTIFICATION", "PURPOSE", "REFERENCE", "COLLECTORID", "RECEIVERCUSTOMERCODE",
+                "SERVICEDESCRIPTION", "SEQUENCENUMBER", "TRACESUFFIX"
+            },
+            _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        };
+
+        var propertyPath = code switch
+        {
+            "DFIACCOUNTNUMBER" => "DestinationAccountNumber",
+            "INDIVIDUALIDENTIFICATION" => "RecipientIdNumber",
+            "INDIVIDUALNAME" => "ReceiverName",
+            "ADDENDARECORDINDICATOR" => "AddendaRecordIndicator",
+            _ => code
+        };
+
+        if (entityFields.Contains(code))
+        {
+            return new FieldSpec(
+                code,
+                code,
+                descriptor.StartPosition,
+                descriptor.Length,
+                descriptor.PadChar,
+                descriptor.Justification,
+                descriptor.Format,
+                "ENTIDAD",
+                null,
+                descriptor.RecordCode == "7" ? "AchTransactionAddenda" : "AchTransaction",
+                propertyPath,
+                null,
+                null);
+        }
+
+        var calculatedExpression = JsonSerializer.Serialize(new { source = "runtime", calculationType = propertyPath });
+        return new FieldSpec(
+            code,
+            code,
+            descriptor.StartPosition,
+            descriptor.Length,
+            descriptor.PadChar,
+            descriptor.Justification,
+            descriptor.Format,
+            "EXPRESION",
+            null,
+            null,
+            null,
+            calculatedExpression,
+            null);
     }
 
     private static IReadOnlyList<FieldSpec> BuildRecord1(ProfileSpec profile)
@@ -444,6 +679,10 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         string Description,
         string ClearingHouseCode,
         string NormativeSource,
+        string NormativeVersion,
+        string ApprovedRuleMatrix,
+        bool IsPlaceholder,
+        bool IsHomologated,
         string RoutingOrigin,
         string RoutingDestination,
         string ImmediateDestinationName,
@@ -456,7 +695,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         IReadOnlyDictionary<string, int> Directions,
         IReadOnlyDictionary<string, int> Statuses,
         IReadOnlyDictionary<string, int> RecordCodes,
-        IReadOnlyDictionary<string, int> SourceTypes);
+        IReadOnlyDictionary<string, int> SourceTypes,
+        IReadOnlyDictionary<string, int> RuleTypes);
 
     private sealed record FieldSpec(
         string Code,

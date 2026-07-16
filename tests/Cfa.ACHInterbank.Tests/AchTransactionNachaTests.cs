@@ -336,7 +336,7 @@ public class AchTransactionNachaTests
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         var records = ChunkRecords(nachaContent);
@@ -484,7 +484,7 @@ public class AchTransactionNachaTests
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
         Assert.Contains("devolución", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -611,7 +611,7 @@ public class AchTransactionNachaTests
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
         var nachaContent = await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None);
 
         Assert.NotEmpty(nachaContent);
@@ -706,7 +706,7 @@ public class AchTransactionNachaTests
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new Mock<INachaSemanticValidator>();
         var builder = new NachaFileBuilder(executionContext, holidayService.Object, loader, validation, renderer, recordDataProvider, semanticValidator.Object,
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY" }));
+            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "LEGACY", ExecutionScope = "DEVELOPMENT" }));
         var records = ChunkRecords(await builder.BuildNachaFileByCycleAsync(cycleId, CancellationToken.None));
         var addendaRecord = records.Last(record => record.StartsWith("7"));
 

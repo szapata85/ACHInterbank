@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using System.Text;
 using System.Text.Json;
 using Xunit;
 
@@ -68,11 +69,13 @@ public class OfficialNachaGenerationTableDrivenTests
     public async Task MissingRecord_ShouldReturn_NACHA_REQUIRED_RECORD_MISSING()
     {
         await using var context = await SeedAsync();
-        var record7 = await context.CfgLayoutVariants
+        var record7Variants = await context.CfgLayoutVariants
             .Include(x => x.RecordCode)
             .Include(x => x.Profile)
-            .FirstAsync(x => x.Profile.ProfileCode == "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0" && x.RecordCode.Code == "7");
-        record7.StatusId = await context.CatConfigStatuses.Where(x => x.Code == "INACTIVO").Select(x => x.Id).FirstAsync();
+            .Where(x => x.Profile.ProfileCode == "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0" && x.RecordCode.Code == "7")
+            .ToListAsync();
+        var inactiveStatusId = await context.CatConfigStatuses.Where(x => x.Code == "INACTIVO").Select(x => x.Id).FirstAsync();
+        record7Variants.ForEach(variant => variant.StatusId = inactiveStatusId);
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
@@ -240,7 +243,7 @@ public class OfficialNachaGenerationTableDrivenTests
 
         trace.ProfileId.Should().NotBeNull();
         trace.ProfileCode.Should().Be("OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
-        trace.ProfileVersion.Should().Be("1.0");
+        trace.ProfileVersion.Should().Be("1.1");
         trace.ProfileStatus.Should().Be("PUBLICADO");
         trace.EffectiveDate.Should().Be(new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc));
     }
@@ -295,8 +298,9 @@ public class OfficialNachaGenerationTableDrivenTests
 
         var amount = trace.FieldTraceEntries.Single(x => x.RecordType == "6" && x.FieldName == "AMOUNT");
         amount.FieldDefinitionId.Should().BeGreaterThan(0);
-        amount.RawValueSanitized.Should().Be("100");
-        amount.RenderedValue.Should().Be("0000010000");
+        amount.RawValueSanitized.Should().StartWith("[REDACTED;Category=FINANCIAL;");
+        amount.RenderedValue.Should().StartWith("[REDACTED;Category=FINANCIAL;");
+        amount.RenderedLength.Should().Be(18);
     }
 
     [Fact]
@@ -309,8 +313,8 @@ public class OfficialNachaGenerationTableDrivenTests
         var trace = await LoadLatestTraceAsync(context);
 
         var traceNumber = trace.FieldTraceEntries.Single(x => x.RecordType == "6" && x.FieldName == "TRACENUMBER");
-        traceNumber.PositionStart.Should().Be(80);
-        traceNumber.PositionEnd.Should().Be(94);
+        traceNumber.PositionStart.Should().Be(88);
+        traceNumber.PositionEnd.Should().Be(102);
         traceNumber.Length.Should().Be(15);
         traceNumber.RenderedLength.Should().Be(15);
     }
@@ -338,9 +342,9 @@ public class OfficialNachaGenerationTableDrivenTests
         await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var trace = await LoadLatestTraceAsync(context);
 
-        trace.FieldTraceEntries.Should().Contain(x => x.SourceType == "CALCULATED" && x.CalculationType == "EntryHash");
-        trace.FieldTraceEntries.Should().Contain(x => x.SourceType == "CALCULATED" && x.CalculationType == "BlockCount");
-        trace.FieldTraceEntries.Should().Contain(x => x.SourceType == "CALCULATED" && x.CalculationType == "FileIdModifier");
+        trace.FieldTraceEntries.Should().Contain(x => x.SourceType == "CALCULATED" && x.CalculationType == "ENTRYHASH");
+        trace.FieldTraceEntries.Should().Contain(x => x.SourceType == "CALCULATED" && x.CalculationType == "BLOCKCOUNT");
+        trace.FieldTraceEntries.Should().Contain(x => x.SourceType == "CALCULATED" && x.CalculationType == "FILEIDMODIFIER");
     }
 
     [Fact]
@@ -353,7 +357,8 @@ public class OfficialNachaGenerationTableDrivenTests
         var trace = await LoadLatestTraceAsync(context);
 
         trace.FieldTraceEntries.Where(x => x.FieldName == "ENTRYHASH")
-            .Should().OnlyContain(x => x.SourceType == "CALCULATED" && x.RawValueSanitized == "12345678");
+            .Should().OnlyContain(x => x.SourceType == "CALCULATED"
+                && x.RawValueSanitized!.StartsWith("[REDACTED;Category=CORRELATABLE;", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -366,7 +371,7 @@ public class OfficialNachaGenerationTableDrivenTests
         var trace = await LoadLatestTraceAsync(context);
 
         trace.FieldTraceEntries.Single(x => x.RecordType == "9" && x.FieldName == "BLOCKCOUNT")
-            .CalculationType.Should().Be("BlockCount");
+            .CalculationType.Should().Be("BLOCKCOUNT");
     }
 
     [Fact]
@@ -393,8 +398,8 @@ public class OfficialNachaGenerationTableDrivenTests
 
         batchControl.Substring(4, 6).Should().Be("000002");
         batchControl.Substring(10, 10).Should().Be("0012345678");
-        batchControl.Substring(20, 12).Should().Be("000000000000");
-        batchControl.Substring(32, 12).Should().Be("000000010000");
+        batchControl.Substring(20, 18).Should().Be("000000000000000000");
+        batchControl.Substring(38, 18).Should().Be("000000000000010000");
     }
 
     [Fact]
@@ -410,8 +415,8 @@ public class OfficialNachaGenerationTableDrivenTests
         fileControl.Substring(7, 6).Should().Be("000001");
         fileControl.Substring(13, 8).Should().Be("00000002");
         fileControl.Substring(21, 10).Should().Be("0012345678");
-        fileControl.Substring(31, 12).Should().Be("000000000000");
-        fileControl.Substring(43, 12).Should().Be("000000010000");
+        fileControl.Substring(31, 18).Should().Be("000000000000000000");
+        fileControl.Substring(49, 18).Should().Be("000000000000010000");
     }
 
     [Fact]
@@ -569,24 +574,17 @@ public class OfficialNachaGenerationTableDrivenTests
     }
 
     [Fact]
-    public async Task Trace_ShouldAllowReconstructingLineFromEntries()
+    public async Task Trace_ShouldNotAllowReconstructingSensitiveLineFromEntries()
     {
         await using var context = await SeedAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
-        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var trace = await LoadLatestTraceAsync(context);
-        var firstLine = SplitRecords(content)[0];
-        var entries = trace.FieldTraceEntries.Where(x => x.LineNumber == 1 && x.FieldName != "PADDING_RECORD");
-
-        var buffer = new char[106];
-        Array.Fill(buffer, ' ');
-        foreach (var entry in entries)
-        {
-            entry.RenderedValue!.CopyTo(0, buffer, entry.PositionStart - 1, entry.RenderedValue.Length);
-        }
-
-        new string(buffer).Should().Be(firstLine);
+        trace.FieldTraceEntries
+            .Where(entry => entry.RenderedValue?.StartsWith("[REDACTED", StringComparison.Ordinal) == true)
+            .Should().NotBeEmpty();
+        trace.FieldTraceEntries.Should().OnlyContain(entry => entry.RuntimeRenderedValue == null);
     }
 
     [Fact]
@@ -615,8 +613,10 @@ public class OfficialNachaGenerationTableDrivenTests
         await CreateOfficialSut(context, "CENIT").Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var cenitTrace = await LoadLatestTraceAsync(context);
 
-        achTrace.FieldTraceEntries.Should().Contain(x => x.RawValueSanitized == "ACH-CAMBIO-UAT");
-        cenitTrace.FieldTraceEntries.Should().NotContain(x => x.RawValueSanitized == "ACH-CAMBIO-UAT");
+        achTrace.FieldTraceEntries.Single(x => x.RecordType == "1" && x.FieldName == "IMMEDIATEORIGINNAME")
+            .RawValueSanitized.Should().Contain("Length=14");
+        cenitTrace.FieldTraceEntries.Single(x => x.RecordType == "1" && x.FieldName == "IMMEDIATEORIGINNAME")
+            .RawValueSanitized.Should().NotContain("Length=14");
     }
 
     [Fact]
@@ -632,11 +632,277 @@ public class OfficialNachaGenerationTableDrivenTests
         await CreateOfficialSut(context, "CENIT").Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var cenitTrace = await LoadLatestTraceAsync(context);
 
-        achTrace.FieldTraceEntries.Should().NotContain(x => x.RawValueSanitized == "CENIT-CAMBIO");
-        cenitTrace.FieldTraceEntries.Should().Contain(x => x.RawValueSanitized == "CENIT-CAMBIO");
+        achTrace.FieldTraceEntries.Single(x => x.RecordType == "1" && x.FieldName == "IMMEDIATEORIGINNAME")
+            .RawValueSanitized.Should().NotContain("Length=12");
+        cenitTrace.FieldTraceEntries.Single(x => x.RecordType == "1" && x.FieldName == "IMMEDIATEORIGINNAME")
+            .RawValueSanitized.Should().Contain("Length=12");
     }
 
-    private static OfficialSut CreateOfficialSut(AchDbContext context, string clearingHouseName)
+    [Fact]
+    public async Task AchColV32_ShouldRenderCriticalOffsetsAndPhysicalRules()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var goldenPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "fixtures",
+            "nacha-m",
+            "ACHCOL",
+            "valid",
+            "achcol-v32-minimal.nacha.b64");
+        var goldenBytes = Convert.FromBase64String((await File.ReadAllTextAsync(goldenPath)).Trim());
+        Encoding.ASCII.GetBytes(content).Should().Equal(goldenBytes);
+        await using var stream = new MemoryStream(Encoding.ASCII.GetBytes(content));
+        var records = await NachaParserService.ReadPhysicalRecordsAsync(stream, CancellationToken.None);
+
+        content.Length.Should().Be(1060);
+        content.Should().NotContain("\r").And.NotContain("\n").And.NotContain("UAT6B2");
+        records.Should().HaveCount(10);
+        records.Should().OnlyContain(record => record.Length == 106);
+        records.Select(record => record[0]).Should().ContainInOrder('1', '5', '6', '7', '8', '9');
+        records.Skip(6).Should().OnlyContain(record => record == new string('9', 106));
+
+        var type1 = records[0];
+        type1.Substring(23, 8).Should().Be("20260524");
+        type1.Substring(31, 4).Should().Be("1400");
+        type1.Substring(35, 1).Should().Be("A");
+        type1.Substring(36, 3).Should().Be("106");
+        type1.Substring(39, 2).Should().Be("10");
+        type1.Substring(41, 1).Should().Be("1");
+        type1.Substring(88, 8).Should().Be(new string(' ', 8));
+        type1.Substring(96, 10).Should().Be(new string(' ', 10));
+
+        var type5 = records[1];
+        type5.Substring(63, 8).Should().Be("20260524");
+        type5.Substring(71, 8).Should().Be("20260524");
+        type5.Substring(82, 1).Should().Be("1");
+        type5.Substring(83, 8).Should().Be("12345678");
+        type5.Substring(91, 7).Should().Be("0000001");
+        type5.Substring(98, 8).Should().Be(new string(' ', 8));
+
+        var type6 = records[2];
+        type6.Substring(29, 18).Should().Be("000000000000010000");
+        type6.Substring(47, 15).TrimEnd().Should().Be("RCV001");
+        type6.Substring(62, 22).TrimEnd().Should().Be("PERSONA SINTETICA 10");
+        type6.Substring(86, 1).Should().Be("1");
+        type6.Substring(87, 15).Should().Be("123456780000001");
+        type6.Substring(102, 4).Should().Be(new string(' ', 4));
+
+        var type7 = records[3];
+        type7.Substring(1, 2).Should().Be("05");
+        type7.Substring(3, 15).TrimEnd().Should().Be("9001234567");
+        type7.Substring(18, 2).Should().Be("  ");
+        type7.Substring(83, 4).Should().Be("0001");
+        type7.Substring(87, 7).Should().Be(type6.Substring(95, 7));
+
+        var type8 = records[4];
+        type8.Substring(20, 18).Should().Be("000000000000000000");
+        type8.Substring(38, 18).Should().Be("000000000000010000");
+        type8.Substring(99, 7).Should().Be(type5.Substring(91, 7));
+
+        var type9 = records[5];
+        type9.Substring(31, 18).Should().Be("000000000000000000");
+        type9.Substring(49, 18).Should().Be("000000000000010000");
+        type9.Substring(67, 39).Should().Be(new string(' ', 39));
+    }
+
+    [Fact]
+    public async Task AchColBatchOrdinal_ShouldRestartForEachFile_AndMatchType5Type8()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var first = SplitRecords(await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+        var second = SplitRecords(await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+
+        foreach (var records in new[] { first, second })
+        {
+            var type5 = records.Single(record => record[0] == '5');
+            var type8 = records.Single(record => record[0] == '8');
+            type5.Substring(91, 7).Should().Be("0000001");
+            type8.Substring(99, 7).Should().Be(type5.Substring(91, 7));
+        }
+    }
+
+    [Fact]
+    public async Task AchColMultipleBatches_ShouldUseFileLocalOrdinals_AndInterleaveType6Type7()
+    {
+        await using var context = await SeedAsync();
+        var original = BuildContext("ACH Colombia", batchCount: 2);
+        var model = new NachaBuildContext
+        {
+            Cycle = original.Cycle,
+            Batches = original.Batches.Reverse().ToList(),
+            Transactions = original.Transactions.Reverse().ToList()
+        };
+        var setup = CreateOfficialSut(context, "ACH Colombia", model);
+
+        var content = await setup.Sut.BuildNachaFileAsync([101, 100], CancellationToken.None);
+        var records = SplitRecords(content);
+
+        records.Take(10).Select(record => record[0]).Should().ContainInOrder('1', '5', '6', '7', '8', '5', '6', '7', '8', '9');
+        records.Where(record => record[0] == '5').Select(record => record.Substring(91, 7))
+            .Should().ContainInOrder("0000001", "0000002");
+        records.Where(record => record[0] == '8').Select(record => record.Substring(99, 7))
+            .Should().ContainInOrder("0000001", "0000002");
+        records.Where(record => record[0] == '6').Select(record => record.Substring(29, 18))
+            .Should().ContainInOrder("000000000000010100", "000000000000010000");
+        new NachaSemanticValidator().Validate(content, model);
+    }
+
+    [Fact]
+    public async Task AchColOfficial_ShouldRejectOverflowWithoutExposingValue()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        const string oversizedAccount = "SYNTHETIC-ACCOUNT-OVERFLOW";
+        model.Transactions[0].DestinationAccountNumber = oversizedAccount;
+        var setup = CreateOfficialSut(context, "ACH Colombia", model);
+
+        var exception = await Assert.ThrowsAsync<NachaGenerationException>(
+            () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+
+        exception.Code.Should().Be("NACHA_FIELD_LENGTH_INVALID");
+        exception.RuleId.Should().Be("ACHCOL-T6-ACCOUNT-NUMBER");
+        exception.Message.Should().NotContain(oversizedAccount);
+    }
+
+    [Fact]
+    public async Task AchColOfficial_ShouldRejectInvalidCharacterWithoutSilentNormalization()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        var setup = CreateOfficialSut(context, "ACH Colombia", model);
+        var customer = await context.Customers.SingleAsync(item => item.DocumentNumber == "RCV001");
+        customer.FirstName = "PERSONA|INVALIDA";
+        await context.SaveChangesAsync();
+
+        var exception = await Assert.ThrowsAsync<NachaGenerationException>(
+            () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+
+        exception.Code.Should().Be("NACHA_CHARACTER_REPERTOIRE_INVALID");
+        exception.RuleId.Should().Be("ACHCOL-T6-INDIVIDUAL-NAME");
+        exception.Message.Should().NotContain("PERSONA|INVALIDA");
+    }
+
+    [Fact]
+    public async Task CenitLive_ShouldRemainFailClosed_WhileAchColIsNotBlockedByGate()
+    {
+        await using var context = await SeedAsync();
+        var liveOptions = new NachaGenerationOptions
+        {
+            Mode = "TABLE_DRIVEN",
+            ExecutionScope = "LIVE",
+            AllowNonHomologatedCenitDevelopment = true
+        };
+        var cenit = CreateOfficialSut(context, "CENIT", generationOptionsOverride: liveOptions);
+
+        var exception = await Assert.ThrowsAsync<NachaGenerationException>(
+            () => cenit.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+        exception.Code.Should().Be("CENIT_NOT_HOMOLOGATED");
+        exception.RuleId.Should().Be("CENIT-FORMAT-NACHAM");
+        exception.Message.Should().NotContain("123456789").And.NotContain("RCV001");
+
+        var achCol = CreateOfficialSut(context, "ACH Colombia", generationOptionsOverride: liveOptions);
+        var content = await achCol.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        content.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task AchColLive_ShouldRejectHybridAndLegacyGenerationModes()
+    {
+        await using var context = await SeedAsync();
+        var options = new NachaGenerationOptions
+        {
+            Mode = "HYBRID",
+            ExecutionScope = "LIVE"
+        };
+        var setup = CreateOfficialSut(context, "ACH Colombia", generationOptionsOverride: options);
+
+        var exception = await Assert.ThrowsAsync<NachaGenerationException>(
+            () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+
+        exception.Code.Should().Be("NACHA_LIVE_OFFICIAL_MODE_REQUIRED");
+        exception.RuleId.Should().Be("ACHCOL-GENERATION-FAIL-CLOSED");
+        exception.Message.Should().NotContain("123456789").And.NotContain("RCV001");
+    }
+
+    [Fact]
+    public async Task ParserPhysicalReader_ShouldRejectLineEndingsAndResidualBytes()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        await using var withLineEnding = new MemoryStream(Encoding.ASCII.GetBytes(content + "\r\n"));
+        var lineEndingException = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => NachaParserService.ReadPhysicalRecordsAsync(withLineEnding, CancellationToken.None));
+        lineEndingException.Message.Should().Contain("ACHCOL-PHYSICAL-NO-LINE-ENDINGS");
+
+        await using var withResidualByte = new MemoryStream(Encoding.ASCII.GetBytes(content + "X"));
+        var residualException = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => NachaParserService.ReadPhysicalRecordsAsync(withResidualByte, CancellationToken.None));
+        residualException.Message.Should().Contain("ACHCOL-PHYSICAL-RECORD-LENGTH");
+    }
+
+    [Fact]
+    public async Task AchColOfficial_ShouldRoundTripThroughProductParserWithSyntheticData()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        var setup = CreateOfficialSut(context, "ACH Colombia", model);
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        model.Cycle.ClearingHouse!.OriginCode = "000101006";
+        context.AchCycles.Add(model.Cycle);
+        await context.SaveChangesAsync();
+
+        var parser = new NachaParserService(
+            context,
+            Mock.Of<ILogger<NachaParserService>>(),
+            Mock.Of<IAchStateTransitionService>());
+        await using var stream = new MemoryStream(Encoding.ASCII.GetBytes(content));
+        var result = await parser.ParseAndSaveDetailedAsync(
+            stream,
+            "0001283.001.20260524.1.OUT",
+            new NachaParseRequest
+            {
+                ResolvedClearingHouseId = model.Cycle.ClearingHouseId,
+                ResolvedAchCycleId = model.Cycle.Id,
+                OperationalDate = model.Cycle.ProcessingDate,
+                CorrelationId = "synthetic-roundtrip-execution-2"
+            },
+            CancellationToken.None);
+
+        result.Failures.Should().BeEmpty();
+        result.TotalBatches.Should().Be(1);
+        result.TotalEntries.Should().Be(1);
+        result.TotalAddendas.Should().Be(1);
+
+        var parsedHeader = await context.NachaHeaders.AsNoTracking().SingleAsync();
+        var parsedBatch = await context.BatchHeaders.AsNoTracking().SingleAsync();
+        var parsedEntry = await context.EntryDetails.AsNoTracking().SingleAsync();
+        var parsedAddenda = await context.AddendaRecords.AsNoTracking().SingleAsync();
+        var parsedBatchControl = await context.BatchControls.AsNoTracking().SingleAsync();
+
+        parsedHeader.FileCreationDate.Should().Be("20260524");
+        parsedHeader.ReferenceCode.Should().BeEmpty();
+        parsedBatch.BatchNumber.Should().Be(1);
+        parsedEntry.Amount.Should().Be(100m);
+        parsedEntry.AddendumIndicator.Should().Be("1");
+        parsedAddenda.BusinessType.Should().Be("Credit");
+        parsedAddenda.AddendumSequence.Should().Be("0001");
+        parsedAddenda.EntryDetailSequenceNumber.Should().Be(parsedEntry.SequenceNumber![^7..]);
+        parsedBatchControl.BatchNumber.Should().Be("0000001");
+    }
+
+    private static OfficialSut CreateOfficialSut(
+        AchDbContext context,
+        string clearingHouseName,
+        NachaBuildContext? contextDataOverride = null,
+        NachaGenerationOptions? generationOptionsOverride = null)
     {
         var loader = new Mock<INachaDataLoader>(MockBehavior.Strict);
         var validation = new Mock<INachaTransactionValidationService>(MockBehavior.Strict);
@@ -647,17 +913,45 @@ public class OfficialNachaGenerationTableDrivenTests
         var batchNumberGenerator = new Mock<IBatchNumberGenerator>(MockBehavior.Strict);
         var logger = new Mock<ILogger<NachaFileBuilder>>(MockBehavior.Loose);
 
-        var contextData = BuildContext(clearingHouseName);
+        var contextData = contextDataOverride ?? BuildContext(clearingHouseName);
+        foreach (var transaction in contextData.Transactions)
+        {
+            if (context.Customers.Any(customer =>
+                    customer.DocumentNumber == transaction.RecipientIdNumber
+                    && customer.Accounts.Any(account => account.AccountNumber == transaction.DestinationAccountNumber)))
+            {
+                continue;
+            }
+
+            context.Customers.Add(new Customer
+            {
+                Id = 500 + transaction.Id,
+                FirstName = "PERSONA",
+                LastName = $"SINTETICA {transaction.Id}",
+                PersonType = "PN",
+                DocumentType = "CC",
+                DocumentNumber = transaction.RecipientIdNumber,
+                Accounts =
+                [
+                    new CustomerAccount
+                    {
+                        Id = 500 + transaction.Id,
+                        AccountNumber = transaction.DestinationAccountNumber
+                    }
+                ]
+            });
+        }
+        context.SaveChanges();
         loader.Setup(x => x.LoadBatchesByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(contextData.Batches);
         loader.Setup(x => x.LoadHeaderAsync(contextData.Cycle.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new NachaHeader
             {
                 AchCycleId = contextData.Cycle.Id,
-                FileCreationDate = "2026-05-24",
-                FileCreationTime = "14:00",
+                FileCreationDate = "20260524",
+                FileCreationTime = "1400",
                 FileIdModifier = "A",
-                ReferenceCode = "UAT6B2"
+                ReferenceCode = null
             });
         loader.Setup(x => x.LoadCompanyEntryDescriptionCatalogAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(string Term, string StandardEntryClassCode)> { ("PAGOS", "PPD") });
@@ -682,14 +976,21 @@ public class OfficialNachaGenerationTableDrivenTests
             semantic.Object,
             configResolver: new NachaConfigResolver(context),
             type7GenerationStrategy: new NachaType7GenerationStrategy(new NachaType7FieldValueResolver(new NachaType7AliasMap())),
-            generationOptions: Options.Create(new NachaGenerationOptions { Mode = "TABLE_DRIVEN" }),
+            generationOptions: Options.Create(generationOptionsOverride ?? new NachaGenerationOptions
+            {
+                Mode = "TABLE_DRIVEN",
+                ExecutionScope = clearingHouseName.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+                    ? "DEVELOPMENT"
+                    : "LIVE",
+                AllowNonHomologatedCenitDevelopment = clearingHouseName.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+            }),
             logger: logger.Object,
             batchNumberGenerator: batchNumberGenerator.Object);
 
         return new OfficialSut(sut, loader, renderer, recordProvider, logger);
     }
 
-    private static NachaBuildContext BuildContext(string clearingHouseName)
+    private static NachaBuildContext BuildContext(string clearingHouseName, int batchCount = 1)
     {
         var cycle = new AchCycle
         {
@@ -701,48 +1002,56 @@ public class OfficialNachaGenerationTableDrivenTests
             {
                 Id = clearingHouseName.Contains("CENIT", StringComparison.OrdinalIgnoreCase) ? 2 : 1,
                 Name = clearingHouseName,
+                Code = clearingHouseName.Contains("CENIT", StringComparison.OrdinalIgnoreCase) ? "CENIT" : "ACH",
                 OriginCode = clearingHouseName.Contains("CENIT", StringComparison.OrdinalIgnoreCase) ? "87654321" : "12345678"
             }
         };
 
-        var batch = new AchBatch
+        var batches = new List<AchBatch>();
+        var transactions = new List<AchTransaction>();
+        for (var index = 0; index < batchCount; index++)
         {
-            Id = 100,
-            AchCycleId = cycle.Id,
-            AchCycle = cycle,
-            ServiceClassCode = "PPD",
-            CompanyEntryDescription = "PAGOS",
-            CompanyIdentification = "9001234567",
-            CompanyName = "EMPRESA UAT",
-            OriginOrOdfi = "12345678",
-            EffectiveEntryDate = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc)
-        };
+            var batch = new AchBatch
+            {
+                Id = 100 + index,
+                AchCycleId = cycle.Id,
+                AchCycle = cycle,
+                ServiceClassCode = "220",
+                CompanyEntryDescription = "PAGOS",
+                CompanyIdentification = "9001234567",
+                CompanyName = "EMPRESA UAT",
+                OriginOrOdfi = "12345678",
+                EffectiveEntryDate = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc)
+            };
 
-        var transaction = new AchTransaction
-        {
-            Id = 10,
-            Type = TransactionTypeEnum.Credit,
-            Amount = 100m,
-            AchBatchId = batch.Id,
-            AchBatch = batch,
-            AchCycleId = cycle.Id,
-            TransactionCode = "22",
-            ReceivingDFI = "12345678",
-            TraceNumber = "123456780000001",
-            EffectiveEntryDate = batch.EffectiveEntryDate,
-            DestinationAccountNumber = "123456789",
-            RecipientIdNumber = "RCV001",
-            CompanyIdentification = batch.CompanyIdentification,
-            OriginatingDFI = batch.OriginOrOdfi,
-            Addendas = []
-        };
-        batch.Transactions = [transaction];
+            var transaction = new AchTransaction
+            {
+                Id = 10 + index,
+                Type = TransactionTypeEnum.Credit,
+                Amount = 100m + index,
+                AchBatchId = batch.Id,
+                AchBatch = batch,
+                AchCycleId = cycle.Id,
+                TransactionCode = "22",
+                ReceivingDFI = "12345678",
+                TraceNumber = $"12345678{index + 1:0000000}",
+                EffectiveEntryDate = batch.EffectiveEntryDate,
+                DestinationAccountNumber = $"12345678{index + 9}",
+                RecipientIdNumber = $"RCV{index + 1:000}",
+                CompanyIdentification = batch.CompanyIdentification,
+                OriginatingDFI = batch.OriginOrOdfi,
+                Addendas = []
+            };
+            batch.Transactions = [transaction];
+            batches.Add(batch);
+            transactions.Add(transaction);
+        }
 
         return new NachaBuildContext
         {
             Cycle = cycle,
-            Batches = [batch],
-            Transactions = [transaction]
+            Batches = batches,
+            Transactions = transactions
         };
     }
 
