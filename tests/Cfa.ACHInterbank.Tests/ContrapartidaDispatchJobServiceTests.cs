@@ -240,6 +240,42 @@ public class ContrapartidaDispatchJobServiceTests
     }
 
     [Fact]
+    public async Task ProcessTransactionAsync_DebeBloquearAntesDelTransporte_CuandoYaFueReportada()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options;
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+        var transactionId = await SembrarTransaccionYItemPendienteAsync(context, cycleId);
+        var item = await context.ContrapartidaDispatchItems.SingleAsync();
+        item.State = ContrapartidaDispatchItemStateEnum.ReportedToContrapartida;
+        await context.SaveChangesAsync();
+
+        var mapper = new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var parser = new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict);
+        var sut = new ContrapartidaDispatchJobService(
+            context,
+            soap.Object,
+            mapper.Object,
+            parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions());
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ProcessTransactionAsync(transactionId, "uat-duplicate-gate", CancellationToken.None));
+
+        Assert.StartsWith("CONTRAPARTIDA_ALREADY_SUCCEEDED:", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(await context.ContrapartidaDispatchAttempts.ToListAsync());
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        mapper.VerifyNoOtherCalls();
+        parser.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task ProcessCycleAsync_DebeEnviarAReintento_CuandoRespuestaEsRetryable()
     {
         using var connection = new SqliteConnection("DataSource=:memory:");

@@ -1,43 +1,47 @@
 # Evidencia R96
 
-Fecha: 2026-07-16. Datos usados: exclusivamente sintéticos y enmascarados.
+Fecha: 2026-07-16. Entorno local controlado; datos sintéticos y evidencia anonimizada.
 
-## Implementación
+## Resultado persistido
 
-- El bootstrap inserta o actualiza R96 para ambos métodos sin cambiar IDs existentes.
-- `IntegrationResponseCatalogResolver` normaliza espacios y mayúsculas y consulta `Source + Method + Code`.
-- Los parsers SOAP extraen el código, pero ya no contienen el significado funcional de R96.
-- Los flujos de débito y crédito persisten `CatalogId`, código, descripción, estado de transporte, estado funcional, reintento y revisión manual.
-- La consulta posterior no vuelve a leer XML.
+Una única invocación real local de `Proc_Contrapartidas` produjo y persistió:
 
-## Validación automatizada
+- `ResponseCode = R96`;
+- descripción: “Débito aplicado correctamente”;
+- `ResponseCatalogId` presente;
+- `TransportStatus = Succeeded`;
+- `BusinessStatus = Success`;
+- `RetryAllowed = false`;
+- `RequiresManualReview = false`;
+- un único intento y una única ejecución vinculados a la transacción sintética.
+
+La resolución fue realizada por el catálogo existente. No se modificaron tabla, bootstrap, resolutor, seed ni migraciones R96.
+
+## Recuperación segura posterior al dispatch
+
+La primera corrida Playwright completó el dispatch y falló después, al interpretar como UTF-8 la salida CP850 del `sqlcmd` legacy de Windows. Conforme a la regla de una llamada por TransactionId, no se repitió el movimiento. El helper ahora decodifica UTF-16, UTF-8 válido o CP850 configurable.
+
+El mismo escenario se reanudó sólo para consultas y quedó verde:
+
+- correlación por `TransactionId`, `DispatchAttemptId`, `DispatchItemId`, `DispatchBatchId` y `ResponseCatalogId`;
+- base, API y panel Angular validados;
+- Playwright read-only aprobado;
+- segundo dispatch rechazado con el código de duplicidad antes del transporte;
+- conteo de intentos conservado en uno;
+- log WCF sin cambios durante el gate de duplicidad.
+
+Tras reiniciar la API, R96, la descripción, el catálogo, los estados y el intento continuaron consultables sin reinterpretar XML y sin nuevo dispatch.
+
+## Pruebas finales
 
 | Validación | Resultado |
 | --- | --- |
-| Seed/resolución dirigida | 37/37 y suites de flujo 28/28 |
-| SQL Server y PostgreSQL reales | 2/2 |
-| Backend completo | 1821 aprobadas, 1 omitida diagnóstica, 0 fallidas |
-| Angular completo | 395/395 |
-| Build Release | 0 warnings, 0 errores |
+| Backend dirigido | 28/28 |
+| Backend completo | 1.828 aprobadas, 1 omitida diagnóstica |
+| Angular | 395/395 |
+| Playwright smoke | 1/1 |
+| Playwright LIVE inicial | dispatch completado; falla posterior de decodificación |
+| Playwright reanudado read-only | 1/1 |
+| Playwright tras reinicio read-only | 1/1 |
 
-## Ejecución local controlada
-
-Se persistió un único intento `Live` de `Proc_Contrapartidas` con resultado derivado R96:
-
-- método correcto;
-- transporte `Succeeded`;
-- negocio `Success`;
-- `ResponseCatalogId` presente;
-- descripción de débito correcta;
-- reintento deshabilitado;
-- revisión manual deshabilitada;
-- respuesta consultable después de reiniciar la API;
-- cero referencias a `Proc_Transacciones`, `RegistrarRespuestaTransaccion` o `<METODO>` en el request derivado validado;
-- un solo intento persistido.
-
-No se conserva aquí request, response, token, cuenta, identificación ni correlador transaccional.
-
-## Limitación de evidencia LIVE
-
-Playwright terminó fallido después del dispatch porque la consulta de evidencia filtraba por un nombre de auditoría diferente al principal autenticado. La consulta fue corregida para correlacionar por la transacción sintética única, pero no se repitió el débito. Además, el archivo plano WCF no registró una entrada nueva demostrable. Por estas dos condiciones la certificación Playwright LIVE permanece NO-GO, aunque la persistencia técnica R96 fue comprobada.
-
+No se documentan identificadores, cuentas, payloads, tokens ni credenciales.

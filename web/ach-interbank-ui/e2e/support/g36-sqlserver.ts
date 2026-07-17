@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+import { decode } from 'iconv-lite';
 
 export type G36SqlServerOptions = {
   connectionString?: string;
@@ -150,11 +151,12 @@ export class G36SqlServer {
     }
 
     try {
-      return execFileSync(this.config.sqlcmdPath, args, {
-        encoding: 'utf8',
+      const output = execFileSync(this.config.sqlcmdPath, args, {
+        encoding: 'buffer',
         windowsHide: true,
         maxBuffer: 10 * 1024 * 1024
       });
+      return decodeSqlCmdOutput(output);
     } catch (error) {
       const details = error instanceof Error ? sanitizeErrorMessage(error.message) : String(error);
       throw new Error([
@@ -163,6 +165,25 @@ export class G36SqlServer {
       ].join(' '));
     }
   }
+}
+
+function decodeSqlCmdOutput(output: Buffer): string {
+  if (output.length >= 2 && output[0] === 0xff && output[1] === 0xfe) {
+    return output.subarray(2).toString('utf16le');
+  }
+
+  const sample = output.subarray(0, Math.min(output.length, 200));
+  if (sample.some((value, index) => index % 2 === 1 && value === 0)) {
+    return output.toString('utf16le').replace(/^\uFEFF/, '');
+  }
+
+  const utf8 = output.toString('utf8').replace(/^\uFEFF/, '');
+  if (!utf8.includes('\uFFFD')) {
+    return utf8;
+  }
+
+  const configuredEncoding = process.env['ACH_E2E_SQLCMD_OUTPUT_ENCODING']?.trim() || 'cp850';
+  return decode(output, configuredEncoding).replace(/^\uFEFF/, '');
 }
 
 export function sqlString(value: string): string {

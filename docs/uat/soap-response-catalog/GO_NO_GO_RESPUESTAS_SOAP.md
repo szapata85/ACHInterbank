@@ -1,29 +1,30 @@
 # GO/NO-GO — respuestas SOAP
 
-## Decisión
+Fecha: 2026-07-16.
 
-**NO-GO para liberación productiva.**
+## Decisión local controlada
 
-El catálogo, seed, resolutor, persistencia, API y SPA quedan técnicamente implementados y con suites offline en verde. R96 está correctamente separado por método y categoría. Sin embargo, los criterios de aceptación exigen Playwright LIVE aprobado y evidencia inequívoca del log WCF; ambos quedaron pendientes sin autorización para repetir el débito ya intentado.
+**LIVE-GO LOCAL.** La decisión aplica exclusivamente a la topología localhost autorizada y a `Proc_Contrapartidas` con datos sintéticos.
 
-## Condiciones cerradas
+Se demostraron:
 
-- Catálogo único reutilizado y discriminado por fuente/método/código.
-- Seed idempotente en SQL Server y PostgreSQL.
-- R96 débito/crédito resuelto table-driven.
-- Estados técnico y funcional separados.
-- Código desconocido fail-closed.
-- `CatalogId`, código y descripción persistidos con historial.
-- API y Angular no exponen payload.
-- Endpoint UAT bloqueado en Production y protegido por permiso/opt-in.
-- Un único intento LIVE persistido; sin doble movimiento.
+- CORS, login, navegación y smoke Playwright en verde;
+- una sola llamada WCF asociada a una nueva transacción sintética;
+- R96 resuelto por catálogo y persistido con descripción, `CatalogId` y estados correctos;
+- panel Angular visible;
+- bloqueo del segundo dispatch antes del transporte;
+- persistencia consultable tras reiniciar la API;
+- delta WCF correlacionable y ausencia de otros métodos;
+- builds y suites backend/Angular en verde.
 
-## Bloqueantes restantes
+La corrida monetaria inicial falló en una aserción posterior por la codificación CP850 de `sqlcmd`; la validación se reanudó read-only sobre el mismo TransactionId y terminó verde. No hubo segundo movimiento.
 
-1. Ejecutar en una nueva autorización una prueba Playwright desde cero que complete la verificación visual sin repetir la transacción ya procesada.
-2. Obtener evidencia nueva y correlacionable del log WCF local.
-3. Cerrar el riesgo heredado de almacenar payload SOAP completo mediante el mecanismo corporativo de cifrado/retención o sustituirlo por evidencia mínima segura.
-4. Aprobación humana de seguridad, operación y negocio.
+## Límites y riesgos residuales
 
-`Proc_Transacciones` sólo fue validado offline. No se ejecutó LIVE. CENIT y productivo externo permanecen bloqueados.
+- Productivo externo permanece **NO-GO**.
+- `Proc_Transacciones` LIVE y CENIT LIVE no fueron ejecutados y permanecen bloqueados.
+- El logger legacy WCF reconstruye una trama interna que contiene una etiqueta `METODO`; ACHInterbank no la envía en su body outbound. Conviene separar explícitamente log de recepción y transformación en el WCF.
+- Persiste el riesgo heredado del almacenamiento de payload SOAP completo; debe cerrarse con la política corporativa de cifrado, retención y acceso.
+- Se requiere aprobación humana de seguridad, operación y negocio antes de cualquier uso no local.
 
+No se autoriza producción, repetición del débito ni ampliación del alcance.

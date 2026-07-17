@@ -36,6 +36,7 @@
     "@playwright/test": "^1.60.0",
     "@types/jasmine": "^5.1.15",
     "@types/pg": "^8.20.0",
+    "iconv-lite": "^0.7.3",
     "jasmine-core": "^5.13.0",
     "javascript-obfuscator": "^5.4.3",
     "karma": "^6.4.4",

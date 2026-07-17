@@ -125,7 +125,8 @@ export class TransactionListComponent implements OnInit {
   };
 
   readonly rowSelection = {
-    mode: 'singleRow'
+    mode: 'singleRow',
+    enableClickSelection: true
   } satisfies RowSelectionOptions;
 
   readonly noRowsTemplate = 'No hay transacciones registradas.';

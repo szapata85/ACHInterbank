@@ -81,25 +81,27 @@ public static class DependencyInjectionService
 
         services.AddCors(options => options.AddPolicy(CorsPolicyName, builder =>
         {
-            var configuredOrigins = configuration.GetSection("Cors:Origins").Get<string[]>();
-            var origins = configuredOrigins?.Length > 0
-                ? configuredOrigins
-                : new[]
-                {
-                    "http://localhost:4200",
-                    "https://localhost:4200",
-                    "http://localhost:7269",
-                    "https://localhost:7269",
-                    "http://cfaach.ddns.net:743",
-                    "http://192.168.150.6:843",
-                    "http://192.168.150.6:743"
-                };
+            var origins = configuration.GetSection("Cors:Origins")
+                .Get<string[]>()?
+                .Where(origin => !string.IsNullOrWhiteSpace(origin))
+                .Select(origin => origin.Trim().TrimEnd('/'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray() ?? [];
 
             builder
-                .WithOrigins(origins)
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();
+
+            if (origins.Length > 0)
+            {
+                builder.WithOrigins(origins);
+            }
+            else
+            {
+                // Fail closed when an environment has no explicit CORS configuration.
+                builder.SetIsOriginAllowed(_ => false);
+            }
         }));
 
         services.AddHttpClient();
@@ -228,29 +230,6 @@ public static class DependencyInjectionService
 
         app.UseRouting();
         app.UseCors(CorsPolicyName);
-
-        app.Use(async (context, next) =>
-        {
-            if (HttpMethods.IsOptions(context.Request.Method))
-            {
-                var origin = context.Request.Headers["Origin"].ToString();
-                if (!string.IsNullOrEmpty(origin))
-                {
-                    context.Response.Headers.TryAdd("Access-Control-Allow-Origin", origin);
-                    context.Response.Headers.TryAdd("Vary", "Origin");
-                }
-
-                context.Response.Headers.TryAdd("Access-Control-Allow-Credentials", "true");
-                context.Response.Headers.TryAdd("Access-Control-Allow-Headers", "*");
-                context.Response.Headers.TryAdd("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-
-                context.Response.StatusCode = StatusCodes.Status200OK;
-                await context.Response.CompleteAsync();
-                return;
-            }
-
-            await next();
-        });
 
         app.UseWhen(
             context => !IsOpenApiOrScalarRequest(context.Request.Path),

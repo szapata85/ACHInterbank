@@ -46,7 +46,6 @@ public class SecurityHeadersMiddleware
                 "style-src 'self' 'unsafe-inline'; " +
                 "script-src 'self' 'unsafe-inline'; " +
                 connectSrc);
-            context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
             context.Response.Headers.Add("X-Content-Type-Options", "nosniff");
             context.Response.Headers.Add("Referrer-Policy", "no-referrer-when-downgrade");
             context.Response.Headers.Add("Feature-Policy", "geolocation 'self'");

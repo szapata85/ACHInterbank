@@ -22,6 +22,10 @@ export type TransactionRow = {
 };
 
 export type DispatchEvidenceRow = {
+  attemptId: string;
+  dispatchItemId: string;
+  dispatchBatchId: string;
+  transactionId: number | string;
   result: number;
   externalResponseCode: string | null;
   externalResponseMessage: string | null;
@@ -372,6 +376,42 @@ export class G36RuntimeDb {
     return rows[0] ?? null;
   }
 
+  async findTransactionById(transactionId: number): Promise<TransactionRow | null> {
+    if (this.postgres) {
+      const rows = await this.postgres.query<TransactionRow>(
+        `SELECT t."Id" AS id,
+                t."TransactionExternalId" AS "transactionExternalId",
+                t."AchCycleId" AS "achCycleId",
+                c."ClearingHouseId" AS "clearingHouseId",
+                t."SourceInstitutionId" AS "sourceInstitutionId",
+                t."DestinationInstitutionId" AS "destinationInstitutionId",
+                t."Type" AS type
+         FROM "AchTransactions" t
+         JOIN "AchCycles" c ON c."Id" = t."AchCycleId"
+         WHERE t."Id" = $1
+         LIMIT 1`,
+        [transactionId]
+      );
+      return rows[0] ?? null;
+    }
+
+    const rows = this.sqlQuery<TransactionRow>(
+      `SELECT TOP (1)
+              t.[Id] AS [id],
+              t.[TransactionExternalId] AS [transactionExternalId],
+              t.[AchCycleId] AS [achCycleId],
+              c.[ClearingHouseId] AS [clearingHouseId],
+              t.[SourceInstitutionId] AS [sourceInstitutionId],
+              t.[DestinationInstitutionId] AS [destinationInstitutionId],
+              t.[Type] AS [type]
+       FROM [AchTransactions] t
+       JOIN [AchCycles] c ON c.[Id] = t.[AchCycleId]
+       WHERE t.[Id] = ${transactionId}`
+    );
+
+    return rows[0] ?? null;
+  }
+
   async loadCycleSnapshot(cycleId: string, clearingHouseId: number): Promise<AchCycleSnapshot> {
     if (this.postgres) {
       const rows = await this.postgres.query<AchCycleSnapshot>(
@@ -513,10 +553,14 @@ export class G36RuntimeDb {
     ) ?? 0);
   }
 
-  async findDispatchEvidence(transactionExternalId: string): Promise<DispatchEvidenceRow | null> {
+  async findDispatchEvidence(transactionId: number): Promise<DispatchEvidenceRow | null> {
     if (this.postgres) {
       const rows = await this.postgres.query<DispatchEvidenceRow>(
-        `SELECT a."Result" AS result,
+        `SELECT a."Id"::text AS "attemptId",
+                i."Id"::text AS "dispatchItemId",
+                b."Id"::text AS "dispatchBatchId",
+                i."AchTransactionId" AS "transactionId",
+                a."Result" AS result,
                 a."ExternalResponseCode" AS "externalResponseCode",
                 a."ExternalResponseMessage" AS "externalResponseMessage",
                 a."ErrorCode" AS "errorCode",
@@ -545,17 +589,20 @@ export class G36RuntimeDb {
          FROM "ContrapartidaDispatchAttempts" a
          JOIN "ContrapartidaDispatchItems" i ON i."Id" = a."DispatchItemId"
          JOIN "ContrapartidaDispatchBatches" b ON b."Id" = a."DispatchBatchId"
-         JOIN "AchTransactions" t ON t."Id" = i."AchTransactionId"
-         WHERE t."TransactionExternalId" = $1
+         WHERE i."AchTransactionId" = $1
          ORDER BY a."FinishedAtUtc" DESC
          LIMIT 1`,
-        [transactionExternalId]
+        [transactionId]
       );
       return rows[0] ?? null;
     }
 
     const rows = this.sqlQuery<DispatchEvidenceRow>(
       `SELECT TOP (1)
+              CONVERT(varchar(36), a.[Id]) AS [attemptId],
+              CONVERT(varchar(36), i.[Id]) AS [dispatchItemId],
+              CONVERT(varchar(36), b.[Id]) AS [dispatchBatchId],
+              i.[AchTransactionId] AS [transactionId],
               a.[Result] AS [result],
               a.[ExternalResponseCode] AS [externalResponseCode],
               a.[ExternalResponseMessage] AS [externalResponseMessage],
@@ -585,12 +632,30 @@ export class G36RuntimeDb {
        FROM [ContrapartidaDispatchAttempts] a
        JOIN [ContrapartidaDispatchItems] i ON i.[Id] = a.[DispatchItemId]
        JOIN [ContrapartidaDispatchBatches] b ON b.[Id] = a.[DispatchBatchId]
-       JOIN [AchTransactions] t ON t.[Id] = i.[AchTransactionId]
-       WHERE t.[TransactionExternalId] = ${sqlString(transactionExternalId)}
+       WHERE i.[AchTransactionId] = ${transactionId}
        ORDER BY a.[FinishedAtUtc] DESC`
     );
 
     return rows[0] ?? null;
+  }
+
+  async countDispatchAttempts(transactionId: number): Promise<number> {
+    if (this.postgres) {
+      return Number(await this.postgres.scalar<string>(
+        `SELECT COUNT(*)::text
+         FROM "ContrapartidaDispatchAttempts" a
+         JOIN "ContrapartidaDispatchItems" i ON i."Id" = a."DispatchItemId"
+         WHERE i."AchTransactionId" = $1`,
+        [transactionId]
+      ) ?? 0);
+    }
+
+    return Number(this.sqlServer!.scalar<string>(
+      `SELECT CONVERT(varchar(30), COUNT(*)) AS [value]
+       FROM [ContrapartidaDispatchAttempts] a
+       JOIN [ContrapartidaDispatchItems] i ON i.[Id] = a.[DispatchItemId]
+       WHERE i.[AchTransactionId] = ${transactionId}`
+    ) ?? 0);
   }
 
   async findIncomingNachaIngestion(criteria: { correlationId?: string; uniqueRunKey?: string }): Promise<IncomingNachaIngestionRow | null> {

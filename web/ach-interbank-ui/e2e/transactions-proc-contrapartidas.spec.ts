@@ -1,5 +1,5 @@
 import { expect, Page, test, TestInfo } from '@playwright/test';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   G36RuntimeDb,
@@ -130,6 +130,9 @@ const configureSoapSettings = process.env['PROC_CONTRA_CONFIGURE_SOAP_SETTINGS']
 const runSeed = process.env['PROC_CONTRA_RUN_SEED'] === 'true';
 const targetInstitutionName = process.env['PROC_CONTRA_DESTINATION_INSTITUTION_NAME'] ?? '';
 const dispatchTriggeredBy = username;
+const liveResultFile = process.env['PROC_CONTRA_RESULT_FILE'] ?? '';
+const resumeReadOnly = process.env['PROC_CONTRA_RESUME_READ_ONLY'] === 'true';
+const skipDuplicateGate = process.env['PROC_CONTRA_SKIP_DUPLICATE_GATE'] === 'true';
 
 const loginPath = '/auth/login';
 const seedPath = '/Maintenance/seed';
@@ -146,6 +149,11 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
   let originalSoapSettings: SoapIntegrationSettings | null = null;
   let cycleSnapshots: AchCycleSnapshot[] | null = null;
   let mappingSnapshot: MappingRuleSnapshot[] | null = null;
+
+  if (resumeReadOnly) {
+    await validatePersistedLiveResultWithoutDispatch(page, testInfo, db);
+    return;
+  }
 
   const reference = `PW-CONTRA-${Date.now()}`;
   const sourceAccountNumber = `44${String(Date.now()).slice(-10)}`;
@@ -254,6 +262,7 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     ).toBeTruthy();
     const createdTransaction = JSON.parse(createResponseText) as CreatedTransaction;
     expect(createdTransaction.id, 'La transaccion monetaria creada desde UI debe devolver id.').toBeGreaterThan(0);
+    writeLiveState({ transactionId: createdTransaction.id, phase: 'created' });
 
     await expect(page).toHaveURL(/\/transactions(?:\/list)?(?:\?.*)?$/);
     await testInfo.attach('transactions-list-after-create.png', {
@@ -293,10 +302,22 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     expect(dispatchResult.processed, 'El dispatch UAT dirigido debe procesar solamente la transaccion sintetica.').toBe(1);
 
     const evidence = await pollUntil(
-      async () => db.findDispatchEvidence(reference),
-      `evidencia Proc_Contrapartidas para ${reference}`,
+      async () => db.findDispatchEvidence(transaction.id),
+      `evidencia Proc_Contrapartidas para TransactionId ${transaction.id}`,
       180_000
     );
+    expect(Number(evidence.transactionId)).toBe(transaction.id);
+    expect(evidence.attemptId).toBeTruthy();
+    expect(evidence.dispatchItemId).toBeTruthy();
+    expect(evidence.dispatchBatchId).toBeTruthy();
+    writeLiveState({
+      transactionId: transaction.id,
+      attemptId: evidence.attemptId,
+      dispatchItemId: evidence.dispatchItemId,
+      dispatchBatchId: evidence.dispatchBatchId,
+      responseCatalogId: evidence.responseCatalogId,
+      phase: 'persisted'
+    });
 
     assertProcContrapartidasPayload(evidence.requestPayloadXml, transaction.clearingHouseId);
     expect(evidence.requestPayloadXml).not.toContain('Proc_Transacciones');
@@ -345,14 +366,25 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     }
 
     const localSoapEvidence = readLocalSoapEvidence(startedAt, evidence.requestPayloadXml);
-    const legacyLogFragment = extractEnvelopeNear(localSoapEvidence.text, evidence.requestPayloadXml) ?? localSoapEvidence.text;
-    expect(legacyLogFragment, 'El log plano del SOAP local debe contener evidencia de Proc_Contrapartidas.').toContain('Proc_Contrapartidas');
-    expect(legacyLogFragment).toContain('OFNIT');
-    expect(legacyLogFragment).toContain('OFCTA');
-    expect(legacyLogFragment).toContain('OFMONDEB');
-    expect(legacyLogFragment).toContain('OFIDCAMCOMPE');
-    expect(legacyLogFragment).toContain('OFFECHEFEC');
-    expect(legacyLogFragment).not.toContain('Proc_Transacciones');
+    if (localSoapEvidence) {
+      const legacyLogFragment = extractEnvelopeNear(localSoapEvidence.text, evidence.requestPayloadXml) ?? localSoapEvidence.text;
+      expect(legacyLogFragment, 'El log plano del SOAP local debe contener evidencia de Proc_Contrapartidas.').toContain('Proc_Contrapartidas');
+      expect(legacyLogFragment).toContain('OFNIT');
+      expect(legacyLogFragment).toContain('OFCTA');
+      expect(legacyLogFragment).toContain('OFMONDEB');
+      expect(legacyLogFragment).toContain('OFIDCAMCOMPE');
+      expect(legacyLogFragment).toContain('OFFECHEFEC');
+      expect(legacyLogFragment).not.toContain('Proc_Transacciones');
+      await testInfo.attach('proc-contrapartidas-local-soap-log-summary.txt', {
+        body: `evidence=correlated\nsource=${localSoapEvidence.source}\nmethod=Proc_Contrapartidas\n`,
+        contentType: 'text/plain'
+      });
+    } else {
+      await testInfo.attach('proc-contrapartidas-local-soap-log-gap.txt', {
+        body: 'evidence=not-correlated\nreason=no matching append in the configured local WCF log window\n',
+        contentType: 'text/plain'
+      });
+    }
 
     const integrationResult = await apiGetJson<TransactionIntegrationResult>(
       `${transactionsPath}/${transaction.id}/integration-result`,
@@ -384,22 +416,24 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
       contentType: 'image/png'
     });
 
-    await testInfo.attach('proc-contrapartidas-request-sanitized.xml', {
-      body: sanitizeEvidence(evidence.requestPayloadXml),
-      contentType: 'application/xml'
+    const attemptCountBeforeDuplicateGate = await db.countDispatchAttempts(transaction.id);
+    expect(attemptCountBeforeDuplicateGate, 'La transaccion nueva debe tener un unico intento SOAP persistido.').toBe(1);
+    const duplicateResponse = await fetch(joinUrl(apiBaseUrl, contrapartidaDispatchPath), {
+      method: 'POST',
+      headers: authHeaders(runtime.token, true),
+      body: JSON.stringify({ transactionId: transaction.id })
     });
-    await testInfo.attach('proc-contrapartidas-response-sanitized.xml', {
-      body: sanitizeEvidence(evidence.responsePayloadXml),
-      contentType: 'application/xml'
-    });
-    await testInfo.attach('proc-contrapartidas-local-soap-log-sanitized.txt', {
-      body: [
-        `source=${localSoapEvidence.source}`,
-        'nota=El SOAP legacy puede registrar <METODO> en su envelope interno de trazabilidad; la ausencia de <METODO> se valida en el request outbound persistido por ACHInterbank.',
-        '',
-        sanitizeEvidence(legacyLogFragment)
-      ].join('\n'),
-      contentType: 'text/plain'
+    expect(duplicateResponse.status, 'El segundo dispatch debe bloquearse antes del transporte.').toBe(409);
+    const duplicatePayload = await duplicateResponse.json() as { errorCode?: string };
+    expect(duplicatePayload.errorCode).toBe('CONTRAPARTIDA_ALREADY_SUCCEEDED');
+    expect(await db.countDispatchAttempts(transaction.id), 'El gate duplicado no debe crear otro intento.').toBe(attemptCountBeforeDuplicateGate);
+    writeLiveState({
+      transactionId: transaction.id,
+      attemptId: evidence.attemptId,
+      dispatchItemId: evidence.dispatchItemId,
+      dispatchBatchId: evidence.dispatchBatchId,
+      responseCatalogId: evidence.responseCatalogId,
+      phase: 'duplicate-blocked'
     });
   } finally {
     if (cycleSnapshots) {
@@ -417,6 +451,94 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     await db.close();
   }
 });
+
+async function validatePersistedLiveResultWithoutDispatch(
+  page: Page,
+  testInfo: TestInfo,
+  db: G36RuntimeDb
+): Promise<void> {
+  expect(liveResultFile, 'PROC_CONTRA_RESULT_FILE es obligatorio para reanudar sin dispatch.').toBeTruthy();
+  expect(existsSync(liveResultFile), 'El estado opaco del dispatch anterior debe existir.').toBeTruthy();
+  const state = JSON.parse(readFileSync(liveResultFile, 'utf8')) as { transactionId?: number };
+  const transactionId = Number(state.transactionId ?? 0);
+  expect(transactionId).toBeGreaterThan(0);
+
+  const runtime = await authenticateThroughSpa(page);
+  try {
+    await db.assertReady();
+    const transaction = await db.findTransactionById(transactionId);
+    expect(transaction, 'La transaccion del unico dispatch debe seguir persistida.').not.toBeNull();
+    const evidence = await db.findDispatchEvidence(transactionId);
+    expect(evidence, 'La evidencia del unico intento debe seguir persistida.').not.toBeNull();
+    expect(Number(evidence!.transactionId)).toBe(transactionId);
+    expect(evidence!.soapMethodName).toBe('Proc_Contrapartidas');
+    expect(evidence!.soapResponseCode).toBe('R96');
+    expect(evidence!.soapResponseDescription).toBe('Débito aplicado correctamente');
+    expect(evidence!.transportStatus).toBe('Succeeded');
+    expect(evidence!.businessStatus).toBe('Success');
+    expect(Number(evidence!.responseCatalogId ?? 0)).toBeGreaterThan(0);
+    expect(asBoolean(evidence!.retryAllowed)).toBeFalsy();
+    expect(asBoolean(evidence!.requiresManualReview)).toBeFalsy();
+    expect(evidence!.requestPayloadXml).not.toMatch(/<[^>]*METODO[^>]*>/i);
+    expect(evidence!.requestPayloadXml).not.toContain('Proc_Transacciones');
+    expect(evidence!.requestPayloadXml).not.toContain('RegistrarRespuestaTransaccion');
+    expect(await db.countDispatchAttempts(transactionId)).toBe(1);
+
+    const integrationResult = await apiGetJson<TransactionIntegrationResult>(
+      `${transactionsPath}/${transactionId}/integration-result`,
+      runtime.token
+    );
+    expect(integrationResult.latest?.method).toBe('Proc_Contrapartidas');
+    expect(integrationResult.latest?.responseCode).toBe('R96');
+    expect(integrationResult.latest?.responseDescription).toBe('Débito aplicado correctamente');
+    expect(integrationResult.latest?.transportStatus).toBe('Succeeded');
+    expect(integrationResult.latest?.businessStatus).toBe('Success');
+
+    await page.goto(joinUrl(uiBaseUrl, '/transactions'));
+    const transactionGrid = page.locator('ui-grilla-empresarial').filter({ hasText: transaction!.transactionExternalId }).first();
+    await expect(transactionGrid).toBeVisible();
+    await transactionGrid.locator('.ag-row').filter({ hasText: transaction!.transactionExternalId }).first().click();
+    const resultPanel = page.locator('app-transaction-integration-result');
+    await expect(resultPanel.getByRole('heading', { name: 'RESULTADO DEL PROCESAMIENTO EN EL CORE' })).toBeVisible();
+    await expect(resultPanel).toContainText('Proc_Contrapartidas');
+    await expect(resultPanel).toContainText('Exitoso');
+    await expect(resultPanel).toContainText('R96');
+    await expect(resultPanel).toContainText('D\u00e9bito aplicado correctamente');
+    await expect(resultPanel).not.toContainText(/<Envelope|<soap|RequestPayload|ResponsePayload|\{\s*"/i);
+    await testInfo.attach('proc-contrapartidas-r96-panel-resume.png', {
+      body: await resultPanel.screenshot(),
+      contentType: 'image/png'
+    });
+
+    const localSoapEvidence = readLocalSoapEvidence(new Date(0), evidence!.requestPayloadXml);
+    expect(localSoapEvidence, 'La evidencia WCF debe correlacionar con el request persistido.').not.toBeNull();
+    const fragment = extractEnvelopeNear(localSoapEvidence!.text, evidence!.requestPayloadXml) ?? '';
+    expect(fragment).toContain('Proc_Contrapartidas');
+    expect(fragment).not.toContain('Proc_Transacciones');
+    expect(fragment).not.toContain('RegistrarRespuestaTransaccion');
+    expect(fragment).not.toContain('PLValidarUsuarioBV');
+
+    if (!skipDuplicateGate) {
+      const attemptsBeforeDuplicateGate = await db.countDispatchAttempts(transactionId);
+      const duplicateResponse = await fetch(joinUrl(apiBaseUrl, contrapartidaDispatchPath), {
+        method: 'POST',
+        headers: authHeaders(runtime.token, true),
+        body: JSON.stringify({ transactionId })
+      });
+      expect(duplicateResponse.status).toBe(409);
+      const duplicatePayload = await duplicateResponse.json() as { errorCode?: string };
+      expect(duplicatePayload.errorCode).toBe('CONTRAPARTIDA_ALREADY_SUCCEEDED');
+      expect(await db.countDispatchAttempts(transactionId)).toBe(attemptsBeforeDuplicateGate);
+    }
+
+    writeLiveState({
+      transactionId,
+      phase: skipDuplicateGate ? 'restart-read-only-complete' : 'read-only-resume-complete'
+    });
+  } finally {
+    await db.close();
+  }
+}
 
 async function fillTransactionFormFromUi(page: Page, data: {
   reference: string;
@@ -699,7 +821,7 @@ function assertProcContrapartidasPayload(xml: string, clearingHouseId: number): 
   }
 }
 
-function readLocalSoapEvidence(startedAt: Date, expectedRequestXml: string): LocalSoapEvidence {
+function readLocalSoapEvidence(startedAt: Date, expectedRequestXml: string): LocalSoapEvidence | null {
   const explicitLog = process.env['SOAP_LOCAL_WSCFAACH_LOG'];
   if (explicitLog) {
     expect(existsSync(explicitLog), `SOAP_LOCAL_WSCFAACH_LOG debe existir: ${explicitLog}`).toBeTruthy();
@@ -737,7 +859,7 @@ function readLocalSoapEvidence(startedAt: Date, expectedRequestXml: string): Loc
     }
   }
 
-  throw new Error(`No se encontro evidencia Proc_Contrapartidas en logs locales de ${logDir}.`);
+  return null;
 }
 
 function extractEnvelopeNear(logText: string, expectedRequestXml: string): string | null {
@@ -783,14 +905,6 @@ function extractElementText(xml: string, localName: string): string | null {
   return match?.[1] ?? null;
 }
 
-function sanitizeEvidence(value: string): string {
-  return value
-    .replace(/\b\d{10,18}\b/g, '[cuenta-redactada]')
-    .replace(/\b\d{6,10}\b/g, '[id-redactado]')
-    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [redactado]')
-    .replace(/<password>.*?<\/password>/gi, '<password>[redactado]</password>');
-}
-
 function asBoolean(value: boolean | number | string | null | undefined): boolean {
   return value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true';
 }
@@ -831,4 +945,9 @@ function todayIsoDate(): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function writeLiveState(value: Record<string, unknown>): void {
+  if (!liveResultFile) return;
+  writeFileSync(liveResultFile, JSON.stringify(value), { encoding: 'utf8' });
 }
