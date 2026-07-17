@@ -8,7 +8,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class ProcTransaccionesResponseParser : IProcTransaccionesResponseParser
 {
-    private static readonly HashSet<string> SuccessCodes = new(StringComparer.OrdinalIgnoreCase) { "0", "00", "OK", "SUCCESS", "R96" };
+    private static readonly HashSet<string> SuccessCodes = new(StringComparer.OrdinalIgnoreCase) { "0", "00", "OK", "SUCCESS" };
     private static readonly HashSet<string> RetryableCodes = new(StringComparer.OrdinalIgnoreCase) { "TIMEOUT", "SOAP_TIMEOUT", "TEMP", "503", "500" };
     private static readonly HashSet<string> PartialCodes = new(StringComparer.OrdinalIgnoreCase) { "PARTIAL", "WARN" };
 

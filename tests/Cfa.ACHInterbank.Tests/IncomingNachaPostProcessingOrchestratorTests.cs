@@ -6,10 +6,12 @@ using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -58,6 +60,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(responseXml);
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
+        await new IntegrationCatalogBootstrapper(context).EnsureAsync();
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
@@ -67,7 +70,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             dispatchOptions: LiveProcTransaccionesOptions(),
             operationResolver: operationResolver.Object,
             mappingReadinessService: readiness.Object,
-            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: new IntegrationResponseCatalogResolver(context));
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -85,17 +89,27 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.Equal("http://localhost:7083/WSCFAACH.svc", execution.SoapEndpoint);
         Assert.Equal("Live", execution.ExecutionMode);
         Assert.Equal("R96", execution.SoapResponseCode);
-        Assert.Equal("OK", execution.SoapResponseDescription);
+        Assert.Equal("Crédito aplicado correctamente", execution.SoapResponseDescription);
+        Assert.NotNull(execution.ResponseCatalogId);
+        Assert.Equal(IntegrationTransportStatus.Succeeded, execution.TransportStatus);
+        Assert.Equal(IntegrationResponseBusinessStatus.Success, execution.BusinessStatus);
         Assert.Equal("Succeeded", execution.SoapTechnicalStatus);
         Assert.True(execution.IsSuccessful);
         Assert.False(execution.IsFunctionalRejection);
         Assert.False(execution.IsTechnicalFailure);
         Assert.Equal("R96", execution.ResponseCode);
-        Assert.Equal("OK", execution.ResponseMessage);
+        Assert.Equal("Crédito aplicado correctamente", execution.ResponseMessage);
         Assert.DoesNotContain("<METODO>", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Proc_Contrapartidas", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("RegistrarRespuestaTransaccion", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("PLValidarUsuarioBV", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
+
+        var readModel = await new TransactionIntegrationResultService(context).GetAsync(queue.AchTransactionId);
+        Assert.NotNull(readModel?.Latest);
+        Assert.Equal("Proc_Transacciones", readModel.Latest.Method);
+        Assert.Equal("R96", readModel.Latest.ResponseCode);
+        Assert.Equal("Crédito aplicado correctamente", readModel.Latest.ResponseDescription);
+        Assert.Equal("Success", readModel.Latest.BusinessStatus);
     }
     [Fact]
     public async Task ExecuteAsync_BlocksQueue_WhenMappingIsInvalid()
@@ -668,7 +682,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "Live" }),
             operationResolver: operationResolver.Object,
             mappingReadinessService: readiness.Object,
-            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: Catalog(Success("00", "Crédito aplicado")));
 
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
@@ -739,7 +754,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_SetsFailedFinal_AndStoresFunctionalRejectionAudit_WhenObservedFunctionalCodeOccurs()
+    public async Task ExecuteAsync_BlocksUnknownFunctionalCode_ForCatalogReview()
     {
         await using var context = BuildContext();
         SeedDispatchItem(context);
@@ -763,19 +778,23 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
         var result = await sut.ExecuteAsync(50, "tester");
 
-        Assert.Equal(1, result.FailedFinal);
+        Assert.Equal(1, result.Blocked);
         var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
-        Assert.Equal(IncomingNachaDispatchQueueStatus.FailedFinal, queue.QueueStatus);
-        Assert.Equal("IFUNC", queue.LastErrorCode);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, queue.QueueStatus);
+        Assert.Equal("R17", queue.LastErrorCode);
         var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
         Assert.Equal("R17", execution.SoapResponseCode);
-        Assert.Equal("Codigo funcional observado", execution.SoapResponseDescription);
-        Assert.Equal("FunctionalRejection", execution.SoapTechnicalStatus);
+        Assert.Equal("Código pendiente de parametrización", execution.SoapResponseDescription);
+        Assert.Equal("Succeeded", execution.SoapTechnicalStatus);
+        Assert.Equal(IntegrationTransportStatus.Succeeded, execution.TransportStatus);
+        Assert.Equal(IntegrationResponseBusinessStatus.PendingCatalog, execution.BusinessStatus);
+        Assert.True(execution.RequiresManualReview);
+        Assert.False(execution.RetryAllowed);
         Assert.False(execution.IsSuccessful);
-        Assert.True(execution.IsFunctionalRejection);
+        Assert.False(execution.IsFunctionalRejection);
         Assert.False(execution.IsTechnicalFailure);
         Assert.Equal("R17", execution.ResponseCode);
-        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "IntegrationNonRetryableFailed"));
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "IntegrationResponsePendingCatalog"));
     }
 
     [Fact]
@@ -872,7 +891,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             soap.Object,
             operationResolver: operationResolver.Object,
             mappingReadinessService: readiness.Object,
-            dispatchOptions: LiveProcTransaccionesOptions());
+            dispatchOptions: LiveProcTransaccionesOptions(),
+            responseCatalogResolver: Catalog(Success("00", "Crédito aplicado")));
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -1111,6 +1131,56 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
     private static IOptions<ProcTransaccionesDispatchOptions> LiveProcTransaccionesOptions()
         => Options.Create(new ProcTransaccionesDispatchOptions { Mode = "Live" });
+
+    private static IIntegrationResponseCatalogResolver Catalog(params IntegrationResponseCatalogResult[] results)
+        => new StubResponseCatalogResolver(results);
+
+    private static IntegrationResponseCatalogResult Success(string code, string description)
+        => new(
+            null,
+            code,
+            description,
+            IntegrationResponseCategory.CoreSoapResponse,
+            IntegrationResponseCategory.CoreSoapResponse,
+            "Proc_Transacciones",
+            IntegrationResponseBusinessStatus.Success,
+            false,
+            false,
+            true,
+            "AppliedTacitly",
+            true);
+
+    private sealed class StubResponseCatalogResolver(IEnumerable<IntegrationResponseCatalogResult> results)
+        : IIntegrationResponseCatalogResolver
+    {
+        private readonly IReadOnlyDictionary<string, IntegrationResponseCatalogResult> _results =
+            results.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+
+        public Task<IntegrationResponseCatalogResult> ResolveAsync(
+            string source,
+            string method,
+            string? responseCode,
+            DateTime processedAtUtc,
+            CancellationToken ct = default)
+        {
+            var code = responseCode?.Trim() ?? string.Empty;
+            return Task.FromResult(_results.TryGetValue(code, out var result)
+                ? result
+                : new IntegrationResponseCatalogResult(
+                    null,
+                    code,
+                    "Código pendiente de parametrización",
+                    source,
+                    IntegrationResponseCategory.CoreSoapResponse,
+                    method,
+                    IntegrationResponseBusinessStatus.PendingCatalog,
+                    false,
+                    true,
+                    false,
+                    string.Empty,
+                    false));
+        }
+    }
 
     private static TransactionIntegrationOperationResult ProcTransaccionesOperation()
         => new(

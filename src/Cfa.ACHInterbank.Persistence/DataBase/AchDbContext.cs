@@ -169,6 +169,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<LoginLockoutSetting> LoginLockoutSettings => Set<LoginLockoutSetting>();
     public DbSet<SoapIntegrationSetting> SoapIntegrationSettings => Set<SoapIntegrationSetting>();
     public DbSet<IntegrationMethod> IntegrationMethods => Set<IntegrationMethod>();
+    public DbSet<IntegrationResponseCode> IntegrationResponseCodes => Set<IntegrationResponseCode>();
     public DbSet<IntegrationMethodParameter> IntegrationMethodParameters => Set<IntegrationMethodParameter>();
     public DbSet<IntegrationSourceCatalogField> IntegrationSourceCatalogFields => Set<IntegrationSourceCatalogField>();
     public DbSet<IntegrationMappingSet> IntegrationMappingSets => Set<IntegrationMappingSet>();

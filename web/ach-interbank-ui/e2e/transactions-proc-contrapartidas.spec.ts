@@ -68,6 +68,20 @@ type ContrapartidaDispatchResult = {
   summary?: string;
 };
 
+type TransactionIntegrationResult = {
+  transactionId: number;
+  latest?: {
+    catalogId?: number | null;
+    method: string;
+    transportStatus: string;
+    businessStatus: string;
+    responseCode: string;
+    responseDescription: string;
+    retryAllowed: boolean;
+    requiresManualReview: boolean;
+  } | null;
+};
+
 type SoapInputParameterMapping = {
   inputName: string;
   soapParameterName: string;
@@ -94,7 +108,8 @@ type LocalSoapEvidence = {
 };
 
 const shouldRun =
-  process.env['RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E'] === 'true'
+  process.env['ACH_SOAP_LIVE_TESTS'] === 'true'
+  && process.env['RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E'] === 'true'
   && process.env['ALLOW_LOCAL_MONETARY_SOAP_E2E'] === 'true';
 
 const hasRuntimeCredentials = Boolean(process.env['ACH_USER'] && process.env['ACH_PASS']);
@@ -102,7 +117,7 @@ const hasSoapLogSource = Boolean(process.env['SOAP_LOCAL_WSCFAACH_LOG'] || proce
 
 test.describe.configure({ mode: 'serial' });
 test.use({ trace: 'off', screenshot: 'off', video: 'off' });
-test.skip(!shouldRun, 'RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E=true y ALLOW_LOCAL_MONETARY_SOAP_E2E=true son requeridos para esta prueba local/UAT.');
+test.skip(!shouldRun, 'ACH_SOAP_LIVE_TESTS=true, RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E=true y ALLOW_LOCAL_MONETARY_SOAP_E2E=true son requeridos para esta prueba local/UAT.');
 test.skip(!hasRuntimeCredentials, 'ACH_USER y ACH_PASS deben venir del entorno; el spec no contiene credenciales.');
 test.skip(!hasSoapLogSource, 'SOAP_LOCAL_WSCFAACH_LOG o SOAP_LOCAL_LOG_DIR es requerido para validar evidencia del SOAP local.');
 
@@ -114,7 +129,7 @@ const wscfaachEndpoint = process.env['SOAP_LOCAL_WSCFAACH_URL'] ?? 'http://local
 const configureSoapSettings = process.env['PROC_CONTRA_CONFIGURE_SOAP_SETTINGS'] !== 'false';
 const runSeed = process.env['PROC_CONTRA_RUN_SEED'] === 'true';
 const targetInstitutionName = process.env['PROC_CONTRA_DESTINATION_INSTITUTION_NAME'] ?? '';
-const dispatchTriggeredBy = 'playwright-local-proc-contrapartidas';
+const dispatchTriggeredBy = username;
 
 const loginPath = '/auth/login';
 const seedPath = '/Maintenance/seed';
@@ -270,13 +285,7 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     }).toBeGreaterThan(0);
 
     const dispatchResult = await apiPostJson<ContrapartidaDispatchResult>(contrapartidaDispatchPath, runtime.token, {
-      cycleId: transaction.achCycleId,
-      clearingHouseId: transaction.clearingHouseId,
-      transactionId: transaction.id,
-      triggeredBy: dispatchTriggeredBy,
-      chunkSize: 50
-    }, {
-      'X-UAT-Transaction-Nacha-Dispatch': 'true'
+      transactionId: transaction.id
     });
 
     expect(dispatchResult.cycleId).toBe(transaction.achCycleId);
@@ -297,6 +306,13 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     expect(evidence.responsePayloadXml, 'Debe persistirse la respuesta inbound del SOAP, no solo el request outbound.').toBeTruthy();
     expect(evidence.responsePayloadXml.trim().length, 'La respuesta SOAP persistida no puede estar vacia.').toBeGreaterThan(0);
     expect(evidence.soapMethodName, 'El intento debe persistir el metodo SOAP ejecutado.').toBe('Proc_Contrapartidas');
+    expect(Number(evidence.responseCatalogId ?? 0), 'R96 debe quedar relacionado con el catalogo parametrizado.').toBeGreaterThan(0);
+    expect(evidence.transportStatus, 'El transporte SOAP real local debe quedar exitoso.').toBe('Succeeded');
+    expect(evidence.businessStatus, 'R96 debe resolverse como exito funcional desde el catalogo.').toBe('Success');
+    expect(evidence.soapResponseCode).toBe('R96');
+    expect(evidence.soapResponseDescription).toBe('Débito aplicado correctamente');
+    expect(asBoolean(evidence.retryAllowed), 'R96 no debe permitir reintento.').toBeFalsy();
+    expect(asBoolean(evidence.requiresManualReview), 'R96 no debe requerir revision manual.').toBeFalsy();
     expect(evidence.executionMode, 'El intento debe persistir modo Live.').toMatch(/^Live$/i);
     expect(evidence.soapEndpoint ?? '', 'El intento debe persistir el endpoint WSCFAACH usado.').toContain('WSCFAACH.svc');
     expect(Number(evidence.durationMs ?? 0), 'El intento debe persistir duracion aproximada.').toBeGreaterThanOrEqual(0);
@@ -337,6 +353,36 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     expect(legacyLogFragment).toContain('OFIDCAMCOMPE');
     expect(legacyLogFragment).toContain('OFFECHEFEC');
     expect(legacyLogFragment).not.toContain('Proc_Transacciones');
+
+    const integrationResult = await apiGetJson<TransactionIntegrationResult>(
+      `${transactionsPath}/${transaction.id}/integration-result`,
+      runtime.token
+    );
+    expect(integrationResult.transactionId).toBe(transaction.id);
+    expect(Number(integrationResult.latest?.catalogId ?? 0)).toBeGreaterThan(0);
+    expect(integrationResult.latest?.method).toBe('Proc_Contrapartidas');
+    expect(integrationResult.latest?.transportStatus).toBe('Succeeded');
+    expect(integrationResult.latest?.businessStatus).toBe('Success');
+    expect(integrationResult.latest?.responseCode).toBe('R96');
+    expect(integrationResult.latest?.responseDescription).toBe('Débito aplicado correctamente');
+    expect(integrationResult.latest?.retryAllowed).toBeFalsy();
+    expect(integrationResult.latest?.requiresManualReview).toBeFalsy();
+
+    await page.goto(joinUrl(uiBaseUrl, '/transactions'));
+    const transactionGrid = page.locator('ui-grilla-empresarial').filter({ hasText: reference }).first();
+    await expect(transactionGrid, 'La transaccion sintetica debe estar visible en la grilla.').toBeVisible();
+    await transactionGrid.locator('.ag-row').filter({ hasText: reference }).first().click();
+    const resultPanel = page.locator('app-transaction-integration-result');
+    await expect(resultPanel.getByRole('heading', { name: 'RESULTADO DEL PROCESAMIENTO EN EL CORE' })).toBeVisible();
+    await expect(resultPanel).toContainText('Proc_Contrapartidas');
+    await expect(resultPanel).toContainText('Exitoso');
+    await expect(resultPanel).toContainText('R96');
+    await expect(resultPanel).toContainText('Débito aplicado correctamente');
+    await expect(resultPanel).not.toContainText(/<Envelope|<soap|RequestPayload|ResponsePayload|\{\s*"/i);
+    await testInfo.attach('proc-contrapartidas-r96-panel.png', {
+      body: await resultPanel.screenshot(),
+      contentType: 'image/png'
+    });
 
     await testInfo.attach('proc-contrapartidas-request-sanitized.xml', {
       body: sanitizeEvidence(evidence.requestPayloadXml),
@@ -441,7 +487,8 @@ async function authenticateThroughSpa(page: Page): Promise<{ token: string }> {
   await page.locator('input[formcontrolname="password"]').fill(password);
   const loginResponsePromise = page.waitForResponse((response) =>
     response.request().method() === 'POST'
-    && normalizeUrlPath(response.url()).endsWith(loginPath));
+    && normalizeUrlPath(response.url()).toLowerCase().endsWith(loginPath),
+  { timeout: 30_000 });
 
   await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
   const loginResponse = await loginResponsePromise;
@@ -452,8 +499,8 @@ async function authenticateThroughSpa(page: Page): Promise<{ token: string }> {
   await expect(page).not.toHaveURL(/\/login(?:\?.*)?$/);
 
   const storedToken = await page.evaluate(() => window.sessionStorage.getItem('ach.interbank.access_token'));
-  expect(storedToken, 'La SPA debe persistir la sesion autenticada en sessionStorage.').toBe(token);
-  return { token: token as string };
+  expect(storedToken, 'La SPA debe persistir una sesion autenticada vigente en sessionStorage.').toBeTruthy();
+  return { token: storedToken as string };
 }
 
 async function seedDatabase(token: string): Promise<void> {
@@ -772,7 +819,14 @@ function normalizeUrlPath(url: string): string {
 }
 
 function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value['year']}-${value['month']}-${value['day']}`;
 }
 
 function escapeRegExp(value: string): string {

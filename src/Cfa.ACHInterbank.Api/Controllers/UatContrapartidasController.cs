@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -15,15 +16,18 @@ public sealed class UatContrapartidasController : ControllerBase
     private readonly IContrapartidaDispatchJobService _dispatchJobService;
     private readonly IHostEnvironment _hostEnvironment;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<UatContrapartidasController> _logger;
 
     public UatContrapartidasController(
         IContrapartidaDispatchJobService dispatchJobService,
         IHostEnvironment hostEnvironment,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<UatContrapartidasController>? logger = null)
     {
         _dispatchJobService = dispatchJobService;
         _hostEnvironment = hostEnvironment;
         _configuration = configuration;
+        _logger = logger ?? NullLogger<UatContrapartidasController>.Instance;
     }
 
     [HttpPost("dispatch-cycle")]
@@ -36,81 +40,68 @@ public sealed class UatContrapartidasController : ControllerBase
             return NotFound();
         }
 
-        if (string.IsNullOrWhiteSpace(request.CycleId) || request.ClearingHouseId <= 0)
+        if (request.TransactionId <= 0)
         {
             return BadRequest(new
             {
                 errorCode = "UAT_DISPATCH_INVALID_REQUEST",
-                message = "cycleId y clearingHouseId son obligatorios."
+                message = "transactionId es obligatorio."
             });
         }
 
-        var cycleId = request.CycleId.Trim();
-        var triggeredBy = string.IsNullOrWhiteSpace(request.TriggeredBy) ? "g34-playwright" : request.TriggeredBy.Trim();
-        var result = request.TransactionId.HasValue
-            ? await _dispatchJobService.ProcessTransactionAsync(
-                cycleId,
-                request.ClearingHouseId,
-                request.TransactionId.Value,
-                triggeredBy,
-                ct)
-            : await _dispatchJobService.ProcessCycleAsync(
-                cycleId,
-                request.ClearingHouseId,
-                triggeredBy,
-                request.ChunkSize <= 0 ? 50 : request.ChunkSize,
-                ct);
+        var triggeredBy = User.Identity?.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(triggeredBy))
+        {
+            triggeredBy = "uat-authenticated-user";
+        }
 
-        return Ok(result);
+        try
+        {
+            _logger.LogInformation(
+                "Dispatch UAT dirigido de Proc_Contrapartidas solicitado para TransactionId {TransactionId} por {TriggeredBy}.",
+                request.TransactionId,
+                triggeredBy);
+            var result = await _dispatchJobService.ProcessTransactionAsync(request.TransactionId, triggeredBy, ct);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { errorCode = "UAT_DISPATCH_TARGET_NOT_FOUND" });
+        }
+        catch (InvalidOperationException ex) when (
+            ex.Message.StartsWith("CONTRAPARTIDA_ALREADY_SUCCEEDED:", StringComparison.Ordinal))
+        {
+            return Conflict(new
+            {
+                errorCode = "CONTRAPARTIDA_ALREADY_SUCCEEDED",
+                message = "La transacción ya tiene un resultado funcional exitoso."
+            });
+        }
     }
 
     private bool IsUatDispatchEnabled()
     {
-        if (_hostEnvironment.IsDevelopment()
-            || string.Equals(_hostEnvironment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var flag = _configuration["RUN_UAT_TRANSACTION_NACHA_DISPATCH"]
-            ?? Environment.GetEnvironmentVariable("RUN_UAT_TRANSACTION_NACHA_DISPATCH");
-
-        if (string.Equals(flag, "true", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return TryReadRequestFlag("X-UAT-Transaction-Nacha-Dispatch");
-    }
-
-    private bool TryReadRequestFlag(string headerName)
-    {
-        var controllerContext = ControllerContext;
-        var httpContext = controllerContext?.HttpContext;
-        if (httpContext is null)
+        if (_hostEnvironment.IsProduction())
         {
             return false;
         }
 
-        var request = httpContext.Request;
-        if (!request.Headers.TryGetValue(headerName, out var headerValue))
+        var allowedEnvironment = _hostEnvironment.IsDevelopment()
+            || string.Equals(_hostEnvironment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(_hostEnvironment.EnvironmentName, "UAT", StringComparison.OrdinalIgnoreCase);
+        if (!allowedEnvironment)
         {
             return false;
         }
 
-        return string.Equals(headerValue.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+        var flag = _configuration["ACH_SOAP_LIVE_TESTS"]
+            ?? Environment.GetEnvironmentVariable("ACH_SOAP_LIVE_TESTS");
+
+        return string.Equals(flag, "true", StringComparison.OrdinalIgnoreCase);
     }
 }
 
 public sealed class UatContrapartidasDispatchCycleRequest
 {
-    public string CycleId { get; set; } = string.Empty;
-
-    public int ClearingHouseId { get; set; }
-
-    public string? TriggeredBy { get; set; }
-
-    public int ChunkSize { get; set; } = 50;
-
-    public int? TransactionId { get; set; }
+    public int TransactionId { get; set; }
 }

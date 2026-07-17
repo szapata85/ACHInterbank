@@ -33,16 +33,16 @@ public class ProcTransaccionesResponseParserTests
     }
 
     [Fact]
-    public void Parse_ReturnsSuccess_WhenRtaAchIsObservedR96()
+    public void Parse_PreservesR96_WithoutAssigningBusinessSuccess()
     {
         var sut = new ProcTransaccionesResponseParser();
         var xml = "<Envelope><Body><Proc_TransaccionesResponse><RTAACH>R96</RTAACH><RTALOC>Aplicado</RTALOC></Proc_TransaccionesResponse></Body></Envelope>";
 
         var result = sut.Parse(xml);
 
-        Assert.True(result.IsSuccess);
+        Assert.False(result.IsSuccess);
         Assert.False(result.IsRetryable);
-        Assert.False(result.IsFunctionalRejection);
+        Assert.True(result.IsFunctionalRejection);
         Assert.Equal("R96", result.ResponseCode);
         Assert.Equal("Aplicado", result.ResponseMessage);
     }

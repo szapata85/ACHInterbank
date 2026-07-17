@@ -1,0 +1,36 @@
+<aside class="core-result" aria-labelledby="core-result-title">
+  <header>
+    <div>
+      <p class="eyebrow">Resultado de integración</p>
+      <h2 id="core-result-title">RESULTADO DEL PROCESAMIENTO EN EL CORE</h2>
+    </div>
+    <button type="button" class="close" aria-label="Cerrar resultado" (click)="closePanel.emit()">×</button>
+  </header>
+
+  <ng-container *ngIf="latest as item; else noResult">
+    <p class="status" [ngClass]="statusClass(item)" role="status">{{ resultLabel(item) }}</p>
+    <dl>
+      <div><dt>Servicio ejecutado</dt><dd>{{ item.method || '-' }}</dd></div>
+      <div><dt>Resultado</dt><dd>{{ resultLabel(item) }}</dd></div>
+      <div><dt>Código</dt><dd>{{ item.responseCode || '-' }}</dd></div>
+      <div><dt>Descripción</dt><dd>{{ item.responseDescription || '-' }}</dd></div>
+      <div><dt>Fecha de procesamiento</dt><dd>{{ item.processedAt ? (item.processedAt | date:'medium') : '-' }}</dd></div>
+      <div><dt>Número de intento</dt><dd>{{ item.attemptNumber }}</dd></div>
+      <div><dt>Estado de la transacción</dt><dd>{{ item.transactionState || '-' }}</dd></div>
+      <div *ngIf="item.transportStatus !== 'Succeeded'"><dt>Estado técnico</dt><dd>{{ item.transportStatus }}</dd></div>
+    </dl>
+
+    <details *ngIf="result.history.length > 1">
+      <summary>Historial resumido ({{ result.history.length }})</summary>
+      <ol>
+        <li *ngFor="let previous of result.history">
+          <strong>{{ previous.method }}</strong> — {{ resultLabel(previous) }} — {{ previous.responseCode || 'Sin código' }}
+        </li>
+      </ol>
+    </details>
+  </ng-container>
+
+  <ng-template #noResult>
+    <p role="status">La transacción todavía no tiene resultados de procesamiento en el core.</p>
+  </ng-template>
+</aside>

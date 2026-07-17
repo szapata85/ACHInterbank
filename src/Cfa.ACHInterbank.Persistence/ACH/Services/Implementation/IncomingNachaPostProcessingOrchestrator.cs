@@ -8,6 +8,8 @@ using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -45,6 +47,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly IContrapartidaDispatchJobService? _contrapartidaDispatchJobService;
     private readonly ISoapIntegrationSettingsService? _soapIntegrationSettingsService;
     private readonly IIncomingNachaLocalLivePreparationService? _localLivePreparationService;
+    private readonly IIntegrationResponseCatalogResolver? _responseCatalogResolver;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -58,7 +61,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         IIntegrationMappingTraceWriter? mappingTraceWriter = null,
         IContrapartidaDispatchJobService? contrapartidaDispatchJobService = null,
         ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
-        IIncomingNachaLocalLivePreparationService? localLivePreparationService = null)
+        IIncomingNachaLocalLivePreparationService? localLivePreparationService = null,
+        IIntegrationResponseCatalogResolver? responseCatalogResolver = null)
     {
         _context = context;
         _mapper = mapper;
@@ -72,6 +76,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _contrapartidaDispatchJobService = contrapartidaDispatchJobService;
         _soapIntegrationSettingsService = soapIntegrationSettingsService;
         _localLivePreparationService = localLivePreparationService;
+        _responseCatalogResolver = responseCatalogResolver;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -220,21 +225,48 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 var parsed = _parser.Parse(responseXml);
                 var finishedAtUtc = DateTime.UtcNow;
 
-                ApplyResponseAudit(execution, parsed, responseXml, finishedAtUtc);
+                var transportStatus = ResolveTransportStatus(parsed);
+                var catalogResult = transportStatus == IntegrationTransportStatus.Succeeded
+                    ? await ResolveCoreResponseAsync(parsed.ResponseCode, finishedAtUtc, ct)
+                    : null;
+                var businessSuccess = transportStatus == IntegrationTransportStatus.Succeeded
+                    && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
+                var retryAllowed = catalogResult is null ? parsed.IsRetryable : catalogResult.RetryAllowed;
+
+                ApplyResponseAudit(execution, parsed, responseXml, finishedAtUtc, transportStatus, catalogResult, retryAllowed);
 
                 queue.LastResponseCode = parsed.ResponseCode;
-                queue.LastErrorCode = parsed.IsSuccess ? string.Empty : parsed.ResponseCode;
-                queue.LastErrorMessage = parsed.IsSuccess ? string.Empty : parsed.ResponseMessage;
+                queue.LastErrorCode = businessSuccess ? string.Empty : parsed.ResponseCode;
+                queue.LastErrorMessage = businessSuccess
+                    ? string.Empty
+                    : catalogResult?.Description ?? parsed.ResponseMessage;
 
-                if (parsed.IsSuccess || parsed.IsPartialSuccess)
+                if (businessSuccess)
                 {
+                    if (catalogResult is not null)
+                    {
+                        ApplySuccessfulTransactionState(queue.AchTransaction, catalogResult, finishedAtUtc);
+                    }
                     queue.QueueStatus = IncomingNachaDispatchQueueStatus.Confirmed;
-                    queue.ConfirmedAtUtc = DateTime.UtcNow;
+                    queue.ConfirmedAtUtc = finishedAtUtc;
                     queue.NextAttemptAtUtc = null;
                     AddAutomaticEvent(queue, "IntegrationSucceeded", "Applied", "Integración confirmada exitosamente.");
                     confirmed++;
                 }
-                else if (parsed.IsRetryable)
+                else if (transportStatus == IntegrationTransportStatus.Succeeded
+                    && catalogResult is { RequiresManualReview: true })
+                {
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+                    queue.NextAttemptAtUtc = null;
+                    AddAutomaticEvent(
+                        queue,
+                        "IntegrationResponsePendingCatalog",
+                        "Blocked",
+                        "La respuesta del core requiere revisión manual o parametrización de catálogo.",
+                        parsed.ResponseCode);
+                    blocked++;
+                }
+                else if (retryAllowed)
                 {
                     var normalizedCode = NormalizeTechnicalIntegrationCode(parsed.ResponseCode, parsed.ResponseMessage, integrationCodePolicies);
                     queue.LastErrorCode = normalizedCode;
@@ -289,6 +321,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.IsSuccessful = false;
                 execution.IsFunctionalRejection = false;
                 execution.IsTechnicalFailure = true;
+                execution.TransportStatus = IntegrationTransportStatus.Failed;
+                execution.BusinessStatus = IntegrationResponseBusinessStatus.Unknown;
+                execution.RetryAllowed = false;
+                execution.RequiresManualReview = false;
+                execution.ProcessedAtUtc = DateTime.UtcNow;
                 execution.TechnicalException = BuildTechnicalException(ex);
                 execution.RequestHash = execution.RequestHash == string.Empty ? Hash(ex.Message) : execution.RequestHash;
                 execution.FinishedAtUtc = DateTime.UtcNow;
@@ -312,6 +349,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.IsSuccessful = false;
                 execution.IsFunctionalRejection = false;
                 execution.IsTechnicalFailure = true;
+                execution.TransportStatus = IntegrationTransportStatus.Failed;
+                execution.BusinessStatus = IntegrationResponseBusinessStatus.Unknown;
+                execution.RetryAllowed = true;
+                execution.RequiresManualReview = false;
+                execution.ProcessedAtUtc = execution.FinishedAtUtc;
                 execution.TechnicalException = BuildTechnicalException(ex);
                 execution.DurationMs = CalculateDurationMs(execution.StartedAtUtc, execution.FinishedAtUtc.Value);
 
@@ -542,33 +584,39 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         IncomingNachaIntegrationExecution execution,
         ProcTransaccionesParsedResponse parsed,
         string responseXml,
-        DateTime finishedAtUtc)
+        DateTime finishedAtUtc,
+        IntegrationTransportStatus transportStatus,
+        IntegrationResponseCatalogResult? catalogResult,
+        bool retryAllowed)
     {
         var soapCode = NormalizeAuditValue(parsed.ResponseCode, 80);
-        var soapDescription = NormalizeAuditValue(parsed.ResponseMessage, 4000);
-        var isSuccessful = parsed.IsSuccess || parsed.IsPartialSuccess;
-        var isFunctionalRejection = !_dispatchOptions.IsDryRunLike
-            && !_dispatchOptions.IsDisabled
-            && !isSuccessful
-            && parsed.IsFunctionalRejection
-            && !IsTechnicalAnomalyCode(parsed.ResponseCode);
-        var isTechnicalFailure = !_dispatchOptions.IsDryRunLike
-            && !_dispatchOptions.IsDisabled
-            && !isSuccessful
-            && !isFunctionalRejection;
+        var soapDescription = NormalizeAuditValue(catalogResult?.Description ?? parsed.ResponseMessage, 4000);
+        var businessStatus = catalogResult?.BusinessStatus ?? IntegrationResponseBusinessStatus.Unknown;
+        var isSuccessful = transportStatus == IntegrationTransportStatus.Succeeded
+            && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
+        var isFunctionalRejection = businessStatus == IntegrationResponseBusinessStatus.Rejected;
+        var isTechnicalFailure = transportStatus is IntegrationTransportStatus.Failed or IntegrationTransportStatus.TimedOut;
 
         execution.ResponsePayloadXml = responseXml;
         execution.ResponseHash = Hash(responseXml);
         execution.SoapResponseCode = soapCode;
         execution.SoapResponseDescription = soapDescription;
-        execution.SoapTechnicalStatus = ResolveSoapTechnicalStatus(parsed, isSuccessful, isFunctionalRejection);
+        execution.SoapTechnicalStatus = transportStatus == IntegrationTransportStatus.Succeeded
+            ? TechnicalStatusSucceeded
+            : ResolveSoapTechnicalStatus(parsed, isSuccessful, isFunctionalRejection);
+        execution.ResponseCatalogId = catalogResult?.CatalogId;
+        execution.TransportStatus = transportStatus;
+        execution.BusinessStatus = businessStatus;
+        execution.RetryAllowed = retryAllowed;
+        execution.RequiresManualReview = catalogResult?.RequiresManualReview ?? false;
+        execution.ProcessedAtUtc = finishedAtUtc;
         execution.IsSuccessful = isSuccessful;
         execution.IsFunctionalRejection = isFunctionalRejection;
         execution.IsTechnicalFailure = isTechnicalFailure;
         execution.ResponseCode = soapCode;
         execution.ResponseMessage = soapDescription;
-        execution.IsSuccess = parsed.IsSuccess;
-        execution.IsRetryable = parsed.IsRetryable;
+        execution.IsSuccess = isSuccessful;
+        execution.IsRetryable = retryAllowed;
         execution.FinishedAtUtc = finishedAtUtc;
         execution.DurationMs = CalculateDurationMs(execution.StartedAtUtc, finishedAtUtc);
     }
@@ -616,6 +664,98 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         }
 
         return TechnicalStatusUnknownFailure;
+    }
+
+    private async Task<IntegrationResponseCatalogResult> ResolveCoreResponseAsync(
+        string? responseCode,
+        DateTime processedAtUtc,
+        CancellationToken ct)
+    {
+        if (_responseCatalogResolver is not null)
+        {
+            return await _responseCatalogResolver.ResolveAsync(
+                IntegrationResponseCategory.CoreSoapResponse,
+                SoapMethodName,
+                responseCode,
+                processedAtUtc,
+                ct);
+        }
+
+        return new IntegrationResponseCatalogResult(
+            null,
+            (responseCode ?? string.Empty).Trim().ToUpperInvariant(),
+            "Código pendiente de parametrización",
+            IntegrationResponseCategory.CoreSoapResponse,
+            IntegrationResponseCategory.CoreSoapResponse,
+            SoapMethodName,
+            IntegrationResponseBusinessStatus.PendingCatalog,
+            false,
+            true,
+            false,
+            string.Empty,
+            false);
+    }
+
+    private IntegrationTransportStatus ResolveTransportStatus(ProcTransaccionesParsedResponse parsed)
+    {
+        if (_dispatchOptions.IsDisabled || _dispatchOptions.IsDryRunLike)
+        {
+            return IntegrationTransportStatus.NotExecuted;
+        }
+
+        if (parsed.ResponseCode.Contains("TIMEOUT", StringComparison.OrdinalIgnoreCase)
+            || parsed.ResponseMessage.Contains("TIMEOUT", StringComparison.OrdinalIgnoreCase))
+        {
+            return IntegrationTransportStatus.TimedOut;
+        }
+
+        if (parsed.ResponseCode.Equals("SOAP_FAULT", StringComparison.OrdinalIgnoreCase)
+            || parsed.ResponseCode.Equals("PARSER_ERROR", StringComparison.OrdinalIgnoreCase)
+            || parsed.ResponseCode.Equals("EMPTY", StringComparison.OrdinalIgnoreCase)
+            || parsed.RawResponse.Contains("<Fault", StringComparison.OrdinalIgnoreCase)
+            || parsed.RawResponse.Contains(":Fault", StringComparison.OrdinalIgnoreCase))
+        {
+            return IntegrationTransportStatus.Failed;
+        }
+
+        return IntegrationTransportStatus.Succeeded;
+    }
+
+    private void ApplySuccessfulTransactionState(
+        AchTransaction transaction,
+        IntegrationResponseCatalogResult catalog,
+        DateTime processedAtUtc)
+    {
+        if (!Enum.TryParse<AchTransferStateEnum>(catalog.TargetTransactionState, true, out var targetState)
+            || transaction.State == targetState)
+        {
+            return;
+        }
+
+        if (transaction.State != AchTransferStateEnum.Pending
+            || targetState != AchTransferStateEnum.AppliedTacitly)
+        {
+            throw new InvalidOperationException(
+                $"CORE_RESPONSE_TARGET_STATE_INVALID: no se permite aplicar {catalog.TargetTransactionState} desde {transaction.State}.");
+        }
+
+        var previous = transaction.State;
+        transaction.State = targetState;
+        transaction.StateChangedAtUtc = processedAtUtc;
+        _context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
+        {
+            AchTransactionId = transaction.Id,
+            FromState = previous,
+            ToState = targetState,
+            Source = AchStateEventSourceEnum.System,
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                responseCatalogId = catalog.CatalogId,
+                category = catalog.Category,
+                method = catalog.Method,
+                businessStatus = catalog.BusinessStatus.ToString()
+            })
+        });
     }
 
     private async Task<string> ResolveProcTransaccionesEndpointAsync(CancellationToken ct)

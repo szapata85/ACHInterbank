@@ -81,6 +81,28 @@ export interface TransactionListFilter {
   clearingHouseId?: number | null;
 }
 
+export type IntegrationBusinessStatus = 'Success' | 'Rejected' | 'PendingCatalog' | 'ManualReview' | 'Unknown';
+
+export interface TransactionIntegrationResultItem {
+  catalogId?: number | null;
+  method: string;
+  transportStatus: string;
+  businessStatus: IntegrationBusinessStatus;
+  responseCode: string;
+  responseDescription: string;
+  processedAt?: string | null;
+  attemptNumber: number;
+  retryAllowed: boolean;
+  requiresManualReview: boolean;
+  transactionState: string;
+}
+
+export interface TransactionIntegrationResult {
+  transactionId: number;
+  latest?: TransactionIntegrationResultItem | null;
+  history: TransactionIntegrationResultItem[];
+}
+
 export interface ReturnReason {
   id: number;
   code: string;

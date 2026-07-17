@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
@@ -130,6 +131,13 @@ public class ContrapartidaDispatchAttempt : AuditableEntity
     public string SoapResponseCode { get; set; } = string.Empty;
     public string SoapResponseDescription { get; set; } = string.Empty;
     public string SoapTechnicalStatus { get; set; } = string.Empty;
+    public long? ResponseCatalogId { get; set; }
+    public IntegrationResponseCode? ResponseCatalog { get; set; }
+    public IntegrationTransportStatus TransportStatus { get; set; } = IntegrationTransportStatus.NotExecuted;
+    public IntegrationResponseBusinessStatus BusinessStatus { get; set; } = IntegrationResponseBusinessStatus.Unknown;
+    public bool RetryAllowed { get; set; }
+    public bool RequiresManualReview { get; set; }
+    public DateTime? ProcessedAtUtc { get; set; }
     public bool IsSuccessful { get; set; }
     public bool IsFunctionalRejection { get; set; }
     public bool IsTechnicalFailure { get; set; }

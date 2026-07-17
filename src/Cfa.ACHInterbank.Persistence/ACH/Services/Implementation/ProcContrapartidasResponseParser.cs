@@ -10,7 +10,7 @@ public sealed class ProcContrapartidasResponseParser : IProcContrapartidasRespon
 {
     private static readonly HashSet<string> SuccessCodes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "R96", "00", "OK", "SUCCESS"
+        "00", "OK", "SUCCESS"
     };
 
     private static readonly HashSet<string> RetryableCodes = new(StringComparer.OrdinalIgnoreCase)

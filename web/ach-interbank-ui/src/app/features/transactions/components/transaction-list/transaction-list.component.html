@@ -59,6 +59,13 @@
 </div>
 
 <div class="group-list" *ngIf="groups.length > 0; else emptyState">
+  <p class="selection-help">Seleccione una transacción para consultar su resultado en el core.</p>
+  <p *ngIf="loadingIntegrationResult" role="status">Consultando resultado del procesamiento...</p>
+  <app-transaction-integration-result
+    *ngIf="selectedIntegrationResult"
+    [result]="selectedIntegrationResult"
+    (closePanel)="closeIntegrationResult()"
+  ></app-transaction-integration-result>
   <section class="batch" *ngFor="let group of groups">
     <header class="batch__header">
       <div class="batch__titles">
@@ -78,6 +85,7 @@
       [seleccionFilas]="rowSelection"
       [mensajeVacio]="'No hay transacciones para este lote.'"
       [placeholderBusqueda]="'Buscar por cualquier campo del lote...'"
+      (seleccionCambio)="onTransactionSelection($event)"
     ></ui-grilla-empresarial>
   </section>
 </div>

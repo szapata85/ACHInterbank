@@ -632,6 +632,85 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.ToTable("IntegrationMethodParameters", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationResponseCode", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("BusinessStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("EffectiveFromUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EffectiveToUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("MethodId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RequiresManualReview")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RetryAllowed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("TargetTransactionState")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MethodId");
+
+                    b.HasIndex("Category", "IsActive");
+
+                    b.HasIndex("EffectiveFromUtc", "EffectiveToUtc");
+
+                    b.HasIndex("Source", "MethodId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_IntegrationResponseCodes_Source_Method_Code");
+
+                    b.ToTable("IntegrationResponseCodes", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationSourceCatalogField", b =>
                 {
                     b.Property<long>("Id")
@@ -6008,6 +6087,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int>("AttemptNumber")
                         .HasColumnType("int");
 
+                    b.Property<string>("BusinessStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("CorrelationId")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -6062,9 +6146,18 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<bool>("IsTechnicalFailure")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("RequestPayloadXml")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("RequiresManualReview")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("ResponseCatalogId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ResponsePayloadXml")
                         .IsRequired()
@@ -6074,6 +6167,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("RetryAllowed")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("RetryEligible")
                         .HasColumnType("bit");
@@ -6111,6 +6207,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<string>("TransportStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("TriggeredBy")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -6121,7 +6222,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ResponseCatalogId");
+
                     b.HasIndex("Result");
+
+                    b.HasIndex("BusinessStatus", "ProcessedAtUtc");
 
                     b.HasIndex("DispatchBatchId", "CreatedAt");
 
@@ -7565,6 +7670,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BusinessStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("CorrelationId")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -7618,6 +7728,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("RequestHash")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -7626,6 +7739,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<string>("RequestPayloadXml")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("RequiresManualReview")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("ResponseCatalogId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ResponseCode")
                         .IsRequired()
@@ -7645,6 +7764,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<string>("ResponsePayloadXml")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("RetryAllowed")
+                        .HasColumnType("bit");
 
                     b.Property<string>("SoapEndpoint")
                         .IsRequired()
@@ -7679,6 +7801,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<string>("TransportStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -7688,6 +7815,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasIndex("DispatchQueueId");
 
+                    b.HasIndex("ResponseCatalogId");
+
                     b.HasIndex("SoapMethodName");
 
                     b.HasIndex("SoapResponseCode");
@@ -7695,6 +7824,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("SoapTechnicalStatus");
 
                     b.HasIndex("StartedAtUtc");
+
+                    b.HasIndex("BusinessStatus", "ProcessedAtUtc");
 
                     b.HasIndex("DispatchQueueId", "StartedAtUtc");
 
@@ -10192,6 +10323,17 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Navigation("Method");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationResponseCode", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationMethod", "Method")
+                        .WithMany("ResponseCodes")
+                        .HasForeignKey("MethodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Method");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationSourceCatalogField", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationMethod", "Method")
@@ -10950,9 +11092,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationResponseCode", "ResponseCatalog")
+                        .WithMany()
+                        .HasForeignKey("ResponseCatalogId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("DispatchBatch");
 
                     b.Navigation("DispatchItem");
+
+                    b.Navigation("ResponseCatalog");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ContrapartidaDispatchBatch", b =>
@@ -11270,7 +11419,14 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationResponseCode", "ResponseCatalog")
+                        .WithMany()
+                        .HasForeignKey("ResponseCatalogId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("DispatchQueue");
+
+                    b.Navigation("ResponseCatalog");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.IncomingNachaProcessingEvent", b =>
@@ -11560,6 +11716,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Navigation("MappingSets");
 
                     b.Navigation("Parameters");
+
+                    b.Navigation("ResponseCodes");
 
                     b.Navigation("SourceCatalogFields");
                 });

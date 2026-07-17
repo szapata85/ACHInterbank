@@ -21,6 +21,8 @@ public class IncomingNachaIntegrationExecutionConfiguration : IEntityTypeConfigu
         builder.Property(x => x.SoapResponseCode).HasMaxLength(80);
         builder.Property(x => x.SoapResponseDescription).HasMaxLength(4000);
         builder.Property(x => x.SoapTechnicalStatus).HasMaxLength(80).IsRequired();
+        builder.Property(x => x.TransportStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
+        builder.Property(x => x.BusinessStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(x => x.TechnicalException).HasMaxLength(4000);
         builder.Property(x => x.ResponseCode).HasMaxLength(80);
         builder.Property(x => x.ResponseMessage).HasMaxLength(4000);
@@ -33,6 +35,13 @@ public class IncomingNachaIntegrationExecutionConfiguration : IEntityTypeConfigu
         builder.HasIndex(x => x.StartedAtUtc);
         builder.HasIndex(x => x.SoapResponseCode);
         builder.HasIndex(x => x.SoapTechnicalStatus);
+        builder.HasIndex(x => x.ResponseCatalogId);
+        builder.HasIndex(x => new { x.BusinessStatus, x.ProcessedAtUtc });
+
+        builder.HasOne(x => x.ResponseCatalog)
+            .WithMany()
+            .HasForeignKey(x => x.ResponseCatalogId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.DispatchQueue)
             .WithMany(x => x.Executions)

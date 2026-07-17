@@ -32,6 +32,7 @@ public sealed class IntegrationBootstrapperTests
         Assert.Equal(68, firstCounts.TransaccionesSourceFields);
         Assert.Equal(68, firstCounts.ContrapartidasSourceFields);
         Assert.Equal(68, firstCounts.RespuestaSourceFields);
+        Assert.Equal(2, firstCounts.ResponseCodes);
         AssertCountsEqual(firstCounts, secondCounts);
     }
 
@@ -382,6 +383,7 @@ public sealed class IntegrationBootstrapperTests
         int RespuestaPublishedRules,
         int ContrapartidasOptionalPublishedRules,
         int ResponseStatusMappings,
+        int ResponseCodes,
         IReadOnlyCollection<string> MappingSetNames);
 
     private static void AssertCountsEqual(SeedCounts expected, SeedCounts actual)
@@ -402,6 +404,7 @@ public sealed class IntegrationBootstrapperTests
         Assert.Equal(expected.RespuestaPublishedRules, actual.RespuestaPublishedRules);
         Assert.Equal(expected.ContrapartidasOptionalPublishedRules, actual.ContrapartidasOptionalPublishedRules);
         Assert.Equal(expected.ResponseStatusMappings, actual.ResponseStatusMappings);
+        Assert.Equal(expected.ResponseCodes, actual.ResponseCodes);
         Assert.Equal(expected.MappingSetNames.OrderBy(x => x), actual.MappingSetNames.OrderBy(x => x));
     }
 
@@ -413,6 +416,7 @@ public sealed class IntegrationBootstrapperTests
         var mappingSets = await context.IntegrationMappingSets.AsNoTracking().ToListAsync();
         var mappingRules = await context.IntegrationMappingRules.AsNoTracking().ToListAsync();
         var responseMappings = await context.AchResponseStatusMappings.AsNoTracking().CountAsync();
+        var responseCodes = await context.IntegrationResponseCodes.AsNoTracking().CountAsync();
 
         int CountParams(string code)
             => methods.TryGetValue(code, out var id)
@@ -458,6 +462,7 @@ public sealed class IntegrationBootstrapperTests
             RespuestaPublishedRules: CountRules("WSAXON.RegistrarRespuestaTransaccion"),
             ContrapartidasOptionalPublishedRules: contrapartidasOptionalPublishedRules,
             ResponseStatusMappings: responseMappings,
+            ResponseCodes: responseCodes,
             MappingSetNames: mappingSets.Select(x => x.Name).ToList());
     }
 

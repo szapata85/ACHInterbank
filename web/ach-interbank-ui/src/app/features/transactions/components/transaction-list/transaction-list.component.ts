@@ -9,6 +9,8 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { TransactionTypeEnum } from '../../transactions.types';
 import { AchCyclesApiService, ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
 import { AchCycleSummary, ClearingHouseOption } from '../../../ach-cycles/models/ach-cycle.model';
+import { TransactionIntegrationResult } from '../../transactions.models';
+import { TransactionIntegrationResultComponent } from '../transaction-integration-result/transaction-integration-result.component';
 
 type TransactionListRow = TransactionListItem & {
   typeLabel: string;
@@ -39,7 +41,7 @@ interface ColumnOption {
 @Component({
   selector: 'app-transaction-list',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, TransactionIntegrationResultComponent],
   templateUrl: './transaction-list.component.html',
   styleUrls: ['./transaction-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -134,6 +136,8 @@ export class TransactionListComponent implements OnInit {
   groups: TransactionGroup[] = [];
   cycles: AchCycleOption[] = [];
   clearingHouses: ClearingHouseOption[] = [];
+  selectedIntegrationResult: TransactionIntegrationResult | null = null;
+  loadingIntegrationResult = false;
   readonly filtrosForm = this.fb.group({
     selectedCycleId: [null as string | null],
     selectedClearingHouseId: [null as number | null],
@@ -338,6 +342,37 @@ export class TransactionListComponent implements OnInit {
   setReturnView(view: 'all' | 'received' | 'sent'): void {
     this.returnView = view;
     this.loadTransactions();
+  }
+
+  onTransactionSelection(rows: TransactionListRow[]): void {
+    const transaction = rows[0];
+    if (!transaction) {
+      this.selectedIntegrationResult = null;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.loadingIntegrationResult = true;
+    this.api.getIntegrationResult(transaction.id).subscribe({
+      next: (result) => {
+        this.selectedIntegrationResult = result;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.selectedIntegrationResult = null;
+        this.notifications.error('No fue posible consultar el resultado del procesamiento en el core');
+        this.cdr.markForCheck();
+      },
+      complete: () => {
+        this.loadingIntegrationResult = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  closeIntegrationResult(): void {
+    this.selectedIntegrationResult = null;
+    this.cdr.markForCheck();
   }
 
   private matchesReturnView(item: TransactionListRow): boolean {

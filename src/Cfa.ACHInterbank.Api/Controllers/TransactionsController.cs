@@ -22,6 +22,7 @@ public class TransactionsController : ControllerBase
     private readonly IAchBulkTransactionService _bulkTransactionService;
     private readonly IAchBulkIngestionService _bulkIngestionService;
     private readonly ITransactionIntegrationReadinessService? _integrationReadinessService;
+    private readonly ITransactionIntegrationResultService? _integrationResultService;
 
     public TransactionsController(
         IAchTransactionService transactionService,
@@ -29,7 +30,8 @@ public class TransactionsController : ControllerBase
         IAchBulkTransactionService bulkTransactionService,
         IAchBulkIngestionService bulkIngestionService,
         ILogger<TransactionsController> logger,
-        ITransactionIntegrationReadinessService? integrationReadinessService = null)
+        ITransactionIntegrationReadinessService? integrationReadinessService = null,
+        ITransactionIntegrationResultService? integrationResultService = null)
     {
         _transactionService = transactionService;
         _logger = logger;
@@ -37,6 +39,7 @@ public class TransactionsController : ControllerBase
         _bulkTransactionService = bulkTransactionService;
         _bulkIngestionService = bulkIngestionService;
         _integrationReadinessService = integrationReadinessService;
+        _integrationResultService = integrationResultService;
     }
     [EndpointSummary("Listado operativo de transacciones ACH con filtros de ciclo y cámara")]
     [EndpointDescription("Qué consulta: retorna transacciones ACH por filtros de ciclo, fecha efectiva y cámara para monitoreo operativo. Quién lo usa: operación, soporte y auditoría funcional para seguimiento diario. Permiso requerido: CanReadAch con autorización explícita en la acción. Tipo: consulta sin mutación. Impacto operacional: habilita visibilidad de volumen y estado para conciliación y priorización de incidentes. Auditoría/trazabilidad: la consulta debe quedar trazada con filtros aplicados y usuario consumidor en infraestructura de observabilidad. Riesgos: filtros incompletos pueden omitir transacciones críticas o sesgar diagnósticos. Errores esperados: 400 por parámetros inválidos cuando aplique; 401/403 según capa de seguridad global; 500 no controlado. Relación ACH/NACHA-M: permite trazar transacciones originadas desde flujos individuales o masivos; a diferencia de BulkIngestionController, aquí se consulta entidad transacción y no estado de lote de archivo.")]
@@ -261,6 +264,26 @@ public class TransactionsController : ControllerBase
             return NotFound(new { message = $"No se encontró la transacción con ID {id}" });
 
         return Ok(tx);
+    }
+
+    [EndpointSummary("Resultado derivado de integración core de una transacción")]
+    [EndpointDescription("Retorna el último resultado y el historial resumido de integración sin exponer payloads SOAP.")]
+    [HttpGet("{id:int}/integration-result")]
+    [Authorize(Policy = P0Policies.TransactionsRead)]
+    [ProducesResponseType(typeof(TransactionIntegrationResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> GetIntegrationResult(int id, CancellationToken ct)
+    {
+        if (_integrationResultService is null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var result = await _integrationResultService.GetAsync(id, ct);
+        return result is null
+            ? NotFound(new { message = $"No se encontró la transacción con ID {id}" })
+            : Ok(result);
     }
 
     [EndpointSummary("Garantía de readiness de integración SOAP para una transacción")]

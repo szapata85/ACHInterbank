@@ -133,7 +133,7 @@ public class ProcContrapartidasResponseParserTests
         Assert.False(result.IsSoapFault);
         Assert.True(result.IsRetryable);
         Assert.Equal(2, result.ItemResults.Count);
-        Assert.True(result.ItemResults[101].IsSuccess);
+        Assert.False(result.ItemResults[101].IsSuccess);
         Assert.True(result.ItemResults[202].IsRetryable);
     }
 }

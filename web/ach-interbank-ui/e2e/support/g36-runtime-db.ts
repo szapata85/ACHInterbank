@@ -36,6 +36,11 @@ export type DispatchEvidenceRow = {
   soapResponseCode: string | null;
   soapResponseDescription: string | null;
   soapTechnicalStatus: string | null;
+  responseCatalogId: number | string | null;
+  transportStatus: string | null;
+  businessStatus: string | null;
+  retryAllowed: boolean | number | null;
+  requiresManualReview: boolean | number | null;
   isSuccessful: boolean | number | null;
   isFunctionalRejection: boolean | number | null;
   isTechnicalFailure: boolean | number | null;
@@ -525,6 +530,11 @@ export class G36RuntimeDb {
                 a."SoapResponseCode" AS "soapResponseCode",
                 a."SoapResponseDescription" AS "soapResponseDescription",
                 a."SoapTechnicalStatus" AS "soapTechnicalStatus",
+                a."ResponseCatalogId" AS "responseCatalogId",
+                a."TransportStatus" AS "transportStatus",
+                a."BusinessStatus" AS "businessStatus",
+                a."RetryAllowed" AS "retryAllowed",
+                a."RequiresManualReview" AS "requiresManualReview",
                 a."IsSuccessful" AS "isSuccessful",
                 a."IsFunctionalRejection" AS "isFunctionalRejection",
                 a."IsTechnicalFailure" AS "isTechnicalFailure",
@@ -537,10 +547,9 @@ export class G36RuntimeDb {
          JOIN "ContrapartidaDispatchBatches" b ON b."Id" = a."DispatchBatchId"
          JOIN "AchTransactions" t ON t."Id" = i."AchTransactionId"
          WHERE t."TransactionExternalId" = $1
-           AND b."RequestedBy" = $2
          ORDER BY a."FinishedAtUtc" DESC
          LIMIT 1`,
-        [transactionExternalId, this.dispatchTriggeredBy]
+        [transactionExternalId]
       );
       return rows[0] ?? null;
     }
@@ -561,6 +570,11 @@ export class G36RuntimeDb {
               a.[SoapResponseCode] AS [soapResponseCode],
               a.[SoapResponseDescription] AS [soapResponseDescription],
               a.[SoapTechnicalStatus] AS [soapTechnicalStatus],
+              a.[ResponseCatalogId] AS [responseCatalogId],
+              a.[TransportStatus] AS [transportStatus],
+              a.[BusinessStatus] AS [businessStatus],
+              a.[RetryAllowed] AS [retryAllowed],
+              a.[RequiresManualReview] AS [requiresManualReview],
               a.[IsSuccessful] AS [isSuccessful],
               a.[IsFunctionalRejection] AS [isFunctionalRejection],
               a.[IsTechnicalFailure] AS [isTechnicalFailure],
@@ -573,7 +587,6 @@ export class G36RuntimeDb {
        JOIN [ContrapartidaDispatchBatches] b ON b.[Id] = a.[DispatchBatchId]
        JOIN [AchTransactions] t ON t.[Id] = i.[AchTransactionId]
        WHERE t.[TransactionExternalId] = ${sqlString(transactionExternalId)}
-         AND b.[RequestedBy] = ${sqlString(this.dispatchTriggeredBy)}
        ORDER BY a.[FinishedAtUtc] DESC`
     );
 

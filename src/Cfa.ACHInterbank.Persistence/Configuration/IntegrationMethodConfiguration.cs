@@ -32,5 +32,10 @@ public class IntegrationMethodConfiguration : IEntityTypeConfiguration<Integrati
             .WithOne(x => x.Method)
             .HasForeignKey(x => x.MethodId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(x => x.ResponseCodes)
+            .WithOne(x => x.Method)
+            .HasForeignKey(x => x.MethodId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

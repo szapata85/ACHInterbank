@@ -4,11 +4,14 @@ using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,7 +49,8 @@ public class ContrapartidaDispatchJobServiceTests
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
-            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: Catalog(Success("R96", "Débito aplicado correctamente")));
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -113,6 +117,7 @@ public class ContrapartidaDispatchJobServiceTests
                 {
                     [txId] = new(txId, true, false, "R96", "Aplicado")
                 }));
+        await new IntegrationCatalogBootstrapper(context).EnsureAsync();
 
         var sut = new ContrapartidaDispatchJobService(
             context,
@@ -121,7 +126,8 @@ public class ContrapartidaDispatchJobServiceTests
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
-            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: new IntegrationResponseCatalogResolver(context));
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -143,7 +149,10 @@ public class ContrapartidaDispatchJobServiceTests
         Assert.Equal("http://localhost:7083/WSCFAACH.svc", attempt.SoapEndpoint);
         Assert.Equal("Live", attempt.ExecutionMode);
         Assert.Equal("R96", attempt.SoapResponseCode);
-        Assert.Equal("Aplicado", attempt.SoapResponseDescription);
+        Assert.Equal("Débito aplicado correctamente", attempt.SoapResponseDescription);
+        Assert.NotNull(attempt.ResponseCatalogId);
+        Assert.Equal(IntegrationTransportStatus.Succeeded, attempt.TransportStatus);
+        Assert.Equal(IntegrationResponseBusinessStatus.Success, attempt.BusinessStatus);
         Assert.Equal("Succeeded", attempt.SoapTechnicalStatus);
         Assert.True(attempt.IsSuccessful);
         Assert.False(attempt.IsFunctionalRejection);
@@ -151,6 +160,15 @@ public class ContrapartidaDispatchJobServiceTests
         Assert.Equal("<request/>\n", attempt.RequestPayloadXml);
         Assert.Equal("<Envelope><Body><ok/></Body></Envelope>", attempt.ResponsePayloadXml);
         Assert.DoesNotContain("<METODO>", attempt.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
+
+        var readModel = await new TransactionIntegrationResultService(context).GetAsync(txId);
+        Assert.NotNull(readModel?.Latest);
+        Assert.Equal("Proc_Contrapartidas", readModel.Latest.Method);
+        Assert.Equal("R96", readModel.Latest.ResponseCode);
+        Assert.Equal("Débito aplicado correctamente", readModel.Latest.ResponseDescription);
+        Assert.Equal("Succeeded", readModel.Latest.TransportStatus);
+        Assert.Equal("Success", readModel.Latest.BusinessStatus);
+        Assert.Single(readModel.History);
 
         var batch = await context.ContrapartidaDispatchBatches.SingleAsync();
         Assert.Equal(ContrapartidaDispatchBatchStatusEnum.Completed, batch.Status);
@@ -207,7 +225,8 @@ public class ContrapartidaDispatchJobServiceTests
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
-            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: Catalog(Success("00", "Aplicado")));
 
         var result = await sut.ProcessTransactionAsync(cycleId, 1, targetId, "uat-targeted", CancellationToken.None);
 
@@ -344,7 +363,8 @@ public class ContrapartidaDispatchJobServiceTests
             parser,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
-            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"));
+            soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
+            responseCatalogResolver: Catalog(Rejected("R01", "Rechazo parametrizado")));
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-r01", 100, CancellationToken.None);
 
@@ -354,7 +374,9 @@ public class ContrapartidaDispatchJobServiceTests
 
         var attempt = await context.ContrapartidaDispatchAttempts.SingleAsync();
         Assert.Equal("R01", attempt.SoapResponseCode);
-        Assert.Equal("FunctionalRejection", attempt.SoapTechnicalStatus);
+        Assert.Equal("Succeeded", attempt.SoapTechnicalStatus);
+        Assert.Equal(IntegrationTransportStatus.Succeeded, attempt.TransportStatus);
+        Assert.Equal(IntegrationResponseBusinessStatus.Rejected, attempt.BusinessStatus);
         Assert.False(attempt.IsSuccessful);
         Assert.True(attempt.IsFunctionalRejection);
         Assert.False(attempt.IsTechnicalFailure);
@@ -424,7 +446,10 @@ public class ContrapartidaDispatchJobServiceTests
             mapper.Object,
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
-            LiveDispatchOptions());
+            LiveDispatchOptions(),
+            responseCatalogResolver: Catalog(
+                Success("R96", "Débito aplicado correctamente"),
+                Rejected("R10", "Rechazo funcional")));
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -829,5 +854,64 @@ public class ContrapartidaDispatchJobServiceTests
             });
 
         return settings.Object;
+    }
+
+    private static IIntegrationResponseCatalogResolver Catalog(params IntegrationResponseCatalogResult[] results)
+        => new StubResponseCatalogResolver(results);
+
+    private static IntegrationResponseCatalogResult Success(string code, string description)
+        => Known(code, description, IntegrationResponseBusinessStatus.Success);
+
+    private static IntegrationResponseCatalogResult Rejected(string code, string description)
+        => Known(code, description, IntegrationResponseBusinessStatus.Rejected);
+
+    private static IntegrationResponseCatalogResult Known(
+        string code,
+        string description,
+        IntegrationResponseBusinessStatus status)
+        => new(
+            null,
+            code,
+            description,
+            IntegrationResponseCategory.CoreSoapResponse,
+            IntegrationResponseCategory.CoreSoapResponse,
+            "Proc_Contrapartidas",
+            status,
+            false,
+            false,
+            true,
+            "AppliedTacitly",
+            true);
+
+    private sealed class StubResponseCatalogResolver(IEnumerable<IntegrationResponseCatalogResult> results)
+        : IIntegrationResponseCatalogResolver
+    {
+        private readonly IReadOnlyDictionary<string, IntegrationResponseCatalogResult> _results =
+            results.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+
+        public Task<IntegrationResponseCatalogResult> ResolveAsync(
+            string source,
+            string method,
+            string? responseCode,
+            DateTime processedAtUtc,
+            CancellationToken ct = default)
+        {
+            var code = responseCode?.Trim() ?? string.Empty;
+            return Task.FromResult(_results.TryGetValue(code, out var result)
+                ? result
+                : new IntegrationResponseCatalogResult(
+                    null,
+                    code,
+                    "Código pendiente de parametrización",
+                    source,
+                    IntegrationResponseCategory.CoreSoapResponse,
+                    method,
+                    IntegrationResponseBusinessStatus.PendingCatalog,
+                    false,
+                    true,
+                    false,
+                    string.Empty,
+                    false));
+        }
     }
 }

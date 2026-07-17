@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { AccountTypeEnum, TransactionTypeEnum } from '../transactions.types';
-import { ActiveThirdPartyAccount, BulkAchTransactionRequest, BulkAchTransactionResponse, CompanyEntryDescriptionOption, TransactionDraft, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
+import { ActiveThirdPartyAccount, BulkAchTransactionRequest, BulkAchTransactionResponse, CompanyEntryDescriptionOption, TransactionDraft, TransactionIntegrationResult, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
 
 interface PagedResponse<T> {
   items: T[];
@@ -143,6 +143,10 @@ export class TransactionsApiService {
     return this.api.get<TransactionListItem[]>('transactions', { params }).pipe(
       map((items) => (items ?? []).map((item) => ({ ...item, amount: Number(item.amount) })))
     );
+  }
+
+  getIntegrationResult(transactionId: number) {
+    return this.api.get<TransactionIntegrationResult>(`transactions/${transactionId}/integration-result`);
   }
 
   private extractErrorMessage(error: any, fallback: string): string {

@@ -21,6 +21,7 @@ public class ExplicitAuthorizationCriticalControllersTests
         AssertPolicy(nameof(TransactionsController.GetCompanyEntryDescriptions), P0Policies.TransactionsRead);
         AssertPolicy(nameof(TransactionsController.PreviewPolicy), P0Policies.TransactionsPolicyPreview);
         AssertPolicy(nameof(TransactionsController.GetById), P0Policies.TransactionsRead);
+        AssertPolicy(nameof(TransactionsController.GetIntegrationResult), P0Policies.TransactionsRead);
         AssertPolicy(nameof(TransactionsController.CreateTransaction), P0Policies.TransactionsCreate);
         AssertPolicy(nameof(TransactionsController.SubmitBulkIngestion), P0Policies.TransactionsBulkSubmit);
         AssertPolicy(nameof(TransactionsController.CreateTransactionsBulk), P0Policies.TransactionsBulkSubmit);

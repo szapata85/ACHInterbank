@@ -44,8 +44,65 @@ public sealed class IntegrationCatalogBootstrapper
         await EnsureAdditionalSourceCatalogAsync(contrapartidas.Id, BuildNachaSourceCatalog(contrapartidas.Id), ct);
         await EnsureAdditionalSourceCatalogAsync(transacciones.Id, BuildNachaSourceCatalog(transacciones.Id), ct);
         await EnsureAdditionalSourceCatalogAsync(respuestasTransacciones.Id, BuildNachaSourceCatalog(respuestasTransacciones.Id), ct);
+        await EnsureCoreResponseCodeAsync(
+            contrapartidas.Id,
+            "R96",
+            "Débito aplicado correctamente",
+            IntegrationResponseBusinessStatus.Success,
+            retryAllowed: false,
+            requiresManualReview: false,
+            targetTransactionState: "AppliedTacitly",
+            ct);
+        await EnsureCoreResponseCodeAsync(
+            transacciones.Id,
+            "R96",
+            "Crédito aplicado correctamente",
+            IntegrationResponseBusinessStatus.Success,
+            retryAllowed: false,
+            requiresManualReview: false,
+            targetTransactionState: "AppliedTacitly",
+            ct);
 
         await _context.SaveChangesAsync(ct);
+    }
+
+    private async Task EnsureCoreResponseCodeAsync(
+        int methodId,
+        string code,
+        string description,
+        IntegrationResponseBusinessStatus businessStatus,
+        bool retryAllowed,
+        bool requiresManualReview,
+        string targetTransactionState,
+        CancellationToken ct)
+    {
+        var source = IntegrationResponseCategory.CoreSoapResponse;
+        var normalizedCode = code.Trim().ToUpperInvariant();
+        var existing = await _context.IntegrationResponseCodes
+            .SingleOrDefaultAsync(x => x.Source == source
+                && x.MethodId == methodId
+                && x.Code == normalizedCode, ct);
+
+        if (existing is null)
+        {
+            existing = new IntegrationResponseCode
+            {
+                Source = source,
+                MethodId = methodId,
+                Code = normalizedCode,
+                EffectiveFromUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            };
+            _context.IntegrationResponseCodes.Add(existing);
+        }
+
+        existing.Category = IntegrationResponseCategory.CoreSoapResponse;
+        existing.Description = description;
+        existing.BusinessStatus = businessStatus;
+        existing.RetryAllowed = retryAllowed;
+        existing.RequiresManualReview = requiresManualReview;
+        existing.TargetTransactionState = targetTransactionState;
+        existing.IsActive = true;
+        existing.EffectiveToUtc = null;
     }
 
     private async Task<IntegrationMethod> EnsureMethodAsync(string code, string displayName, string soapClientCode, CancellationToken ct)

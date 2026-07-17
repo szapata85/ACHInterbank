@@ -52,6 +52,7 @@ public class IntegrationMethod : AuditableEntity
     public ICollection<IntegrationMethodParameter> Parameters { get; set; } = new List<IntegrationMethodParameter>();
     public ICollection<IntegrationSourceCatalogField> SourceCatalogFields { get; set; } = new List<IntegrationSourceCatalogField>();
     public ICollection<IntegrationMappingSet> MappingSets { get; set; } = new List<IntegrationMappingSet>();
+    public ICollection<IntegrationResponseCode> ResponseCodes { get; set; } = new List<IntegrationResponseCode>();
 }
 
 public class IntegrationMethodParameter : AuditableEntity

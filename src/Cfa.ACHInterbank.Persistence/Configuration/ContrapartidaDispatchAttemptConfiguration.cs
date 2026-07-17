@@ -58,6 +58,16 @@ public class ContrapartidaDispatchAttemptConfiguration : IEntityTypeConfiguratio
         builder.Property(x => x.SoapTechnicalStatus)
             .HasMaxLength(50);
 
+        builder.Property(x => x.TransportStatus)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired();
+
+        builder.Property(x => x.BusinessStatus)
+            .HasConversion<string>()
+            .HasMaxLength(30)
+            .IsRequired();
+
         builder.Property(x => x.TechnicalException)
             .HasMaxLength(4000);
 
@@ -66,5 +76,12 @@ public class ContrapartidaDispatchAttemptConfiguration : IEntityTypeConfiguratio
         builder.HasIndex(x => x.Result);
         builder.HasIndex(x => new { x.SoapMethodName, x.ExecutionMode, x.SoapTechnicalStatus })
             .HasDatabaseName("IX_ContrapartidaDispatchAttempts_SoapAudit");
+        builder.HasIndex(x => x.ResponseCatalogId);
+        builder.HasIndex(x => new { x.BusinessStatus, x.ProcessedAtUtc });
+
+        builder.HasOne(x => x.ResponseCatalog)
+            .WithMany()
+            .HasForeignKey(x => x.ResponseCatalogId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
