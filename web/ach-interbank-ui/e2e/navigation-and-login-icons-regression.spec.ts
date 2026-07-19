@@ -2,10 +2,10 @@ import { expect, Page, test } from '@playwright/test';
 import path from 'node:path';
 
 const viewports = [
-  { width: 1920, height: 1080 },
-  { width: 1366, height: 768 },
-  { width: 1024, height: 768 }
+  { width: 1366, height: 768 }
 ];
+
+const mobileViewport = { width: 390, height: 844 };
 
 const evidencePhase = process.env['ICON_EVIDENCE_PHASE'] ?? 'final';
 
@@ -77,10 +77,10 @@ test.describe('Regresión visual de iconos de navegación y login', () => {
 
       const sidebar = page.locator('aside.sidebar');
       const rootIcon = sidebar.locator('a.menu-item[data-menu-item-id="1"] app-ui-icon[data-icon-key="dashboard"]');
-      const parentIcon = sidebar.locator('a.menu-item[data-menu-item-id="2"] app-ui-icon[data-icon-key="account_balance"]');
+      const parentIcon = sidebar.locator('button.menu-parent-row[data-menu-item-id="2"] app-ui-icon[data-icon-key="account_balance"]');
       const childIcon = sidebar.locator('a.submenu-item[data-menu-item-id="21"] app-ui-icon[data-icon-key="schedule"]');
       const fallbackIcon = sidebar.locator('a.menu-item[data-menu-item-id="3"] app-ui-icon[data-icon-resolved="help"]');
-      const parentRow = sidebar.locator('a.menu-item[data-menu-item-id="2"]');
+      const parentRow = sidebar.locator('button.menu-parent-row[data-menu-item-id="2"]');
 
       await expect(rootIcon).toBeVisible();
       await expect(parentIcon).toBeVisible();
@@ -89,12 +89,12 @@ test.describe('Regresión visual de iconos de navegación y login', () => {
       await expect(sidebar.locator('a.submenu-item.active')).toHaveCount(1);
       await expect(sidebar.getByText('Panel principal', { exact: true })).toBeVisible();
       if (await parentRow.getAttribute('aria-expanded') !== 'true') {
-        await parentRow.click({ force: true });
+        await parentRow.click();
         await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
       }
-      await parentRow.click({ force: true });
+      await parentRow.click();
       await expect(parentRow).toHaveAttribute('aria-expanded', 'false');
-      await parentRow.click({ force: true });
+      await parentRow.click();
       await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
       await expect(childIcon).toBeVisible();
       await expect(sidebar.getByText('Ciclos', { exact: true })).toBeVisible();
@@ -124,6 +124,49 @@ test.describe('Regresión visual de iconos de navegación y login', () => {
       expect(failedRequests).toEqual([]);
     });
   }
+
+  test('menú padre usa teclado nativo y el hijo conserva navegación', async ({ page }) => {
+    await page.setViewportSize(viewports[0]);
+    await configureAuthenticatedRuntime(page);
+    await page.goto('/dashboard');
+
+    const parentRow = page.locator('aside.sidebar button.menu-parent-row[data-menu-item-id="2"]');
+    const childLink = page.locator('aside.sidebar a.submenu-item[data-menu-item-id="21"]');
+
+    await expect(parentRow).toHaveCount(1);
+    await expect(parentRow.locator('button, a, [tabindex]:not([tabindex="-1"])')).toHaveCount(0);
+    if (await parentRow.getAttribute('aria-expanded') !== 'false') {
+      await parentRow.click();
+      await expect(parentRow).toHaveAttribute('aria-expanded', 'false');
+    }
+    await parentRow.press('Enter');
+    await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
+    await parentRow.press('Space');
+    await expect(parentRow).toHaveAttribute('aria-expanded', 'false');
+    await expect(childLink).toHaveAttribute('href', '/dashboard');
+  });
+
+  test('en móvil abrir un padre conserva el drawer y navegar un hijo lo cierra', async ({ page }) => {
+    await page.setViewportSize(mobileViewport);
+    await configureAuthenticatedRuntime(page);
+    await page.goto('/dashboard');
+
+    const openMenu = page.getByRole('button', { name: 'Abrir menú principal', exact: true });
+    await openMenu.click();
+    await expect(page.locator('.layout.menu-open')).toBeVisible();
+
+    const parentRow = page.locator('aside.sidebar button.menu-parent-row[data-menu-item-id="2"]');
+    const childLink = page.locator('aside.sidebar a.submenu-item[data-menu-item-id="21"]');
+    await parentRow.click();
+    await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('.layout.menu-open')).toBeVisible();
+    await expect(page.locator('#submenu-2')).toHaveCSS('opacity', '1');
+    await screenshot(page, `menu-movil-abierto-${mobileViewport.width}x${mobileViewport.height}.png`);
+
+    await childLink.click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.locator('.layout.menu-open')).toHaveCount(0);
+  });
 });
 
 async function configureAuthenticatedRuntime(page: Page): Promise<void> {

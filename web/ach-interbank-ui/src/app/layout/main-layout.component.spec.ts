@@ -57,7 +57,7 @@ describe('MainLayoutComponent navigation icons', () => {
 
     const host = fixture.nativeElement as HTMLElement;
     expect(host.querySelector('a[data-menu-item-id="1"] app-ui-icon')?.getAttribute('data-icon-key')).toBe('dashboard');
-    expect(host.querySelector('a[data-menu-item-id="2"] app-ui-icon')?.getAttribute('data-icon-key')).toBe('account_balance');
+    expect(host.querySelector('button[data-menu-item-id="2"] app-ui-icon')?.getAttribute('data-icon-key')).toBe('account_balance');
     expect(host.querySelector('a[data-menu-item-id="21"] app-ui-icon')?.getAttribute('data-icon-key')).toBe('schedule');
     expect(host.querySelector('a[data-menu-item-id="1"] .label')?.textContent?.trim()).toBe('Panel principal');
     expect(host.querySelector('a[data-menu-item-id="21"] .label')?.textContent?.trim()).toBe('Ciclos');
@@ -78,24 +78,54 @@ describe('MainLayoutComponent navigation icons', () => {
     expect(component.menuToggleLabel).toBe('Expandir menú principal');
   });
 
-  it('uses the parent row as the only submenu control', () => {
+  it('uses a native button row as the only submenu control', () => {
     fixture.detectChanges();
     const component = fixture.componentInstance;
     const host = fixture.nativeElement as HTMLElement;
-    const parent = host.querySelector('a[data-menu-item-id="2"]') as HTMLAnchorElement;
+    const parent = host.querySelector('button[data-menu-item-id="2"]') as HTMLButtonElement;
 
-    expect(host.querySelectorAll('.menu-header > button').length).toBe(0);
+    expect(host.querySelectorAll('.menu-header > button').length).toBe(1);
     expect(parent.getAttribute('href')).toBeNull();
+    expect(parent.type).toBe('button');
     expect(parent.getAttribute('aria-controls')).toBe('submenu-2');
     expect(parent.querySelector('.chevron')?.getAttribute('aria-hidden')).toBe('true');
     expect(parent.tabIndex).toBe(0);
 
-    component.onMenuItemSelected(component.menuItems[1]);
+    parent.click();
     fixture.detectChanges();
     expect(parent.getAttribute('aria-expanded')).toBe('true');
 
-    component.onMenuItemSelected(component.menuItems[1]);
+    parent.click();
     fixture.detectChanges();
     expect(parent.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps navigable items as links and closes the mobile menu only for navigation', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const host = fixture.nativeElement as HTMLElement;
+    const parent = host.querySelector('button[data-menu-item-id="2"]') as HTMLButtonElement;
+    const navigable = host.querySelector('a[data-menu-item-id="1"]') as HTMLAnchorElement;
+    spyOnProperty(window, 'innerWidth', 'get').and.returnValue(390);
+    component.isMenuOpen = true;
+    const closeMenu = spyOn(component, 'closeMenu').and.callThrough();
+
+    parent.click();
+    fixture.detectChanges();
+    expect(component.isMenuOpen).toBeTrue();
+    expect(closeMenu).not.toHaveBeenCalled();
+
+    navigable.click();
+    expect(closeMenu).toHaveBeenCalled();
+    expect(navigable.getAttribute('href')).toBe('/dashboard');
+  });
+
+  it('keeps keyboard activation native through button semantics', () => {
+    fixture.detectChanges();
+    const parent = fixture.nativeElement.querySelector('button[data-menu-item-id="2"]') as HTMLButtonElement;
+
+    expect(parent.type).toBe('button');
+    expect(parent.tabIndex).toBe(0);
+    expect(parent.querySelectorAll('button, a, [tabindex]:not([tabindex="-1"])').length).toBe(0);
   });
 });

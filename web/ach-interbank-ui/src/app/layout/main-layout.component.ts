@@ -119,14 +119,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  onMenuItemSelected(item: MenuItem): void {
-    if (item.children?.length) {
-      this.toggleSubmenu(item);
-    }
-
-    this.onNavItemSelected();
-  }
-
   toggleSubmenu(item: MenuItem): void {
     const key = item.id;
 
