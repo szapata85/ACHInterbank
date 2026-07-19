@@ -43,7 +43,15 @@ public class NachaInboundSimulatorTests
         Assert.False(response.AutoImported);
         Assert.True(response.UploadRequired);
         Assert.False(response.ExternalTransmission);
-        Assert.True(File.Exists(Path.Combine(output, clearingHouseCode == "CENIT" ? "cenit" : "ach-colombia", response.FileName)));
+        Assert.Single(Directory.GetFiles(output, response.FileName, SearchOption.AllDirectories));
+        if (clearingHouseCode == "CENIT")
+        {
+            Assert.Matches(@"^\d{7}\.\d{3}\.\d{8}\.\d+$", response.FileName);
+        }
+        else
+        {
+            Assert.Matches(@"^\d{7}\.\d{3}\.\d{8}\.\d+\.OUT$", response.FileName);
+        }
         Assert.Equal(0, await context.IncomingNachaFileIngestions.CountAsync());
         Assert.Equal(1, await context.NachaInboundSimulations.CountAsync());
         var evidence = await service.GetEvidenceAsync(response.Id);
@@ -54,7 +62,7 @@ public class NachaInboundSimulatorTests
     }
 
     [Fact]
-    public async Task PrenotificationResponse_ShouldRequirePendingReference_AndNotChangeState()
+    public async Task PrenotificationResponse_ShouldFailClosedWithoutPublishedDifferentialProfile_AndNotChangeState()
     {
         await using var context = CreateContext();
         Seed(context);
@@ -86,8 +94,9 @@ public class NachaInboundSimulatorTests
         await context.SaveChangesAsync();
         var service = CreateService(context, CreateTempOutput());
 
-        var response = await service.GenerateAsync(new GenerateNachaInboundSimulationRequest
+        var preview = await service.PreviewAsync(new InboundSimulationEligibilityPreviewRequest
         {
+            SimulationMode = NachaSimulationMode.DifferentialResponses,
             ClearingHouseCode = "ACHCOL",
             ScenarioType = NachaInboundSimulationType.IncomingPrenotificationResponse,
             OriginFinancialInstitutionId = 2,
@@ -95,11 +104,12 @@ public class NachaInboundSimulatorTests
             PendingPrenotificationReferences = ["UAT-PRE-001"],
             BusinessDate = new DateOnly(2026, 5, 20),
             CycleCode = "Ciclo 5"
-        }, "qa");
+        });
 
         var transaction = await context.AchTransactions.SingleAsync(x => x.Reference == "UAT-PRE-001");
         Assert.Equal(AchTransferStateEnum.Pending, transaction.State);
-        Assert.True(response.GeneratedOnly);
+        Assert.False(preview.Eligible);
+        Assert.Equal("DIFFERENTIAL_PROFILE_NOT_PUBLISHED", preview.FunctionalCode);
     }
 
     [Fact]
@@ -111,6 +121,7 @@ public class NachaInboundSimulatorTests
 
         var preview = await service.PreviewAsync(new InboundSimulationEligibilityPreviewRequest
         {
+            SimulationMode = NachaSimulationMode.DifferentialResponses,
             ClearingHouseCode = "ACHCOL",
             ScenarioType = NachaInboundSimulationType.IncomingDebitReturn,
             OriginFinancialInstitutionId = 2,
@@ -237,6 +248,8 @@ public class NachaInboundSimulatorTests
             AllowAutoImport = false,
             AllowExternalTransmission = false,
             RequireSyntheticData = true,
+            DifferentialResponsesEnabled = true,
+            RequirePublishedDifferentialProfile = true,
             OutputDirectory = output,
             MaxEntriesPerSimulation = 10,
             AllowedClearingHouses = ["ACHCOL", "CENIT"]

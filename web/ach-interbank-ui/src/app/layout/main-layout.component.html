@@ -26,9 +26,6 @@
               class="menu-item"
               (click)="onNavItemSelected()"
             >
-              <span *ngIf="item.icon" class="icon material-symbols-outlined" aria-hidden="true">
-                {{ item.icon }}
-              </span>
               <span class="label">{{ item.label }}</span>
             </a>
 
@@ -41,7 +38,7 @@
               [attr.aria-controls]="'submenu-' + item.id"
               aria-label="Alternar submenú de {{ item.label }}"
             >
-              <span class="chevron material-symbols-outlined" aria-hidden="true">expand_more</span>
+              <span class="chevron" aria-hidden="true"></span>
             </button>
           </div>
 
@@ -61,9 +58,6 @@
               class="submenu-item"
               (click)="onNavItemSelected()"
             >
-              <span *ngIf="child.icon" class="icon material-symbols-outlined" aria-hidden="true">
-                {{ child.icon }}
-              </span>
               <span class="label">{{ child.label }}</span>
             </a>
           </div>

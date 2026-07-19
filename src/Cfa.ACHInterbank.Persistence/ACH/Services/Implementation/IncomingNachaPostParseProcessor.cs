@@ -305,7 +305,11 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
 
         if (classification.FunctionalClass is IncomingNachaFunctionalClass.Devolucion or IncomingNachaFunctionalClass.RechazadaOperador or IncomingNachaFunctionalClass.RetornoEpr)
         {
-            var route = await ResolveReturnRouteAsync(classification.ReturnReasonCode, classification.FunctionalClass, ct);
+            var route = await ResolveReturnRouteAsync(
+                ingestion.ResolvedClearingHouseId ?? 0,
+                classification.ReturnReasonCode,
+                classification.FunctionalClass,
+                ct);
             if (!route.IsTransitionAllowed)
             {
                 classification.EligibilityStatus = IncomingNachaEligibilityStatus.RevisionManual;
@@ -392,6 +396,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
     }
 
     private async Task<(bool IsTransitionAllowed, AchTransferStateEnum TargetState, AchStateEventSourceEnum Source, string Reason)> ResolveReturnRouteAsync(
+        int clearingHouseId,
         string? returnReasonCode,
         IncomingNachaFunctionalClass functionalClass,
         CancellationToken ct)
@@ -402,11 +407,16 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
             return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, "Causal vacía: requiere revisión manual.");
         }
 
-        var returnCode = await _regulatoryCatalogService.GetReturnCodesAsync(ct);
-        var model = returnCode.FirstOrDefault(x => x.IsActive && string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+        var returnCodes = await _regulatoryCatalogService.GetReturnCodesAsync(clearingHouseId, ct);
+        var model = returnCodes.FirstOrDefault(x =>
+            x.IsActive
+            && string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
         if (model is null)
         {
-            return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System, $"Causal {code} no existe en catálogo regulatorio.");
+            return (false, AchTransferStateEnum.Pending, AchStateEventSourceEnum.System,
+                clearingHouseId <= 0
+                    ? $"No fue posible resolver la cámara para validar la causal {code}."
+                    : $"Causal {code} no existe en el catálogo regulatorio de la cámara {clearingHouseId}.");
         }
 
         var regulatorySource = (model.RegulatorySource ?? string.Empty).Trim().ToUpperInvariant();

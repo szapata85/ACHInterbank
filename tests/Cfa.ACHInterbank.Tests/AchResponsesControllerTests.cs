@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Queries.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +28,23 @@ public class AchResponsesControllerTests
 
         controllerType.GetCustomAttribute<AuthorizeAttribute>().Should().NotBeNull();
         controllerType.GetCustomAttribute<AllowAnonymousAttribute>().Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(nameof(AchResponsesController.Process), P1Policies.NachaGenerate)]
+    [InlineData(nameof(AchResponsesController.SendNotification), P1Policies.NachaGenerate)]
+    [InlineData(nameof(AchResponsesController.Search), P1Policies.NachaRead)]
+    [InlineData(nameof(AchResponsesController.GetDashboard), P1Policies.NachaRead)]
+    [InlineData(nameof(AchResponsesController.GetDetail), P1Policies.NachaRead)]
+    [InlineData(nameof(AchResponsesController.GetAttempts), P1Policies.NachaRead)]
+    [InlineData(nameof(AchResponsesController.GetMappings), P1Policies.NachaRead)]
+    public void AchResponsesController_ActionsShouldUseFineGrainedPolicies(string actionName, string expectedPolicy)
+    {
+        var action = typeof(AchResponsesController).GetMethod(actionName);
+
+        action.Should().NotBeNull();
+        action!.GetCustomAttributes<AuthorizeAttribute>()
+            .Should().ContainSingle(attribute => attribute.Policy == expectedPolicy);
     }
 
     [Fact]
@@ -54,6 +72,48 @@ public class AchResponsesControllerTests
     public async Task Search_ShouldReturnPagedResponses(){var repo=new Mock<IAchResponseRepository>();repo.Setup(x=>x.SearchAsync(It.IsAny<AchResponseSearchQuery>(),It.IsAny<CancellationToken>())).ReturnsAsync(new PagedResult<AchResponseListItemModel>([],1,10,0));var c=new AchResponsesController();var r=await c.Search(new(null,null,null,null,null,null,null,null,null,null,1,10),new AchResponseQueryApiMapper(),repo.Object,default);r.Should().BeOfType<OkObjectResult>();}
 
     [Fact]
+    public async Task GetDashboard_ShouldReturnAggregatedResponse()
+    {
+        var repository = new Mock<IAchResponseRepository>();
+        repository
+            .Setup(x => x.GetDashboardAsync(It.IsAny<AchResponseDashboardQuery>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchResponseDashboardModel(10, 1, 2, 3, 1, 1, 1, 1, 0));
+        var controller = new AchResponsesController();
+
+        var result = await controller.GetDashboard(
+            new AchResponseDashboardRequest(null, null, "Transaccion"),
+            new AchResponseQueryApiMapper(),
+            repository.Object,
+            default);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var response = ok.Value.Should().BeOfType<AchResponseDashboardResponse>().Subject;
+        response.TotalRespuestas.Should().Be(10);
+        response.Notificadas.Should().Be(3);
+        repository.Verify(
+            x => x.GetDashboardAsync(It.Is<AchResponseDashboardQuery>(q => q.TipoRespuesta == TipoRespuestaAch.Transaccion), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetDashboard_ShouldRejectInvalidResponseTypeWithoutQueryingRepository()
+    {
+        var repository = new Mock<IAchResponseRepository>();
+        var controller = new AchResponsesController();
+
+        var result = await controller.GetDashboard(
+            new AchResponseDashboardRequest(null, null, "INVALID"),
+            new AchResponseQueryApiMapper(),
+            repository.Object,
+            default);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+        repository.Verify(
+            x => x.GetDashboardAsync(It.IsAny<AchResponseDashboardQuery>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task GetDetail_ShouldReturnNotFound_WhenResponseDoesNotExist(){var repo=new Mock<IAchResponseRepository>();repo.Setup(x=>x.FindDetailByIdAsync(It.IsAny<Guid>(),It.IsAny<CancellationToken>())).ReturnsAsync((AchResponseDetailModel?)null);var c=new AchResponsesController();var r=await c.GetDetail(Guid.NewGuid(),new AchResponseQueryApiMapper(),repo.Object,default);r.Should().BeOfType<NotFoundResult>();}
 
     [Fact]
@@ -69,7 +129,7 @@ public class AchResponsesControllerTests
     public async Task GetMappings_ShouldReturnOk_WhenFiltersValid(){var repo=new Mock<IAchResponseStatusMappingRepository>();repo.Setup(x=>x.ListAsync(It.IsAny<string?>(),It.IsAny<TipoRespuestaAch?>(),It.IsAny<bool?>(),It.IsAny<CancellationToken>())).ReturnsAsync([new AchResponseStatusMappingListItemModel(1,"ACH","Transaccion","E",null,1,1,"ok",null,null,false,true,true,DateTime.UtcNow,null)]);var c=new AchResponsesController();var r=await c.GetMappings("ACH","Transaccion",true,new AchResponseQueryApiMapper(),repo.Object,default);r.Should().BeOfType<OkObjectResult>();}
 
     [Fact]
-    public void Endpoints_ShouldNotExposeSoapOrProviderFields(){var forbidden=new[]{"Axon","Soap","Xml","Wsdl","Envelope","SOAPAction","idTransaccionAxon","IdTransaccionAxon"};var types=new[]{typeof(ProcesarRespuestaAchRequest),typeof(ProcesarRespuestaAchResponse),typeof(NotificarRespuestaAchResponse),typeof(AchResponseDetailResponse)};foreach(var t in types)t.GetProperties().Select(x=>x.Name).Should().NotContain(p=>forbidden.Any(f=>p.Contains(f,StringComparison.OrdinalIgnoreCase)));}
+    public void Endpoints_ShouldNotExposeSoapOrProviderFields(){var forbidden=new[]{"Axon","Soap","Xml","Wsdl","Envelope","SOAPAction","idTransaccionAxon","IdTransaccionAxon"};var types=new[]{typeof(ProcesarRespuestaAchRequest),typeof(ProcesarRespuestaAchResponse),typeof(NotificarRespuestaAchResponse),typeof(AchResponseDetailResponse),typeof(AchResponseDashboardResponse)};foreach(var t in types)t.GetProperties().Select(x=>x.Name).Should().NotContain(p=>forbidden.Any(f=>p.Contains(f,StringComparison.OrdinalIgnoreCase)));}
 
     [Fact]
     public void AchResponsesController_ShouldNotUseDbContextDirectly()

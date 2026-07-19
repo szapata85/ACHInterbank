@@ -26,7 +26,7 @@ export class NachaExportApiService {
     }
 
     return this.http
-      .get<ExportableAchCycle[] | { items?: ExportableAchCycle[] }>(this.api.resolveUrl('ach-cycles/exportable'), { params })
+      .get<ExportableAchCycle[] | { items?: ExportableAchCycle[] }>(this.api.resolveUrl('api/ach-cycles/exportable'), { params })
       .pipe(map((response) => (Array.isArray(response) ? response : response?.items ?? [])));
   }
 

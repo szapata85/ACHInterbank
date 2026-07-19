@@ -86,6 +86,7 @@ describe('AchResponseDetailPageComponent', () => {
 
     const component = fixture.componentInstance;
     expect(component.error).toBeTrue();
+    expect(component.loading).toBeFalse();
     expect(component.detail).toBeNull();
     expect(notificationSpy.error).toHaveBeenCalled();
   });

@@ -62,7 +62,7 @@ const routes: SmokeRoute[] = [
   { id: 'ach-responses-attempts', path: '/ach-responses/resp-1/notification-attempts', title: /Intentos de notificaci[oó]n ACH/i, marker: /Intentos/i },
   { id: 'payment-rail-capability-registry', path: '/payment-rail-capability-registry', title: /Capability Registry multi-riel/i, marker: /Capability Registry por riel/i },
   { id: 'catalogs', path: '/catalogs', title: /Cat[aá]logos/i, marker: /Instituciones financieras/i },
-  { id: 'ach-cycles-list', path: '/ach-cycles', title: /Ciclos ACH/i, marker: /Ciclos ACH/i },
+  { id: 'ach-cycles-list', path: '/ach-cycles', title: /Configuraci[oó]n de ciclos/i, marker: /Reglas de procesamiento/i },
   { id: 'ach-cycles-export', path: '/ach-cycles/nacha/export', title: /Exportar NACHA-M/i, marker: /Exportable/i },
   { id: 'dashboard-home', path: '/dashboard', title: /.+/ },
   { id: 'users-home', path: '/users', title: /.+/ },
@@ -400,10 +400,15 @@ async function loginByApi(apiBaseUrl: string, user: string, pass: string): Promi
 }
 
 async function mockBackend(page: Page): Promise<void> {
-  await page.route(/(?:https?:\/\/[^/]+)?\/(?:api\/.*|nacha-config\/catalogos-filtro|financial-institutions|clearing-houses|customers|transactions\/company-entry-descriptions|ach-cycles(?:\/exportable)?|incoming-nacha-command-center\/.*|NachaExport\/.*)(?:\?.*)?$/i, async route => {
+  await page.route(/(?:https?:\/\/[^/]+)?\/(?:api\/.*|nacha-config\/.*|financial-institutions|clearing-houses|customers|navigation\/menu-items|transactions(?:\/.*)?|return-reasons|ach-cycles(?:\/exportable)?|incoming-nacha-command-center\/.*|NachaUpload\/records|NachaExport\/.*)(?:\?.*)?$/i, async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method().toUpperCase();
+
+    if (route.request().resourceType() === 'document') {
+      await route.continue();
+      return;
+    }
 
     if (method === 'GET' && path === '/api/users') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildUsersPage()) });
@@ -465,7 +470,7 @@ async function mockBackend(page: Page): Promise<void> {
       return;
     }
 
-    if (method === 'GET' && path === '/api/transactions') {
+    if (method === 'GET' && (path === '/api/transactions' || path === '/transactions')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildTransactions()) });
       return;
     }
@@ -480,8 +485,23 @@ async function mockBackend(page: Page): Promise<void> {
       return;
     }
 
-    if (method === 'GET' && path === '/api/navigation/menu-items') {
+    if (method === 'GET' && (path === '/api/navigation/menu-items' || path === '/navigation/menu-items')) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildNavigationMenuItems()) });
+      return;
+    }
+
+    if (method === 'GET' && path === '/NachaUpload/records') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      return;
+    }
+
+    if (method === 'GET' && path === '/return-reasons') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      return;
+    }
+
+    if (method === 'GET' && path === '/api/nacha-security/certificates/management') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
       return;
     }
 
@@ -1551,12 +1571,25 @@ function buildReconciliation(path: string): unknown {
 function buildIncomingNacha(path: string): unknown {
   if (path.endsWith('/observability/summary')) {
     return {
+      generatedAtUtc: '2026-07-18T12:00:00Z',
       windowHours: 24,
-      totalIngestions: 1,
-      totalFiles: 1,
-      totalQueueItems: 1,
-      blockingCount: 0,
-      warnings: []
+      pipelineHealth: {
+        totalIngestions: 1,
+        totalQueueItems: 1,
+        backlogItems: 0,
+        blockedItems: 0,
+        retryPendingItems: 0,
+        waitingWindowItems: 0,
+        failedFinalItems: 0,
+        confirmedItems: 1,
+        averageQueueAgeMinutes: 0,
+        oldestQueueAgeMinutes: 0
+      },
+      ingestionsByStatus: [{ key: 'Processed', count: 1 }],
+      queueByStatus: [{ key: 'Confirmed', count: 1 }],
+      byClearingHouseCycle: [],
+      topErrors: [],
+      timeline: []
     };
   }
 
@@ -1565,13 +1598,21 @@ function buildIncomingNacha(path: string): unknown {
       items: [
         {
           id: 'ing-1',
-          fileName: 'IN_001.ach',
-          fileType: 'ACH',
-          status: 'Processed',
-          receivedAtUtc: '2026-05-24T14:00:00Z'
+          fileName: '0001283.001.20260718.1.OUT',
+          correlationId: 'smoke-ing-1',
+          ingestionStatus: 'Processed',
+          cycleResolutionStatus: 'Resolved',
+          parsingStatus: 'Parsed',
+          resolvedClearingHouseId: 1,
+          resolvedAchCycleId: 'cycle-1',
+          operationalDate: '2026-07-18',
+          isReprocess: false,
+          uploadedAtUtc: '2026-07-18T12:00:00Z',
+          queueItems: 1,
+          processingEvents: 1
         }
       ],
-      total: 1,
+      totalItems: 1,
       page: 1,
       pageSize: 20
     };
@@ -1580,9 +1621,18 @@ function buildIncomingNacha(path: string): unknown {
   if (/\/ingestions\/[^/]+$/.test(path)) {
     return {
       id: 'ing-1',
-      fileName: 'IN_001.ach',
-      status: 'Processed',
-      summary: {},
+      fileName: '0001283.001.20260718.1.OUT',
+      correlationId: 'smoke-ing-1',
+      ingestionStatus: 'Processed',
+      cycleResolutionStatus: 'Resolved',
+      parsingStatus: 'Parsed',
+      detectedClearingHouseId: 1,
+      resolvedClearingHouseId: 1,
+      resolvedAchCycleId: 'cycle-1',
+      operationalDate: '2026-07-18',
+      notes: '',
+      isReprocess: false,
+      queue: [],
       events: []
     };
   }
@@ -1592,12 +1642,29 @@ function buildIncomingNacha(path: string): unknown {
       items: [
         {
           id: 'q-1',
-          fileName: 'IN_001.ach',
-          status: 'Queued',
-          queueReason: 'Pending review'
+          ingestionId: 'ing-1',
+          achTransactionId: 1,
+          achCycleId: 'cycle-1',
+          clearingHouseId: 1,
+          queueStatus: 'Confirmed',
+          priority: 1,
+          attemptCount: 1,
+          lastErrorCode: '',
+          lastErrorMessage: '',
+          lastResponseCode: '00',
+          confirmedAtUtc: '2026-07-18T12:01:00Z',
+          createdAtUtc: '2026-07-18T12:00:00Z',
+          allowedActions: {
+            currentStatus: 'Confirmed',
+            canRetry: false,
+            canUnblock: false,
+            canRequeue: false,
+            canMarkFailedFinal: false,
+            allowedActions: []
+          }
         }
       ],
-      total: 1,
+      totalItems: 1,
       page: 1,
       pageSize: 20
     };
@@ -1605,10 +1672,55 @@ function buildIncomingNacha(path: string): unknown {
 
   if (/\/queue\/[^/]+$/.test(path)) {
     return {
-      id: 'q-1',
-      ingestion: { id: 'ing-1', fileName: 'IN_001.ach' },
-      events: [],
-      manualActions: []
+      queue: {
+        id: 'q-1',
+        ingestionId: 'ing-1',
+        achTransactionId: 1,
+        achCycleId: 'cycle-1',
+        clearingHouseId: 1,
+        queueStatus: 'Confirmed',
+        priority: 1,
+        attemptCount: 1,
+        lastErrorCode: '',
+        lastErrorMessage: '',
+        lastResponseCode: '00',
+        confirmedAtUtc: '2026-07-18T12:01:00Z',
+        createdAtUtc: '2026-07-18T12:00:00Z',
+        allowedActions: {
+          currentStatus: 'Confirmed',
+          canRetry: false,
+          canUnblock: false,
+          canRequeue: false,
+          canMarkFailedFinal: false,
+          allowedActions: []
+        }
+      },
+      ingestion: {
+        id: 'ing-1',
+        fileName: '0001283.001.20260718.1.OUT',
+        correlationId: 'smoke-ing-1',
+        ingestionStatus: 'Processed',
+        cycleResolutionStatus: 'Resolved',
+        parsingStatus: 'Parsed',
+        resolvedClearingHouseId: 1,
+        resolvedAchCycleId: 'cycle-1',
+        operationalDate: '2026-07-18',
+        isReprocess: false,
+        uploadedAtUtc: '2026-07-18T12:00:00Z',
+        queueItems: 1,
+        processingEvents: 1
+      },
+      classification: {
+        id: 'class-1',
+        entryDetailId: 1,
+        functionalClass: 'Transaction',
+        eligibilityStatus: 'Eligible',
+        requiresManualResolution: false,
+        prenoteStatus: 'None',
+        businessMeaning: 'Transacción inbound controlada'
+      },
+      executions: [],
+      events: []
     };
   }
 

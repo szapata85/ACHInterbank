@@ -4,7 +4,7 @@ import { CustomersListComponent } from './components/customers-list.component';
 import { CustomerFormComponent } from './components/customer-form.component';
 import { permissionGuard } from '../../core/guards/permission.guard';
 
-const routes: Routes = [
+export const CUSTOMERS_ROUTES: Routes = [
   {
     path: '',
     canActivate: [permissionGuard],
@@ -14,11 +14,13 @@ const routes: Routes = [
       {
         path: 'new',
         component: CustomerFormComponent,
+        canActivate: [permissionGuard],
         data: { breadcrumb: 'Nuevo cliente', title: 'Crear cliente', permissions: ['CanManageAch'] }
       },
       {
         path: ':id/edit',
         component: CustomerFormComponent,
+        canActivate: [permissionGuard],
         data: { breadcrumb: 'Editar cliente', title: 'Editar cliente', permissions: ['CanManageAch'] }
       }
     ]
@@ -26,7 +28,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(CUSTOMERS_ROUTES)],
   exports: [RouterModule]
 })
 export class CustomersRoutingModule {}

@@ -8,6 +8,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("navigation")]
+[Route("api/navigation")]
 [Authorize]
 public class NavigationController : ControllerBase
 {

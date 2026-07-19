@@ -80,6 +80,24 @@ export interface AchResponseSearchRequest {
   pageSize?: number;
 }
 
+export interface AchResponseDashboardRequest {
+  fechaDesde?: string | null;
+  fechaHasta?: string | null;
+  tipoRespuesta?: TipoRespuestaAch | null;
+}
+
+export interface AchResponseDashboardResponse {
+  totalRespuestas: number;
+  recibidas: number;
+  homologadas: number;
+  notificadas: number;
+  noHomologadas: number;
+  revisionManual: number;
+  pendientesReintento: number;
+  erroresFuncionales: number;
+  duplicadas: number;
+}
+
 export interface PagedResponse<T> {
   items: T[];
   pageNumber: number;

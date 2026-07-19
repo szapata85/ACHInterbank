@@ -32,6 +32,15 @@ public static class FineGrainedPermissions
         public const string ArchiveConfig = "Nacha.ArchiveConfig";
     }
 
+    public static class NachaSimulator
+    {
+        public const string Read = "NachaSimulator.Read";
+        public const string GenerateIncoming = "NachaSimulator.GenerateIncoming";
+        public const string GenerateDifferential = "NachaSimulator.GenerateDifferential";
+        public const string Download = "NachaSimulator.Download";
+        public const string Live = "NachaSimulator.Live";
+    }
+
     public static class NachaSecurity
     {
         public const string Read = "NachaSecurity.Read";
@@ -159,6 +168,7 @@ public static class FineGrainedPermissions
         CanManageCertificates,
         Transactions.Read, Transactions.Create, Transactions.BulkSubmit, Transactions.PolicyPreview,
         Nacha.Read, Nacha.Upload, Nacha.Export, Nacha.Generate, Nacha.Configure, Nacha.PublishConfig, Nacha.ArchiveConfig,
+        NachaSimulator.Read, NachaSimulator.GenerateIncoming, NachaSimulator.GenerateDifferential, NachaSimulator.Download, NachaSimulator.Live,
         NachaSecurity.Read, NachaSecurity.GenerateEncrypted, NachaSecurity.ManualEncrypt, NachaSecurity.ManualDecrypt, NachaSecurity.AuthorizeDownload,
         DigitalEnvelope.Encrypt, DigitalEnvelope.Decrypt, DigitalEnvelope.Test,
         Certificates.Read, Certificates.UploadPublic, Certificates.RegisterPrivate, Certificates.Activate, Certificates.Revoke, Certificates.Validate, Certificates.Audit,

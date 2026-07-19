@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
 import { CertificateListItem } from '../models/certificate-management.model';
 import { CertificateManagementApiService } from '../services/certificate-management-api.service';
+import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
 import { NachaCertificateManagerComponent } from './nacha-certificate-manager.component';
 
 describe('NachaCertificateManagerComponent', () => {
@@ -18,7 +19,13 @@ describe('NachaCertificateManagerComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [NachaCertificateManagerComponent],
-      providers: [{ provide: CertificateManagementApiService, useValue: api }]
+      providers: [
+        { provide: CertificateManagementApiService, useValue: api },
+        {
+          provide: ClearingHousesApiService,
+          useValue: { list: () => of([{ id: 1, code: 'ACHCOL', name: 'ACH Colombia', isActive: true }]) }
+        }
+      ]
     }).compileComponents();
 
     fixture = TestBed.createComponent(NachaCertificateManagerComponent);

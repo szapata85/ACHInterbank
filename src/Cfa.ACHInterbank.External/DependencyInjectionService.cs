@@ -261,6 +261,20 @@ public static class DependencyInjectionService
             options.AddPolicy(P1Policies.NachaExport, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Nacha.Export)
                 || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.NachaSimulatorRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.NachaSimulator.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+            options.AddPolicy(P1Policies.NachaSimulatorGenerateIncoming, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.NachaSimulator.GenerateIncoming)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.NachaSimulatorGenerateDifferential, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.NachaSimulator.GenerateDifferential)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.NachaSimulatorDownload, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.NachaSimulator.Download)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.NachaSimulatorLive, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.NachaSimulator.Live)));
             options.AddPolicy(P1Policies.CertificatesRead, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Certificates.Read)
                 || ctx.User.HasClaim("permission", FineGrainedPermissions.CanManageCertificates)

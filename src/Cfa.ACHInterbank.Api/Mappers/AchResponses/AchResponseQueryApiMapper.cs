@@ -12,6 +12,21 @@ public sealed class AchResponseQueryApiMapper
     public PagedResponse<AchResponseListItemResponse> MapPagedResult(PagedResult<AchResponseListItemModel> result)
         => new(result.Items.Select(MapListItem).ToList(), result.PageNumber, result.PageSize, result.TotalCount);
 
+    public AchResponseDashboardQuery MapDashboardRequest(AchResponseDashboardRequest request)
+        => new(request.FechaDesde, request.FechaHasta, ParseTipoRespuestaOrNull(request.TipoRespuesta));
+
+    public AchResponseDashboardResponse MapDashboard(AchResponseDashboardModel model)
+        => new(
+            model.TotalRespuestas,
+            model.Recibidas,
+            model.Homologadas,
+            model.Notificadas,
+            model.NoHomologadas,
+            model.RevisionManual,
+            model.PendientesReintento,
+            model.ErroresFuncionales,
+            model.Duplicadas);
+
     public AchResponseDetailResponse MapDetail(AchResponseDetailModel model)
         => new(model.Id, model.TipoRespuesta, model.IdTransaccion, model.CodigoCamaraCompensacion, model.CodigoEntidadOrigen, model.CodigoEntidadDestino, model.CodigoEstadoExterno, model.CodigoCausalExterna, model.IdEstadoInterno, model.IdEstadoServicioExterno, model.EstadoInternoNombre, model.CausalNormalizada, model.DescripcionCausal, model.IdTransaccionServicioExterno, model.HashIdempotencia, model.EstadoProcesamiento, model.MotivoNoHomologacion, model.PermiteNotificacion, model.CorrelationId, model.FechaRecepcion, model.FechaCreacion, model.FechaActualizacion, model.NotificationAttempts.Select(MapAttempt).ToList());
 

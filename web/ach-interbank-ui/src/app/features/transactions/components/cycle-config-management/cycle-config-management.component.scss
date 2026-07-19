@@ -2,6 +2,27 @@
   display: block;
 }
 
+.cycle-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #cbd5e1;
+
+  a {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 3px solid transparent;
+    color: #475569;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  a.active {
+    border-bottom-color: #2563eb;
+    color: #1d4ed8;
+  }
+}
+
 .panel {
   background: #fff;
   border: 1px solid #e2e8f0;

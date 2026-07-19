@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject }
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
+import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseListItemResponse, AchResponseSearchRequest } from '../models/ach-responses.models';
@@ -173,7 +174,12 @@ export class AchResponseManualReviewPageComponent implements OnInit {
 
     const request = this.buildSearchRequest();
 
-    this.api.search(request).subscribe({
+    this.api.search(request).pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
       next: (response) => {
         this.rows = (response.items ?? []).map((item) => this.mapRow(item));
         this.totalCount = response.totalCount ?? 0;
@@ -185,10 +191,6 @@ export class AchResponseManualReviewPageComponent implements OnInit {
         this.totalCount = 0;
         this.totalPages = 0;
         this.notifications.error('No fue posible cargar los casos de revisión manual ACH');
-      },
-      complete: () => {
-        this.loading = false;
-        this.cdr.markForCheck();
       }
     });
   }

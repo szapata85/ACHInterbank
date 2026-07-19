@@ -148,7 +148,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
             });
 
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<AchReturnCode>
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<AchReturnCode>
         {
             new() { Code = "R01", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
         });

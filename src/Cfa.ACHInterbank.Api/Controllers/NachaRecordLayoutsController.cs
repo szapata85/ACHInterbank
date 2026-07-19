@@ -8,6 +8,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("nacha-layouts")]
+[Route("api/nacha-layouts")]
 [Authorize]
 [Obsolete("Legacy diagnostic endpoint. Official NACHA-M configuration uses nacha-config profiles.")]
 public class NachaRecordLayoutsController : ControllerBase

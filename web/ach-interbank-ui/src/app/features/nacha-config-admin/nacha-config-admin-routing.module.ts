@@ -7,7 +7,7 @@ import { NachaConfigProfileWorkspacePageComponent } from './pages/nacha-config-p
 import { NachaConfigProfilesPageComponent } from './pages/nacha-config-profiles-page.component';
 import { NachaConfigVariantsFieldsPageComponent } from './pages/nacha-config-variants-fields-page.component';
 
-const routes: Routes = [
+export const NACHA_CONFIG_ADMIN_ROUTES: Routes = [
   {
     path: 'perfiles',
     component: NachaConfigProfilesPageComponent,
@@ -56,7 +56,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(NACHA_CONFIG_ADMIN_ROUTES)],
   exports: [RouterModule]
 })
 export class NachaConfigAdminRoutingModule {}

@@ -6,7 +6,7 @@ import { NachaOperationalFileDetailComponent } from './pages/nacha-operational-f
 import { NachaSoapUatConsoleComponent } from './pages/nacha-soap-uat-console.component';
 import { AchReconciliationConsoleComponent } from './pages/ach-reconciliation-console.component';
 
-const routes: Routes = [
+export const NACHA_OPERATIONAL_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'nacha/operational-dashboard' },
   {
     path: 'nacha/operational-dashboard',
@@ -33,7 +33,7 @@ const routes: Routes = [
     component: NachaSoapUatConsoleComponent,
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanReadAch'],
+      permissions: ['CanManageAch'],
       breadcrumb: 'Consola SOAP/UAT',
       title: 'Consola SOAP/UAT solo lectura'
     }
@@ -56,7 +56,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(NACHA_OPERATIONAL_ROUTES)],
   exports: [RouterModule]
 })
 export class NachaOperationalRoutingModule {}

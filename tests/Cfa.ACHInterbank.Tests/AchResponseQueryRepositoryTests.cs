@@ -41,6 +41,40 @@ public class AchResponseQueryRepositoryTests
     }
 
     [Fact]
+    public async Task AchResponseRepository_GetDashboardAsync_ShouldAggregateAndFilterInDatabase()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var date = new DateTime(2026, 1, 10, 12, 0, 0, DateTimeKind.Utc);
+        fixture.Context.AchResponses.AddRange(
+            CreateResponse("TX-1", TipoRespuestaAch.Transaccion, AchResponseProcessingStatus.Notificada, date),
+            CreateResponse("TX-2", TipoRespuestaAch.Transaccion, AchResponseProcessingStatus.ErrorFuncional, date.AddDays(1)),
+            CreateResponse("TX-3", TipoRespuestaAch.Prenota, AchResponseProcessingStatus.Duplicada, date.AddDays(2)));
+        await fixture.Context.SaveChangesAsync();
+        var repository = new AchResponseRepository(fixture.Context);
+
+        var dashboard = await repository.GetDashboardAsync(new AchResponseDashboardQuery(
+            date.AddDays(-1),
+            date.AddDays(3),
+            TipoRespuestaAch.Transaccion));
+
+        dashboard.TotalRespuestas.Should().Be(2);
+        dashboard.Notificadas.Should().Be(1);
+        dashboard.ErroresFuncionales.Should().Be(1);
+        dashboard.Duplicadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AchResponseRepository_GetDashboardAsync_ShouldReturnZeroCountsWhenEmpty()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var repository = new AchResponseRepository(fixture.Context);
+
+        var dashboard = await repository.GetDashboardAsync(new AchResponseDashboardQuery(null, null, null));
+
+        dashboard.Should().Be(new AchResponseDashboardModel(0, 0, 0, 0, 0, 0, 0, 0, 0));
+    }
+
+    [Fact]
     public async Task AchResponseRepository_FindDetailByIdAsync_ShouldReturnDetailWithAttempts()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
@@ -74,11 +108,31 @@ public class AchResponseQueryRepositoryTests
     [Fact]
     public void QueryModels_ShouldNotExposeSoapOrProviderFields()
     {
-        var types = new[] { typeof(AchResponseSearchQuery), typeof(AchResponseListItemModel), typeof(AchResponseDetailModel), typeof(AchResponseNotificationAttemptModel), typeof(AchResponseStatusMappingListItemModel) };
+        var types = new[] { typeof(AchResponseSearchQuery), typeof(AchResponseDashboardQuery), typeof(AchResponseDashboardModel), typeof(AchResponseListItemModel), typeof(AchResponseDetailModel), typeof(AchResponseNotificationAttemptModel), typeof(AchResponseStatusMappingListItemModel) };
         var forbidden = new[] { "Axon", "Soap", "Xml", "Wsdl", "Envelope", "SOAPAction", "idTransaccionAxon", "IdTransaccionAxon", "RequestPayload", "ResponsePayload" };
         foreach (var t in types)
             t.GetProperties().Select(x => x.Name).Should().NotContain(p => forbidden.Any(f => p.Contains(f, StringComparison.OrdinalIgnoreCase)));
     }
+
+    private static AchResponse CreateResponse(
+        string idTransaccion,
+        TipoRespuestaAch tipoRespuesta,
+        AchResponseProcessingStatus estado,
+        DateTime fechaRecepcion)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            TipoRespuesta = tipoRespuesta,
+            IdTransaccion = idTransaccion,
+            CodigoCamaraCompensacion = "ACH",
+            CodigoEstadoExterno = "E1",
+            IdTransaccionServicioExterno = 1,
+            HashIdempotencia = $"H-{idTransaccion}",
+            EstadoProcesamiento = estado,
+            PermiteNotificacion = true,
+            FechaRecepcion = fechaRecepcion,
+            FechaCreacion = fechaRecepcion
+        };
 
     private sealed class SqliteFixture : IAsyncDisposable
     {

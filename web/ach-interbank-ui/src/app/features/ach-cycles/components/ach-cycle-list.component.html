@@ -1,4 +1,9 @@
-<app-page-header title="Ciclos ACH" subtitle="Programación de cámara" [actionsTemplate]="headerActions"></app-page-header>
+<app-page-header title="Configuración de ciclos" subtitle="Ciclos y reglas de procesamiento" [actionsTemplate]="headerActions"></app-page-header>
+
+<nav class="cycle-tabs" aria-label="Secciones de configuración de ciclos">
+  <a routerLink="/ach-cycles" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Ciclos</a>
+  <a routerLink="/transactions/cycle-configs" routerLinkActive="active">Reglas de procesamiento</a>
+</nav>
 
 <div class="toolbar">
   <form [formGroup]="filterForm" (ngSubmit)="submit()" class="filters">

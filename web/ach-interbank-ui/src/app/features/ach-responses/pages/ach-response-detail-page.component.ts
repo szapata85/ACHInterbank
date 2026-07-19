@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseDetailResponse } from '../models/ach-responses.models';
@@ -47,7 +48,12 @@ export class AchResponseDetailPageComponent implements OnInit {
     this.error = false;
     this.cdr.markForCheck();
 
-    this.api.getDetail(id).subscribe({
+    this.api.getDetail(id).pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
       next: (response) => {
         this.detail = response;
       },
@@ -55,10 +61,6 @@ export class AchResponseDetailPageComponent implements OnInit {
         this.error = true;
         this.detail = null;
         this.notifications.error('No fue posible cargar el detalle de la respuesta ACH');
-      },
-      complete: () => {
-        this.loading = false;
-        this.cdr.markForCheck();
       }
     });
   }

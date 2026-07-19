@@ -167,7 +167,35 @@ public class AchRegulatoryCatalogService : IAchRegulatoryCatalogService
     }
 
     public async Task<IReadOnlyList<AchReturnCode>> GetReturnCodesAsync(CancellationToken ct)
-        => await _context.AchReturnCodes.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Code).ToListAsync(ct);
+        => await GetReturnCodesAsync(null, ct);
+
+    public async Task<IReadOnlyList<AchReturnCode>> GetReturnCodesAsync(int? clearingHouseId, CancellationToken ct)
+    {
+        var query = _context.AchReturnCodes
+            .AsNoTracking()
+            .Where(x => x.IsActive);
+
+        if (clearingHouseId.HasValue)
+        {
+            query = query.Where(x => x.ClearingHouseId == clearingHouseId.Value);
+        }
+
+        return await query
+            .OrderBy(x => x.Code)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<AchReturnCode>> GetReturnCodesByClearingHouseCodeAsync(
+        string clearingHouseCode,
+        CancellationToken ct)
+    {
+        var normalizedCode = clearingHouseCode.Trim().ToUpperInvariant();
+        return await _context.AchReturnCodes
+            .AsNoTracking()
+            .Where(x => x.IsActive && x.ClearingHouse.Code == normalizedCode)
+            .OrderBy(x => x.Code)
+            .ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyList<AchFileRejectionCode>> GetFileRejectionCodesAsync(CancellationToken ct)
         => await _context.AchFileRejectionCodes.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Code).ToListAsync(ct);

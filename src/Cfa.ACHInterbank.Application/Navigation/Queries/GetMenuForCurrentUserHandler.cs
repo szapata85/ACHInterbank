@@ -1,9 +1,12 @@
 using System.Security.Claims;
 using Cfa.ACHInterbank.Application.DataBase.Queries.Navigation;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.Navigation;
 using Cfa.ACHInterbank.Domain.Entities.Navigation;
 using MediatR;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Application.Navigation.Queries;
 
@@ -19,11 +22,18 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
 
     private readonly IMenuQueryRepository _menuRepository;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly bool _uatSimulatorAvailable;
 
-    public GetMenuForCurrentUserHandler(IMenuQueryRepository menuRepository, IHttpContextAccessor httpContextAccessor)
+    public GetMenuForCurrentUserHandler(
+        IMenuQueryRepository menuRepository,
+        IHttpContextAccessor httpContextAccessor,
+        IOptions<NachaInboundSimulatorOptions>? simulatorOptions = null,
+        IHostEnvironment? environment = null)
     {
         _menuRepository = menuRepository;
         _httpContextAccessor = httpContextAccessor;
+        _uatSimulatorAvailable = environment?.IsProduction() != true
+            && simulatorOptions?.Value.IsUatLike() == true;
     }
 
     public async Task<IList<MenuItemDto>> Handle(GetMenuForCurrentUserQuery request, CancellationToken cancellationToken)
@@ -41,6 +51,9 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
 
         var visibleItems = menuItems
             .Where(mi => !LegacyNachaRoutes.Contains(mi.Route))
+            .Where(mi => _uatSimulatorAvailable
+                || (!string.Equals(mi.Route, "/uat", StringComparison.OrdinalIgnoreCase)
+                    && !mi.Route.StartsWith("/uat/", StringComparison.OrdinalIgnoreCase)))
             .Where(mi => ShouldInclude(mi, userRoles, userPermissions))
             .ToList();
 
@@ -69,7 +82,6 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
             }
         }
 
-        EnsureOfficialNachaConfigMenu(roots, userPermissions);
         RemoveLegacyNachaRoutes(roots);
         SortChildren(roots);
         return roots;

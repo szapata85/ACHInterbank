@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { NotificationMessage, NotificationService } from '../../core/services/notification.service';
 
@@ -70,12 +70,16 @@ import { NotificationMessage, NotificationService } from '../../core/services/no
 })
 export class NotificationContainerComponent implements OnInit, OnDestroy {
   private readonly notificationService = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private subscription?: Subscription;
 
   messages: NotificationMessage[] = [];
 
   ngOnInit(): void {
-    this.subscription = this.notificationService.messages$.subscribe((messages) => (this.messages = messages));
+    this.subscription = this.notificationService.messages$.subscribe((messages) => {
+      this.messages = messages;
+      this.cdr.markForCheck();
+    });
   }
 
   ngOnDestroy(): void {

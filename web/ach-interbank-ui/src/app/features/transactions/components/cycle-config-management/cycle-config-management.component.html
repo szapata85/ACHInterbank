@@ -1,5 +1,10 @@
 <app-page-header title="Configuración de ciclos" subtitle="Administración ACH"></app-page-header>
 
+<nav class="cycle-tabs" aria-label="Secciones de configuración de ciclos">
+  <a routerLink="/ach-cycles" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Ciclos</a>
+  <a routerLink="/transactions/cycle-configs" routerLinkActive="active">Reglas de procesamiento</a>
+</nav>
+
 <section class="panel filters">
   <h3>Filtros</h3>
   <form [formGroup]="filterForm" (ngSubmit)="search()" class="filter-grid">

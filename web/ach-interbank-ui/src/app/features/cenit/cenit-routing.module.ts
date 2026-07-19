@@ -1,8 +1,14 @@
 import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
+import { CanActivateFn, Router, RouterModule, Routes } from '@angular/router';
+import { inject } from '@angular/core';
 import { CenitHomeComponent } from './components/cenit-home.component';
 import { CenitOperationPageComponent } from './components/cenit-operation-page.component';
 import { CenitRegulatoryPageComponent } from './components/cenit-regulatory-page.component';
+
+export const cenitCyclesRedirectGuard: CanActivateFn = () => inject(Router).createUrlTree(
+  ['/ach-cycles'],
+  { queryParams: { clearingHouseCode: 'CENIT' } }
+);
 
 const routes: Routes = [
   { path: '', component: CenitHomeComponent },
@@ -11,7 +17,7 @@ const routes: Routes = [
   { path: 'regulatorio/politicas-transaccion', component: CenitRegulatoryPageComponent, data: { view: 'politicas-transaccion' } },
   { path: 'regulatorio/politicas-devolucion', component: CenitRegulatoryPageComponent, data: { view: 'politicas-devolucion' } },
   { path: 'regulatorio/politicas-prenotificacion', component: CenitRegulatoryPageComponent, data: { view: 'politicas-prenotificacion' } },
-  { path: 'operacion/ciclos', component: CenitOperationPageComponent, data: { view: 'ciclos' } },
+  { path: 'operacion/ciclos', component: CenitOperationPageComponent, canActivate: [cenitCyclesRedirectGuard], data: { view: 'ciclos' } },
   { path: 'operacion/cola', component: CenitOperationPageComponent, data: { view: 'cola' } },
   { path: 'operacion/neteo', component: CenitOperationPageComponent, data: { view: 'neteo' } },
   { path: 'operacion/optimizacion', component: CenitOperationPageComponent, data: { view: 'optimizacion' } },

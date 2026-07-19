@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ColDef } from 'ag-grid-community';
+import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseStatusMappingResponse } from '../models/ach-responses.models';
@@ -119,7 +120,12 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
       activo: this.parseActivoFilter(raw.activo)
     };
 
-    this.api.getStatusMappings(filters).subscribe({
+    this.api.getStatusMappings(filters).pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
       next: (response) => {
         this.rows = (response ?? []).map((item) => this.mapRow(item));
       },
@@ -127,10 +133,6 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
         this.error = true;
         this.rows = [];
         this.notifications.error('No fue posible cargar las homologaciones ACH');
-      },
-      complete: () => {
-        this.loading = false;
-        this.cdr.markForCheck();
       }
     });
   }

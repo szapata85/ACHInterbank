@@ -1,7 +1,7 @@
 <section class="login-card" aria-labelledby="login-title">
   <header>
     <h1 id="login-title">Ingreso al portal ACH Interbank</h1>
-    <p>Autenticate para gestionar transacciones y catalogos.</p>
+    <p>Autentícate para gestionar transacciones y catálogos.</p>
   </header>
 
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -9,12 +9,12 @@
       <span>Usuario</span>
       <input type="text" formControlName="username" autocomplete="username" />
       <small *ngIf="form.get('username')?.touched && form.get('username')?.invalid">
-        Ingrese un usuario valido.
+        Ingresa un usuario válido.
       </small>
     </label>
 
     <label class="field">
-      <span>Contrasena</span>
+      <span>Contraseña</span>
       <div class="password-field">
         <input
           [type]="passwordVisible ? 'text' : 'password'"
@@ -26,16 +26,13 @@
           class="password-toggle"
           (click)="togglePasswordVisibility()"
           [attr.aria-pressed]="passwordVisible"
-          [attr.aria-label]="passwordVisible ? 'Ocultar contrasena' : 'Mostrar contrasena'"
+          [attr.aria-label]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
         >
-          <span class="sr-only">{{ passwordVisible ? 'Ocultar' : 'Mostrar' }}</span>
-          <span class="icon material-symbols-outlined" aria-hidden="true">
-            {{ passwordVisible ? 'visibility_off' : 'visibility' }}
-          </span>
+          <span>{{ passwordVisible ? 'Ocultar' : 'Mostrar' }}</span>
         </button>
       </div>
       <small *ngIf="form.get('password')?.touched && form.get('password')?.invalid">
-        La contrasena debe tener al menos 6 caracteres.
+        La contraseña debe tener al menos 6 caracteres.
       </small>
     </label>
 
@@ -46,7 +43,7 @@
     </button>
 
     <div class="helper-links">
-      <a routerLink="/forgot-password">Olvidaste tu clave?</a>
+      <a routerLink="/forgot-password">¿Olvidaste tu clave?</a>
     </div>
   </form>
 </section>

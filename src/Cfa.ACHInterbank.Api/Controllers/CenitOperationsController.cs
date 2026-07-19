@@ -12,6 +12,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class CenitOperationsController : ControllerBase
 {
+    private const string CenitClearingHouseCode = "CENIT";
     private readonly AchDbContext _dbContext;
 
     public CenitOperationsController(AchDbContext dbContext)
@@ -204,9 +205,20 @@ public class CenitOperationsController : ControllerBase
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
+        var cenitClearingHouseId = await _dbContext.ClearingHouses
+            .AsNoTracking()
+            .Where(x => x.Code == CenitClearingHouseCode)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (!cenitClearingHouseId.HasValue)
+        {
+            return Ok(new { items = Array.Empty<object>(), total = 0, page, pageSize });
+        }
+
         var returnCodeRows = await _dbContext.Set<AchReturnCode>()
             .AsNoTracking()
-            .Where(x => x.IsActive)
+            .Where(x => x.IsActive && x.ClearingHouseId == cenitClearingHouseId.Value)
             .Select(x => new { x.Code, x.Description })
             .ToListAsync(ct);
 
@@ -239,6 +251,7 @@ public class CenitOperationsController : ControllerBase
             .Include(x => x.AchCycle)
                 .ThenInclude(x => x.ClearingHouse)
             .Include(x => x.AchBatch)
+            .Where(x => x.AchCycle.ClearingHouseId == cenitClearingHouseId.Value)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(state))

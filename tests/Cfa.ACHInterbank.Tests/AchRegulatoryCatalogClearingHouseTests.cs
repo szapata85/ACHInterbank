@@ -1,9 +1,12 @@
+using Cfa.ACHInterbank.Api.Controllers;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -66,6 +69,58 @@ public class AchRegulatoryCatalogClearingHouseTests
         var sut=new AchRegulatoryCatalogService(c);
         Assert.True((await sut.ValidateReturnOfReturnAsync(cenit.Id,"R01","R02","ReturnedByOperator",DateTime.UtcNow.Date,DateTime.UtcNow.Date,CancellationToken.None)).IsAllowed);
         Assert.False((await sut.ValidateReturnOfReturnAsync(cenit.Id,"R01","R03","ReturnedByOperator",DateTime.UtcNow.Date,DateTime.UtcNow.Date,CancellationToken.None)).IsAllowed);
+    }
+
+    [Fact]
+    public async Task GetReturnCodes_ShouldFilterByClearingHouse_AndKeepUnfilteredCompatibility()
+    {
+        await using var c = await Ctx();
+        var cenit = await Ch(c, "CENIT");
+        var achColombia = await Ch(c, "ACHCOL");
+        c.AchReturnCodes.AddRange(
+            new AchReturnCode { ClearingHouseId = cenit.Id, Code = "R01", Description = "CENIT", FlowType = "Any", IsActive = true },
+            new AchReturnCode { ClearingHouseId = achColombia.Id, Code = "R01", Description = "ACH Colombia", FlowType = "Any", IsActive = true });
+        await c.SaveChangesAsync();
+
+        var sut = new AchRegulatoryCatalogService(c);
+
+        var filtered = await sut.GetReturnCodesAsync(cenit.Id, CancellationToken.None);
+        var unfiltered = await sut.GetReturnCodesAsync(CancellationToken.None);
+
+        var code = Assert.Single(filtered);
+        Assert.Equal(cenit.Id, code.ClearingHouseId);
+        Assert.Equal(2, unfiltered.Count(x => x.Code == "R01"));
+    }
+
+    [Fact]
+    public async Task GetReturnCodesEndpoint_ShouldForwardOptionalClearingHouseFilter()
+    {
+        const int clearingHouseId = 77;
+        var catalog = new Mock<IAchRegulatoryCatalogService>(MockBehavior.Strict);
+        catalog
+            .Setup(x => x.GetReturnCodesAsync(clearingHouseId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AchReturnCode>());
+        var controller = new RegulatoryCatalogsController(catalog.Object);
+
+        var action = await controller.GetReturnCodes(clearingHouseId, null, CancellationToken.None);
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(action);
+        catalog.Verify(x => x.GetReturnCodesAsync(clearingHouseId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetReturnCodesEndpoint_ShouldPreferClearingHouseCode()
+    {
+        var catalog = new Mock<IAchRegulatoryCatalogService>(MockBehavior.Strict);
+        catalog
+            .Setup(x => x.GetReturnCodesByClearingHouseCodeAsync("CENIT", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AchReturnCode>());
+        var controller = new RegulatoryCatalogsController(catalog.Object);
+
+        var action = await controller.GetReturnCodes(null, "CENIT", CancellationToken.None);
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(action);
+        catalog.Verify(x => x.GetReturnCodesByClearingHouseCodeAsync("CENIT", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     static async Task<AchDbContext> Ctx(){var cn=new SqliteConnection("DataSource=:memory:");await cn.OpenAsync();var o=new DbContextOptionsBuilder<AchDbContext>().UseSqlite(cn).Options;var c=new AchDbContext(o);c.Database.EnsureCreated();return c;}

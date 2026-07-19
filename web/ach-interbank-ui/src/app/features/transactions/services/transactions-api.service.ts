@@ -22,9 +22,10 @@ interface CustomerThirdPartyApiItem {
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
   private readonly api = inject(ApiService);
+  private readonly basePath = 'api/transactions';
 
   getCompanyEntryDescriptions() {
-    return this.api.get<CompanyEntryDescriptionOption[]>('transactions/company-entry-descriptions');
+    return this.api.get<CompanyEntryDescriptionOption[]>(`${this.basePath}/company-entry-descriptions`);
   }
 
   previewPolicy(payload: TransactionDraft) {
@@ -42,7 +43,7 @@ export class TransactionsApiService {
       recipientIdNumber: payload.recipientIdNumber?.trim() || ''
     };
 
-    return this.api.get<TransactionPolicyPreview>('transactions/policies/preview', { params });
+    return this.api.get<TransactionPolicyPreview>(`${this.basePath}/policies/preview`, { params });
   }
 
   createTransaction(payload: TransactionDraft) {
@@ -60,7 +61,7 @@ export class TransactionsApiService {
       recipientName: payload.recipientName?.trim() || undefined
     };
 
-    return this.api.post<TransactionResponse>('transactions', sanitized).pipe(
+    return this.api.post<TransactionResponse>(this.basePath, sanitized).pipe(
       catchError((error) => {
         if (error.status === 400) {
           return throwError(() => new Error(this.extractErrorMessage(error, 'Solicitud inválida')));
@@ -78,7 +79,7 @@ export class TransactionsApiService {
 
 
   createBulkTransaction(payload: BulkAchTransactionRequest) {
-    return this.api.post<BulkAchTransactionResponse>('transactions/bulk', payload).pipe(
+    return this.api.post<BulkAchTransactionResponse>(`${this.basePath}/bulk`, payload).pipe(
       catchError((error) => {
         if (error.status === 400) {
           return throwError(() => new Error(error.error?.message ?? 'El lote no cumple las validaciones requeridas.'));
@@ -140,13 +141,13 @@ export class TransactionsApiService {
       params.clearingHouseId = filter.clearingHouseId;
     }
 
-    return this.api.get<TransactionListItem[]>('transactions', { params }).pipe(
+    return this.api.get<TransactionListItem[]>(this.basePath, { params }).pipe(
       map((items) => (items ?? []).map((item) => ({ ...item, amount: Number(item.amount) })))
     );
   }
 
   getIntegrationResult(transactionId: number) {
-    return this.api.get<TransactionIntegrationResult>(`transactions/${transactionId}/integration-result`);
+    return this.api.get<TransactionIntegrationResult>(`${this.basePath}/${transactionId}/integration-result`);
   }
 
   private extractErrorMessage(error: any, fallback: string): string {

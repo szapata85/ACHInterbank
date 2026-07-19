@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
@@ -27,7 +28,8 @@ describe('CycleConfigManagementComponent', () => {
       providers: [
         { provide: ClearingHouseCycleConfigsApiService, useValue: api },
         { provide: ClearingHousesApiService, useValue: housesApi },
-        { provide: NotificationService, useValue: notifications }
+        { provide: NotificationService, useValue: notifications },
+        provideRouter([])
       ]
     }).compileComponents();
 

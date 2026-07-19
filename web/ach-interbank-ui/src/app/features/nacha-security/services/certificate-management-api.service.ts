@@ -17,8 +17,11 @@ export class CertificateManagementApiService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'api/nacha-security/certificates/management';
 
-  list(): Observable<CertificateListItem[]> {
-    return this.api.get<CertificateListItem[]>(this.basePath);
+  list(filters?: { clearingHouseId?: number; environment?: string; purpose?: string; status?: string }): Observable<CertificateListItem[]> {
+    const params = Object.fromEntries(
+      Object.entries(filters ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== '')
+    ) as Record<string, string | number>;
+    return this.api.get<CertificateListItem[]>(this.basePath, { params });
   }
 
   getVersions(id: number): Observable<CertificateVersion[]> {

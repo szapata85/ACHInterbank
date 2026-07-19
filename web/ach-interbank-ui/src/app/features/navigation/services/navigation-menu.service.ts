@@ -6,7 +6,7 @@ import { NavigationMenuItem, SaveNavigationMenuItem } from '../models/navigation
 @Injectable({ providedIn: 'root' })
 export class NavigationMenuService {
   private readonly api = inject(ApiService);
-  private readonly basePath = 'navigation/menu-items';
+  private readonly basePath = 'api/navigation/menu-items';
 
   getMenuItems(): Observable<NavigationMenuItem[]> {
     return this.api.get<NavigationMenuItem[]>(this.basePath);

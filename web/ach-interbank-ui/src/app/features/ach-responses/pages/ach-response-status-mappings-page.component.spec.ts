@@ -92,6 +92,7 @@ describe('AchResponseStatusMappingsPageComponent', () => {
 
     const component = fixture.componentInstance;
     expect(component.error).toBeTrue();
+    expect(component.loading).toBeFalse();
     expect(component.rows.length).toBe(0);
     expect(notificationSpy.error).toHaveBeenCalled();
   });

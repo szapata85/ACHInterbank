@@ -40,6 +40,6 @@ describe('TransactionsApiService', () => {
     } as any).subscribe();
 
     expect(apiSpy.post).toHaveBeenCalled();
-    expect(apiSpy.post.calls.mostRecent().args[0]).toBe('transactions');
+    expect(apiSpy.post.calls.mostRecent().args[0]).toBe('api/transactions');
   });
 });

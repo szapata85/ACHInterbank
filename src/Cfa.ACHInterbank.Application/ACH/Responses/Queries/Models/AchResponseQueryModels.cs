@@ -1,3 +1,5 @@
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
+
 namespace Cfa.ACHInterbank.Application.ACH.Responses.Queries.Models;
 
 public sealed record AchResponseSearchQuery(
@@ -13,6 +15,22 @@ public sealed record AchResponseSearchQuery(
     string? CorrelationId,
     int PageNumber,
     int PageSize);
+
+public sealed record AchResponseDashboardQuery(
+    DateTime? FechaDesde,
+    DateTime? FechaHasta,
+    TipoRespuestaAch? TipoRespuesta);
+
+public sealed record AchResponseDashboardModel(
+    int TotalRespuestas,
+    int Recibidas,
+    int Homologadas,
+    int Notificadas,
+    int NoHomologadas,
+    int RevisionManual,
+    int PendientesReintento,
+    int ErroresFuncionales,
+    int Duplicadas);
 
 public sealed record AchResponseListItemModel(
     Guid Id,

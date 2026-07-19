@@ -3,7 +3,7 @@
   description="Indicadores de respuestas ACH por estado de procesamiento"
 ></app-page-header>
 
-<p class="nota-operativa">Panel calculado a partir de consultas de conteo sobre la bandeja de respuestas ACH. No requiere endpoints adicionales.</p>
+<p class="nota-operativa">Panel calculado en el backend mediante una consulta agregada sobre la bandeja de respuestas ACH.</p>
 
 <form class="filtros" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
   <div class="campo"><label>Fecha desde</label><input type="date" formControlName="fechaDesde" /></div>

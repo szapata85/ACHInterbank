@@ -12,6 +12,8 @@ public interface IAchRegulatoryCatalogService
     Task<(bool IsAllowed, string? Reason, bool IsUniquePerTransaction)> ValidateReturnOfReturnAsync(int clearingHouseId, string originalReturnCode, string newReturnCode, string originalState, DateTime originalDate, DateTime currentDate, CancellationToken ct);
     Task<AchFileRejectionCode?> ResolveFileRejectionCodeAsync(string stage, string code, CancellationToken ct);
     Task<IReadOnlyList<AchReturnCode>> GetReturnCodesAsync(CancellationToken ct);
+    Task<IReadOnlyList<AchReturnCode>> GetReturnCodesAsync(int? clearingHouseId, CancellationToken ct);
+    Task<IReadOnlyList<AchReturnCode>> GetReturnCodesByClearingHouseCodeAsync(string clearingHouseCode, CancellationToken ct);
     Task<IReadOnlyList<AchFileRejectionCode>> GetFileRejectionCodesAsync(CancellationToken ct);
     Task<IReadOnlyList<AchTransactionTypePolicy>> GetTransactionTypePoliciesAsync(CancellationToken ct);
     Task<IReadOnlyList<AchReturnPolicy>> GetReturnPoliciesAsync(CancellationToken ct);

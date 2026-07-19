@@ -1,205 +1,150 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
+import { MenuItem } from '../models/menu.model';
 import { ApiService } from './api.service';
 import { NavigationService } from './navigation.service';
 
 describe('NavigationService', () => {
-  it('injects cycle-config route into default transactions menu', (done) => {
-    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
-    api.get.and.returnValue(of([]));
-
-    TestBed.configureTestingModule({
-      providers: [
-        NavigationService,
-        { provide: ApiService, useValue: api }
-      ]
-    });
-
-    const service = TestBed.inject(NavigationService);
+  it('uses an empty backend menu without injecting local entries', (done) => {
+    const { api, service } = createService([]);
 
     service.getMenu().subscribe((menu) => {
-      const transactions = menu.find((x) => x.route === '/transactions');
-      const cycleConfigItem = transactions?.children?.find((x) => x.route === '/transactions/cycle-configs');
-
-      expect(transactions).toBeTruthy();
-      expect(cycleConfigItem).toBeTruthy();
+      expect(menu).toEqual([]);
+      expect(api.get).toHaveBeenCalledOnceWith('api/navigation/menu');
       done();
     });
   });
 
-  it('injects ach-responses routes into default menu', (done) => {
-    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
-    api.get.and.returnValue(of([]));
-
-    TestBed.configureTestingModule({
-      providers: [
-        NavigationService,
-        { provide: ApiService, useValue: api }
-      ]
-    });
-
-    const service = TestBed.inject(NavigationService);
+  it('does not reinsert routes filtered out by backend permissions', (done) => {
+    const { service } = createService([
+      { id: 1, label: 'Inicio', route: '/dashboard', order: 1 }
+    ]);
 
     service.getMenu().subscribe((menu) => {
-      const achResponses = menu.find((x) => x.route === '/ach-responses');
+      const routes = flattenRoutes(menu);
 
-      expect(achResponses).toBeTruthy();
-      expect(achResponses?.children?.find((x) => x.route === '/ach-responses')).toBeTruthy();
-      expect(achResponses?.children?.find((x) => x.route === '/ach-responses/manual-review')).toBeTruthy();
-      expect(achResponses?.children?.find((x) => x.route === '/ach-responses/status-mappings')).toBeTruthy();
-      expect(achResponses?.children?.find((x) => x.route === '/ach-responses/dashboard')).toBeTruthy();
+      expect(routes).toEqual(['/dashboard']);
+      expect(routes).not.toContain('/transactions/cycle-configs');
+      expect(routes).not.toContain('/ach-responses/manual-review');
+      expect(routes).not.toContain('/ach/nacha/soap-uat-console');
+      done();
+    });
+  });
+
+  it('preserves backend order metadata recursively', (done) => {
+    const { service } = createService([
+      { id: 2, label: 'Segundo', route: '/second', order: 20 },
+      {
+        id: 1,
+        label: 'Primero',
+        route: '/first',
+        order: 10,
+        children: [
+          { id: 12, label: 'Hijo segundo', route: '/first/second', order: 2 },
+          { id: 11, label: 'Hijo primero', route: '/first/first', order: 1 }
+        ]
+      }
+    ]);
+
+    service.getMenu().subscribe((menu) => {
+      expect(menu.map((item) => item.route)).toEqual(['/first', '/second']);
+      expect(menu[0].children?.map((item) => item.route)).toEqual(['/first/first', '/first/second']);
       done();
     });
   });
 
   it('LegacyLayoutsRoute_ShouldBeRemovedFromMenu', (done) => {
-    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
-    api.get.and.returnValue(of([
+    const { service } = createService([
       { id: 1, label: 'Layouts NACHA', route: '/ach-cycles/nacha/layouts' },
-      { id: 2, label: 'Definiciones NACHA', route: '/ach-cycles/nacha/definitions' }
-    ]));
-
-    TestBed.configureTestingModule({
-      providers: [
-        NavigationService,
-        { provide: ApiService, useValue: api }
-      ]
-    });
-
-    const service = TestBed.inject(NavigationService);
+      { id: 2, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles' }
+    ]);
 
     service.getMenu().subscribe((menu) => {
       const routes = flattenRoutes(menu);
 
       expect(routes).not.toContain('/ach-cycles/nacha/layouts');
-      expect(routes).not.toContain('/nacha-layouts');
-      expect(routes).toContain('/nacha-config-admin/variants-fields');
-      expect(flattenLabels(menu)).toContain('Variantes y campos');
+      expect(routes).toEqual(['/nacha-config-admin/perfiles']);
       done();
     });
   });
 
   it('LegacyDefinitionsRoute_ShouldBeRemovedFromMenu', (done) => {
-    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
-    api.get.and.returnValue(of([
+    const { service } = createService([
       {
         id: 1,
         label: 'ACH',
         route: '/ach-cycles',
-        children: [{ id: 2, label: 'Definiciones NACHA', route: '/ach-cycles/nacha/definitions' }]
+        children: [
+          { id: 2, label: 'Definiciones NACHA', route: '/ACH-CYCLES/NACHA/DEFINITIONS/' },
+          { id: 3, label: 'Ciclos', route: '/ach-cycles' }
+        ]
       }
-    ]));
-
-    TestBed.configureTestingModule({
-      providers: [
-        NavigationService,
-        { provide: ApiService, useValue: api }
-      ]
-    });
-
-    const service = TestBed.inject(NavigationService);
+    ]);
 
     service.getMenu().subscribe((menu) => {
       const routes = flattenRoutes(menu);
 
-      expect(routes).not.toContain('/ach-cycles/nacha/definitions');
-      expect(routes).not.toContain('/nacha-record-definitions');
-      expect(routes).toContain('/nacha-config-admin/records');
-      expect(flattenLabels(menu)).toContain('Registros oficiales');
+      expect(routes).not.toContain('/ACH-CYCLES/NACHA/DEFINITIONS/');
+      expect(routes).toEqual(['/ach-cycles', '/ach-cycles']);
       done();
     });
   });
 
-  it('OfficialNavigation_ShouldExposeConfigProfiles', (done) => {
-    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
-    api.get.and.returnValue(of([]));
-
-    TestBed.configureTestingModule({
-      providers: [
-        NavigationService,
-        { provide: ApiService, useValue: api }
-      ]
-    });
-
-    const service = TestBed.inject(NavigationService);
+  it('OfficialNavigation_ShouldExposeConfigProfilesWhenBackendReturnsIt', (done) => {
+    const { service } = createService([
+      {
+        id: 1,
+        label: 'Configuración NACHA-M',
+        route: '/nacha-config-admin/perfiles',
+        children: [
+          { id: 2, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles' },
+          { id: 3, label: 'Registros oficiales', route: '/nacha-config-admin/records' },
+          { id: 4, label: 'Variantes y campos', route: '/nacha-config-admin/variants-fields' }
+        ]
+      }
+    ]);
 
     service.getMenu().subscribe((menu) => {
       const routes = flattenRoutes(menu);
-      const labels = flattenLabels(menu);
 
       expect(routes).toContain('/nacha-config-admin/perfiles');
       expect(routes).toContain('/nacha-config-admin/records');
       expect(routes).toContain('/nacha-config-admin/variants-fields');
-      expect(routes).not.toContain('/ach-cycles/nacha/layouts');
-      expect(routes).not.toContain('/ach-cycles/nacha/definitions');
-      expect(routes).not.toContain('/nacha-layouts');
-      expect(routes).not.toContain('/nacha-record-definitions');
-      expect(labels).toContain('Configuración NACHA-M');
-      expect(labels).toContain('Perfiles oficiales');
-      expect(labels).toContain('Registros oficiales');
-      expect(labels).toContain('Variantes y campos');
+      expect(flattenLabels(menu)).toContain('Configuración NACHA-M');
       done();
     });
   });
 
-  it('Navigation_ShouldExposeSoapUatConsole', (done) => {
-    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
-    api.get.and.returnValue(of([]));
-
-    TestBed.configureTestingModule({
-      providers: [
-        NavigationService,
-        { provide: ApiService, useValue: api }
-      ]
-    });
-
-    const service = TestBed.inject(NavigationService);
+  it('Navigation_ShouldExposeSoapUatConsoleOnlyWhenBackendReturnsIt', (done) => {
+    const { service } = createService([
+      { id: 1, label: 'Consola SOAP UAT', route: '/ach/nacha/soap-uat-console' }
+    ]);
 
     service.getMenu().subscribe((menu) => {
-      const routes = flattenRoutes(menu);
-      const labels = flattenLabels(menu);
-
-      expect(routes).toContain('/ach/nacha/soap-uat-console');
-      expect(labels).toContain('Consola SOAP UAT');
+      expect(flattenRoutes(menu)).toContain('/ach/nacha/soap-uat-console');
+      expect(flattenLabels(menu)).toContain('Consola SOAP UAT');
       done();
     });
   });
 
-  it('Navigation_ShouldExposeReconciliationConsole', (done) => {
-    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
-    api.get.and.returnValue(of([]));
-
-    TestBed.configureTestingModule({
-      providers: [
-        NavigationService,
-        { provide: ApiService, useValue: api }
-      ]
-    });
-
-    const service = TestBed.inject(NavigationService);
+  it('Navigation_ShouldExposeReconciliationConsoleOnlyWhenBackendReturnsIt', (done) => {
+    const { service } = createService([
+      { id: 1, label: 'Conciliación ACH', route: '/ach/reconciliation' }
+    ]);
 
     service.getMenu().subscribe((menu) => {
-      const routes = flattenRoutes(menu);
-      const labels = flattenLabels(menu);
-
-      expect(routes).toContain('/ach/reconciliation');
-      expect(labels).toContain('Conciliación ACH');
+      expect(flattenRoutes(menu)).toContain('/ach/reconciliation');
+      expect(flattenLabels(menu)).toContain('Conciliación ACH');
       done();
     });
   });
 
   it('OfficialNavigation_ShouldNotExposeLegacyAsOfficial', (done) => {
-    const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
-    api.get.and.returnValue(of([]));
-
-    TestBed.configureTestingModule({
-      providers: [
-        NavigationService,
-        { provide: ApiService, useValue: api }
-      ]
-    });
-
-    const service = TestBed.inject(NavigationService);
+    const { service } = createService([
+      { id: 1, label: 'Layouts NACHA', route: '/nacha-layouts' },
+      { id: 2, label: 'Definiciones NACHA', route: '/nacha-record-definitions' },
+      { id: 3, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles' }
+    ]);
 
     service.getMenu().subscribe((menu) => {
       const labels = flattenLabels(menu).join(' ');
@@ -207,21 +152,32 @@ describe('NavigationService', () => {
 
       expect(labels).not.toContain('Layouts NACHA');
       expect(labels).not.toContain('Definiciones NACHA');
-      expect(labels).not.toContain('legacy');
-      expect(routes).not.toContain('/ach-cycles/nacha/layouts');
-      expect(routes).not.toContain('/ach-cycles/nacha/definitions');
-      expect(labels).toContain('Perfiles oficiales');
-      expect(labels).toContain('Registros oficiales');
-      expect(labels).toContain('Variantes y campos');
+      expect(routes).not.toContain('/nacha-layouts');
+      expect(routes).not.toContain('/nacha-record-definitions');
+      expect(routes).toContain('/nacha-config-admin/perfiles');
       done();
     });
   });
 });
 
-function flattenRoutes(items: Array<{ route: string; children?: Array<{ route: string; children?: any[] }> }>): string[] {
+function createService(menu: MenuItem[]): { api: jasmine.SpyObj<ApiService>; service: NavigationService } {
+  const api = jasmine.createSpyObj<ApiService>('ApiService', ['get']);
+  api.get.and.returnValue(of(menu));
+
+  TestBed.configureTestingModule({
+    providers: [
+      NavigationService,
+      { provide: ApiService, useValue: api }
+    ]
+  });
+
+  return { api, service: TestBed.inject(NavigationService) };
+}
+
+function flattenRoutes(items: MenuItem[]): string[] {
   return items.flatMap((item) => [item.route, ...flattenRoutes(item.children ?? [])]);
 }
 
-function flattenLabels(items: Array<{ label: string; children?: Array<{ label: string; children?: any[] }> }>): string[] {
+function flattenLabels(items: MenuItem[]): string[] {
   return items.flatMap((item) => [item.label, ...flattenLabels(item.children ?? [])]);
 }

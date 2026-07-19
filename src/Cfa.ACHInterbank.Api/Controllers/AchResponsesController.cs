@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Notification.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,6 +17,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class AchResponsesController : ControllerBase
 {
     [HttpPost("process")]
+    [Authorize(Policy = P1Policies.NachaGenerate)]
     public async Task<IActionResult> Process(
         [FromBody] ProcesarRespuestaAchRequest request,
         [FromServices] ProcesarRespuestaAchRequestValidator validator,
@@ -32,6 +34,7 @@ public class AchResponsesController : ControllerBase
     }
 
     [HttpPost("notifications/send")]
+    [Authorize(Policy = P1Policies.NachaGenerate)]
     public async Task<IActionResult> SendNotification(
         [FromBody] NotificarRespuestaAchRequest request,
         [FromServices] NotificarRespuestaAchRequestValidator validator,
@@ -48,13 +51,30 @@ public class AchResponsesController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = P1Policies.NachaRead)]
     public async Task<IActionResult> Search([FromQuery] AchResponseSearchRequest request, [FromServices] AchResponseQueryApiMapper mapper, [FromServices] IAchResponseRepository repository, CancellationToken ct)
     {
         var result = await repository.SearchAsync(mapper.MapSearchRequest(request), ct);
         return Ok(mapper.MapPagedResult(result));
     }
 
+    [HttpGet("dashboard")]
+    [Authorize(Policy = P1Policies.NachaRead)]
+    public async Task<IActionResult> GetDashboard(
+        [FromQuery] AchResponseDashboardRequest request,
+        [FromServices] AchResponseQueryApiMapper mapper,
+        [FromServices] IAchResponseRepository repository,
+        CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(request.TipoRespuesta) && mapper.ParseTipoRespuestaOrNull(request.TipoRespuesta) is null)
+            return BadRequest(new ProblemDetails { Title = "Tipo de respuesta inválido", Detail = "Valores permitidos: Prenota, Transaccion" });
+
+        var dashboard = await repository.GetDashboardAsync(mapper.MapDashboardRequest(request), ct);
+        return Ok(mapper.MapDashboard(dashboard));
+    }
+
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = P1Policies.NachaRead)]
     public async Task<IActionResult> GetDetail(Guid id, [FromServices] AchResponseQueryApiMapper mapper, [FromServices] IAchResponseRepository repository, CancellationToken ct)
     {
         var detail = await repository.FindDetailByIdAsync(id, ct);
@@ -63,6 +83,7 @@ public class AchResponsesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/notification-attempts")]
+    [Authorize(Policy = P1Policies.NachaRead)]
     public async Task<IActionResult> GetAttempts(Guid id, [FromServices] AchResponseQueryApiMapper mapper, [FromServices] IAchResponseNotificationAttemptRepository repository, CancellationToken ct)
     {
         var attempts = await repository.FindPublicByResponseIdAsync(id, ct);
@@ -70,11 +91,12 @@ public class AchResponsesController : ControllerBase
     }
 
     [HttpGet("/api/ach/response-status-mappings")]
+    [Authorize(Policy = P1Policies.NachaRead)]
     public async Task<IActionResult> GetMappings([FromQuery] string? codigoCamaraCompensacion, [FromQuery] string? tipoRespuesta, [FromQuery] bool? activo, [FromServices] AchResponseQueryApiMapper mapper, [FromServices] IAchResponseStatusMappingRepository repository, CancellationToken ct)
     {
         var tipo = mapper.ParseTipoRespuestaOrNull(tipoRespuesta);
         if (!string.IsNullOrWhiteSpace(tipoRespuesta) && tipo is null)
-            return BadRequest(new ProblemDetails { Title = "TipoRespuesta inválido", Detail = "Valores permitidos: Prenota, Transaccion" });
+            return BadRequest(new ProblemDetails { Title = "Tipo de respuesta inválido", Detail = "Valores permitidos: Prenota, Transaccion" });
 
         var items = await repository.ListAsync(codigoCamaraCompensacion, tipo, activo, ct);
         return Ok(items.Select(mapper.MapStatusMapping).ToList());

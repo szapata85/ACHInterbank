@@ -1,4 +1,5 @@
 import { ACH_RESPONSES_ROUTES } from './ach-responses-routing.module';
+import { permissionGuard } from '../../core/guards/permission.guard';
 
 describe('AchResponsesRoutingModule', () => {
   it('ShouldDefineExpectedRoutes', () => {
@@ -23,5 +24,12 @@ describe('AchResponsesRoutingModule', () => {
       ':id/notification-attempts',
       ':id'
     ]);
+  });
+
+  it('ShouldProtectEveryResponseRouteWithReadPermission', () => {
+    ACH_RESPONSES_ROUTES.forEach((route) => {
+      expect(route.canActivate).withContext(`Falta guard en ${route.path}`).toContain(permissionGuard);
+      expect(route.data?.['permissions']).withContext(`Permiso incorrecto en ${route.path}`).toEqual(['CanReadAch']);
+    });
   });
 });

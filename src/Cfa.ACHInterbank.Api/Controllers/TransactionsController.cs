@@ -13,6 +13,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Route("api/transactions")]
 [Authorize]
 public class TransactionsController : ControllerBase
 {

@@ -8,6 +8,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("nacha-record-definitions")]
+[Route("api/nacha-record-definitions")]
 [Authorize]
 [Obsolete("Legacy diagnostic endpoint. Official NACHA-M configuration uses nacha-config profiles.")]
 public class NachaRecordDefinitionsController : ControllerBase

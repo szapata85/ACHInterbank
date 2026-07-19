@@ -150,12 +150,16 @@
 }
 
 .chevron {
-  font-size: 20px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
   transition: transform 0.2s ease;
 }
 
 .menu-group.expanded .chevron {
-  transform: rotate(180deg);
+  transform: rotate(225deg);
 }
 
 .submenu {
@@ -193,16 +197,6 @@
       color: var(--color-surface);
     }
   }
-}
-
-.icon {
-  font-family: 'Material Symbols Outlined';
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  font-size: 20px;
-  line-height: 1;
-  width: 24px;
-  text-align: center;
-  flex-shrink: 0;
 }
 
 .main {

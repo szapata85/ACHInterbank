@@ -5,6 +5,8 @@ namespace Cfa.ACHInterbank.Application.ACH.Models;
 
 public class GenerateNachaInboundSimulationRequest
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public NachaSimulationMode SimulationMode { get; set; } = NachaSimulationMode.IncomingTransactions;
     public string ClearingHouseCode { get; set; } = string.Empty;
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public NachaInboundSimulationType ScenarioType { get; set; }
@@ -107,7 +109,14 @@ public sealed record NachaInboundSimulationMetadataDto(
     bool UploadRequired,
     string UploadFlow,
     bool ExternalTransmission,
-    string SimulatorMode);
+    string SimulatorMode)
+{
+    public NachaSimulationMode SimulationMode { get; init; } = NachaSimulationMode.IncomingTransactions;
+    public string Environment { get; init; } = "UAT";
+    public string? ProfileCode { get; init; }
+    public int? DeterministicSeed { get; init; }
+    public IReadOnlyList<string> OriginalTraceNumbers { get; init; } = [];
+}
 
 public sealed class InboundSimulationEligibilityPreviewRequest : GenerateNachaInboundSimulationRequest;
 
@@ -116,7 +125,44 @@ public sealed record InboundSimulationEligibilityPreviewResponse(
     string Decision,
     string Message,
     string? FunctionalCode,
+    NachaSimulationMode SimulationMode,
     bool GeneratedOnly,
     bool AutoImported,
     bool UploadRequired,
     bool ExternalTransmission);
+
+public sealed class DifferentialResponseTransactionQuery
+{
+    public string ClearingHouseCode { get; set; } = string.Empty;
+    public int? DestinationFinancialInstitutionId { get; set; }
+    public DateOnly? FromDate { get; set; }
+    public DateOnly? ToDate { get; set; }
+    public string? State { get; set; }
+    public string? TransactionType { get; set; }
+    public string? TraceNumber { get; set; }
+    public string? Search { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+public sealed record DifferentialResponseEligibleTransactionDto(
+    int Id,
+    string Identifier,
+    string TraceNumber,
+    string ClearingHouse,
+    int DestinationFinancialInstitutionId,
+    string DestinationFinancialInstitution,
+    string TransactionType,
+    DateTime EffectiveDate,
+    string Cycle,
+    decimal Amount,
+    string State,
+    bool HasPriorResponse,
+    bool Eligible,
+    string? IneligibilityReason);
+
+public sealed record DifferentialResponseTransactionPage(
+    IReadOnlyList<DifferentialResponseEligibleTransactionDto> Items,
+    int Page,
+    int PageSize,
+    int Total);

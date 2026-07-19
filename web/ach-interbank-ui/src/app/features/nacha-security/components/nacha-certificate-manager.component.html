@@ -1,13 +1,35 @@
 <div class="page-header">
-  <h1>Seguridad de archivos NACHA-M</h1>
-  <p class="subtitle">Administra los certificados usados para Sobre Digital.</p>
+  <h1>Certificados digitales</h1>
+  <p class="subtitle">Inventario y rotación segura de certificados NACHA-M por cámara y ambiente.</p>
 </div>
+
+<form class="certificate-context" [formGroup]="contextForm">
+  <label>
+    Cámara
+    <select formControlName="clearingHouseId">
+      <option *ngFor="let item of clearingHouses" [ngValue]="item.id">{{ item.name }}</option>
+    </select>
+  </label>
+  <label>
+    Ambiente del certificado
+    <select formControlName="environment">
+      <option value="Test">Pruebas</option>
+      <option value="Production">Producción</option>
+    </select>
+  </label>
+</form>
 
 <div class="alerts" *ngIf="error">
   <ui-alerta tipo="error" [mensaje]="error"></ui-alerta>
 </div>
 <div class="alerts" *ngIf="success">
   <ui-alerta tipo="exito" [mensaje]="success"></ui-alerta>
+</div>
+<div class="alerts" *ngIf="expiringCertificates.length">
+  <ui-alerta
+    tipo="advertencia"
+    [mensaje]="expiringCertificates.length + ' certificado(s) vencido(s) o con vencimiento dentro de 30 días.'">
+  </ui-alerta>
 </div>
 
 <section class="cards" *ngIf="!loading; else loadingTpl">
@@ -71,6 +93,41 @@
       </button>
     </form>
   </article>
+</section>
+
+<section class="inventory" *ngIf="!loading">
+  <h2>Inventario de la selección</h2>
+  <div class="table-scroll" *ngIf="certificates.length; else inventoryEmpty" tabindex="0">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Alias</th>
+          <th scope="col">Cámara</th>
+          <th scope="col">Propósito</th>
+          <th scope="col">Tipo</th>
+          <th scope="col">Emisor</th>
+          <th scope="col">Vigencia</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Versión</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let certificate of certificates">
+          <td>{{ certificate.displayName }}</td>
+          <td>{{ clearingHouseName(certificate.clearingHouseId) }}</td>
+          <td>{{ certificate.purpose }}</td>
+          <td>{{ certificate.hasPrivateKey ? 'Privado protegido' : 'Público' }}</td>
+          <td>{{ certificate.issuer }}</td>
+          <td>{{ certificate.notBefore | date:'yyyy-MM-dd' }} – {{ certificate.notAfter | date:'yyyy-MM-dd' }}</td>
+          <td>{{ certificate.status }}</td>
+          <td>{{ certificate.versionNumber }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <ng-template #inventoryEmpty>
+    <p class="empty">No hay certificados para la cámara y el ambiente seleccionados.</p>
+  </ng-template>
 </section>
 
 <ng-template #loadingTpl>

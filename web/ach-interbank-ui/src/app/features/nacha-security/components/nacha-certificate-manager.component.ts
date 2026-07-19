@@ -10,6 +10,8 @@ import {
   CertificateUploadContext
 } from '../services/certificate-management-api.service';
 import { DigitalEnvelopeCertificateType } from '../models/digital-envelope-certificate.model';
+import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
+import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
 
 const MAX_CERTIFICATE_SIZE = 10 * 1024 * 1024;
 
@@ -35,12 +37,20 @@ export class NachaCertificateManagerComponent implements OnInit {
   private readonly certificatesService = inject(CertificateManagementApiService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly clearingHousesApi = inject(ClearingHousesApiService, { optional: true });
   private readonly fileInputs: Partial<Record<DigitalEnvelopeCertificateType, HTMLInputElement>> = {};
 
   uploadingType?: DigitalEnvelopeCertificateType;
   loading = false;
   error?: string;
   success?: string;
+  certificates: CertificateListItem[] = [];
+  clearingHouses: ClearingHouseOption[] = [];
+
+  readonly contextForm = this.fb.group({
+    clearingHouseId: [1, Validators.required],
+    environment: ['Test' as 'Test' | 'Production', Validators.required]
+  });
 
   readonly slots: CertificateSlot[] = [
     {
@@ -82,7 +92,43 @@ export class NachaCertificateManagerComponent implements OnInit {
   } as Record<DigitalEnvelopeCertificateType, FormGroup>;
 
   ngOnInit(): void {
-    this.loadCertificates();
+    if (this.clearingHousesApi) {
+      this.clearingHousesApi.list().subscribe({
+        next: (items) => {
+          this.clearingHouses = items;
+          const currentExists = items.some((item) => item.id === this.contextForm.controls.clearingHouseId.value);
+          this.contextForm.controls.clearingHouseId.setValue(
+            currentExists ? this.contextForm.controls.clearingHouseId.value : items[0]?.id ?? 1,
+            { emitEvent: false });
+          this.syncSlotContext();
+          this.loadCertificates();
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.error = 'No se pudieron consultar las cámaras de compensación.';
+          this.loadCertificates();
+        }
+      });
+    } else {
+      this.loadCertificates();
+    }
+
+    this.contextForm.valueChanges.subscribe(() => {
+      this.syncSlotContext();
+      this.loadCertificates();
+    });
+  }
+
+  get expiringCertificates(): CertificateListItem[] {
+    const threshold = Date.now() + (30 * 24 * 60 * 60 * 1000);
+    return this.certificates.filter((certificate) => {
+      const expires = new Date(certificate.notAfter).getTime();
+      return Number.isFinite(expires) && expires <= threshold;
+    });
+  }
+
+  clearingHouseName(id: number): string {
+    return this.clearingHouses.find((item) => item.id === id)?.name ?? `Cámara ${id}`;
   }
 
   onFileSelected(type: DigitalEnvelopeCertificateType, event: Event): void {
@@ -189,20 +235,49 @@ export class NachaCertificateManagerComponent implements OnInit {
     return this.slots.find((slot) => slot.type === type)!;
   }
 
+  private syncSlotContext(): void {
+    const clearingHouseId = Number(this.contextForm.controls.clearingHouseId.value ?? 0);
+    const selectedHouse = this.clearingHouses.find((item) => item.id === clearingHouseId);
+    const chamberCode = (selectedHouse?.name ?? 'ACHCOL').replace(/\s+/g, '').toUpperCase().includes('CENIT')
+      ? 'CENIT'
+      : 'ACHCOL';
+    const environment = this.contextForm.controls.environment.value ?? 'Test';
+
+    for (const slot of this.slots) {
+      slot.clearingHouseId = clearingHouseId || 1;
+      slot.environment = environment;
+      if (slot.type === 'EncryptionPublic') {
+        slot.code = `${chamberCode}-OUTBOUND-ENCRYPTION`;
+        slot.displayName = `${selectedHouse?.name ?? 'ACH Colombia'} - cifrado saliente`;
+        slot.description = `Certificado público de ${selectedHouse?.name ?? 'la cámara'} usado para cifrar sobres digitales.`;
+      } else {
+        slot.code = chamberCode === 'ACHCOL' ? 'CFA-OUTBOUND-SIGNING' : `CFA-${chamberCode}-OUTBOUND-SIGNING`;
+        slot.displayName = `CFA - firma saliente ${selectedHouse?.name ?? 'ACH Colombia'}`;
+        slot.description = `Certificado privado de CFA para firmar archivos dirigidos a ${selectedHouse?.name ?? 'la cámara'}.`;
+      }
+    }
+  }
+
   private loadCertificates(): void {
     this.loading = true;
     this.cdr.markForCheck();
 
     this.certificatesService
-      .list()
+      .list({
+        clearingHouseId: Number(this.contextForm.controls.clearingHouseId.value ?? 0) || undefined,
+        environment: this.contextForm.controls.environment.value ?? 'Test'
+      })
       .pipe(finalize(() => {
         this.loading = false;
         this.cdr.markForCheck();
       }))
       .subscribe({
         next: (certificates) => {
+          this.certificates = certificates;
           this.slots.forEach((slot) => {
-            slot.certificate = certificates.find((certificate) => certificate.code === slot.code);
+            slot.certificate = certificates
+              .filter((certificate) => certificate.code === slot.code)
+              .sort((left, right) => right.versionNumber - left.versionNumber)[0];
           });
           this.cdr.markForCheck();
         },

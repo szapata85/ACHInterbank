@@ -7,6 +7,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("navigation/menu-items")]
+[Route("api/navigation/menu-items")]
 [Authorize(Roles = "Admin")]
 public class MenuItemsController : ControllerBase
 {

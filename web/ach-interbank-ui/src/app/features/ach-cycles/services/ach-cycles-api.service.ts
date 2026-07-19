@@ -12,7 +12,7 @@ import { Observable, map, shareReplay } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class AchCyclesApiService {
   private readonly api = inject(ApiService);
-  private readonly basePath = 'ach-cycles';
+  private readonly basePath = 'api/ach-cycles';
 
   search(filter: AchCycleFilter): Observable<PagedAchCycleResponse> {
     const params: Record<string, string | number | boolean> = {

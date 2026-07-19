@@ -16,5 +16,5 @@ export const roleGuard: CanActivateFn = (route) => {
     return true;
   }
 
-  return router.parseUrl('/');
+  return router.parseUrl('/unauthorized');
 };

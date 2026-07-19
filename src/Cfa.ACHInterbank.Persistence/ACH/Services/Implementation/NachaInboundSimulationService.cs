@@ -31,6 +31,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
     {
         var preview = await PreviewAsync(new InboundSimulationEligibilityPreviewRequest
         {
+            SimulationMode = request.SimulationMode,
             ClearingHouseCode = request.ClearingHouseCode,
             ScenarioType = request.ScenarioType,
             OriginFinancialInstitutionId = request.OriginFinancialInstitutionId,
@@ -66,18 +67,21 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         var entriesCount = Math.Max(1, existingReferences.Count == 0 ? request.EntriesCount : existingReferences.Count);
         var sequence = await NextDailySequenceAsync(clearingHouse.Id, origin.Id, request.BusinessDate, ct);
         var fileId = MapSequenceToFileId(sequence);
-        var fileName = $"{origin.RoutingNumber}{origin.TransitCode}.{sequence:000}.1";
-        var build = BuildFile(request, clearingHouse, origin, destination, existingReferences, entriesCount, fileId);
+        var fileName = BuildExternalFileName(clearingHouse, origin, request.BusinessDate, sequence);
+        var build = BuildFile(request, clearingHouse, origin, destination, existingReferences, entriesCount, sequence, fileId);
         var bytes = Encoding.ASCII.GetBytes(build.Content);
         var sha = Convert.ToHexString(SHA256.HashData(bytes));
-        var outputDirectory = ResolveOutputDirectory(clearingHouse.Code, request.ScenarioType);
+        var executionId = Guid.NewGuid();
+        var outputDirectory = Path.Combine(
+            ResolveOutputDirectory(clearingHouse.Code, request.ScenarioType),
+            executionId.ToString("N"));
         Directory.CreateDirectory(outputDirectory);
         var path = Path.Combine(outputDirectory, fileName);
         await File.WriteAllBytesAsync(path, bytes, ct);
 
         var simulation = new NachaInboundSimulation
         {
-            SimulationId = Guid.NewGuid(),
+            SimulationId = executionId,
             ClearingHouseId = clearingHouse.Id,
             ClearingHouseName = clearingHouse.Name,
             ScenarioType = request.ScenarioType,
@@ -191,64 +195,249 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             entity.DestinationFinancialInstitutionId, InstitutionCode(entity.DestinationFinancialInstitution),
             entity.DestinationFinancialInstitution.IsDefaultSource, "FinancialInstitution.IsDefaultSource",
             entity.BusinessDate, entity.CycleCode, entity.FileName, entity.Sha256,
-            entity.FileSizeBytes, string.Empty, 0, 0, string.Empty, true, false, true, UploadFlow, false, _options.Mode);
+            entity.FileSizeBytes, string.Empty, 0, 0, string.Empty, true, false, true, UploadFlow, false, _options.Mode)
+        {
+            SimulationMode = InferSimulationMode(entity.ScenarioType),
+            Environment = _options.Mode
+        };
     }
 
     public async Task<InboundSimulationEligibilityPreviewResponse> PreviewAsync(InboundSimulationEligibilityPreviewRequest request, CancellationToken ct = default)
     {
         if (!_options.IsUatLike())
         {
-            return Blocked("SIMULATOR_DISABLED", "El simulador NACHA-M de entrada esta deshabilitado o no esta en modo UAT/local.");
+            return Blocked("SIMULATOR_DISABLED", "El simulador NACHA-M está deshabilitado o no está en modo UAT/local.", request.SimulationMode);
         }
 
         if (_options.AllowAutoImport || _options.AllowExternalTransmission)
         {
-            return Blocked("SIMULATOR_GUARDRAIL_FAILED", "El simulador no puede autoimportar ni transmitir externamente.");
+            return Blocked("SIMULATOR_GUARDRAIL_FAILED", "El simulador no puede autoimportar ni transmitir externamente.", request.SimulationMode);
+        }
+
+        if (request.SimulationMode == NachaSimulationMode.IncomingTransactions
+            && RequiresTransactionReferences(request.ScenarioType))
+        {
+            return Blocked("SIMULATION_MODE_SCENARIO_MISMATCH",
+                "El escenario seleccionado corresponde a una respuesta diferencial, no a una transacción entrante nueva.",
+                request.SimulationMode);
+        }
+
+        if (request.SimulationMode == NachaSimulationMode.DifferentialResponses
+            && !RequiresTransactionReferences(request.ScenarioType)
+            && request.ScenarioType != NachaInboundSimulationType.IncomingPrenotificationResponse)
+        {
+            return Blocked("SIMULATION_MODE_SCENARIO_MISMATCH",
+                "El escenario seleccionado crea una transacción nueva y no puede usarse como respuesta diferencial.",
+                request.SimulationMode);
+        }
+
+        if (request.SimulationMode == NachaSimulationMode.DifferentialResponses
+            && !_options.DifferentialResponsesEnabled)
+        {
+            return Blocked("DIFFERENTIAL_RESPONSES_DISABLED",
+                "El modo Respuestas diferenciales está deshabilitado por configuración.",
+                request.SimulationMode);
         }
 
         if (string.IsNullOrWhiteSpace(request.ClearingHouseCode))
         {
-            return Blocked("CLEARING_HOUSE_REQUIRED", "Debe seleccionar una camara.");
+            return Blocked("CLEARING_HOUSE_REQUIRED", "Debe seleccionar una cámara.", request.SimulationMode);
         }
 
         var originValidation = await ValidateOriginAndDestinationAsync(request.OriginFinancialInstitutionId, request.DestinationFinancialInstitutionId, request.DestinationFinancialInstitutionCode, ct);
         if (originValidation is not null)
         {
-            return originValidation;
+            return originValidation with { SimulationMode = request.SimulationMode };
         }
 
         if (request.EntriesCount < 1 || request.EntriesCount > Math.Max(1, _options.MaxEntriesPerSimulation))
         {
-            return Blocked("ENTRIES_COUNT_INVALID", $"La cantidad debe estar entre 1 y {_options.MaxEntriesPerSimulation}.");
+            return Blocked("ENTRIES_COUNT_INVALID", $"La cantidad debe estar entre 1 y {_options.MaxEntriesPerSimulation}.", request.SimulationMode);
         }
 
         if (RequiresReason(request.ScenarioType) && string.IsNullOrWhiteSpace(request.ReasonCode))
         {
-            return Blocked("TRANSACTION_REASON_CODE_REQUIRED", "El escenario requiere causal.");
+            return Blocked("TRANSACTION_REASON_CODE_REQUIRED", "El escenario requiere causal.", request.SimulationMode);
         }
 
         var clearingHouse = await ResolveClearingHouseAsync(request.ClearingHouseCode, ct);
         if (!_options.AllowedClearingHouses.Any(x => MatchesCode(clearingHouse, x)))
         {
-            return Blocked("CLEARING_HOUSE_NOT_SUPPORTED", "La camara no esta habilitada para el simulador UAT/local.");
+            return Blocked("CLEARING_HOUSE_NOT_SUPPORTED", "La cámara no está habilitada para el simulador UAT/local.", request.SimulationMode);
         }
 
         if (request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationResponse
             && request.PendingPrenotificationReferences.Count == 0)
         {
-            return Blocked("PRENOTIFICATION_NOT_FOUND", "Debe suministrar al menos una referencia de prenotificacion pendiente.");
+            return Blocked("PRENOTIFICATION_NOT_FOUND", "Debe suministrar al menos una referencia de prenotificación pendiente.", request.SimulationMode);
         }
 
         if (RequiresTransactionReferences(request.ScenarioType) && request.TransactionReferences.Count == 0)
         {
-            return Blocked("TRANSACTION_NOT_FOUND", "Debe suministrar referencias de transacciones UAT para este escenario.");
+            return Blocked("TRANSACTION_NOT_FOUND", "Debe suministrar referencias de transacciones UAT para este escenario.", request.SimulationMode);
         }
 
-        await ResolveReferencesAsync(request, clearingHouse.Id, ct);
+        try
+        {
+            await ResolveReferencesAsync(request, clearingHouse.Id, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            var split = ex.Message.Split(':', 2);
+            return Blocked(
+                split[0],
+                split.Length == 2 ? split[1].Trim() : ex.Message,
+                request.SimulationMode);
+        }
+
+        if (request.SimulationMode == NachaSimulationMode.DifferentialResponses)
+        {
+            var profile = await ResolvePublishedDifferentialProfileAsync(clearingHouse, request.BusinessDate, ct);
+            if (profile is null)
+            {
+                return Blocked("DIFFERENTIAL_PROFILE_NOT_PUBLISHED",
+                    "No existe un perfil NACHA-M publicado y vigente para RETORNO/ENTRADA en la cámara seleccionada. La generación permanece bloqueada para no inventar una regla financiera.",
+                    request.SimulationMode);
+            }
+
+            return Blocked("DIFFERENTIAL_GENERATOR_NOT_HOMOLOGATED",
+                $"El perfil {profile} existe, pero el generador diferencial aún no tiene homologación demostrada. No se generará un archivo con semántica ambigua.",
+                request.SimulationMode);
+        }
 
         return new InboundSimulationEligibilityPreviewResponse(true, "ELIGIBLE",
             "Solicitud elegible. La generacion solo creara un archivo para descarga; el procesamiento real debe hacerse por NachaUpload.",
-            null, true, false, true, false);
+            null, request.SimulationMode, true, false, true, false);
+    }
+
+    public async Task<DifferentialResponseTransactionPage> ListEligibleDifferentialTransactionsAsync(
+        DifferentialResponseTransactionQuery request,
+        CancellationToken ct = default)
+    {
+        var clearingHouse = await ResolveClearingHouseAsync(request.ClearingHouseCode, ct);
+        var page = Math.Max(1, request.Page);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var query = _context.AchTransactions
+            .AsNoTracking()
+            .Where(x => x.SourceInstitution.IsDefaultSource
+                && !x.DestinationInstitution.IsDefaultSource
+                && x.AchCycle.ClearingHouseId == clearingHouse.Id);
+
+        if (request.DestinationFinancialInstitutionId.HasValue)
+        {
+            query = query.Where(x => x.DestinationInstitutionId == request.DestinationFinancialInstitutionId.Value);
+        }
+
+        if (request.FromDate.HasValue)
+        {
+            var from = request.FromDate.Value.ToDateTime(TimeOnly.MinValue);
+            query = query.Where(x => x.EffectiveEntryDate >= from);
+        }
+
+        if (request.ToDate.HasValue)
+        {
+            var toExclusive = request.ToDate.Value.AddDays(1).ToDateTime(TimeOnly.MinValue);
+            query = query.Where(x => x.EffectiveEntryDate < toExclusive);
+        }
+
+        if (Enum.TryParse<AchTransferStateEnum>(request.State, true, out var state))
+        {
+            query = query.Where(x => x.State == state);
+        }
+
+        if (Enum.TryParse<TransactionTypeEnum>(request.TransactionType, true, out var transactionType))
+        {
+            query = query.Where(x => x.Type == transactionType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.TraceNumber))
+        {
+            var trace = request.TraceNumber.Trim();
+            query = query.Where(x => x.TraceNumber == trace);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim();
+            query = query.Where(x => x.TransactionExternalId.Contains(search)
+                || x.Reference.Contains(search)
+                || x.TraceNumber.Contains(search));
+        }
+
+        var total = await query.CountAsync(ct);
+        var rows = await query
+            .OrderByDescending(x => x.EffectiveEntryDate)
+            .ThenByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new
+            {
+                x.Id,
+                x.TransactionExternalId,
+                x.Reference,
+                x.TraceNumber,
+                ClearingHouse = x.AchCycle.ClearingHouse!.Name,
+                x.DestinationInstitutionId,
+                DestinationInstitution = x.DestinationInstitution.Name,
+                TransactionType = x.Type.ToString(),
+                x.EffectiveEntryDate,
+                Cycle = x.AchCycle.CycleName,
+                x.Amount,
+                State = x.State.ToString()
+            })
+            .ToListAsync(ct);
+
+        var correlationKeys = rows
+            .SelectMany(x => new[] { x.TransactionExternalId, x.Reference, x.TraceNumber })
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var priorResponses = correlationKeys.Length == 0
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : (await _context.AchResponses
+                .AsNoTracking()
+                .Where(x => correlationKeys.Contains(x.IdTransaccion))
+                .Select(x => x.IdTransaccion)
+                .Distinct()
+                .ToListAsync(ct))
+                .ToHashSet(StringComparer.Ordinal);
+
+        var items = rows.Select(x =>
+        {
+            var hasPriorResponse = priorResponses.Contains(x.TransactionExternalId)
+                || priorResponses.Contains(x.Reference)
+                || priorResponses.Contains(x.TraceNumber);
+            var correlationComplete = !string.IsNullOrWhiteSpace(x.TraceNumber)
+                && !string.IsNullOrWhiteSpace(x.TransactionExternalId);
+            var pending = string.Equals(x.State, AchTransferStateEnum.Pending.ToString(), StringComparison.Ordinal);
+            var eligible = pending && correlationComplete && !hasPriorResponse;
+            var reason = !pending
+                ? "La operación ya no está pendiente."
+                : !correlationComplete
+                    ? "Faltan trace number o identificador de correlación."
+                    : hasPriorResponse
+                        ? "La operación ya tiene una respuesta persistida."
+                        : null;
+
+            return new DifferentialResponseEligibleTransactionDto(
+                x.Id,
+                string.IsNullOrWhiteSpace(x.TransactionExternalId) ? x.Reference : x.TransactionExternalId,
+                x.TraceNumber,
+                x.ClearingHouse,
+                x.DestinationInstitutionId,
+                x.DestinationInstitution,
+                x.TransactionType,
+                x.EffectiveEntryDate,
+                x.Cycle,
+                x.Amount,
+                x.State,
+                hasPriorResponse,
+                eligible,
+                reason);
+        }).ToList();
+
+        return new DifferentialResponseTransactionPage(items, page, pageSize, total);
     }
 
     private async Task<ClearingHouse> ResolveClearingHouseAsync(string code, CancellationToken ct)
@@ -378,7 +567,11 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
         var transactions = await _context.AchTransactions
             .Include(x => x.AchCycle)
-            .Where(x => references.Contains(x.Reference))
+            .Include(x => x.SourceInstitution)
+            .Include(x => x.DestinationInstitution)
+            .Where(x => references.Contains(x.Reference)
+                || references.Contains(x.TransactionExternalId)
+                || references.Contains(x.TraceNumber))
             .ToListAsync(ct);
 
         if (transactions.Count != references.Count)
@@ -395,6 +588,41 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             && transactions.Any(x => !x.IsPrenotification))
         {
             throw new InvalidOperationException("PRENOTIFICATION_NOT_PENDING: La referencia no corresponde a una prenotificacion pendiente.");
+        }
+
+        if (request.SimulationMode == NachaSimulationMode.DifferentialResponses)
+        {
+            if (!request.OriginFinancialInstitutionId.HasValue)
+            {
+                throw new InvalidOperationException("RESPONDING_FINANCIAL_INSTITUTION_REQUIRED: Debe seleccionar el banco destino que responde.");
+            }
+
+            if (transactions.Any(x => !x.SourceInstitution.IsDefaultSource))
+            {
+                throw new InvalidOperationException("DIFFERENTIAL_SOURCE_MUST_BE_CFA: Las respuestas diferenciales solo pueden partir de operaciones originadas por CFA.");
+            }
+
+            if (transactions.Any(x => x.DestinationInstitutionId != request.OriginFinancialInstitutionId.Value
+                                      || x.DestinationInstitution.IsDefaultSource))
+            {
+                throw new InvalidOperationException("RESPONDING_BANK_MISMATCH: El banco que responde debe ser el destino externo de cada operación original.");
+            }
+
+            if (transactions.Any(x => x.State is AchTransferStateEnum.ReturnedByOperator or AchTransferStateEnum.ReturnedByEpr))
+            {
+                throw new InvalidOperationException("DIFFERENTIAL_TRANSACTION_FINAL_STATE: Una o más operaciones ya están finalizadas con una devolución incompatible.");
+            }
+
+            if (transactions.Any(x => string.IsNullOrWhiteSpace(x.TraceNumber)
+                                      || string.IsNullOrWhiteSpace(x.TransactionExternalId)))
+            {
+                throw new InvalidOperationException("DIFFERENTIAL_CORRELATION_DATA_MISSING: La operación no conserva trace number e identificador suficientes para correlación determinística.");
+            }
+
+            if (transactions.Select(x => x.TraceNumber.Trim()).Distinct(StringComparer.Ordinal).Count() != transactions.Count)
+            {
+                throw new InvalidOperationException("DIFFERENTIAL_TRACE_NOT_UNIQUE: Los trace numbers seleccionados no son únicos.");
+            }
         }
 
         return transactions;
@@ -416,7 +644,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
     }
 
     private FileBuildResult BuildFile(GenerateNachaInboundSimulationRequest request, ClearingHouse clearingHouse, FinancialInstitution origin,
-        FinancialInstitution destination, IReadOnlyList<AchTransaction> references, int entriesCount, char fileId)
+        FinancialInstitution destination, IReadOnlyList<AchTransaction> references, int entriesCount, int fileSequence, char fileId)
     {
         var records = new List<string>();
         var entryRecords = new List<string>();
@@ -456,7 +684,8 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             var tx = references.Count > i ? references[i] : null;
             var reference = tx?.Reference ?? $"{request.ReferencePrefix}-{i + 1:000}";
             var transactionCode = TransactionCode(request.ScenarioType, request.ResponseMode);
-            var trace = $"{originDfi}{i + 1:0000000}";
+            var traceSequence = ((fileSequence - 1) * Math.Max(1, _options.MaxEntriesPerSimulation)) + i + 1;
+            var trace = $"{originDfi}{traceSequence:0000000}";
             var entry = Record('6',
                 (2, transactionCode),
                 (4, receivingDfi),
@@ -552,6 +781,51 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             _ => throw new InvalidOperationException("DAILY_SEQUENCE_EXHAUSTED: Secuencia fuera de rango 001-036.")
         };
 
+    private static string BuildExternalFileName(
+        ClearingHouse clearingHouse,
+        FinancialInstitution origin,
+        DateOnly businessDate,
+        int sequence)
+    {
+        var routingDigits = new string($"{origin.RoutingNumber}{origin.TransitCode}".Where(char.IsDigit).ToArray())
+            .PadLeft(7, '0');
+        var participant = routingDigits[..7];
+        var baseName = $"{participant}.{sequence:000}.{businessDate:yyyyMMdd}.{sequence}";
+        return clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+            ? baseName
+            : $"{baseName}.OUT";
+    }
+
+    private async Task<string?> ResolvePublishedDifferentialProfileAsync(
+        ClearingHouse clearingHouse,
+        DateOnly businessDate,
+        CancellationToken ct)
+    {
+        if (!_options.RequirePublishedDifferentialProfile)
+        {
+            return "PROFILE_CHECK_EXPLICITLY_DISABLED";
+        }
+
+        var effectiveAt = businessDate.ToDateTime(TimeOnly.MinValue);
+        var clearingHouseCodes = clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+            ? new[] { "CENIT" }
+            : new[] { "ACH", "ACHCOL" };
+
+        return await _context.CfgProfiles
+            .AsNoTracking()
+            .Where(x => clearingHouseCodes.Contains(x.ClearingHouse.Code)
+                && x.FlowType.Code == "RETORNO"
+                && x.Direction.Code == "ENTRADA"
+                && x.Status.Code == "PUBLICADO"
+                && x.EffectiveFrom <= effectiveAt
+                && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= effectiveAt))
+            .OrderByDescending(x => x.ContextPriority)
+            .ThenByDescending(x => x.VersionMajor)
+            .ThenByDescending(x => x.VersionMinor)
+            .Select(x => x.ProfileCode)
+            .FirstOrDefaultAsync(ct);
+    }
+
     private string ResolveOutputDirectory(string clearingHouseCode, NachaInboundSimulationType scenario)
     {
         var chamber = clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase) ? "cenit" : "ach-colombia";
@@ -563,11 +837,15 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
     private static NachaInboundSimulationMetadataDto CreateMetadata(NachaInboundSimulation simulation, FinancialInstitution origin,
         FinancialInstitution destination, FileBuildResult build, string sha, string fileName, long size)
-        => new(simulation.SimulationId, simulation.ClearingHouseName, simulation.ScenarioType.ToString(), simulation.ResponseMode?.ToString(),
+        => new NachaInboundSimulationMetadataDto(simulation.SimulationId, simulation.ClearingHouseName, simulation.ScenarioType.ToString(), simulation.ResponseMode?.ToString(),
             simulation.ReasonCode, origin.Name, destination.Name, origin.Id, InstitutionCode(origin), origin.IsDefaultSource,
             destination.Id, InstitutionCode(destination), destination.IsDefaultSource, "FinancialInstitution.IsDefaultSource",
             simulation.BusinessDate, simulation.CycleCode, fileName, sha, size,
-            build.RecordsDetected, build.BlockCount, build.EntryAddendaCount, build.EntryHash, true, false, true, UploadFlow, false, "UAT");
+            build.RecordsDetected, build.BlockCount, build.EntryAddendaCount, build.EntryHash, true, false, true, UploadFlow, false, "UAT")
+        {
+            SimulationMode = InferSimulationMode(simulation.ScenarioType),
+            Environment = "UAT"
+        };
 
     private static async Task WriteEvidenceAsync(string directory, NachaInboundSimulation simulation, NachaInboundSimulationMetadataDto metadata, string content, CancellationToken ct)
     {
@@ -593,14 +871,21 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         => Normalize(clearingHouse.Code) == Normalize(code) || Normalize(clearingHouse.Name) == Normalize(code);
     private static string InstitutionCode(FinancialInstitution institution) => $"{institution.RoutingNumber}{institution.TransitCode}";
     private static string Normalize(string value) => value.Trim().ToUpperInvariant().Replace(" ", "_").Replace("-", "_");
-    private static InboundSimulationEligibilityPreviewResponse Blocked(string code, string message)
-        => new(false, "BLOCKED", message, code, true, false, true, false);
+    private static InboundSimulationEligibilityPreviewResponse Blocked(
+        string code,
+        string message,
+        NachaSimulationMode simulationMode = NachaSimulationMode.IncomingTransactions)
+        => new(false, "BLOCKED", message, code, simulationMode, true, false, true, false);
     private static bool RequiresReason(NachaInboundSimulationType scenario)
         => scenario.ToString().Contains("Rejection", StringComparison.OrdinalIgnoreCase) || scenario.ToString().Contains("Return", StringComparison.OrdinalIgnoreCase);
     private static bool RequiresTransactionReferences(NachaInboundSimulationType scenario)
         => scenario is NachaInboundSimulationType.IncomingCreditConfirmation or NachaInboundSimulationType.IncomingCreditRejection
             or NachaInboundSimulationType.IncomingCreditReturn or NachaInboundSimulationType.IncomingDebitConfirmation
             or NachaInboundSimulationType.IncomingDebitRejection or NachaInboundSimulationType.IncomingDebitReturn;
+    private static NachaSimulationMode InferSimulationMode(NachaInboundSimulationType scenario)
+        => RequiresTransactionReferences(scenario) || scenario == NachaInboundSimulationType.IncomingPrenotificationResponse
+            ? NachaSimulationMode.DifferentialResponses
+            : NachaSimulationMode.IncomingTransactions;
     private static bool IsDebitScenario(NachaInboundSimulationType scenario) => scenario.ToString().Contains("Debit", StringComparison.OrdinalIgnoreCase);
     private static bool IsCreditScenario(NachaInboundSimulationType scenario) => scenario.ToString().Contains("Credit", StringComparison.OrdinalIgnoreCase);
     private static string Nature(NachaInboundSimulationType scenario) => IsDebitScenario(scenario) ? "Debit" : "Credit";

@@ -55,6 +55,22 @@ public sealed record AchResponseSearchRequest(
     int PageNumber,
     int PageSize);
 
+public sealed record AchResponseDashboardRequest(
+    DateTime? FechaDesde,
+    DateTime? FechaHasta,
+    string? TipoRespuesta);
+
+public sealed record AchResponseDashboardResponse(
+    int TotalRespuestas,
+    int Recibidas,
+    int Homologadas,
+    int Notificadas,
+    int NoHomologadas,
+    int RevisionManual,
+    int PendientesReintento,
+    int ErroresFuncionales,
+    int Duplicadas);
+
 public sealed record AchResponseListItemResponse(
     Guid Id,
     string TipoRespuesta,

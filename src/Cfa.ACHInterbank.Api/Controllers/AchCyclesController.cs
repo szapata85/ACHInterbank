@@ -7,6 +7,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("ach-cycles")]
+[Route("api/ach-cycles")]
 [Authorize]
 public class AchCyclesController : ControllerBase
 {

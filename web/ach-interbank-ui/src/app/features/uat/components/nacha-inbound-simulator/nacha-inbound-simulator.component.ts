@@ -9,10 +9,12 @@ import { DestinationInstitution } from '../../../transactions/transactions.model
 import { FinancialInstitutionStatusEnum } from '../../../transactions/transactions.types';
 import {
   GenerateNachaInboundSimulationRequest,
+  DifferentialResponseEligibleTransaction,
   InboundResponseMode,
   NachaInboundSimulationItem,
   NachaInboundSimulationResult,
   NachaInboundSimulationType,
+  NachaSimulationMode,
   NachaInboundSimulatorService
 } from '../../services/nacha-inbound-simulator.service';
 
@@ -39,22 +41,32 @@ export class NachaInboundSimulatorComponent implements OnInit {
   defaultDestination: DestinationInstitution | null = null;
   result: NachaInboundSimulationResult | null = null;
   error: string | null = null;
+  eligibleTransactions: DifferentialResponseEligibleTransaction[] = [];
+  eligibleTotal = 0;
+  eligiblePage = 1;
+  readonly eligiblePageSize = 10;
+  loadingEligible = false;
+  readonly selectedTransactionIds = new Set<number>();
+  private readonly selectedTransactionReferences = new Map<number, string>();
 
   readonly clearingHouses = [
     { value: 'ACHCOL', label: 'ACH Colombia' },
     { value: 'CENIT', label: 'CENIT' }
   ];
 
-  readonly scenarios: Array<{ value: NachaInboundSimulationType; label: string }> = [
-    { value: 'IncomingCredit', label: 'Credito entrante' },
-    { value: 'IncomingDebit', label: 'Debito entrante' },
-    { value: 'IncomingPrenotificationResponse', label: 'Respuesta prenotificacion' },
-    { value: 'IncomingCreditConfirmation', label: 'Confirmacion credito' },
-    { value: 'IncomingCreditRejection', label: 'Rechazo credito' },
-    { value: 'IncomingCreditReturn', label: 'Devolucion credito' },
-    { value: 'IncomingDebitConfirmation', label: 'Confirmacion debito' },
-    { value: 'IncomingDebitRejection', label: 'Rechazo debito' },
-    { value: 'IncomingDebitReturn', label: 'Devolucion debito' }
+  readonly incomingScenarios: Array<{ value: NachaInboundSimulationType; label: string }> = [
+    { value: 'IncomingCredit', label: 'Crédito entrante' },
+    { value: 'IncomingDebit', label: 'Débito entrante' }
+  ];
+
+  readonly differentialScenarios: Array<{ value: NachaInboundSimulationType; label: string }> = [
+    { value: 'IncomingCreditConfirmation', label: 'Aceptación de crédito' },
+    { value: 'IncomingCreditRejection', label: 'Rechazo de crédito' },
+    { value: 'IncomingCreditReturn', label: 'Devolución de crédito' },
+    { value: 'IncomingDebitConfirmation', label: 'Aceptación de débito' },
+    { value: 'IncomingDebitRejection', label: 'Rechazo de débito' },
+    { value: 'IncomingDebitReturn', label: 'Devolución de débito' },
+    { value: 'IncomingPrenotificationResponse', label: 'Respuesta de prenotificación' }
   ];
 
   readonly responseModes: Array<{ value: InboundResponseMode; label: string }> = [
@@ -66,6 +78,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   ];
 
   readonly form = this.fb.group({
+    simulationMode: ['IncomingTransactions' as NachaSimulationMode, Validators.required],
     clearingHouseCode: ['ACHCOL', Validators.required],
     scenarioType: ['IncomingCredit' as NachaInboundSimulationType, Validators.required],
     originFinancialInstitutionId: [null as number | null, Validators.required],
@@ -119,7 +132,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   }
 
   preview(): void {
-    if (this.form.invalid) {
+    if (this.form.invalid || (this.isDifferentialMode() && this.selectedTransactionIds.size === 0)) {
       this.form.markAllAsTouched();
       return;
     }
@@ -131,13 +144,20 @@ export class NachaInboundSimulatorComponent implements OnInit {
         this.cdr.markForCheck();
       }))
       .subscribe({
-        next: () => this.notifications.success('Solicitud elegible para generar archivo simulado.'),
+        next: (response) => {
+          if (response?.eligible) {
+            this.notifications.success('Solicitud elegible para generar el archivo simulado.');
+          } else {
+            this.notifications.error(response?.message || 'La solicitud no es elegible.');
+          }
+        },
         error: (error: HttpErrorResponse) => this.notifications.error(this.errorMessage(error))
       });
   }
 
   generate(): void {
-    if (this.form.invalid || this.reasonRequiredMissing() || !this.defaultDestination) {
+    if (this.form.invalid || this.reasonRequiredMissing() || !this.defaultDestination
+      || (this.isDifferentialMode() && this.selectedTransactionIds.size === 0)) {
       this.form.markAllAsTouched();
       if (!this.defaultDestination) {
         this.notifications.error('La entidad destino/receptora default CFA no esta disponible. No se puede generar.');
@@ -167,9 +187,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   }
 
   requiresReferences(): boolean {
-    return `${this.form.controls.scenarioType.value}`.includes('Confirmation')
-      || `${this.form.controls.scenarioType.value}`.includes('Rejection')
-      || `${this.form.controls.scenarioType.value}`.includes('Return');
+    return this.isDifferentialMode();
   }
 
   requiresPrenotificationReferences(): boolean {
@@ -181,8 +199,95 @@ export class NachaInboundSimulatorComponent implements OnInit {
     return (scenario.includes('Rejection') || scenario.includes('Return')) && !this.form.controls.reasonCode.value?.trim();
   }
 
+  isDifferentialMode(): boolean {
+    return this.form.controls.simulationMode.value === 'DifferentialResponses';
+  }
+
+  get scenarios(): Array<{ value: NachaInboundSimulationType; label: string }> {
+    return this.isDifferentialMode() ? this.differentialScenarios : this.incomingScenarios;
+  }
+
+  changeMode(mode: NachaSimulationMode): void {
+    const current = this.form.controls.simulationMode.value;
+    if (current === mode) {
+      return;
+    }
+
+    const hasUncommittedChanges = this.form.dirty || this.selectedTransactionIds.size > 0 || this.result !== null;
+    if (hasUncommittedChanges && !window.confirm('Cambiar de modo limpiará la selección y los campos incompatibles. ¿Desea continuar?')) {
+      return;
+    }
+
+    this.form.controls.simulationMode.setValue(mode);
+    this.form.controls.scenarioType.setValue(mode === 'DifferentialResponses'
+      ? 'IncomingCreditConfirmation'
+      : 'IncomingCredit');
+    this.form.controls.responseMode.setValue(mode === 'DifferentialResponses' ? 'Approved' : null);
+    this.form.controls.reasonCode.setValue('');
+    this.form.controls.pendingPrenotificationReferencesText.setValue('');
+    this.form.controls.transactionReferencesText.setValue('');
+    this.result = null;
+    this.selectedTransactionIds.clear();
+    this.selectedTransactionReferences.clear();
+    this.eligibleTransactions = [];
+    this.eligibleTotal = 0;
+    this.eligiblePage = 1;
+    this.form.markAsPristine();
+    if (mode === 'DifferentialResponses') {
+      this.loadEligibleTransactions();
+    }
+  }
+
+  loadEligibleTransactions(page = 1): void {
+    if (!this.isDifferentialMode()) {
+      return;
+    }
+
+    this.loadingEligible = true;
+    this.eligiblePage = Math.max(1, page);
+    this.api.eligibleDifferentialTransactions({
+      clearingHouseCode: this.form.controls.clearingHouseCode.value ?? 'ACHCOL',
+      destinationFinancialInstitutionId: this.form.controls.originFinancialInstitutionId.value ?? undefined,
+      fromDate: this.form.controls.businessDate.value ?? undefined,
+      state: 'Pending',
+      page: this.eligiblePage,
+      pageSize: this.eligiblePageSize
+    }).pipe(finalize(() => {
+      this.loadingEligible = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: (response) => {
+        this.eligibleTransactions = response.items ?? [];
+        this.eligibleTotal = response.total ?? 0;
+      },
+      error: (error: HttpErrorResponse) => this.notifications.error(this.errorMessage(error))
+    });
+  }
+
+  toggleTransaction(item: DifferentialResponseEligibleTransaction): void {
+    if (!item.eligible) {
+      return;
+    }
+    if (this.selectedTransactionIds.has(item.id)) {
+      this.selectedTransactionIds.delete(item.id);
+      this.selectedTransactionReferences.delete(item.id);
+    } else {
+      this.selectedTransactionIds.add(item.id);
+      this.selectedTransactionReferences.set(item.id, item.identifier);
+    }
+  }
+
+  selectedCount(): number {
+    return this.selectedTransactionIds.size;
+  }
+
+  selectedReferences(): string[] {
+    return Array.from(this.selectedTransactionReferences.values());
+  }
+
   private payload(): GenerateNachaInboundSimulationRequest {
     return {
+      simulationMode: this.form.controls.simulationMode.value ?? 'IncomingTransactions',
       clearingHouseCode: this.form.controls.clearingHouseCode.value ?? 'ACHCOL',
       scenarioType: this.form.controls.scenarioType.value ?? 'IncomingCredit',
       originFinancialInstitutionId: Number(this.form.controls.originFinancialInstitutionId.value),
@@ -192,7 +297,9 @@ export class NachaInboundSimulatorComponent implements OnInit {
       businessDate: this.form.controls.businessDate.value ?? new Date().toISOString().substring(0, 10),
       cycleCode: this.form.controls.cycleCode.value ?? 'Ciclo 3',
       pendingPrenotificationReferences: this.splitLines(this.form.controls.pendingPrenotificationReferencesText.value),
-      transactionReferences: this.splitLines(this.form.controls.transactionReferencesText.value),
+      transactionReferences: this.isDifferentialMode()
+        ? this.selectedReferences()
+        : this.splitLines(this.form.controls.transactionReferencesText.value),
       responseMode: this.form.controls.responseMode.value,
       reasonCode: this.form.controls.reasonCode.value || null,
       notes: this.form.controls.notes.value || null

@@ -158,7 +158,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             {
                 Id = AchCyclesId,
                 MenuId = MenuConfiguration.MainMenuId,
-                Label = "Ciclos ACH",
+                Label = "Configuración de ciclos",
                 Route = "/ach-cycles",
                 Icon = "schedule",
                 Order = 4,

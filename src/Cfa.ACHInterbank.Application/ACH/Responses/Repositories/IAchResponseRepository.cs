@@ -9,5 +9,6 @@ public interface IAchResponseRepository
     Task AddAsync(AchResponse response, CancellationToken cancellationToken = default);
     Task UpdateAsync(AchResponse response, CancellationToken cancellationToken = default);
     Task<PagedResult<AchResponseListItemModel>> SearchAsync(AchResponseSearchQuery query, CancellationToken cancellationToken = default);
+    Task<AchResponseDashboardModel> GetDashboardAsync(AchResponseDashboardQuery query, CancellationToken cancellationToken = default);
     Task<AchResponseDetailModel?> FindDetailByIdAsync(Guid id, CancellationToken cancellationToken = default);
 }

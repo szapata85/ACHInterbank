@@ -16,7 +16,7 @@ export class CenitRegulatoryApiService {
   private readonly basePath = 'api/regulatory-catalogs';
 
   getReturnCodes(): Observable<CenitReturnCode[]> {
-    return this.api.get<CenitReturnCode[]>(`${this.basePath}/return-codes`);
+    return this.api.get<CenitReturnCode[]>(`${this.basePath}/return-codes?clearingHouseCode=CENIT`);
   }
 
   getFileRejectionCodes(): Observable<CenitFileRejectionCode[]> {

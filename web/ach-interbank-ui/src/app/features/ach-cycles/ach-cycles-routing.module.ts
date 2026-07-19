@@ -5,34 +5,46 @@ import { AchCycleFormComponent } from './components/ach-cycle-form.component';
 import { NachaExportComponent } from './components/nacha-export.component';
 import { permissionGuard } from '../../core/guards/permission.guard';
 
-const routes: Routes = [
+export const ACH_CYCLES_ROUTES: Routes = [
   {
     path: '',
+    pathMatch: 'full',
+    component: AchCycleListComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Ciclos ACH', title: 'Ciclos ACH' },
-    children: [
-      { path: '', component: AchCycleListComponent },
-      {
-        path: 'new',
-        component: AchCycleFormComponent,
-        data: { breadcrumb: 'Nuevo ciclo', title: 'Crear ciclo', permissions: ['CanManageAch'] }
-      },
-      {
-        path: 'nacha/export',
-        component: NachaExportComponent,
-        data: { breadcrumb: 'Exportar NACHA', title: 'Exportar NACHA-M', permissions: ['CanReadAch'] }
-      },
-      {
-        path: ':id/edit',
-        component: AchCycleFormComponent,
-        data: { breadcrumb: 'Editar ciclo', title: 'Editar ciclo', permissions: ['CanManageAch'] }
-      }
-    ]
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Ciclos ACH', title: 'Ciclos ACH' }
+  },
+  {
+    path: 'new',
+    component: AchCycleFormComponent,
+    canActivate: [permissionGuard],
+    data: { breadcrumb: 'Nuevo ciclo', title: 'Crear ciclo', permissions: ['CanManageAch'] }
+  },
+  {
+    path: 'nacha/export',
+    component: NachaExportComponent,
+    canActivate: [permissionGuard],
+    data: { breadcrumb: 'Exportar NACHA', title: 'Exportar NACHA-M', permissions: ['CanReadAch'] }
+  },
+  {
+    path: 'nacha/layouts',
+    pathMatch: 'full',
+    redirectTo: '/not-found'
+  },
+  {
+    path: 'nacha/definitions',
+    pathMatch: 'full',
+    redirectTo: '/not-found'
+  },
+  {
+    path: ':id/edit',
+    component: AchCycleFormComponent,
+    canActivate: [permissionGuard],
+    data: { breadcrumb: 'Editar ciclo', title: 'Editar ciclo', permissions: ['CanManageAch'] }
   }
 ];
 
 @NgModule({
-  imports: [RouterModule.forChild(routes)],
+  imports: [RouterModule.forChild(ACH_CYCLES_ROUTES)],
   exports: [RouterModule]
 })
 export class AchCyclesRoutingModule {}

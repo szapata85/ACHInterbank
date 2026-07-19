@@ -2,10 +2,10 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { forkJoin, map, Observable } from 'rxjs';
+import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { AchResponseSearchRequest } from '../models/ach-responses.models';
+import { AchResponseDashboardRequest, AchResponseDashboardResponse } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
 import { calculateAchRate, normalizeAchFilter } from '../utils/ach-response-formatters';
 
@@ -65,38 +65,19 @@ export class AchResponseDashboardPageComponent implements OnInit {
     this.error = false;
     this.cdr.markForCheck();
 
-    forkJoin({
-      totalRespuestas: this.countByStatus(),
-      recibidas: this.countByStatus('Recibida'),
-      homologadas: this.countByStatus('Homologada'),
-      notificadas: this.countByStatus('Notificada'),
-      noHomologadas: this.countByStatus('NoHomologada'),
-      revisionManual: this.countByStatus('RequiereRevisionManual'),
-      pendientesReintento: this.countByStatus('PendienteReintento'),
-      erroresFuncionales: this.countByStatus('ErrorFuncional'),
-      duplicadas: this.countByStatus('Duplicada')
-    }).subscribe({
+    this.api.getDashboard(this.buildDashboardRequest()).pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
       next: (counts) => {
-        this.kpis = [
-          { key: 'totalRespuestas', titulo: 'Total respuestas', valor: counts.totalRespuestas, descripcion: 'Total de respuestas recibidas.', clase: 'kpi-neutro', ruta: '/ach-responses' },
-          { key: 'recibidas', titulo: 'Recibidas', valor: counts.recibidas, descripcion: 'Respuestas en estado recibida.', clase: 'kpi-neutro', ruta: '/ach-responses' },
-          { key: 'homologadas', titulo: 'Homologadas', valor: counts.homologadas, descripcion: 'Respuestas homologadas.', clase: 'kpi-exitoso', ruta: '/ach-responses' },
-          { key: 'notificadas', titulo: 'Notificadas', valor: counts.notificadas, descripcion: 'Respuestas notificadas.', clase: 'kpi-exitoso', ruta: '/ach-responses' },
-          { key: 'noHomologadas', titulo: 'No homologadas', valor: counts.noHomologadas, descripcion: 'Casos sin homologación.', clase: 'kpi-advertencia', ruta: '/ach-responses/manual-review' },
-          { key: 'revisionManual', titulo: 'Revisión manual', valor: counts.revisionManual, descripcion: 'Casos que requieren revisión manual.', clase: 'kpi-advertencia', ruta: '/ach-responses/manual-review' },
-          { key: 'pendientesReintento', titulo: 'Pendientes reintento', valor: counts.pendientesReintento, descripcion: 'Casos pendientes de reintento.', clase: 'kpi-advertencia', ruta: '/ach-responses/manual-review' },
-          { key: 'erroresFuncionales', titulo: 'Errores funcionales', valor: counts.erroresFuncionales, descripcion: 'Casos con error funcional.', clase: 'kpi-error', ruta: '/ach-responses/manual-review' },
-          { key: 'duplicadas', titulo: 'Duplicadas', valor: counts.duplicadas, descripcion: 'Respuestas duplicadas.', clase: 'kpi-neutro', ruta: '/ach-responses' }
-        ];
+        this.kpis = this.mapKpis(counts);
       },
       error: () => {
         this.error = true;
         this.kpis = [];
         this.notifications.error('No fue posible cargar el dashboard operativo ACH.');
-      },
-      complete: () => {
-        this.loading = false;
-        this.cdr.markForCheck();
       }
     });
   }
@@ -123,17 +104,26 @@ export class AchResponseDashboardPageComponent implements OnInit {
 
   normalize(value: string | null | undefined): string | undefined { return normalizeAchFilter(value); }
 
-  private countByStatus(status?: string): Observable<number> {
+  private buildDashboardRequest(): AchResponseDashboardRequest {
     const raw = this.filtrosForm.getRawValue();
-    const request: AchResponseSearchRequest = {
+    return {
       fechaDesde: this.normalize(raw.fechaDesde),
       fechaHasta: this.normalize(raw.fechaHasta),
-      tipoRespuesta: this.normalize(raw.tipoRespuesta) as 'Prenota' | 'Transaccion' | undefined,
-      estadoProcesamiento: status,
-      pageNumber: 1,
-      pageSize: 1
+      tipoRespuesta: this.normalize(raw.tipoRespuesta) as 'Prenota' | 'Transaccion' | undefined
     };
+  }
 
-    return this.api.search(request).pipe(map((response) => response.totalCount ?? 0));
+  private mapKpis(counts: AchResponseDashboardResponse): AchDashboardKpi[] {
+    return [
+      { key: 'totalRespuestas', titulo: 'Total respuestas', valor: counts.totalRespuestas ?? 0, descripcion: 'Total de respuestas recibidas.', clase: 'kpi-neutro', ruta: '/ach-responses' },
+      { key: 'recibidas', titulo: 'Recibidas', valor: counts.recibidas ?? 0, descripcion: 'Respuestas en estado recibida.', clase: 'kpi-neutro', ruta: '/ach-responses' },
+      { key: 'homologadas', titulo: 'Homologadas', valor: counts.homologadas ?? 0, descripcion: 'Respuestas homologadas.', clase: 'kpi-exitoso', ruta: '/ach-responses' },
+      { key: 'notificadas', titulo: 'Notificadas', valor: counts.notificadas ?? 0, descripcion: 'Respuestas notificadas.', clase: 'kpi-exitoso', ruta: '/ach-responses' },
+      { key: 'noHomologadas', titulo: 'No homologadas', valor: counts.noHomologadas ?? 0, descripcion: 'Casos sin homologación.', clase: 'kpi-advertencia', ruta: '/ach-responses/manual-review' },
+      { key: 'revisionManual', titulo: 'Revisión manual', valor: counts.revisionManual ?? 0, descripcion: 'Casos que requieren revisión manual.', clase: 'kpi-advertencia', ruta: '/ach-responses/manual-review' },
+      { key: 'pendientesReintento', titulo: 'Pendientes reintento', valor: counts.pendientesReintento ?? 0, descripcion: 'Casos pendientes de reintento.', clase: 'kpi-advertencia', ruta: '/ach-responses/manual-review' },
+      { key: 'erroresFuncionales', titulo: 'Errores funcionales', valor: counts.erroresFuncionales ?? 0, descripcion: 'Casos con error funcional.', clase: 'kpi-error', ruta: '/ach-responses/manual-review' },
+      { key: 'duplicadas', titulo: 'Duplicadas', valor: counts.duplicadas ?? 0, descripcion: 'Respuestas duplicadas.', clase: 'kpi-neutro', ruta: '/ach-responses' }
+    ];
   }
 }

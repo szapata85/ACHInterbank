@@ -19,6 +19,11 @@ public static class P1Policies
     public const string NachaUpload = "P1.NachaUpload";
     public const string NachaGenerate = "P1.NachaGenerate";
     public const string NachaExport = "P1.NachaExport";
+    public const string NachaSimulatorRead = "P1.NachaSimulatorRead";
+    public const string NachaSimulatorGenerateIncoming = "P1.NachaSimulatorGenerateIncoming";
+    public const string NachaSimulatorGenerateDifferential = "P1.NachaSimulatorGenerateDifferential";
+    public const string NachaSimulatorDownload = "P1.NachaSimulatorDownload";
+    public const string NachaSimulatorLive = "P1.NachaSimulatorLive";
     public const string CertificatesRead = "P1.CertificatesRead";
     public const string CertificatesUploadPublic = "P1.CertificatesUploadPublic";
     public const string CertificatesRegisterPrivate = "P1.CertificatesRegisterPrivate";

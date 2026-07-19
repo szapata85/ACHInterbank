@@ -13,11 +13,12 @@ import {
 } from '../../transactions.models';
 import { ClearingHouseCycleConfigsApiService } from '../../services/clearing-house-cycle-configs-api.service';
 import { OpcionSelectorBuscable } from '../../../../shared/components/ui/ui-selector-buscable.component';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-cycle-config-management',
   standalone: true,
-  imports: [SharedModule],
+  imports: [SharedModule, RouterModule],
   templateUrl: './cycle-config-management.component.html',
   styleUrls: ['./cycle-config-management.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

@@ -1,72 +1,114 @@
-<app-page-header title="Simulador NACHA-M Entrada" subtitle="UAT / Simuladores"></app-page-header>
+<app-page-header
+  title="Simulador NACHA-M"
+  subtitle="UAT / Simuladores / NACHA-M">
+</app-page-header>
 
-<section class="notice">
-  Este simulador solo genera archivos. Para procesarlos debe cargarlos posteriormente por NachaUpload.
+<div class="badges" aria-label="Clasificación del ambiente">
+  <span class="badge badge-simulation">SIMULACIÓN</span>
+  <span class="badge badge-uat">UAT LOCAL</span>
+</div>
+
+<section class="notice" [class.notice-warning]="isDifferentialMode()">
+  <strong>{{ isDifferentialMode() ? 'Respuestas diferenciales' : 'Transacciones entrantes' }}</strong>
+  <span *ngIf="!isDifferentialMode()">
+    Genera operaciones nuevas originadas por una entidad externa y recibidas por CFA. El archivo debe validarse y cargarse mediante NachaUpload.
+  </span>
+  <span *ngIf="isDifferentialMode()">
+    Simula la respuesta de un banco destino a una operación originada por CFA. No crea una operación monetaria ni autoriza Proc_Contrapartidas o Proc_Transacciones.
+  </span>
+</section>
+
+<section class="mode-selector" aria-labelledby="simulation-mode-title">
+  <h2 id="simulation-mode-title">Modo de simulación</h2>
+  <div class="mode-options">
+    <button
+      type="button"
+      class="mode-card"
+      [class.active]="!isDifferentialMode()"
+      [attr.aria-pressed]="!isDifferentialMode()"
+      (click)="changeMode('IncomingTransactions')">
+      <span>
+        <strong>Transacciones entrantes</strong>
+        <small>Nueva operación: banco externo → CFA.</small>
+      </span>
+    </button>
+    <button
+      type="button"
+      class="mode-card"
+      [class.active]="isDifferentialMode()"
+      [attr.aria-pressed]="isDifferentialMode()"
+      (click)="changeMode('DifferentialResponses')">
+      <span>
+        <strong>Respuestas diferenciales</strong>
+        <small>Respuesta correlacionada: banco destino → CFA.</small>
+      </span>
+    </button>
+  </div>
 </section>
 
 <section class="panel">
-  <form [formGroup]="form" class="form-grid">
+  <form [formGroup]="form" class="form-grid" novalidate>
     <label>
-      Camara
-      <select formControlName="clearingHouseCode">
+      Cámara
+      <select formControlName="clearingHouseCode" (change)="isDifferentialMode() && loadEligibleTransactions()">
         <option *ngFor="let item of clearingHouses" [value]="item.value">{{ item.label }}</option>
       </select>
     </label>
 
     <label>
-      Escenario
+      Tipo de operación
       <select formControlName="scenarioType">
         <option *ngFor="let item of scenarios" [value]="item.value">{{ item.label }}</option>
       </select>
     </label>
 
-    <label>
-      Modo respuesta
+    <label *ngIf="isDifferentialMode()">
+      Resultado simulado
       <select formControlName="responseMode">
-        <option [ngValue]="null">No aplica</option>
+        <option [ngValue]="null">Seleccione un resultado</option>
         <option *ngFor="let item of responseModes" [value]="item.value">{{ item.label }}</option>
       </select>
     </label>
 
-    <label>
+    <label *ngIf="isDifferentialMode()">
       Causal
-      <input type="text" formControlName="reasonCode" placeholder="R01" />
-      <small *ngIf="reasonRequiredMissing()">Requerida para rechazo o devolucion.</small>
+      <input type="text" formControlName="reasonCode" placeholder="Ejemplo: R01" maxlength="20" />
+      <small *ngIf="reasonRequiredMissing()" class="error-text">La causal es obligatoria para rechazo o devolución.</small>
     </label>
 
     <label>
-      Entidad originadora externa
-      <select formControlName="originFinancialInstitutionId">
+      {{ isDifferentialMode() ? 'Banco destino que responde' : 'Entidad originadora externa' }}
+      <select formControlName="originFinancialInstitutionId" (change)="isDifferentialMode() && loadEligibleTransactions()">
         <option [ngValue]="null">Seleccione una entidad externa</option>
         <option *ngFor="let item of originFinancialInstitutions" [ngValue]="item.id">
           {{ item.name }} · {{ item.routingNumber }}{{ item.transitCode }}
         </option>
       </select>
-      <small>Solo se listan entidades activas con IsDefaultSource=false.</small>
+      <small>Solo entidades activas diferentes de CFA.</small>
     </label>
 
     <div class="readonly-field">
-      <span class="field-label">Entidad destino/receptora</span>
+      <span class="field-label">Entidad receptora</span>
       <strong>{{ defaultDestination?.name || 'No configurada' }}</strong>
       <small *ngIf="defaultDestination">
-        Resuelta automaticamente desde FinancialInstitution.IsDefaultSource=true · {{ defaultDestination.routingNumber }}{{ defaultDestination.transitCode }}
+        CFA, resuelta desde la entidad marcada como fuente predeterminada.
       </small>
-      <small *ngIf="!defaultDestination" class="error-text">Debe existir una unica entidad default activa para generar.</small>
+      <small *ngIf="!defaultDestination" class="error-text">Debe existir una única entidad CFA activa.</small>
     </div>
 
-    <label>
-      Cantidad registros
+    <label *ngIf="!isDifferentialMode()">
+      Cantidad de registros
       <input type="number" formControlName="entriesCount" min="1" max="10" />
     </label>
 
-    <label>
-      Monto
-      <input type="number" formControlName="amount" min="0" />
+    <label *ngIf="!isDifferentialMode()">
+      Valor por operación
+      <input type="number" formControlName="amount" min="0" step="0.01" />
     </label>
 
     <label>
-      Fecha negocio
-      <input type="date" formControlName="businessDate" />
+      Fecha de operación
+      <input type="date" formControlName="businessDate" (change)="isDifferentialMode() && loadEligibleTransactions()" />
     </label>
 
     <label>
@@ -74,52 +116,114 @@
       <input type="text" formControlName="cycleCode" />
     </label>
 
-    <label>
-      Prefijo referencia
-      <input type="text" formControlName="referencePrefix" />
-    </label>
-
-    <label class="wide" *ngIf="requiresPrenotificationReferences()">
-      Referencias de prenotificaciones pendientes
-      <textarea formControlName="pendingPrenotificationReferencesText" rows="3"></textarea>
-    </label>
-
-    <label class="wide" *ngIf="requiresReferences() && !requiresPrenotificationReferences()">
-      Referencias de transacciones UAT
-      <textarea formControlName="transactionReferencesText" rows="3"></textarea>
+    <label *ngIf="!isDifferentialMode()">
+      Prefijo de referencia
+      <input type="text" formControlName="referencePrefix" maxlength="24" />
     </label>
 
     <label class="wide">
-      Notas
-      <textarea formControlName="notes" rows="2"></textarea>
+      Observación
+      <textarea formControlName="notes" rows="2" maxlength="500"></textarea>
     </label>
-
-    <div class="actions wide">
-      <button type="button" class="btn btn-outline" (click)="preview()" [disabled]="previewing || generating || !defaultDestination">
-        <span class="material-symbols-outlined">rule</span>
-        {{ previewing ? 'Validando...' : 'Validar' }}
-      </button>
-      <button type="button" class="btn btn-primary" (click)="generate()" [disabled]="generating || previewing || !defaultDestination">
-        <span class="material-symbols-outlined">description</span>
-        {{ generating ? 'Generando...' : 'Generar archivo' }}
-      </button>
-    </div>
   </form>
 </section>
 
-<section class="panel result" *ngIf="result">
-  <h3>Archivo generado</h3>
+<section class="panel" *ngIf="isDifferentialMode()">
+  <div class="section-title">
+    <div>
+      <h3>Operaciones CFA elegibles</h3>
+      <p class="muted">Consulta paginada en servidor. Seleccionadas: {{ selectedCount() }}.</p>
+    </div>
+    <button type="button" class="btn btn-outline" (click)="loadEligibleTransactions()" [disabled]="loadingEligible">
+      {{ loadingEligible ? 'Consultando…' : 'Actualizar' }}
+    </button>
+  </div>
+
+  <div class="table-scroll" *ngIf="eligibleTransactions.length; else noEligibleTransactions" tabindex="0">
+    <table class="sim-table">
+      <thead>
+        <tr>
+          <th scope="col">Seleccionar</th>
+          <th scope="col">Identificador</th>
+          <th scope="col">Trace number</th>
+          <th scope="col">Banco destino</th>
+          <th scope="col">Tipo</th>
+          <th scope="col">Fecha</th>
+          <th scope="col">Ciclo</th>
+          <th scope="col">Valor</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Elegibilidad</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of eligibleTransactions">
+          <td>
+            <input
+              type="checkbox"
+              [checked]="selectedTransactionIds.has(item.id)"
+              [disabled]="!item.eligible"
+              [attr.aria-label]="'Seleccionar operación ' + item.identifier"
+              (change)="toggleTransaction(item)" />
+          </td>
+          <td>{{ item.identifier }}</td>
+          <td class="mono">{{ item.traceNumber }}</td>
+          <td>{{ item.destinationFinancialInstitution }}</td>
+          <td>{{ item.transactionType }}</td>
+          <td>{{ item.effectiveDate | date:'yyyy-MM-dd' }}</td>
+          <td>{{ item.cycle }}</td>
+          <td>{{ item.amount | number:'1.2-2' }}</td>
+          <td>{{ item.state }}</td>
+          <td>
+            <span class="eligibility" [class.blocked]="!item.eligible">
+              {{ item.eligible ? 'Elegible' : (item.ineligibilityReason || 'No elegible') }}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <ng-template #noEligibleTransactions>
+    <p class="empty-state">No hay operaciones que coincidan con la cámara, banco, fecha y estado seleccionados.</p>
+  </ng-template>
+
+  <div class="pagination" *ngIf="eligibleTotal > eligiblePageSize">
+    <button type="button" class="btn btn-outline" (click)="loadEligibleTransactions(eligiblePage - 1)" [disabled]="eligiblePage <= 1 || loadingEligible">Anterior</button>
+    <span>Página {{ eligiblePage }} · {{ eligibleTotal }} resultados</span>
+    <button type="button" class="btn btn-outline" (click)="loadEligibleTransactions(eligiblePage + 1)" [disabled]="eligiblePage * eligiblePageSize >= eligibleTotal || loadingEligible">Siguiente</button>
+  </div>
+</section>
+
+<section class="panel summary" aria-live="polite">
+  <h3>Resumen antes de generar</h3>
+  <dl>
+    <dt>Modo</dt><dd>{{ isDifferentialMode() ? 'Respuestas diferenciales' : 'Transacciones entrantes' }}</dd>
+    <dt>Ambiente</dt><dd>UAT local · simulación</dd>
+    <dt>Cámara</dt><dd>{{ form.controls.clearingHouseCode.value }}</dd>
+    <dt>Operaciones</dt><dd>{{ isDifferentialMode() ? selectedCount() : form.controls.entriesCount.value }}</dd>
+    <dt>Impacto monetario directo</dt><dd>{{ isDifferentialMode() ? 'No crea movimientos' : 'Nueva operación al cargar por el flujo formal' }}</dd>
+  </dl>
+  <div class="actions">
+    <button type="button" class="btn btn-outline" (click)="preview()" [disabled]="previewing || generating || !defaultDestination">
+      {{ previewing ? 'Validando…' : 'Validar configuración' }}
+    </button>
+    <button type="button" class="btn btn-primary" (click)="generate()" [disabled]="generating || previewing || !defaultDestination">
+      {{ generating ? 'Generando…' : 'Generar archivo' }}
+    </button>
+  </div>
+</section>
+
+<section class="panel result" *ngIf="result" aria-live="polite">
+  <h3>Archivo generado y pendiente de carga</h3>
   <p>{{ result.message }}</p>
   <dl>
     <dt>Archivo</dt><dd>{{ result.fileName }}</dd>
-    <dt>SHA256</dt><dd>{{ result.sha256 }}</dd>
-    <dt>generatedOnly</dt><dd>{{ result.generatedOnly }}</dd>
-    <dt>autoImported</dt><dd>{{ result.autoImported }}</dd>
-    <dt>uploadRequired</dt><dd>{{ result.uploadRequired }}</dd>
+    <dt>SHA-256</dt><dd class="hash">{{ result.sha256 }}</dd>
+    <dt>Importación automática</dt><dd>{{ result.autoImported ? 'Sí' : 'No' }}</dd>
+    <dt>Carga formal requerida</dt><dd>{{ result.uploadRequired ? 'Sí' : 'No' }}</dd>
+    <dt>Transmisión externa</dt><dd>{{ result.externalTransmission ? 'Sí' : 'No' }}</dd>
   </dl>
   <button type="button" class="btn btn-primary" (click)="download(result.id)">
-    <span class="material-symbols-outlined">download</span>
-    Descargar
+    Descargar archivo
   </button>
 </section>
 
@@ -127,34 +231,35 @@
   <div class="section-title">
     <h3>Simulaciones recientes</h3>
     <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">
-      <span class="material-symbols-outlined">refresh</span>
       Actualizar
     </button>
   </div>
 
-  <table class="sim-table" *ngIf="simulations.length; else empty">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Camara</th>
-        <th>Escenario</th>
-        <th>Archivo</th>
-        <th>Hash</th>
-        <th>Descarga</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let item of simulations">
-        <td>{{ item.id }}</td>
-        <td>{{ item.clearingHouseName }}</td>
-        <td>{{ item.scenarioType }}</td>
-        <td>{{ item.fileName }}</td>
-        <td class="hash">{{ item.sha256 }}</td>
-        <td><button type="button" class="btn btn-outline" (click)="download(item.id)">Descargar</button></td>
-      </tr>
-    </tbody>
-  </table>
+  <div class="table-scroll" *ngIf="simulations.length; else empty" tabindex="0">
+    <table class="sim-table">
+      <thead>
+        <tr>
+          <th scope="col">ID</th>
+          <th scope="col">Cámara</th>
+          <th scope="col">Escenario</th>
+          <th scope="col">Archivo</th>
+          <th scope="col">SHA-256</th>
+          <th scope="col">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of simulations">
+          <td>{{ item.id }}</td>
+          <td>{{ item.clearingHouseName }}</td>
+          <td>{{ item.scenarioType }}</td>
+          <td>{{ item.fileName }}</td>
+          <td class="hash">{{ item.sha256 }}</td>
+          <td><button type="button" class="btn btn-outline" (click)="download(item.id)">Descargar</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
   <ng-template #empty>
-    <p class="muted">Sin simulaciones recientes.</p>
+    <p class="empty-state">No hay simulaciones recientes.</p>
   </ng-template>
 </section>

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseNotificationAttemptResponse } from '../models/ach-responses.models';
@@ -47,7 +48,12 @@ export class AchResponseAttemptsPageComponent implements OnInit {
     this.error = false;
     this.cdr.markForCheck();
 
-    this.api.getAttempts(id).subscribe({
+    this.api.getAttempts(id).pipe(
+      finalize(() => {
+        this.loading = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
       next: (response) => {
         this.attempts = response ?? [];
       },
@@ -55,10 +61,6 @@ export class AchResponseAttemptsPageComponent implements OnInit {
         this.error = true;
         this.attempts = [];
         this.notifications.error('No fue posible cargar los intentos de notificación ACH');
-      },
-      complete: () => {
-        this.loading = false;
-        this.cdr.markForCheck();
       }
     });
   }

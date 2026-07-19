@@ -6,11 +6,11 @@ import { permissionGuard } from './core/guards/permission.guard';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { LoginLayoutComponent } from './layout/login-layout.component';
 
-const routes: Routes = [
+export const APP_ROUTES: Routes = [
   {
     path: 'login',
     component: LoginLayoutComponent,
-    data: { title: 'Autenticacion', breadcrumb: 'Autenticacion' },
+    data: { title: 'Autenticación', breadcrumb: 'Autenticación' },
     children: [
       {
         path: '',
@@ -32,7 +32,7 @@ const routes: Routes = [
   {
     path: 'reset-password',
     component: LoginLayoutComponent,
-    data: { title: 'Restablecer contrasena', breadcrumb: 'Restablecer contrasena' },
+    data: { title: 'Restablecer contraseña', breadcrumb: 'Restablecer contraseña' },
     children: [
       {
         path: '',
@@ -43,7 +43,7 @@ const routes: Routes = [
   {
     path: 'reset-password/:token',
     component: LoginLayoutComponent,
-    data: { title: 'Restablecer contrasena', breadcrumb: 'Restablecer contrasena' },
+    data: { title: 'Restablecer contraseña', breadcrumb: 'Restablecer contraseña' },
     children: [
       {
         path: '',
@@ -75,6 +75,16 @@ const routes: Routes = [
       {
         path: 'ach-cycles',
         loadChildren: () => import('./features/ach-cycles/ach-cycles.module').then((m) => m.AchCyclesModule)
+      },
+      {
+        path: 'nacha-layouts',
+        pathMatch: 'full',
+        redirectTo: 'not-found'
+      },
+      {
+        path: 'nacha-record-definitions',
+        pathMatch: 'full',
+        redirectTo: 'not-found'
       },
       {
         path: 'nacha-security',
@@ -113,8 +123,8 @@ const routes: Routes = [
         data: {
           roles: ['Admin'],
           permissions: ['CanManageUsers'],
-          breadcrumb: 'Navegacion',
-          title: 'Menu de navegacion'
+          breadcrumb: 'Navegación',
+          title: 'Menú de navegación'
         },
         loadChildren: () => import('./features/navigation/navigation.module').then((m) => m.NavigationModule)
       },
@@ -171,7 +181,7 @@ const routes: Routes = [
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
           breadcrumb: 'CENIT',
-          title: 'Centro de operacion CENIT'
+          title: 'Centro de operación CENIT'
         },
         loadChildren: () => import('./features/cenit/cenit.module').then((m) => m.CenitModule)
       },
@@ -181,8 +191,8 @@ const routes: Routes = [
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
-          breadcrumb: 'Configuracion NACHA-M',
-          title: 'Configuracion NACHA-M solo lectura'
+          breadcrumb: 'Configuración NACHA-M',
+          title: 'Configuración NACHA-M solo lectura'
         },
         loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
       },
@@ -267,7 +277,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes)],
+  imports: [RouterModule.forRoot(APP_ROUTES)],
   exports: [RouterModule]
 })
 export class AppRoutingModule {}

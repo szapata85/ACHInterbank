@@ -15,6 +15,31 @@
   margin-bottom: 1rem;
 }
 
+.certificate-context {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #dce0e9;
+  border-radius: var(--radius-lg);
+  background: #f8fafc;
+
+  label {
+    display: grid;
+    gap: 0.35rem;
+    font-weight: 700;
+  }
+
+  select {
+    min-height: 42px;
+    border: 1px solid #94a3b8;
+    border-radius: 8px;
+    padding: 0.5rem;
+    background: #fff;
+  }
+}
+
 .field-error {
   color: var(--color-danger, #b42318);
   font-size: 0.85rem;
@@ -129,6 +154,42 @@
       border-radius: var(--radius-md);
       padding: 0.55rem 0.75rem;
     }
+  }
+}
+
+.inventory {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #dce0e9;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+
+  h2 {
+    margin-top: 0;
+  }
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 0.65rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    color: #334155;
+    background: #f8fafc;
   }
 }
 

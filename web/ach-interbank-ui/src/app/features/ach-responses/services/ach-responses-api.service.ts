@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
 import {
+  AchResponseDashboardRequest,
+  AchResponseDashboardResponse,
   AchResponseDetailResponse,
   AchResponseListItemResponse,
   AchResponseNotificationAttemptResponse,
@@ -43,6 +45,16 @@ export class AchResponsesApiService {
     this.addParam(params, 'pageSize', request.pageSize);
 
     return this.api.get<PagedResponse<AchResponseListItemResponse>>('api/ach/responses', { params });
+  }
+
+  getDashboard(request: AchResponseDashboardRequest) {
+    const params: Record<string, string | number | boolean> = {};
+
+    this.addParam(params, 'fechaDesde', request.fechaDesde);
+    this.addParam(params, 'fechaHasta', request.fechaHasta);
+    this.addParam(params, 'tipoRespuesta', request.tipoRespuesta);
+
+    return this.api.get<AchResponseDashboardResponse>('api/ach/responses/dashboard', { params });
   }
 
   getDetail(id: string) {

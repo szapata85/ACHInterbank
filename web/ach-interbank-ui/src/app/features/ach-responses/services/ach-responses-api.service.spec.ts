@@ -77,6 +77,22 @@ describe('AchResponsesApiService', () => {
     expect(apiSpy.get).toHaveBeenCalledWith('api/ach/responses/ACH%2F123');
   });
 
+  it('AchResponsesApiService_ShouldGetDashboardUsingOneAggregatedEndpoint', () => {
+    service.getDashboard({
+      fechaDesde: '2026-01-01',
+      fechaHasta: '',
+      tipoRespuesta: 'Transaccion'
+    }).subscribe();
+
+    expect(apiSpy.get).toHaveBeenCalledTimes(1);
+    const [endpoint, options] = apiSpy.get.calls.mostRecent().args;
+    const params = options.params as Record<string, unknown>;
+    expect(endpoint).toBe('api/ach/responses/dashboard');
+    expect(params['fechaDesde']).toBe('2026-01-01');
+    expect(params['fechaHasta']).toBeUndefined();
+    expect(params['tipoRespuesta']).toBe('Transaccion');
+  });
+
   it('AchResponsesApiService_ShouldGetAttemptsByResponseId', () => {
     service.getAttempts('ACH/123').subscribe();
 

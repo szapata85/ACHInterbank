@@ -37,10 +37,10 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         if (requestXmls is null)
             return [];
 
-        // Materializamos para poder indexar y preservar el orden de entrada
+        // Materializamos para poder indexar y preservar el orden de entrada.
         var xmlArray = requestXmls as string[] ?? requestXmls.ToArray();
 
-        // El resultado mantiene el mismo orden que xmlArray
+        // El resultado mantiene el mismo orden que xmlArray.
         var results = new string[xmlArray.Length];
 
         var options = new ParallelOptions
@@ -54,13 +54,12 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
             options,
             async (index, token) =>
             {
-                // Aquí va tu llamada async real
                 var xml = xmlArray[index];
 
                 var respuesta = await RegistrarRespuestaTransaccionAsync(xml, token)
                     .ConfigureAwait(false);
 
-                // Guardamos en la misma posición para mantener el orden
+                // Guardamos en la misma posición para mantener el orden.
                 results[index] = respuesta;
             });
 
@@ -106,7 +105,12 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogError($"SOAP error RegistrarRespuestaTransaccion: {response.StatusCode} - {responseContent}");
+            // El payload puede contener cuentas, identificadores y datos personales.
+            // Conservamos únicamente metadatos operativos seguros.
+            _logger.LogError(
+                $"SOAP error RegistrarRespuestaTransaccion: HTTP {(int)response.StatusCode}; " +
+                $"contentType={response.Content.Headers.ContentType?.MediaType ?? "unknown"}; " +
+                $"contentLength={responseContent.Length}");
             throw new InvalidOperationException(
                 $"SOAP error RegistrarRespuestaTransaccion: {response.StatusCode}");
         }

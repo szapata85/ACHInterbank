@@ -44,7 +44,7 @@ public class IncomingNachaPostParseProcessorTests
 
         var state = new Mock<IAchStateTransitionService>();
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>
             {
                 new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
@@ -100,7 +100,7 @@ public class IncomingNachaPostParseProcessorTests
 
         var state = new Mock<IAchStateTransitionService>();
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode> { new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" } });
         var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
 
@@ -162,7 +162,7 @@ public class IncomingNachaPostParseProcessorTests
         state.Setup(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchTransaction { Id = 100 });
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>
             {
                 new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
@@ -210,7 +210,7 @@ public class IncomingNachaPostParseProcessorTests
             .ReturnsAsync(new AchTransaction { Id = 101 });
 
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>
             {
                 new() { Code = "DEV14", Description = "rechazo operador", AppliesToReturn = true, IsActive = true, RegulatorySource = "OPERATOR" }
@@ -254,7 +254,7 @@ public class IncomingNachaPostParseProcessorTests
 
         var state = new Mock<IAchStateTransitionService>();
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>());
 
         var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
@@ -296,7 +296,7 @@ public class IncomingNachaPostParseProcessorTests
 
         var state = new Mock<IAchStateTransitionService>();
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>
             {
                 new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
@@ -341,7 +341,7 @@ public class IncomingNachaPostParseProcessorTests
 
         var state = new Mock<IAchStateTransitionService>();
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>
             {
                 new() { Code = "DEV14", Description = "rechazo operador", AppliesToReturn = true, IsActive = false, RegulatorySource = "OPERATOR" }

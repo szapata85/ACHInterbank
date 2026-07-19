@@ -14,14 +14,20 @@ describe('NachaInboundSimulatorComponent', () => {
   let financialInstitutionsApi: jasmine.SpyObj<FinancialInstitutionsApiService>;
 
   beforeEach(async () => {
-    service = jasmine.createSpyObj<NachaInboundSimulatorService>('NachaInboundSimulatorService', ['list', 'preview', 'generate', 'downloadUrl']);
+    service = jasmine.createSpyObj<NachaInboundSimulatorService>('NachaInboundSimulatorService', ['list', 'preview', 'generate', 'eligibleDifferentialTransactions', 'downloadUrl']);
     financialInstitutionsApi = jasmine.createSpyObj<FinancialInstitutionsApiService>('FinancialInstitutionsApiService', ['getAll']);
     service.list.and.returnValue(of([]));
-    service.preview.and.returnValue(of({ eligible: true }));
+    service.preview.and.returnValue(of({
+      eligible: true,
+      decision: 'ELIGIBLE',
+      message: 'Elegible',
+      simulationMode: 'IncomingTransactions'
+    }));
+    service.eligibleDifferentialTransactions.and.returnValue(of({ items: [], page: 1, pageSize: 10, total: 0 }));
     service.generate.and.returnValue(of({
       id: 1,
       simulationId: 'sim',
-      fileName: '9999900.001.1',
+      fileName: '9999990.001.20260520.1.OUT',
       downloadUrl: '/api/uat/nacha-inbound-simulator/1/file',
       evidenceUrl: '/api/uat/nacha-inbound-simulator/1/evidence',
       sha256: 'A'.repeat(64),
@@ -67,10 +73,23 @@ describe('NachaInboundSimulatorComponent', () => {
   });
 
   it('requiere causal para rechazo o devolucion', () => {
+    component.changeMode('DifferentialResponses');
     component.form.controls.scenarioType.setValue('IncomingCreditReturn');
     component.form.controls.reasonCode.setValue('');
     component.generate();
     expect(service.generate).not.toHaveBeenCalled();
+  });
+
+  it('separa modos y limpia campos incompatibles al cambiar', () => {
+    component.form.controls.reasonCode.setValue('R01');
+    component.form.markAsPristine();
+
+    component.changeMode('DifferentialResponses');
+
+    expect(component.isDifferentialMode()).toBeTrue();
+    expect(component.form.controls.scenarioType.value).toBe('IncomingCreditConfirmation');
+    expect(component.form.controls.reasonCode.value).toBe('');
+    expect(service.eligibleDifferentialTransactions).toHaveBeenCalled();
   });
 
   it('llama endpoint generate y muestra resultado descargable', () => {

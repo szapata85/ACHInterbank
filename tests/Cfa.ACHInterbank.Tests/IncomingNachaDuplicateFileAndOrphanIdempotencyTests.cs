@@ -216,7 +216,7 @@ public class IncomingNachaDuplicateFileAndOrphanIdempotencyTests
     static Mock<IAchRegulatoryCatalogService> BuildRegulatoryCatalog()
     {
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
-        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<CancellationToken>()))
+        regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode> { new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" } });
         return regulatory;
     }
