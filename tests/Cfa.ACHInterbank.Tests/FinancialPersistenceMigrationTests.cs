@@ -8,22 +8,81 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
 
+public enum FinancialIntegrityMissingConnectionOutcome
+{
+    Configured,
+    LocalSkip,
+    RequiredFailure
+}
+
+public static class FinancialIntegrityTestConfiguration
+{
+    public const string RequireDatabasesVariable = "FINANCIAL_INTEGRITY_REQUIRE_DATABASES";
+
+    public static bool IsRequired(string? value)
+        => value is not null
+            && (value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("1", StringComparison.OrdinalIgnoreCase)
+                || value.Equals("yes", StringComparison.OrdinalIgnoreCase));
+
+    public static string VariableName(FinancialPersistenceMigrationTests.PersistenceProvider provider)
+        => provider == FinancialPersistenceMigrationTests.PersistenceProvider.SqlServer
+            ? "FINANCIAL_INTEGRITY_SQLSERVER_CONNECTION_STRING"
+            : "FINANCIAL_INTEGRITY_POSTGRES_CONNECTION_STRING";
+
+    public static FinancialIntegrityMissingConnectionOutcome Evaluate(string? connectionString, bool required)
+        => string.IsNullOrWhiteSpace(connectionString)
+            ? required ? FinancialIntegrityMissingConnectionOutcome.RequiredFailure : FinancialIntegrityMissingConnectionOutcome.LocalSkip
+            : FinancialIntegrityMissingConnectionOutcome.Configured;
+
+    public static string MissingConnectionMessage(FinancialPersistenceMigrationTests.PersistenceProvider provider)
+        => $"FinancialIntegrity requires a real {provider} database connection. Set {VariableName(provider)}; "
+            + $"{RequireDatabasesVariable}=true makes this missing connection a CI failure.";
+
+    public static void EnsureConnectionIsAvailable(FinancialPersistenceMigrationTests.PersistenceProvider provider)
+    {
+        var variableName = VariableName(provider);
+        var connectionString = Environment.GetEnvironmentVariable(variableName);
+        if (Evaluate(connectionString, IsRequired(Environment.GetEnvironmentVariable(RequireDatabasesVariable)))
+            == FinancialIntegrityMissingConnectionOutcome.RequiredFailure)
+        {
+            throw new InvalidOperationException(MissingConnectionMessage(provider));
+        }
+    }
+}
+
+public sealed class FinancialIntegrityFactAttribute : FactAttribute
+{
+    public FinancialIntegrityFactAttribute(FinancialPersistenceMigrationTests.PersistenceProvider provider)
+    {
+        if (!FinancialIntegrityTestConfiguration.IsRequired(Environment.GetEnvironmentVariable(FinancialIntegrityTestConfiguration.RequireDatabasesVariable))
+            && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(FinancialIntegrityTestConfiguration.VariableName(provider))))
+        {
+            Skip = $"Local FinancialIntegrity run omitted: set {FinancialIntegrityTestConfiguration.VariableName(provider)} to execute {provider}.";
+        }
+    }
+}
+
 public class FinancialPersistenceMigrationTests
 {
-    [Theory]
-    [InlineData(PersistenceProvider.SqlServer)]
-    [InlineData(PersistenceProvider.PostgreSql)]
+    [FinancialIntegrityFact(PersistenceProvider.SqlServer)]
     [Trait("Category", "FinancialIntegrity")]
-    public async Task EnforceFinancialIntegrityMigration_ShouldPreserveExistingDataAndRollback(PersistenceProvider provider)
+    public Task EnforceFinancialIntegrityMigration_ShouldPreserveExistingDataAndRollback_SqlServer()
+        => EnforceFinancialIntegrityMigration_ShouldPreserveExistingDataAndRollback(PersistenceProvider.SqlServer);
+
+    [FinancialIntegrityFact(PersistenceProvider.PostgreSql)]
+    [Trait("Category", "FinancialIntegrity")]
+    public Task EnforceFinancialIntegrityMigration_ShouldPreserveExistingDataAndRollback_PostgreSql()
+        => EnforceFinancialIntegrityMigration_ShouldPreserveExistingDataAndRollback(PersistenceProvider.PostgreSql);
+
+    private static async Task EnforceFinancialIntegrityMigration_ShouldPreserveExistingDataAndRollback(PersistenceProvider provider)
     {
         await using var fixture = await MigrationFixture.CreateAsync(provider);
-        if (fixture.IsDisabled)
-        {
-            return;
-        }
+        FinancialIntegrityTestConfiguration.EnsureConnectionIsAvailable(provider);
 
         await using var context = fixture.CreateContext();
         var migrator = context.Database.GetService<IMigrator>();
@@ -33,32 +92,39 @@ public class FinancialPersistenceMigrationTests
         var targetMigrationId = migrations.Last();
 
         await migrator.MigrateAsync(previousMigrationId);
+        FinancialIntegrityEvidence.Record(provider, "previous-migration");
         var expected = await SeedExistingDataAsync(context);
 
         await migrator.MigrateAsync(targetMigrationId);
+        FinancialIntegrityEvidence.Record(provider, "up");
         context.ChangeTracker.Clear();
 
         await AssertSnapshotAsync(context, expected);
         await AssertUpSchemaAsync(context, provider);
+        FinancialIntegrityEvidence.Record(provider, "invariance");
 
         await migrator.MigrateAsync(previousMigrationId);
+        FinancialIntegrityEvidence.Record(provider, "rollback");
         context.ChangeTracker.Clear();
 
         await AssertSnapshotAsync(context, expected);
         await AssertRollbackSchemaAsync(context, provider);
     }
 
-    [Theory]
-    [InlineData(PersistenceProvider.SqlServer)]
-    [InlineData(PersistenceProvider.PostgreSql)]
+    [FinancialIntegrityFact(PersistenceProvider.SqlServer)]
     [Trait("Category", "FinancialIntegrity")]
-    public async Task EnforceFinancialIntegrityMigration_ShouldRejectExistingAmountsOutsideTheDefinedScale(PersistenceProvider provider)
+    public Task EnforceFinancialIntegrityMigration_ShouldRejectExistingAmountsOutsideTheDefinedScale_SqlServer()
+        => EnforceFinancialIntegrityMigration_ShouldRejectExistingAmountsOutsideTheDefinedScale(PersistenceProvider.SqlServer);
+
+    [FinancialIntegrityFact(PersistenceProvider.PostgreSql)]
+    [Trait("Category", "FinancialIntegrity")]
+    public Task EnforceFinancialIntegrityMigration_ShouldRejectExistingAmountsOutsideTheDefinedScale_PostgreSql()
+        => EnforceFinancialIntegrityMigration_ShouldRejectExistingAmountsOutsideTheDefinedScale(PersistenceProvider.PostgreSql);
+
+    private static async Task EnforceFinancialIntegrityMigration_ShouldRejectExistingAmountsOutsideTheDefinedScale(PersistenceProvider provider)
     {
         await using var fixture = await MigrationFixture.CreateAsync(provider);
-        if (fixture.IsDisabled)
-        {
-            return;
-        }
+        FinancialIntegrityTestConfiguration.EnsureConnectionIsAvailable(provider);
 
         await using var context = fixture.CreateContext();
         var migrator = context.Database.GetService<IMigrator>();
@@ -82,6 +148,7 @@ public class FinancialPersistenceMigrationTests
         }
 
         await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(targetMigrationId));
+        FinancialIntegrityEvidence.Record(provider, "out-of-scale-rejected");
         Assert.DoesNotContain(enforcementMigrationId, await context.Database.GetAppliedMigrationsAsync());
     }
 
@@ -381,7 +448,6 @@ public class FinancialPersistenceMigrationTests
         }
 
         public PersistenceProvider Provider { get; }
-        public bool IsDisabled { get; private init; }
 
         public static async Task<MigrationFixture> CreateAsync(PersistenceProvider provider)
         {
@@ -391,7 +457,7 @@ public class FinancialPersistenceMigrationTests
             var baseConnectionString = Environment.GetEnvironmentVariable(settingName);
             if (string.IsNullOrWhiteSpace(baseConnectionString))
             {
-                return new MigrationFixture(provider, string.Empty, string.Empty, null, null) { IsDisabled = true };
+                throw new InvalidOperationException(FinancialIntegrityTestConfiguration.MissingConnectionMessage(provider));
             }
 
             if (provider == PersistenceProvider.SqlServer)
@@ -400,9 +466,11 @@ public class FinancialPersistenceMigrationTests
                 var databaseName = $"achinterbank_financial_integrity_{Guid.NewGuid():N}";
                 await using var connection = new SqlConnection(builder.ConnectionString);
                 await connection.OpenAsync();
+                FinancialIntegrityEvidence.Record(provider, "connection-opened");
                 await using var command = connection.CreateCommand();
                 command.CommandText = $"CREATE DATABASE [{databaseName}]";
                 await command.ExecuteNonQueryAsync();
+                FinancialIntegrityEvidence.Record(provider, "isolated-database-created");
                 builder.InitialCatalog = databaseName;
                 return new MigrationFixture(provider, builder.ConnectionString, new SqlConnectionStringBuilder(baseConnectionString) { InitialCatalog = "master" }.ConnectionString, databaseName, null);
             }
@@ -412,9 +480,11 @@ public class FinancialPersistenceMigrationTests
             await using (var connection = new NpgsqlConnection(postgresBuilder.ConnectionString))
             {
                 await connection.OpenAsync();
+                FinancialIntegrityEvidence.Record(provider, "connection-opened");
                 await using var command = connection.CreateCommand();
                 command.CommandText = $"CREATE SCHEMA \"{schemaName}\"";
                 await command.ExecuteNonQueryAsync();
+                FinancialIntegrityEvidence.Record(provider, "isolated-schema-created");
             }
 
             postgresBuilder.SearchPath = schemaName;
@@ -439,11 +509,6 @@ public class FinancialPersistenceMigrationTests
 
         public async ValueTask DisposeAsync()
         {
-            if (IsDisabled)
-            {
-                return;
-            }
-
             if (Provider == PersistenceProvider.SqlServer)
             {
                 await using var connection = new SqlConnection(_adminConnectionString);
@@ -451,6 +516,7 @@ public class FinancialPersistenceMigrationTests
                 await using var command = connection.CreateCommand();
                 command.CommandText = $"ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{_databaseName}]";
                 await command.ExecuteNonQueryAsync();
+                FinancialIntegrityEvidence.Record(Provider, "cleanup");
                 return;
             }
 
@@ -459,6 +525,60 @@ public class FinancialPersistenceMigrationTests
             await using var postgresCommand = postgresConnection.CreateCommand();
             postgresCommand.CommandText = $"DROP SCHEMA IF EXISTS \"{_schemaName}\" CASCADE";
             await postgresCommand.ExecuteNonQueryAsync();
+            FinancialIntegrityEvidence.Record(Provider, "cleanup");
+        }
+    }
+}
+
+[Trait("Category", "FinancialIntegrity")]
+public sealed class FinancialIntegrityTestConfigurationTests
+{
+    [Fact]
+    public void RequiredMode_WithMissingSqlServerConnection_FailsExplicitly()
+        => Assert.Equal(
+            FinancialIntegrityMissingConnectionOutcome.RequiredFailure,
+            FinancialIntegrityTestConfiguration.Evaluate(null, required: true));
+
+    [Fact]
+    public void RequiredMode_WithMissingPostgreSqlConnection_FailsExplicitly()
+        => Assert.Equal(
+            FinancialIntegrityMissingConnectionOutcome.RequiredFailure,
+            FinancialIntegrityTestConfiguration.Evaluate("", required: true));
+
+    [Fact]
+    public void LocalMode_WithMissingConnection_IsAnExplicitSkip()
+        => Assert.Equal(
+            FinancialIntegrityMissingConnectionOutcome.LocalSkip,
+            FinancialIntegrityTestConfiguration.Evaluate(null, required: false));
+
+    [Fact]
+    public void ConfiguredConnection_RequiresRealExecution()
+        => Assert.Equal(
+            FinancialIntegrityMissingConnectionOutcome.Configured,
+            FinancialIntegrityTestConfiguration.Evaluate("Host=localhost;Database=synthetic", required: true));
+}
+
+internal static class FinancialIntegrityEvidence
+{
+    private static readonly object Gate = new();
+
+    public static void Record(FinancialPersistenceMigrationTests.PersistenceProvider provider, string stage)
+    {
+        var path = Environment.GetEnvironmentVariable("FINANCIAL_INTEGRITY_EVIDENCE_PATH");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        lock (Gate)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.AppendAllText(path, $"provider={provider};stage={stage}{Environment.NewLine}");
         }
     }
 }

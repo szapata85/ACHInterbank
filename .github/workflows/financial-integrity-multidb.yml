@@ -1,0 +1,142 @@
+name: financial-integrity-multidb
+
+on:
+  push:
+    paths:
+      - '.github/workflows/financial-integrity-multidb.yml'
+      - 'src/Cfa.ACHInterbank.Persistence/**'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/**'
+      - 'tests/Cfa.ACHInterbank.Tests/FinancialPersistence*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj'
+      - 'ACHInterbank.sln'
+  pull_request:
+    paths:
+      - '.github/workflows/financial-integrity-multidb.yml'
+      - 'src/Cfa.ACHInterbank.Persistence/**'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/**'
+      - 'tests/Cfa.ACHInterbank.Tests/FinancialPersistence*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj'
+      - 'ACHInterbank.sln'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  financial-integrity-multidb:
+    name: Financial integrity (SQL Server + PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server@sha256:2cd0aec4a3bfc3cf9205bed3f7922f4c6208f7c767dc62edcee308d0fd7d56d0
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'AchInterbank_CI_Sql_2026!'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'AchInterbank_CI_Sql_2026!' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'AchInterbank_CI_Sql_2026!' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 40s
+
+      postgres:
+        image: postgres@sha256:eb4759788a2182f08257135e61a34f2cfc3c2914079f3465d64ee62350f4d081
+        env:
+          POSTGRES_DB: achinterbank_test
+          POSTGRES_USER: ach_test
+          POSTGRES_PASSWORD: ach_test_password
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U ach_test -d achinterbank_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+
+    env:
+      FINANCIAL_INTEGRITY_REQUIRE_DATABASES: 'true'
+      FINANCIAL_INTEGRITY_EVIDENCE_PATH: '${{ github.workspace }}/TestResults/FinancialIntegrity/financial-integrity-multidb-summary.log'
+      FINANCIAL_INTEGRITY_SQLSERVER_CONNECTION_STRING: 'Server=127.0.0.1,1433;Database=master;User Id=sa;Password=AchInterbank_CI_Sql_2026!;Encrypt=True;TrustServerCertificate=True;Connect Timeout=15'
+      FINANCIAL_INTEGRITY_POSTGRES_CONNECTION_STRING: 'Host=127.0.0.1;Port=5433;Database=achinterbank_test;Username=ach_test;Password=ach_test_password;Timeout=15;Command Timeout=30'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.300'
+
+      - name: Wait for database services
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if (echo > /dev/tcp/127.0.0.1/1433) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/5433) >/dev/null 2>&1; then
+              echo 'SQL Server and PostgreSQL ports are accepting connections.'
+              exit 0
+            fi
+            echo "Waiting for database services (attempt ${attempt}/30)..."
+            sleep 5
+          done
+          echo 'Database services did not become reachable within the timeout.' >&2
+          exit 1
+
+      - name: Restore
+        run: dotnet restore ACHInterbank.sln
+
+      - name: Build
+        run: dotnet build ACHInterbank.sln -c Release --no-restore -m:1
+
+      - name: Verify FinancialIntegrity tests are discovered
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p TestResults/FinancialIntegrity
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+            -c Release --no-build --filter 'Category=FinancialIntegrity' --list-tests \
+            | tee TestResults/FinancialIntegrity/financial-integrity-test-list.txt
+          grep -q 'FinancialPersistence' TestResults/FinancialIntegrity/financial-integrity-test-list.txt
+
+      - name: Run FinancialIntegrity multimotor tests
+        shell: bash
+        run: |
+          set +e
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+            -c Release --no-build \
+            --filter 'Category=FinancialIntegrity' \
+            --logger 'trx;LogFileName=financial-integrity-multidb.trx' \
+            --results-directory TestResults/FinancialIntegrity \
+            -v minimal
+          exit_code=$?
+          printf 'require_databases=true\nsqlserver=service\npostgresql=service\nexit_code=%s\n' "$exit_code" \
+            > TestResults/FinancialIntegrity/financial-integrity-job-summary.txt
+          exit "$exit_code"
+
+      - name: Verify FinancialIntegrity evidence is complete
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          trx='TestResults/FinancialIntegrity/financial-integrity-multidb.trx'
+          test -f "$trx"
+          grep -q 'FinancialPersistenceMigrationTests.*_SqlServer' "$trx"
+          grep -q 'FinancialPersistenceMigrationTests.*_PostgreSql' "$trx"
+          if grep -q 'outcome="Skipped"' "$trx"; then
+            echo 'FinancialIntegrity cannot be skipped in required CI mode.' >&2
+            exit 1
+          fi
+          test "$(grep -c '<UnitTestResult ' "$trx")" -ge 8
+
+      - name: Publish FinancialIntegrity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: financial-integrity-multidb-results
+          path: TestResults/FinancialIntegrity
+          if-no-files-found: error
