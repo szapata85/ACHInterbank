@@ -15,6 +15,9 @@ internal class AchBatchConfiguration : IEntityTypeConfiguration<AchBatch>
         builder.Property(batch => batch.AchCycleId)
             .HasMaxLength(40);
 
+        builder.Property(batch => batch.TotalDebitAmount).HasPrecision(18, 2);
+        builder.Property(batch => batch.TotalCreditAmount).HasPrecision(18, 2);
+
         builder.HasOne(b => b.AchCycle)
             .WithMany(c => c.Batches)
             .HasForeignKey(b => b.AchCycleId)

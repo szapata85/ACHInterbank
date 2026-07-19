@@ -18,8 +18,7 @@ public class BatchControlConfiguration : IEntityTypeConfiguration<BatchControl>
         builder.Property(x => x.IdOrigEntity).HasMaxLength(8);
         builder.Property(x => x.BatchNumber).HasMaxLength(7);
 
-        builder.Property(p => p.TotalCreditAmount).HasColumnType("money");
-
-        builder.Property(p => p.TotalDebitAmount).HasColumnType("money");
+        builder.Property(p => p.TotalCreditAmount).HasPrecision(18, 2);
+        builder.Property(p => p.TotalDebitAmount).HasPrecision(18, 2);
     }
 }

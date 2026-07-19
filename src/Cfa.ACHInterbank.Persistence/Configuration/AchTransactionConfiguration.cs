@@ -21,6 +21,8 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
         builder.Property(t => t.DiscretionaryData)
             .HasMaxLength(2);
 
+        builder.Property(t => t.Amount).HasPrecision(18, 2);
+
         builder.Property(t => t.TransactionExternalId)
             .HasMaxLength(64);
 

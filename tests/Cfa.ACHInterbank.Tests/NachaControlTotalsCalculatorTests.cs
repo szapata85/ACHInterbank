@@ -42,6 +42,27 @@ public class NachaControlTotalsCalculatorTests
     }
 
     [Fact]
+    public void CalculateBatchTotals_ShouldRoundHalfCentsAwayFromZeroExplicitly()
+    {
+        var result = _sut.Calculate(Request([Tx(1, TransactionTypeEnum.Credit, 1.005m, "12345678")], addendaCount: 0));
+
+        result.BatchTotals.Single().TotalCreditAmountInCents.Should().Be(101);
+    }
+
+    [Fact]
+    public void CalculateBatchTotals_ShouldPreserveMaximumNachaMonetaryScale()
+    {
+        var request = Request([Tx(1, TransactionTypeEnum.Credit, 9_999_999_999_999_999.99m, "12345678")], addendaCount: 0);
+        request.BatchTotalCreditAmountLength = 18;
+        request.FileTotalCreditAmountLength = 18;
+
+        var result = _sut.Calculate(request);
+
+        result.BatchTotals.Single().TotalCreditAmountInCents.Should().Be(999_999_999_999_999_999L);
+        result.FileTotals.TotalCreditAmountInCents.Should().Be(999_999_999_999_999_999L);
+    }
+
+    [Fact]
     public void CalculateBatchTotals_ShouldCountEntryDetailsAndAddendas()
     {
         var result = _sut.Calculate(Request([
