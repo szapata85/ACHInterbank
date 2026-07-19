@@ -80,7 +80,7 @@ test.describe('Regresión visual de iconos de navegación y login', () => {
       const parentIcon = sidebar.locator('a.menu-item[data-menu-item-id="2"] app-ui-icon[data-icon-key="account_balance"]');
       const childIcon = sidebar.locator('a.submenu-item[data-menu-item-id="21"] app-ui-icon[data-icon-key="schedule"]');
       const fallbackIcon = sidebar.locator('a.menu-item[data-menu-item-id="3"] app-ui-icon[data-icon-resolved="help"]');
-      const submenuToggle = sidebar.getByRole('button', { name: 'Alternar submenú de Operación', exact: true });
+      const parentRow = sidebar.locator('a.menu-item[data-menu-item-id="2"]');
 
       await expect(rootIcon).toBeVisible();
       await expect(parentIcon).toBeVisible();
@@ -88,8 +88,14 @@ test.describe('Regresión visual de iconos de navegación y login', () => {
       await expect(sidebar.locator('a.menu-item.active')).toHaveCount(1);
       await expect(sidebar.locator('a.submenu-item.active')).toHaveCount(1);
       await expect(sidebar.getByText('Panel principal', { exact: true })).toBeVisible();
-      await submenuToggle.click();
-      await expect(submenuToggle).toHaveAttribute('aria-expanded', 'true');
+      if (await parentRow.getAttribute('aria-expanded') !== 'true') {
+        await parentRow.click({ force: true });
+        await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
+      }
+      await parentRow.click({ force: true });
+      await expect(parentRow).toHaveAttribute('aria-expanded', 'false');
+      await parentRow.click({ force: true });
+      await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
       await expect(childIcon).toBeVisible();
       await expect(sidebar.getByText('Ciclos', { exact: true })).toBeVisible();
       await expect(sidebar.locator('#submenu-2')).toHaveCSS('opacity', '1');

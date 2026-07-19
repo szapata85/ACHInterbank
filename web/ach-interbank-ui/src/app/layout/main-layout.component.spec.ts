@@ -77,4 +77,25 @@ describe('MainLayoutComponent navigation icons', () => {
     expect(host.querySelector('a[data-menu-item-id="1"] app-ui-icon')?.getAttribute('data-icon-key')).toBe('dashboard');
     expect(component.menuToggleLabel).toBe('Expandir menú principal');
   });
+
+  it('uses the parent row as the only submenu control', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const host = fixture.nativeElement as HTMLElement;
+    const parent = host.querySelector('a[data-menu-item-id="2"]') as HTMLAnchorElement;
+
+    expect(host.querySelectorAll('.menu-header > button').length).toBe(0);
+    expect(parent.getAttribute('href')).toBeNull();
+    expect(parent.getAttribute('aria-controls')).toBe('submenu-2');
+    expect(parent.querySelector('.chevron')?.getAttribute('aria-hidden')).toBe('true');
+    expect(parent.tabIndex).toBe(0);
+
+    component.onMenuItemSelected(component.menuItems[1]);
+    fixture.detectChanges();
+    expect(parent.getAttribute('aria-expanded')).toBe('true');
+
+    component.onMenuItemSelected(component.menuItems[1]);
+    fixture.detectChanges();
+    expect(parent.getAttribute('aria-expanded')).toBe('false');
+  });
 });

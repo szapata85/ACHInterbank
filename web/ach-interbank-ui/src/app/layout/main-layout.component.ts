@@ -119,10 +119,15 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleSubmenu(item: MenuItem, event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
+  onMenuItemSelected(item: MenuItem): void {
+    if (item.children?.length) {
+      this.toggleSubmenu(item);
+    }
 
+    this.onNavItemSelected();
+  }
+
+  toggleSubmenu(item: MenuItem): void {
     const key = item.id;
 
     if (this.expandedItems.has(key)) {
@@ -200,7 +205,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   private syncExpandedItems(): void {
     const currentUrl = this.router.url;
-    const expandedItems = new Set<number>();
+    const expandedItems = new Set(this.expandedItems);
 
     const markExpanded = (items: MenuItem[]): boolean => {
       return items.some((item) => {
@@ -211,8 +216,12 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
           expandedItems.add(item.id);
         }
 
-        if (isActive && item.children?.length) {
+        if (isActive && item.children?.length && hasActiveChild) {
           expandedItems.add(item.id);
+        }
+
+        if (!isActive && !hasActiveChild) {
+          expandedItems.delete(item.id);
         }
 
         return isActive || hasActiveChild;

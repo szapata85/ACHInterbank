@@ -26,29 +26,20 @@
         <div class="menu-group" [class.has-children]="item.children?.length" [class.expanded]="isItemExpanded(item)">
           <div class="menu-header">
             <a
-              [routerLink]="item.route"
+              [routerLink]="item.children?.length ? null : item.route"
               routerLinkActive="active"
               [routerLinkActiveOptions]="item.exact ? { exact: true } : {}"
               class="menu-item"
               [attr.data-menu-item-id]="item.id"
               [attr.title]="isSidebarCollapsed ? item.label : null"
-              (click)="onNavItemSelected()"
+              [attr.aria-expanded]="item.children?.length ? isItemExpanded(item) : null"
+              [attr.aria-controls]="item.children?.length ? 'submenu-' + item.id : null"
+              (click)="onMenuItemSelected(item)"
             >
               <app-ui-icon *ngIf="item.icon" [name]="item.icon" class="nav-icon"></app-ui-icon>
               <span class="label">{{ item.label }}</span>
+              <span *ngIf="item.children?.length" class="chevron" aria-hidden="true"></span>
             </a>
-
-            <button
-              *ngIf="item.children?.length"
-              type="button"
-              class="submenu-toggle"
-              (click)="toggleSubmenu(item, $event)"
-              [attr.aria-expanded]="isItemExpanded(item)"
-              [attr.aria-controls]="'submenu-' + item.id"
-              aria-label="Alternar submenú de {{ item.label }}"
-            >
-              <span class="chevron" aria-hidden="true"></span>
-            </button>
           </div>
 
           <div
