@@ -1,7 +1,13 @@
-<div class="layout" [class.menu-open]="isMenuOpen">
+<div class="layout" [class.menu-open]="isMenuOpen" [class.sidebar-collapsed]="isSidebarCollapsed">
   <div class="backdrop" *ngIf="isMenuOpen" (click)="closeMenu()" aria-hidden="true"></div>
 
-  <aside class="sidebar" [class.open]="isMenuOpen" role="navigation" aria-label="Menú principal">
+  <aside
+    class="sidebar"
+    [class.open]="isMenuOpen"
+    [class.collapsed]="isSidebarCollapsed"
+    role="navigation"
+    aria-label="Menú principal"
+  >
     <div class="brand" *ngIf="branding$ | async as branding">
       <div class="logo" [class.with-image]="branding.privateLogo">
         <ng-container *ngIf="branding.privateLogo; else defaultPrivateLogo">
@@ -24,8 +30,11 @@
               routerLinkActive="active"
               [routerLinkActiveOptions]="item.exact ? { exact: true } : {}"
               class="menu-item"
+              [attr.data-menu-item-id]="item.id"
+              [attr.title]="isSidebarCollapsed ? item.label : null"
               (click)="onNavItemSelected()"
             >
+              <app-ui-icon *ngIf="item.icon" [name]="item.icon" class="nav-icon"></app-ui-icon>
               <span class="label">{{ item.label }}</span>
             </a>
 
@@ -56,8 +65,11 @@
               routerLinkActive="active"
               [routerLinkActiveOptions]="child.exact ? { exact: true } : {}"
               class="submenu-item"
+              [attr.data-menu-item-id]="child.id"
+              [attr.title]="isSidebarCollapsed ? child.label : null"
               (click)="onNavItemSelected()"
             >
+              <app-ui-icon *ngIf="child.icon" [name]="child.icon" class="nav-icon"></app-ui-icon>
               <span class="label">{{ child.label }}</span>
             </a>
           </div>
@@ -72,8 +84,9 @@
         <button
           class="menu-toggle"
           type="button"
-          aria-label="Alternar menú"
-          [attr.aria-expanded]="isMenuOpen"
+          [attr.aria-label]="menuToggleLabel"
+          [attr.title]="menuToggleLabel"
+          [attr.aria-expanded]="isMenuExpanded"
           (click)="toggleMenu()"
         >
           <span class="hamburger" [class.open]="isMenuOpen"></span>

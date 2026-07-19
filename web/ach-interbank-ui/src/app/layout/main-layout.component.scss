@@ -10,6 +10,11 @@
   grid-template-columns: 260px 1fr;
   min-height: 100vh;
   position: relative;
+  transition: grid-template-columns 0.2s ease;
+}
+
+.layout.sidebar-collapsed {
+  grid-template-columns: 80px 1fr;
 }
 
 .backdrop {
@@ -32,7 +37,7 @@
   height: 100vh;
   max-height: 100vh;
   z-index: 30;
-  transition: transform 0.25s ease;
+  transition: transform 0.25s ease, padding 0.2s ease;
   overflow: hidden;
   scrollbar-gutter: stable;
 }
@@ -158,6 +163,11 @@
   transition: transform 0.2s ease;
 }
 
+.nav-icon {
+  font-size: 20px;
+  color: currentColor;
+}
+
 .menu-group.expanded .chevron {
   transform: rotate(225deg);
 }
@@ -199,6 +209,30 @@
   }
 }
 
+.sidebar.collapsed {
+  padding-inline: 0.75rem;
+
+  .brand {
+    justify-content: center;
+  }
+
+  .brand-copy,
+  .label,
+  .submenu-toggle,
+  .submenu {
+    display: none;
+  }
+
+  .menu-header {
+    grid-template-columns: 1fr;
+  }
+
+  .menu a {
+    justify-content: center;
+    padding-inline: 0.6rem;
+  }
+}
+
 .main {
   display: flex;
   flex-direction: column;
@@ -224,7 +258,7 @@
 }
 
 .menu-toggle {
-  display: none;
+  display: inline-flex;
   width: 44px;
   height: 44px;
   border-radius: var(--radius-lg);
@@ -350,8 +384,8 @@
     flex-direction: column;
   }
 
-  .menu-toggle {
-    display: inline-flex;
+  .layout.sidebar-collapsed {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -51,6 +51,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
   isMenuOpen = false;
+  isSidebarCollapsed = false;
 
   private subscription?: Subscription;
   private menuSubscription?: Subscription;
@@ -91,8 +92,24 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   }
 
   toggleMenu(): void {
-    this.isMenuOpen = !this.isMenuOpen;
+    if (this.isMobileView()) {
+      this.isMenuOpen = !this.isMenuOpen;
+    } else {
+      this.isSidebarCollapsed = !this.isSidebarCollapsed;
+    }
     this.cdr.markForCheck();
+  }
+
+  get menuToggleLabel(): string {
+    if (this.isMobileView()) {
+      return this.isMenuOpen ? 'Cerrar menú principal' : 'Abrir menú principal';
+    }
+
+    return this.isSidebarCollapsed ? 'Expandir menú principal' : 'Contraer menú principal';
+  }
+
+  get isMenuExpanded(): boolean {
+    return this.isMobileView() ? this.isMenuOpen : !this.isSidebarCollapsed;
   }
 
   closeMenu(): void {
@@ -129,6 +146,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   @HostListener('window:resize')
   onResize(): void {
+    if (this.isMobileView() && this.isSidebarCollapsed) {
+      this.isSidebarCollapsed = false;
+    }
+
     if (!this.isMobileView() && this.isMenuOpen) {
       this.closeMenu();
     }

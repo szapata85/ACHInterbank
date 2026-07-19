@@ -27,8 +27,12 @@
           (click)="togglePasswordVisibility()"
           [attr.aria-pressed]="passwordVisible"
           [attr.aria-label]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+          [attr.title]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
         >
-          <span>{{ passwordVisible ? 'Ocultar' : 'Mostrar' }}</span>
+          <app-ui-icon
+            class="password-icon"
+            [name]="passwordVisible ? 'visibility_off' : 'visibility'"
+          ></app-ui-icon>
         </button>
       </div>
       <small *ngIf="form.get('password')?.touched && form.get('password')?.invalid">

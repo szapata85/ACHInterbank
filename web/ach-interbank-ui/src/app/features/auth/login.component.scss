@@ -83,7 +83,7 @@ form {
   color: var(--color-primary);
 }
 
-.password-toggle .icon {
+.password-toggle .password-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -109,14 +109,14 @@ form {
   font-weight: 500;
 }
 
-button {
+form > button[type='submit'] {
   width: 100%;
   --btn-pad-y: 0.75rem;
   --btn-font-size: 1rem;
   border-radius: var(--radius-lg);
 }
 
-button:disabled {
+form > button[type='submit']:disabled {
   opacity: 0.65;
 }
 

@@ -53,6 +53,26 @@ describe('NavigationService', () => {
     });
   });
 
+  it('preserves configured icon keys for parent and child items', (done) => {
+    const { service } = createService([
+      {
+        id: 1,
+        label: 'Operación',
+        route: '/transactions',
+        icon: 'account_balance',
+        children: [
+          { id: 11, label: 'Ciclos', route: '/ach-cycles', icon: 'schedule' }
+        ]
+      }
+    ]);
+
+    service.getMenu().subscribe((menu) => {
+      expect(menu[0].icon).toBe('account_balance');
+      expect(menu[0].children?.[0].icon).toBe('schedule');
+      done();
+    });
+  });
+
   it('LegacyLayoutsRoute_ShouldBeRemovedFromMenu', (done) => {
     const { service } = createService([
       { id: 1, label: 'Layouts NACHA', route: '/ach-cycles/nacha/layouts' },
