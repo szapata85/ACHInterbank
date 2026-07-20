@@ -137,6 +137,19 @@ public class QuartzPersistentStoreConfigurationTests
     }
 
     [Fact]
+    public void ProductionConfiguration_ShouldUseNamedPersistentCluster()
+    {
+        var config = new ConfigurationBuilder().AddJsonFile(ResolveRepoPath("src", "Cfa.ACHInterbank.Api", "appsettings.json")).Build();
+        var options = QuartzJobStoreOptionsFactory.Create(config);
+
+        options.SchedulerName.Should().Be("ACHInterbankScheduler");
+        options.InstanceId.Should().Be("AUTO");
+        options.IsPersistentMode().Should().BeTrue();
+        options.Clustered.Should().BeTrue();
+        options.AcquireTriggersWithinLock.Should().BeTrue();
+    }
+
+    [Fact]
     public void QuartzDocumentation_ShouldReferenceQrtzScripts()
     {
         var content = File.ReadAllText(ResolveRepoPath("docs","dev","quartz-persistent-store-operacion.md"));
@@ -187,6 +200,11 @@ public class QuartzPersistentStoreConfigurationTests
         var sqlServerContent = File.ReadAllText(Path.Combine(scriptsDir, "sqlserver-qrtz-schema.sql"));
         sqlServerContent.Should().Contain("QRTZ_JOB_DETAILS");
         sqlServerContent.Should().Contain("QRTZ_TRIGGERS");
+
+        var postgresContent = File.ReadAllText(Path.Combine(scriptsDir, "postgres-qrtz-schema.sql"));
+        postgresContent.Should().Contain("qrtz_job_details");
+        postgresContent.Should().Contain("qrtz_scheduler_state");
+        postgresContent.Should().Contain("CREATE TABLE IF NOT EXISTS");
     }
 
     [Fact]

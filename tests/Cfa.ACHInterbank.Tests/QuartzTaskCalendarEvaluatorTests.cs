@@ -106,6 +106,12 @@ public class QuartzTaskCalendarEvaluatorTests
             ctx.SetupGet(c => c.MergedJobDataMap).Returns(new JobDataMap { { "TaskId", 101 } });
             ctx.SetupGet(c => c.ScheduledFireTimeUtc).Returns(DateTimeOffset.UtcNow);
             ctx.SetupGet(c => c.CancellationToken).Returns(CancellationToken.None);
+            ctx.SetupGet(c => c.JobDetail).Returns(JobBuilder.Create<DynamicJob>().WithIdentity("job:101", "db-tasks").Build());
+            ctx.SetupGet(c => c.Trigger).Returns(TriggerBuilder.Create().WithIdentity("trg:101", "db-tasks").StartNow().Build());
+            ctx.SetupGet(c => c.FireInstanceId).Returns("test-fire-instance");
+            var scheduler = new Mock<IScheduler>();
+            scheduler.SetupGet(s => s.SchedulerInstanceId).Returns("test-scheduler-instance");
+            ctx.SetupGet(c => c.Scheduler).Returns(scheduler.Object);
 
             await job.Execute(ctx.Object);
         }

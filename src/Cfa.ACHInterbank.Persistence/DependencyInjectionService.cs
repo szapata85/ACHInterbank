@@ -22,6 +22,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Quartz;
 using Quartz.Simpl;
 using System.Reflection;
@@ -153,6 +154,12 @@ public static class DependencyInjectionService
             q.UseJobFactory<MicrosoftDependencyInjectionJobFactory>();
 
             var quartzOptions = QuartzJobStoreOptionsFactory.Create(configuration);
+            q.SchedulerName = quartzOptions.SchedulerName;
+            q.SchedulerId = quartzOptions.InstanceId;
+            q.MisfireThreshold = TimeSpan.FromMilliseconds(quartzOptions.MisfireThresholdMilliseconds);
+            q.MaxBatchSize = quartzOptions.MaxBatchSize;
+            q.BatchTriggerAcquisitionFireAheadTimeWindow = TimeSpan.FromMilliseconds(quartzOptions.BatchFireAheadMilliseconds);
+            q.UseDefaultThreadPool(quartzOptions.MaxConcurrency);
             if (!quartzOptions.IsPersistentMode())
             {
                 return;
@@ -174,6 +181,7 @@ public static class DependencyInjectionService
             q.SetProperty("quartz.jobStore.tablePrefix", quartzOptions.TablePrefix);
             q.SetProperty("quartz.jobStore.misfireThreshold", quartzOptions.MisfireThresholdMilliseconds.ToString());
             q.SetProperty("quartz.jobStore.performSchemaValidation", quartzOptions.PerformSchemaValidation.ToString().ToLowerInvariant());
+            q.SetProperty("quartz.jobStore.acquireTriggersWithinLock", quartzOptions.AcquireTriggersWithinLock.ToString().ToLowerInvariant());
             q.SetProperty("quartz.serializer.type", "json");
 
             q.SetProperty("quartz.jobStore.driverDelegateType", provider == "SqlServer"
@@ -200,10 +208,13 @@ public static class DependencyInjectionService
 
         // Servicio que sincroniza DB → Quartz
         services.AddSingleton<QuartzTaskCalendarEvaluator>();
+        services.AddSingleton<SchedulerMisfireListener>();
+        services.AddHostedService<SchedulerRuntimeService>();
         services.AddTransient<DynamicJobExecutor>();
         services.AddTransient<DynamicJob>();
         services.AddTransient<NonConcurrentDynamicJob>();
-        services.AddHostedService<SchedulerSyncService>();
+        services.AddSingleton<SchedulerSyncService>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SchedulerSyncService>());
         services.AddTransient<ProcessBulkIngestionBatchJob>();
         services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.JsonBulkFileParser>();
         services.AddScoped<IBulkFileParser, ACH.Services.Implementation.BulkParsers.CsvBulkFileParser>();

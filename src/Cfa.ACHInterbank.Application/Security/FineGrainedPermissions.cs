@@ -163,6 +163,16 @@ public static class FineGrainedPermissions
         public const string RunAdminTask = "Maintenance.RunAdminTask";
     }
 
+    public static class Scheduler
+    {
+        public const string View = "Scheduler.View";
+        public const string HistoryView = "Scheduler.History.View";
+        public const string Execute = "Scheduler.Execute";
+        public const string ManageSchedule = "Scheduler.ManageSchedule";
+        public const string PauseResume = "Scheduler.PauseResume";
+        public const string ViewInstances = "Scheduler.ViewInstances";
+    }
+
     public static IReadOnlyList<string> AllPermissions { get; } =
     [
         CanManageCertificates,
@@ -184,6 +194,7 @@ public static class FineGrainedPermissions
         Config.Read, Config.Manage,
         Integrations.Read, Integrations.ManageMappings, Integrations.Validate, Integrations.Publish, Integrations.Compare,
         RegulatoryCatalogs.Read,
-        Maintenance.Seed, Maintenance.RunAdminTask
+        Maintenance.Seed, Maintenance.RunAdminTask,
+        Scheduler.View, Scheduler.HistoryView, Scheduler.Execute, Scheduler.ManageSchedule, Scheduler.PauseResume, Scheduler.ViewInstances
     ];
 }

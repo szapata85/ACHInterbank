@@ -70,6 +70,16 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             {
                 RoleId = RoleConfiguration.OperatorRoleId,
                 PermissionId = PermissionConfiguration.ReadCatalogsPermissionId
-            });
+            },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.SchedulerViewPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.SchedulerHistoryViewPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.SchedulerExecutePermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.SchedulerManageSchedulePermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.SchedulerPauseResumePermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.SchedulerViewInstancesPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerViewPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerHistoryViewPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerExecutePermissionId },
+            new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerViewInstancesPermissionId });
     }
 }

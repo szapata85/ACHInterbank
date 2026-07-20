@@ -1428,12 +1428,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         new
                         {
                             MenuItemId = 18,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd01")
                         },
                         new
                         {
                             MenuItemId = 19,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd01")
                         },
                         new
                         {
@@ -1614,6 +1614,111 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         });
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.SchedulerInstanceState", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CurrentlyExecutingJobs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("HostName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("InstanceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("InstanceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("LastHeartbeatUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SchedulerName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTimeOffset>("StartedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset?>("StoppedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastHeartbeatUtc");
+
+                    b.HasIndex("SchedulerName", "InstanceId")
+                        .IsUnique();
+
+                    b.ToTable("SchedulerInstanceStates", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.SchedulerProbeExecution", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("EffectAppliedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ExecutionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProbeKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SchedulerInstanceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("StartedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExecutionId");
+
+                    b.HasIndex("ProbeKey")
+                        .IsUnique();
+
+                    b.ToTable("SchedulerProbeExecutions", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Entities.SchedulerTask.TaskDefinition", b =>
                 {
                     b.Property<int>("Id")
@@ -1639,13 +1744,23 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<string>("CronExpression")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<DateTimeOffset?>("EndAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("ManualExecutionEnabled")
+                        .HasColumnType("bit");
 
                     b.Property<int?>("MaxRetries")
                         .HasColumnType("int");
 
                     b.Property<int?>("Minute")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MisfirePolicy")
                         .HasColumnType("int");
 
                     b.Property<int?>("MonthDay")
@@ -1659,8 +1774,14 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<bool>("Paused")
+                        .HasColumnType("bit");
+
                     b.Property<int>("PeriodicityType")
                         .HasColumnType("int");
+
+                    b.Property<bool>("RequestsRecovery")
+                        .HasColumnType("bit");
 
                     b.Property<int>("RetryBackoffSeconds")
                         .HasColumnType("int");
@@ -1703,8 +1824,29 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<DateTimeOffset?>("ActualFireTimeUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long?>("DurationMilliseconds")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Error")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("ExecutionId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ExecutionKey")
                         .IsRequired()
@@ -1714,24 +1856,132 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<DateTimeOffset?>("FinishedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("FireInstanceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsRecovery")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("JobGroup")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("JobName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("ManualConcurrencyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("MisfireDetected")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OriginalFireInstanceId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Output")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RecoveredByInstanceId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RecoveryResult")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("RecoveryStartedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("RefireCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RequestId")
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)");
+
+                    b.Property<string>("RequestReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RequestedByUserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RequestedByUserName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTimeOffset>("ScheduledAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("SchedulerInstanceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SchedulerInstanceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<DateTimeOffset>("StartedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.Property<bool>("Success")
                         .HasColumnType("bit");
 
+                    b.Property<string>("TaskCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<int>("TaskDefinitionId")
                         .HasColumnType("int");
 
+                    b.Property<string>("TriggerName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("TriggerType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("ExecutionId")
+                        .IsUnique()
+                        .HasFilter("[ExecutionId] IS NOT NULL");
+
+                    b.HasIndex("ManualConcurrencyKey")
+                        .IsUnique()
+                        .HasFilter("[ManualConcurrencyKey] IS NOT NULL");
+
+                    b.HasIndex("RequestId")
+                        .IsUnique()
+                        .HasFilter("[RequestId] IS NOT NULL");
+
                     b.HasIndex("TaskDefinitionId");
+
+                    b.HasIndex("Status", "StartedAt");
+
+                    b.HasIndex("TaskCode", "StartedAt");
 
                     b.ToTable("TaskExecutionLog", (string)null);
                 });
@@ -1918,6 +2168,42 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                             Id = new Guid("13d4e160-8be4-43eb-b69b-c9c658c2dc74"),
                             Description = "Administración de certificados digitales",
                             Name = "CanManageCertificates"
+                        },
+                        new
+                        {
+                            Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd01"),
+                            Description = "Consultar tareas programadas",
+                            Name = "Scheduler.View"
+                        },
+                        new
+                        {
+                            Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd02"),
+                            Description = "Consultar historial del programador",
+                            Name = "Scheduler.History.View"
+                        },
+                        new
+                        {
+                            Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd03"),
+                            Description = "Ejecutar manualmente tareas autorizadas",
+                            Name = "Scheduler.Execute"
+                        },
+                        new
+                        {
+                            Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd04"),
+                            Description = "Editar programaciones",
+                            Name = "Scheduler.ManageSchedule"
+                        },
+                        new
+                        {
+                            Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd05"),
+                            Description = "Pausar y reanudar tareas",
+                            Name = "Scheduler.PauseResume"
+                        },
+                        new
+                        {
+                            Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd06"),
+                            Description = "Consultar instancias del clúster",
+                            Name = "Scheduler.ViewInstances"
                         });
                 });
 
@@ -2022,6 +2308,56 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         {
                             RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
                             PermissionId = new Guid("dd0e54be-b6df-4ab3-8783-0f72b6e774a2")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd01")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd02")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd03")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd04")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd05")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd06")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd01")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd02")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd03")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd06")
                         });
                 });
 

@@ -14,6 +14,7 @@ using Scalar.AspNetCore;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Quartz;
 
 namespace Cfa.ACHInterbank.Api;
 
@@ -148,6 +149,9 @@ public static class DependencyInjectionService
         {
             var database = "Skipped";
             var dataProtectionKeyRing = "Skipped";
+            var scheduler = "Skipped";
+            var persistentStore = "Skipped";
+            var clusterInstance = "Skipped";
             var statusCode = StatusCodes.Status200OK;
             var status = "Healthy";
 
@@ -178,6 +182,27 @@ public static class DependencyInjectionService
                             status = "Unhealthy";
                             statusCode = StatusCodes.Status503ServiceUnavailable;
                         }
+
+                        var schedulerFactory = scope.ServiceProvider.GetService<ISchedulerFactory>();
+                        if (schedulerFactory is not null)
+                        {
+                            var quartzScheduler = await schedulerFactory.GetScheduler(timeoutCts.Token);
+                            var metadata = await quartzScheduler.GetMetaData(timeoutCts.Token);
+                            scheduler = quartzScheduler.IsStarted && !quartzScheduler.IsShutdown ? "Healthy" : "Unhealthy";
+                            persistentStore = metadata.JobStoreSupportsPersistence ? "Healthy" : "Unhealthy";
+                            clusterInstance = await dbContext.SchedulerInstanceStates.AsNoTracking().AnyAsync(
+                                x => x.SchedulerName == quartzScheduler.SchedulerName
+                                     && x.InstanceId == quartzScheduler.SchedulerInstanceId,
+                                timeoutCts.Token)
+                                ? "Healthy"
+                                : "Starting";
+
+                            if (scheduler == "Unhealthy")
+                            {
+                                status = "Unhealthy";
+                                statusCode = StatusCodes.Status503ServiceUnavailable;
+                            }
+                        }
                     }
                 }
             }
@@ -185,6 +210,9 @@ public static class DependencyInjectionService
             {
                 database = "Unhealthy";
                 dataProtectionKeyRing = "Unhealthy";
+                scheduler = "Unhealthy";
+                persistentStore = "Unhealthy";
+                clusterInstance = "Unhealthy";
                 status = "Unhealthy";
                 statusCode = StatusCodes.Status503ServiceUnavailable;
             }
@@ -192,6 +220,9 @@ public static class DependencyInjectionService
             {
                 database = "Unhealthy";
                 dataProtectionKeyRing = "Unhealthy";
+                scheduler = "Unhealthy";
+                persistentStore = "Unhealthy";
+                clusterInstance = "Unhealthy";
                 status = "Unhealthy";
                 statusCode = StatusCodes.Status503ServiceUnavailable;
             }
@@ -202,6 +233,9 @@ public static class DependencyInjectionService
                 check = "ready",
                 database,
                 dataProtectionKeyRing,
+                scheduler,
+                persistentStore,
+                clusterInstance,
                 timestampUtc = DateTime.UtcNow
             }, statusCode: statusCode);
         }).AllowAnonymous();

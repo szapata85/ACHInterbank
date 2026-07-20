@@ -37,6 +37,66 @@ public class SchedulerSyncServiceTests
         action.Should().NotThrow();
     }
 
+    [Theory]
+    [InlineData(SchedulerMisfirePolicy.DoNothing, MisfireInstruction.CronTrigger.DoNothing)]
+    [InlineData(SchedulerMisfirePolicy.FireAndProceed, MisfireInstruction.CronTrigger.FireOnceNow)]
+    public void SchedulerSyncService_ShouldApplyExplicitCronMisfirePolicy(
+        SchedulerMisfirePolicy policy,
+        int expectedInstruction)
+    {
+        var service = BuildService(nameof(SchedulerSyncService_ShouldApplyExplicitCronMisfirePolicy) + policy, Mock.Of<IScheduler>());
+        var task = new TaskDefinition
+        {
+            Id = 91,
+            Code = "Misfire",
+            TimeZoneId = "America/Bogota",
+            PeriodicityType = PeriodicityTypeEnum.Cron,
+            CronExpression = "0 30 6 ? * MON-FRI",
+            MisfirePolicy = policy
+        };
+        var method = typeof(SchedulerSyncService).GetMethod("BuildTrigger", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        var trigger = (ITrigger)method.Invoke(service, new object[] { task, new TriggerKey("trg:91", "db-tasks") })!;
+
+        trigger.MisfireInstruction.Should().Be(expectedInstruction);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SchedulerSyncService_ShouldOnlyRequestRecoveryWhenTaskAllowsIt(bool requestsRecovery)
+    {
+        var dbName = nameof(SchedulerSyncService_ShouldOnlyRequestRecoveryWhenTaskAllowsIt) + requestsRecovery;
+        await using (var db = new AchDbContext(BuildOptions(dbName)))
+        {
+            db.TaskDefinitions.Add(new TaskDefinition
+            {
+                Id = 92,
+                Code = "Recovery",
+                Name = "Recovery",
+                Status = TaskStatusEnum.Enabled,
+                PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+                N = 5,
+                RequestsRecovery = requestsRecovery
+            });
+            await db.SaveChangesAsync();
+        }
+
+        IJobDetail? scheduledJob = null;
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()))
+            .Callback<IJobDetail, IReadOnlyCollection<ITrigger>, bool, CancellationToken>((job, _, _, _) => scheduledJob = job)
+            .Returns(Task.CompletedTask);
+        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new HashSet<JobKey>());
+
+        var service = BuildService(dbName, scheduler.Object);
+        var method = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        await (Task)method.Invoke(service, new object[] { scheduler.Object, CancellationToken.None })!;
+
+        scheduledJob.Should().NotBeNull();
+        scheduledJob!.RequestsRecovery.Should().Be(requestsRecovery);
+    }
+
     [Fact]
     public async Task SchedulerSyncService_ShouldScheduleAllTasks_OnFirstSync()
     {

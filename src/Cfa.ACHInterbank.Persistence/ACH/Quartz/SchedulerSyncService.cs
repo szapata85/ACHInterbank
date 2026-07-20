@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Quartz;
 using Quartz.Impl.Matchers;
+using System.Globalization;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz;
 
@@ -141,7 +142,9 @@ public class SchedulerSyncService : BackgroundService
 
         var jobBuilder = JobBuilder.Create(jobType)
             .WithIdentity(jobKey)
-            .UsingJobData("TaskId", task.Id);
+            .UsingJobData("TaskId", task.Id.ToString(CultureInfo.InvariantCulture))
+            .UsingJobData("TaskCode", task.Code)
+            .RequestRecovery(task.RequestsRecovery);
 
         if (task.ConcurrencyPolicy == ConcurrencyPolicyEnum.SkipIfRunning)
         {
@@ -158,6 +161,10 @@ public class SchedulerSyncService : BackgroundService
         }
 
         await scheduler.ScheduleJob(job, new[] { trigger }, true, cancellationToken);
+        if (task.Paused)
+        {
+            await scheduler.PauseJob(jobKey, cancellationToken);
+        }
         _logger.LogInformation("Task {Id}/{Code} sincronizada con éxito.", task.Id, task.Code);
     }
 
@@ -249,21 +256,47 @@ public class SchedulerSyncService : BackgroundService
         switch (task.PeriodicityType)
         {
             case PeriodicityTypeEnum.Once:
-                return tb.WithSimpleSchedule(s => s.WithRepeatCount(0)).Build();
+                return tb.WithSimpleSchedule(s => ApplySimpleMisfire(s.WithRepeatCount(0), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.EveryNMinutes:
-                return tb.WithSimpleSchedule(s => s.WithIntervalInMinutes(task.N ?? 1).RepeatForever()).Build();
+                return tb.WithSimpleSchedule(s => ApplySimpleMisfire(s.WithIntervalInMinutes(task.N ?? 1).RepeatForever(), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.HourlyAtMinute:
-                return tb.WithSchedule(CronScheduleBuilder.CronSchedule($"0 {task.Minute ?? 0} * * * ?").InTimeZone(tz)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.CronSchedule($"0 {task.Minute ?? 0} * * * ?").InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.DailyAtTime:
-                return tb.WithSchedule(CronScheduleBuilder.DailyAtHourAndMinute(task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.DailyAtHourAndMinute(task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.Weekly:
-                return tb.WithSchedule(CronScheduleBuilder.WeeklyOnDayAndHourAndMinute(task.WeeklyDay!.Value, task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.WeeklyOnDayAndHourAndMinute(task.WeeklyDay!.Value, task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.Monthly:
-                return tb.WithSchedule(CronScheduleBuilder.MonthlyOnDayAndHourAndMinute(task.MonthDay!.Value, task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.MonthlyOnDayAndHourAndMinute(task.MonthDay!.Value, task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.Cron:
-                return tb.WithSchedule(CronScheduleBuilder.CronSchedule(task.CronExpression!).InTimeZone(tz)).Build();
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.CronSchedule(task.CronExpression!).InTimeZone(tz), task.MisfirePolicy)).Build();
             default:
                 return null;
         }
     }
+
+    public async Task SynchronizeTaskAsync(int taskId, CancellationToken cancellationToken = default)
+    {
+        var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
+        using var scope = _sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+        var task = await db.TaskDefinitions.Include(x => x.Parameters)
+            .SingleOrDefaultAsync(x => x.Id == taskId, cancellationToken);
+        if (task is null || !IsTaskSchedulable(task, DateTimeOffset.UtcNow))
+        {
+            await DeleteTaskJobAsync(scheduler, taskId, cancellationToken);
+            return;
+        }
+
+        await ScheduleOrUpdateTaskAsync(scheduler, task, cancellationToken);
+    }
+
+    private static CronScheduleBuilder ApplyCronMisfire(CronScheduleBuilder builder, SchedulerMisfirePolicy policy)
+        => policy == SchedulerMisfirePolicy.FireAndProceed
+            ? builder.WithMisfireHandlingInstructionFireAndProceed()
+            : builder.WithMisfireHandlingInstructionDoNothing();
+
+    private static SimpleScheduleBuilder ApplySimpleMisfire(SimpleScheduleBuilder builder, SchedulerMisfirePolicy policy)
+        => policy == SchedulerMisfirePolicy.FireAndProceed
+            ? builder.WithMisfireHandlingInstructionFireNow()
+            : builder.WithMisfireHandlingInstructionNextWithRemainingCount();
 }

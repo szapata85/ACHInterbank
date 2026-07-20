@@ -1,0 +1,127 @@
+name: achinterbank-scheduler-cluster-sqlserver
+
+x-api-common: &api-common
+  image: achinterbank-api:scheduler-cluster-sqlserver
+  build:
+    context: .
+    dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
+  environment: &api-environment
+    ASPNETCORE_URLS: http://+:8080
+    ASPNETCORE_ENVIRONMENT: Development
+    EnableHttpsRedirection: "false"
+    Database__Provider: SqlServer
+    ConnectionStrings__SqlConnection: Server=scheduler-sqlserver,1433;Database=ACHInterbankSchedulerCluster;User Id=sa;Password=${SCHEDULER_SQL_PASSWORD:-Scheduler_Local_123!};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true
+    Quartz__SchedulerName: ACHInterbankScheduler
+    Quartz__InstanceId: AUTO
+    Quartz__MaxConcurrency: 6
+    Quartz__MaxBatchSize: 6
+    Quartz__AcquireTriggersWithinLock: "true"
+    Quartz__InstanceHeartbeatSeconds: 2
+    Quartz__OfflineThresholdSeconds: 12
+    Quartz__JobStore__Mode: Persistent
+    Quartz__JobStore__Provider: SqlServer
+    Quartz__JobStore__TablePrefix: QRTZ_
+    Quartz__JobStore__Clustered: "true"
+    Quartz__JobStore__ClusterCheckinIntervalSeconds: 3
+    Quartz__JobStore__MisfireThresholdMilliseconds: 5000
+    Quartz__JobStore__PerformSchemaValidation: "true"
+    Scheduler__Probe__Enabled: "true"
+    Cors__Origins__0: http://localhost:745
+    DigitalEnvelope__CertificateBootstrap__Enabled: "false"
+    DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/live >/dev/null"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+    start_period: 40s
+  restart: unless-stopped
+  stop_grace_period: 30s
+  networks: [scheduler_cluster_sql]
+
+services:
+  scheduler-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${SCHEDULER_SQL_PASSWORD:-Scheduler_Local_123!}
+    ports:
+      - "127.0.0.1:${SCHEDULER_SQL_PORT:-1434}:1433"
+    volumes:
+      - scheduler_sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks: [scheduler_cluster_sql]
+
+  quartz-schema:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    depends_on:
+      scheduler-sqlserver:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${SCHEDULER_SQL_PASSWORD:-Scheduler_Local_123!}
+    volumes:
+      - ./artifacts/sql/quartz/sqlserver-qrtz-schema.sql:/schema/quartz.sql:ro
+    command:
+      - /bin/bash
+      - -ec
+      - >-
+        /opt/mssql-tools18/bin/sqlcmd -S scheduler-sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C
+        -Q "IF DB_ID(N'ACHInterbankSchedulerCluster') IS NULL CREATE DATABASE [ACHInterbankSchedulerCluster]" &&
+        /opt/mssql-tools18/bin/sqlcmd -S scheduler-sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C
+        -d ACHInterbankSchedulerCluster -b -i /schema/quartz.sql
+    restart: "no"
+    networks: [scheduler_cluster_sql]
+
+  achinterbank-api-01:
+    <<: *api-common
+    hostname: achinterbank-api-01
+    environment:
+      <<: *api-environment
+      Database__ApplyMigrations: "true"
+      Quartz__InstanceName: achinterbank-api-01
+    ports:
+      - "127.0.0.1:${SCHEDULER_SQL_API_01_PORT:-8451}:8080"
+    depends_on:
+      quartz-schema:
+        condition: service_completed_successfully
+    networks:
+      scheduler_cluster_sql:
+        aliases: [achinterbank-api]
+
+  achinterbank-api-02:
+    <<: *api-common
+    hostname: achinterbank-api-02
+    environment:
+      <<: *api-environment
+      Database__ApplyMigrations: "false"
+      Quartz__InstanceName: achinterbank-api-02
+    ports:
+      - "127.0.0.1:${SCHEDULER_SQL_API_02_PORT:-8452}:8080"
+    depends_on:
+      achinterbank-api-01:
+        condition: service_healthy
+
+  achinterbank-spa:
+    image: achinterbank-spa:scheduler-cluster-sqlserver
+    build:
+      context: ./web/ach-interbank-ui
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${SCHEDULER_SQL_SPA_PORT:-745}:80"
+    depends_on:
+      achinterbank-api-01:
+        condition: service_healthy
+    networks: [scheduler_cluster_sql]
+
+networks:
+  scheduler_cluster_sql:
+    driver: bridge
+
+volumes:
+  scheduler_sqlserver_data:

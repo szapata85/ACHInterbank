@@ -364,6 +364,19 @@ public static class DependencyInjectionService
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Permissions.Assign)
                 || ctx.User.HasClaim("permission", "CanManageAch")));
 
+            options.AddPolicy(P1Policies.SchedulerView,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.View));
+            options.AddPolicy(P1Policies.SchedulerHistoryView,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.HistoryView));
+            options.AddPolicy(P1Policies.SchedulerExecute,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.Execute));
+            options.AddPolicy(P1Policies.SchedulerManageSchedule,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.ManageSchedule));
+            options.AddPolicy(P1Policies.SchedulerPauseResume,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.PauseResume));
+            options.AddPolicy(P1Policies.SchedulerViewInstances,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.ViewInstances));
+
             foreach (var permission in FineGrainedPermissions.AllPermissions)
             {
                 if (options.GetPolicy(permission) is null)

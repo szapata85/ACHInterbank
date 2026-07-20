@@ -12,6 +12,12 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
     public static readonly Guid ReadCatalogsPermissionId = Guid.Parse("dd0e54be-b6df-4ab3-8783-0f72b6e774a2");
     public static readonly Guid ManageUsersPermissionId = Guid.Parse("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf");
     public static readonly Guid ManageCertificatesPermissionId = Guid.Parse("13d4e160-8be4-43eb-b69b-c9c658c2dc74");
+    public static readonly Guid SchedulerViewPermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd01");
+    public static readonly Guid SchedulerHistoryViewPermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd02");
+    public static readonly Guid SchedulerExecutePermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd03");
+    public static readonly Guid SchedulerManageSchedulePermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd04");
+    public static readonly Guid SchedulerPauseResumePermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd05");
+    public static readonly Guid SchedulerViewInstancesPermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd06");
 
     public void Configure(EntityTypeBuilder<Permission> builder)
     {
@@ -59,6 +65,12 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
                 Id = ManageCertificatesPermissionId,
                 Name = "CanManageCertificates",
                 Description = "Administración de certificados digitales"
-            });
+            },
+            new Permission { Id = SchedulerViewPermissionId, Name = "Scheduler.View", Description = "Consultar tareas programadas" },
+            new Permission { Id = SchedulerHistoryViewPermissionId, Name = "Scheduler.History.View", Description = "Consultar historial del programador" },
+            new Permission { Id = SchedulerExecutePermissionId, Name = "Scheduler.Execute", Description = "Ejecutar manualmente tareas autorizadas" },
+            new Permission { Id = SchedulerManageSchedulePermissionId, Name = "Scheduler.ManageSchedule", Description = "Editar programaciones" },
+            new Permission { Id = SchedulerPauseResumePermissionId, Name = "Scheduler.PauseResume", Description = "Pausar y reanudar tareas" },
+            new Permission { Id = SchedulerViewInstancesPermissionId, Name = "Scheduler.ViewInstances", Description = "Consultar instancias del clúster" });
     }
 }

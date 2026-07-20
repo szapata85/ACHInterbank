@@ -8,7 +8,11 @@ export const SCHEDULER_ROUTES: Routes = [
     path: 'tasks',
     component: TaskDefinitionsComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanManageAch'], breadcrumb: 'Tareas programadas', title: 'TaskDefinitions' }
+    data: {
+      permissions: ['Scheduler.View'],
+      breadcrumb: 'Tareas programadas',
+      title: 'Administración de tareas programadas'
+    }
   },
   {
     path: '',

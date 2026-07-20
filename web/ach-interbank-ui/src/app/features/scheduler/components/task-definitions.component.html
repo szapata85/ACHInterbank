@@ -1,131 +1,228 @@
-<app-page-header title="Tareas programadas" subtitle="Administra tareas programadas y parámetros"></app-page-header>
+<app-page-header
+  title="Administración de tareas programadas"
+  subtitle="Supervisa el clúster, la programación y las ejecuciones extraordinarias"
+></app-page-header>
 
-<div class="actions">
-  <button type="button" (click)="startCreate()">Nueva tarea</button>
-  <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">Refrescar</button>
+<div class="toolbar">
+  <div>
+    <strong>{{ overview?.schedulerName || 'ACHInterbankScheduler' }}</strong>
+    <span class="environment-badge" [class.ok]="overview?.persistentStore && overview?.clustered">
+      {{ overview?.persistentStore ? 'Store persistente' : 'Store no persistente' }} ·
+      {{ overview?.clustered ? 'Clúster activo' : 'Sin clúster' }}
+    </span>
+  </div>
+  <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">Actualizar</button>
 </div>
 
-<app-table
-  [columns]="columns"
-  [data]="tasks"
-  [loading]="loading"
-  [pageSize]="tasks.length || 10"
-  [total]="tasks.length"
-  [rowActions]="rowActions"
-></app-table>
+<div class="state-panel error" *ngIf="loadError" role="alert">
+  <strong>No se pudo cargar el programador</strong>
+  <span>{{ loadError }}</span>
+</div>
 
-<ng-template #rowActions let-task>
-  <div class="row-actions">
-    <button type="button" class="link" (click)="startEdit(task)">Editar</button>
-    <button type="button" class="link btn-danger" (click)="remove(task)">Eliminar</button>
-  </div>
-</ng-template>
+<div class="state-panel" *ngIf="loading" aria-live="polite">Cargando estado del programador…</div>
 
-<section class="editor" *ngIf="form.get('code')?.value">
-  <h3>{{ editing ? 'Editar tarea' : 'Nueva tarea' }}</h3>
+<section class="metrics" *ngIf="overview" aria-label="Resumen del clúster">
+  <article><span>Instancias</span><strong>{{ overview.totalInstances }}</strong></article>
+  <article><span>En línea</span><strong>{{ overview.activeInstances }}</strong></article>
+  <article><span>Desconectadas</span><strong>{{ overview.offlineInstances }}</strong></article>
+  <article><span>Jobs en ejecución</span><strong>{{ overview.runningJobs }}</strong></article>
+  <article><span>Próximas ejecuciones</span><strong>{{ overview.upcomingExecutions }}</strong></article>
+  <article><span>Fallas recientes</span><strong>{{ overview.recentFailures }}</strong></article>
+  <article><span>Misfires recientes</span><strong>{{ overview.recentMisfires }}</strong></article>
+</section>
 
-  <form [formGroup]="form" class="form-grid">
-    <label>
-      Código
-      <input type="text" formControlName="code" />
-    </label>
-    <label>
-      Nombre
-      <input type="text" formControlName="name" />
-    </label>
-    <label>
-      Estado
-      <select formControlName="status">
-        <option *ngFor="let opt of statusOptions" [value]="opt.value">{{ opt.label }}</option>
-      </select>
-    </label>
-    <label>
-      Política calendario
-      <select formControlName="calendarPolicy">
-        <option *ngFor="let opt of calendarPolicyOptions" [value]="opt.value">{{ opt.label }}</option>
-      </select>
-    </label>
-    <label>
-      Zona horaria
-      <input type="text" formControlName="timeZoneId" />
-    </label>
-    <label>
-      Concurrencia
-      <select formControlName="concurrencyPolicy">
-        <option *ngFor="let opt of concurrencyOptions" [value]="opt.value">{{ opt.label }}</option>
-      </select>
-    </label>
-    <label>
-      Reintentar en fallos
-      <select formControlName="retryOnFailure">
-        <option [ngValue]="true">Sí</option>
-        <option [ngValue]="false">No</option>
-      </select>
-    </label>
-    <label>
-      Máx. reintentos
-      <input type="number" formControlName="maxRetries" />
-    </label>
-    <label>
-      Espera entre reintentos (seg)
-      <input type="number" formControlName="retryBackoffSeconds" />
-    </label>
-    <label>
-      Periodicidad
-      <select formControlName="periodicityType">
-        <option *ngFor="let opt of periodicityOptions" [value]="opt.value">{{ opt.label }}</option>
-      </select>
-    </label>
-    <label>
-      N
-      <input type="number" formControlName="n" />
-    </label>
-    <label>
-      Minuto
-      <input type="number" formControlName="minute" />
-    </label>
-    <label>
-      Hora del día
-      <input type="time" formControlName="timeOfDay" />
-    </label>
-    <label>
-      Día semanal
-      <input type="number" min="0" max="6" formControlName="weeklyDay" />
-    </label>
-    <label>
-      Día del mes
-      <input type="number" min="1" max="31" formControlName="monthDay" />
-    </label>
-    <label>
-      Expresión cron
-      <input type="text" formControlName="cronExpression" />
-      <small class="helper">Orden: minuto hora díaMes mes díaSemana (ej: */5 * * * *)</small>
-    </label>
-    <label>
-      Inicio
-      <input type="datetime-local" formControlName="startAt" />
-    </label>
-    <label>
-      Fin
-      <input type="datetime-local" formControlName="endAt" />
-    </label>
-  </form>
-
-  <div class="parameters">
-    <div class="parameters-header">
-      <h4>Parámetros</h4>
-      <button type="button" class="btn btn-outline" (click)="addParameter()">Agregar</button>
+<section class="panel" aria-labelledby="tasks-title">
+  <div class="section-heading">
+    <div>
+      <h2 id="tasks-title">Tareas</h2>
+      <p>La programación legible se muestra primero; cron y zona horaria quedan como información avanzada.</p>
     </div>
-
-    <div class="parameter" *ngFor="let param of parameters.controls; let i = index" [formGroup]="param">
-      <input type="text" formControlName="key" placeholder="Clave" />
-      <input type="text" formControlName="value" placeholder="Valor" />
-      <button type="button" class="link btn-danger" (click)="removeParameter(i)">Quitar</button>
-    </div>
+    <span>{{ tasks.length }} registradas</span>
   </div>
 
-  <div class="editor-actions">
-    <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">Guardar</button>
-    <button type="button" class="btn btn-outline" (click)="cancel()">Cancelar</button>
+  <div class="empty" *ngIf="!loading && !tasks.length">No hay tareas autorizadas para mostrar.</div>
+
+  <div class="table-wrap" *ngIf="tasks.length">
+    <table>
+      <thead>
+        <tr>
+          <th>Tarea</th>
+          <th>Programación</th>
+          <th>Misfire</th>
+          <th>Última ejecución</th>
+          <th>Próxima</th>
+          <th>Estado</th>
+          <th><span class="sr-only">Acciones</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let task of tasks; trackBy: trackByTask">
+          <td data-label="Tarea">
+            <strong>{{ task.name }}</strong>
+            <code>{{ task.taskCode }}</code>
+            <small *ngIf="task.clearingHouse">{{ task.clearingHouse }}</small>
+          </td>
+          <td data-label="Programación">
+            <strong>{{ task.scheduleDescription }}</strong>
+            <small *ngIf="task.cronExpression">Cron: {{ task.cronExpression }}</small>
+            <small>Zona horaria: {{ task.timeZoneId }}</small>
+          </td>
+          <td data-label="Misfire">
+            <span class="policy">{{ task.misfirePolicy === 0 ? 'DoNothing' : 'FireAndProceed' }}</span>
+            <small>{{ task.misfireDescription }}</small>
+          </td>
+          <td data-label="Última ejecución">
+            <strong>{{ task.lastResult || 'Sin ejecuciones' }}</strong>
+            <small>{{ formatDate(task.lastExecutionUtc) }}</small>
+            <small>{{ formatDuration(task.lastDurationMilliseconds) }} · {{ task.lastSchedulerInstance || 'Sin instancia' }}</small>
+          </td>
+          <td data-label="Próxima">{{ formatDate(task.nextExecutionUtc) }}</td>
+          <td data-label="Estado">
+            <span class="status" [class.running]="task.currentState === 'En ejecución'" [class.paused]="task.status === 'Pausada'">
+              {{ task.currentState }}
+            </span>
+          </td>
+          <td class="actions-cell">
+            <details class="action-menu">
+              <summary aria-label="Abrir acciones">•••</summary>
+              <div>
+                <button type="button" (click)="showDetail(task)">Ver detalle</button>
+                <button type="button" *ngIf="canExecute" (click)="openManual(task)" [disabled]="!task.manualExecutionEnabled">Ejecutar ahora</button>
+                <button type="button" *ngIf="canPauseResume && task.status !== 'Pausada'" (click)="pause(task)">Pausar</button>
+                <button type="button" *ngIf="canPauseResume && task.status === 'Pausada'" (click)="resume(task)">Reanudar</button>
+                <button type="button" *ngIf="canManageSchedule" (click)="openSchedule(task)">Editar programación</button>
+              </div>
+            </details>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </section>
+
+<section class="panel" *ngIf="canViewInstances" aria-labelledby="instances-title">
+  <div class="section-heading">
+    <div><h2 id="instances-title">Instancias del clúster</h2><p>Heartbeat funcional independiente de las tablas internas de Quartz.</p></div>
+  </div>
+  <div class="instance-grid" *ngIf="instances.length; else noInstances">
+    <article *ngFor="let instance of instances; trackBy: trackByInstance">
+      <div><strong>{{ instance.instanceName }}</strong><span class="status">{{ instance.status }}</span></div>
+      <dl>
+        <dt>Instance ID</dt><dd>{{ instance.instanceId }}</dd>
+        <dt>Host</dt><dd>{{ instance.hostName }}</dd>
+        <dt>Último heartbeat</dt><dd>{{ formatDate(instance.lastHeartbeatUtc) }}</dd>
+        <dt>Jobs activos</dt><dd>{{ instance.currentlyExecutingJobs }}</dd>
+        <dt>Versión</dt><dd>{{ instance.version }}</dd>
+      </dl>
+      <small *ngIf="instance.isCurrentInstance">Instancia que atendió esta consulta</small>
+    </article>
+  </div>
+  <ng-template #noInstances><div class="empty">Todavía no hay heartbeats registrados.</div></ng-template>
+</section>
+
+<section class="panel" *ngIf="canViewHistory" aria-labelledby="history-title">
+  <div class="section-heading">
+    <div><h2 id="history-title">Historial funcional</h2><p>Programadas, manuales, recuperaciones, rechazos y misfires.</p></div>
+    <span>{{ historyTotal }} registros</span>
+  </div>
+
+  <form class="filters" [formGroup]="historyForm" (ngSubmit)="filterHistory()">
+    <label>Tarea<select formControlName="taskCode"><option value="">Todas</option><option *ngFor="let task of tasks" [value]="task.taskCode">{{ task.name }}</option></select></label>
+    <label>Estado<select formControlName="status"><option value="">Todos</option><option value="1">En ejecución</option><option value="2">Exitosa</option><option value="3">Fallida</option><option value="4">Recuperada</option><option value="6">Rechazada</option><option value="7">Misfire</option></select></label>
+    <label>Tipo<select formControlName="triggerType"><option value="">Todos</option><option value="Programada">Programada</option><option value="Manual">Manual</option><option value="Recuperación">Recuperación</option></select></label>
+    <label>Instancia<select formControlName="instanceId"><option value="">Todas</option><option *ngFor="let instance of instances" [value]="instance.instanceId">{{ instance.instanceName }}</option></select></label>
+    <label>Usuario<input formControlName="userName" /></label>
+    <label>Correlation ID<input formControlName="correlationId" /></label>
+    <label>Desde<input type="datetime-local" formControlName="fromUtc" /></label>
+    <label>Hasta<input type="datetime-local" formControlName="toUtc" /></label>
+    <button type="submit" class="btn btn-outline">Aplicar filtros</button>
+  </form>
+
+  <div class="empty" *ngIf="!history.length">No hay ejecuciones para los filtros seleccionados.</div>
+  <div class="table-wrap" *ngIf="history.length">
+    <table>
+      <thead><tr><th>Inicio</th><th>Tarea</th><th>Tipo</th><th>Estado</th><th>Instancia</th><th>Usuario / motivo</th><th>Resultado</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let execution of history; trackBy: trackByExecution">
+          <td data-label="Inicio">{{ formatDate(execution.startedAtUtc) }}<small>{{ formatDuration(execution.durationMilliseconds) }}</small></td>
+          <td data-label="Tarea"><strong>{{ execution.taskCode }}</strong><small>{{ execution.correlationId }}</small></td>
+          <td data-label="Tipo">{{ execution.triggerType }}<small *ngIf="execution.isRecovery">Recovery</small><small *ngIf="execution.misfireDetected">Misfire detectado</small></td>
+          <td data-label="Estado"><span class="status">{{ statusLabel(execution.status) }}</span></td>
+          <td data-label="Instancia">{{ execution.schedulerInstanceName || '—' }}<small>{{ execution.schedulerInstanceId || '—' }}</small></td>
+          <td data-label="Usuario / motivo">{{ execution.requestedByUserName || 'Programador' }}<small>{{ execution.requestReason || 'Ejecución regular' }}</small></td>
+          <td data-label="Resultado">{{ execution.resultSummary || execution.errorSummary || '—' }}<small *ngIf="execution.errorCode">{{ execution.errorCode }}</small></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="modal-backdrop" *ngIf="manualTask" (click)="closeManual()">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="manual-title" (click)="$event.stopPropagation()">
+    <h2 id="manual-title">Ejecutar tarea ahora</h2>
+    <dl class="summary-list">
+      <dt>Tarea</dt><dd>{{ manualTask.name }}</dd>
+      <dt>Estado actual</dt><dd>{{ manualTask.currentState }}</dd>
+      <dt>Última ejecución</dt><dd>{{ manualTask.lastResult || 'Sin ejecuciones' }} · {{ formatDate(manualTask.lastExecutionUtc) }}</dd>
+    </dl>
+    <p>Esta acción iniciará una ejecución extraordinaria y no modificará su programación.</p>
+    <form [formGroup]="manualForm" (ngSubmit)="executeNow()">
+      <label>Motivo <textarea formControlName="reason" rows="4" maxlength="500" autofocus></textarea></label>
+      <small class="validation" *ngIf="manualForm.controls.reason.touched && manualForm.controls.reason.invalid">Escriba un motivo de al menos 10 caracteres.</small>
+      <small>Request ID: {{ manualForm.controls.requestId.value }}</small>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" (click)="closeManual()" [disabled]="submittingManual">Cancelar</button>
+        <button type="submit" class="btn btn-primary" [disabled]="submittingManual || manualForm.invalid">{{ submittingManual ? 'Iniciando…' : 'Ejecutar ahora' }}</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div class="modal-backdrop" *ngIf="scheduleTask" (click)="closeSchedule()">
+  <section class="modal wide" role="dialog" aria-modal="true" aria-labelledby="schedule-title" (click)="$event.stopPropagation()">
+    <h2 id="schedule-title">Editar programación</h2>
+    <p><strong>{{ scheduleTask.name }}</strong></p>
+    <form [formGroup]="scheduleForm" class="schedule-form">
+      <label>Frecuencia<select formControlName="periodicityType"><option *ngFor="let option of periodicityOptions" [ngValue]="option.value">{{ option.label }}</option></select></label>
+      <label *ngIf="scheduleForm.controls.periodicityType.value === 1">Cada cuántos minutos<input type="number" min="1" max="1440" formControlName="n" /></label>
+      <label *ngIf="scheduleForm.controls.periodicityType.value === 2">Minuto de la hora<input type="number" min="0" max="59" formControlName="minute" /></label>
+      <label *ngIf="[3, 4, 5].includes(scheduleForm.controls.periodicityType.value)">Hora<input type="time" formControlName="timeOfDay" /></label>
+      <label *ngIf="scheduleForm.controls.periodicityType.value === 4">Día<select formControlName="weeklyDay"><option *ngFor="let day of weekDays" [ngValue]="day.value">{{ day.label }}</option></select></label>
+      <label *ngIf="scheduleForm.controls.periodicityType.value === 5">Día del mes<input type="number" min="1" max="31" formControlName="monthDay" /></label>
+      <label class="full" *ngIf="scheduleForm.controls.periodicityType.value === 6">Cron avanzado<input formControlName="cronExpression" /><small>Formato Quartz: segundos, minutos, horas, día del mes, mes y día de semana.</small></label>
+      <label>Zona horaria<input formControlName="timeZoneId" /></label>
+      <label>Política de misfire<select formControlName="misfirePolicy"><option *ngFor="let option of misfireOptions" [ngValue]="option.value">{{ option.label }}</option></select></label>
+      <label class="check"><input type="checkbox" formControlName="onlyBusinessDays" /> Solo días hábiles</label>
+      <label>Inicio<input type="datetime-local" formControlName="startAt" /></label>
+      <label>Fin<input type="datetime-local" formControlName="endAt" /></label>
+    </form>
+    <div class="preview" *ngIf="preview">
+      <strong>{{ preview.description }}</strong>
+      <span>Próximas ejecuciones:</span>
+      <ul><li *ngFor="let date of preview.nextExecutionsUtc">{{ formatDate(date) }}</li></ul>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" (click)="closeSchedule()" [disabled]="savingSchedule">Cancelar</button>
+      <button type="button" class="btn btn-outline" (click)="previewSchedule()" [disabled]="previewing">{{ previewing ? 'Calculando…' : 'Vista previa' }}</button>
+      <button type="button" class="btn btn-primary" (click)="saveSchedule()" [disabled]="savingSchedule">{{ savingSchedule ? 'Guardando…' : 'Guardar' }}</button>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop" *ngIf="detailTask" (click)="closeDetail()">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="detail-title" (click)="$event.stopPropagation()">
+    <h2 id="detail-title">Detalle de la tarea</h2>
+    <h3>{{ detailTask.name }}</h3>
+    <p>{{ detailTask.description }}</p>
+    <dl class="summary-list">
+      <dt>Código</dt><dd>{{ detailTask.taskCode }}</dd>
+      <dt>Programación</dt><dd>{{ detailTask.scheduleDescription }}</dd>
+      <dt>Cron</dt><dd>{{ detailTask.cronExpression || 'No aplica' }}</dd>
+      <dt>Zona horaria</dt><dd>{{ detailTask.timeZoneId }}</dd>
+      <dt>Misfire</dt><dd>{{ detailTask.misfireDescription }}</dd>
+      <dt>Recovery</dt><dd>{{ detailTask.requestsRecovery ? 'Habilitado' : 'No habilitado' }}</dd>
+      <dt>Ejecución manual</dt><dd>{{ detailTask.manualExecutionEnabled ? 'Habilitada' : 'No habilitada' }}</dd>
+    </dl>
+    <div class="modal-actions"><button type="button" class="btn btn-primary" (click)="closeDetail()">Cerrar</button></div>
+  </section>
+</div>

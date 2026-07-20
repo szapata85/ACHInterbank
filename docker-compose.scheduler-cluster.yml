@@ -1,0 +1,124 @@
+name: achinterbank-scheduler-cluster
+
+x-api-common: &api-common
+  image: achinterbank-api:scheduler-cluster
+  build:
+    context: .
+    dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
+  environment: &api-environment
+    ASPNETCORE_URLS: http://+:8080
+    ASPNETCORE_ENVIRONMENT: Development
+    EnableHttpsRedirection: "false"
+    Database__Provider: Postgres
+    ConnectionStrings__PostgresConnection: Host=scheduler-postgres;Port=5432;Database=achinterbank_scheduler;Username=scheduler_test;Password=${SCHEDULER_POSTGRES_PASSWORD:-scheduler_local_password}
+    Quartz__SchedulerName: ACHInterbankScheduler
+    Quartz__InstanceId: AUTO
+    Quartz__MaxConcurrency: 6
+    Quartz__MaxBatchSize: 6
+    Quartz__AcquireTriggersWithinLock: "true"
+    Quartz__InstanceHeartbeatSeconds: 2
+    Quartz__OfflineThresholdSeconds: 12
+    Quartz__JobStore__Mode: Persistent
+    Quartz__JobStore__Provider: Postgres
+    Quartz__JobStore__TablePrefix: QRTZ_
+    Quartz__JobStore__Clustered: "true"
+    Quartz__JobStore__ClusterCheckinIntervalSeconds: 3
+    Quartz__JobStore__MisfireThresholdMilliseconds: 5000
+    Quartz__JobStore__PerformSchemaValidation: "true"
+    Scheduler__Probe__Enabled: "true"
+    Cors__Origins__0: http://localhost:744
+    DigitalEnvelope__CertificateBootstrap__Enabled: "false"
+    DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/live >/dev/null"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+    start_period: 30s
+  restart: unless-stopped
+  stop_grace_period: 30s
+  networks: [scheduler_cluster]
+
+services:
+  scheduler-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: achinterbank_scheduler
+      POSTGRES_USER: scheduler_test
+      POSTGRES_PASSWORD: ${SCHEDULER_POSTGRES_PASSWORD:-scheduler_local_password}
+    ports:
+      - "127.0.0.1:${SCHEDULER_POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - scheduler_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scheduler_test -d achinterbank_scheduler"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [scheduler_cluster]
+
+  quartz-schema:
+    image: postgres:16
+    depends_on:
+      scheduler-postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${SCHEDULER_POSTGRES_PASSWORD:-scheduler_local_password}
+    volumes:
+      - ./artifacts/sql/quartz/postgres-qrtz-schema.sql:/schema/quartz.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-h", "scheduler-postgres", "-U", "scheduler_test", "-d", "achinterbank_scheduler", "-f", "/schema/quartz.sql"]
+    restart: "no"
+    networks: [scheduler_cluster]
+
+  achinterbank-api-01:
+    <<: *api-common
+    hostname: achinterbank-api-01
+    environment:
+      <<: *api-environment
+      Database__ApplyMigrations: "true"
+      Quartz__InstanceName: achinterbank-api-01
+    ports:
+      - "127.0.0.1:${SCHEDULER_API_01_PORT:-8441}:8080"
+    depends_on:
+      quartz-schema:
+        condition: service_completed_successfully
+    networks:
+      scheduler_cluster:
+        aliases: [achinterbank-api]
+
+  achinterbank-api-02:
+    <<: *api-common
+    hostname: achinterbank-api-02
+    environment:
+      <<: *api-environment
+      Database__ApplyMigrations: "false"
+      Quartz__InstanceName: achinterbank-api-02
+    ports:
+      - "127.0.0.1:${SCHEDULER_API_02_PORT:-8442}:8080"
+    depends_on:
+      achinterbank-api-01:
+        condition: service_healthy
+
+  achinterbank-spa:
+    image: achinterbank-spa:scheduler-cluster
+    build:
+      context: ./web/ach-interbank-ui
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${SCHEDULER_SPA_PORT:-744}:80"
+    depends_on:
+      achinterbank-api-01:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/health/live >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [scheduler_cluster]
+
+networks:
+  scheduler_cluster:
+    driver: bridge
+
+volumes:
+  scheduler_postgres_data:

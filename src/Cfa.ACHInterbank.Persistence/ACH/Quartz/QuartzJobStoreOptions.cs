@@ -4,6 +4,15 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Quartz;
 
 public sealed class QuartzJobStoreOptions
 {
+    public string SchedulerName { get; set; } = "ACHInterbankScheduler";
+    public string InstanceId { get; set; } = "AUTO";
+    public string InstanceName { get; set; } = Environment.MachineName;
+    public int MaxConcurrency { get; set; } = 10;
+    public int MaxBatchSize { get; set; } = 10;
+    public int BatchFireAheadMilliseconds { get; set; }
+    public bool AcquireTriggersWithinLock { get; set; } = true;
+    public int InstanceHeartbeatSeconds { get; set; } = 10;
+    public int OfflineThresholdSeconds { get; set; } = 45;
     public string Mode { get; set; } = "RAM";
     public string Provider { get; set; } = string.Empty;
     public string TablePrefix { get; set; } = "QRTZ_";
@@ -40,6 +49,7 @@ public static class QuartzJobStoreOptionsFactory
     public static QuartzJobStoreOptions Create(IConfiguration configuration)
     {
         var options = new QuartzJobStoreOptions();
+        configuration.GetSection("Quartz").Bind(options);
         configuration.GetSection("Quartz:JobStore").Bind(options);
         return options;
     }

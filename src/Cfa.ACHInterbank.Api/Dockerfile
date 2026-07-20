@@ -22,6 +22,7 @@ COPY ["src/Cfa.ACHInterbank.Application/Cfa.ACHInterbank.Application.csproj", "s
 COPY ["src/Cfa.ACHInterbank.Domain/Cfa.ACHInterbank.Domain.csproj", "src/Cfa.ACHInterbank.Domain/"]
 COPY ["src/Cfa.ACHInterbank.External/Cfa.ACHInterbank.External.csproj", "src/Cfa.ACHInterbank.External/"]
 COPY ["src/Cfa.ACHInterbank.Persistence/Cfa.ACHInterbank.Persistence.csproj", "src/Cfa.ACHInterbank.Persistence/"]
+COPY ["src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/Cfa.ACHInterbank.Persistence.Migrations.SqlServer.csproj", "src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/"]
 RUN dotnet restore "./src/Cfa.ACHInterbank.Api/Cfa.ACHInterbank.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Cfa.ACHInterbank.Api"

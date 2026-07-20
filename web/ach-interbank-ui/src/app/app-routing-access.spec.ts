@@ -18,7 +18,7 @@ describe('route access control', () => {
   });
 
   it('protege la administración del scheduler con permiso de gestión', () => {
-    expectPermission(SCHEDULER_ROUTES, 'tasks', 'CanManageAch');
+    expectPermission(SCHEDULER_ROUTES, 'tasks', 'Scheduler.View');
   });
 
   it('mantiene las pantallas NACHA Config disponibles en modo lectura', () => {

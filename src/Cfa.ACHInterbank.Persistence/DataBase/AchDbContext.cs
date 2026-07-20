@@ -74,6 +74,8 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<TaskDefinition> TaskDefinitions => Set<TaskDefinition>();
     public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();
     public DbSet<TaskExecutionLog> TaskExecutionLogs => Set<TaskExecutionLog>();
+    public DbSet<SchedulerInstanceState> SchedulerInstanceStates => Set<SchedulerInstanceState>();
+    public DbSet<SchedulerProbeExecution> SchedulerProbeExecutions => Set<SchedulerProbeExecution>();
 
     public DbSet<InstitutionClearingHousePreference> InstitutionClearingHousePreferences { get; set; } = null!;
 
@@ -361,6 +363,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
             e.HasIndex(x => x.Code).IsUnique();
             e.Property(x => x.Code).HasMaxLength(100).IsRequired();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000);
             e.Property(x => x.TimeZoneId).HasMaxLength(100);
 
             // Auditoría
@@ -381,7 +384,56 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         {
             e.ToTable("TaskExecutionLog");
             e.HasIndex(x => x.TaskDefinitionId);
+            e.HasIndex(x => x.ExecutionId).IsUnique();
+            e.HasIndex(x => x.RequestId).IsUnique();
+            e.HasIndex(x => x.ManualConcurrencyKey)
+                .IsUnique()
+                .HasFilter(isPostgres ? "\"ManualConcurrencyKey\" IS NOT NULL" : "[ManualConcurrencyKey] IS NOT NULL");
+            e.HasIndex(x => new { x.TaskCode, x.StartedAt });
+            e.HasIndex(x => new { x.Status, x.StartedAt });
             e.Property(x => x.ExecutionKey).HasMaxLength(64).IsRequired();
+            e.Property(x => x.TaskCode).HasMaxLength(100).IsRequired();
+            e.Property(x => x.JobName).HasMaxLength(150).IsRequired();
+            e.Property(x => x.JobGroup).HasMaxLength(100).IsRequired();
+            e.Property(x => x.TriggerName).HasMaxLength(150).IsRequired();
+            e.Property(x => x.TriggerType).HasMaxLength(30).IsRequired();
+            e.Property(x => x.FireInstanceId).HasMaxLength(200).IsRequired();
+            e.Property(x => x.SchedulerInstanceId).HasMaxLength(200).IsRequired();
+            e.Property(x => x.SchedulerInstanceName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.RequestedByUserId).HasMaxLength(100);
+            e.Property(x => x.RequestedByUserName).HasMaxLength(200);
+            e.Property(x => x.RequestReason).HasMaxLength(500);
+            e.Property(x => x.RequestId).HasMaxLength(36);
+            e.Property(x => x.IdempotencyKey).HasMaxLength(200).IsRequired();
+            e.Property(x => x.CorrelationId).HasMaxLength(100).IsRequired();
+            e.Property(x => x.OriginalFireInstanceId).HasMaxLength(200);
+            e.Property(x => x.RecoveredByInstanceId).HasMaxLength(200);
+            e.Property(x => x.RecoveryResult).HasMaxLength(500);
+            e.Property(x => x.ErrorCode).HasMaxLength(100);
+            e.Property(x => x.ManualConcurrencyKey).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<SchedulerInstanceState>(e =>
+        {
+            e.ToTable("SchedulerInstanceStates");
+            e.HasIndex(x => new { x.SchedulerName, x.InstanceId }).IsUnique();
+            e.HasIndex(x => x.LastHeartbeatUtc);
+            e.Property(x => x.SchedulerName).HasMaxLength(120).IsRequired();
+            e.Property(x => x.InstanceId).HasMaxLength(200).IsRequired();
+            e.Property(x => x.InstanceName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.HostName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Version).HasMaxLength(50).IsRequired();
+        });
+
+        modelBuilder.Entity<SchedulerProbeExecution>(e =>
+        {
+            e.ToTable("SchedulerProbeExecutions");
+            e.HasIndex(x => x.ProbeKey).IsUnique();
+            e.HasIndex(x => x.ExecutionId);
+            e.Property(x => x.ProbeKey).HasMaxLength(200).IsRequired();
+            e.Property(x => x.SchedulerInstanceId).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(30).IsRequired();
         });
 
     }

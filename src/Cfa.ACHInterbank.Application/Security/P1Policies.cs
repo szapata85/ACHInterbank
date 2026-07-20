@@ -53,4 +53,10 @@ public static class P1Policies
     public const string RolesDelete = "P1.RolesDelete";
     public const string PermissionsRead = "P1.PermissionsRead";
     public const string PermissionsAssign = "P1.PermissionsAssign";
+    public const string SchedulerView = "P1.SchedulerView";
+    public const string SchedulerHistoryView = "P1.SchedulerHistoryView";
+    public const string SchedulerExecute = "P1.SchedulerExecute";
+    public const string SchedulerManageSchedule = "P1.SchedulerManageSchedule";
+    public const string SchedulerPauseResume = "P1.SchedulerPauseResume";
+    public const string SchedulerViewInstances = "P1.SchedulerViewInstances";
 }
