@@ -143,6 +143,16 @@ public static class FineGrainedPermissions
         public const string Manage = "Config.Manage";
     }
 
+    public static class ClearingHouses
+    {
+        public const string View = "ClearingHouses.View";
+        public const string Create = "ClearingHouses.Create";
+        public const string Update = "ClearingHouses.Update";
+        public const string ChangeStatus = "ClearingHouses.ChangeStatus";
+        public const string ManageCycles = "ClearingHouses.ManageCycles";
+        public const string ManageSpecialDates = "ClearingHouses.ManageSpecialDates";
+    }
+
     public static class Integrations
     {
         public const string Read = "Integrations.Read";
@@ -192,6 +202,8 @@ public static class FineGrainedPermissions
         Roles.Read, Roles.Create, Roles.Update, Roles.Delete,
         Permissions.Read, Permissions.Assign,
         Config.Read, Config.Manage,
+        ClearingHouses.View, ClearingHouses.Create, ClearingHouses.Update, ClearingHouses.ChangeStatus,
+        ClearingHouses.ManageCycles, ClearingHouses.ManageSpecialDates,
         Integrations.Read, Integrations.ManageMappings, Integrations.Validate, Integrations.Publish, Integrations.Compare,
         RegulatoryCatalogs.Read,
         Maintenance.Seed, Maintenance.RunAdminTask,

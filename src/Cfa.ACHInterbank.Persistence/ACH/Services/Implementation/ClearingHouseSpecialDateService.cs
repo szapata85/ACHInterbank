@@ -17,7 +17,7 @@ public class ClearingHouseSpecialDateService : IClearingHouseSpecialDateService
         _context = context;
     }
 
-    public async Task<IReadOnlyList<ClearingHouseSpecialDateDto>> GetAllAsync(int? year, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ClearingHouseSpecialDateDto>> GetAllAsync(int? year, int? clearingHouseId, CancellationToken ct = default)
     {
         IQueryable<ClearingHouseSpecialDate> query = _context.ClearingHouseSpecialDates
             .AsNoTracking()
@@ -26,6 +26,11 @@ public class ClearingHouseSpecialDateService : IClearingHouseSpecialDateService
         if (year.HasValue)
         {
             query = query.Where(d => d.Date.Year == year);
+        }
+
+        if (clearingHouseId.HasValue)
+        {
+            query = query.Where(d => d.ClearingHouseId == clearingHouseId.Value);
         }
 
         var items = await query
@@ -37,6 +42,7 @@ public class ClearingHouseSpecialDateService : IClearingHouseSpecialDateService
                 ClearingHouseName = d.ClearingHouse.Name,
                 Date = d.Date.ToDateTime(TimeOnly.MinValue),
                 Description = d.Description
+                ,IsActive = d.IsActive
             })
             .ToListAsync(ct);
 
@@ -52,6 +58,7 @@ public class ClearingHouseSpecialDateService : IClearingHouseSpecialDateService
             ClearingHouseId = dto.ClearingHouseId,
             Date = DateOnly.FromDateTime(dto.Date),
             Description = dto.Description
+            ,IsActive = dto.IsActive
         };
 
         _context.ClearingHouseSpecialDates.Add(entity);
@@ -75,6 +82,7 @@ public class ClearingHouseSpecialDateService : IClearingHouseSpecialDateService
         entity.ClearingHouseId = dto.ClearingHouseId;
         entity.Date = DateOnly.FromDateTime(dto.Date);
         entity.Description = dto.Description;
+        entity.IsActive = dto.IsActive;
 
         await _context.SaveChangesAsync(ct);
 
@@ -84,16 +92,24 @@ public class ClearingHouseSpecialDateService : IClearingHouseSpecialDateService
         return dto;
     }
 
-    public async Task DeleteAsync(int id, CancellationToken ct = default)
+    public async Task<ClearingHouseSpecialDateDto> ChangeStatusAsync(int id, bool isActive, CancellationToken ct = default)
     {
         var entity = await _context.ClearingHouseSpecialDates.FirstOrDefaultAsync(d => d.Id == id, ct);
         if (entity is null)
         {
-            return;
+            throw new InvalidOperationException("Fecha especial no encontrada.");
         }
 
-        _context.ClearingHouseSpecialDates.Remove(entity);
+        entity.IsActive = isActive;
         await _context.SaveChangesAsync(ct);
+        return new ClearingHouseSpecialDateDto
+        {
+            Id = entity.Id,
+            ClearingHouseId = entity.ClearingHouseId,
+            Date = entity.Date.ToDateTime(TimeOnly.MinValue),
+            Description = entity.Description,
+            IsActive = entity.IsActive
+        };
     }
 
     private async Task EnsureClearingHouseExists(int clearingHouseId, CancellationToken ct)

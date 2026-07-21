@@ -15,10 +15,10 @@ describe('CycleConfigManagementComponent', () => {
 
   beforeEach(async () => {
     api = jasmine.createSpyObj<ClearingHouseCycleConfigsApiService>('ClearingHouseCycleConfigsApiService', ['getByClearingHouse', 'createVersion', 'inactivate']);
-    housesApi = jasmine.createSpyObj<ClearingHousesApiService>('ClearingHousesApiService', ['list']);
+    housesApi = jasmine.createSpyObj<ClearingHousesApiService>('ClearingHousesApiService', ['listAdministrative']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'warning', 'error']);
 
-    housesApi.list.and.returnValue(of([{ id: 1, name: 'ACH Colombia', code: 'ACHCOL' } as any]));
+    housesApi.listAdministrative.and.returnValue(of([{ id: 1, name: 'ACH Colombia', code: 'ACHCOL' } as any]));
     api.getByClearingHouse.and.returnValue(of([]));
     api.createVersion.and.returnValue(of({} as any));
     api.inactivate.and.returnValue(of({} as any));

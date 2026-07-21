@@ -57,7 +57,7 @@
     <ui-tarjeta titulo="Filtros" subtitulo="Filtros locales solo lectura">
       <section class="badge-row">
         <label>Estado <select [(ngModel)]="estado"><option value="">Todos</option><option>Conciliado</option><option>Pendiente</option><option>Inconsistente</option><option>RequiereRevisionManual</option></select></label>
-        <label>Cámara <select [(ngModel)]="camara"><option value="">Todas</option><option>ACH</option><option>CENIT</option><option>N/A</option></select></label>
+        <label>Cámara <select [(ngModel)]="camara"><option value="">Todas</option><option *ngFor="let option of clearingHouseOptions" [value]="option">{{ option }}</option></select></label>
         <label>Tipo <select [(ngModel)]="tipo"><option value="">Todos</option><option>Respuesta diferencial</option><option>Devolución .RET</option><option>ROR / Return of Return</option><option>Prenotificación</option></select></label>
         <label><input type="checkbox" [(ngModel)]="soloRevision"> Requiere revisión</label>
       </section>

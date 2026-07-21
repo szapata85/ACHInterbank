@@ -42,6 +42,7 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int NachaInboundSimulatorId = 34;
     public const int NachaConfigRecordsId = 2802;
     public const int NachaConfigVariantsFieldsId = 2803;
+    public const int ClearingHousesAdminId = 2804;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {
@@ -478,6 +479,18 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/nacha-security/sobre-digital",
                 Icon = "lock",
                 Order = 1,
+                Exact = true,
+                IsActive = true
+            },
+            new MenuItem
+            {
+                Id = ClearingHousesAdminId,
+                MenuId = MenuConfiguration.MainMenuId,
+                ParentId = CatalogsId,
+                Label = "Cámaras compensadoras",
+                Route = "/clearing-houses",
+                Icon = "account_balance",
+                Order = 5,
                 Exact = true,
                 IsActive = true
             });

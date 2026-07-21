@@ -80,6 +80,13 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerViewPermissionId },
             new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerHistoryViewPermissionId },
             new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerExecutePermissionId },
-            new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerViewInstancesPermissionId });
+            new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.SchedulerViewInstancesPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.ClearingHousesViewPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.OperatorRoleId, PermissionId = PermissionConfiguration.ClearingHousesViewPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.ClearingHousesCreatePermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.ClearingHousesUpdatePermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.ClearingHousesChangeStatusPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.ClearingHousesManageCyclesPermissionId },
+            new RolePermission { RoleId = RoleConfiguration.AdminRoleId, PermissionId = PermissionConfiguration.ClearingHousesManageSpecialDatesPermissionId });
     }
 }

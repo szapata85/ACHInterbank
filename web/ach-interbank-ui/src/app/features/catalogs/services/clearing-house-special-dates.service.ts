@@ -21,7 +21,7 @@ export class ClearingHouseSpecialDatesService {
     return this.api.put<ClearingHouseSpecialDate>(`${this.basePath}/${payload.id}`, payload);
   }
 
-  delete(id: number): Observable<void> {
-    return this.api.delete<void>(`${this.basePath}/${id}`);
+  changeStatus(id: number, isActive: boolean): Observable<ClearingHouseSpecialDate> {
+    return this.api.patch<ClearingHouseSpecialDate>(`${this.basePath}/${id}/status`, { isActive });
   }
 }

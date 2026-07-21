@@ -1,13 +1,16 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
-public class ClearingHouse
+public class ClearingHouse : AuditableEntity
 {
     public int Id { get; set; }
     public string Name { get; set; } = null!;
     public string Code { get; set; } = null!;
     public string OriginCode { get; set; } = null!;
+    public bool IsActive { get; set; } = true;
 
     public int ClearingHouseId { get; set; }
 

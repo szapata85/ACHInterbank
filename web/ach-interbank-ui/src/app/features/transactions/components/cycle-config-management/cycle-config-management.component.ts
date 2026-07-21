@@ -13,7 +13,7 @@ import {
 } from '../../transactions.models';
 import { ClearingHouseCycleConfigsApiService } from '../../services/clearing-house-cycle-configs-api.service';
 import { OpcionSelectorBuscable } from '../../../../shared/components/ui/ui-selector-buscable.component';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-cycle-config-management',
@@ -30,6 +30,7 @@ export class CycleConfigManagementComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly zone = inject(NgZone);
+  private readonly route = inject(ActivatedRoute);
 
   loading = false;
   saving = false;
@@ -344,9 +345,14 @@ export class CycleConfigManagementComponent implements OnInit {
   }
 
   private loadClearingHouses(): void {
-    this.clearingHouseApi.list().subscribe({
+    this.clearingHouseApi.listAdministrative().subscribe({
       next: (items) => {
         this.clearingHouses = items.map((x) => ({ id: x.id, name: x.name }));
+        const routeClearingHouseId = Number(this.route.snapshot.paramMap.get('id'));
+        if (Number.isInteger(routeClearingHouseId) && items.some((x) => x.id === routeClearingHouseId)) {
+          this.filterForm.controls.clearingHouseId.setValue(routeClearingHouseId);
+          this.search();
+        }
         this.cdr.markForCheck();
       },
       error: () => {

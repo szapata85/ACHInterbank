@@ -183,7 +183,7 @@ export class ClearingHousePreferencesComponent implements OnInit, OnDestroy {
 
   loadCatalogs(): void {
     this.clearingHouseApi
-      .list()
+      .listAdministrative()
       .pipe(takeUntil(this.destroy$))
       .subscribe((houses) => {
         this.clearingHouses = houses;

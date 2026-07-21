@@ -5,12 +5,8 @@ namespace Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 
 public sealed class ClearingHouseToPaymentRailMapper : IClearingHouseToPaymentRailMapper
 {
-    private static readonly IReadOnlyDictionary<int, string> RailByClearingHouseId = new Dictionary<int, string>
-    {
-        [1] = PaymentRailCodes.AchColombia,
-        [2] = PaymentRailCodes.Cenit
-    };
-
+    // Estos aliases identifican estrategias regulatorias registradas; los IDs persistidos
+    // nunca seleccionan comportamiento porque no son identidad funcional estable.
     private static readonly IReadOnlyDictionary<string, string> RailByClearingHouseCode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         ["ACH"] = PaymentRailCodes.AchColombia,
@@ -27,27 +23,11 @@ public sealed class ClearingHouseToPaymentRailMapper : IClearingHouseToPaymentRa
             return new PaymentRailResolveResult(byRequestedRail, true, "RequestedRailCode", "Riel resuelto por código solicitado.");
         }
 
-        RailByClearingHouseId.TryGetValue(request.ClearingHouseId ?? -1, out var byId);
-
         var normalizedCode = NormalizeCode(request.ClearingHouseCode);
         var hasCode = !string.IsNullOrWhiteSpace(normalizedCode);
         var byCode = hasCode && normalizedCode is not null && RailByClearingHouseCode.TryGetValue(normalizedCode, out var fromCode)
             ? fromCode
             : null;
-
-        if (byId is not null && byCode is not null && !string.Equals(byId, byCode, StringComparison.OrdinalIgnoreCase))
-        {
-            return new PaymentRailResolveResult(
-                PaymentRailCodes.Unknown,
-                false,
-                "Conflict",
-                "El ClearingHouseId y ClearingHouseCode resolvieron rieles diferentes. Estrategia fail-closed aplicada.");
-        }
-
-        if (byId is not null)
-        {
-            return new PaymentRailResolveResult(byId, true, "ClearingHouseId", "Riel resuelto por mapping explícito de ClearingHouseId.");
-        }
 
         if (byCode is not null)
         {

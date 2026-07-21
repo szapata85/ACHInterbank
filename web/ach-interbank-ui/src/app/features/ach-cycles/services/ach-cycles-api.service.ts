@@ -79,7 +79,7 @@ export class ClearingHousesApiService {
   list(): Observable<ClearingHouseOption[]> {
     if (!this.cachedClearingHouses$) {
       this.cachedClearingHouses$ = this.api
-        .get<ClearingHouseOption[] | { items?: ClearingHouseOption[] }>(this.basePath)
+        .get<ClearingHouseOption[] | { items?: ClearingHouseOption[] }>(`${this.basePath}/operational`)
         .pipe(
           map((response) => (Array.isArray(response) ? response : response?.items ?? [])),
           shareReplay(1)
@@ -87,5 +87,11 @@ export class ClearingHousesApiService {
     }
 
     return this.cachedClearingHouses$;
+  }
+
+  listAdministrative(): Observable<ClearingHouseOption[]> {
+    return this.api
+      .get<ClearingHouseOption[] | { items?: ClearingHouseOption[] }>(this.basePath)
+      .pipe(map((response) => (Array.isArray(response) ? response : response?.items ?? [])));
   }
 }

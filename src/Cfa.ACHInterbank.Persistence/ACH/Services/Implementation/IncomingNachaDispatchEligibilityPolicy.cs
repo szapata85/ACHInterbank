@@ -64,7 +64,10 @@ public class IncomingNachaDispatchEligibilityPolicy : IIncomingNachaDispatchElig
                 EvidenceJson: JsonSerializer.Serialize(new { nowLocal, cycleStart, cycleEnd, transaction.AchCycleId })));
         }
 
-        var priority = transaction.AchCycle.ClearingHouseId == 2 ? 80 : 100;
+        // Prioridad normativa exclusiva de CENIT; se resuelve por identidad persistida, nunca por ID semilla.
+        var priority = string.Equals(transaction.AchCycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
+            ? 80
+            : 100;
         return Task.FromResult(new IncomingNachaDispatchEligibilityResult(
             IsEligible: true,
             IsWaitingWindow: false,

@@ -13,6 +13,10 @@ public class ClearingHouseSpecialDateConfiguration : IEntityTypeConfiguration<Cl
         builder.Property(d => d.Description)
             .HasMaxLength(200);
 
+        builder.Property(d => d.IsActive)
+            .HasDefaultValue(true)
+            .IsRequired();
+
         builder.HasIndex(d => new { d.ClearingHouseId, d.Date })
             .IsUnique();
 

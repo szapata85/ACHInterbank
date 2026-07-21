@@ -19,7 +19,7 @@ public class ClearingHouseCycleConfigsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = P1Policies.ConfigRead)]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.View)]
     public async Task<IActionResult> GetByClearingHouse(
         [FromQuery] int clearingHouseId,
         [FromQuery] DateTime? effectiveAt,
@@ -27,7 +27,7 @@ public class ClearingHouseCycleConfigsController : ControllerBase
         => Ok(await _service.GetByClearingHouseAsync(clearingHouseId, effectiveAt, ct));
 
     [HttpGet("current")]
-    [Authorize(Policy = P1Policies.ConfigRead)]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.View)]
     public async Task<IActionResult> GetCurrentByClearingHouse(
         [FromQuery] int clearingHouseId,
         [FromQuery] DateTime? effectiveAt,
@@ -35,12 +35,20 @@ public class ClearingHouseCycleConfigsController : ControllerBase
         => Ok(await _service.GetCurrentByClearingHouseAsync(clearingHouseId, effectiveAt, ct));
 
     [HttpPost]
-    [Authorize(Policy = P1Policies.ConfigManage)]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.ManageCycles)]
     public async Task<IActionResult> CreateVersion([FromBody] UpsertClearingHouseCycleConfigDto dto, CancellationToken ct = default)
         => Ok(await _service.CreateVersionAsync(dto, ct));
 
     [HttpPost("{id:int}/inactivate")]
-    [Authorize(Policy = P1Policies.ConfigManage)]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.ManageCycles)]
     public async Task<IActionResult> Inactivate(int id, [FromBody] InactivateClearingHouseCycleConfigDto dto, CancellationToken ct = default)
         => Ok(await _service.InactivateAsync(id, dto.EffectiveTo, ct));
+
+    [HttpPatch("{id:int}/status")]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.ManageCycles)]
+    public async Task<IActionResult> ChangeStatus(
+        int id,
+        [FromBody] ChangeClearingHouseCycleStatusDto dto,
+        CancellationToken ct = default)
+        => Ok(await _service.ChangeStatusAsync(id, dto.IsActive, dto.EffectiveTo, ct));
 }

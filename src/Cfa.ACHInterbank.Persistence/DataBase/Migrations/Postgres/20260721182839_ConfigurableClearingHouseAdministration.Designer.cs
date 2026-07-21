@@ -3,6 +3,7 @@ using System;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 {
     [DbContext(typeof(AchDbContext))]
-    partial class AchDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260721182839_ConfigurableClearingHouseAdministration")]
+    partial class ConfigurableClearingHouseAdministration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2428,11 +2431,6 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         new
                         {
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
-                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000001")
-                        },
-                        new
-                        {
-                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
                             PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000001")
                         },
                         new

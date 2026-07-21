@@ -205,6 +205,11 @@ public class MenuItemPermissionConfiguration : IEntityTypeConfiguration<MenuItem
             {
                 MenuItemId = MenuItemConfiguration.SoapIntegrationSettingsId,
                 PermissionId = PermissionConfiguration.ManageUsersPermissionId
+            },
+            new MenuItemPermission
+            {
+                MenuItemId = MenuItemConfiguration.ClearingHousesAdminId,
+                PermissionId = PermissionConfiguration.ClearingHousesViewPermissionId
             });
     }
 }

@@ -7,4 +7,5 @@ public class ClearingHouseSpecialDateDto
     public string? ClearingHouseName { get; set; }
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
 }

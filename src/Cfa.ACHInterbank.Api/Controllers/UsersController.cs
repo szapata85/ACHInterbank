@@ -88,7 +88,9 @@ public class UsersController : ControllerBase
         {
             UserOperationStatus.ValidationError => BadRequest(ResponseApiService.Response(StatusCodes.Status400BadRequest, result)),
             UserOperationStatus.Conflict => Conflict(ResponseApiService.Response(StatusCodes.Status409Conflict, result)),
-            UserOperationStatus.Success => CreatedAtAction(nameof(GetUserAsync), new { id = operation.User!.Id }, ResponseApiService.Response(StatusCodes.Status201Created, result)),
+            UserOperationStatus.Success => StatusCode(
+                StatusCodes.Status201Created,
+                ResponseApiService.Response(StatusCodes.Status201Created, result)),
             _ => StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError, Result.Failure("USER_UNEXPECTED", "Error inesperado", ErrorType.Unexpected)))
         };
     }

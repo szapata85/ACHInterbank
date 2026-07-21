@@ -20,29 +20,29 @@ public class PaymentRailOperationalStrategyResolverTests
     }
 
     [Fact]
-    public void ResolveRail_ByClearingHouseId_ResolvesExpectedRail()
+    public void ResolveRail_ByClearingHouseIdAlone_FailsClosedWithoutAssumingSeedIds()
     {
         var sut = BuildResolver();
 
         var ach = sut.ResolveRail(new PaymentRailResolveRequest(1, null, null));
         var cenit = sut.ResolveRail(new PaymentRailResolveRequest(2, null, null));
 
-        ach.RailCode.Should().Be(PaymentRailCodes.AchColombia);
-        ach.IsKnownRail.Should().BeTrue();
-        cenit.RailCode.Should().Be(PaymentRailCodes.Cenit);
-        cenit.IsKnownRail.Should().BeTrue();
+        ach.RailCode.Should().Be(PaymentRailCodes.Unknown);
+        ach.IsKnownRail.Should().BeFalse();
+        cenit.RailCode.Should().Be(PaymentRailCodes.Unknown);
+        cenit.IsKnownRail.Should().BeFalse();
     }
 
     [Fact]
-    public void ResolveRail_WhenConflictBetweenIdAndCode_ReturnsUnknownFailClosed()
+    public void ResolveRail_WhenIdAndFunctionalCodeAreProvided_UsesFunctionalCode()
     {
         var sut = BuildResolver();
 
         var result = sut.ResolveRail(new PaymentRailResolveRequest(1, "CENIT", null));
 
-        result.RailCode.Should().Be(PaymentRailCodes.Unknown);
-        result.IsKnownRail.Should().BeFalse();
-        result.ResolutionSource.Should().Be("Conflict");
+        result.RailCode.Should().Be(PaymentRailCodes.Cenit);
+        result.IsKnownRail.Should().BeTrue();
+        result.ResolutionSource.Should().Be("ClearingHouseCode");
     }
 
     [Fact]

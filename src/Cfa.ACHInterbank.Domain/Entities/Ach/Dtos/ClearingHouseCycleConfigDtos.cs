@@ -29,3 +29,9 @@ public class InactivateClearingHouseCycleConfigDto
 {
     public DateTime EffectiveTo { get; set; }
 }
+
+public class ChangeClearingHouseCycleStatusDto
+{
+    public bool IsActive { get; set; }
+    public DateTime? EffectiveTo { get; set; }
+}

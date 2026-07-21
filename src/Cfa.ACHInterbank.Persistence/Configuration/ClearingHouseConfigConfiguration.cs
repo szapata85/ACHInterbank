@@ -11,7 +11,18 @@ public class ClearingHouseConfigConfiguration : IEntityTypeConfiguration<Clearin
         builder.Property(config => config.HolidayStrategy)
             .HasMaxLength(100);
 
+        builder.Property(config => config.TimeZoneId)
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.HasIndex(config => config.ClearingHouseId)
             .IsUnique();
+
+        builder.HasIndex(config => config.NachaProfileId);
+
+        builder.HasOne(config => config.NachaProfile)
+            .WithMany()
+            .HasForeignKey(config => config.NachaProfileId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

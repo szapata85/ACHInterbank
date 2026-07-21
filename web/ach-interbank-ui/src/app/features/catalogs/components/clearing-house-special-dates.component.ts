@@ -1,4 +1,4 @@
-import { NgFor, NgIf } from '@angular/common';
+﻿import { NgFor, NgIf } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -53,8 +53,8 @@ export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
       maxWidth: 160,
       valueFormatter: (params) => this.formatDate(params.value)
     },
-    { field: 'clearingHouseName', headerName: 'Cámara', flex: 1, filter: 'agTextColumnFilter' },
-    { field: 'description', headerName: 'Descripción', flex: 1, filter: 'agTextColumnFilter' },
+    { field: 'clearingHouseName', headerName: 'CÃ¡mara', flex: 1, filter: 'agTextColumnFilter' },
+    { field: 'description', headerName: 'DescripciÃ³n', flex: 1, filter: 'agTextColumnFilter' },
     {
       headerName: 'Acciones',
       colId: 'actions',
@@ -73,18 +73,18 @@ export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
           });
         });
 
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.classList.add('link');
-        remove.classList.add('danger');
-        remove.innerText = 'Eliminar';
-        remove.addEventListener('click', () => {
+        const status = document.createElement('button');
+        status.type = 'button';
+        status.classList.add('link');
+        status.classList.add('danger');
+        status.innerText = params.data.isActive ? 'Desactivar' : 'Activar';
+        status.addEventListener('click', () => {
           this.zone.run(() => {
             params.context?.componentParent?.remove(params.data);
           });
         });
 
-        container.append(edit, remove);
+        container.append(edit, status);
         return container;
       }
     }
@@ -112,7 +112,7 @@ export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
       return null;
     }
     if (control.hasError('duplicateDate')) {
-      return 'Ya existe una fecha especial para esta cámara.';
+      return 'Ya existe una fecha especial para esta cÃ¡mara.';
     }
     if (control.hasError('weekendDate')) {
       return 'No se permiten fechas en fin de semana.';
@@ -156,7 +156,7 @@ export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
   }
 
   loadClearingHouses(): void {
-    this.clearingHouseApi.list().subscribe((data) => {
+    this.clearingHouseApi.listAdministrative().subscribe((data) => {
       this.clearingHouses = data ?? [];
       this.cdr.markForCheck();
     });
@@ -220,7 +220,8 @@ export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
         id: this.editing?.id ?? 0,
         clearingHouseId,
         date: dateValue,
-        description: this.form.value.description ?? ''
+        description: this.form.value.description ?? '',
+        isActive: this.editing?.isActive ?? true
       };
 
       this.saving = true;
@@ -241,13 +242,13 @@ export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
   }
 
   remove(item: ClearingHouseSpecialDate): void {
-    if (!confirm(`¿Eliminar la fecha especial del ${this.formatDate(item.date)}?`)) {
+    if (item.isActive && !confirm(`¿Desactivar la fecha especial del ${this.formatDate(item.date)}?`)) {
       return;
     }
 
     this.saving = true;
     this.service
-      .delete(item.id)
+      .changeStatus(item.id, !item.isActive)
       .pipe(
         finalize(() => {
           this.saving = false;

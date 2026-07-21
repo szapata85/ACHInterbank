@@ -140,6 +140,41 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
         return MapToDto(entity, normalizedEffectiveTo);
     }
 
+    public async Task<ClearingHouseCycleConfigDto> ChangeStatusAsync(
+        int id,
+        bool isActive,
+        DateTime? effectiveTo,
+        CancellationToken ct = default)
+    {
+        var entity = await _context.ClearingHouseCycleConfigs
+            .Include(x => x.ClearingHouse)
+            .FirstOrDefaultAsync(x => x.Id == id, ct)
+            ?? throw new InvalidOperationException("Configuración de ciclo no encontrada.");
+
+        if (entity.IsActive == isActive)
+        {
+            return MapToDto(entity, DateTime.UtcNow.Date);
+        }
+
+        if (!isActive)
+        {
+            return await InactivateAsync(id, effectiveTo ?? DateTime.UtcNow.Date, ct);
+        }
+
+        var duplicate = await _context.ClearingHouseCycleConfigs.AnyAsync(x =>
+            x.Id != id && x.ClearingHouseId == entity.ClearingHouseId &&
+            x.CycleName == entity.CycleName && x.IsActive, ct);
+        if (duplicate)
+        {
+            throw new InvalidOperationException("Ya existe una versión activa del ciclo.");
+        }
+
+        entity.IsActive = true;
+        entity.EffectiveTo = null;
+        await _context.SaveChangesAsync(ct);
+        return MapToDto(entity, DateTime.UtcNow.Date);
+    }
+
     private static ClearingHouseCycleConfigDto MapToDto(ClearingHouseCycleConfig entity, DateTime? effectiveAt)
     {
         return new ClearingHouseCycleConfigDto

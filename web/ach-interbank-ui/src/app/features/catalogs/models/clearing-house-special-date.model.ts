@@ -4,4 +4,5 @@ export interface ClearingHouseSpecialDate {
   clearingHouseName?: string | null;
   date: string;
   description: string;
+  isActive: boolean;
 }

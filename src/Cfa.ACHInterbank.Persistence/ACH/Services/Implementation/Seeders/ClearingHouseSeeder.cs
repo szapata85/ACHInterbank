@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -7,46 +7,86 @@ using Microsoft.EntityFrameworkCore;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 
 [Scoped]
-public class ClearingHouseSeeder : IDbSeeder
+public class ClearingHouseSeeder(AchDbContext context) : IDbSeeder
 {
-    private readonly AchDbContext _context;
-
-    public ClearingHouseSeeder(AchDbContext context)
-    {
-        _context = context;
-    }
-
     int IDbSeeder.Order => 1;
 
     public async Task SeedAsync()
     {
-        var clearingHouseConfigId = await _context.ClearingHouseConfigs
-            .OrderBy(config => config.Id)
-            .Select(config => (int?)config.Id)
-            .FirstOrDefaultAsync();
+        var fallback = await context.ClearingHouseConfigs.OrderBy(x => x.Id).FirstOrDefaultAsync()
+            ?? throw new InvalidOperationException("Seeder ClearingHouseSeeder: falta la configuración base de cámaras.");
 
-        if (!clearingHouseConfigId.HasValue)
+        var initial = new[]
         {
-            throw new InvalidOperationException(
-                "Seeder ClearingHouseSeeder: falta la configuración de cámara requerida para crear ClearingHouses.");
-        }
+            new { Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "000101006" },
+            new { Code = "CENIT", Name = "CENIT", OriginCode = "011111111" }
+        };
 
-        var existingCodes = await _context.ClearingHouses
-            .Select(house => house.Code)
-            .ToListAsync();
-
-        var missingClearingHouses = new[]
+        foreach (var item in initial)
         {
-            new ClearingHouse { Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "000101006", ClearingHouseId = clearingHouseConfigId.Value },
-            new ClearingHouse { Name = "CENIT", Code = "CENIT", OriginCode = "011111111", ClearingHouseId = clearingHouseConfigId.Value }
-        }
-        .Where(house => !existingCodes.Contains(house.Code, StringComparer.OrdinalIgnoreCase))
-        .ToList();
+            var house = await context.ClearingHouses
+                .SingleOrDefaultAsync(x => x.Code.ToUpper() == item.Code);
 
-        if (missingClearingHouses.Count > 0)
-        {
-            _context.ClearingHouses.AddRange(missingClearingHouses);
-            await _context.SaveChangesAsync();
+            if (house is null)
+            {
+                house = new ClearingHouse
+                {
+                    Code = item.Code,
+                    Name = item.Name,
+                    OriginCode = item.OriginCode,
+                    IsActive = true,
+                    ClearingHouseId = fallback.Id
+                };
+                context.ClearingHouses.Add(house);
+                await context.SaveChangesAsync();
+            }
+
+            var ownConfig = await context.ClearingHouseConfigs
+                .SingleOrDefaultAsync(x => x.ClearingHouseId == house.Id);
+            if (ownConfig is null)
+            {
+                if (fallback.ClearingHouseId == house.Id)
+                {
+                    ownConfig = fallback;
+                }
+                else
+                {
+                    ownConfig = new ClearingHouseConfig
+                    {
+                        ClearingHouseId = house.Id,
+                        HolidayStrategy = fallback.HolidayStrategy,
+                        TimeZoneId = fallback.TimeZoneId
+                    };
+                    context.ClearingHouseConfigs.Add(ownConfig);
+                    await context.SaveChangesAsync();
+                }
+            }
+
+            // Completa solamente valores base ausentes de las cámaras iniciales.
+            // Las configuraciones administradas y las cámaras adicionales no se sobrescriben.
+            var configCompleted = false;
+            if (string.IsNullOrWhiteSpace(ownConfig.TimeZoneId))
+            {
+                ownConfig.TimeZoneId = "America/Bogota";
+                configCompleted = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(ownConfig.HolidayStrategy))
+            {
+                ownConfig.HolidayStrategy = "Colombian";
+                configCompleted = true;
+            }
+
+            if (configCompleted)
+            {
+                await context.SaveChangesAsync();
+            }
+
+            if (house.ClearingHouseId != ownConfig.Id)
+            {
+                house.ClearingHouseId = ownConfig.Id;
+                await context.SaveChangesAsync();
+            }
         }
     }
 }

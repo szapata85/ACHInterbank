@@ -39,7 +39,11 @@ public class ClearingHouseSeederTests
             house =>
             {
                 Assert.Equal("CENIT", house.Code);
-                Assert.Equal(9, house.ClearingHouseId);
+                Assert.NotEqual(9, house.ClearingHouseId);
             });
+
+        Assert.Equal(3, await context.ClearingHouseConfigs.CountAsync());
+        Assert.All(clearingHouses, house =>
+            Assert.True(context.ClearingHouseConfigs.Any(config => config.Id == house.ClearingHouseId && config.ClearingHouseId == house.Id)));
     }
 }

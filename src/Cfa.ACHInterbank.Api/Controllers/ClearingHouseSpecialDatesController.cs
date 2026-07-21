@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,15 +22,15 @@ public class ClearingHouseSpecialDatesController : ControllerBase
     /// </summary>
 
     [HttpGet]
-    [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> GetAll([FromQuery] int? year, CancellationToken ct = default)
-        => Ok(await _service.GetAllAsync(year, ct));
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.View)]
+    public async Task<IActionResult> GetAll([FromQuery] int? year, [FromQuery] int? clearingHouseId, CancellationToken ct = default)
+        => Ok(await _service.GetAllAsync(year, clearingHouseId, ct));
     /// <summary>
     /// Endpoint de la API ACH Interbank.
     /// </summary>
 
     [HttpPost]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.ManageSpecialDates)]
     public async Task<IActionResult> Create([FromBody] ClearingHouseSpecialDateDto dto, CancellationToken ct = default)
         => Ok(await _service.CreateAsync(dto, ct));
     /// <summary>
@@ -37,7 +38,7 @@ public class ClearingHouseSpecialDatesController : ControllerBase
     /// </summary>
 
     [HttpPut("{id}")]
-    [Authorize(Policy = "CanManageAch")]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.ManageSpecialDates)]
     public async Task<IActionResult> Update(int id, [FromBody] ClearingHouseSpecialDateDto dto, CancellationToken ct = default)
     {
         if (id != dto.Id) return BadRequest();
@@ -47,11 +48,13 @@ public class ClearingHouseSpecialDatesController : ControllerBase
     /// Endpoint de la API ACH Interbank.
     /// </summary>
 
-    [HttpDelete("{id}")]
-    [Authorize(Policy = "CanManageAch")]
-    public async Task<IActionResult> Delete(int id, CancellationToken ct = default)
-    {
-        await _service.DeleteAsync(id, ct);
-        return NoContent();
-    }
+    [HttpPatch("{id:int}/status")]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.ManageSpecialDates)]
+    public async Task<IActionResult> ChangeStatus(int id, [FromBody] ClearingHouseSpecialDateStatusDto dto, CancellationToken ct = default)
+        => Ok(await _service.ChangeStatusAsync(id, dto.IsActive, ct));
+}
+
+public sealed class ClearingHouseSpecialDateStatusDto
+{
+    public bool IsActive { get; set; }
 }

@@ -1,0 +1,49 @@
+<section class="page" aria-labelledby="title">
+  <header><div><h1 id="title">Cámaras compensadoras</h1><p>Administre la identidad, configuración operativa y disponibilidad de cada cámara.</p></div>
+    <button *ngIf="canCreate" type="button" (click)="create()">Crear cámara</button></header>
+
+  <div class="notice ok" *ngIf="message" role="status">{{ message }}</div>
+  <div class="notice error" *ngIf="error" role="alert">{{ error }}</div>
+
+  <form class="filters" (ngSubmit)="applyFilters()">
+    <label>Buscar por código o nombre<input name="search" [(ngModel)]="search" [ngModelOptions]="{standalone:true}" aria-label="Buscar por código o nombre"></label>
+    <label>Estado<select name="state" [(ngModel)]="state" [ngModelOptions]="{standalone:true}" aria-label="Filtrar por estado"><option value="all">Todas</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></label>
+    <button type="submit" [disabled]="loading">Buscar</button>
+  </form>
+
+  <p *ngIf="loading" role="status">Cargando cámaras compensadoras…</p>
+  <div class="table-wrap" *ngIf="!loading && rows.length">
+    <table><thead><tr><th>Código</th><th>Nombre</th><th>Estado</th><th>Zona horaria</th><th>Ciclos activos</th><th>Perfil operativo</th><th>Actualización</th><th>Acciones</th></tr></thead>
+      <tbody><tr *ngFor="let row of rows">
+        <td data-label="Código">{{ row.code }}</td><td data-label="Nombre">{{ row.name }}</td>
+        <td data-label="Estado"><span class="status" [class.active]="row.isActive">{{ row.isActive ? 'Activa' : 'Inactiva' }}</span></td>
+        <td data-label="Zona horaria">{{ row.timeZoneId }}</td><td data-label="Ciclos activos">{{ row.activeCycleCount }}</td>
+        <td data-label="Perfil">{{ row.nachaProfileCode || 'No aplica' }}</td><td data-label="Actualización">{{ (row.updatedAt || row.createdAt) | date:'short' }}</td>
+        <td class="actions"><button type="button" (click)="view(row)">Ver detalle</button><button *ngIf="canUpdate" type="button" (click)="edit(row)">Editar</button>
+          <button *ngIf="canStatus" type="button" (click)="changeStatus(row)">{{ row.isActive ? 'Desactivar' : 'Activar' }}</button>
+          <a *ngIf="canCycles" [routerLink]="['/clearing-houses', row.id, 'cycles']">Administrar ciclos</a>
+          <a *ngIf="canSpecialDates" [routerLink]="['/catalogs/clearing-house-special-dates']" [queryParams]="{clearingHouseId: row.id}">Fechas especiales</a></td>
+      </tr></tbody></table>
+  </div>
+  <p class="empty" *ngIf="!loading && !rows.length">No hay cámaras compensadoras para los filtros seleccionados.</p>
+  <nav class="pagination" aria-label="Paginación"><button type="button" (click)="previous()" [disabled]="page <= 1">Anterior</button><span>Página {{ page }} de {{ totalPages }}</span><button type="button" (click)="next()" [disabled]="page >= totalPages">Siguiente</button></nav>
+
+  <section class="panel" *ngIf="editing">
+    <h2>{{ selected ? 'Editar cámara' : 'Crear cámara' }}</h2>
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <fieldset><legend>Datos generales</legend><label>Código funcional<input formControlName="code" (blur)="normalizeCode(); loadProfiles()" maxlength="20" autocomplete="off"></label><small *ngIf="form.controls.code.touched && form.controls.code.invalid">Use entre 2 y 20 caracteres: letras, números, guion o guion bajo.</small>
+        <label>Nombre<input formControlName="name" maxlength="120"></label><small *ngIf="form.controls.name.touched && form.controls.name.invalid">El nombre es obligatorio.</small>
+        <label>Código de origen<input formControlName="originCode" maxlength="20"></label></fieldset>
+      <fieldset><legend>Configuración operativa</legend><label>Zona horaria<input formControlName="timeZoneId"></label><label>Estrategia de calendario<input formControlName="holidayStrategy"></label>
+        <label class="check"><input type="checkbox" formControlName="requiresNachaProfile"> Requiere perfil NACHA-M</label>
+        <label *ngIf="form.controls.requiresNachaProfile.value">Perfil NACHA-M<select formControlName="nachaProfileId"><option [ngValue]="null">Seleccione</option><option *ngFor="let profile of profiles" [ngValue]="profile.id">{{ profile.code }} — {{ profile.name }}</option></select></label></fieldset>
+      <div class="actions"><button type="submit" [disabled]="saving">{{ saving ? 'Guardando…' : 'Guardar' }}</button><button type="button" (click)="cancel()" [disabled]="saving">Cancelar</button></div>
+    </form>
+  </section>
+
+  <section class="panel" *ngIf="selected && !editing" aria-label="Detalle de cámara compensadora"><h2>{{ selected.code }} — {{ selected.name }}</h2>
+    <p><strong>Estado:</strong> {{ selected.isActive ? 'Activa' : 'Inactiva' }}</p><p><strong>Estado de configuración:</strong> {{ selected.isReady ? 'Lista para operar' : 'Configuración incompleta' }}</p>
+    <ul *ngIf="selected.missingRequirements.length"><li *ngFor="let missing of selected.missingRequirements">{{ missing }}</li></ul>
+    <p><strong>Creada:</strong> {{ selected.createdAt | date:'medium' }} · <strong>Modificada:</strong> {{ selected.updatedAt ? (selected.updatedAt | date:'medium') : 'Sin modificaciones' }}</p>
+  </section>
+</section>

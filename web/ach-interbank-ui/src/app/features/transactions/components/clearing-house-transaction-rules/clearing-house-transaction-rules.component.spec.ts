@@ -22,10 +22,10 @@ describe('ClearingHouseTransactionRulesComponent', () => {
       'deactivate',
       'preview'
     ]);
-    housesApi = jasmine.createSpyObj<ClearingHousesApiService>('ClearingHousesApiService', ['list']);
+    housesApi = jasmine.createSpyObj<ClearingHousesApiService>('ClearingHousesApiService', ['listAdministrative']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'warning', 'error']);
 
-    housesApi.list.and.returnValue(of([{ id: 1, name: 'ACH Colombia', code: 'ACH' } as any]));
+    housesApi.listAdministrative.and.returnValue(of([{ id: 1, name: 'ACH Colombia', code: 'ACH' } as any]));
     api.getRules.and.returnValue(of([]));
     api.create.and.returnValue(of({ id: 1 } as any));
     api.update.and.returnValue(of({ id: 1 } as any));
@@ -59,7 +59,7 @@ describe('ClearingHouseTransactionRulesComponent', () => {
 
   it('loads rules on init', () => {
     expect(api.getRules).toHaveBeenCalled();
-    expect(housesApi.list).toHaveBeenCalled();
+    expect(housesApi.listAdministrative).toHaveBeenCalled();
   });
 
   it('opens create form with mandatory debit defaults', () => {

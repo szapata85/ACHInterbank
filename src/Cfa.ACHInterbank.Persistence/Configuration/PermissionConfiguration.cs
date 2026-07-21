@@ -18,6 +18,12 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
     public static readonly Guid SchedulerManageSchedulePermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd04");
     public static readonly Guid SchedulerPauseResumePermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd05");
     public static readonly Guid SchedulerViewInstancesPermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd06");
+    public static readonly Guid ClearingHousesViewPermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000001");
+    public static readonly Guid ClearingHousesCreatePermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000002");
+    public static readonly Guid ClearingHousesUpdatePermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000003");
+    public static readonly Guid ClearingHousesChangeStatusPermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000004");
+    public static readonly Guid ClearingHousesManageCyclesPermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000005");
+    public static readonly Guid ClearingHousesManageSpecialDatesPermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000006");
 
     public void Configure(EntityTypeBuilder<Permission> builder)
     {
@@ -70,6 +76,12 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
             new Permission { Id = SchedulerHistoryViewPermissionId, Name = "Scheduler.History.View", Description = "Consultar historial del programador" },
             new Permission { Id = SchedulerExecutePermissionId, Name = "Scheduler.Execute", Description = "Ejecutar manualmente tareas autorizadas" },
             new Permission { Id = SchedulerManageSchedulePermissionId, Name = "Scheduler.ManageSchedule", Description = "Editar programaciones" },
+            new Permission { Id = ClearingHousesViewPermissionId, Name = "ClearingHouses.View", Description = "Consultar cámaras compensadoras" },
+            new Permission { Id = ClearingHousesCreatePermissionId, Name = "ClearingHouses.Create", Description = "Crear cámaras compensadoras" },
+            new Permission { Id = ClearingHousesUpdatePermissionId, Name = "ClearingHouses.Update", Description = "Editar cámaras compensadoras" },
+            new Permission { Id = ClearingHousesChangeStatusPermissionId, Name = "ClearingHouses.ChangeStatus", Description = "Activar o desactivar cámaras compensadoras" },
+            new Permission { Id = ClearingHousesManageCyclesPermissionId, Name = "ClearingHouses.ManageCycles", Description = "Administrar ciclos por cámara" },
+            new Permission { Id = ClearingHousesManageSpecialDatesPermissionId, Name = "ClearingHouses.ManageSpecialDates", Description = "Administrar fechas especiales por cámara" },
             new Permission { Id = SchedulerPauseResumePermissionId, Name = "Scheduler.PauseResume", Description = "Pausar y reanudar tareas" },
             new Permission { Id = SchedulerViewInstancesPermissionId, Name = "Scheduler.ViewInstances", Description = "Consultar instancias del clúster" });
     }

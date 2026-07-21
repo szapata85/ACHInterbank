@@ -407,7 +407,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
     private static int? ParseInt(string? value) => int.TryParse(value, out var parsed) ? parsed : null;
 
     private static string ResolveClearingHouse(NachaHeader header)
-        => header.ClearingHouse?.Code ?? header.ClearingHouseId switch { 1 => "ACH", 2 => "CENIT", _ => "NACHA" };
+        => header.ClearingHouse?.Code ?? "NACHA";
 
     private static DateTimeOffset ToOffset(DateTime value)
         => new(DateTime.SpecifyKind(value, DateTimeKind.Utc));

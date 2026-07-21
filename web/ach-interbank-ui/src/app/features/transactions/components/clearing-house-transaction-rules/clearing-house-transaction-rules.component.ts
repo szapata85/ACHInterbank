@@ -355,7 +355,7 @@ export class ClearingHouseTransactionRulesComponent implements OnInit {
   }
 
   private loadClearingHouses(): void {
-    this.clearingHousesApi.list().subscribe({
+    this.clearingHousesApi.listAdministrative().subscribe({
       next: (houses) => {
         this.clearingHouses = houses.map((house) => ({ id: house.id, name: house.name }));
         this.cdr.markForCheck();

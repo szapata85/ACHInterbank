@@ -1271,6 +1271,18 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                             Order = 1,
                             ParentId = 10,
                             Route = "/nacha-security/sobre-digital"
+                        },
+                        new
+                        {
+                            Id = 2804,
+                            Exact = true,
+                            Icon = "account_balance",
+                            IsActive = true,
+                            Label = "Cámaras compensadoras",
+                            MenuId = 1,
+                            Order = 5,
+                            ParentId = 5,
+                            Route = "/clearing-houses"
                         });
                 });
 
@@ -1473,6 +1485,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         {
                             MenuItemId = 30,
                             PermissionId = new Guid("b5d45f3c-8ac2-4a8b-80d1-315063e27fdf")
+                        },
+                        new
+                        {
+                            MenuItemId = 2804,
+                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000001")
                         });
                 });
 
@@ -2211,6 +2228,42 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         },
                         new
                         {
+                            Id = new Guid("c1ea0001-5b98-4d95-a100-000000000001"),
+                            Description = "Consultar cámaras compensadoras",
+                            Name = "ClearingHouses.View"
+                        },
+                        new
+                        {
+                            Id = new Guid("c1ea0001-5b98-4d95-a100-000000000002"),
+                            Description = "Crear cámaras compensadoras",
+                            Name = "ClearingHouses.Create"
+                        },
+                        new
+                        {
+                            Id = new Guid("c1ea0001-5b98-4d95-a100-000000000003"),
+                            Description = "Editar cámaras compensadoras",
+                            Name = "ClearingHouses.Update"
+                        },
+                        new
+                        {
+                            Id = new Guid("c1ea0001-5b98-4d95-a100-000000000004"),
+                            Description = "Activar o desactivar cámaras compensadoras",
+                            Name = "ClearingHouses.ChangeStatus"
+                        },
+                        new
+                        {
+                            Id = new Guid("c1ea0001-5b98-4d95-a100-000000000005"),
+                            Description = "Administrar ciclos por cámara",
+                            Name = "ClearingHouses.ManageCycles"
+                        },
+                        new
+                        {
+                            Id = new Guid("c1ea0001-5b98-4d95-a100-000000000006"),
+                            Description = "Administrar fechas especiales por cámara",
+                            Name = "ClearingHouses.ManageSpecialDates"
+                        },
+                        new
+                        {
                             Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd05"),
                             Description = "Pausar y reanudar tareas",
                             Name = "Scheduler.PauseResume"
@@ -2374,6 +2427,41 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         {
                             RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
                             PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd06")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000001")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56"),
+                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000001")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000002")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000003")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000004")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000005")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("c1ea0001-5b98-4d95-a100-000000000006")
                         });
                 });
 
@@ -4532,8 +4620,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -4545,6 +4641,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClearingHouseId");
@@ -4552,7 +4651,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("ClearingHouses");
+                    b.HasIndex("IsActive", "Code");
+
+                    b.ToTable("ClearingHouses", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ClearingHouses_Code_Normalized", "\"Code\" = UPPER(TRIM(\"Code\"))");
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
@@ -4570,10 +4674,23 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int?>("NachaProfileId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("RequiresNachaProfile")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClearingHouseId")
                         .IsUnique();
+
+                    b.HasIndex("NachaProfileId");
 
                     b.ToTable("ClearingHouseConfigs");
                 });
@@ -4636,6 +4753,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.HasKey("Id");
 
@@ -11158,6 +11280,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .IsRequired();
 
                     b.Navigation("ClearingHouseConfig");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseConfig", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.Config.CfgProfile", "NachaProfile")
+                        .WithMany()
+                        .HasForeignKey("NachaProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("NachaProfile");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouseCycleConfig", b =>

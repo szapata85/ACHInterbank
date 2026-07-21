@@ -6,6 +6,7 @@ public class ClearingHouseSpecialDate
     public int ClearingHouseId { get; set; }
     public DateOnly Date { get; set; }
     public string Description { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
 
     public ClearingHouse ClearingHouse { get; set; } = null!;
 }

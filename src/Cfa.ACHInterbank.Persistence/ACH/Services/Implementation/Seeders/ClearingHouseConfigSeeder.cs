@@ -28,7 +28,12 @@ public class ClearingHouseConfigSeeder : IDbSeeder
         if (!_context.ClearingHouseConfigs.Any())
         {
             _context.ChangeTracker.AutoDetectChangesEnabled = false;
-            _context.ClearingHouseConfigs.Add(new ClearingHouseConfig() {ClearingHouseId = 1, HolidayStrategy = "Colombian" });
+            _context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+            {
+                ClearingHouseId = 1,
+                HolidayStrategy = "Colombian",
+                TimeZoneId = "America/Bogota"
+            });
 
             await _context.SaveChangesAsync();
             _context.ChangeTracker.AutoDetectChangesEnabled = true;

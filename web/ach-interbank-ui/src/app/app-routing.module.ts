@@ -133,6 +133,15 @@ export const APP_ROUTES: Routes = [
         loadChildren: () => import('./features/catalogs/catalogs.module').then((m) => m.CatalogsModule)
       },
       {
+        path: 'clearing-houses',
+        canActivate: [permissionGuard],
+        data: { permissions: ['ClearingHouses.View'], breadcrumb: 'Cámaras compensadoras', title: 'Cámaras compensadoras' },
+        children: [
+          { path: '', loadComponent: () => import('./features/clearing-houses/clearing-houses.component').then((m) => m.ClearingHousesComponent) },
+          { path: ':id/cycles', canActivate: [permissionGuard], data: { permissions: ['ClearingHouses.ManageCycles'] }, loadComponent: () => import('./features/transactions/components/cycle-config-management/cycle-config-management.component').then((m) => m.CycleConfigManagementComponent) }
+        ]
+      },
+      {
         path: 'scheduler',
         loadChildren: () => import('./features/scheduler/scheduler.module').then((m) => m.SchedulerModule)
       },

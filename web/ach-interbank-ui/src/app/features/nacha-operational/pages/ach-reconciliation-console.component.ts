@@ -56,6 +56,11 @@ export class AchReconciliationConsoleComponent implements OnInit {
     );
   }
 
+  get clearingHouseOptions(): string[] {
+    return [...new Set((this.data?.items ?? []).map((item) => item.clearingHouseCode).filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right));
+  }
+
   cargar(): void {
     this.cargando = true;
     this.error = '';
