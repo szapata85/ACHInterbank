@@ -40,7 +40,9 @@ describe('TaskDefinitionsComponent', () => {
     monthDay: 1,
     onlyBusinessDays: true,
     startAt: null,
-    endAt: null
+    endAt: null,
+    synchronizationStatus: 'Synchronized',
+    lastSynchronizationError: null
   };
 
   beforeEach(async () => {
@@ -51,7 +53,8 @@ describe('TaskDefinitionsComponent', () => {
     service.getOverview.and.returnValue(of({
       totalInstances: 2, activeInstances: 2, offlineInstances: 0, runningJobs: 0,
       upcomingExecutions: 1, recentFailures: 0, recentMisfires: 0,
-      schedulerName: 'ACHInterbankScheduler', persistentStore: true, clustered: true
+      schedulerName: 'ACHInterbankScheduler', persistentStore: true, clustered: true,
+      pendingSynchronizations: 0
     }));
     service.getSchedulerTasks.and.returnValue(of([task]));
     service.getInstances.and.returnValue(of([]));

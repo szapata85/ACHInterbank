@@ -38,6 +38,7 @@ export interface SchedulerOverview {
   schedulerName: string;
   persistentStore: boolean;
   clustered: boolean;
+  pendingSynchronizations: number;
 }
 
 export interface SchedulerTask {
@@ -69,6 +70,8 @@ export interface SchedulerTask {
   onlyBusinessDays: boolean;
   startAt?: string | null;
   endAt?: string | null;
+  synchronizationStatus: string;
+  lastSynchronizationError?: string | null;
 }
 
 export interface SchedulerExecution {

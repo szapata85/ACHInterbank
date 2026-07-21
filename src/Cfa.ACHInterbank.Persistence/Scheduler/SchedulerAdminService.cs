@@ -53,7 +53,8 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
             await executions.CountAsync(x => x.Status == SchedulerExecutionStatus.Misfired || x.MisfireDetected, cancellationToken),
             scheduler.SchedulerName,
             _options.IsPersistentMode(),
-            _options.Clustered);
+            _options.Clustered,
+            await _db.TaskDefinitions.CountAsync(x => x.SchedulerSynchronizationStatus != "Synchronized", cancellationToken));
     }
 
     public async Task<IReadOnlyList<SchedulerTaskDto>> GetTasksAsync(CancellationToken cancellationToken = default)
@@ -304,10 +305,20 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
         var task = await FindTaskAsync(taskCode, cancellationToken);
         if (task is null) return false;
         task.Paused = true;
+        MarkSynchronizationPending(task);
         await _db.SaveChangesAsync(cancellationToken);
-        var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
-        await scheduler.PauseJob(new JobKey($"job:{task.Id}", DynamicGroup), cancellationToken);
-        return true;
+        try
+        {
+            var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
+            await scheduler.PauseJob(new JobKey($"job:{task.Id}", DynamicGroup), cancellationToken);
+            await MarkSynchronizationSucceededAsync(task, cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await MarkSynchronizationFailedAsync(task, ex, cancellationToken);
+            throw;
+        }
     }
 
     public async Task<bool> ResumeAsync(string taskCode, string? userId, string userName, CancellationToken cancellationToken = default)
@@ -315,11 +326,21 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
         var task = await FindTaskAsync(taskCode, cancellationToken);
         if (task is null) return false;
         task.Paused = false;
+        MarkSynchronizationPending(task);
         await _db.SaveChangesAsync(cancellationToken);
-        await _syncService.SynchronizeTaskAsync(task.Id, cancellationToken);
-        var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
-        await scheduler.ResumeJob(new JobKey($"job:{task.Id}", DynamicGroup), cancellationToken);
-        return true;
+        try
+        {
+            await _syncService.SynchronizeTaskAsync(task.Id, cancellationToken);
+            var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
+            await scheduler.ResumeJob(new JobKey($"job:{task.Id}", DynamicGroup), cancellationToken);
+            await MarkSynchronizationSucceededAsync(task, cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await MarkSynchronizationFailedAsync(task, ex, cancellationToken);
+            throw;
+        }
     }
 
     public async Task<SchedulerTaskDto?> UpdateScheduleAsync(SchedulerScheduleUpdateCommand command, CancellationToken cancellationToken = default)
@@ -328,8 +349,18 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
         var task = await FindTaskAsync(command.TaskCode, cancellationToken);
         if (task is null) return null;
         ApplySchedule(task, command.Schedule);
+        MarkSynchronizationPending(task);
         await _db.SaveChangesAsync(cancellationToken);
-        await _syncService.SynchronizeTaskAsync(task.Id, cancellationToken);
+        try
+        {
+            await _syncService.SynchronizeTaskAsync(task.Id, cancellationToken);
+            await MarkSynchronizationSucceededAsync(task, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await MarkSynchronizationFailedAsync(task, ex, cancellationToken);
+            throw;
+        }
         return await GetTaskAsync(command.TaskCode, cancellationToken);
     }
 
@@ -422,7 +453,40 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
             task.MonthDay,
             task.CalendarPolicy == CalendarPolicyEnum.OnlyBusinessDays,
             task.StartAt,
-            task.EndAt);
+            task.EndAt,
+            task.SchedulerSynchronizationStatus,
+            task.LastSchedulerSynchronizationError);
+
+    private static void MarkSynchronizationPending(TaskDefinition task)
+    {
+        task.SchedulerSynchronizationStatus = "Pending";
+        task.LastSchedulerSynchronizationAttemptUtc = DateTimeOffset.UtcNow;
+        task.LastSchedulerSynchronizationError = null;
+    }
+
+    private async Task MarkSynchronizationSucceededAsync(TaskDefinition task, CancellationToken cancellationToken)
+    {
+        if (task.SchedulerSynchronizationStatus == "Synchronized" && task.LastSchedulerSynchronizationError is null)
+        {
+            return;
+        }
+
+        task.SchedulerSynchronizationStatus = "Synchronized";
+        task.LastSchedulerSynchronizationAttemptUtc = DateTimeOffset.UtcNow;
+        task.LastSchedulerSynchronizationError = null;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task MarkSynchronizationFailedAsync(TaskDefinition task, Exception exception, CancellationToken cancellationToken)
+    {
+        task.SchedulerSynchronizationStatus = "Failed";
+        task.LastSchedulerSynchronizationAttemptUtc = DateTimeOffset.UtcNow;
+        task.LastSchedulerSynchronizationError = Truncate(exception.Message, 2000);
+        await _db.SaveChangesAsync(CancellationToken.None);
+    }
+
+    private static string Truncate(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[..maxLength];
 
     private static SchedulerExecutionDto ToExecutionDto(TaskExecutionLog item)
         => new(

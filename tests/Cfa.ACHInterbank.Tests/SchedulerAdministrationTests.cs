@@ -117,6 +117,36 @@ public sealed class SchedulerAdministrationTests
         PolicyOf(nameof(SchedulerController.GetInstances)).Should().Be(P1Policies.SchedulerViewInstances);
     }
 
+    [Fact]
+    public async Task AdministrativeOperations_ShouldAuditPauseResumeAndScheduleWithCorrelation()
+    {
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        scheduler.Setup(x => x.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync((IJobDetail?)null);
+        scheduler.Setup(x => x.PauseJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        scheduler.Setup(x => x.ResumeJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        await using var fixture = await SchedulerFixture.CreateAsync(scheduler);
+
+        fixture.SetAuditScope("Scheduler.Pause", "pause-correlation");
+        (await fixture.Service.PauseAsync("ACH_CYCLE_SCHEDULER", "admin-id", "administrador")).Should().BeTrue();
+
+        fixture.SetAuditScope("Scheduler.Resume", "resume-correlation");
+        (await fixture.Service.ResumeAsync("ACH_CYCLE_SCHEDULER", "admin-id", "administrador")).Should().BeTrue();
+
+        fixture.SetAuditScope("Scheduler.UpdateSchedule", "schedule-correlation");
+        await fixture.Service.UpdateScheduleAsync(new SchedulerScheduleUpdateCommand(
+            "ACH_CYCLE_SCHEDULER",
+            new SchedulerScheduleUpdateRequest(6, null, null, null, null, null,
+                "0 45 7 ? * MON-FRI", "America/Bogota", SchedulerMisfirePolicy.FireAndProceed, true, null, null),
+            "admin-id", "administrador"));
+
+        var audits = await fixture.Db.AuditLogs.Where(x => x.EntityName == nameof(TaskDefinition)).ToListAsync();
+        audits.Should().Contain(x => x.Action == "Scheduler.Pause" && x.ChangedBy == "admin-id" && x.CorrelationId == "pause-correlation" && x.AfterJson!.Contains("Paused"));
+        audits.Should().Contain(x => x.Action == "Scheduler.Resume" && x.ChangedBy == "admin-id" && x.CorrelationId == "resume-correlation" && x.AfterJson!.Contains("Paused"));
+        audits.Should().Contain(x => x.Action == "Scheduler.UpdateSchedule" && x.ChangedBy == "admin-id" && x.CorrelationId == "schedule-correlation" && x.AfterJson!.Contains("CronExpression"));
+    }
+
     private static string? PolicyOf(string methodName)
         => typeof(SchedulerController).GetMethod(methodName)!
             .GetCustomAttributes(typeof(AuthorizeAttribute), true)
@@ -135,14 +165,27 @@ public sealed class SchedulerAdministrationTests
     private sealed class SchedulerFixture : IAsyncDisposable
     {
         private readonly ServiceProvider _provider;
+        private readonly HttpContext _httpContext;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         public AchDbContext Db { get; }
         public SchedulerAdminService Service { get; }
+        public SchedulerSyncService Sync { get; }
 
-        private SchedulerFixture(ServiceProvider provider, AchDbContext db, SchedulerAdminService service)
+        private SchedulerFixture(ServiceProvider provider, AchDbContext db, SchedulerAdminService service, SchedulerSyncService sync, HttpContext httpContext, IHttpContextAccessor httpContextAccessor)
         {
             _provider = provider;
             Db = db;
             Service = service;
+            Sync = sync;
+            _httpContext = httpContext;
+            _httpContextAccessor = httpContextAccessor;
+        }
+
+        public void SetAuditScope(string action, string correlationId)
+        {
+            _httpContextAccessor.HttpContext = _httpContext;
+            _httpContext.Items[AchDbContext.AuditActionItemKey] = action;
+            _httpContext.Items[AchDbContext.AuditCorrelationItemKey] = correlationId;
         }
 
         public static async Task<SchedulerFixture> CreateAsync(Mock<IScheduler> scheduler)
@@ -150,8 +193,17 @@ public sealed class SchedulerAdministrationTests
             var factory = new Mock<ISchedulerFactory>();
             factory.Setup(x => x.GetScheduler(It.IsAny<CancellationToken>())).ReturnsAsync(scheduler.Object);
             var services = new ServiceCollection()
+                .AddHttpContextAccessor()
                 .AddDbContext<AchDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()))
                 .BuildServiceProvider();
+            var httpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([
+                    new Claim(ClaimTypes.NameIdentifier, "admin-id"),
+                    new Claim(ClaimTypes.Name, "administrador")], "test"))
+            };
+            var httpContextAccessor = services.GetRequiredService<IHttpContextAccessor>();
+            httpContextAccessor.HttpContext = httpContext;
             var db = services.GetRequiredService<AchDbContext>();
             db.TaskDefinitions.Add(new TaskDefinition
             {
@@ -175,7 +227,7 @@ public sealed class SchedulerAdministrationTests
                 ["Quartz:JobStore:Mode"] = "RAM"
             }).Build();
             var service = new SchedulerAdminService(db, factory.Object, sync, configuration);
-            return new SchedulerFixture(services, db, service);
+            return new SchedulerFixture(services, db, service, sync, httpContext, httpContextAccessor);
         }
 
         public async ValueTask DisposeAsync()

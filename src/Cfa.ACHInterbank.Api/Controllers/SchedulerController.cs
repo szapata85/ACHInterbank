@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Cfa.ACHInterbank.Application.Scheduler.Interfaces;
 using Cfa.ACHInterbank.Application.Scheduler.Models;
 using Cfa.ACHInterbank.Application.Security;
+using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -107,12 +108,18 @@ public sealed class SchedulerController : ControllerBase
     [HttpPost("tasks/{taskCode}/pause")]
     [Authorize(Policy = P1Policies.SchedulerPauseResume)]
     public async Task<IActionResult> Pause(string taskCode, CancellationToken cancellationToken)
-        => await _service.PauseAsync(taskCode, GetUserId(), GetUserName(), cancellationToken) ? NoContent() : NotFound();
+    {
+        SetAuditScope("Scheduler.Pause");
+        return await _service.PauseAsync(taskCode, GetUserId(), GetUserName(), cancellationToken) ? NoContent() : NotFound();
+    }
 
     [HttpPost("tasks/{taskCode}/resume")]
     [Authorize(Policy = P1Policies.SchedulerPauseResume)]
     public async Task<IActionResult> Resume(string taskCode, CancellationToken cancellationToken)
-        => await _service.ResumeAsync(taskCode, GetUserId(), GetUserName(), cancellationToken) ? NoContent() : NotFound();
+    {
+        SetAuditScope("Scheduler.Resume");
+        return await _service.ResumeAsync(taskCode, GetUserId(), GetUserName(), cancellationToken) ? NoContent() : NotFound();
+    }
 
     [HttpPut("tasks/{taskCode}/schedule")]
     [Authorize(Policy = P1Policies.SchedulerManageSchedule)]
@@ -123,6 +130,7 @@ public sealed class SchedulerController : ControllerBase
     {
         try
         {
+            SetAuditScope("Scheduler.UpdateSchedule");
             var task = await _service.UpdateScheduleAsync(
                 new SchedulerScheduleUpdateCommand(taskCode, request, GetUserId(), GetUserName()),
                 cancellationToken);
@@ -159,4 +167,13 @@ public sealed class SchedulerController : ControllerBase
         => User.Identity?.Name
            ?? User.FindFirstValue("unique_name")
            ?? "usuario-autenticado";
+
+    private void SetAuditScope(string action)
+    {
+        var correlation = Request.Headers["X-Correlation-ID"].ToString();
+        HttpContext.Items[AchDbContext.AuditActionItemKey] = action;
+        HttpContext.Items[AchDbContext.AuditCorrelationItemKey] = string.IsNullOrWhiteSpace(correlation)
+            ? HttpContext.TraceIdentifier
+            : correlation.Trim();
+    }
 }

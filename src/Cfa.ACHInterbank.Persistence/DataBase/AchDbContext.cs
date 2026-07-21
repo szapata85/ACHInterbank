@@ -21,6 +21,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase;
 
 public class AchDbContext : DbContext, IDataProtectionKeyContext
 {
+    public const string AuditActionItemKey = "Audit.Action";
+    public const string AuditCorrelationItemKey = "Audit.Correlation";
     private static readonly string[] AuditIgnoredProperties = ["CreatedAt", "UpdatedAt"];
     private static readonly TimeSpan ColombiaOffset = TimeSpan.FromHours(-5);
     private readonly IHttpContextAccessor? _httpContextAccessor;
@@ -448,7 +450,9 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         var now = DateTimeOffset.UtcNow;
         var changedBy = ResolveChangedBy();
         var auditNow = now.ToOffset(ColombiaOffset).DateTime;
-        var auditEntries = AuditEnabled ? BuildAuditEntries(auditNow, changedBy) : [];
+        var auditEntries = AuditEnabled
+            ? BuildAuditEntries(auditNow, changedBy, ResolveAuditCorrelation(), ResolveAuditAction())
+            : [];
 
         var entries = ChangeTracker
             .Entries<IAuditableEntity>()
@@ -486,7 +490,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         return await base.SaveChangesAsync(cancellationToken);
     }
 
-    private List<AuditLog> BuildAuditEntries(DateTime now, string changedBy)
+    private List<AuditLog> BuildAuditEntries(DateTime now, string changedBy, string? correlationId, string? actionContext)
     {
         var auditEntries = new List<AuditLog>();
 
@@ -527,9 +531,10 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
                 Id = Guid.NewGuid(),
                 EntityName = entry.Metadata.ClrType.Name,
                 EntityId = GetPrimaryKey(entry),
-                Action = entry.State.ToString(),
+                Action = actionContext ?? entry.State.ToString(),
                 ChangedBy = changedBy,
                 ChangedAt = now,
+                CorrelationId = correlationId,
                 ChangedFields = changedFields,
                 BeforeJson = beforeJson,
                 AfterJson = afterJson
@@ -659,6 +664,25 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
 
         var name = user?.Identity?.Name;
         return string.IsNullOrWhiteSpace(name) ? "system" : name;
+    }
+
+    private string? ResolveAuditCorrelation()
+    {
+        var context = _httpContextAccessor?.HttpContext;
+        if (context?.Items.TryGetValue(AuditCorrelationItemKey, out var value) == true && value is string configured)
+        {
+            return configured.Length <= 128 ? configured : configured[..128];
+        }
+
+        return string.IsNullOrWhiteSpace(context?.TraceIdentifier) ? null : context.TraceIdentifier;
+    }
+
+    private string? ResolveAuditAction()
+    {
+        var context = _httpContextAccessor?.HttpContext;
+        return context?.Items.TryGetValue(AuditActionItemKey, out var value) == true
+            ? value as string
+            : null;
     }
 
 

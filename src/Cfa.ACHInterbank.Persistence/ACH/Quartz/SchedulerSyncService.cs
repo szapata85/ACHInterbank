@@ -86,7 +86,7 @@ public class SchedulerSyncService : BackgroundService
 
         foreach (var task in changedTasks)
         {
-            await ProcessTaskSafelyAsync(scheduler, task, cancellationToken);
+            await ProcessTaskSafelyAsync(scheduler, db, task, cancellationToken);
         }
     }
 
@@ -103,28 +103,31 @@ public class SchedulerSyncService : BackgroundService
         var activeTasks = allTasks.Where(t => IsTaskSchedulable(t, now)).ToList();
         foreach (var task in activeTasks)
         {
-            await ProcessTaskSafelyAsync(scheduler, task, cancellationToken);
+            await ProcessTaskSafelyAsync(scheduler, db, task, cancellationToken);
         }
 
         var activeTaskIds = activeTasks.Select(t => t.Id).ToHashSet();
         await DeleteOrphanDynamicJobsAsync(scheduler, activeTaskIds, cancellationToken);
     }
 
-    private async Task ProcessTaskSafelyAsync(IScheduler scheduler, TaskDefinition task, CancellationToken cancellationToken)
+    private async Task ProcessTaskSafelyAsync(IScheduler scheduler, AchDbContext db, TaskDefinition task, CancellationToken cancellationToken)
     {
         try
         {
             if (!IsTaskSchedulable(task, DateTimeOffset.UtcNow))
             {
                 await DeleteTaskJobAsync(scheduler, task.Id, cancellationToken);
+                await MarkSynchronizationSucceededAsync(db, task, cancellationToken);
                 return;
             }
 
             await ScheduleOrUpdateTaskAsync(scheduler, task, cancellationToken);
+            await MarkSynchronizationSucceededAsync(db, task, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sincronizando Task {Id}/{Code}. Se continuará con la siguiente.", task.Id, task.Code);
+            await MarkSynchronizationFailedAsync(db, task, ex, cancellationToken);
         }
     }
 
@@ -284,11 +287,48 @@ public class SchedulerSyncService : BackgroundService
         if (task is null || !IsTaskSchedulable(task, DateTimeOffset.UtcNow))
         {
             await DeleteTaskJobAsync(scheduler, taskId, cancellationToken);
+            if (task is not null)
+            {
+                await MarkSynchronizationSucceededAsync(db, task, cancellationToken);
+            }
             return;
         }
 
-        await ScheduleOrUpdateTaskAsync(scheduler, task, cancellationToken);
+        try
+        {
+            await ScheduleOrUpdateTaskAsync(scheduler, task, cancellationToken);
+            await MarkSynchronizationSucceededAsync(db, task, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await MarkSynchronizationFailedAsync(db, task, ex, CancellationToken.None);
+            throw;
+        }
     }
+
+    private static async Task MarkSynchronizationSucceededAsync(AchDbContext db, TaskDefinition task, CancellationToken cancellationToken)
+    {
+        if (task.SchedulerSynchronizationStatus == "Synchronized" && task.LastSchedulerSynchronizationError is null)
+        {
+            return;
+        }
+
+        task.SchedulerSynchronizationStatus = "Synchronized";
+        task.LastSchedulerSynchronizationAttemptUtc = DateTimeOffset.UtcNow;
+        task.LastSchedulerSynchronizationError = null;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task MarkSynchronizationFailedAsync(AchDbContext db, TaskDefinition task, Exception exception, CancellationToken cancellationToken)
+    {
+        task.SchedulerSynchronizationStatus = "Failed";
+        task.LastSchedulerSynchronizationAttemptUtc = DateTimeOffset.UtcNow;
+        task.LastSchedulerSynchronizationError = Truncate(exception.Message, 2000);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string Truncate(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[..maxLength];
 
     private static CronScheduleBuilder ApplyCronMisfire(CronScheduleBuilder builder, SchedulerMisfirePolicy policy)
         => policy == SchedulerMisfirePolicy.FireAndProceed

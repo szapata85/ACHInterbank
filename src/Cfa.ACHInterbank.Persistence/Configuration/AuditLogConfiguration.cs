@@ -30,6 +30,9 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.Property(x => x.ChangedAt)
             .IsRequired();
 
+        builder.Property(x => x.CorrelationId)
+            .HasMaxLength(128);
+
         builder.Property(x => x.ChangedFields);
 
         builder.Property(x => x.BeforeJson);

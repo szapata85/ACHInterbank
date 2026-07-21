@@ -29,6 +29,7 @@
   <article><span>Próximas ejecuciones</span><strong>{{ overview.upcomingExecutions }}</strong></article>
   <article><span>Fallas recientes</span><strong>{{ overview.recentFailures }}</strong></article>
   <article><span>Misfires recientes</span><strong>{{ overview.recentMisfires }}</strong></article>
+  <article *ngIf="overview.pendingSynchronizations"><span>Sincronización pendiente</span><strong>{{ overview.pendingSynchronizations }}</strong></article>
 </section>
 
 <section class="panel" aria-labelledby="tasks-title">
@@ -81,6 +82,9 @@
             <span class="status" [class.running]="task.currentState === 'En ejecución'" [class.paused]="task.status === 'Pausada'">
               {{ task.currentState }}
             </span>
+            <small *ngIf="task.synchronizationStatus !== 'Synchronized'" class="error-text">
+              Sincronización {{ task.synchronizationStatus }}{{ task.lastSynchronizationError ? ': ' + task.lastSynchronizationError : '' }}
+            </small>
           </td>
           <td class="actions-cell">
             <details class="action-menu">

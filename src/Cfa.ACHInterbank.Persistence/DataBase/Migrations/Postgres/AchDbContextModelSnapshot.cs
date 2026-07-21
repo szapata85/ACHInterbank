@@ -50,6 +50,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<string>("ChangedFields")
                         .HasColumnType("text");
 
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("EntityId")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1750,6 +1754,13 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<DateTimeOffset?>("EndAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("LastSchedulerSynchronizationAttemptUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastSchedulerSynchronizationError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<bool>("ManualExecutionEnabled")
                         .HasColumnType("boolean");
 
@@ -1787,6 +1798,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<bool>("RetryOnFailure")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("SchedulerSynchronizationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTimeOffset?>("StartAt")
                         .HasColumnType("timestamp with time zone");

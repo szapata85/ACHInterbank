@@ -241,6 +241,57 @@ public class SchedulerSyncServiceTests
     }
 
     [Fact]
+    public async Task SchedulerSyncService_ShouldRecordQuartzFailureAndReconcileDesiredStateAfterRecovery()
+    {
+        var dbName = nameof(SchedulerSyncService_ShouldRecordQuartzFailureAndReconcileDesiredStateAfterRecovery);
+        await using (var db = new AchDbContext(BuildOptions(dbName)))
+        {
+            db.TaskDefinitions.Add(new TaskDefinition
+            {
+                Id = 81,
+                Code = "Reconciliation",
+                Name = "Reconciliation",
+                Status = TaskStatusEnum.Enabled,
+                PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+                N = 5,
+                SchedulerSynchronizationStatus = "Pending"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var quartzUnavailable = true;
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(x => x.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<JobKey>());
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()))
+            .Returns(() => quartzUnavailable
+                ? Task.FromException(new SchedulerException("Quartz unavailable"))
+                : Task.CompletedTask);
+
+        var service = BuildService(dbName, scheduler.Object);
+        var reconcile = typeof(SchedulerSyncService).GetMethod("ReconcileAllTasksAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        await (Task)reconcile.Invoke(service, new object[] { scheduler.Object, CancellationToken.None })!;
+
+        await using (var failedDb = new AchDbContext(BuildOptions(dbName)))
+        {
+            var failed = await failedDb.TaskDefinitions.SingleAsync();
+            failed.SchedulerSynchronizationStatus.Should().Be("Failed");
+            failed.LastSchedulerSynchronizationError.Should().Contain("Quartz unavailable");
+        }
+
+        quartzUnavailable = false;
+        await (Task)reconcile.Invoke(service, new object[] { scheduler.Object, CancellationToken.None })!;
+
+        await using (var reconciledDb = new AchDbContext(BuildOptions(dbName)))
+        {
+            var reconciled = await reconciledDb.TaskDefinitions.SingleAsync();
+            reconciled.SchedulerSynchronizationStatus.Should().Be("Synchronized");
+            reconciled.LastSchedulerSynchronizationError.Should().BeNull();
+        }
+        scheduler.Verify(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<IReadOnlyCollection<ITrigger>>(), true, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
     public void SchedulerSyncService_ShouldNotRequireManualSchedulerStart()
     {
         var probe = new DirectoryInfo(AppContext.BaseDirectory);

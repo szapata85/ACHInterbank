@@ -12,7 +12,8 @@ public sealed record SchedulerOverviewDto(
     int RecentMisfires,
     string SchedulerName,
     bool PersistentStore,
-    bool Clustered);
+    bool Clustered,
+    int PendingSynchronizations);
 
 public sealed record SchedulerTaskDto(
     string TaskCode,
@@ -42,7 +43,9 @@ public sealed record SchedulerTaskDto(
     int? MonthDay,
     bool OnlyBusinessDays,
     DateTimeOffset? StartAt,
-    DateTimeOffset? EndAt);
+    DateTimeOffset? EndAt,
+    string SynchronizationStatus,
+    string? LastSynchronizationError);
 
 public sealed record SchedulerExecutionDto(
     Guid ExecutionId,

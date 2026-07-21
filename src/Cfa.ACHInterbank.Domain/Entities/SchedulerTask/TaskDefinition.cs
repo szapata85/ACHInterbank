@@ -23,6 +23,9 @@ public sealed class TaskDefinition : AuditableEntity
     public bool RequestsRecovery { get; set; }
     public bool ManualExecutionEnabled { get; set; }
     public bool Paused { get; set; }
+    public string SchedulerSynchronizationStatus { get; set; } = "Synchronized";
+    public DateTimeOffset? LastSchedulerSynchronizationAttemptUtc { get; set; }
+    public string? LastSchedulerSynchronizationError { get; set; }
 
     public PeriodicityTypeEnum PeriodicityType { get; set; }
     public int? N { get; set; }

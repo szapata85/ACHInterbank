@@ -1,0 +1,82 @@
+name: Scheduler Cluster E2E
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduler-cluster-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  scheduler-cluster:
+    name: ${{ matrix.database }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [postgres, sqlserver]
+    env:
+      CI: true
+      COMPOSE_FILE: ${{ matrix.database == 'postgres' && 'docker-compose.scheduler-cluster.yml' || 'docker-compose.scheduler-cluster.sqlserver.yml' }}
+      API_01_PORT: ${{ matrix.database == 'postgres' && '8441' || '8451' }}
+      API_02_PORT: ${{ matrix.database == 'postgres' && '8442' || '8452' }}
+      SPA_PORT: ${{ matrix.database == 'postgres' && '744' || '745' }}
+      EVIDENCE_DIR: artifacts/ci/scheduler-cluster/${{ matrix.database }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          cache: npm
+          cache-dependency-path: web/ach-interbank-ui/package-lock.json
+
+      - name: Install Playwright dependencies
+        working-directory: web/ach-interbank-ui
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Validate Compose definition
+        run: docker compose -f "$COMPOSE_FILE" config --quiet
+
+      - name: Start first scheduler node and SPA
+        run: docker compose -f "$COMPOSE_FILE" up -d --build quartz-schema achinterbank-api-01 achinterbank-spa
+
+      - name: Wait for first node and bootstrap ephemeral E2E identities
+        run: scripts/ci/scheduler-cluster/bootstrap-test-users.sh "$COMPOSE_FILE" "${{ matrix.database }}" "http://localhost:${API_01_PORT}"
+
+      - name: Start second scheduler node
+        run: docker compose -f "$COMPOSE_FILE" up -d achinterbank-api-02
+
+      - name: Verify runtime cluster
+        run: scripts/ci/scheduler-cluster/verify-cluster.sh "$COMPOSE_FILE" "http://localhost:${API_01_PORT}" "http://localhost:${API_02_PORT}" "http://localhost:${SPA_PORT}" "$EVIDENCE_DIR"
+
+      - name: Run real scheduler Playwright scenarios
+        working-directory: web/ach-interbank-ui
+        env:
+          E2E_BASE_URL: http://localhost:${{ env.SPA_PORT }}
+          PLAYWRIGHT_JUNIT_OUTPUT_FILE: ../../${{ env.EVIDENCE_DIR }}/scheduler-junit.xml
+        run: npx playwright test e2e/scheduler-cluster.spec.ts --project=chromium --reporter=line,junit,html
+
+      - name: Verify Playwright execution and collect evidence
+        if: always()
+        run: scripts/ci/scheduler-cluster/collect-evidence.sh "$COMPOSE_FILE" "http://localhost:${API_01_PORT}" "http://localhost:${API_02_PORT}" "$EVIDENCE_DIR"
+
+      - name: Publish scheduler evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: scheduler-cluster-${{ matrix.database }}-evidence
+          path: ${{ env.EVIDENCE_DIR }}
+          if-no-files-found: error
+
+      - name: Cleanup cluster
+        if: always()
+        run: docker compose -f "$COMPOSE_FILE" down -v --remove-orphans

@@ -5,7 +5,17 @@ const password = process.env['ACH_PASS'];
 const viewOnlyToken = process.env['E2E_SCHEDULER_VIEW_TOKEN'];
 
 test.describe.serial('administracion real del scheduler', () => {
-  test.skip(!username || !password, 'ACH_USER y ACH_PASS son obligatorios para el E2E real del scheduler.');
+  test.beforeAll(() => {
+    const missing = [
+      ['ACH_USER', username],
+      ['ACH_PASS', password],
+      ['E2E_SCHEDULER_VIEW_TOKEN', viewOnlyToken]
+    ].filter(([, value]) => !value).map(([name]) => name);
+
+    if (missing.length) {
+      throw new Error(`Faltan variables obligatorias para el E2E real del scheduler: ${missing.join(', ')}.`);
+    }
+  });
 
   test('dashboard, historial, ejecucion segura, pausa, reanudacion y programacion', async ({ page }, testInfo) => {
     test.setTimeout(70_000);
@@ -61,18 +71,10 @@ test.describe.serial('administracion real del scheduler', () => {
   });
 
   test('oculta acciones no autorizadas y conserva vista movil', async ({ page }, testInfo) => {
-    test.skip(!viewOnlyToken, 'E2E_SCHEDULER_VIEW_TOKEN es obligatorio para validar permisos del SPA.');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.addInitScript((token) => {
       window.sessionStorage.setItem('ach.interbank.access_token', token);
     }, viewOnlyToken!);
-    await page.route('**/auth/refresh', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ sucess: true, data: { token: viewOnlyToken } })
-      });
-    });
     await page.goto('/scheduler/tasks');
 
     await expect(page.getByRole('heading', { name: 'Administración de tareas programadas', level: 1 })).toBeVisible();
