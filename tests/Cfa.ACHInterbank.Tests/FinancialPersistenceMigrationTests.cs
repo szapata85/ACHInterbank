@@ -93,7 +93,8 @@ public class FinancialPersistenceMigrationTests
 
         await migrator.MigrateAsync(previousMigrationId);
         FinancialIntegrityEvidence.Record(provider, "previous-migration");
-        var expected = await SeedExistingDataAsync(context);
+        Assert.False(await ColumnExistsAsync(context, provider, "AuditLog", "CorrelationId"));
+        var expected = await SeedExistingDataAsync(context, provider);
 
         await migrator.MigrateAsync(targetMigrationId);
         FinancialIntegrityEvidence.Record(provider, "up");
@@ -134,166 +135,73 @@ public class FinancialPersistenceMigrationTests
         var targetMigrationId = migrations.Last();
 
         await migrator.MigrateAsync(previousMigrationId);
+        Assert.False(await ColumnExistsAsync(context, provider, "AuditLog", "CorrelationId"));
+        var historical = new HistoricalFinancialIntegritySeed(context, provider);
         if (provider == PersistenceProvider.SqlServer)
         {
-            context.EntryDetails.Add(new EntryDetail { Amount = 1.001m, BatchNumber = 1 });
-            await context.SaveChangesAsync();
-            await context.Database.ExecuteSqlRawAsync("UPDATE [EntryDetails] SET [Amount] = CAST(1.001 AS money)");
+            await historical.InsertAsync("EntryDetails", new() { ["Amount"] = 1.001m, ["BatchNumber"] = 1 });
         }
         else
         {
-            context.AchBatches.Add(new AchBatch { TotalDebitAmount = 1.001m, TotalCreditAmount = 0m });
-            await context.SaveChangesAsync();
-            await context.Database.ExecuteSqlRawAsync("UPDATE \"AchBatches\" SET \"TotalDebitAmount\" = 1.001");
+            await historical.InsertAsync("AchBatches", new()
+            {
+                ["ServiceClassCode"] = "220",
+                ["CompanyName"] = "TEST",
+                ["CompanyIdentification"] = "900000001",
+                ["CompanyEntryDescription"] = "PAGOS",
+                ["CompanyEntryDescriptionId"] = 1,
+                ["OriginOrOdfi"] = "12345678",
+                ["EffectiveEntryDate"] = new DateTime(2026, 7, 18),
+                ["BatchSequenceNumber"] = 1,
+                ["TotalDebitAmount"] = 1.001m,
+                ["TotalCreditAmount"] = 0m,
+                ["CreatedAt"] = DateTimeOffset.UtcNow,
+                ["UpdatedAt"] = DateTimeOffset.UtcNow
+            });
         }
 
         await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(targetMigrationId));
         FinancialIntegrityEvidence.Record(provider, "out-of-scale-rejected");
         Assert.DoesNotContain(enforcementMigrationId, await context.Database.GetAppliedMigrationsAsync());
+        Assert.True(await ColumnExistsAsync(context, provider, "IncomingNachaProcessingEvents", "IncomingNachaFileIngestionId1"));
     }
 
-    private static async Task<FinancialSnapshot> SeedExistingDataAsync(AchDbContext context)
+    private static async Task<FinancialSnapshot> SeedExistingDataAsync(AchDbContext context, PersistenceProvider provider)
     {
-        var clearingHouseConfig = new ClearingHouseConfig
+        var historical = new HistoricalFinancialIntegritySeed(context, provider);
+        var now = DateTimeOffset.UtcNow;
+        var processingDate = new DateTime(2026, 7, 18);
+        var clearingHouseConfigId = await historical.InsertIdentityAsync("ClearingHouseConfigs", new() { ["ClearingHouseId"] = 9001, ["HolidayStrategy"] = "Test" });
+        var clearingHouseId = await historical.InsertIdentityAsync("ClearingHouses", new() { ["Name"] = "Clearing House Test", ["Code"] = "TEST", ["OriginCode"] = "000101006", ["ClearingHouseId"] = clearingHouseConfigId });
+        var sourceInstitutionId = await historical.InsertIdentityAsync("FinancialInstitutions", InstitutionValues("Source Test", "1234567", "9", now));
+        var destinationInstitutionId = await historical.InsertIdentityAsync("FinancialInstitutions", InstitutionValues("Destination Test", "8765432", "3", now));
+        await historical.InsertAsync("AchCycles", new() { ["Id"] = "FIN-INT", ["CycleName"] = "Financial integrity", ["ProcessingDate"] = processingDate, ["CutoffTime"] = new TimeSpan(12, 0, 0), ["StartTime"] = new TimeSpan(8, 0, 0), ["EndTime"] = new TimeSpan(16, 0, 0), ["RescheduleOnHoliday"] = false, ["ClearingHouseId"] = clearingHouseId, ["CreatedAt"] = now, ["UpdatedAt"] = now });
+        var batchId = await historical.InsertIdentityAsync("AchBatches", new() { ["AchCycleId"] = "FIN-INT", ["ServiceClassCode"] = "220", ["CompanyName"] = "TEST", ["CompanyIdentification"] = "900000001", ["CompanyEntryDescription"] = "PAGOS", ["CompanyEntryDescriptionId"] = 1, ["OriginOrOdfi"] = "12345678", ["EffectiveEntryDate"] = processingDate, ["BatchSequenceNumber"] = 1, ["TotalDebitAmount"] = 0m, ["TotalCreditAmount"] = 9_999_999_999_999_999.99m, ["CreatedAt"] = now, ["UpdatedAt"] = now });
+        await historical.InsertAsync("AchTransactions", new() { ["Amount"] = 9_999_999_999_999_999.99m, ["TransactionExternalId"] = "financial-integrity-transaction", ["Reference"] = "FIN-INT", ["Type"] = "Credit", ["TransactionCode"] = "22", ["ServiceClassCode"] = "220", ["CompanyEntryDescriptionId"] = 1, ["CompanyName"] = "TEST", ["CompanyIdentification"] = "900000001", ["OriginatingDFI"] = "12345678", ["ReceivingDFI"] = "87654321", ["TraceNumber"] = "123456780000001", ["TraceSequenceNumber"] = 1, ["EffectiveEntryDate"] = processingDate, ["AddendaRecordIndicator"] = false, ["IsPrenotification"] = false, ["State"] = "Pending", ["StateChangedAtUtc"] = now.UtcDateTime, ["ContrapartidasResponseCode"] = "", ["ReturnReasonCode"] = "", ["OriginalTraceRef"] = "", ["RecipientIdNumber"] = "", ["DiscretionaryData"] = "", ["SourceAccountNumber"] = "1", ["DestinationAccountNumber"] = "2", ["SourceInstitutionId"] = sourceInstitutionId, ["DestinationInstitutionId"] = destinationInstitutionId, ["AchCycleId"] = "FIN-INT", ["AchBatchId"] = batchId, ["CreatedAt"] = now, ["UpdatedAt"] = now });
+        await historical.InsertAsync("EntryDetails", new() { ["Amount"] = 922_337_203_685_477.58m, ["TransactionCode"] = "22", ["ReceivingParticipantEntityCode"] = "12345678", ["BatchNumber"] = 1 });
+        await historical.InsertAsync("BatchControls", new() { ["TotalDebitAmount"] = 0m, ["TotalCreditAmount"] = 922_337_203_685_477.58m, ["BatchNumber"] = "1" });
+        await historical.InsertAsync("FileControls", new() { ["BatchCount"] = 1, ["BlockCount"] = 1, ["EntryAddendaCount"] = 1, ["EntryHash"] = 1L, ["TotalDebitAmount"] = 0m, ["TotalCreditAmount"] = 922_337_203_685_477.58m });
+        var ingestionId = Guid.NewGuid();
+        await historical.InsertAsync("IncomingNachaFileIngestions", new() { ["Id"] = ingestionId, ["FileName"] = "financial-integrity.out", ["FileHashSha256"] = new string('a', 64), ["FileSize"] = 1L, ["ContentType"] = "text/plain", ["UploadedAtUtc"] = now.UtcDateTime, ["UploadedBy"] = "test", ["IngestionStatus"] = "Recibido", ["CycleResolutionStatus"] = "NoIntentado", ["ParsingStatus"] = "NoEjecutado", ["ResolutionEvidenceJson"] = "{}", ["CorrelationId"] = "financial-integrity", ["IsReprocess"] = false, ["Notes"] = "", ["WarningsJson"] = "[]", ["CreatedAt"] = now, ["UpdatedAt"] = now });
+        var eventIds = Enumerable.Range(1, 3).Select(_ => Guid.NewGuid()).ToArray();
+        for (var index = 0; index < eventIds.Length; index++)
         {
-            ClearingHouseId = 9001,
-            HolidayStrategy = "Test"
-        };
-        context.ClearingHouseConfigs.Add(clearingHouseConfig);
-        await context.SaveChangesAsync();
-
-        var clearingHouse = new ClearingHouse
-        {
-            Name = "Clearing House Test",
-            Code = "TEST",
-            OriginCode = "000101006",
-            ClearingHouseId = clearingHouseConfig.Id
-        };
-        var sourceInstitution = CreateInstitution("Source Test", "1234567", "9");
-        var destinationInstitution = CreateInstitution("Destination Test", "8765432", "3");
-        context.AddRange(clearingHouse, sourceInstitution, destinationInstitution);
-        await context.SaveChangesAsync();
-
-        var cycle = new AchCycle
-        {
-            Id = "FIN-INT",
-            CycleName = "Financial integrity",
-            ProcessingDate = new DateTime(2026, 7, 18),
-            CutoffTime = new TimeSpan(12, 0, 0),
-            StartTime = new TimeSpan(8, 0, 0),
-            EndTime = new TimeSpan(16, 0, 0),
-            ClearingHouseId = clearingHouse.Id
-        };
-        var batch = new AchBatch
-        {
-            AchCycleId = cycle.Id,
-            CompanyName = "TEST",
-            CompanyIdentification = "900000001",
-            CompanyEntryDescription = "PAGOS",
-            CompanyEntryDescriptionId = 1,
-            OriginOrOdfi = "12345678",
-            EffectiveEntryDate = cycle.ProcessingDate,
-            BatchSequenceNumber = 1,
-            TotalDebitAmount = 0m,
-            TotalCreditAmount = 9_999_999_999_999_999.99m
-        };
-        context.AddRange(cycle, batch);
-        await context.SaveChangesAsync();
-
-        var transaction = new AchTransaction
-        {
-            Amount = 9_999_999_999_999_999.99m,
-            TransactionExternalId = "financial-integrity-transaction",
-            Reference = "FIN-INT",
-            Type = TransactionTypeEnum.Credit,
-            TransactionCode = "22",
-            ServiceClassCode = "220",
-            CompanyEntryDescriptionId = 1,
-            CompanyName = "TEST",
-            CompanyIdentification = "900000001",
-            OriginatingDFI = "12345678",
-            ReceivingDFI = "87654321",
-            TraceNumber = "123456780000001",
-            TraceSequenceNumber = 1,
-            EffectiveEntryDate = cycle.ProcessingDate,
-            State = AchTransferStateEnum.Pending,
-            StateChangedAtUtc = DateTime.UtcNow,
-            ContrapartidasResponseCode = string.Empty,
-            ReturnReasonCode = string.Empty,
-            OriginalTraceRef = string.Empty,
-            RecipientIdNumber = string.Empty,
-            DiscretionaryData = string.Empty,
-            SourceAccountNumber = "1",
-            DestinationAccountNumber = "2",
-            SourceInstitutionId = sourceInstitution.Id,
-            DestinationInstitutionId = destinationInstitution.Id,
-            AchCycleId = cycle.Id,
-            AchBatchId = batch.Id
-        };
-        var entry = new EntryDetail
-        {
-            Amount = 922_337_203_685_477.58m,
-            TransactionCode = "22",
-            ReceivingParticipantEntityCode = "12345678",
-            BatchNumber = 1
-        };
-        var batchControl = new BatchControl
-        {
-            TotalDebitAmount = 0m,
-            TotalCreditAmount = 922_337_203_685_477.58m,
-            BatchNumber = "1"
-        };
-        var fileControl = new FileControl
-        {
-            BatchCount = 1,
-            BlockCount = 1,
-            EntryAddendaCount = 1,
-            EntryHash = 1,
-            TotalDebitAmount = 0m,
-            TotalCreditAmount = 922_337_203_685_477.58m
-        };
-        var ingestion = new IncomingNachaFileIngestion
-        {
-            FileName = "financial-integrity.out",
-            FileHashSha256 = new string('a', 64),
-            FileSize = 1,
-            ContentType = "text/plain",
-            UploadedAtUtc = DateTime.UtcNow,
-            UploadedBy = "test",
-            CorrelationId = "financial-integrity",
-            Notes = string.Empty
-        };
-        context.AddRange(transaction, entry, batchControl, fileControl, ingestion);
-        await context.SaveChangesAsync();
-
-        var events = Enumerable.Range(1, 3)
-            .Select(index => new IncomingNachaProcessingEvent
-            {
-                IncomingNachaFileIngestionId = ingestion.Id,
-                EventType = "Integrity",
-                EventStatus = "Persisted",
-                Message = $"Event {index}",
-                EvidenceJson = "{}",
-                OccurredAtUtc = DateTime.UtcNow.AddMinutes(index),
-                RaisedBy = "test"
-            })
-            .ToList();
-        context.IncomingNachaProcessingEvents.AddRange(events);
-        await context.SaveChangesAsync();
+            await historical.InsertAsync("IncomingNachaProcessingEvents", new() { ["Id"] = eventIds[index], ["IncomingNachaFileIngestionId"] = ingestionId, ["EventType"] = "Integrity", ["EventStatus"] = "Persisted", ["Message"] = $"Event {index + 1}", ["EvidenceJson"] = "{}", ["OccurredAtUtc"] = now.UtcDateTime.AddMinutes(index + 1), ["RaisedBy"] = "test", ["CreatedAt"] = now, ["UpdatedAt"] = now });
+        }
 
         return new FinancialSnapshot(
-            ingestion.Id,
-            events.Select(@event => @event.Id).Order().ToArray(),
+            ingestionId,
+            eventIds.Order().ToArray(),
             new Dictionary<string, decimal>
             {
-                ["AchBatch.TotalDebitAmount"] = batch.TotalDebitAmount,
-                ["AchBatch.TotalCreditAmount"] = batch.TotalCreditAmount,
-                ["AchTransaction.Amount"] = transaction.Amount,
-                ["EntryDetail.Amount"] = entry.Amount!.Value,
-                ["BatchControl.TotalDebitAmount"] = batchControl.TotalDebitAmount,
-                ["BatchControl.TotalCreditAmount"] = batchControl.TotalCreditAmount,
-                ["FileControl.TotalDebitAmount"] = fileControl.TotalDebitAmount,
-                ["FileControl.TotalCreditAmount"] = fileControl.TotalCreditAmount
+                ["AchBatch.TotalDebitAmount"] = 0m,
+                ["AchBatch.TotalCreditAmount"] = 9_999_999_999_999_999.99m,
+                ["AchTransaction.Amount"] = 9_999_999_999_999_999.99m,
+                ["EntryDetail.Amount"] = 922_337_203_685_477.58m,
+                ["BatchControl.TotalDebitAmount"] = 0m,
+                ["BatchControl.TotalCreditAmount"] = 922_337_203_685_477.58m,
+                ["FileControl.TotalDebitAmount"] = 0m,
+                ["FileControl.TotalCreditAmount"] = 922_337_203_685_477.58m
             });
     }
 
@@ -410,16 +318,113 @@ public class FinancialPersistenceMigrationTests
         return (T)Convert.ChangeType((await command.ExecuteScalarAsync())!, typeof(T), System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static FinancialInstitution CreateInstitution(string name, string routingNumber, string transitCode)
-    {
-        var institution = new FinancialInstitution
+    private static Dictionary<string, object?> InstitutionValues(string name, string routingNumber, string transitCode, DateTimeOffset now)
+        => new()
         {
-            Name = name,
-            RoutingNumber = routingNumber,
-            TransitCode = transitCode
+            ["Name"] = name,
+            ["IsDefaultSource"] = false,
+            ["RoutingNumber"] = routingNumber,
+            ["TransitCode"] = transitCode,
+            ["CheckDigit"] = Cfa.ACHInterbank.Domain.Helpers.DigitoChequeoHelper.CalcularDigitoChequeo($"{routingNumber}{transitCode}"),
+            ["Status"] = 1,
+            ["CreatedAt"] = now,
+            ["UpdatedAt"] = now
         };
-        institution.CalculateCheckDigit();
-        return institution;
+
+    private sealed class HistoricalFinancialIntegritySeed
+    {
+        private readonly AchDbContext _context;
+        private readonly PersistenceProvider _provider;
+        private readonly Dictionary<string, HashSet<string>> _columns = new(StringComparer.Ordinal);
+
+        public HistoricalFinancialIntegritySeed(AchDbContext context, PersistenceProvider provider)
+        {
+            _context = context;
+            _provider = provider;
+        }
+
+        public async Task InsertAsync(string table, Dictionary<string, object?> values)
+            => _ = await InsertCoreAsync(table, values, returnIdentity: false);
+
+        public async Task<int> InsertIdentityAsync(string table, Dictionary<string, object?> values)
+        {
+            var result = await InsertCoreAsync(table, values, returnIdentity: true);
+            return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private async Task<object?> InsertCoreAsync(string table, Dictionary<string, object?> values, bool returnIdentity)
+        {
+            var availableColumns = await GetColumnsAsync(table);
+            var selected = values.Where(pair => availableColumns.Contains(pair.Key)).ToArray();
+            if (selected.Length == 0)
+            {
+                throw new InvalidOperationException($"Historical seed did not find compatible columns for {table}.");
+            }
+
+            var connection = _context.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open)
+            {
+                await connection.OpenAsync();
+            }
+
+            await using var command = connection.CreateCommand();
+            var tableName = Quote(table);
+            var columns = string.Join(", ", selected.Select(pair => Quote(pair.Key)));
+            var parameters = string.Join(", ", selected.Select((_, index) => $"@p{index}"));
+            command.CommandText = returnIdentity
+                ? _provider == PersistenceProvider.SqlServer
+                    ? $"INSERT INTO {tableName} ({columns}) VALUES ({parameters}); SELECT CAST(SCOPE_IDENTITY() AS int);"
+                    : $"INSERT INTO {tableName} ({columns}) VALUES ({parameters}) RETURNING {Quote("Id")};"
+                : $"INSERT INTO {tableName} ({columns}) VALUES ({parameters});";
+
+            for (var index = 0; index < selected.Length; index++)
+            {
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = $"@p{index}";
+                parameter.Value = selected[index].Value ?? DBNull.Value;
+                command.Parameters.Add(parameter);
+            }
+
+            return returnIdentity
+                ? await command.ExecuteScalarAsync()
+                : await command.ExecuteNonQueryAsync();
+        }
+
+        private async Task<HashSet<string>> GetColumnsAsync(string table)
+        {
+            if (_columns.TryGetValue(table, out var cached))
+            {
+                return cached;
+            }
+
+            var connection = _context.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open)
+            {
+                await connection.OpenAsync();
+            }
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = _provider == PersistenceProvider.SqlServer
+                ? "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @table"
+                : "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = @table";
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "@table";
+            parameter.Value = table;
+            command.Parameters.Add(parameter);
+
+            var columns = new HashSet<string>(StringComparer.Ordinal);
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                columns.Add(reader.GetString(0));
+            }
+
+            _columns.Add(table, columns);
+            return columns;
+        }
+
+        private string Quote(string identifier)
+            => _provider == PersistenceProvider.SqlServer ? $"[{identifier}]" : $"\"{identifier}\"";
     }
 
     private sealed record FinancialSnapshot(Guid IngestionId, Guid[] EventIds, IReadOnlyDictionary<string, decimal> Amounts);
