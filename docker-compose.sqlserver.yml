@@ -23,10 +23,39 @@ services:
     restart: unless-stopped
     networks: [ach_onprem]
 
+  quartz-schema:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    container_name: achinterbank-quartz-schema
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria}
+    volumes:
+      - ./artifacts/sql/quartz/sqlserver-qrtz-schema.sql:/schema/quartz.sql:ro
+    command:
+      - /bin/bash
+      - -ec
+      - >-
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C
+        -Q "IF DB_ID(N'${MSSQL_DB:-ACHInterbank}') IS NULL CREATE DATABASE [${MSSQL_DB:-ACHInterbank}]" &&
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C
+        -d ${MSSQL_DB:-ACHInterbank} -b -i /schema/quartz.sql
+    restart: "no"
+    networks: [ach_onprem]
+
   achinterbank-api:
     environment:
       Database__Provider: SqlServer
       ConnectionStrings__SqlConnection: Server=sqlserver,1433;Database=${MSSQL_DB:-ACHInterbank};User Id=sa;Password=${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true
+      Quartz__JobStore__Mode: Persistent
+      Quartz__JobStore__Provider: SqlServer
+      Quartz__JobStore__TablePrefix: QRTZ_
+      Quartz__JobStore__Clustered: "true"
+      Quartz__JobStore__PerformSchemaValidation: "true"
+      Quartz__JobStore__AcquireTriggersWithinLock: "true"
+      Quartz__SchedulerName: ACHInterbankScheduler
+      Quartz__InstanceId: AUTO
     depends_on:
-      sqlserver:
-        condition: service_healthy
+      quartz-schema:
+        condition: service_completed_successfully
