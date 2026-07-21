@@ -5,9 +5,10 @@
 
 <div class="toolbar">
   <div>
-    <strong>{{ overview?.schedulerName || 'ACHInterbankScheduler' }}</strong>
+    <strong>Programador de ACHInterbank</strong>
+    <small>Identificador técnico: {{ overview?.schedulerName || 'ACHInterbankScheduler' }}</small>
     <span class="environment-badge" [class.ok]="overview?.persistentStore && overview?.clustered">
-      {{ overview?.persistentStore ? 'Store persistente' : 'Store no persistente' }} ·
+      {{ overview?.persistentStore ? 'Almacenamiento persistente' : 'Almacenamiento temporal' }} ·
       {{ overview?.clustered ? 'Clúster activo' : 'Sin clúster' }}
     </span>
   </div>
@@ -25,10 +26,10 @@
   <article><span>Instancias</span><strong>{{ overview.totalInstances }}</strong></article>
   <article><span>En línea</span><strong>{{ overview.activeInstances }}</strong></article>
   <article><span>Desconectadas</span><strong>{{ overview.offlineInstances }}</strong></article>
-  <article><span>Jobs en ejecución</span><strong>{{ overview.runningJobs }}</strong></article>
+  <article><span>Tareas en ejecución</span><strong>{{ overview.runningJobs }}</strong></article>
   <article><span>Próximas ejecuciones</span><strong>{{ overview.upcomingExecutions }}</strong></article>
   <article><span>Fallas recientes</span><strong>{{ overview.recentFailures }}</strong></article>
-  <article><span>Misfires recientes</span><strong>{{ overview.recentMisfires }}</strong></article>
+  <article><span>Ejecuciones perdidas recientes</span><strong>{{ overview.recentMisfires }}</strong></article>
   <article *ngIf="overview.pendingSynchronizations"><span>Sincronización pendiente</span><strong>{{ overview.pendingSynchronizations }}</strong></article>
 </section>
 
@@ -49,7 +50,7 @@
         <tr>
           <th>Tarea</th>
           <th>Programación</th>
-          <th>Misfire</th>
+          <th>Acción ante ejecución perdida</th>
           <th>Última ejecución</th>
           <th>Próxima</th>
           <th>Estado</th>
@@ -65,25 +66,25 @@
           </td>
           <td data-label="Programación">
             <strong>{{ task.scheduleDescription }}</strong>
-            <small *ngIf="task.cronExpression">Cron: {{ task.cronExpression }}</small>
+            <small *ngIf="task.cronExpression">Expresión cron: {{ task.cronExpression }}</small>
             <small>Zona horaria: {{ task.timeZoneId }}</small>
           </td>
-          <td data-label="Misfire">
-            <span class="policy">{{ task.misfirePolicy === 0 ? 'DoNothing' : 'FireAndProceed' }}</span>
-            <small>{{ task.misfireDescription }}</small>
+          <td data-label="Acción ante ejecución perdida">
+            <span class="policy">{{ misfirePolicyLabel(task.misfirePolicy) }}</span>
+            <small>{{ misfireDescriptionLabel(task.misfirePolicy) }}</small>
           </td>
           <td data-label="Última ejecución">
-            <strong>{{ task.lastResult || 'Sin ejecuciones' }}</strong>
+            <strong>{{ taskResultLabel(task.lastResult) }}</strong>
             <small>{{ formatDate(task.lastExecutionUtc) }}</small>
             <small>{{ formatDuration(task.lastDurationMilliseconds) }} · {{ task.lastSchedulerInstance || 'Sin instancia' }}</small>
           </td>
           <td data-label="Próxima">{{ formatDate(task.nextExecutionUtc) }}</td>
           <td data-label="Estado">
             <span class="status" [class.running]="task.currentState === 'En ejecución'" [class.paused]="task.status === 'Pausada'">
-              {{ task.currentState }}
+              {{ taskCurrentStateLabel(task.currentState) }}
             </span>
             <small *ngIf="task.synchronizationStatus !== 'Synchronized'" class="error-text">
-              Sincronización {{ task.synchronizationStatus }}{{ task.lastSynchronizationError ? ': ' + task.lastSynchronizationError : '' }}
+              Sincronización {{ synchronizationStatusLabel(task.synchronizationStatus) }}{{ task.lastSynchronizationError ? ': ' + task.lastSynchronizationError : '' }}
             </small>
           </td>
           <td class="actions-cell">
@@ -106,37 +107,37 @@
 
 <section class="panel" *ngIf="canViewInstances" aria-labelledby="instances-title">
   <div class="section-heading">
-    <div><h2 id="instances-title">Instancias del clúster</h2><p>Heartbeat funcional independiente de las tablas internas de Quartz.</p></div>
+    <div><h2 id="instances-title">Instancias del clúster</h2><p>La señal de actividad permite conocer el estado de cada instancia sin depender de las tablas internas de Quartz.</p></div>
   </div>
   <div class="instance-grid" *ngIf="instances.length; else noInstances">
     <article *ngFor="let instance of instances; trackBy: trackByInstance">
-      <div><strong>{{ instance.instanceName }}</strong><span class="status">{{ instance.status }}</span></div>
+      <div><strong>{{ instance.instanceName }}</strong><span class="status">{{ instanceStatusLabel(instance.status) }}</span></div>
       <dl>
-        <dt>Instance ID</dt><dd>{{ instance.instanceId }}</dd>
-        <dt>Host</dt><dd>{{ instance.hostName }}</dd>
-        <dt>Último heartbeat</dt><dd>{{ formatDate(instance.lastHeartbeatUtc) }}</dd>
-        <dt>Jobs activos</dt><dd>{{ instance.currentlyExecutingJobs }}</dd>
+        <dt>Identificador de instancia</dt><dd>{{ instance.instanceId }}</dd>
+        <dt>Servidor</dt><dd>{{ instance.hostName }}</dd>
+        <dt>Última señal de actividad</dt><dd>{{ formatDate(instance.lastHeartbeatUtc) }}</dd>
+        <dt>Tareas activas</dt><dd>{{ instance.currentlyExecutingJobs }}</dd>
         <dt>Versión</dt><dd>{{ instance.version }}</dd>
       </dl>
       <small *ngIf="instance.isCurrentInstance">Instancia que atendió esta consulta</small>
     </article>
   </div>
-  <ng-template #noInstances><div class="empty">Todavía no hay heartbeats registrados.</div></ng-template>
+  <ng-template #noInstances><div class="empty">Todavía no hay señales de actividad registradas.</div></ng-template>
 </section>
 
 <section class="panel" *ngIf="canViewHistory" aria-labelledby="history-title">
   <div class="section-heading">
-    <div><h2 id="history-title">Historial funcional</h2><p>Programadas, manuales, recuperaciones, rechazos y misfires.</p></div>
+    <div><h2 id="history-title">Historial funcional</h2><p>Programadas, manuales, recuperaciones, rechazos y ejecuciones perdidas.</p></div>
     <span>{{ historyTotal }} registros</span>
   </div>
 
   <form class="filters" [formGroup]="historyForm" (ngSubmit)="filterHistory()">
     <label>Tarea<select formControlName="taskCode"><option value="">Todas</option><option *ngFor="let task of tasks" [value]="task.taskCode">{{ task.name }}</option></select></label>
-    <label>Estado<select formControlName="status"><option value="">Todos</option><option value="1">En ejecución</option><option value="2">Exitosa</option><option value="3">Fallida</option><option value="4">Recuperada</option><option value="6">Rechazada</option><option value="7">Misfire</option></select></label>
+    <label>Estado<select formControlName="status"><option value="">Todos</option><option value="1">En ejecución</option><option value="2">Exitosa</option><option value="3">Fallida</option><option value="4">Recuperada</option><option value="6">Rechazada</option><option value="7">Ejecución perdida</option></select></label>
     <label>Tipo<select formControlName="triggerType"><option value="">Todos</option><option value="Programada">Programada</option><option value="Manual">Manual</option><option value="Recuperación">Recuperación</option></select></label>
     <label>Instancia<select formControlName="instanceId"><option value="">Todas</option><option *ngFor="let instance of instances" [value]="instance.instanceId">{{ instance.instanceName }}</option></select></label>
     <label>Usuario<input formControlName="userName" /></label>
-    <label>Correlation ID<input formControlName="correlationId" /></label>
+    <label>Identificador de correlación<input formControlName="correlationId" /></label>
     <label>Desde<input type="datetime-local" formControlName="fromUtc" /></label>
     <label>Hasta<input type="datetime-local" formControlName="toUtc" /></label>
     <button type="submit" class="btn btn-outline">Aplicar filtros</button>
@@ -150,7 +151,7 @@
         <tr *ngFor="let execution of history; trackBy: trackByExecution">
           <td data-label="Inicio">{{ formatDate(execution.startedAtUtc) }}<small>{{ formatDuration(execution.durationMilliseconds) }}</small></td>
           <td data-label="Tarea"><strong>{{ execution.taskCode }}</strong><small>{{ execution.correlationId }}</small></td>
-          <td data-label="Tipo">{{ execution.triggerType }}<small *ngIf="execution.isRecovery">Recovery</small><small *ngIf="execution.misfireDetected">Misfire detectado</small></td>
+          <td data-label="Tipo">{{ triggerTypeLabel(execution.triggerType) }}<small *ngIf="execution.isRecovery">Recuperación</small><small *ngIf="execution.misfireDetected">Ejecución perdida detectada</small></td>
           <td data-label="Estado"><span class="status">{{ statusLabel(execution.status) }}</span></td>
           <td data-label="Instancia">{{ execution.schedulerInstanceName || '—' }}<small>{{ execution.schedulerInstanceId || '—' }}</small></td>
           <td data-label="Usuario / motivo">{{ execution.requestedByUserName || 'Programador' }}<small>{{ execution.requestReason || 'Ejecución regular' }}</small></td>
@@ -167,13 +168,13 @@
     <dl class="summary-list">
       <dt>Tarea</dt><dd>{{ manualTask.name }}</dd>
       <dt>Estado actual</dt><dd>{{ manualTask.currentState }}</dd>
-      <dt>Última ejecución</dt><dd>{{ manualTask.lastResult || 'Sin ejecuciones' }} · {{ formatDate(manualTask.lastExecutionUtc) }}</dd>
+      <dt>Última ejecución</dt><dd>{{ taskResultLabel(manualTask.lastResult) }} · {{ formatDate(manualTask.lastExecutionUtc) }}</dd>
     </dl>
     <p>Esta acción iniciará una ejecución extraordinaria y no modificará su programación.</p>
     <form [formGroup]="manualForm" (ngSubmit)="executeNow()">
       <label>Motivo <textarea formControlName="reason" rows="4" maxlength="500" autofocus></textarea></label>
       <small class="validation" *ngIf="manualForm.controls.reason.touched && manualForm.controls.reason.invalid">Escriba un motivo de al menos 10 caracteres.</small>
-      <small>Request ID: {{ manualForm.controls.requestId.value }}</small>
+    <small>Identificador de solicitud: {{ manualForm.controls.requestId.value }}</small>
       <div class="modal-actions">
         <button type="button" class="btn btn-outline" (click)="closeManual()" [disabled]="submittingManual">Cancelar</button>
         <button type="submit" class="btn btn-primary" [disabled]="submittingManual || manualForm.invalid">{{ submittingManual ? 'Iniciando…' : 'Ejecutar ahora' }}</button>
@@ -193,9 +194,9 @@
       <label *ngIf="[3, 4, 5].includes(scheduleForm.controls.periodicityType.value)">Hora<input type="time" formControlName="timeOfDay" /></label>
       <label *ngIf="scheduleForm.controls.periodicityType.value === 4">Día<select formControlName="weeklyDay"><option *ngFor="let day of weekDays" [ngValue]="day.value">{{ day.label }}</option></select></label>
       <label *ngIf="scheduleForm.controls.periodicityType.value === 5">Día del mes<input type="number" min="1" max="31" formControlName="monthDay" /></label>
-      <label class="full" *ngIf="scheduleForm.controls.periodicityType.value === 6">Cron avanzado<input formControlName="cronExpression" /><small>Formato Quartz: segundos, minutos, horas, día del mes, mes y día de semana.</small></label>
+      <label class="full" *ngIf="scheduleForm.controls.periodicityType.value === 6">Expresión avanzada (cron)<input formControlName="cronExpression" /><small>Formato Quartz: segundos, minutos, horas, día del mes, mes y día de semana.</small></label>
       <label>Zona horaria<input formControlName="timeZoneId" /></label>
-      <label>Política de misfire<select formControlName="misfirePolicy"><option *ngFor="let option of misfireOptions" [ngValue]="option.value">{{ option.label }}</option></select></label>
+      <label>Acción ante una ejecución perdida<select formControlName="misfirePolicy"><option *ngFor="let option of misfireOptions" [ngValue]="option.value">{{ option.label }}</option></select></label>
       <label class="check"><input type="checkbox" formControlName="onlyBusinessDays" /> Solo días hábiles</label>
       <label>Inicio<input type="datetime-local" formControlName="startAt" /></label>
       <label>Fin<input type="datetime-local" formControlName="endAt" /></label>
@@ -221,10 +222,10 @@
     <dl class="summary-list">
       <dt>Código</dt><dd>{{ detailTask.taskCode }}</dd>
       <dt>Programación</dt><dd>{{ detailTask.scheduleDescription }}</dd>
-      <dt>Cron</dt><dd>{{ detailTask.cronExpression || 'No aplica' }}</dd>
+      <dt>Expresión cron</dt><dd>{{ detailTask.cronExpression || 'No aplica' }}</dd>
       <dt>Zona horaria</dt><dd>{{ detailTask.timeZoneId }}</dd>
-      <dt>Misfire</dt><dd>{{ detailTask.misfireDescription }}</dd>
-      <dt>Recovery</dt><dd>{{ detailTask.requestsRecovery ? 'Habilitado' : 'No habilitado' }}</dd>
+      <dt>Acción ante ejecución perdida</dt><dd>{{ misfireDescriptionLabel(detailTask.misfirePolicy) }}</dd>
+      <dt>Recuperación automática</dt><dd>{{ detailTask.requestsRecovery ? 'Habilitada' : 'No habilitada' }}</dd>
       <dt>Ejecución manual</dt><dd>{{ detailTask.manualExecutionEnabled ? 'Habilitada' : 'No habilitada' }}</dd>
     </dl>
     <div class="modal-actions"><button type="button" class="btn btn-primary" (click)="closeDetail()">Cerrar</button></div>

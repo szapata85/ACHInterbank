@@ -31,6 +31,7 @@ test.describe.serial('administracion real del scheduler', () => {
     expect(await instances.locator('article').filter({ hasText: 'achinterbank-api-01' }).count()).toBeGreaterThan(0);
     expect(await instances.locator('article').filter({ hasText: 'achinterbank-api-02' }).count()).toBeGreaterThan(0);
     await expect(page.locator('body')).not.toContainText('[object Object]');
+    await expect(page.locator('body')).not.toContainText(/\b(Store|Jobs|Misfire|DoNothing|FireAndProceed|Heartbeat|Recovery|Request ID|Correlation ID|Synchronized|Online|Offline)\b/);
 
     await openActions(page);
     await page.getByRole('button', { name: 'Ejecutar ahora' }).click();
@@ -84,6 +85,7 @@ test.describe.serial('administracion real del scheduler', () => {
     await expect(page.getByRole('button', { name: 'Pausar' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Editar programación' })).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText('[object Object]');
+    await expect(page.locator('body')).not.toContainText(/\b(Store|Jobs|Misfire|DoNothing|FireAndProceed|Heartbeat|Recovery|Request ID|Correlation ID|Synchronized|Online|Offline)\b/);
     await page.screenshot({ path: testInfo.outputPath('scheduler-mobile-view-only.png'), fullPage: true });
   });
 });

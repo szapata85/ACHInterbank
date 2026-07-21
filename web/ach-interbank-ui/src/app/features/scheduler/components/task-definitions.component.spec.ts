@@ -41,7 +41,7 @@ describe('TaskDefinitionsComponent', () => {
     onlyBusinessDays: true,
     startAt: null,
     endAt: null,
-    synchronizationStatus: 'Synchronized',
+    synchronizationStatus: 'Pending',
     lastSynchronizationError: null
   };
 
@@ -57,8 +57,20 @@ describe('TaskDefinitionsComponent', () => {
       pendingSynchronizations: 0
     }));
     service.getSchedulerTasks.and.returnValue(of([task]));
-    service.getInstances.and.returnValue(of([]));
-    service.getHistory.and.returnValue(of({ items: [], page: 1, pageSize: 25, total: 0 }));
+    service.getInstances.and.returnValue(of([{
+      instanceId: 'instance-1', instanceName: 'api-01', hostName: 'servidor-01',
+      startedAtUtc: '2026-07-21T11:00:00Z', lastHeartbeatUtc: '2026-07-21T11:30:00Z',
+      status: 'Online', isCurrentInstance: true, currentlyExecutingJobs: 0, version: 'test'
+    }]));
+    service.getHistory.and.returnValue(of({ items: [{
+      executionId: 'execution-1', taskCode: task.taskCode, jobName: 'job', jobGroup: 'group',
+      triggerName: 'trigger', triggerType: 'Recovery', fireInstanceId: 'fire', schedulerInstanceId: 'instance-1',
+      schedulerInstanceName: 'api-01', requestedByUserId: null, requestedByUserName: 'admin', requestReason: 'test',
+      idempotencyKey: null, correlationId: 'correlation-1', scheduledFireTimeUtc: null, actualFireTimeUtc: null,
+      startedAtUtc: '2026-07-21T11:00:00Z', finishedAtUtc: null, durationMilliseconds: 100, status: 4,
+      isRecovery: true, refireCount: 0, misfireDetected: true, resultSummary: 'ok', errorCode: null,
+      errorSummary: null
+    } as any], page: 1, pageSize: 25, total: 1 }));
 
     await TestBed.configureTestingModule({
       imports: [TaskDefinitionsComponent],
@@ -79,7 +91,45 @@ describe('TaskDefinitionsComponent', () => {
     expect(text).toMatch(/Administraci.n de tareas programadas/);
     expect(text).toContain('Programador de ciclos');
     expect(text).toContain('Lunes a viernes a las 6:30 a. m.');
+    expect(text).toContain('Almacenamiento persistente');
+    expect(text).toContain('Tareas en ejecución');
+    expect(text).toContain('Ejecuciones perdidas recientes');
+    expect(text).toContain('Omitir la ejecución perdida');
+    expect(text).toContain('Última señal de actividad');
+    expect(text).toContain('Identificador de instancia');
+    expect(text).toContain('Servidor');
+    expect(text).toContain('Identificador de correlación');
+    expect(text).toContain('Recuperación');
+    expect(text).not.toContain('Synchronized');
+    expect(text).not.toContain('Online');
+    expect(text).not.toContain('Recovery');
+    expect(text).not.toContain('Succeeded');
     expect(text).not.toContain('[object Object]');
+  });
+
+  it('traduce estados, activadores y valores desconocidos sin exponer inglés crudo', () => {
+    expect(component.synchronizationStatusLabel('Synchronized')).toBe('Sincronizada');
+    expect(component.instanceStatusLabel('Online')).toBe('En línea');
+    expect(component.instanceStatusLabel('Offline')).toBe('Desconectada');
+    expect(component.triggerTypeLabel('Recovery')).toBe('Recuperación');
+    expect(component.triggerTypeLabel('Misfire')).toBe('Ejecución perdida');
+    expect(component.synchronizationStatusLabel('Unexpected')).toBe('Estado de sincronización no reconocido');
+    expect(component.taskResultLabel('Succeeded')).toBe('Exitosa');
+    expect(component.taskResultLabel('Unexpected')).toBe('Resultado no reconocido');
+  });
+
+  it('muestra los textos traducidos en los diálogos', () => {
+    component.openManual(task);
+    component.openSchedule(task);
+    component.showDetail(task);
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Identificador de solicitud');
+    expect(text).toContain('Acción ante una ejecución perdida');
+    expect(text).toContain('Expresión cron');
+    expect(text).toContain('Recuperación automática');
+    expect(text).not.toContain('DoNothing');
+    expect(text).not.toContain('FireAndProceed');
   });
 
   it('exige motivo y evita doble envio mientras la solicitud esta en curso', () => {

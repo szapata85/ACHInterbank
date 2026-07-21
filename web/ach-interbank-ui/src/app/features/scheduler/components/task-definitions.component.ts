@@ -84,12 +84,12 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
     { value: 3, label: 'Todos los días' },
     { value: 4, label: 'Semanal' },
     { value: 5, label: 'Mensual' },
-    { value: 6, label: 'Cron avanzado' }
+    { value: 6, label: 'Expresión avanzada (cron)' }
   ];
 
   readonly misfireOptions = [
-    { value: 0, label: 'DoNothing — omitir la ejecución perdida' },
-    { value: 1, label: 'FireAndProceed — ejecutar una vez al recuperarse' }
+    { value: 0, label: 'Omitir la ejecución perdida' },
+    { value: 1, label: 'Ejecutar una vez al recuperarse' }
   ];
 
   readonly weekDays = [
@@ -306,7 +306,45 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
   }
 
   statusLabel(status: number): string {
-    return ['Pendiente', 'En ejecución', 'Exitosa', 'Fallida', 'Recuperada', 'Omitida', 'Rechazada', 'Misfire'][status] ?? 'Desconocida';
+    return ['Pendiente', 'En ejecución', 'Exitosa', 'Fallida', 'Recuperada', 'Omitida', 'Rechazada', 'Ejecución perdida'][status] ?? 'Desconocida';
+  }
+
+  misfirePolicyLabel(policy: number): string {
+    return policy === 1 ? 'Ejecutar una vez al recuperarse' : 'Omitir la ejecución perdida';
+  }
+
+  misfireDescriptionLabel(policy: number): string {
+    return policy === 1
+      ? 'Se ejecuta una vez cuando el programador se recupera y continúa la programación normal.'
+      : 'Se omite la ejecución perdida y continúa la programación normal.';
+  }
+
+  synchronizationStatusLabel(status: string): string {
+    return ({
+      Synchronized: 'Sincronizada',
+      Pending: 'Pendiente',
+      PendingSynchronization: 'Pendiente de sincronización',
+      Failed: 'Fallida',
+      Error: 'Con error',
+      NotFound: 'No encontrada'
+    } as Record<string, string>)[status] ?? 'Estado de sincronización no reconocido';
+  }
+
+  instanceStatusLabel(status: string): string {
+    return ({ Online: 'En línea', Offline: 'Desconectada', Active: 'Activa', Inactive: 'Inactiva', Unknown: 'Desconocida' } as Record<string, string>)[status] ?? 'Estado no reconocido';
+  }
+
+  triggerTypeLabel(triggerType: string): string {
+    return ({ Scheduled: 'Programada', Programada: 'Programada', Manual: 'Manual', Recovery: 'Recuperación', Recuperación: 'Recuperación', Misfire: 'Ejecución perdida', Retry: 'Reintento' } as Record<string, string>)[triggerType] ?? 'Tipo de activación no reconocido';
+  }
+
+  taskCurrentStateLabel(state: string): string {
+    return ({ Running: 'En ejecución', Waiting: 'En espera', Pending: 'Pendiente', Paused: 'Pausada', Active: 'Activa', Failed: 'Fallida' } as Record<string, string>)[state] ?? 'Estado no reconocido';
+  }
+
+  taskResultLabel(result?: string | null): string {
+    if (!result) return 'Sin ejecuciones';
+    return ({ Succeeded: 'Exitosa', Success: 'Exitosa', Failed: 'Fallida', Recovered: 'Recuperada', Skipped: 'Omitida', Rejected: 'Rechazada' } as Record<string, string>)[result] ?? 'Resultado no reconocido';
   }
 
   formatDate(value?: string | null): string {
