@@ -43,6 +43,7 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(x => x.ClearingHouse)
+                .ThenInclude(x => x!.ClearingHouseConfig)
             .FirstAsync(x => x.Id == execution.AchCycleId, ct);
         var cycleIndex = ExtractCycleIndex(cycle.CycleName);
         var sourceFileReference = await _context.AchFileExports
@@ -181,11 +182,12 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
                 cycle.ClearingHouseId,
                 cycle.ClearingHouse?.Code,
                 execution.AchCycleId,
-                cycle.ProcessingDate.Date);
+                cycle.ProcessingDate.Date,
+                cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode);
             var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(
                 cycle.ClearingHouseId,
                 cycle.ClearingHouse?.Code,
-                execution.AchCycleId));
+                cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode));
             const string legacyDecisionCode = "CENIT_LIQUIDITY_OPTIMIZED";
             var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
                 context.OperationalContext,

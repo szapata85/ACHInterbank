@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -18,10 +20,27 @@ public class ClearingHouseService : IClearingHouseService
     private const string DefaultHolidayStrategy = "Colombian";
     private static readonly Regex CodePattern = new("^[A-Z0-9][A-Z0-9_-]{1,19}$", RegexOptions.CultureInvariant);
     private readonly AchDbContext _context;
+    private readonly IReadOnlyList<ClearingHousePaymentRailOptionDto> _paymentRailOptions;
+    private readonly HashSet<string> _selectablePaymentRailCodes;
 
-    public ClearingHouseService(AchDbContext context)
+    public ClearingHouseService(AchDbContext context, IEnumerable<IPaymentRailOperationalStrategy> strategies)
     {
         _context = context;
+        _paymentRailOptions = strategies
+            .Where(x => x.IsAdministrativelySelectable
+                        && !string.Equals(x.RailCode, PaymentRailCodes.Unknown, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(x => x.RailCode, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.First())
+            .OrderBy(x => x.DisplayName)
+            .Select(x => new ClearingHousePaymentRailOptionDto
+            {
+                Code = x.RailCode.Trim().ToUpperInvariant(),
+                Name = x.DisplayName
+            })
+            .ToArray();
+        _selectablePaymentRailCodes = _paymentRailOptions
+            .Select(x => x.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<IEnumerable<ClearingHouseDto>> GetAllAsync(CancellationToken ct = default)
@@ -92,6 +111,7 @@ public class ClearingHouseService : IClearingHouseService
                     ClearingHouseId = 0,
                     HolidayStrategy = normalized.HolidayStrategy,
                     TimeZoneId = normalized.TimeZoneId,
+                    PaymentRailCode = normalized.PaymentRailCode,
                     RequiresNachaProfile = normalized.RequiresNachaProfile,
                     NachaProfileId = normalized.NachaProfileId
                 };
@@ -123,6 +143,7 @@ public class ClearingHouseService : IClearingHouseService
                     ClearingHouseId = entity.Id,
                     HolidayStrategy = normalized.HolidayStrategy,
                     TimeZoneId = normalized.TimeZoneId,
+                    PaymentRailCode = normalized.PaymentRailCode,
                     RequiresNachaProfile = normalized.RequiresNachaProfile,
                     NachaProfileId = normalized.NachaProfileId
                 };
@@ -176,8 +197,10 @@ public class ClearingHouseService : IClearingHouseService
             entity.OriginCode = normalized.OriginCode;
             config.TimeZoneId = normalized.TimeZoneId;
             config.HolidayStrategy = normalized.HolidayStrategy;
+            config.PaymentRailCode = normalized.PaymentRailCode;
             config.RequiresNachaProfile = normalized.RequiresNachaProfile;
             config.NachaProfileId = normalized.NachaProfileId;
+            entity.UpdatedAt = DateTimeOffset.UtcNow;
             await _context.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return (await GetByIdAsync(entity.Id, ct))!;
@@ -211,6 +234,7 @@ public class ClearingHouseService : IClearingHouseService
         }
 
         entity.IsActive = isActive;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync(ct);
         return (await GetByIdAsync(id, ct))!;
     }
@@ -224,6 +248,9 @@ public class ClearingHouseService : IClearingHouseService
             MissingRequirements = dto.MissingRequirements
         };
     }
+
+    public IReadOnlyList<ClearingHousePaymentRailOptionDto> GetPaymentRailOptions()
+        => _paymentRailOptions;
 
     public async Task<IReadOnlyList<ClearingHouseNachaProfileOptionDto>> GetNachaProfilesAsync(
         string? clearingHouseCode,
@@ -285,7 +312,7 @@ public class ClearingHouseService : IClearingHouseService
         return houses.Select(x => Map(x, activeCycles.GetValueOrDefault(x.Id), today)).ToArray();
     }
 
-    private static ClearingHouseDto Map(ClearingHouse entity, int activeCycleCount, DateTime today)
+    private ClearingHouseDto Map(ClearingHouse entity, int activeCycleCount, DateTime today)
     {
         var missing = EvaluateReadiness(entity, activeCycleCount, today);
         return new ClearingHouseDto
@@ -297,6 +324,7 @@ public class ClearingHouseService : IClearingHouseService
             IsActive = entity.IsActive,
             TimeZoneId = entity.ClearingHouseConfig?.TimeZoneId ?? string.Empty,
             HolidayStrategy = entity.ClearingHouseConfig?.HolidayStrategy,
+            PaymentRailCode = entity.ClearingHouseConfig?.PaymentRailCode,
             RequiresNachaProfile = entity.ClearingHouseConfig?.RequiresNachaProfile ?? false,
             NachaProfileId = entity.ClearingHouseConfig?.NachaProfileId,
             NachaProfileCode = entity.ClearingHouseConfig?.NachaProfile?.ProfileCode,
@@ -309,7 +337,7 @@ public class ClearingHouseService : IClearingHouseService
         };
     }
 
-    private static List<string> EvaluateReadiness(ClearingHouse entity, int activeCycleCount, DateTime today)
+    private List<string> EvaluateReadiness(ClearingHouse entity, int activeCycleCount, DateTime today)
     {
         var missing = new List<string>();
         if (string.IsNullOrWhiteSpace(entity.Code)) missing.Add("Código funcional");
@@ -318,6 +346,9 @@ public class ClearingHouseService : IClearingHouseService
         if (entity.ClearingHouseConfig is null) missing.Add("Configuración principal");
         if (string.IsNullOrWhiteSpace(entity.ClearingHouseConfig?.TimeZoneId)) missing.Add("Zona horaria");
         if (string.IsNullOrWhiteSpace(entity.ClearingHouseConfig?.HolidayStrategy)) missing.Add("Estrategia de calendario");
+        if (string.IsNullOrWhiteSpace(entity.ClearingHouseConfig?.PaymentRailCode)
+            || !_selectablePaymentRailCodes.Contains(entity.ClearingHouseConfig.PaymentRailCode))
+            missing.Add("Estrategia operativa registrada");
         if (activeCycleCount == 0) missing.Add("Al menos un ciclo activo y vigente");
 
         if (entity.ClearingHouseConfig?.RequiresNachaProfile == true)
@@ -376,6 +407,12 @@ public class ClearingHouseService : IClearingHouseService
         var holidayStrategy = request.HolidayStrategy?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(holidayStrategy)) errors.Add("La estrategia de calendario es obligatoria.");
 
+        var paymentRailCode = string.IsNullOrWhiteSpace(request.PaymentRailCode)
+            ? null
+            : request.PaymentRailCode.Trim().ToUpperInvariant();
+        if (paymentRailCode is not null && !_selectablePaymentRailCodes.Contains(paymentRailCode))
+            errors.Add("La estrategia operativa seleccionada no está registrada o no está permitida.");
+
         if (request.RequiresNachaProfile && !request.NachaProfileId.HasValue)
             errors.Add("Debe seleccionar un perfil NACHA-M cuando la cámara requiere procesamiento NACHA-M.");
         if (!request.RequiresNachaProfile && request.NachaProfileId.HasValue)
@@ -405,7 +442,7 @@ public class ClearingHouseService : IClearingHouseService
         }
 
         if (errors.Count > 0) throw new ClearingHouseValidationException("Revise los datos de la cámara compensadora.", errors);
-        return new NormalizedRequest(code, name, originCode, timeZoneId, holidayStrategy, request.RequiresNachaProfile, request.NachaProfileId);
+        return new NormalizedRequest(code, name, originCode, timeZoneId, holidayStrategy, paymentRailCode, request.RequiresNachaProfile, request.NachaProfileId);
     }
 
     private async Task<ClearingHouseConfig> EnsureDedicatedConfigAsync(ClearingHouse entity, CancellationToken ct)
@@ -421,6 +458,7 @@ public class ClearingHouseService : IClearingHouseService
                 ClearingHouseId = entity.Id,
                 HolidayStrategy = entity.ClearingHouseConfig.HolidayStrategy ?? DefaultHolidayStrategy,
                 TimeZoneId = string.IsNullOrWhiteSpace(entity.ClearingHouseConfig.TimeZoneId) ? DefaultTimeZone : entity.ClearingHouseConfig.TimeZoneId,
+                PaymentRailCode = entity.ClearingHouseConfig.PaymentRailCode,
                 RequiresNachaProfile = entity.ClearingHouseConfig.RequiresNachaProfile,
                 NachaProfileId = entity.ClearingHouseConfig.NachaProfileId
             };
@@ -454,6 +492,7 @@ public class ClearingHouseService : IClearingHouseService
         string OriginCode,
         string TimeZoneId,
         string HolidayStrategy,
+        string? PaymentRailCode,
         bool RequiresNachaProfile,
         int? NachaProfileId);
 }

@@ -32,7 +32,11 @@ jobs:
         run: dotnet build ACHInterbank.sln -c Release --no-restore --maxcpucount:1
 
       - name: Test
-        run: dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --logger "trx;LogFileName=dotnet-tests.trx" --results-directory TestResults -- RunConfiguration.MaxCpuCount=1
+        run: >-
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+          -c Release --no-build --filter 'Category!=ClearingHouseMultiDb'
+          --logger "trx;LogFileName=dotnet-tests.trx" --results-directory TestResults
+          -- RunConfiguration.MaxCpuCount=1
 
       - name: Upload test results
         if: always()

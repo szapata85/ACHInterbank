@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
-import { ClearingHouse, ClearingHouseInput, ClearingHousePage, NachaProfileOption } from './clearing-houses.models';
+import { ClearingHouse, ClearingHouseInput, ClearingHousePage, NachaProfileOption, PaymentRailOption } from './clearing-houses.models';
 
 @Injectable({ providedIn: 'root' })
 export class ClearingHousesService {
@@ -23,5 +23,8 @@ export class ClearingHousesService {
   }
   profiles(code: string): Observable<NachaProfileOption[]> {
     return this.api.get<NachaProfileOption[]>(`${this.path}/nacha-profiles`, { params: { clearingHouseCode: code } });
+  }
+  paymentRailOptions(): Observable<PaymentRailOption[]> {
+    return this.api.get<PaymentRailOption[]>(`${this.path}/payment-rail-options`);
   }
 }

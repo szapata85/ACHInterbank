@@ -5,6 +5,8 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 public interface IPaymentRailOperationalStrategy
 {
     string RailCode { get; }
+    string DisplayName { get; }
+    bool IsAdministrativelySelectable { get; }
     PaymentRailCapabilityDescriptor Capabilities { get; }
     IReadOnlyCollection<PaymentRailCapabilityStatus> CapabilityStatuses { get; }
 

@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -18,8 +19,8 @@ public class ClearingHouseSeeder(AchDbContext context) : IDbSeeder
 
         var initial = new[]
         {
-            new { Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "000101006" },
-            new { Code = "CENIT", Name = "CENIT", OriginCode = "011111111" }
+            new { Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "000101006", PaymentRailCode = PaymentRailCodes.AchColombia },
+            new { Code = "CENIT", Name = "CENIT", OriginCode = "011111111", PaymentRailCode = PaymentRailCodes.Cenit }
         };
 
         foreach (var item in initial)
@@ -55,7 +56,8 @@ public class ClearingHouseSeeder(AchDbContext context) : IDbSeeder
                     {
                         ClearingHouseId = house.Id,
                         HolidayStrategy = fallback.HolidayStrategy,
-                        TimeZoneId = fallback.TimeZoneId
+                        TimeZoneId = fallback.TimeZoneId,
+                        PaymentRailCode = item.PaymentRailCode
                     };
                     context.ClearingHouseConfigs.Add(ownConfig);
                     await context.SaveChangesAsync();
@@ -74,6 +76,12 @@ public class ClearingHouseSeeder(AchDbContext context) : IDbSeeder
             if (string.IsNullOrWhiteSpace(ownConfig.HolidayStrategy))
             {
                 ownConfig.HolidayStrategy = "Colombian";
+                configCompleted = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(ownConfig.PaymentRailCode))
+            {
+                ownConfig.PaymentRailCode = item.PaymentRailCode;
                 configCompleted = true;
             }
 

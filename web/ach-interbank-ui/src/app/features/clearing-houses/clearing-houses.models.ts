@@ -6,6 +6,7 @@ export interface ClearingHouse {
   isActive: boolean;
   timeZoneId: string;
   holidayStrategy: string;
+  paymentRailCode?: string | null;
   requiresNachaProfile: boolean;
   nachaProfileId?: number | null;
   nachaProfileCode?: string | null;
@@ -31,9 +32,11 @@ export interface ClearingHouseInput {
   originCode: string;
   timeZoneId: string;
   holidayStrategy: string;
+  paymentRailCode?: string | null;
   requiresNachaProfile: boolean;
   nachaProfileId?: number | null;
   expectedUpdatedAt?: string | null;
 }
 
 export interface NachaProfileOption { id: number; code: string; name: string; }
+export interface PaymentRailOption { code: string; name: string; }

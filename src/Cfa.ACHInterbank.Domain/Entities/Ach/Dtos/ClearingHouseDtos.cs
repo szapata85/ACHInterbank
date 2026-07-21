@@ -11,6 +11,7 @@ public class ClearingHouseDto
     public bool IsActive { get; set; }
     public string TimeZoneId { get; set; } = string.Empty;
     public string? HolidayStrategy { get; set; }
+    public string? PaymentRailCode { get; set; }
     public bool RequiresNachaProfile { get; set; }
     public int? NachaProfileId { get; set; }
     public string? NachaProfileCode { get; set; }
@@ -35,6 +36,7 @@ public class CreateClearingHouseRequest
     public string OriginCode { get; set; } = string.Empty;
     public string TimeZoneId { get; set; } = string.Empty;
     public string HolidayStrategy { get; set; } = string.Empty;
+    public string? PaymentRailCode { get; set; }
     public bool RequiresNachaProfile { get; set; }
     public int? NachaProfileId { get; set; }
 }
@@ -63,4 +65,10 @@ public sealed class ClearingHouseNachaProfileOptionDto
     public string ClearingHouseCode { get; init; } = string.Empty;
     public bool IsPublished { get; init; }
     public bool IsCurrent { get; init; }
+}
+
+public sealed class ClearingHousePaymentRailOptionDto
+{
+    public string Code { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
 }

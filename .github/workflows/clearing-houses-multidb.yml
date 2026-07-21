@@ -1,0 +1,138 @@
+name: clearing-houses-multidb
+
+on:
+  push:
+    paths:
+      - '.github/workflows/clearing-houses-multidb.yml'
+      - 'src/**/ClearingHouse*'
+      - 'src/**/PaymentRail*'
+      - 'src/**/Migrations/**'
+      - 'tests/**/ClearingHouse*'
+      - 'tests/**/PaymentRail*'
+      - 'tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj'
+      - 'ACHInterbank.sln'
+  pull_request:
+    paths:
+      - '.github/workflows/clearing-houses-multidb.yml'
+      - 'src/**/ClearingHouse*'
+      - 'src/**/PaymentRail*'
+      - 'src/**/Migrations/**'
+      - 'tests/**/ClearingHouse*'
+      - 'tests/**/PaymentRail*'
+      - 'tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj'
+      - 'ACHInterbank.sln'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CLEARING_HOUSES_REQUIRE_DATABASES: 'true'
+
+jobs:
+  clearing-houses-multidb:
+    name: Clearing houses (SQL Server + PostgreSQL)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.300'
+
+      - name: Start isolated database services
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql_password="ChSql$(openssl rand -hex 12)!9"
+          pg_password="ChPg$(openssl rand -hex 12)!9"
+          echo "::add-mask::${sql_password}"
+          echo "::add-mask::${pg_password}"
+          docker run -d --name clearing-houses-sqlserver \
+            -e ACCEPT_EULA=Y -e MSSQL_PID=Developer -e MSSQL_SA_PASSWORD="${sql_password}" \
+            -p 1433:1433 \
+            mcr.microsoft.com/mssql/server@sha256:2cd0aec4a3bfc3cf9205bed3f7922f4c6208f7c767dc62edcee308d0fd7d56d0
+          docker run -d --name clearing-houses-postgres \
+            -e POSTGRES_DB=achinterbank_test -e POSTGRES_USER=ach_test -e POSTGRES_PASSWORD="${pg_password}" \
+            -p 5433:5432 \
+            postgres@sha256:eb4759788a2182f08257135e61a34f2cfc3c2914079f3465d64ee62350f4d081
+          echo "CLEARING_HOUSES_SQLSERVER_CONNECTION_STRING=Server=127.0.0.1,1433;Database=master;User Id=sa;Password=${sql_password};Encrypt=True;TrustServerCertificate=True;Connect Timeout=15" >> "$GITHUB_ENV"
+          echo "CLEARING_HOUSES_POSTGRES_CONNECTION_STRING=Host=127.0.0.1;Port=5433;Database=achinterbank_test;Username=ach_test;Password=${pg_password};Timeout=15;Command Timeout=30" >> "$GITHUB_ENV"
+          echo "CLEARING_HOUSES_SQLSERVER_PASSWORD=${sql_password}" >> "$GITHUB_ENV"
+
+      - name: Wait for database services
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..40}; do
+            sql_ready=false
+            pg_ready=false
+            if docker exec clearing-houses-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$CLEARING_HOUSES_SQLSERVER_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1; then sql_ready=true; fi
+            if docker exec clearing-houses-postgres pg_isready -U ach_test -d achinterbank_test >/dev/null 2>&1; then pg_ready=true; fi
+            if [[ "$sql_ready" == true && "$pg_ready" == true ]]; then exit 0; fi
+            sleep 5
+          done
+          echo 'SQL Server o PostgreSQL no quedó disponible.' >&2
+          exit 1
+
+      - name: Restore
+        run: dotnet restore ACHInterbank.sln
+
+      - name: Build once
+        run: dotnet build ACHInterbank.sln -c Release --no-restore -m:1
+
+      - name: Verify ClearingHouseMultiDb tests are discovered
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p TestResults/ClearingHouses
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+            -c Release --no-build --filter 'Category=ClearingHouseMultiDb' --list-tests \
+            | tee TestResults/ClearingHouses/clearing-houses-test-list.txt
+          test "$(grep -c 'ClearingHouseMultiDbTests.AdministrationMigrationsCrudAndLengthGuard' TestResults/ClearingHouses/clearing-houses-test-list.txt)" -ge 2
+
+      - name: Run ClearingHouseMultiDb tests
+        run: |
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+            -c Release --no-build --filter 'Category=ClearingHouseMultiDb' \
+            --logger 'trx;LogFileName=clearing-houses-multidb.trx' \
+            --results-directory TestResults/ClearingHouses -v minimal
+
+      - name: Verify zero omitted tests
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          trx='TestResults/ClearingHouses/clearing-houses-multidb.trx'
+          test -f "$trx"
+          result_count="$(grep -o '<UnitTestResult ' "$trx" | wc -l)"
+          test "$result_count" -ge 2
+          if grep -q 'outcome="Skipped"' "$trx"; then
+            echo 'ClearingHouseMultiDb no permite pruebas omitidas.' >&2
+            exit 1
+          fi
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Clearing houses multimotor'
+            echo '- SQL Server: ejecutado'
+            echo '- PostgreSQL: ejecutado'
+            echo '- Categoría: ClearingHouseMultiDb'
+            echo '- Evidencia: clearing-houses-multidb.trx'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clearing-houses-multidb-results
+          path: TestResults/ClearingHouses
+          if-no-files-found: error
+
+      - name: Stop database services
+        if: always()
+        run: docker rm -f clearing-houses-sqlserver clearing-houses-postgres || true

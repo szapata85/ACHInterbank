@@ -60,4 +60,30 @@ public class PaymentRailOperationalStrategyResolverTests
         bridgeResult.IsAllowed.Should().BeFalse();
         bridgeResult.ResultCode.Should().Be("PAYMENT_RAIL_UNKNOWN_FAIL_CLOSED");
     }
+
+    [Fact]
+    public void ResolveRail_NewClearingHouse_UsesRegisteredRequestedRailWithoutAlias()
+    {
+        var sut = BuildResolver();
+
+        var result = sut.ResolveRail(new PaymentRailResolveRequest(99, "NUEVARED", PaymentRailCodes.AchColombia));
+
+        result.RailCode.Should().Be(PaymentRailCodes.AchColombia);
+        result.IsKnownRail.Should().BeTrue();
+        result.ResolutionSource.Should().Be("RequestedRailCode");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("NO_REGISTRADA")]
+    [InlineData(PaymentRailCodes.Unknown)]
+    public void ResolveRail_NewClearingHouse_WithoutRegisteredRequestedRail_FailsClosed(string? requestedRail)
+    {
+        var sut = BuildResolver();
+
+        var result = sut.ResolveRail(new PaymentRailResolveRequest(99, "NUEVARED", requestedRail));
+
+        result.RailCode.Should().Be(PaymentRailCodes.Unknown);
+        result.IsKnownRail.Should().BeFalse();
+    }
 }

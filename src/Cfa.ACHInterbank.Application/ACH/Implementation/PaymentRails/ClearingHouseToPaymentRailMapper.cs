@@ -45,12 +45,9 @@ public sealed class ClearingHouseToPaymentRailMapper : IClearingHouseToPaymentRa
         }
 
         var normalized = railCode.Trim().ToUpperInvariant();
-        return normalized switch
-        {
-            PaymentRailCodes.AchColombia => PaymentRailCodes.AchColombia,
-            PaymentRailCodes.Cenit => PaymentRailCodes.Cenit,
-            _ => null
-        };
+        return string.Equals(normalized, PaymentRailCodes.Unknown, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : normalized;
     }
 
     private static string? NormalizeCode(string? clearingHouseCode)

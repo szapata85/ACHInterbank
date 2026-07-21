@@ -20,6 +20,19 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 nullable: false,
                 defaultValue: true);
 
+            migrationBuilder.Sql(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM "ClearingHouses"
+                        WHERE char_length(btrim("Code")) > 20) THEN
+                        RAISE EXCEPTION 'No es posible reducir ClearingHouses.Code a 20 caracteres: existen códigos con longitud superior al límite.';
+                    END IF;
+                END $$;
+                """);
+
             migrationBuilder.AlterColumn<string>(
                 name: "Code",
                 table: "ClearingHouses",
@@ -35,7 +48,7 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 table: "ClearingHouses",
                 type: "timestamp with time zone",
                 nullable: false,
-                defaultValue: new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)));
+                defaultValue: new DateTimeOffset(new DateTime(2026, 7, 21, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)));
 
             migrationBuilder.AddColumn<bool>(
                 name: "IsActive",
@@ -49,12 +62,19 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 table: "ClearingHouses",
                 type: "timestamp with time zone",
                 nullable: false,
-                defaultValue: new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)));
+                defaultValue: new DateTimeOffset(new DateTime(2026, 7, 21, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)));
 
             migrationBuilder.AddColumn<int>(
                 name: "NachaProfileId",
                 table: "ClearingHouseConfigs",
                 type: "integer",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "PaymentRailCode",
+                table: "ClearingHouseConfigs",
+                type: "character varying(50)",
+                maxLength: 50,
                 nullable: true);
 
             migrationBuilder.AddColumn<bool>(
@@ -71,6 +91,19 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                 maxLength: 100,
                 nullable: false,
                 defaultValue: "");
+
+            migrationBuilder.Sql(
+                """
+                UPDATE "ClearingHouseConfigs" AS cfg
+                SET "PaymentRailCode" = CASE UPPER(btrim(ch."Code"))
+                    WHEN 'ACHCOL' THEN 'ACH_COLOMBIA'
+                    WHEN 'CENIT' THEN 'CENIT'
+                END
+                FROM "ClearingHouses" AS ch
+                WHERE ch."ClearingHouseId" = cfg."Id"
+                  AND UPPER(btrim(ch."Code")) IN ('ACHCOL', 'CENIT')
+                  AND cfg."PaymentRailCode" IS NULL;
+                """);
 
             migrationBuilder.InsertData(
                 table: "MenuItems",
@@ -240,6 +273,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
             migrationBuilder.DropColumn(
                 name: "NachaProfileId",
                 table: "ClearingHouseConfigs");
+
+            migrationBuilder.Sql(
+                """
+                ALTER TABLE "ClearingHouseConfigs" DROP COLUMN IF EXISTS "PaymentRailCode";
+                """);
 
             migrationBuilder.DropColumn(
                 name: "RequiresNachaProfile",

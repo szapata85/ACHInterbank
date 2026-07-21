@@ -12,6 +12,7 @@ public class ClearingHouseConfig
     public int ClearingHouseId { get; set; }
     public string? HolidayStrategy { get; set; } // e.g., "Colombian", "US", etc.
     public string TimeZoneId { get; set; } = "America/Bogota";
+    public string? PaymentRailCode { get; set; }
     public bool RequiresNachaProfile { get; set; }
     public int? NachaProfileId { get; set; }
     public CfgProfile? NachaProfile { get; set; }

@@ -54,7 +54,9 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             ? parsedFileName
             : null;
 
-        var clearingHouse = await _context.ClearingHouses.AsNoTracking().FirstOrDefaultAsync(x => x.OriginCode == immediateOrigin, ct);
+        var clearingHouse = await _context.ClearingHouses.AsNoTracking()
+            .Include(x => x.ClearingHouseConfig)
+            .FirstOrDefaultAsync(x => x.OriginCode == immediateOrigin, ct);
         if (clearingHouse is null)
         {
             var inferred = await InferClearingHouseFromFileNameAsync(request.FileName, ct);
@@ -94,6 +96,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             var shadowResult = CompareCycleShadow(
                 clearingHouseId: clearingHouse?.Id,
                 clearingHouseCode: clearingHouse?.Code,
+                paymentRailCode: clearingHouse?.ClearingHouseConfig?.PaymentRailCode,
                 operationalDate: operationalDate,
                 legacyDecisionCode: "LEGACY_CYCLE_UNRESOLVED",
                 legacyResolved: false);
@@ -129,6 +132,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 var shadowResult = CompareCycleShadow(
                     clearingHouse.Id,
                     clearingHouse.Code,
+                    clearingHouse.ClearingHouseConfig?.PaymentRailCode,
                     operationalDate,
                     "LEGACY_CYCLE_NO_MATCH_BY_NAME",
                     legacyResolved: false);
@@ -161,6 +165,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             var shadowResult = CompareCycleShadow(
                 clearingHouse.Id,
                 clearingHouse.Code,
+                clearingHouse.ClearingHouseConfig?.PaymentRailCode,
                 operationalDate,
                 cycle.Id,
                 legacyResolved: true);
@@ -185,6 +190,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             var shadowResult = CompareCycleShadow(
                 clearingHouse.Id,
                 clearingHouse.Code,
+                clearingHouse.ClearingHouseConfig?.PaymentRailCode,
                 operationalDate,
                 "LEGACY_CYCLE_AMBIGUOUS",
                 legacyResolved: false);
@@ -205,6 +211,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         var unresolvedShadow = CompareCycleShadow(
             clearingHouse.Id,
             clearingHouse.Code,
+            clearingHouse.ClearingHouseConfig?.PaymentRailCode,
             operationalDate,
             "LEGACY_CYCLE_NO_CANDIDATE",
             legacyResolved: false);
@@ -223,6 +230,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
     private PaymentRailShadowCompareResult? CompareCycleShadow(
         int? clearingHouseId,
         string? clearingHouseCode,
+        string? paymentRailCode,
         DateTime? operationalDate,
         string legacyDecisionCode,
         bool legacyResolved)
@@ -236,8 +244,9 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             clearingHouseId,
             clearingHouseCode,
             achCycleId: legacyResolved ? legacyDecisionCode : null,
-            operationalDate: operationalDate);
-        var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, null));
+            operationalDate: operationalDate,
+            requestedRailCode: paymentRailCode);
+        var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, paymentRailCode));
         var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
             context.OperationalContext,
             PaymentRailCapabilityKind.Cycle,
@@ -314,7 +323,9 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         }
 
         var name = fileName.ToLowerInvariant();
-        var clearingHouses = await _context.ClearingHouses.AsNoTracking().ToListAsync(ct);
+        var clearingHouses = await _context.ClearingHouses.AsNoTracking()
+            .Include(x => x.ClearingHouseConfig)
+            .ToListAsync(ct);
 
         var cenitByCatalog = clearingHouses.FirstOrDefault(ch =>
             (ch.Code ?? string.Empty).Contains("cenit", StringComparison.OrdinalIgnoreCase)

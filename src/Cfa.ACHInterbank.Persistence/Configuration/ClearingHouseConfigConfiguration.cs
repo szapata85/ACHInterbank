@@ -15,6 +15,9 @@ public class ClearingHouseConfigConfiguration : IEntityTypeConfiguration<Clearin
             .HasMaxLength(100)
             .IsRequired();
 
+        builder.Property(config => config.PaymentRailCode)
+            .HasMaxLength(50);
+
         builder.HasIndex(config => config.ClearingHouseId)
             .IsUnique();
 

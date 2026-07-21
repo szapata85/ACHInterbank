@@ -136,6 +136,14 @@ public class AchReturnsService(
             .FirstOrDefaultAsync(c => c.Id == request.CycleId, ct)
             ?? throw new InvalidOperationException("No se encontró el ciclo de operación.");
 
+        var paymentRailCode = cycle.ClearingHouseId is int clearingHouseId
+            ? await context.ClearingHouseConfigs
+                .AsNoTracking()
+                .Where(config => config.ClearingHouseId == clearingHouseId)
+                .Select(config => config.PaymentRailCode)
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         var selectedIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
         await using var generationLock = await _returnGenerationLockService.AcquireAsync(selectedIds, ct);
 
@@ -255,6 +263,7 @@ public class AchReturnsService(
             CompareReturnShadow(
                 cycle.ClearingHouseId,
                 cycle.ClearingHouse?.Code,
+                paymentRailCode,
                 request.CycleId,
                 tx.EffectiveEntryDate.Date,
                 $"RETURN_GENERATED:{reasonCode}",
@@ -564,6 +573,7 @@ public class AchReturnsService(
     private void CompareReturnShadow(
         int? clearingHouseId,
         string? clearingHouseCode,
+        string? paymentRailCode,
         string? achCycleId,
         DateTime? operationalDate,
         string legacyDecisionCode,
@@ -576,8 +586,8 @@ public class AchReturnsService(
 
         try
         {
-            var context = _paymentRailContextService.ResolveContext(clearingHouseId, clearingHouseCode, achCycleId, operationalDate);
-            var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, achCycleId));
+            var context = _paymentRailContextService.ResolveContext(clearingHouseId, clearingHouseCode, achCycleId, operationalDate, paymentRailCode);
+            var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, paymentRailCode));
             var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
                 context.OperationalContext,
                 PaymentRailCapabilityKind.Return,

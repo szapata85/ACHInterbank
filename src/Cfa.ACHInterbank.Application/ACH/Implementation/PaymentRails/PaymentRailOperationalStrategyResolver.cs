@@ -25,7 +25,19 @@ public sealed class PaymentRailOperationalStrategyResolver : IPaymentRailOperati
 
     public PaymentRailResolveResult ResolveRail(PaymentRailResolveRequest request)
     {
-        return _mapper.ResolveRail(request);
+        var result = _mapper.ResolveRail(request);
+        if (!result.IsKnownRail
+            || string.Equals(result.RailCode, PaymentRailCodes.Unknown, StringComparison.OrdinalIgnoreCase)
+            || !_strategyByRail.ContainsKey(result.RailCode))
+        {
+            return new PaymentRailResolveResult(
+                PaymentRailCodes.Unknown,
+                false,
+                "Unknown",
+                "No existe una estrategia operativa registrada para el código solicitado.");
+        }
+
+        return result;
     }
 
     public IPaymentRailOperationalStrategy ResolveStrategy(PaymentRailResolveRequest request)

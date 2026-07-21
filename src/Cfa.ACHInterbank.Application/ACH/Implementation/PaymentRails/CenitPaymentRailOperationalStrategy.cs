@@ -5,6 +5,7 @@ namespace Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 public sealed class CenitPaymentRailOperationalStrategy : PaymentRailOperationalStrategyBase
 {
     public override string RailCode => PaymentRailCodes.Cenit;
+    public override string DisplayName => "CENIT";
 
     public override PaymentRailCapabilityDescriptor Capabilities { get; } = new(
         SupportsCycleOperations: true,

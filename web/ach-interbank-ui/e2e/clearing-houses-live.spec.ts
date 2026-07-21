@@ -35,6 +35,7 @@ test.describe.serial('Administración real de cámaras compensadoras', () => {
     await page.getByLabel('Código de origen').fill('900');
     await page.getByLabel('Zona horaria').fill('America/Bogota');
     await page.getByLabel('Estrategia de calendario').fill('Colombian');
+    await expect(page.getByLabel('Estrategia operativa')).toHaveValue('');
     await page.screenshot({ path: resolve(evidence, 'clearing-house-create.png'), fullPage: true });
     await page.getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(page.getByText('Cámara compensadora guardada correctamente.')).toBeVisible();
@@ -46,9 +47,6 @@ test.describe.serial('Administración real de cámaras compensadoras', () => {
     await row.getByRole('button', { name: 'Ver detalle' }).click();
     await expect(page.getByText('Configuración incompleta')).toBeVisible();
     await page.screenshot({ path: resolve(evidence, 'clearing-house-detail.png'), fullPage: true });
-    await row.getByRole('button', { name: 'Activar' }).click();
-    await expect(page.getByRole('alert')).toContainText('ciclo');
-
     await row.getByRole('button', { name: 'Editar' }).click();
     await page.getByLabel('Nombre', { exact: true }).fill('Nueva Red de Pruebas Editada');
     await page.getByRole('button', { name: 'Guardar', exact: true }).click();
@@ -73,10 +71,21 @@ test.describe.serial('Administración real de cámaras compensadoras', () => {
     await page.screenshot({ path: resolve(evidence, 'clearing-house-cycles.png'), fullPage: true });
 
     await page.goBack(); await expect(page.locator('section.page h1')).toHaveText('Cámaras compensadoras'); await searchPage(page, code);
-    const activeRow = page.locator('tr', { hasText: code });
+    let activeRow = page.locator('tr', { hasText: code });
+    await activeRow.getByRole('button', { name: 'Activar' }).click();
+    await expect(page.getByRole('alert')).toContainText('Estrategia operativa registrada');
+
+    await activeRow.getByRole('button', { name: 'Editar' }).click();
+    await page.getByLabel('Estrategia operativa').selectOption('ACH_COLOMBIA');
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await expect(page.getByText('Cámara compensadora guardada correctamente.')).toBeVisible();
+    await searchPage(page, code);
+    activeRow = page.locator('tr', { hasText: code });
+    await expect(activeRow).toContainText('ACH_COLOMBIA');
     await activeRow.getByRole('button', { name: 'Activar' }).click(); await expect(activeRow.locator('.status')).toHaveText('Activa');
     let operational = await page.request.get(`${api}/clearing-houses/operational`, { headers: auth(token) });
-    expect((await operational.json()).some((x: { code: string }) => x.code === code)).toBeTruthy();
+    const operationalItem = (await operational.json()).find((x: { code: string }) => x.code === code);
+    expect(operationalItem?.paymentRailCode).toBe('ACH_COLOMBIA');
     page.once('dialog', dialog => dialog.accept()); await activeRow.getByRole('button', { name: 'Desactivar' }).click();
     await expect(activeRow.locator('.status')).toHaveText('Inactiva');
     operational = await page.request.get(`${api}/clearing-houses/operational`, { headers: auth(token) });
@@ -117,6 +126,11 @@ test.describe.serial('Administración real de cámaras compensadoras', () => {
         data: { ...user, email: `${user.userName}@example.com`, password: testPassword }
       });
       expect(created.status()).toBe(201);
+      const location = created.headers()['location'];
+      expect(location).toBeTruthy();
+      const fetched = await page.request.get(new URL(location!, api).toString(), { headers: auth(adminToken) });
+      expect(fetched.status()).toBe(200);
+      expect((await fetched.json()).data.userName).toBe(user.userName);
     }
 
     await logoutIfNeeded(page);

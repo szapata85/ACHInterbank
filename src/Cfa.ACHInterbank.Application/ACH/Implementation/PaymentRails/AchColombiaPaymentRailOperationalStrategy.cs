@@ -5,6 +5,7 @@ namespace Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 public sealed class AchColombiaPaymentRailOperationalStrategy : PaymentRailOperationalStrategyBase
 {
     public override string RailCode => PaymentRailCodes.AchColombia;
+    public override string DisplayName => "ACH Colombia";
 
     public override PaymentRailCapabilityDescriptor Capabilities { get; } = new(
         SupportsCycleOperations: true,

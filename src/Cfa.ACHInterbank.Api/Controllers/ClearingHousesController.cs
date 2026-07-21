@@ -33,6 +33,12 @@ public class ClearingHousesController : ControllerBase
     public async Task<IActionResult> GetOperational(CancellationToken ct)
         => Ok(await _service.GetOperationalAsync(ct));
 
+    [HttpGet("payment-rail-options")]
+    [Authorize(Policy = FineGrainedPermissions.ClearingHouses.View)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult GetPaymentRailOptions()
+        => Ok(_service.GetPaymentRailOptions());
+
     [HttpGet("nacha-profiles")]
     [Authorize(Policy = FineGrainedPermissions.ClearingHouses.View)]
     [ProducesResponseType(StatusCodes.Status200OK)]

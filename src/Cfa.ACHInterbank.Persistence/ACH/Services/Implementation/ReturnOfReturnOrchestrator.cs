@@ -146,17 +146,24 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             var cycleInfo = _context.AchCycles
                 .AsNoTracking()
                 .Where(x => x.Id == sourceReturn.AchCycleId)
-                .Select(x => new { x.ClearingHouseId, Code = x.ClearingHouse != null ? x.ClearingHouse.Code : null, x.ProcessingDate })
+                .Select(x => new
+                {
+                    x.ClearingHouseId,
+                    Code = x.ClearingHouse != null ? x.ClearingHouse.Code : null,
+                    PaymentRailCode = x.ClearingHouse != null ? x.ClearingHouse.ClearingHouseConfig.PaymentRailCode : null,
+                    x.ProcessingDate
+                })
                 .FirstOrDefault();
             var context = _paymentRailContextService.ResolveContext(
                 cycleInfo?.ClearingHouseId,
                 cycleInfo?.Code,
                 sourceReturn.AchCycleId,
-                cycleInfo?.ProcessingDate.Date ?? sourceReturn.EffectiveEntryDate.Date);
+                cycleInfo?.ProcessingDate.Date ?? sourceReturn.EffectiveEntryDate.Date,
+                cycleInfo?.PaymentRailCode);
             var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(
                 cycleInfo?.ClearingHouseId,
                 cycleInfo?.Code,
-                sourceReturn.AchCycleId));
+                cycleInfo?.PaymentRailCode));
             var legacyDecisionCode = $"RETURN_OF_RETURN_REGISTERED:{reasonCode}";
             var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
                 context.OperationalContext,

@@ -13,5 +13,6 @@ public interface IClearingHouseService
     Task<ClearingHouseDto> UpdateAsync(int id, UpdateClearingHouseRequest request, CancellationToken ct = default);
     Task<ClearingHouseDto> ChangeStatusAsync(int id, bool isActive, CancellationToken ct = default);
     Task<ClearingHouseReadinessDto> GetReadinessAsync(int id, CancellationToken ct = default);
+    IReadOnlyList<ClearingHousePaymentRailOptionDto> GetPaymentRailOptions();
     Task<IReadOnlyList<ClearingHouseNachaProfileOptionDto>> GetNachaProfilesAsync(string? clearingHouseCode, CancellationToken ct = default);
 }

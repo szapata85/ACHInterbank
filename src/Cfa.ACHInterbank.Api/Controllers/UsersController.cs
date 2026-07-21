@@ -13,6 +13,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class UsersController : ControllerBase
 {
+    public const string GetUserByIdRouteName = "Users.GetById";
     private readonly IUsersService _service;
 
     public UsersController(IUsersService service)
@@ -59,7 +60,7 @@ public class UsersController : ControllerBase
     /// Endpoint de la API ACH Interbank.
     /// </summary>
 
-    [HttpGet("{id:guid}")]
+    [HttpGet("{id:guid}", Name = GetUserByIdRouteName)]
     [Authorize(Policy = P1Policies.UsersRead)]
     public async Task<ActionResult<UserSummaryDto>> GetUserAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -84,13 +85,25 @@ public class UsersController : ControllerBase
         var operation = await _service.CreateAsync(request, cancellationToken);
         var result = operation.ToResult();
 
+        if (operation.Status == UserOperationStatus.Success)
+        {
+            if (operation.User is null)
+            {
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    ResponseApiService.Response(StatusCodes.Status500InternalServerError, Result.Failure("USER_UNEXPECTED", "Error inesperado", ErrorType.Unexpected)));
+            }
+
+            return CreatedAtRoute(
+                GetUserByIdRouteName,
+                new { id = operation.User.Id },
+                ResponseApiService.Response(StatusCodes.Status201Created, result));
+        }
+
         return operation.Status switch
         {
             UserOperationStatus.ValidationError => BadRequest(ResponseApiService.Response(StatusCodes.Status400BadRequest, result)),
             UserOperationStatus.Conflict => Conflict(ResponseApiService.Response(StatusCodes.Status409Conflict, result)),
-            UserOperationStatus.Success => StatusCode(
-                StatusCodes.Status201Created,
-                ResponseApiService.Response(StatusCodes.Status201Created, result)),
             _ => StatusCode(StatusCodes.Status500InternalServerError, ResponseApiService.Response(StatusCodes.Status500InternalServerError, Result.Failure("USER_UNEXPECTED", "Error inesperado", ErrorType.Unexpected)))
         };
     }

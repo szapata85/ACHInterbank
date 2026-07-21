@@ -5,6 +5,8 @@ namespace Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 public sealed class UnknownPaymentRailOperationalStrategy : PaymentRailOperationalStrategyBase
 {
     public override string RailCode => PaymentRailCodes.Unknown;
+    public override string DisplayName => "Desconocida";
+    public override bool IsAdministrativelySelectable => false;
 
     public override PaymentRailCapabilityDescriptor Capabilities { get; } = new(
         SupportsCycleOperations: false,

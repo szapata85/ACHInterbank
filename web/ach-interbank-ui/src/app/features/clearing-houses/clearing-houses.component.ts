@@ -4,7 +4,7 @@ import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angu
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
-import { ClearingHouse, ClearingHouseInput, NachaProfileOption } from './clearing-houses.models';
+import { ClearingHouse, ClearingHouseInput, NachaProfileOption, PaymentRailOption } from './clearing-houses.models';
 import { ClearingHousesService } from './clearing-houses.service';
 
 @Component({
@@ -21,6 +21,7 @@ export class ClearingHousesComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   rows: ClearingHouse[] = [];
   profiles: NachaProfileOption[] = [];
+  paymentRailOptions: PaymentRailOption[] = [];
   selected?: ClearingHouse;
   loading = false;
   saving = false;
@@ -43,11 +44,22 @@ export class ClearingHousesComponent implements OnInit {
     originCode: ['', [Validators.required, Validators.maxLength(20)]],
     timeZoneId: ['America/Bogota', Validators.required],
     holidayStrategy: ['Colombian', Validators.required],
+    paymentRailCode: [null as string | null],
     requiresNachaProfile: [false],
     nachaProfileId: [null as number | null]
   });
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void { this.loadPaymentRailOptions(); this.load(); }
+
+  loadPaymentRailOptions(): void {
+    this.api.paymentRailOptions().subscribe({
+      next: options => {
+        this.paymentRailOptions = options.filter(option => option.code.toUpperCase() !== 'UNKNOWN');
+        this.cdr.markForCheck();
+      },
+      error: error => { this.error = this.errorText(error); this.cdr.markForCheck(); }
+    });
+  }
 
   load(): void {
     this.loading = true; this.error = '';
@@ -63,13 +75,14 @@ export class ClearingHousesComponent implements OnInit {
 
   create(): void {
     this.selected = undefined; this.editing = true; this.message = ''; this.error = '';
-    this.form.reset({ code: '', name: '', originCode: '', timeZoneId: 'America/Bogota', holidayStrategy: 'Colombian', requiresNachaProfile: false, nachaProfileId: null });
+    this.form.reset({ code: '', name: '', originCode: '', timeZoneId: 'America/Bogota', holidayStrategy: 'Colombian', paymentRailCode: null, requiresNachaProfile: false, nachaProfileId: null });
   }
 
   edit(row: ClearingHouse): void {
     this.selected = row; this.editing = true; this.message = ''; this.error = '';
     this.form.reset({ code: row.code, name: row.name, originCode: row.originCode, timeZoneId: row.timeZoneId,
-      holidayStrategy: row.holidayStrategy, requiresNachaProfile: row.requiresNachaProfile, nachaProfileId: row.nachaProfileId ?? null });
+      holidayStrategy: row.holidayStrategy, paymentRailCode: row.paymentRailCode ?? null,
+      requiresNachaProfile: row.requiresNachaProfile, nachaProfileId: row.nachaProfileId ?? null });
     this.loadProfiles();
   }
 

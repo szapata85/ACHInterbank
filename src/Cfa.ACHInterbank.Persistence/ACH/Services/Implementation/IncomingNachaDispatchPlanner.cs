@@ -59,6 +59,18 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
             .Include(x => x.AchCycle)
             .Where(x => transactionIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
+        var clearingHouseIds = txMap.Values
+            .Select(x => x.AchCycle.ClearingHouseId)
+            .Distinct()
+            .ToArray();
+        var clearingHouseCodes = await _context.ClearingHouses
+            .AsNoTracking()
+            .Where(clearingHouse => clearingHouseIds.Contains(clearingHouse.ClearingHouseId))
+            .ToDictionaryAsync(clearingHouse => clearingHouse.ClearingHouseId, clearingHouse => clearingHouse.Code, ct);
+        var paymentRailCodes = await _context.ClearingHouseConfigs
+            .AsNoTracking()
+            .Where(config => clearingHouseIds.Contains(config.ClearingHouseId))
+            .ToDictionaryAsync(config => config.ClearingHouseId, config => config.PaymentRailCode, ct);
 
         var created = 0;
         foreach (var candidate in candidates)
@@ -93,6 +105,8 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
             CompareDispatchShadow(
                 tx,
                 ingestion,
+                clearingHouseCodes.GetValueOrDefault(tx.AchCycle.ClearingHouseId),
+                paymentRailCodes.GetValueOrDefault(tx.AchCycle.ClearingHouseId),
                 status,
                 evaluation.IsEligible,
                 evaluation.IsWaitingWindow,
@@ -128,6 +142,8 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
     private void CompareDispatchShadow(
         AchTransaction transaction,
         IncomingNachaFileIngestion ingestion,
+        string? clearingHouseCode,
+        string? paymentRailCode,
         IncomingNachaDispatchQueueStatus legacyStatus,
         bool legacyEligible,
         bool legacyWaitingWindow,
@@ -138,16 +154,16 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
             return;
         }
 
-        var clearingHouseCode = transaction.AchCycle.ClearingHouse?.Code;
         var resolvedContext = _paymentRailContextService.ResolveContext(
             transaction.AchCycle.ClearingHouseId,
             clearingHouseCode,
             transaction.AchCycleId,
-            ingestion.OperationalDate?.Date ?? transaction.AchCycle.ProcessingDate.Date);
+            ingestion.OperationalDate?.Date ?? transaction.AchCycle.ProcessingDate.Date,
+            paymentRailCode);
         var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(
             transaction.AchCycle.ClearingHouseId,
             clearingHouseCode,
-            null));
+            paymentRailCode));
         var wrapperResult = strategy.EvaluateCapabilityWrapper(new PaymentRailWrapperCallRequest(
             resolvedContext.OperationalContext,
             PaymentRailCapabilityKind.Dispatch,

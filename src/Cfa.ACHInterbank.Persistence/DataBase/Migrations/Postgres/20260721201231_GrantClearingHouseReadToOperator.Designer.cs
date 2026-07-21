@@ -4676,6 +4676,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<int?>("NachaProfileId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("PaymentRailCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<bool>("RequiresNachaProfile")
                         .HasColumnType("boolean");
 

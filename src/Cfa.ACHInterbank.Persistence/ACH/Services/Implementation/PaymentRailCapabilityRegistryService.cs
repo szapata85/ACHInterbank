@@ -73,8 +73,14 @@ public class PaymentRailCapabilityRegistryService : IPaymentRailCapabilityRegist
         CancellationToken ct = default)
     {
         var now = (asOfUtc ?? DateTime.UtcNow).ToUniversalTime();
-        var resolvedContext = _paymentRailContextService.ResolveContext(clearingHouseId, clearingHouseCode, null, now.Date);
-        var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, null));
+        var normalizedClearingHouseCode = clearingHouseCode?.Trim().ToUpperInvariant();
+        var paymentRailCode = await _context.ClearingHouses.AsNoTracking()
+            .Where(x => (clearingHouseId.HasValue && x.Id == clearingHouseId.Value)
+                        || (!string.IsNullOrWhiteSpace(normalizedClearingHouseCode) && x.Code == normalizedClearingHouseCode))
+            .Select(x => x.ClearingHouseConfig.PaymentRailCode)
+            .FirstOrDefaultAsync(ct);
+        var resolvedContext = _paymentRailContextService.ResolveContext(clearingHouseId, clearingHouseCode, null, now.Date, paymentRailCode);
+        var strategy = _strategyResolver.ResolveStrategy(new PaymentRailResolveRequest(clearingHouseId, clearingHouseCode, paymentRailCode));
 
         return await BuildEffectiveCapabilitiesAsync(resolvedContext.RailCode, strategy, now, ct);
     }
