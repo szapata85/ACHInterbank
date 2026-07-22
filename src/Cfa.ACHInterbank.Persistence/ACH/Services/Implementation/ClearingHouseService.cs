@@ -176,6 +176,15 @@ public class ClearingHouseService : IClearingHouseService
         }
 
         var normalized = await ValidateAndNormalizeAsync(request, id, ct);
+        var currentPaymentRailCode = NormalizePaymentRailCode(entity.ClearingHouseConfig?.PaymentRailCode);
+        var requestedPaymentRailCode = NormalizePaymentRailCode(normalized.PaymentRailCode);
+        if (entity.IsActive
+            && !string.Equals(currentPaymentRailCode, requestedPaymentRailCode, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ClearingHouseConflictException(
+                "No es posible cambiar la estrategia operativa mientras la cámara está activa. Desactive la cámara antes de realizar este cambio.");
+        }
+
         if (!string.Equals(entity.Code, normalized.Code, StringComparison.Ordinal))
         {
             if (await HasOperationalRelationsAsync(id, ct))
@@ -407,9 +416,7 @@ public class ClearingHouseService : IClearingHouseService
         var holidayStrategy = request.HolidayStrategy?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(holidayStrategy)) errors.Add("La estrategia de calendario es obligatoria.");
 
-        var paymentRailCode = string.IsNullOrWhiteSpace(request.PaymentRailCode)
-            ? null
-            : request.PaymentRailCode.Trim().ToUpperInvariant();
+        var paymentRailCode = NormalizePaymentRailCode(request.PaymentRailCode);
         if (paymentRailCode is not null && !_selectablePaymentRailCodes.Contains(paymentRailCode))
             errors.Add("La estrategia operativa seleccionada no está registrada o no está permitida.");
 
@@ -479,6 +486,9 @@ public class ClearingHouseService : IClearingHouseService
            || await _context.ClearingHouseTransactionRules.AnyAsync(x => x.ClearingHouseId == id, ct);
 
     private static string NormalizeCode(string? code) => code?.Trim().ToUpperInvariant() ?? string.Empty;
+
+    private static string? NormalizePaymentRailCode(string? code)
+        => string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
 
     private static bool CodesCorrespond(string code, string? name, string profileCode, string? profileName)
         => string.Equals(NormalizeCode(code), NormalizeCode(profileCode), StringComparison.Ordinal)

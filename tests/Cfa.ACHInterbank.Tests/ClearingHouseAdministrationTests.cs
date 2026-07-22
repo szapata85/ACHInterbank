@@ -111,6 +111,80 @@ public sealed class ClearingHouseAdministrationTests
     }
 
     [Fact]
+    public async Task ActiveClearingHouse_BlocksPaymentRailChangeWithoutPartialWrites()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var created = await scope.Service.CreateAsync(Request("NUEVARED", PaymentRailCodes.AchColombia));
+        scope.Context.ClearingHouseCycleConfigs.Add(CurrentCycle(created.Id));
+        await scope.Context.SaveChangesAsync();
+        var active = await scope.Service.ChangeStatusAsync(created.Id, true);
+
+        var conflict = await Assert.ThrowsAsync<ClearingHouseConflictException>(
+            () => scope.Service.UpdateAsync(created.Id, UpdateRequest(active, PaymentRailCodes.Cenit, "Nombre no persistido")));
+
+        Assert.Contains("mientras la cámara está activa", conflict.Message, StringComparison.OrdinalIgnoreCase);
+        var persisted = (await scope.Service.GetByIdAsync(created.Id))!;
+        Assert.Equal(PaymentRailCodes.AchColombia, persisted.PaymentRailCode);
+        Assert.Equal(active.Name, persisted.Name);
+        Assert.Equal(active.UpdatedAt, persisted.UpdatedAt);
+        Assert.True(persisted.IsActive);
+    }
+
+    [Fact]
+    public async Task ActiveClearingHouse_AllowsEquivalentPaymentRailAndOtherFields()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var created = await scope.Service.CreateAsync(Request("NUEVARED", PaymentRailCodes.AchColombia));
+        scope.Context.ClearingHouseCycleConfigs.Add(CurrentCycle(created.Id));
+        await scope.Context.SaveChangesAsync();
+        var active = await scope.Service.ChangeStatusAsync(created.Id, true);
+
+        var updated = await scope.Service.UpdateAsync(
+            created.Id,
+            UpdateRequest(active, " ach_colombia ", "Nombre actualizado"));
+
+        Assert.Equal("Nombre actualizado", updated.Name);
+        Assert.Equal(PaymentRailCodes.AchColombia, updated.PaymentRailCode);
+        Assert.True(updated.IsActive);
+    }
+
+    [Fact]
+    public async Task ActiveClearingHouse_BlocksPaymentRailRemoval()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var created = await scope.Service.CreateAsync(Request("NUEVARED", PaymentRailCodes.AchColombia));
+        scope.Context.ClearingHouseCycleConfigs.Add(CurrentCycle(created.Id));
+        await scope.Context.SaveChangesAsync();
+        var active = await scope.Service.ChangeStatusAsync(created.Id, true);
+
+        await Assert.ThrowsAsync<ClearingHouseConflictException>(
+            () => scope.Service.UpdateAsync(created.Id, UpdateRequest(active, null)));
+
+        var persisted = (await scope.Service.GetByIdAsync(created.Id))!;
+        Assert.Equal(PaymentRailCodes.AchColombia, persisted.PaymentRailCode);
+        Assert.Equal(active.UpdatedAt, persisted.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task InactiveClearingHouse_AllowsRegisteredPaymentRailChangeAndRejectsUnknown()
+    {
+        await using var scope = await TestScope.CreateAsync();
+        var created = await scope.Service.CreateAsync(Request("NUEVARED", PaymentRailCodes.AchColombia));
+        var before = created.UpdatedAt;
+        await Task.Delay(2);
+
+        var updated = await scope.Service.UpdateAsync(created.Id, UpdateRequest(created, PaymentRailCodes.Cenit));
+        Assert.False(updated.IsActive);
+        Assert.Equal(PaymentRailCodes.Cenit, updated.PaymentRailCode);
+        Assert.True(updated.UpdatedAt > before);
+
+        await Assert.ThrowsAsync<ClearingHouseValidationException>(
+            () => scope.Service.UpdateAsync(created.Id, UpdateRequest(updated, "NO_REGISTRADA")));
+        var persisted = (await scope.Service.GetByIdAsync(created.Id))!;
+        Assert.Equal(PaymentRailCodes.Cenit, persisted.PaymentRailCode);
+    }
+
+    [Fact]
     public async Task Update_BlocksCodeChangeAfterCycleAndKeepsIdentity()
     {
         await using var scope = await TestScope.CreateAsync();
@@ -131,6 +205,19 @@ public sealed class ClearingHouseAdministrationTests
     private static CreateClearingHouseRequest Request(string code, string? paymentRailCode = PaymentRailCodes.AchColombia) => new()
     {
         Code = code, Name = "Nueva Red de Pruebas", OriginCode = "900", TimeZoneId = "America/Bogota", HolidayStrategy = "Colombian", PaymentRailCode = paymentRailCode
+    };
+
+    private static UpdateClearingHouseRequest UpdateRequest(ClearingHouseDto current, string? paymentRailCode, string? name = null) => new()
+    {
+        Code = current.Code,
+        Name = name ?? current.Name,
+        OriginCode = current.OriginCode,
+        TimeZoneId = current.TimeZoneId,
+        HolidayStrategy = current.HolidayStrategy!,
+        PaymentRailCode = paymentRailCode,
+        RequiresNachaProfile = current.RequiresNachaProfile,
+        NachaProfileId = current.NachaProfileId,
+        ExpectedUpdatedAt = current.UpdatedAt
     };
 
     private static ClearingHouseCycleConfig CurrentCycle(int clearingHouseId) => new()

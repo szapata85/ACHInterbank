@@ -35,7 +35,7 @@
         <label>Nombre<input formControlName="name" maxlength="120"></label><small *ngIf="form.controls.name.touched && form.controls.name.invalid">El nombre es obligatorio.</small>
         <label>Código de origen<input formControlName="originCode" maxlength="20"></label></fieldset>
       <fieldset><legend>Configuración operativa</legend><label>Zona horaria<input formControlName="timeZoneId"></label><label>Estrategia de calendario<input formControlName="holidayStrategy"></label>
-        <label>Estrategia operativa<select formControlName="paymentRailCode"><option value="">Seleccione una estrategia</option><option *ngFor="let option of paymentRailOptions" [value]="option.code">{{ option.code }} — {{ option.name }}</option></select></label>
+        <label>Estrategia operativa<select formControlName="paymentRailCode"><option value="">Seleccione una estrategia</option><option *ngFor="let option of paymentRailOptions" [value]="option.code">{{ option.code }} — {{ option.name }}</option></select></label><small *ngIf="selected?.isActive">Para cambiar la estrategia operativa, primero desactive la cámara.</small>
         <label class="check"><input type="checkbox" formControlName="requiresNachaProfile"> Requiere perfil NACHA-M</label>
         <label *ngIf="form.controls.requiresNachaProfile.value">Perfil NACHA-M<select formControlName="nachaProfileId"><option [ngValue]="null">Seleccione</option><option *ngFor="let profile of profiles" [ngValue]="profile.id">{{ profile.code }} — {{ profile.name }}</option></select></label></fieldset>
       <div class="actions"><button type="submit" [disabled]="saving">{{ saving ? 'Guardando…' : 'Guardar' }}</button><button type="button" (click)="cancel()" [disabled]="saving">Cancelar</button></div>

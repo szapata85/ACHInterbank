@@ -76,6 +76,7 @@ export class ClearingHousesComponent implements OnInit {
   create(): void {
     this.selected = undefined; this.editing = true; this.message = ''; this.error = '';
     this.form.reset({ code: '', name: '', originCode: '', timeZoneId: 'America/Bogota', holidayStrategy: 'Colombian', paymentRailCode: null, requiresNachaProfile: false, nachaProfileId: null });
+    this.setPaymentRailControlState(false);
   }
 
   edit(row: ClearingHouse): void {
@@ -83,10 +84,17 @@ export class ClearingHousesComponent implements OnInit {
     this.form.reset({ code: row.code, name: row.name, originCode: row.originCode, timeZoneId: row.timeZoneId,
       holidayStrategy: row.holidayStrategy, paymentRailCode: row.paymentRailCode ?? null,
       requiresNachaProfile: row.requiresNachaProfile, nachaProfileId: row.nachaProfileId ?? null });
+    this.setPaymentRailControlState(row.isActive);
     this.loadProfiles();
   }
 
   view(row: ClearingHouse): void { this.selected = row; this.editing = false; this.error = ''; }
+  private setPaymentRailControlState(isActive: boolean): void {
+    const control = this.form.controls.paymentRailCode;
+    if (isActive) control.disable({ emitEvent: false });
+    else control.enable({ emitEvent: false });
+  }
+
   loadProfiles(): void { this.normalizeCode(); this.api.profiles(this.form.controls.code.value).subscribe({ next: p => { this.profiles = p; this.cdr.markForCheck(); } }); }
 
   save(): void {

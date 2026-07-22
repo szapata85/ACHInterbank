@@ -86,10 +86,47 @@ test.describe.serial('Administración real de cámaras compensadoras', () => {
     let operational = await page.request.get(`${api}/clearing-houses/operational`, { headers: auth(token) });
     const operationalItem = (await operational.json()).find((x: { code: string }) => x.code === code);
     expect(operationalItem?.paymentRailCode).toBe('ACH_COLOMBIA');
+
+    await activeRow.getByRole('button', { name: 'Editar' }).click();
+    const paymentRailSelect = page.getByLabel('Estrategia operativa');
+    await expect(paymentRailSelect).toBeDisabled();
+    await expect(page.getByText('Para cambiar la estrategia operativa, primero desactive la cámara.')).toBeVisible();
+    const activeDetail = await page.request.get(`${api}/clearing-houses/${item.id}`, { headers: auth(token) });
+    expect(activeDetail.ok()).toBeTruthy();
+    const activeCamera = await activeDetail.json();
+    const blockedChange = await page.request.put(`${api}/clearing-houses/${item.id}`, {
+      headers: auth(token),
+      data: {
+        code: activeCamera.code, name: activeCamera.name, originCode: activeCamera.originCode,
+        timeZoneId: activeCamera.timeZoneId, holidayStrategy: activeCamera.holidayStrategy,
+        paymentRailCode: 'CENIT', requiresNachaProfile: activeCamera.requiresNachaProfile,
+        nachaProfileId: activeCamera.nachaProfileId, expectedUpdatedAt: activeCamera.updatedAt
+      }
+    });
+    expect(blockedChange.status()).toBe(409);
+    const preserved = await page.request.get(`${api}/clearing-houses/${item.id}`, { headers: auth(token) });
+    expect(preserved.ok()).toBeTruthy();
+    const preservedCamera = await preserved.json();
+    expect(preservedCamera.paymentRailCode).toBe('ACH_COLOMBIA');
+    expect(preservedCamera.isActive).toBeTruthy();
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+
     page.once('dialog', dialog => dialog.accept()); await activeRow.getByRole('button', { name: 'Desactivar' }).click();
     await expect(activeRow.locator('.status')).toHaveText('Inactiva');
     operational = await page.request.get(`${api}/clearing-houses/operational`, { headers: auth(token) });
     expect((await operational.json()).some((x: { code: string }) => x.code === code)).toBeFalsy();
+    await activeRow.getByRole('button', { name: 'Editar' }).click();
+    await expect(paymentRailSelect).toBeEnabled();
+    await paymentRailSelect.selectOption('CENIT');
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await searchPage(page, code);
+    activeRow = page.locator('tr', { hasText: code });
+    await expect(activeRow).toContainText('CENIT');
+    await activeRow.getByRole('button', { name: 'Editar' }).click();
+    await paymentRailSelect.selectOption('ACH_COLOMBIA');
+    await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+    await searchPage(page, code);
+    activeRow = page.locator('tr', { hasText: code });
     await activeRow.getByRole('button', { name: 'Activar' }).click();
 
     for (let i = 0; i < 2; i++) {

@@ -82,6 +82,37 @@ describe('ClearingHousesComponent', () => {
     expect(api.update.calls.mostRecent().args[1].paymentRailCode).toBe('CENIT');
   });
 
+  it('bloquea la estrategia de una cámara activa, mantiene el valor visible y explica la regla', () => {
+    const active = { ...row, isActive: true, paymentRailCode: 'ACH_COLOMBIA' };
+    fixture.componentInstance.edit(active); fixture.detectChanges();
+
+    expect(fixture.componentInstance.form.controls.paymentRailCode.disabled).toBeTrue();
+    expect(fixture.componentInstance.form.controls.paymentRailCode.value).toBe('ACH_COLOMBIA');
+    expect(fixture.nativeElement.textContent).toContain('Para cambiar la estrategia operativa, primero desactive la cámara.');
+  });
+
+  it('recalcula el selector al crear o alternar entre cámaras activas e inactivas', () => {
+    fixture.componentInstance.edit({ ...row, isActive: true, paymentRailCode: 'ACH_COLOMBIA' });
+    expect(fixture.componentInstance.form.controls.paymentRailCode.disabled).toBeTrue();
+
+    fixture.componentInstance.edit({ ...row, isActive: false, paymentRailCode: 'CENIT' });
+    expect(fixture.componentInstance.form.controls.paymentRailCode.enabled).toBeTrue();
+    fixture.componentInstance.create();
+    expect(fixture.componentInstance.form.controls.paymentRailCode.enabled).toBeTrue();
+  });
+
+  it('conserva la estrategia bloqueada al guardar y muestra el conflicto 409 en español', () => {
+    const active = { ...row, isActive: true, paymentRailCode: 'ACH_COLOMBIA' };
+    api.update.and.returnValue(throwError(() => ({ error: { detail: 'No es posible cambiar la estrategia operativa mientras la cámara está activa.' } })));
+    fixture.componentInstance.edit(active);
+    fixture.componentInstance.form.controls.name.setValue('Nueva Red actualizada');
+    fixture.componentInstance.save(); fixture.detectChanges();
+
+    expect(api.update.calls.mostRecent().args[1].paymentRailCode).toBe('ACH_COLOMBIA');
+    expect(fixture.nativeElement.textContent).toContain('No es posible cambiar la estrategia operativa mientras la cámara está activa.');
+    expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
+  });
+
   it('muestra el requisito funcional devuelto al intentar activar sin estrategia', () => {
     api.changeStatus.and.returnValue(throwError(() => ({ error: { missingRequirements: ['Estrategia operativa registrada'] } })));
     fixture.componentInstance.changeStatus(row); fixture.detectChanges();

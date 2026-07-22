@@ -84,7 +84,21 @@ public sealed class ClearingHouseMultiDbTests
         Assert.True(active.IsActive);
         Assert.Contains(await service.GetOperationalAsync(), x => x.Id == created.Id);
         await Assert.ThrowsAsync<ClearingHouseConflictException>(() => service.CreateAsync(Request(" nuevared ", PaymentRailCodes.Cenit)));
+        await Assert.ThrowsAsync<ClearingHouseConflictException>(
+            () => service.UpdateAsync(created.Id, UpdateRequest(active, PaymentRailCodes.Cenit)));
+        context.ChangeTracker.Clear();
+        var afterConflict = await context.ClearingHouses.AsNoTracking()
+            .Include(x => x.ClearingHouseConfig)
+            .SingleAsync(x => x.Id == created.Id);
+        Assert.Equal(PaymentRailCodes.AchColombia, afterConflict.ClearingHouseConfig.PaymentRailCode);
+        Assert.Equal(active.UpdatedAt, afterConflict.UpdatedAt);
+        Assert.True(afterConflict.IsActive);
+
         await service.ChangeStatusAsync(created.Id, false);
+        var inactive = (await service.GetByIdAsync(created.Id))!;
+        var changed = await service.UpdateAsync(created.Id, UpdateRequest(inactive, PaymentRailCodes.Cenit, includeExpectedUpdatedAt: false));
+        Assert.False(changed.IsActive);
+        Assert.Equal(PaymentRailCodes.Cenit, changed.PaymentRailCode);
         Assert.DoesNotContain(await service.GetOperationalAsync(), x => x.Id == created.Id);
 
         var configSeeder = new ClearingHouseConfigSeeder(context);
@@ -95,7 +109,7 @@ public sealed class ClearingHouseMultiDbTests
         await houseSeeder.SeedAsync();
         context.ChangeTracker.Clear();
         Assert.Equal(1, await context.ClearingHouses.CountAsync(x => x.Code == "NUEVARED"));
-        Assert.Equal(PaymentRailCodes.AchColombia,
+        Assert.Equal(PaymentRailCodes.Cenit,
             await context.ClearingHouses.Where(x => x.Code == "NUEVARED")
                 .Select(x => x.ClearingHouseConfig.PaymentRailCode).SingleAsync());
         Assert.Equal(1, await context.ClearingHouseCycleConfigs.CountAsync(x => x.ClearingHouseId == created.Id));
@@ -161,6 +175,19 @@ public sealed class ClearingHouseMultiDbTests
         TimeZoneId = "America/Bogota",
         HolidayStrategy = "Colombian",
         PaymentRailCode = railCode
+    };
+
+    private static UpdateClearingHouseRequest UpdateRequest(ClearingHouseDto current, string? railCode, bool includeExpectedUpdatedAt = true) => new()
+    {
+        Code = current.Code,
+        Name = current.Name,
+        OriginCode = current.OriginCode,
+        TimeZoneId = current.TimeZoneId,
+        HolidayStrategy = current.HolidayStrategy!,
+        PaymentRailCode = railCode,
+        RequiresNachaProfile = current.RequiresNachaProfile,
+        NachaProfileId = current.NachaProfileId,
+        ExpectedUpdatedAt = includeExpectedUpdatedAt ? current.UpdatedAt : null
     };
 
     private static async Task InsertKnownClearingHousesAsync(AchDbContext context, bool includeLongCode)
