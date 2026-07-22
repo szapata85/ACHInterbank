@@ -5,8 +5,28 @@
   </div>
 
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <nav class="section-status" aria-label="Estado de las secciones">
+      <button *ngFor="let section of sectionStates" type="button"
+        [class]="'section-status__item ' + section.status" (click)="focusSection(section.key)">
+        <span aria-hidden="true">{{ section.symbol }}</span> {{ section.label }}
+        <span *ngIf="section.errorCount">({{ section.errorCount }})</span>
+      </button>
+    </nav>
+
+    <section #validationSummary *ngIf="validationIssues.length" class="validation-summary"
+      role="alert" aria-live="assertive" tabindex="-1">
+      <h3>Faltan datos para registrar la transacción</h3>
+      <p>Revise los siguientes campos:</p>
+      <div *ngFor="let section of validationSections" class="validation-summary__section">
+        <h4>{{ section.label }}</h4>
+        <ul><li *ngFor="let issue of section.issues">
+          <button type="button" (click)="focusIssue(issue)"><strong>{{ issue.label }}</strong>: {{ issue.message }}</button>
+        </li></ul>
+      </div>
+    </section>
+
     <div class="form-grid">
-      <fieldset class="form-group">
+      <fieldset class="form-group" data-transaction-section="operation" tabindex="-1">
         <legend>Datos de la transacción</legend>
         <div class="fieldset-grid">
           <label>
@@ -14,6 +34,7 @@
             <input
               type="text"
               formControlName="amount"
+              data-validation-path="amount"
               inputmode="decimal"
               (input)="onAmountInput($event)"
               placeholder="0,00"
@@ -28,7 +49,7 @@
 
           <label>
             <span>ID operación cliente *</span>
-            <input type="text" formControlName="transactionExternalId" maxlength="64" required />
+            <input type="text" formControlName="transactionExternalId" data-validation-path="transactionExternalId" maxlength="64" required />
             <small class="muted">Identificador operativo/idempotencia. Debe ser único por instrucción.</small>
             <app-error-message [control]="form.get('transactionExternalId')"></app-error-message>
           </label>
@@ -49,6 +70,7 @@
                 { valor: TransactionType.Reversal, etiqueta: 'Reverso' }
               ]"
               formControlName="type"
+              data-validation-path="type"
               placeholderBusqueda="Buscar tipo"
             ></ui-selector-buscable>
             <app-error-message [control]="form.get('type')"></app-error-message>
@@ -63,6 +85,7 @@
                 { valor: AccountType.ElectronicDeposits, etiqueta: 'Depósitos electrónicos' }
               ]"
               formControlName="accountType"
+              data-validation-path="accountType"
               placeholderBusqueda="Buscar tipo de cuenta"
             ></ui-selector-buscable>
             <app-error-message [control]="form.get('accountType')"></app-error-message>
@@ -76,7 +99,7 @@
         </div>
       </fieldset>
 
-      <fieldset class="form-group">
+      <fieldset class="form-group" data-transaction-section="originator" tabindex="-1">
         <legend>Datos del originador</legend>
         <div class="fieldset-grid">
           <label>
@@ -96,12 +119,13 @@
               <ui-selector-buscable
                 [opciones]="selectedCustomerAccountOptions"
                 formControlName="sourceAccountNumber"
+                data-validation-path="sourceAccountNumber"
                 placeholderBusqueda="Buscar cuenta origen"
               ></ui-selector-buscable>
               <small class="muted">Puedes digitar otra cuenta limpiando el cliente originador.</small>
             </ng-container>
             <ng-template #manualSourceAccount>
-              <input type="text" formControlName="sourceAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('sourceAccountNumber', $event)" />
+              <input type="text" formControlName="sourceAccountNumber" data-validation-path="sourceAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('sourceAccountNumber', $event)" />
               <small class="muted">Digite la cuenta origen (6 a 18 dígitos).</small>
             </ng-template>
             <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
@@ -115,27 +139,28 @@
                 { valor: 'PN', etiqueta: 'Persona natural (PN)' }
               ]"
               formControlName="sourcePersonType"
+              data-validation-path="sourcePersonType"
               placeholderBusqueda="Buscar tipo de persona"
             ></ui-selector-buscable>
           </label>
 
           <label>
             <span>Identificación usuario originador *</span>
-            <input type="text" formControlName="companyIdentification" required maxlength="10" />
+            <input type="text" formControlName="companyIdentification" data-validation-path="companyIdentification" required maxlength="10" />
             <small class="muted">Este dato se usa para alta silenciosa/actualización del cliente originador.</small>
             <app-error-message [control]="form.get('companyIdentification')"></app-error-message>
           </label>
 
           <label>
             <span>Nombre usuario originador *</span>
-            <input type="text" formControlName="companyName" required maxlength="16" />
+            <input type="text" formControlName="companyName" data-validation-path="companyName" required maxlength="16" />
             <small class="muted">Si seleccionas cliente se autocompleta, pero puedes ajustarlo.</small>
             <app-error-message [control]="form.get('companyName')"></app-error-message>
           </label>
         </div>
       </fieldset>
 
-      <fieldset class="form-group">
+      <fieldset class="form-group" data-transaction-section="recipient" tabindex="-1">
         <legend>Datos del receptor</legend>
         <div class="fieldset-grid">
           <label>
@@ -143,6 +168,7 @@
             <ui-selector-buscable
               [opciones]="(institutionOptions$ | async) ?? []"
               formControlName="destinationInstitutionId"
+              data-validation-path="destinationInstitutionId"
               placeholderBusqueda="Buscar institución"
             ></ui-selector-buscable>
             <small class="muted">Seleccione una institución habilitada.</small>
@@ -155,6 +181,7 @@
               <ui-selector-buscable
                 [opciones]="filteredDestinationAccountOptions"
                 formControlName="destinationAccountNumber"
+                data-validation-path="destinationAccountNumber"
                 [cargando]="sourceAccountRequiredForDestinationSelection"
                 placeholderBusqueda="Buscar cuenta destino"
               ></ui-selector-buscable>
@@ -168,7 +195,7 @@
               <small class="muted">Para registrar receptores usa <a routerLink="/customer-third-parties">Terceros</a>.</small>
             </ng-container>
             <ng-template #manualDestinationAccount>
-              <input type="text" formControlName="destinationAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('destinationAccountNumber', $event)" />
+              <input type="text" formControlName="destinationAccountNumber" data-validation-path="destinationAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('destinationAccountNumber', $event)" />
               <small class="muted">Para prenotificación puedes registrar una cuenta destino nueva.</small>
             </ng-template>
             <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
@@ -182,13 +209,14 @@
                 { valor: 'PJ', etiqueta: 'Persona jurídica (PJ)' }
               ]"
               formControlName="recipientPersonType"
+              data-validation-path="recipientPersonType"
               placeholderBusqueda="Buscar tipo de persona"
             ></ui-selector-buscable>
           </label>
 
           <label>
             <span>Identificación del receptor</span>
-            <input type="text" formControlName="recipientIdNumber" maxlength="20" />
+            <input type="text" formControlName="recipientIdNumber" data-validation-path="recipientIdNumber" maxlength="20" />
             <small class="error" *ngIf="form.errors?.recipientIdentityFormat">El formato de identificación no coincide con el tipo de persona.</small>
             <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Debit">
               Obligatoria para transacciones débito.
@@ -206,7 +234,7 @@
 
           <label>
             <span>Nombre del receptor</span>
-            <input type="text" formControlName="recipientName" maxlength="100" />
+            <input type="text" formControlName="recipientName" data-validation-path="recipientName" maxlength="100" />
             <small class="muted">Se usa para crear/actualizar el cliente receptor en alta silenciosa.</small>
             <small class="error" *ngIf="form.errors?.missingRecipientName">
               Debes diligenciar el nombre del receptor cuando ingresas su identificación.
@@ -221,11 +249,12 @@
         </div>
       </fieldset>
 
-      <label>
+      <label data-transaction-section="concept" tabindex="-1">
         <span>Descripción de la entrada *</span>
         <ui-selector-buscable
           [opciones]="companyEntryDescriptionOptionsForSelect"
           formControlName="companyEntryDescriptionId"
+          data-validation-path="companyEntryDescriptionId"
           placeholderBusqueda="Buscar concepto"
         ></ui-selector-buscable>
         <small class="muted">Seleccione un concepto del catálogo.</small>
@@ -233,7 +262,7 @@
       </label>
     </div>
 
-    <div class="addenda-section">
+    <div class="addenda-section" data-validation-path="addendas">
       <div class="section-header">
         <h3>Addendas</h3>
         <button type="button" class="link" (click)="addAddenda()">Agregar addenda</button>
@@ -249,28 +278,29 @@
             <ui-selector-buscable
               [opciones]="[{ valor: '05', etiqueta: '05 - Información adicional' }]"
               formControlName="addendaType"
+              [attr.data-validation-path]="'addendas.' + i + '.addendaType'"
               placeholderBusqueda="Buscar tipo de adenda"
             ></ui-selector-buscable>
             <app-error-message [control]="addenda.get('addendaType')"></app-error-message>
           </label>
           <label>
             <span>NIT/EAN-13 recaudador</span>
-            <input type="text" formControlName="collectorId" maxlength="13" />
+            <input type="text" formControlName="collectorId" [attr.data-validation-path]="'addendas.' + i + '.collectorId'" maxlength="13" />
             <app-error-message [control]="addenda.get('collectorId')"></app-error-message>
           </label>
           <label>
             <span>Código cliente receptor</span>
-            <input type="text" formControlName="receiverCustomerCode" maxlength="30" />
+            <input type="text" formControlName="receiverCustomerCode" [attr.data-validation-path]="'addendas.' + i + '.receiverCustomerCode'" maxlength="30" />
             <app-error-message [control]="addenda.get('receiverCustomerCode')"></app-error-message>
           </label>
           <label>
             <span>Servicio</span>
-            <input type="text" formControlName="serviceDescription" maxlength="15" />
+            <input type="text" formControlName="serviceDescription" [attr.data-validation-path]="'addendas.' + i + '.serviceDescription'" maxlength="15" />
             <app-error-message [control]="addenda.get('serviceDescription')"></app-error-message>
           </label>
           <label>
             <span>Información *</span>
-            <input type="text" formControlName="information" required maxlength="80" />
+            <input type="text" formControlName="information" [attr.data-validation-path]="'addendas.' + i + '.information'" required maxlength="80" />
             <app-error-message [control]="addenda.get('information')"></app-error-message>
           </label>
           <button type="button" class="btn btn-danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">
@@ -289,7 +319,7 @@
     </div>
 
 
-    <section class="result" *ngIf="policyPreview as preview" [class.error]="!preview.canSubmit" [class.success]="preview.canSubmit">
+    <section class="result" data-transaction-section="review" tabindex="-1" *ngIf="policyPreview as preview" [class.error]="!preview.canSubmit" [class.success]="preview.canSubmit">
       <h3>Resumen operativo del ciclo</h3>
       <dl>
         <div>
@@ -328,12 +358,15 @@
     </section>
 
     <div class="actions">
-      <button type="submit" [disabled]="isSubmitting.value || form.invalid">
+      <button type="submit" [disabled]="isSubmitting.value">
         {{ isSubmitting.value ? 'Registrando…' : 'Registrar transacción' }}
       </button>
       <button type="button" class="btn btn-outline" [disabled]="isSubmitting.value" routerLink="/transactions">
         Cancelar
       </button>
+      <p class="form-incomplete-help" *ngIf="form.invalid && !isSubmitting.value">
+        Complete {{ incompleteFieldCount }} {{ incompleteFieldCount === 1 ? 'campo obligatorio' : 'campos con problemas' }} para continuar.
+      </p>
     </div>
   </form>
 

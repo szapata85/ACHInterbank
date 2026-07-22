@@ -1,6 +1,6 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { CustomerSummary } from '../../../customers/models/customer.model';
 import { CustomersApiService } from '../../../customers/services/customers-api.service';
@@ -11,6 +11,7 @@ import { TransactionCreateComponent } from './transaction-create.component';
 
 describe('TransactionCreateComponent', () => {
   let component: TransactionCreateComponent;
+  let fixture: ComponentFixture<TransactionCreateComponent>;
   let txApi: jasmine.SpyObj<TransactionsApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
   const activeThirdPartyAccount = {
@@ -33,11 +34,9 @@ describe('TransactionCreateComponent', () => {
         { provide: NotificationService, useValue: notifications },
         { provide: Router, useValue: jasmine.createSpyObj('Router', ['navigate']) }
       ]
-    })
-      .overrideComponent(TransactionCreateComponent, { set: { template: '' } })
-      .compileComponents();
+    }).compileComponents();
 
-    const fixture = TestBed.createComponent(TransactionCreateComponent);
+    fixture = TestBed.createComponent(TransactionCreateComponent);
     component = fixture.componentInstance;
     txApi.getCompanyEntryDescriptions.and.returnValue(of([{ id: 1, term: 'NOMINAS', description: 'Nómina' }] as any));
     txApi.getActiveThirdParties.and.returnValue(of([activeThirdPartyAccount] as any));
@@ -113,6 +112,75 @@ describe('TransactionCreateComponent', () => {
     component.submit();
 
     expect(txApi.createTransaction).not.toHaveBeenCalled();
+  });
+
+  it('muestra resumen accesible con etiquetas funcionales, secciones y conteo', () => {
+    component.form.patchValue({ companyEntryDescriptionId: null });
+    component.addendas.at(0).patchValue({ information: '' });
+
+    component.submit();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Faltan datos para registrar la transacción');
+    expect(text).toContain('Monto');
+    expect(text).toContain('Institución destino');
+    expect(text).toContain('Descripción de la entrada');
+    expect(text).toContain('Información adicional · Addenda 1');
+    expect(text).not.toContain('companyEntryDescriptionId');
+    expect(text).not.toContain('[object Object]');
+    expect(component.incompleteFieldCount).toBeGreaterThan(3);
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
+  });
+
+  it('actualiza el resumen al corregir campos y expone validaciones cruzadas', () => {
+    component.form.patchValue({ sourceAccountNumber: '1234567890', destinationAccountNumber: '1234567890' });
+    component.submit();
+    expect(component.validationIssues.some((x) => x.message.includes('deben ser diferentes'))).toBeTrue();
+
+    const before = component.incompleteFieldCount;
+    component.form.controls.amount.setValue('1.000');
+    component.form.controls.amount.updateValueAndValidity();
+    expect(component.incompleteFieldCount).toBeLessThan(before);
+  });
+
+  it('identifica el índice de la addenda y lleva el foco al campo seleccionado', () => {
+    component.addAddenda();
+    component.addendas.at(1).controls['information'].setValue('');
+    component.submit();
+    fixture.detectChanges();
+    const issue = component.validationIssues.find((x) => x.path === 'addendas.1.information');
+    expect(issue?.label).toContain('Addenda 2');
+
+    component.focusIssue(issue!);
+    expect(document.activeElement?.getAttribute('data-validation-path')).toBe('addendas.1.information');
+  });
+
+  it('mantiene el botón accionable, evita doble envío y conserva datos ante error backend', () => {
+    const pending = new Subject<any>();
+    txApi.createTransaction.and.returnValue(pending);
+    fillValidForm();
+    fixture.detectChanges();
+    const submit = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submit.disabled).toBeFalse();
+
+    component.submit(); component.submit();
+    expect(txApi.createTransaction).toHaveBeenCalledTimes(1);
+    expect(component.isSubmitting.value).toBeTrue();
+
+    pending.error(new Error('Cuenta destino no autorizada'));
+    fixture.detectChanges();
+    expect(component.form.controls.transactionExternalId.value).toBe('tx-001');
+    expect(component.addendas.length).toBe(1);
+    expect(fixture.nativeElement.textContent).toContain('Cuenta destino no autorizada');
+    expect(component.isSubmitting.value).toBeFalse();
+  });
+
+  it('muestra explicación aunque el formulario incompleto aún no se haya enviado', () => {
+    fixture.detectChanges();
+    const submit = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(submit.disabled).toBeFalse();
+    expect(fixture.nativeElement.textContent).toContain('campos con problemas');
   });
 
   it('TransactionCreateComponent_ShouldCreateTransaction_WhenValid', () => {

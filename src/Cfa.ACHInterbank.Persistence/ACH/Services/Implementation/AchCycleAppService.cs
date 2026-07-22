@@ -85,6 +85,7 @@ public class AchCycleAppService : IAchCycleAppService
         var entity = _mapper.Map<AchCycle>(request);
         entity.Id = AchCycleIdHelper.GenerateId(request.ClearingHouseId, request.CycleName, request.ProcessingDate.Date);
         entity.ProcessingDate = entity.ProcessingDate.Date;
+        entity.ClearingHouseCycleConfigId = await ResolveCycleConfigurationIdAsync(request, ct);
 
         _context.AchCycles.Add(entity);
         await _context.SaveChangesAsync(ct);
@@ -102,6 +103,7 @@ public class AchCycleAppService : IAchCycleAppService
 
         _mapper.Map(request, entity);
         entity.ProcessingDate = entity.ProcessingDate.Date;
+        entity.ClearingHouseCycleConfigId = await ResolveCycleConfigurationIdAsync(request, ct);
 
         await _context.SaveChangesAsync(ct);
 
@@ -214,5 +216,21 @@ public class AchCycleAppService : IAchCycleAppService
         return normalized.Contains("REPROCESO", StringComparison.Ordinal)
                || normalized.Contains("REPROC", StringComparison.Ordinal)
                || normalized.Contains("CONTING", StringComparison.Ordinal);
+    }
+
+    private async Task<int?> ResolveCycleConfigurationIdAsync(AchCycleRequest request, CancellationToken ct)
+    {
+        var processingDate = request.ProcessingDate.Date;
+        return await _context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .Where(config => config.ClearingHouseId == request.ClearingHouseId
+                && config.IsActive
+                && config.CycleName == request.CycleName
+                && config.EffectiveFrom <= processingDate
+                && (!config.EffectiveTo.HasValue || config.EffectiveTo.Value >= processingDate))
+            .OrderByDescending(config => config.EffectiveFrom)
+            .ThenByDescending(config => config.Id)
+            .Select(config => (int?)config.Id)
+            .FirstOrDefaultAsync(ct);
     }
 }

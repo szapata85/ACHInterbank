@@ -7,7 +7,9 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { FinancialInstitutionsApiService } from '../../../transactions/services/financial-institutions-api.service';
 import { DestinationInstitution } from '../../../transactions/transactions.models';
 import { FinancialInstitutionStatusEnum } from '../../../transactions/transactions.types';
+import { ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
 import {
+  AvailableInboundCycle,
   GenerateNachaInboundSimulationRequest,
   DifferentialResponseEligibleTransaction,
   InboundResponseMode,
@@ -30,6 +32,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(NachaInboundSimulatorService);
   private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
+  private readonly clearingHousesApi = inject(ClearingHousesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -46,13 +49,20 @@ export class NachaInboundSimulatorComponent implements OnInit {
   eligiblePage = 1;
   readonly eligiblePageSize = 10;
   loadingEligible = false;
+  loadingCycles = false;
+  availableCycles: AvailableInboundCycle[] = [];
+  cycleAvailabilityMessage: string | null = null;
+  clearingHouses: Array<{ value: string; label: string }> = [];
   readonly selectedTransactionIds = new Set<number>();
   private readonly selectedTransactionReferences = new Map<number, string>();
 
-  readonly clearingHouses = [
-    { value: 'ACHCOL', label: 'ACH Colombia' },
-    { value: 'CENIT', label: 'CENIT' }
-  ];
+  get availableCycleOptions(): Array<{ valor: string; etiqueta: string; descripcion: string }> {
+    return this.availableCycles.map((cycle) => ({
+      valor: cycle.cycleCode,
+      etiqueta: `${cycle.cycleName} · ${cycle.clearingHouseName}`,
+      descripcion: `${this.formatProcessingDate(cycle.processingDate)} · ${cycle.transactionCount} transacciones · ${cycle.status}`
+    }));
+  }
 
   readonly incomingScenarios: Array<{ value: NachaInboundSimulationType; label: string }> = [
     { value: 'IncomingCredit', label: 'Crédito entrante' },
@@ -79,14 +89,14 @@ export class NachaInboundSimulatorComponent implements OnInit {
 
   readonly form = this.fb.group({
     simulationMode: ['IncomingTransactions' as NachaSimulationMode, Validators.required],
-    clearingHouseCode: ['ACHCOL', Validators.required],
+    clearingHouseCode: ['', Validators.required],
     scenarioType: ['IncomingCredit' as NachaInboundSimulationType, Validators.required],
     originFinancialInstitutionId: [null as number | null, Validators.required],
     entriesCount: [1, [Validators.required, Validators.min(1), Validators.max(10)]],
     amount: [1000, [Validators.required, Validators.min(0)]],
     referencePrefix: ['UAT-IN-CRED', Validators.required],
     businessDate: [new Date().toISOString().substring(0, 10), Validators.required],
-    cycleCode: ['Ciclo 3', Validators.required],
+    cycleCode: ['', Validators.required],
     pendingPrenotificationReferencesText: [''],
     transactionReferencesText: [''],
     responseMode: [null as InboundResponseMode | null],
@@ -96,7 +106,75 @@ export class NachaInboundSimulatorComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadFinancialInstitutions();
+    this.loadClearingHouses();
     this.load();
+  }
+
+  loadClearingHouses(): void {
+    this.clearingHousesApi.list().subscribe({
+      next: (items) => {
+        this.clearingHouses = (items ?? [])
+          .filter((item) => !!item.code)
+          .map((item) => ({ value: item.code!, label: item.name }));
+        const current = this.form.controls.clearingHouseCode.value;
+        if (!current && this.clearingHouses.length === 1) {
+          this.form.controls.clearingHouseCode.setValue(this.clearingHouses[0].value);
+        }
+        this.loadAvailableCycles();
+        this.cdr.markForCheck();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.notifications.error(this.errorMessage(error));
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  loadAvailableCycles(): void {
+    const clearingHouseCode = this.form.controls.clearingHouseCode.value;
+    const processingDate = this.form.controls.businessDate.value;
+    const scenarioType = this.form.controls.scenarioType.value;
+    if (!clearingHouseCode || !processingDate || !scenarioType) {
+      this.availableCycles = [];
+      this.form.controls.cycleCode.setValue('');
+      return;
+    }
+
+    const selected = this.form.controls.cycleCode.value;
+    this.loadingCycles = true;
+    this.cycleAvailabilityMessage = null;
+    this.api.availableCycles({ clearingHouseCode, processingDate, scenarioType })
+      .pipe(finalize(() => {
+        this.loadingCycles = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: (items) => {
+          this.availableCycles = items ?? [];
+          if (selected && !this.availableCycles.some((item) => item.cycleCode === selected)) {
+            this.form.controls.cycleCode.setValue('');
+            this.cycleAvailabilityMessage = 'El ciclo seleccionado dejó de estar disponible. Seleccione otro ciclo.';
+          } else if (!selected && this.availableCycles.length === 1) {
+            this.form.controls.cycleCode.setValue(this.availableCycles[0].cycleCode);
+          }
+        },
+        error: (error: HttpErrorResponse) => {
+          this.availableCycles = [];
+          this.notifications.error(this.errorMessage(error));
+        }
+      });
+  }
+
+  availabilityContextChanged(): void {
+    this.loadAvailableCycles();
+    if (this.isDifferentialMode()) {
+      this.loadEligibleTransactions();
+    }
+  }
+
+  private formatProcessingDate(value: string): string {
+    const [year, month, day] = value.substring(0, 10).split('-');
+    return year && month && day ? `${day}/${month}/${year}` : value;
   }
 
   loadFinancialInstitutions(): void {
@@ -236,6 +314,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
     if (mode === 'DifferentialResponses') {
       this.loadEligibleTransactions();
     }
+    this.loadAvailableCycles();
   }
 
   loadEligibleTransactions(page = 1): void {
@@ -246,7 +325,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
     this.loadingEligible = true;
     this.eligiblePage = Math.max(1, page);
     this.api.eligibleDifferentialTransactions({
-      clearingHouseCode: this.form.controls.clearingHouseCode.value ?? 'ACHCOL',
+      clearingHouseCode: this.form.controls.clearingHouseCode.value ?? '',
       destinationFinancialInstitutionId: this.form.controls.originFinancialInstitutionId.value ?? undefined,
       fromDate: this.form.controls.businessDate.value ?? undefined,
       state: 'Pending',
@@ -295,7 +374,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
       amount: Number(this.form.controls.amount.value ?? 0),
       referencePrefix: this.form.controls.referencePrefix.value ?? 'UAT-IN',
       businessDate: this.form.controls.businessDate.value ?? new Date().toISOString().substring(0, 10),
-      cycleCode: this.form.controls.cycleCode.value ?? 'Ciclo 3',
+      cycleCode: this.form.controls.cycleCode.value ?? '',
       pendingPrenotificationReferences: this.splitLines(this.form.controls.pendingPrenotificationReferencesText.value),
       transactionReferences: this.isDifferentialMode()
         ? this.selectedReferences()

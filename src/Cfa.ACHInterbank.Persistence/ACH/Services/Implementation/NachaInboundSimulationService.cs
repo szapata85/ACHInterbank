@@ -56,6 +56,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         }
 
         var clearingHouse = await ResolveClearingHouseAsync(request.ClearingHouseCode, ct);
+        await EnsureCycleAvailableAsync(request.CycleCode, clearingHouse.Id, request.BusinessDate, request.ScenarioType, ct);
         var destination = await ResolveDestinationAsync(request.DestinationFinancialInstitutionId, request.DestinationFinancialInstitutionCode, ct);
         var origin = await ResolveOriginAsync(request.OriginFinancialInstitutionId, request.OriginFinancialInstitutionCode, ct);
         if (origin.Id == destination.Id)
@@ -64,6 +65,14 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         }
 
         var existingReferences = await ResolveReferencesAsync(request, clearingHouse.Id, ct);
+        if (request.SimulationMode == NachaSimulationMode.IncomingTransactions)
+        {
+            existingReferences = await LoadCycleTransactionsAsync(
+                request.CycleCode,
+                request.ScenarioType,
+                request.EntriesCount,
+                ct);
+        }
         var entriesCount = Math.Max(1, existingReferences.Count == 0 ? request.EntriesCount : existingReferences.Count);
         var sequence = await NextDailySequenceAsync(clearingHouse.Id, origin.Id, request.BusinessDate, ct);
         var fileId = MapSequenceToFileId(sequence);
@@ -266,6 +275,24 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             return Blocked("CLEARING_HOUSE_NOT_SUPPORTED", "La cámara no está habilitada para el simulador UAT/local.", request.SimulationMode);
         }
 
+        try
+        {
+            await EnsureCycleAvailableAsync(
+                request.CycleCode,
+                clearingHouse.Id,
+                request.BusinessDate,
+                request.ScenarioType,
+                ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            var split = ex.Message.Split(':', 2);
+            return Blocked(
+                split[0],
+                split.Length == 2 ? split[1].Trim() : ex.Message,
+                request.SimulationMode);
+        }
+
         if (request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationResponse
             && request.PendingPrenotificationReferences.Count == 0)
         {
@@ -439,6 +466,133 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
         return new DifferentialResponseTransactionPage(items, page, pageSize, total);
     }
+
+    public async Task<IReadOnlyList<AvailableInboundCycleDto>> ListAvailableCyclesAsync(
+        AvailableInboundCycleQuery request,
+        CancellationToken ct = default)
+    {
+        var clearingHouse = await ResolveClearingHouseAsync(request.ClearingHouseCode, ct);
+        if (!_options.AllowedClearingHouses.Any(x => MatchesCode(clearingHouse, x)))
+        {
+            return [];
+        }
+
+        var transactionType = ScenarioTransactionType(request.ScenarioType);
+        var rows = await AvailableCycleQuery(
+            clearingHouse.Id,
+            request.ProcessingDate,
+            request.ScenarioType)
+            .Select(x => new
+            {
+                x.Id,
+                x.CycleName,
+                x.ClearingHouseId,
+                ClearingHouseCode = x.ClearingHouse!.Code,
+                ClearingHouseName = x.ClearingHouse.Name,
+                x.ProcessingDate,
+                x.StartTime,
+                TransactionCount = x.Transactions.Count(t =>
+                    NachaExportEligibility.ExportableStates.Contains(t.State)
+                    && t.Type == transactionType)
+            })
+            .ToListAsync(ct);
+
+        return rows
+            .OrderBy(x => x.ProcessingDate)
+            .ThenBy(x => x.StartTime)
+            .ThenBy(x => x.CycleName)
+            .Select(x => new AvailableInboundCycleDto(
+                x.Id,
+                x.Id,
+                x.CycleName,
+                x.ClearingHouseId,
+                x.ClearingHouseCode,
+                x.ClearingHouseName,
+                DateOnly.FromDateTime(x.ProcessingDate),
+                x.TransactionCount,
+                "Disponible"))
+            .ToList();
+    }
+
+    private IQueryable<AchCycle> AvailableCycleQuery(
+        int clearingHouseId,
+        DateOnly processingDate,
+        NachaInboundSimulationType scenarioType)
+    {
+        var dayStart = processingDate.ToDateTime(TimeOnly.MinValue);
+        var dayEnd = processingDate.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        var transactionType = ScenarioTransactionType(scenarioType);
+
+        return _context.AchCycles
+            .AsNoTracking()
+            .Where(x => x.ClearingHouseId == clearingHouseId
+                && x.ClearingHouse != null
+                && x.ClearingHouse.IsActive
+                && x.ProcessingDate >= dayStart
+                && x.ProcessingDate < dayEnd
+                && x.ClearingHouseCycleConfigId.HasValue
+                && x.ClearingHouseCycleConfig != null
+                && x.ClearingHouseCycleConfig.IsActive
+                && x.ClearingHouseCycleConfig.EffectiveFrom < dayEnd
+                && (!x.ClearingHouseCycleConfig.EffectiveTo.HasValue
+                    || x.ClearingHouseCycleConfig.EffectiveTo.Value >= dayStart)
+                && x.Transactions.Any(t =>
+                    NachaExportEligibility.ExportableStates.Contains(t.State)
+                    && t.Type == transactionType));
+    }
+
+    private async Task EnsureCycleAvailableAsync(
+        string cycleCode,
+        int clearingHouseId,
+        DateOnly processingDate,
+        NachaInboundSimulationType scenarioType,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(cycleCode))
+        {
+            throw new InvalidOperationException("CYCLE_REQUIRED: Debe seleccionar un ciclo disponible.");
+        }
+
+        var normalizedCode = cycleCode.Trim();
+        var available = await AvailableCycleQuery(clearingHouseId, processingDate, scenarioType)
+            .AnyAsync(x => x.Id == normalizedCode, ct);
+
+        if (!available)
+        {
+            throw new InvalidOperationException(
+                "CYCLE_NOT_AVAILABLE: El ciclo no existe, no está vigente o no tiene transacciones elegibles para la cámara y fecha seleccionadas.");
+        }
+    }
+
+    private async Task<List<AchTransaction>> LoadCycleTransactionsAsync(
+        string cycleCode,
+        NachaInboundSimulationType scenarioType,
+        int requestedCount,
+        CancellationToken ct)
+    {
+        var transactionType = ScenarioTransactionType(scenarioType);
+        var transactions = await _context.AchTransactions
+            .AsNoTracking()
+            .Where(x => x.AchCycleId == cycleCode.Trim()
+                && NachaExportEligibility.ExportableStates.Contains(x.State)
+                && x.Type == transactionType)
+            .OrderBy(x => x.Id)
+            .Take(requestedCount)
+            .ToListAsync(ct);
+
+        if (transactions.Count < requestedCount)
+        {
+            throw new InvalidOperationException(
+                $"ENTRIES_COUNT_EXCEEDS_AVAILABLE: El ciclo solo tiene {transactions.Count} transacciones elegibles para la simulación solicitada.");
+        }
+
+        return transactions;
+    }
+
+    private static TransactionTypeEnum ScenarioTransactionType(NachaInboundSimulationType scenario)
+        => scenario == NachaInboundSimulationType.IncomingPrenotificationResponse
+            ? TransactionTypeEnum.Prenotification
+            : IsDebitScenario(scenario) ? TransactionTypeEnum.Debit : TransactionTypeEnum.Credit;
 
     private async Task<ClearingHouse> ResolveClearingHouseAsync(string code, CancellationToken ct)
     {
@@ -650,10 +804,11 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         var entryRecords = new List<string>();
         var addendaRecords = new List<string>();
         var effective = request.BusinessDate.ToString("yyyyMMdd");
-        var amountCents = (long)Math.Round(request.Amount * 100m, 0, MidpointRounding.AwayFromZero);
         var receivingDfi = (destination.RoutingNumber + destination.TransitCode).PadLeft(8, '0')[..8];
         var originDfi = (origin.RoutingNumber + origin.TransitCode).PadLeft(8, '0')[..8];
         var entries = new List<NachaInboundSimulationEntry>();
+        long debitTotal = 0;
+        long creditTotal = 0;
 
         records.Add(Record('1',
             (4, "01"),
@@ -682,6 +837,8 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         for (var i = 0; i < entriesCount; i++)
         {
             var tx = references.Count > i ? references[i] : null;
+            var entryAmount = tx?.Amount ?? request.Amount;
+            var amountCents = (long)Math.Round(entryAmount * 100m, 0, MidpointRounding.AwayFromZero);
             var reference = tx?.Reference ?? $"{request.ReferencePrefix}-{i + 1:000}";
             var transactionCode = TransactionCode(request.ScenarioType, request.ResponseMode);
             var traceSequence = ((fileSequence - 1) * Math.Max(1, _options.MaxEntriesPerSimulation)) + i + 1;
@@ -713,19 +870,19 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 TransactionId = tx?.Id,
                 PrenotificationReference = request.ScenarioType == NachaInboundSimulationType.IncomingPrenotificationResponse ? reference : null,
                 AccountNumberMasked = $"****{i + 1:0000}",
-                Amount = request.Amount,
+                Amount = entryAmount,
                 Nature = Nature(request.ScenarioType),
                 PreviousStatus = tx?.State.ToString(),
                 ExpectedStatusAfterUpload = ExpectedStatus(request.ScenarioType, request.ResponseMode),
                 ReasonCode = request.ReasonCode,
-                IsSynthetic = true
+                IsSynthetic = tx is null
             });
+            if (IsDebitScenario(request.ScenarioType)) debitTotal += amountCents;
+            if (IsCreditScenario(request.ScenarioType)) creditTotal += amountCents;
         }
 
         var entryHashValue = entryRecords.Sum(x => long.Parse(x.Substring(3, 8))) % 10_000_000_000;
         var entryAddendaCount = entriesCount * 2;
-        var debitTotal = IsDebitScenario(request.ScenarioType) ? amountCents * entriesCount : 0;
-        var creditTotal = IsCreditScenario(request.ScenarioType) ? amountCents * entriesCount : 0;
         var entryHash = entryHashValue.ToString().PadLeft(10, '0');
         records.Add(Record('8',
             (2, ServiceClassCode(request.ScenarioType)),

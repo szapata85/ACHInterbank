@@ -50,14 +50,15 @@
   <form [formGroup]="form" class="form-grid" novalidate>
     <label>
       Cámara
-      <select formControlName="clearingHouseCode" (change)="isDifferentialMode() && loadEligibleTransactions()">
+      <select formControlName="clearingHouseCode" (change)="availabilityContextChanged()">
+        <option value="">Seleccione una cámara</option>
         <option *ngFor="let item of clearingHouses" [value]="item.value">{{ item.label }}</option>
       </select>
     </label>
 
     <label>
       Tipo de operación
-      <select formControlName="scenarioType">
+      <select formControlName="scenarioType" (change)="availabilityContextChanged()">
         <option *ngFor="let item of scenarios" [value]="item.value">{{ item.label }}</option>
       </select>
     </label>
@@ -108,12 +109,30 @@
 
     <label>
       Fecha de operación
-      <input type="date" formControlName="businessDate" (change)="isDifferentialMode() && loadEligibleTransactions()" />
+      <input type="date" formControlName="businessDate" (change)="availabilityContextChanged()" />
     </label>
 
-    <label>
+    <label class="wide cycle-selector">
       Ciclo
-      <input type="text" formControlName="cycleCode" />
+      <ui-selector-buscable
+        [opciones]="availableCycleOptions"
+        formControlName="cycleCode"
+        [cargando]="loadingCycles"
+        placeholderBusqueda="Buscar ciclo disponible"
+      ></ui-selector-buscable>
+      <small id="cycle-help">Solo se muestran ciclos activos, vigentes y con transacciones elegibles.</small>
+      <small id="cycle-availability-message" *ngIf="cycleAvailabilityMessage" class="error-text" role="alert">
+        {{ cycleAvailabilityMessage }}
+      </small>
+      <div class="cycle-actions">
+        <button type="button" class="btn btn-outline" (click)="loadAvailableCycles()" [disabled]="loadingCycles">
+          {{ loadingCycles ? 'Actualizando ciclos…' : 'Actualizar ciclos' }}
+        </button>
+        <a routerLink="/transactions">Ver transacciones</a>
+      </div>
+      <span class="empty-state" *ngIf="!loadingCycles && availableCycles.length === 0">
+        No hay ciclos con transacciones disponibles para generar la simulación inbound.
+      </span>
     </label>
 
     <label *ngIf="!isDifferentialMode()">

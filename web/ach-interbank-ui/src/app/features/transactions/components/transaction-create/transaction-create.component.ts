@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
-import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { debounceTime, distinctUntilChanged, map, shareReplay, take, takeUntil, tap } from 'rxjs';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { AbstractControl, FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { EMPTY, catchError, debounceTime, distinctUntilChanged, map, shareReplay, take, takeUntil, tap } from 'rxjs';
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
@@ -13,6 +13,23 @@ import { CustomersApiService } from '../../../customers/services/customers-api.s
 import { CustomerSummary } from '../../../customers/models/customer.model';
 import { recipientIdentityValidator } from '../../transaction-policy.validators';
 
+type TransactionSection = 'operation' | 'originator' | 'recipient' | 'concept' | 'review';
+
+interface TransactionValidationIssue {
+  path: string;
+  label: string;
+  message: string;
+  section: TransactionSection;
+}
+
+interface TransactionSectionState {
+  key: TransactionSection;
+  label: string;
+  symbol: '✓' | '!' | '○';
+  status: 'complete' | 'attention' | 'pending';
+  errorCount: number;
+}
+
 @Component({
   selector: 'app-transaction-create',
   standalone: true,
@@ -22,6 +39,7 @@ import { recipientIdentityValidator } from '../../transaction-policy.validators'
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TransactionCreateComponent implements OnInit, OnDestroy {
+  @ViewChild('validationSummary') private validationSummary?: ElementRef<HTMLElement>;
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(TransactionsApiService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -30,6 +48,32 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
   private readonly customersApi = inject(CustomersApiService);
   private readonly destroy$ = new Subject<void>();
+  validationAttempted = false;
+
+  private readonly fieldMetadata: Record<string, { label: string; section: TransactionSection }> = {
+    amount: { label: 'Monto', section: 'operation' },
+    transactionExternalId: { label: 'ID operación cliente', section: 'operation' },
+    type: { label: 'Tipo de transacción', section: 'operation' },
+    accountType: { label: 'Tipo de cuenta', section: 'operation' },
+    sourceAccountNumber: { label: 'Cuenta origen', section: 'originator' },
+    companyName: { label: 'Nombre del originador', section: 'originator' },
+    companyIdentification: { label: 'Identificación del originador', section: 'originator' },
+    sourcePersonType: { label: 'Tipo de persona originador', section: 'originator' },
+    destinationInstitutionId: { label: 'Institución destino', section: 'recipient' },
+    destinationAccountNumber: { label: 'Cuenta destino', section: 'recipient' },
+    recipientIdNumber: { label: 'Identificación del receptor', section: 'recipient' },
+    recipientName: { label: 'Nombre del receptor', section: 'recipient' },
+    recipientPersonType: { label: 'Tipo de persona receptor', section: 'recipient' },
+    companyEntryDescriptionId: { label: 'Descripción de la entrada', section: 'concept' }
+  };
+
+  private readonly sectionDefinitions: Array<{ key: TransactionSection; label: string }> = [
+    { key: 'operation', label: 'Operación' },
+    { key: 'originator', label: 'Originador' },
+    { key: 'recipient', label: 'Receptor' },
+    { key: 'concept', label: 'Concepto y addenda' },
+    { key: 'review', label: 'Revisión' }
+  ];
 
   readonly TransactionType = TransactionTypeEnum;
   readonly AccountType = AccountTypeEnum;
@@ -110,6 +154,39 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       valor: option.id,
       etiqueta: `${option.description} (${option.term})`
     }));
+  }
+
+  get validationIssues(): TransactionValidationIssue[] {
+    if (!this.validationAttempted && !this.form.touched) {
+      return [];
+    }
+    return this.collectValidationIssues();
+  }
+
+  get validationSections(): Array<{ key: TransactionSection; label: string; issues: TransactionValidationIssue[] }> {
+    const issues = this.validationIssues;
+    return this.sectionDefinitions
+      .map((section) => ({ ...section, issues: issues.filter((issue) => issue.section === section.key) }))
+      .filter((section) => section.issues.length > 0);
+  }
+
+  get sectionStates(): TransactionSectionState[] {
+    const allIssues = this.collectValidationIssues();
+    return this.sectionDefinitions.map((section) => {
+      const issues = allIssues.filter((issue) => issue.section === section.key);
+      const visibleErrors = issues.filter((issue) => this.validationAttempted || this.form.get(issue.path)?.touched);
+      if (issues.length === 0) {
+        return { ...section, symbol: '✓', status: 'complete', errorCount: 0 };
+      }
+      if (visibleErrors.length > 0 || this.validationAttempted) {
+        return { ...section, symbol: '!', status: 'attention', errorCount: issues.length };
+      }
+      return { ...section, symbol: '○', status: 'pending', errorCount: 0 };
+    });
+  }
+
+  get incompleteFieldCount(): number {
+    return this.collectValidationIssues().length;
   }
 
   private readonly amountFormatter = new Intl.NumberFormat('es-CO', {
@@ -238,7 +315,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.form.invalid) {
+      this.validationAttempted = true;
       this.form.markAllAsTouched();
+      this.cdr.markForCheck();
+      setTimeout(() => this.validationSummary?.nativeElement.focus());
       return;
     }
 
@@ -247,6 +327,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     if (parsedAmount === null || (!Boolean(payload.isPrenotification) && parsedAmount <= 0)) {
       this.form.get('amount')?.setErrors({ invalidAmount: true });
       this.form.get('amount')?.markAsTouched();
+      this.validationAttempted = true;
+      this.cdr.markForCheck();
+      setTimeout(() => this.validationSummary?.nativeElement.focus());
       return;
     }
 
@@ -305,6 +388,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.filteredDestinationAccounts = [];
             this.selectedCustomerAccounts = [];
             this.policyPreview = null;
+            this.validationAttempted = false;
             this.cdr.markForCheck();
             this.router.navigate(['/transactions']);
           },
@@ -315,7 +399,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.notifications.error(this.errorMessage.value ?? 'Error al crear la transacción');
             this.cdr.markForCheck();
           }
-        })
+        }),
+        catchError(() => EMPTY)
       )
       .subscribe();
   }
@@ -331,6 +416,28 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   trackAddenda(index: number): number {
     return index;
+  }
+
+  focusIssue(issue: TransactionValidationIssue): void {
+    const container = document.querySelector<HTMLElement>(`[data-validation-path="${issue.path}"]`);
+    if (!container) {
+      return;
+    }
+    container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const focusTarget = container.matches('input, select, textarea, button, [tabindex]')
+      ? container
+      : container.querySelector<HTMLElement>('input, select, textarea, button, [tabindex]');
+    (focusTarget ?? container).focus();
+  }
+
+  focusSection(section: TransactionSection): void {
+    const issue = this.collectValidationIssues().find((item) => item.section === section);
+    if (issue) {
+      this.validationAttempted = true;
+      this.focusIssue(issue);
+      return;
+    }
+    document.querySelector<HTMLElement>(`[data-transaction-section="${section}"]`)?.focus();
   }
 
   get amountPreviewValue(): number {
@@ -520,6 +627,74 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     return Object.keys(errors).length > 0 ? errors : null;
   };
+
+  private collectValidationIssues(): TransactionValidationIssue[] {
+    const issues: TransactionValidationIssue[] = [];
+    Object.entries(this.fieldMetadata).forEach(([path, metadata]) => {
+      const control = this.form.get(path);
+      if (control?.invalid) {
+        issues.push({ path, ...metadata, message: this.validationMessage(control) });
+      }
+    });
+
+    this.addendas.controls.forEach((addenda, index) => {
+      const addendaFields: Array<[string, string]> = [
+        ['addendaType', 'Tipo de addenda'],
+        ['collectorId', 'Identificación del recaudador'],
+        ['receiverCustomerCode', 'Código del cliente receptor'],
+        ['serviceDescription', 'Descripción del servicio'],
+        ['information', 'Información adicional']
+      ];
+      addendaFields.forEach(([controlName, label]) => {
+        const control = addenda.get(controlName);
+        if (control?.invalid) {
+          issues.push({
+            path: `addendas.${index}.${controlName}`,
+            label: `${label} · Addenda ${index + 1}`,
+            message: this.validationMessage(control),
+            section: 'concept'
+          });
+        }
+      });
+    });
+
+    const crossFieldIssues: Record<string, TransactionValidationIssue> = {
+      sameAccount: { path: 'destinationAccountNumber', label: 'Cuenta destino', message: 'La cuenta origen y la cuenta destino deben ser diferentes.', section: 'recipient' },
+      missingAddenda: { path: 'addendas', label: 'Información de la addenda', message: 'Debe registrar al menos una addenda completa.', section: 'concept' },
+      invalidAddenda: { path: 'addendas.0.addendaType', label: 'Tipo de addenda', message: 'La descripción de entrada solo admite una addenda tipo 05.', section: 'concept' },
+      recipientIdentityFormat: { path: 'recipientIdNumber', label: 'Identificación del receptor', message: 'La identificación es incompatible con el tipo de persona receptor.', section: 'recipient' },
+      missingRecipientId: { path: 'recipientIdNumber', label: 'Identificación del receptor', message: 'Debe diligenciar la identificación requerida para esta operación.', section: 'recipient' },
+      missingRecipientName: { path: 'recipientName', label: 'Nombre del receptor', message: 'Debe diligenciar el nombre asociado a la identificación del receptor.', section: 'recipient' },
+      prenoteAmount: { path: 'amount', label: 'Monto', message: 'La prenotificación debe registrarse con monto cero.', section: 'operation' }
+    };
+    Object.keys(this.form.errors ?? {}).forEach((key) => {
+      const issue = crossFieldIssues[key];
+      if (issue && !issues.some((item) => item.path === issue.path && item.message === issue.message)) {
+        issues.push(issue);
+      }
+    });
+
+    if (this.policyPreview && !this.policyPreview.canSubmit) {
+      issues.push({
+        path: 'destinationAccountNumber',
+        label: 'Regla operativa',
+        message: this.policyPreview.message || 'La transacción no cumple la regla operativa vigente.',
+        section: 'review'
+      });
+    }
+
+    return issues;
+  }
+
+  private validationMessage(control: AbstractControl): string {
+    const errors = control.errors ?? {};
+    if (errors['required']) return 'Campo obligatorio.';
+    if (errors['pattern']) return 'Formato inválido.';
+    if (errors['maxlength']) return `Longitud excedida. Máximo ${errors['maxlength'].requiredLength} caracteres.`;
+    if (errors['min'] || errors['max']) return 'Valor fuera del rango permitido.';
+    if (errors['invalidAmount']) return 'Ingrese un monto válido.';
+    return 'Revise el valor ingresado.';
+  }
 
   private buildAddendaPayload(item: TransactionDraft['addendas'][number]) {
     return {

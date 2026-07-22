@@ -166,3 +166,22 @@ public sealed record DifferentialResponseTransactionPage(
     int Page,
     int PageSize,
     int Total);
+
+public sealed class AvailableInboundCycleQuery
+{
+    public string ClearingHouseCode { get; set; } = string.Empty;
+    public DateOnly ProcessingDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public NachaInboundSimulationType ScenarioType { get; set; } = NachaInboundSimulationType.IncomingCredit;
+}
+
+public sealed record AvailableInboundCycleDto(
+    string CycleId,
+    string CycleCode,
+    string CycleName,
+    int ClearingHouseId,
+    string ClearingHouseCode,
+    string ClearingHouseName,
+    DateOnly ProcessingDate,
+    int TransactionCount,
+    string Status);

@@ -1,6 +1,7 @@
 export interface ClearingHouseOption {
   id: number;
   name: string;
+  code?: string;
 }
 
 export interface AchCycleSummary {

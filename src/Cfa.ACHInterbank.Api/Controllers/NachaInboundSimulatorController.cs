@@ -180,6 +180,35 @@ public sealed class NachaInboundSimulatorController : ControllerBase
         return Ok(await _service.ListEligibleDifferentialTransactionsAsync(query, ct));
     }
 
+    [HttpGet("available-cycles")]
+    [Authorize(Policy = P1Policies.NachaSimulatorRead)]
+    [ProducesResponseType(typeof(IReadOnlyList<AvailableInboundCycleDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<AvailableInboundCycleDto>>> AvailableCycles(
+        [FromQuery] AvailableInboundCycleQuery query,
+        CancellationToken ct)
+    {
+        var unavailable = UnavailableOutsideAuthorizedEnvironment();
+        if (unavailable is not null)
+        {
+            return unavailable;
+        }
+
+        if (string.IsNullOrWhiteSpace(query.ClearingHouseCode))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "CLEARING_HOUSE_REQUIRED",
+                Detail = "Debe seleccionar una cámara.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        return Ok(await _service.ListAvailableCyclesAsync(query, ct));
+    }
+
     private ActionResult? UnavailableOutsideAuthorizedEnvironment()
     {
         if (!_environment.IsProduction() && _options.IsUatLike())

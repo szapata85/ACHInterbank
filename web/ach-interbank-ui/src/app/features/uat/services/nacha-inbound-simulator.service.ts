@@ -58,6 +58,18 @@ export interface DifferentialResponseTransactionPage {
   total: number;
 }
 
+export interface AvailableInboundCycle {
+  cycleId: string;
+  cycleCode: string;
+  cycleName: string;
+  clearingHouseId: number;
+  clearingHouseCode: string;
+  clearingHouseName: string;
+  processingDate: string;
+  transactionCount: number;
+  status: string;
+}
+
 export interface InboundSimulationEligibilityPreview {
   eligible: boolean;
   decision: string;
@@ -138,6 +150,14 @@ export class NachaInboundSimulatorService {
       `${this.basePath}/eligible-differential-transactions`,
       { params: query }
     );
+  }
+
+  availableCycles(params: {
+    clearingHouseCode: string;
+    processingDate: string;
+    scenarioType: NachaInboundSimulationType;
+  }) {
+    return this.api.get<AvailableInboundCycle[]>(`${this.basePath}/available-cycles`, { params });
   }
 
   downloadUrl(id: number): string {
