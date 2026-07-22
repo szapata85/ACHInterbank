@@ -4,7 +4,7 @@
   <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
     <label>
       Cámara
-      <select formControlName="clearingHouseId">
+      <select formControlName="clearingHouseId" (change)="configurationContextChanged()">
         <option [ngValue]="null">Seleccione</option>
         <option *ngFor="let ch of clearingHouses" [ngValue]="ch.id">{{ ch.name }}</option>
       </select>
@@ -12,34 +12,37 @@
     </label>
 
     <label>
-      Fecha
-      <input type="date" formControlName="date" />
-      <app-error-message [control]="form.get('date')"></app-error-message>
+      Fecha operativa
+      <input type="date" formControlName="processingDate" (change)="configurationContextChanged()" />
+      <app-error-message [control]="form.get('processingDate')"></app-error-message>
     </label>
 
     <label>
-      Hora inicio
-      <input type="time" formControlName="startTime" />
-      <app-error-message [control]="form.get('startTime')"></app-error-message>
-    </label>
-
-    <label>
-      Hora fin
-      <input type="time" formControlName="endTime" />
-      <app-error-message [control]="form.get('endTime')"></app-error-message>
-    </label>
-
-    <label>
-      Estado
-      <select formControlName="status">
-        <option value="Activo">Activo</option>
-        <option value="Inactivo">Inactivo</option>
+      Configuración de ciclo
+      <select formControlName="clearingHouseCycleConfigId" [attr.aria-busy]="isLoadingConfigurations">
+        <option [ngValue]="null">Seleccione una configuración vigente</option>
+        <option *ngFor="let config of configurations" [ngValue]="config.id">
+          {{ configurationLabel(config) }}
+        </option>
       </select>
+      <app-error-message [control]="form.get('clearingHouseCycleConfigId')"></app-error-message>
+      <small *ngIf="!isLoadingConfigurations && form.value.clearingHouseId && form.value.processingDate && configurations.length === 0">
+        No hay configuraciones activas y vigentes para la cámara y fecha seleccionadas.
+      </small>
     </label>
+
+    <label>
+      <input type="checkbox" formControlName="rescheduleOnHoliday" />
+      Reprogramar si la fecha es festiva
+    </label>
+
+    <p *ngIf="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
 
     <div class="actions">
       <button type="button" routerLink="/ach-cycles">Cancelar</button>
-      <button type="submit" class="btn btn-primary">Guardar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="isSaving">
+        {{ isSaving ? 'Guardando…' : 'Guardar' }}
+      </button>
     </div>
   </form>
 </div>

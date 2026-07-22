@@ -42,3 +42,17 @@ public class AchCycleExportDto
     public string? ExportUnavailableReason { get; set; }
     public string? ExportIdentifier { get; set; }
 }
+
+public sealed record AchCycleConfigurationLinkRepairItem(
+    string CycleId,
+    int? ClearingHouseCycleConfigId,
+    string Status,
+    string Detail);
+
+public sealed record AchCycleConfigurationLinkRepairResult(
+    bool Completed,
+    int InspectedCount,
+    int RepairedCount,
+    int AmbiguousCount,
+    int UnmatchedCount,
+    IReadOnlyList<AchCycleConfigurationLinkRepairItem> Items);

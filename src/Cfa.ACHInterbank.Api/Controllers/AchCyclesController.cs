@@ -70,8 +70,15 @@ public class AchCyclesController : ControllerBase
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> Create([FromBody] AchCycleRequest request, CancellationToken ct)
     {
-        var cycle = await _service.CreateAsync(request, ct);
-        return CreatedAtAction(nameof(GetById), new { id = cycle.Id }, cycle);
+        try
+        {
+            var cycle = await _service.CreateAsync(request, ct);
+            return CreatedAtAction(nameof(GetById), new { id = cycle.Id }, cycle);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(Problem("Ciclo ACH inválido", ex.Message, StatusCodes.Status400BadRequest));
+        }
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -81,8 +88,33 @@ public class AchCyclesController : ControllerBase
     [Authorize(Policy = "CanManageAch")]
     public async Task<IActionResult> Update(string id, [FromBody] AchCycleRequest request, CancellationToken ct)
     {
-        var cycle = await _service.UpdateAsync(id, request, ct);
-        return Ok(cycle);
+        try
+        {
+            var cycle = await _service.UpdateAsync(id, request, ct);
+            return Ok(cycle);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(Problem("Ciclo ACH no encontrado", ex.Message, StatusCodes.Status404NotFound));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(Problem("Ciclo ACH inválido", ex.Message, StatusCodes.Status400BadRequest));
+        }
+    }
+
+    [HttpPost("repair-configuration-links")]
+    [Authorize(Policy = "CanManageAch")]
+    public async Task<IActionResult> RepairConfigurationLinks(CancellationToken ct)
+    {
+        var result = await _service.RepairConfigurationLinksAsync(ct);
+        return result.Completed
+            ? Ok(result)
+            : Conflict(Problem(
+                "Reparación bloqueada por asociaciones ambiguas",
+                "No se modificó ningún ciclo. Revise los identificadores reportados y corrija las configuraciones superpuestas.",
+                StatusCodes.Status409Conflict,
+                result));
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -94,5 +126,15 @@ public class AchCyclesController : ControllerBase
     {
         await _service.DeleteAsync(id, ct);
         return NoContent();
+    }
+
+    private static ProblemDetails Problem(string title, string detail, int status, object? result = null)
+    {
+        var problem = new ProblemDetails { Title = title, Detail = detail, Status = status };
+        if (result is not null)
+        {
+            problem.Extensions["repairResult"] = result;
+        }
+        return problem;
     }
 }

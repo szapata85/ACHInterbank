@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Configuration;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
@@ -9,6 +10,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -325,6 +327,71 @@ public class NachaInboundSimulatorTests
         Assert.Equal(["ACH-CYCLE"], achCycles.Select(x => x.CycleCode));
         Assert.Equal(["CENIT-CYCLE"], cenitCycles.Select(x => x.CycleCode));
         Assert.Empty(future);
+    }
+
+    [Fact]
+    public async Task RepairedHistoricalCycle_ShouldAppearWithoutManualEdit()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == "ACH-CYCLE");
+        cycle.ClearingHouseCycleConfigId = null;
+        await context.SaveChangesAsync();
+        var simulator = CreateService(context, CreateTempOutput());
+        Assert.Empty(await simulator.ListAvailableCyclesAsync(new AvailableInboundCycleQuery
+        {
+            ClearingHouseCode = "ACHCOL",
+            ProcessingDate = new DateOnly(2026, 5, 20),
+            ScenarioType = NachaInboundSimulationType.IncomingCredit
+        }));
+
+        MapperBootstrapper.Configure(NullLoggerFactory.Instance);
+        var repair = await new AchCycleAppService(context, MapperBootstrapper.Instance)
+            .RepairConfigurationLinksAsync();
+
+        Assert.True(repair.Completed);
+        Assert.Equal(1, repair.RepairedCount);
+        Assert.Single(await simulator.ListAvailableCyclesAsync(new AvailableInboundCycleQuery
+        {
+            ClearingHouseCode = "ACHCOL",
+            ProcessingDate = new DateOnly(2026, 5, 20),
+            ScenarioType = NachaInboundSimulationType.IncomingCredit
+        }));
+    }
+
+    [Fact]
+    public async Task ManipulatedConfigurationLink_ShouldBeExcludedByListPreviewAndGenerate()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == "ACH-CYCLE");
+        cycle.StartTime = TimeSpan.FromHours(11);
+        await context.SaveChangesAsync();
+        var service = CreateService(context, CreateTempOutput());
+
+        Assert.Empty(await service.ListAvailableCyclesAsync(new AvailableInboundCycleQuery
+        {
+            ClearingHouseCode = "ACHCOL",
+            ProcessingDate = new DateOnly(2026, 5, 20),
+            ScenarioType = NachaInboundSimulationType.IncomingCredit
+        }));
+        var preview = await service.PreviewAsync(ValidPreview("ACH-CYCLE"));
+        Assert.False(preview.Eligible);
+        Assert.Equal("CYCLE_NOT_AVAILABLE", preview.FunctionalCode);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateAsync(
+            new GenerateNachaInboundSimulationRequest
+            {
+                ClearingHouseCode = "ACHCOL",
+                ScenarioType = NachaInboundSimulationType.IncomingCredit,
+                OriginFinancialInstitutionId = 2,
+                EntriesCount = 1,
+                Amount = 1000,
+                ReferencePrefix = "MANIPULATED",
+                BusinessDate = new DateOnly(2026, 5, 20),
+                CycleCode = "ACH-CYCLE"
+            }, "qa"));
+        Assert.Contains("CYCLE_NOT_AVAILABLE", exception.Message);
     }
 
     private static InboundSimulationEligibilityPreviewRequest ValidPreview(string cycleCode) => new()

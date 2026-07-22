@@ -81,11 +81,11 @@ public class AchCycleAppService : IAchCycleAppService
     public async Task<AchCycleDto> CreateAsync(AchCycleRequest request, CancellationToken ct = default)
     {
         await ValidateClearingHouseAsync(request.ClearingHouseId, ct);
+        var configuration = await ResolveCycleConfigurationAsync(request, null, ct);
 
         var entity = _mapper.Map<AchCycle>(request);
-        entity.Id = AchCycleIdHelper.GenerateId(request.ClearingHouseId, request.CycleName, request.ProcessingDate.Date);
-        entity.ProcessingDate = entity.ProcessingDate.Date;
-        entity.ClearingHouseCycleConfigId = await ResolveCycleConfigurationIdAsync(request, ct);
+        ApplyCanonicalConfiguration(entity, configuration, request.ProcessingDate);
+        entity.Id = AchCycleIdHelper.GenerateId(request.ClearingHouseId, configuration.CycleName, request.ProcessingDate.Date);
 
         _context.AchCycles.Add(entity);
         await _context.SaveChangesAsync(ct);
@@ -100,14 +100,63 @@ public class AchCycleAppService : IAchCycleAppService
             ?? throw new KeyNotFoundException("Ciclo ACH no encontrado");
 
         await ValidateClearingHouseAsync(request.ClearingHouseId, ct);
+        var configuration = await ResolveCycleConfigurationAsync(request, entity.ClearingHouseCycleConfigId, ct);
+        var configurationChanged = entity.ClearingHouseCycleConfigId != configuration.Id;
+        if (configurationChanged && await _context.AchTransactions.AnyAsync(x => x.AchCycleId == entity.Id, ct))
+        {
+            throw new InvalidOperationException(
+                "No es posible cambiar la configuración canónica de un ciclo que ya tiene transacciones.");
+        }
 
         _mapper.Map(request, entity);
-        entity.ProcessingDate = entity.ProcessingDate.Date;
-        entity.ClearingHouseCycleConfigId = await ResolveCycleConfigurationIdAsync(request, ct);
+        ApplyCanonicalConfiguration(entity, configuration, request.ProcessingDate);
 
         await _context.SaveChangesAsync(ct);
 
         return (await GetByIdAsync(entity.Id, ct))!;
+    }
+
+    public async Task<AchCycleConfigurationLinkRepairResult> RepairConfigurationLinksAsync(CancellationToken ct = default)
+    {
+        var cycles = await _context.AchCycles
+            .Where(x => x.ClearingHouseCycleConfigId == null)
+            .OrderBy(x => x.Id)
+            .ToListAsync(ct);
+
+        if (cycles.Count == 0)
+        {
+            return new AchCycleConfigurationLinkRepairResult(true, 0, 0, 0, 0, []);
+        }
+
+        var houseIds = cycles.Select(x => x.ClearingHouseId).Distinct().ToArray();
+        var configurations = await _context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .Where(x => houseIds.Contains(x.ClearingHouseId))
+            .ToListAsync(ct);
+
+        var decisions = cycles
+            .Select(cycle => ResolveHistoricalConfiguration(cycle, configurations))
+            .ToList();
+        var ambiguous = decisions.Where(x => x.Status == HistoricalLinkStatus.Ambiguous).ToList();
+        var unmatched = decisions.Where(x => x.Status == HistoricalLinkStatus.Unmatched).ToList();
+
+        if (ambiguous.Count > 0)
+        {
+            return BuildRepairResult(false, cycles.Count, [], ambiguous, unmatched);
+        }
+
+        var repairable = decisions.Where(x => x.Status == HistoricalLinkStatus.Unique).ToList();
+        foreach (var decision in repairable)
+        {
+            decision.Cycle.ClearingHouseCycleConfigId = decision.ConfigurationId;
+        }
+
+        if (repairable.Count > 0)
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+
+        return BuildRepairResult(true, cycles.Count, repairable, [], unmatched);
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
@@ -218,19 +267,151 @@ public class AchCycleAppService : IAchCycleAppService
                || normalized.Contains("CONTING", StringComparison.Ordinal);
     }
 
-    private async Task<int?> ResolveCycleConfigurationIdAsync(AchCycleRequest request, CancellationToken ct)
+    private async Task<ClearingHouseCycleConfig> ResolveCycleConfigurationAsync(
+        AchCycleRequest request,
+        int? existingConfigurationId,
+        CancellationToken ct)
     {
+        if (request.ProcessingDate == default)
+        {
+            throw new InvalidOperationException("La fecha operativa del ciclo es requerida.");
+        }
+
         var processingDate = request.ProcessingDate.Date;
-        return await _context.ClearingHouseCycleConfigs
+        var requestedId = request.ClearingHouseCycleConfigId ?? existingConfigurationId;
+        var effectiveConfigurations = await _context.ClearingHouseCycleConfigs
             .AsNoTracking()
             .Where(config => config.ClearingHouseId == request.ClearingHouseId
                 && config.IsActive
-                && config.CycleName == request.CycleName
                 && config.EffectiveFrom <= processingDate
                 && (!config.EffectiveTo.HasValue || config.EffectiveTo.Value >= processingDate))
-            .OrderByDescending(config => config.EffectiveFrom)
-            .ThenByDescending(config => config.Id)
-            .Select(config => (int?)config.Id)
-            .FirstOrDefaultAsync(ct);
+            .ToListAsync(ct);
+
+        if (requestedId.HasValue)
+        {
+            var selected = effectiveConfigurations.SingleOrDefault(x => x.Id == requestedId.Value)
+                ?? throw new InvalidOperationException(
+                    "La configuración seleccionada no existe, está inactiva, no está vigente o pertenece a otra cámara.");
+            EnsureConfigurationIsNotAmbiguous(selected, effectiveConfigurations);
+            return selected;
+        }
+
+        var windowMatches = effectiveConfigurations
+            .Where(x => WindowMatches(x, request.StartTime, request.EndTime, request.CutoffTime))
+            .ToList();
+        var resolved = ResolveUniqueCandidate(windowMatches, request.CycleName);
+        return resolved ?? throw new InvalidOperationException(windowMatches.Count == 0
+            ? "No existe una configuración activa y vigente que corresponda al ciclo solicitado. Seleccione una configuración de ciclo."
+            : "La configuración del ciclo es ambigua. Seleccione explícitamente una configuración canónica.");
     }
+
+    private static void EnsureConfigurationIsNotAmbiguous(
+        ClearingHouseCycleConfig selected,
+        IReadOnlyCollection<ClearingHouseCycleConfig> effectiveConfigurations)
+    {
+        var normalizedName = NormalizeCycleName(selected.CycleName);
+        if (effectiveConfigurations.Count(x => NormalizeCycleName(x.CycleName) == normalizedName) > 1)
+        {
+            throw new InvalidOperationException(
+                "Existen configuraciones activas superpuestas para el ciclo seleccionado. Corrija la ambigüedad antes de crear la instancia operativa.");
+        }
+    }
+
+    private static ClearingHouseCycleConfig? ResolveUniqueCandidate(
+        IReadOnlyCollection<ClearingHouseCycleConfig> windowMatches,
+        string? cycleName)
+    {
+        if (windowMatches.Count == 1)
+        {
+            return windowMatches.Single();
+        }
+
+        if (windowMatches.Count == 0)
+        {
+            return null;
+        }
+
+        var normalizedName = NormalizeCycleName(cycleName);
+        var nameMatches = windowMatches
+            .Where(x => NormalizeCycleName(x.CycleName) == normalizedName)
+            .ToList();
+        return nameMatches.Count == 1 ? nameMatches[0] : null;
+    }
+
+    private static HistoricalLinkDecision ResolveHistoricalConfiguration(
+        AchCycle cycle,
+        IReadOnlyCollection<ClearingHouseCycleConfig> configurations)
+    {
+        var date = cycle.ProcessingDate.Date;
+        var windowMatches = configurations
+            .Where(config => config.ClearingHouseId == cycle.ClearingHouseId
+                && config.EffectiveFrom.Date <= date
+                && (!config.EffectiveTo.HasValue || config.EffectiveTo.Value.Date >= date)
+                && WindowMatches(config, cycle.StartTime, cycle.EndTime, cycle.CutoffTime))
+            .ToList();
+        var resolved = ResolveUniqueCandidate(windowMatches, cycle.CycleName);
+        if (resolved is not null)
+        {
+            return new HistoricalLinkDecision(cycle, resolved.Id, HistoricalLinkStatus.Unique,
+                "Coincidencia única por cámara, vigencia y ventana operativa.");
+        }
+
+        return windowMatches.Count == 0
+            ? new HistoricalLinkDecision(cycle, null, HistoricalLinkStatus.Unmatched,
+                "No existe una configuración históricamente aplicable con la misma ventana operativa.")
+            : new HistoricalLinkDecision(cycle, null, HistoricalLinkStatus.Ambiguous,
+                "Existe más de una configuración históricamente aplicable para la misma ventana operativa.");
+    }
+
+    private static AchCycleConfigurationLinkRepairResult BuildRepairResult(
+        bool completed,
+        int inspected,
+        IReadOnlyCollection<HistoricalLinkDecision> repaired,
+        IReadOnlyCollection<HistoricalLinkDecision> ambiguous,
+        IReadOnlyCollection<HistoricalLinkDecision> unmatched)
+    {
+        var items = repaired.Concat(ambiguous).Concat(unmatched)
+            .OrderBy(x => x.Cycle.Id)
+            .Select(x => new AchCycleConfigurationLinkRepairItem(
+                x.Cycle.Id,
+                x.ConfigurationId,
+                x.Status.ToString(),
+                x.Detail))
+            .ToList();
+        return new AchCycleConfigurationLinkRepairResult(
+            completed, inspected, repaired.Count, ambiguous.Count, unmatched.Count, items);
+    }
+
+    private static void ApplyCanonicalConfiguration(
+        AchCycle cycle,
+        ClearingHouseCycleConfig configuration,
+        DateTime processingDate)
+    {
+        cycle.ProcessingDate = processingDate.Date;
+        cycle.ClearingHouseCycleConfigId = configuration.Id;
+        cycle.CycleName = configuration.CycleName.Trim();
+        cycle.StartTime = configuration.StartTime;
+        cycle.EndTime = configuration.EndTime;
+        cycle.CutoffTime = configuration.CutoffTime;
+    }
+
+    private static bool WindowMatches(
+        ClearingHouseCycleConfig configuration,
+        TimeSpan startTime,
+        TimeSpan endTime,
+        TimeSpan cutoffTime)
+        => configuration.StartTime == startTime
+            && configuration.EndTime == endTime
+            && configuration.CutoffTime == cutoffTime;
+
+    private static string NormalizeCycleName(string? value)
+        => (value ?? string.Empty).Trim().ToUpperInvariant();
+
+    private enum HistoricalLinkStatus { Unique, Ambiguous, Unmatched }
+
+    private sealed record HistoricalLinkDecision(
+        AchCycle Cycle,
+        int? ConfigurationId,
+        HistoricalLinkStatus Status,
+        string Detail);
 }

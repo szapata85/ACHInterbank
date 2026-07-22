@@ -144,9 +144,18 @@ public class AchCycleScheduler : IAchCycleScheduler
                           (!cfg.EffectiveTo.HasValue || cfg.EffectiveTo.Value.Date >= processingUtcDate.Date))
             .ToListAsync(ct);
 
-        return candidates
-            .GroupBy(cfg => cfg.CycleName, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.OrderByDescending(cfg => cfg.EffectiveFrom).ThenByDescending(cfg => cfg.Id).First())
+        var groups = candidates
+            .GroupBy(cfg => cfg.CycleName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var ambiguous = groups.FirstOrDefault(group => group.Count() > 1);
+        if (ambiguous is not null)
+        {
+            throw new InvalidOperationException(
+                $"Existen configuraciones activas superpuestas para el ciclo '{ambiguous.Key}'.");
+        }
+
+        return groups
+            .Select(g => g.Single())
             .OrderBy(cfg => cfg.CutoffTime)
             .ToList();
     }

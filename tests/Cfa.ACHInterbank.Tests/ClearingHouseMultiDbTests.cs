@@ -1,10 +1,14 @@
 using System.Data.Common;
 using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
+using Cfa.ACHInterbank.Application.Configuration;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -13,6 +17,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -37,7 +43,191 @@ public sealed class ClearingHouseMultiDbTests
     {
         EnsureRequiredConfiguration(provider);
         await PositiveScenarioAsync(provider);
+        await CanonicalCycleLinkScenarioAsync(provider);
         await LongCodeRejectionScenarioAsync(provider);
+    }
+
+    private static async Task CanonicalCycleLinkScenarioAsync(DatabaseProvider provider)
+    {
+        await using var fixture = await DatabaseFixture.CreateAsync(provider);
+        await using var context = fixture.CreateContext();
+        await context.Database.MigrateAsync();
+        await new ClearingHouseConfigSeeder(context).SeedAsync();
+        await new ClearingHouseSeeder(context).SeedAsync();
+        var house = await context.ClearingHouses.SingleAsync(x => x.Code == "ACHCOL");
+        var date = new DateTime(2026, 8, 10);
+        var config = new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = house.Id,
+            CycleName = "Ciclo canónico multidb",
+            StartTime = new TimeSpan(3, 17, 0),
+            EndTime = new TimeSpan(4, 29, 0),
+            CutoffTime = new TimeSpan(4, 11, 0),
+            EffectiveFrom = DateTime.SpecifyKind(date.AddDays(-1), DateTimeKind.Utc),
+            EffectiveTo = DateTime.SpecifyKind(date.AddDays(1), DateTimeKind.Utc),
+            IsActive = true
+        };
+        context.ClearingHouseCycleConfigs.Add(config);
+        await context.SaveChangesAsync();
+        MapperBootstrapper.Configure(NullLoggerFactory.Instance);
+        var cycleService = new AchCycleAppService(context, MapperBootstrapper.Instance);
+        var request = new AchCycleRequest
+        {
+            ClearingHouseId = house.Id,
+            ClearingHouseCycleConfigId = config.Id,
+            CycleName = "Texto cliente no canónico",
+            ProcessingDate = date,
+            StartTime = config.StartTime,
+            EndTime = config.EndTime,
+            CutoffTime = config.CutoffTime
+        };
+
+        var created = await cycleService.CreateAsync(request);
+        Assert.Equal(config.Id, created.ClearingHouseCycleConfigId);
+        Assert.Equal(config.CycleName, created.CycleName);
+
+        var legacyRequest = new AchCycleRequest
+        {
+            ClearingHouseId = house.Id,
+            CycleName = "  CICLO CANÓNICO MULTIDB  ",
+            ProcessingDate = date.AddDays(1),
+            StartTime = config.StartTime,
+            EndTime = config.EndTime,
+            CutoffTime = config.CutoffTime
+        };
+        var legacyCreated = await cycleService.CreateAsync(legacyRequest);
+        Assert.Equal(config.Id, legacyCreated.ClearingHouseCycleConfigId);
+        Assert.Equal(config.CycleName, legacyCreated.CycleName);
+
+        var historical = new AchCycle
+        {
+            Id = $"MDB-HIST-{provider}",
+            ClearingHouseId = house.Id,
+            CycleName = "Nombre histórico distinto",
+            ProcessingDate = date,
+            StartTime = config.StartTime,
+            EndTime = config.EndTime,
+            CutoffTime = config.CutoffTime
+        };
+        context.AchCycles.Add(historical);
+        var batch = new AchBatch
+        {
+            AchCycleId = historical.Id,
+            CompanyName = "PRUEBA",
+            CompanyIdentification = "900000000",
+            CompanyEntryDescription = "PRUEBA",
+            CompanyEntryDescriptionId = 1,
+            OriginOrOdfi = "00001283",
+            EffectiveEntryDate = date,
+            BatchSequenceNumber = 1
+        };
+        context.AchBatches.Add(batch);
+        await context.SaveChangesAsync();
+        var origin = await context.FinancialInstitutions.FirstOrDefaultAsync(x => !x.IsDefaultSource);
+        if (origin is null)
+        {
+            origin = new FinancialInstitution
+            {
+                Name = "Origen multidb", RoutingNumber = "88001", TransitCode = "881",
+                Status = FinancialInstitutionStatus.Active
+            };
+            origin.CalculateCheckDigit();
+            context.FinancialInstitutions.Add(origin);
+        }
+        var destination = await context.FinancialInstitutions.FirstOrDefaultAsync(x => x.IsDefaultSource);
+        if (destination is null)
+        {
+            destination = new FinancialInstitution
+            {
+                Name = "Destino CFA multidb", RoutingNumber = "88002", TransitCode = "882",
+                IsDefaultSource = true, Status = FinancialInstitutionStatus.Active
+            };
+            destination.CalculateCheckDigit();
+            context.FinancialInstitutions.Add(destination);
+        }
+        await context.SaveChangesAsync();
+        var transaction = new AchTransaction
+        {
+            Reference = $"MDB-{provider}", TransactionExternalId = $"MDB-{provider}",
+            Type = TransactionTypeEnum.Credit, Amount = 9876.54m, State = AchTransferStateEnum.Pending,
+            AchCycleId = historical.Id, AchBatchId = batch.Id, CompanyEntryDescriptionId = 1,
+            CompanyName = "PRUEBA", CompanyIdentification = "900000000", OriginatingDFI = "00001283",
+            ReceivingDFI = "99999900", TraceNumber = "000012830009876",
+            SourceInstitutionId = origin.Id, DestinationInstitutionId = destination.Id,
+            SourceAccountNumber = "100", DestinationAccountNumber = "200", RecipientIdNumber = "900000001",
+            EffectiveEntryDate = date, StateChangedAtUtc = DateTime.SpecifyKind(date, DateTimeKind.Utc)
+        };
+        context.AchTransactions.Add(transaction);
+        await context.SaveChangesAsync();
+        var amountBefore = transaction.Amount;
+
+        var firstRepair = await cycleService.RepairConfigurationLinksAsync();
+        Assert.True(firstRepair.Completed);
+        Assert.Equal(1, firstRepair.RepairedCount);
+        var secondRepair = await cycleService.RepairConfigurationLinksAsync();
+        Assert.True(secondRepair.Completed);
+        Assert.Equal(0, secondRepair.RepairedCount);
+
+        var simulator = new NachaInboundSimulationService(context, Options.Create(new NachaInboundSimulatorOptions
+        {
+            Enabled = true, Mode = "UAT", AllowAutoImport = false, AllowExternalTransmission = false,
+            RequireSyntheticData = true, OutputDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
+            MaxEntriesPerSimulation = 10, AllowedClearingHouses = ["ACHCOL", "CENIT"]
+        }));
+        var available = await simulator.ListAvailableCyclesAsync(new AvailableInboundCycleQuery
+        {
+            ClearingHouseCode = "ACHCOL", ProcessingDate = DateOnly.FromDateTime(date),
+            ScenarioType = NachaInboundSimulationType.IncomingCredit
+        });
+        Assert.Contains(available, x => x.CycleCode == historical.Id && x.TransactionCount == 1);
+        var invalid = await simulator.PreviewAsync(new InboundSimulationEligibilityPreviewRequest
+        {
+            ClearingHouseCode = "ACHCOL",
+            BusinessDate = DateOnly.FromDateTime(date), ScenarioType = NachaInboundSimulationType.IncomingCredit,
+            OriginFinancialInstitutionId = origin.Id, CycleCode = "CICLO-MANIPULADO"
+        });
+        Assert.False(invalid.Eligible);
+        Assert.Equal("CYCLE_NOT_AVAILABLE", invalid.FunctionalCode);
+
+        historical.StartTime = historical.StartTime.Add(TimeSpan.FromMinutes(1));
+        await context.SaveChangesAsync();
+        Assert.DoesNotContain(await simulator.ListAvailableCyclesAsync(new AvailableInboundCycleQuery
+        {
+            ClearingHouseCode = "ACHCOL", ProcessingDate = DateOnly.FromDateTime(date),
+            ScenarioType = NachaInboundSimulationType.IncomingCredit
+        }), x => x.CycleCode == historical.Id);
+        Assert.Equal(amountBefore, await context.AchTransactions.Where(x => x.Id == transaction.Id).Select(x => x.Amount).SingleAsync());
+
+        context.ClearingHouseCycleConfigs.Add(new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = house.Id,
+            CycleName = " ciclo CANÓNICO multidb ",
+            StartTime = config.StartTime,
+            EndTime = config.EndTime,
+            CutoffTime = config.CutoffTime,
+            EffectiveFrom = config.EffectiveFrom,
+            EffectiveTo = config.EffectiveTo,
+            IsActive = true
+        });
+        var ambiguousCycle = new AchCycle
+        {
+            Id = $"MDB-AMB-{provider}",
+            ClearingHouseId = house.Id,
+            CycleName = "Nombre histórico ambiguo",
+            ProcessingDate = date,
+            StartTime = config.StartTime,
+            EndTime = config.EndTime,
+            CutoffTime = config.CutoffTime
+        };
+        context.AchCycles.Add(ambiguousCycle);
+        await context.SaveChangesAsync();
+
+        var ambiguousRepair = await cycleService.RepairConfigurationLinksAsync();
+        Assert.False(ambiguousRepair.Completed);
+        Assert.Equal(1, ambiguousRepair.AmbiguousCount);
+        Assert.Null(await context.AchCycles.Where(x => x.Id == ambiguousCycle.Id)
+            .Select(x => x.ClearingHouseCycleConfigId).SingleAsync());
+        Assert.Equal(amountBefore, await context.AchTransactions.Where(x => x.Id == transaction.Id).Select(x => x.Amount).SingleAsync());
     }
 
     private static async Task PositiveScenarioAsync(DatabaseProvider provider)

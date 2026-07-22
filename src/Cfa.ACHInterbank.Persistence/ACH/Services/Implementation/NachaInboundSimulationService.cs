@@ -532,10 +532,14 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 && x.ProcessingDate < dayEnd
                 && x.ClearingHouseCycleConfigId.HasValue
                 && x.ClearingHouseCycleConfig != null
+                && x.ClearingHouseCycleConfig.ClearingHouseId == x.ClearingHouseId
                 && x.ClearingHouseCycleConfig.IsActive
                 && x.ClearingHouseCycleConfig.EffectiveFrom < dayEnd
                 && (!x.ClearingHouseCycleConfig.EffectiveTo.HasValue
                     || x.ClearingHouseCycleConfig.EffectiveTo.Value >= dayStart)
+                && x.ClearingHouseCycleConfig.StartTime == x.StartTime
+                && x.ClearingHouseCycleConfig.EndTime == x.EndTime
+                && x.ClearingHouseCycleConfig.CutoffTime == x.CutoffTime
                 && x.Transactions.Any(t =>
                     NachaExportEligibility.ExportableStates.Contains(t.State)
                     && t.Type == transactionType));

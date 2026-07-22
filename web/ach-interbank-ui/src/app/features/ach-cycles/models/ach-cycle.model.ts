@@ -13,7 +13,25 @@ export interface AchCycleSummary {
   processingDate?: string;
   startTime: string;
   endTime: string;
-  status: string;
+  cutoffTime: string;
+  rescheduleOnHoliday: boolean;
+  clearingHouseCycleConfigId: number | null;
+  operationalStatus: string;
+  status?: string;
+}
+
+export interface AchCycleConfigurationOption {
+  id: number;
+  clearingHouseId: number;
+  clearingHouseName?: string;
+  cycleName: string;
+  startTime: string;
+  endTime: string;
+  cutoffTime: string;
+  isActive: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isCurrent: boolean;
 }
 
 export interface AchCycleFilter {
@@ -26,10 +44,13 @@ export interface AchCycleFilter {
 
 export interface SaveAchCycleRequest {
   clearingHouseId: number;
-  date: string;
+  clearingHouseCycleConfigId: number;
+  cycleName: string;
+  processingDate: string;
   startTime: string;
   endTime: string;
-  status: string;
+  cutoffTime: string;
+  rescheduleOnHoliday: boolean;
 }
 
 export interface PagedAchCycleResponse {

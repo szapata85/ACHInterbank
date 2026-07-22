@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
 import {
   AchCycleFilter,
+  AchCycleConfigurationOption,
   AchCycleSummary,
   ClearingHouseOption,
   PagedAchCycleResponse,
@@ -67,6 +68,15 @@ export class AchCyclesApiService {
 
   update(id: string, request: SaveAchCycleRequest): Observable<AchCycleSummary> {
     return this.api.put<AchCycleSummary>(`${this.basePath}/${id}`, request);
+  }
+
+  getCurrentConfigurations(
+    clearingHouseId: number,
+    effectiveAt: string
+  ): Observable<AchCycleConfigurationOption[]> {
+    return this.api.get<AchCycleConfigurationOption[]>('clearing-house-cycle-configs/current', {
+      params: { clearingHouseId, effectiveAt }
+    });
   }
 }
 

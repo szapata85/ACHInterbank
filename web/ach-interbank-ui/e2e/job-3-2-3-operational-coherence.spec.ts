@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import { G36SqlServer, sqlString } from './support/g36-sqlserver';
 
 const uiBaseUrl = (process.env['ACH_UI_URL'] ?? 'http://localhost:743').replace(/\/+$/, '');
 const apiBaseUrl = (process.env['ACH_API_URL'] ?? 'http://localhost:843').replace(/\/+$/, '');
@@ -20,15 +21,23 @@ test('transacción y simulador consumen un ciclo operativo real y explican bloqu
   });
 
   const token = await login(page);
+  const sql = new G36SqlServer();
+  sql.assertReady();
   const today = new Date().toISOString().slice(0, 10);
   const suffix = Date.now().toString().slice(-8);
   const houses = await apiGet<any[]>('/clearing-houses/operational', token);
   const achcol = houses.find(item => item.code === 'ACHCOL');
   expect(achcol, 'ACHCOL debe estar operativa para el flujo real.').toBeTruthy();
 
-  const configs = await apiGet<any[]>(`/clearing-house-cycle-configs/current?clearingHouseId=${achcol.id}&effectiveAt=${today}`, token);
-  const config = configs.find(item => item.isActive && item.isCurrent) ?? configs.find(item => item.isActive);
-  expect(config, 'Debe existir una configuración de ciclo ACHCOL vigente.').toBeTruthy();
+  const configResponse = await apiPost('/clearing-house-cycle-configs', token, {
+    clearingHouseId: achcol.id,
+    cycleName: `PW ciclo canónico ${suffix}`,
+    startTime: '00:00:00',
+    endTime: '23:59:00',
+    cutoffTime: '23:30:00',
+    effectiveFrom: `${today}T00:00:00Z`
+  }, [200]);
+  const config = await configResponse.json();
   const operationalCycleCode = await ensureOperationalCycle(token, achcol.id, config, today);
 
   const institutions = await apiGet<any[]>('/financial-institutions', token);
@@ -91,6 +100,38 @@ test('transacción y simulador consumen un ciclo operativo real y explican bloqu
   expect((await createResponse).status()).toBe(201);
   await expect(page).toHaveURL(/\/transactions\/list(?:\?.*)?$/);
 
+  sql.execute(`UPDATE [AchTransactions]
+               SET [AchCycleId] = ${sqlString(operationalCycleCode)}
+               WHERE [TransactionExternalId] = ${sqlString(externalId)};`);
+  expect(sql.scalar<string>(`SELECT [AchCycleId] AS [value] FROM [AchTransactions]
+                             WHERE [TransactionExternalId] = ${sqlString(externalId)}`)).toBe(operationalCycleCode);
+  const transactionAmountBeforeRepair = sql.scalar<number>(`SELECT [Amount] AS [value] FROM [AchTransactions]
+                                                             WHERE [TransactionExternalId] = ${sqlString(externalId)}`);
+  expect(transactionAmountBeforeRepair).toBe(1500);
+
+  sql.execute(`UPDATE [AchCycles] SET [ClearingHouseCycleConfigId] = NULL
+               WHERE [Id] = ${sqlString(operationalCycleCode)};`);
+  try {
+    const firstRepairResponse = await apiPost('/ach-cycles/repair-configuration-links', token, {}, [200]);
+    const firstRepair = await firstRepairResponse.json();
+    expect(firstRepair.repairedCount).toBeGreaterThanOrEqual(1);
+    expect(sql.scalar<number>(`SELECT [ClearingHouseCycleConfigId] AS [value] FROM [AchCycles]
+                               WHERE [Id] = ${sqlString(operationalCycleCode)}`)).toBe(config.id);
+
+    const secondRepairResponse = await apiPost('/ach-cycles/repair-configuration-links', token, {}, [200]);
+    expect((await secondRepairResponse.json()).repairedCount).toBe(0);
+    const repairedAvailable = await apiGet<any[]>(
+      `/api/uat/nacha-inbound-simulator/available-cycles?clearingHouseCode=ACHCOL&processingDate=${today}&scenarioType=IncomingCredit`,
+      token);
+    expect(repairedAvailable.some(item => item.cycleCode === operationalCycleCode)).toBeTruthy();
+  } finally {
+    if (sql.scalar<number>(`SELECT [ClearingHouseCycleConfigId] AS [value] FROM [AchCycles]
+                            WHERE [Id] = ${sqlString(operationalCycleCode)}`) == null) {
+      sql.execute(`UPDATE [AchCycles] SET [ClearingHouseCycleConfigId] = ${config.id}
+                   WHERE [Id] = ${sqlString(operationalCycleCode)};`);
+    }
+  }
+
   // La API limita ráfagas por IP; deje cerrar la ventana usada por la creación real.
   await page.waitForTimeout(1_100);
   await page.goto(`${uiBaseUrl}/uat/nacha-inbound-simulator`);
@@ -120,7 +161,10 @@ test('transacción y simulador consumen un ciclo operativo real y explican bloqu
   const generatedBody = await generated.json();
   const simulation = await apiGet<any>(`/api/uat/nacha-inbound-simulator/${generatedBody.id}`, token);
   expect(simulation.entries[0].transactionId).toBeGreaterThan(0);
+  expect(simulation.entries[0].amount).toBe(transactionAmountBeforeRepair);
   expect(simulation.entries[0].isSynthetic).toBe(false);
+  expect(sql.scalar<number>(`SELECT [Amount] AS [value] FROM [AchTransactions]
+                             WHERE [TransactionExternalId] = ${sqlString(externalId)}`)).toBe(transactionAmountBeforeRepair);
   await expect(page.getByText('Archivo generado y pendiente de carga')).toBeVisible();
 
   const manipulated = await apiPost('/api/uat/nacha-inbound-simulator/generate', token, {
@@ -136,6 +180,11 @@ test('transacción y simulador consumen un ciclo operativo real y explican bloqu
   await page.goto(`${uiBaseUrl}/uat/nacha-inbound-simulator`);
   await expect(page.locator('ui-selector-buscable[formcontrolname="cycleCode"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Simulador NACHA-M de entrada', exact: true })).toBeVisible();
+  await apiPatch(`/clearing-house-cycle-configs/${config.id}/status`, token, {
+    isActive: false,
+    effectiveTo: `${today}T23:59:59Z`
+  }, [200]);
+  sql.close();
   expect(jsErrors).toEqual([]);
   expect(httpErrors).toEqual([]);
 });

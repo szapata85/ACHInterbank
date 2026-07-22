@@ -183,4 +183,44 @@ public class AchCycleSchedulerTests
         Assert.Contains(cycles, c => c.ClearingHouseCycleConfigId == 101);
         Assert.Contains(cycles, c => c.ClearingHouseCycleConfigId == 102);
     }
+
+    [Fact]
+    public async Task ScheduleCyclesForClearingHouseAsync_RejectsOverlappingActiveConfigurations()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options;
+        using var context = new AchDbContext(options);
+        context.Database.EnsureCreated();
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "12345678", ClearingHouseId = 1
+        });
+        context.ClearingHouseCycleConfigs.AddRange(
+            new ClearingHouseCycleConfig
+            {
+                ClearingHouseId = 1, CycleName = "CICLO 1", StartTime = TimeSpan.FromHours(8),
+                EndTime = TimeSpan.FromHours(10), CutoffTime = TimeSpan.FromHours(9),
+                EffectiveFrom = new DateTime(2026, 1, 1), IsActive = true
+            },
+            new ClearingHouseCycleConfig
+            {
+                ClearingHouseId = 1, CycleName = " ciclo 1 ", StartTime = TimeSpan.FromHours(8),
+                EndTime = TimeSpan.FromHours(10), CutoffTime = TimeSpan.FromHours(9),
+                EffectiveFrom = new DateTime(2026, 2, 1), IsActive = true
+            });
+        await context.SaveChangesAsync();
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
+        var cenitPolicy = new Mock<ICenitOperatingCalendarPolicy>();
+        cenitPolicy.Setup(x => x.ValidateCycleConsistencyAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var scheduler = new AchCycleScheduler(context, holidayService.Object, Mock.Of<IServiceProvider>(), cenitPolicy.Object);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 3, 23)));
+
+        Assert.Contains("superpuestas", exception.Message);
+        Assert.Empty(context.AchCycles);
+    }
 }
