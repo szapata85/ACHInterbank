@@ -2,8 +2,10 @@ using System.Net.Http.Headers;
 using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
+using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.External.Connections;
 
@@ -12,13 +14,16 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
 {
     private readonly ILoggerManager _logger;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
+    private readonly WsAxonEndpointSecurityOptions _endpointSecurity;
 
     public WsAxonRespuestaTransaccionesSoapClient(
         ILoggerManager logger,
-        ISoapIntegrationSettingsService soapSettingsService)
+        ISoapIntegrationSettingsService soapSettingsService,
+        IOptions<WsAxonEndpointSecurityOptions> endpointSecurity)
     {
         _logger = logger;
         _soapSettingsService = soapSettingsService;
+        _endpointSecurity = endpointSecurity.Value;
     }
 
     public Task<string> RegistrarRespuestaTransaccionAsync(string requestXml, CancellationToken ct = default)
@@ -146,34 +151,179 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
             throw new InvalidOperationException($"SOAP action for '{action}' is not configured in database.");
         }
 
-        return (ValidateControlledEndpoint(mapping.Endpoint), mapping.SoapAction);
+        return (ValidateEndpoint(mapping.Endpoint, _endpointSecurity), mapping.SoapAction);
     }
 
-    private static Uri ValidateControlledEndpoint(string endpoint)
+    private static Uri ValidateEndpoint(string endpoint, WsAxonEndpointSecurityOptions policy)
     {
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
-            || !string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
         {
             throw new InvalidOperationException(
-                "SOAP endpoint for 'RegistrarRespuestaTransaccion' must be an absolute controlled-local HTTP endpoint.");
+                "SOAP endpoint for 'RegistrarRespuestaTransaccion' must be an absolute URI.");
         }
 
-        var allowedHost = string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(uri.Host, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(uri.Host, "host.docker.internal", StringComparison.OrdinalIgnoreCase);
-        var expectedPath = string.Equals(
-            uri.AbsolutePath.TrimEnd('/'),
-            "/WSAxonRespuestaTransacciones.svc",
-            StringComparison.OrdinalIgnoreCase);
-
-        if (!allowedHost || !expectedPath)
+        if (!string.IsNullOrEmpty(uri.UserInfo))
         {
             throw new InvalidOperationException(
-                "SOAP endpoint for 'RegistrarRespuestaTransaccion' is outside the controlled-local WSAXON service allowlist.");
+                "SOAP endpoint for 'RegistrarRespuestaTransaccion' cannot contain embedded credentials.");
+        }
+
+        if (!string.IsNullOrEmpty(uri.Fragment))
+        {
+            throw new InvalidOperationException(
+                "SOAP endpoint for 'RegistrarRespuestaTransaccion' cannot contain a fragment.");
+        }
+
+        return policy.Mode switch
+        {
+            WsAxonEndpointSecurityMode.ControlledLocal => ValidateControlledLocal(uri, policy),
+            WsAxonEndpointSecurityMode.ConfiguredAllowlist => ValidateConfiguredAllowlist(uri, policy),
+            _ => throw new InvalidOperationException(
+                "SOAP endpoint security policy for 'RegistrarRespuestaTransaccion' is not configured.")
+        };
+    }
+
+    private static Uri ValidateControlledLocal(Uri uri, WsAxonEndpointSecurityOptions policy)
+    {
+        string[] allowedHosts = ["localhost", "127.0.0.1", "host.docker.internal"];
+        var allowedPorts = policy.AllowedPorts.Count == 0 ? [7083] : ValidatePorts(policy.AllowedPorts);
+        var allowedHost = allowedHosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase);
+        var expectedPath = PathsEqual(uri.AbsolutePath, "/WSAxonRespuestaTransacciones.svc");
+
+        if (policy.RequireHttps
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || !allowedHost
+            || !allowedPorts.Contains(uri.Port)
+            || !expectedPath)
+        {
+            throw new InvalidOperationException(
+                "SOAP endpoint for 'RegistrarRespuestaTransaccion' is outside the ControlledLocal WSAXON policy.");
         }
 
         return uri;
     }
+
+    private static Uri ValidateConfiguredAllowlist(Uri uri, WsAxonEndpointSecurityOptions policy)
+    {
+        var schemes = NormalizeSchemes(policy.AllowedSchemes);
+        var hosts = NormalizeHosts(policy.AllowedHosts);
+        var paths = NormalizePaths(policy.AllowedPaths);
+        var ports = ValidatePorts(policy.AllowedPorts);
+
+        if (schemes.Count == 0 || hosts.Count == 0 || paths.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "ConfiguredAllowlist for 'RegistrarRespuestaTransaccion' requires explicit schemes, hosts and paths.");
+        }
+
+        if (policy.RequireHttps && !schemes.Contains(Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException(
+                "ConfiguredAllowlist for 'RegistrarRespuestaTransaccion' is inconsistent with RequireHttps.");
+        }
+
+        var allowed = (!policy.RequireHttps || string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            && schemes.Contains(uri.Scheme)
+            && hosts.Contains(uri.IdnHost)
+            && (ports.Count == 0 || ports.Contains(uri.Port))
+            && paths.Any(path => PathsEqual(uri.AbsolutePath, path));
+
+        if (!allowed)
+        {
+            throw new InvalidOperationException(
+                "SOAP endpoint for 'RegistrarRespuestaTransaccion' is outside the ConfiguredAllowlist policy.");
+        }
+
+        return uri;
+    }
+
+    private static HashSet<string> NormalizeSchemes(IEnumerable<string> configured)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in configured)
+        {
+            var scheme = value?.Trim() ?? string.Empty;
+            if (ContainsWildcard(scheme)
+                || (!string.Equals(scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException(
+                    "ConfiguredAllowlist contains an invalid or unsafe SOAP scheme.");
+            }
+
+            result.Add(scheme);
+        }
+
+        return result;
+    }
+
+    private static HashSet<string> NormalizeHosts(IEnumerable<string> configured)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in configured)
+        {
+            var host = value?.Trim() ?? string.Empty;
+            if (ContainsWildcard(host)
+                || Uri.CheckHostName(host) == UriHostNameType.Unknown
+                || host.Contains("://", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "ConfiguredAllowlist contains an invalid or unsafe SOAP host.");
+            }
+
+            result.Add(new UriBuilder(Uri.UriSchemeHttps, host).Uri.IdnHost);
+        }
+
+        return result;
+    }
+
+    private static List<string> NormalizePaths(IEnumerable<string> configured)
+    {
+        var result = new List<string>();
+        foreach (var value in configured)
+        {
+            var path = value?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(path)
+                || !path.StartsWith('/')
+                || ContainsWildcard(path)
+                || path.Contains('#')
+                || path.Contains('?'))
+            {
+                throw new InvalidOperationException(
+                    "ConfiguredAllowlist contains an invalid or unsafe SOAP path.");
+            }
+
+            result.Add(path);
+        }
+
+        return result;
+    }
+
+    private static HashSet<int> ValidatePorts(IEnumerable<int> configured)
+    {
+        var result = new HashSet<int>();
+        foreach (var port in configured)
+        {
+            if (port is < 1 or > 65535)
+            {
+                throw new InvalidOperationException(
+                    "SOAP endpoint security policy contains an invalid port.");
+            }
+
+            result.Add(port);
+        }
+
+        return result;
+    }
+
+    private static bool PathsEqual(string left, string right)
+        => string.Equals(
+            left.TrimEnd('/'),
+            right.TrimEnd('/'),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool ContainsWildcard(string value)
+        => value.Contains('*') || value.Contains('?');
 
     private static string BuildEnvelope(string body)
     {

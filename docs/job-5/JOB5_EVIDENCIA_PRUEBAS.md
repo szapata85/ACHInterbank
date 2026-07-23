@@ -9,9 +9,9 @@ Veredicto: **NO-GO NORMATIVO**
 | Verificación | Resultado |
 |---|---|
 | Rama | `ACH-Interbank-Postgresql` |
-| Commit inicial | `5abd1e91aefc346adbd2dde09632a4e48d7daabb` |
-| Commit base | `5abd1e91aefc346adbd2dde09632a4e48d7daabb` |
-| Base ancestro de HEAD | Sí, exit code 0 |
+| Commit inicial de la corrección focal | `b317e5df7813479ec4d76dc721f5f7f7367ebba7` |
+| Commit base de la corrección focal | `b317e5df7813479ec4d76dc721f5f7f7367ebba7` |
+| HEAD inicial igual a la base | Sí |
 | Estado inicial | Limpio |
 
 ## Evidencia normativa y hashes
@@ -32,31 +32,19 @@ Los hashes se calcularon con `Get-FileHash -Algorithm SHA256`. No se modificó n
 Comando:
 
 ```powershell
-dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~WsAxonRespuestaTransaccionesSoapClientCharacterizationTests|FullyQualifiedName~NachaConfigResolverTests|FullyQualifiedName~IncomingNachaIngestionAppServiceTests|FullyQualifiedName~NachaInboundSimulatorTests|FullyQualifiedName~NotificarRespuestaAchUseCaseTests|FullyQualifiedName~AchReconciliationReadModelTests|FullyQualifiedName~NachaUploadControllerJob5Tests" --no-restore
+dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --filter "FullyQualifiedName~NachaIncomingEndToEndProcessingTests|FullyQualifiedName~WsAxonRespuestaTransaccionesSoapClientCharacterizationTests|FullyQualifiedName~NotificarRespuestaAchUseCaseTests" --no-restore
 ```
 
-Resultado: **72 passed, 0 failed, 0 skipped**.
+Resultado focal posterior a la corrección: **45 passed, 0 failed, 0 skipped**.
 
 Cobertura focal:
 
-- seis resultados de selección y ambigüedad de layout;
-- requisito de homologación;
-- bloqueo diferencial antes de parser/cola/SOAP;
-- nombres `.OUT` y `.RET`;
-- request persistido con siete parámetros;
-- response funcional/técnica persistida;
-- conciliación de compuerta y duplicidad;
-- allowlist local WSAXON y bloqueo de host/ruta/esquema no permitidos.
-
-Pruebas complementarias:
-
-| Alcance | Resultado |
-|---|---|
-| Correlación, validación funcional, gateway y duplicidad/orfandad | 92 passed, 0 failed |
-| Bytes/offsets ACHCOL, terminadores y CENIT fail-closed | 3 passed, 0 failed |
-| Scheduler/orquestador, persistencia de ejecución y retry | 4 passed, 0 failed |
-| Traducción específica de perfil inexistente vs. registro faltante | 2 passed, 0 failed |
-| ClearingHouse multimotor real, bases temporales | 2 passed, 0 failed |
+- ACHCOL y CENIT sintéticos bloqueados con `ProfileNotFound`;
+- persistencia del archivo, selección y diagnóstico auditable;
+- cero parseo funcional, correlación, transición, cola o ejecución SOAP;
+- request independiente con exactamente siete parámetros;
+- `ControlledLocal` y `ConfiguredAllowlist`;
+- restricción positiva de puerto y rechazo de host, esquema, ruta, credenciales, fragmentos, comodines y allowlist vacía antes de red.
 
 ## Doble carga
 
@@ -80,7 +68,7 @@ Comprobación de disponibilidad, sin ejecutar métodos SOAP:
 | PostgreSQL | Contenedor healthy |
 | WSAXON WSDL `http://localhost:7083/WSAxonRespuestaTransacciones.svc?wsdl` | HTTP 200; 3218 bytes; XML no impreso |
 
-La configuración efectiva de SQL Server contiene un endpoint no local de ejemplo. El nuevo cliente lo rechaza antes de red. No se modificó esa configuración ni se realizó una invocación.
+El endpoint persistido y la política de seguridad del ambiente son controles complementarios. `Development` usa `ControlledLocal` con puerto 7083; la configuración base queda sin modo y por ello falla cerrada. No se realizó una invocación SOAP en esta corrección.
 
 ## Live
 
@@ -90,9 +78,9 @@ La configuración efectiva de SQL Server contiene un endpoint no local de ejempl
 | Archivo diferencial oficial/verificado | SKIPPED | No existe en el repositorio |
 | Perfil seleccionado | SKIPPED | ACHCOL y CENIT están en NO-GO normativo |
 | Validación/correlación diferencial | SKIPPED | La compuerta bloquea antes del parser |
-| Request/response Live | SKIPPED | No se autoriza inventar un perfil ni despachar con endpoint efectivo no local |
+| Request/response Live | SKIPPED | No se autoriza inventar un perfil ni despachar sin superar la compuerta normativa |
 | Segunda carga Live | SKIPPED | No existió primera carga Live elegible |
-| Invocaciones reales | 0 | Bloqueo normativo y allowlist técnica |
+| Invocaciones reales | 0 | Bloqueo normativo anterior al despacho |
 
 No se usó un mock como evidencia Live.
 
@@ -101,22 +89,26 @@ No se usó un mock como evidencia Live.
 | Prueba | Entorno/proveedor | Resultado | Observación |
 |---|---|---|---|
 | Build Release | .NET 10 | PASS | 0 warnings, 0 errors |
-| Suite backend amplia | .NET 10 | PASS compuesto | Corrida amplia: 1930 pass, 3 fail, 5 skipped; los tres fallos se aislaron, corrigieron/habilitaron y luego pasaron 3/3. Resultado final no omitido: 1933 verdes. |
-| Golden/regresión | In-memory/archivos | PASS focal | 3 casos físicos críticos; los goldens diferenciales siguen clasificados como sintéticos |
-| SQL Server multimotor | SQL Server local | PASS | `ClearingHouseMultiDbTests`, base temporal GUID eliminada por el harness |
-| PostgreSQL multimotor | PostgreSQL local | PASS | `ClearingHouseMultiDbTests`, base temporal GUID eliminada por el harness |
+| Corrección focal | .NET 10 | PASS | 45 passed, 0 failed, 0 skipped |
+| Suite completa local, sin variables multimotor | .NET 10 | FAIL ambiental | 1939 passed, 2 failed, 5 skipped; fallaron exclusivamente los dos `ClearingHouseMultiDbTests` porque faltó `CLEARING_HOUSES_REQUIRE_DATABASES=true` y sus cadenas |
+| Suite efectiva de `dotnet-ci` | .NET 10 | PASS | 1939 passed, 0 failed, 5 skipped; filtro `Category!=ClearingHouseMultiDb`, `MaxCpuCount=1` |
+| GitHub Actions anterior a la corrección | `dotnet-ci` run `30051435354` | FAIL | 1928 passed, 3 failed, 5 skipped; causa corregida por este cambio |
+| Golden/regresión diferencial | In-memory/archivos | PASS fail-closed | Los goldens diferenciales siguen clasificados como sintéticos y no habilitan parser ni SOAP |
+| SQL Server multimotor | SQL Server local | SKIPPED | Corrección sin cambios de persistencia; opt-in no configurado en esta ejecución |
+| PostgreSQL multimotor | PostgreSQL local | SKIPPED | Corrección sin cambios de persistencia; opt-in no configurado en esta ejecución |
 | SQL Server diferencial E2E | SQL Server local | SKIPPED | Sin perfil/vector diferencial sustentado; no hubo cambio de esquema |
 | PostgreSQL diferencial E2E | PostgreSQL local | SKIPPED | Sin perfil/vector diferencial sustentado; no hubo cambio de esquema |
 | Migraciones | SQL Server/PostgreSQL | SKIPPED | No se modificó el modelo EF |
 | SPA build/test | Angular | SKIPPED | SPA no modificada |
 | Playwright focalizado | Chromium | SKIPPED | SPA no modificada y la compuerta impide demostrar un flujo diferencial válido |
-| SOAP Live | WCF local | SKIPPED | NO-GO normativo y configuración efectiva no local |
+| SOAP Live | WCF local | SKIPPED | NO-GO normativo; el flujo queda bloqueado antes del despacho |
 
-### SKIPPED de la suite amplia
+### SKIPPED legítimos y exclusiones
 
 | Prueba | Causa exacta | Cómo habilitar |
 |---|---|---|
 | 4 pruebas `FinancialPersistenceMigrationTests` | Opt-in de integridad financiera, fuera del cambio JOB 5 | Definir `FINANCIAL_INTEGRITY_REQUIRE_DATABASES=true` y las dos cadenas `FINANCIAL_INTEGRITY_*_CONNECTION_STRING` |
 | `SoapArchitectureDiagnosticTests.ApplicationAndDomain_ShouldReportSoapXmlProviderTerms_ForFutureRefactor` | `[Fact(Skip=...)]` permanente: diagnóstico inicial anterior al refactor | Retirar el `Skip` en una tarea arquitectural explícita |
-| Live diferencial | No existe perfil/vector diferencial sustentado y el endpoint efectivo no es local | Aportar evidencia normativa verificable, publicar/homologar el perfil y configurar WSAXON local |
+| 2 pruebas `ClearingHouseMultiDbTests` | Excluidas por el filtro oficial de `dotnet-ci`; la ejecución local sin variables las reportó como fallos de configuración, no como PASS | Definir `CLEARING_HOUSES_REQUIRE_DATABASES=true` y ambas cadenas `CLEARING_HOUSES_*_CONNECTION_STRING` |
+| Live diferencial | No existe perfil/vector diferencial sustentado | Aportar evidencia normativa verificable, publicar/homologar el perfil y configurar WSAXON bajo una política permitida |
 | SPA/Playwright | No se modificó SPA; el backend bloquea antes de un resultado diferencial válido | Resolver la compuerta normativa y ejecutar la ruta operatoria existente |

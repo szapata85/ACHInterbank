@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.External.Connections;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -141,21 +142,159 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         Assert.Contains("action", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Theory]
-    [InlineData("https://backend1.example.com/WSAxonRespuestaTransacciones.svc")]
-    [InlineData("http://localhost:7083/WSCFAACH.svc")]
-    [InlineData("ftp://localhost/WSAxonRespuestaTransacciones.svc")]
-    public async Task RegistrarRespuestaTransaccionAsync_WhenEndpointIsOutsideControlledAllowlist_BlocksBeforeNetwork(string endpoint)
+    [Fact]
+    public async Task ControlledLocal_AllowsExpectedLocalService()
     {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var sut = BuildClient(server.Url, out _);
+
+        await sut.RegistrarRespuestaTransaccionAsync("<x/>");
+
+        Assert.Single(server.Requests);
+    }
+
+    [Fact]
+    public async Task ControlledLocal_RejectsExternalHostBeforeNetwork()
+    {
+        var endpoint = "http://external.example.test:7083/WSAxonRespuestaTransacciones.svc";
         var sut = BuildClient(endpoint, out _);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
 
-        Assert.Contains("controlled-local", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ControlledLocal", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static WsAxonRespuestaTransaccionesSoapClient BuildClient(string endpoint, out Mock<ISoapIntegrationSettingsService> settingsMock, string? soapAction = null)
+    [Fact]
+    public async Task ConfiguredAllowlist_AllowsExplicitHost()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var sut = BuildClient(server.Url, out _, policy: ConfiguredPolicy(
+            schemes: ["http"],
+            hosts: ["127.0.0.1"],
+            ports: [new Uri(server.Url).Port],
+            paths: ["/WSAxonRespuestaTransacciones.svc"]));
+
+        await sut.RegistrarRespuestaTransaccionAsync("<x/>");
+
+        Assert.Single(server.Requests);
+    }
+
+    [Fact]
+    public async Task ConfiguredAllowlist_RejectsUnlistedHostWithoutNetworkAttempt()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<unexpected/>") });
+        var sut = BuildClient(server.Url, out _, policy: ConfiguredPolicy(
+            schemes: ["http"],
+            hosts: ["allowed.example.test"],
+            ports: [new Uri(server.Url).Port],
+            paths: ["/WSAxonRespuestaTransacciones.svc"]));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
+    public async Task ConfiguredAllowlist_RejectsSchemeNotAllowed()
+    {
+        var endpoint = "https://service.example.test/WSAxonRespuestaTransacciones.svc";
+        var sut = BuildClient(endpoint, out _, policy: ConfiguredPolicy(
+            schemes: ["http"],
+            hosts: ["service.example.test"],
+            paths: ["/WSAxonRespuestaTransacciones.svc"]));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+    }
+
+    [Fact]
+    public async Task ConfiguredAllowlist_RejectsUnexpectedPath()
+    {
+        var endpoint = "https://service.example.test/WSCFAACH.svc";
+        var sut = BuildClient(endpoint, out _, policy: ConfiguredPolicy(
+            schemes: ["https"],
+            hosts: ["service.example.test"],
+            paths: ["/WSAxonRespuestaTransacciones.svc"],
+            requireHttps: true));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+    }
+
+    [Fact]
+    public async Task ConfiguredAllowlist_RejectsEmptyAllowlist()
+    {
+        var sut = BuildClient(
+            "https://service.example.test/WSAxonRespuestaTransacciones.svc",
+            out _,
+            policy: new WsAxonEndpointSecurityOptions
+            {
+                Mode = WsAxonEndpointSecurityMode.ConfiguredAllowlist
+            });
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+
+        Assert.Contains("requires explicit", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("http://user:password@service.example.test/WSAxonRespuestaTransacciones.svc", "credentials")]
+    [InlineData("http://service.example.test/WSAxonRespuestaTransacciones.svc#fragment", "fragment")]
+    public async Task ConfiguredAllowlist_RejectsUnsafeUriComponents(string endpoint, string expectedDiagnostic)
+    {
+        var sut = BuildClient(endpoint, out _, policy: ConfiguredPolicy(
+            schemes: ["http"],
+            hosts: ["service.example.test"],
+            paths: ["/WSAxonRespuestaTransacciones.svc"]));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+
+        Assert.Contains(expectedDiagnostic, ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ConfiguredAllowlist_RejectsUnsafeWildcard()
+    {
+        var sut = BuildClient(
+            "https://service.example.test/WSAxonRespuestaTransacciones.svc",
+            out _,
+            policy: ConfiguredPolicy(
+                schemes: ["https"],
+                hosts: ["*.example.test"],
+                paths: ["/WSAxonRespuestaTransacciones.svc"]));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+
+        Assert.Contains("unsafe SOAP host", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UnconfiguredPolicy_RejectsByDefault()
+    {
+        var sut = BuildClient(
+            "http://127.0.0.1:7083/WSAxonRespuestaTransacciones.svc",
+            out _,
+            policy: new WsAxonEndpointSecurityOptions());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+
+        Assert.Contains("not configured", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static WsAxonRespuestaTransaccionesSoapClient BuildClient(
+        string endpoint,
+        out Mock<ISoapIntegrationSettingsService> settingsMock,
+        string? soapAction = null,
+        WsAxonEndpointSecurityOptions? policy = null)
     {
         var mapping = new SoapEndpointMethodMappingDto
         {
@@ -164,30 +303,66 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
             Endpoint = endpoint,
             SoapAction = soapAction ?? "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion"
         };
-        return BuildClientWithMockedSettings(mapping, out settingsMock);
+        policy ??= ControlledLocalPolicy(endpoint);
+        return BuildClientWithMockedSettings(mapping, policy, out settingsMock);
     }
 
     private static WsAxonRespuestaTransaccionesSoapClient BuildClientWithoutMapping()
     {
         var settings = new Mock<ISoapIntegrationSettingsService>();
         settings.Setup(x => x.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new SoapIntegrationSettingsDto());
-        return new WsAxonRespuestaTransaccionesSoapClient(Mock.Of<ILoggerManager>(), settings.Object);
+        return new WsAxonRespuestaTransaccionesSoapClient(
+            Mock.Of<ILoggerManager>(),
+            settings.Object,
+            Options.Create(new WsAxonEndpointSecurityOptions()));
     }
 
     private static WsAxonRespuestaTransaccionesSoapClient BuildClientWithCustomMapping(SoapEndpointMethodMappingDto mapping)
     {
-        return BuildClientWithMockedSettings(mapping, out _);
+        return BuildClientWithMockedSettings(
+            mapping,
+            new WsAxonEndpointSecurityOptions(),
+            out _);
     }
 
-    private static WsAxonRespuestaTransaccionesSoapClient BuildClientWithMockedSettings(SoapEndpointMethodMappingDto mapping, out Mock<ISoapIntegrationSettingsService> settings)
+    private static WsAxonRespuestaTransaccionesSoapClient BuildClientWithMockedSettings(
+        SoapEndpointMethodMappingDto mapping,
+        WsAxonEndpointSecurityOptions policy,
+        out Mock<ISoapIntegrationSettingsService> settings)
     {
         settings = new Mock<ISoapIntegrationSettingsService>();
         settings.Setup(x => x.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new SoapIntegrationSettingsDto
         {
             WsAxonRespuestaTransaccionesMappings = [mapping]
         });
-        return new WsAxonRespuestaTransaccionesSoapClient(Mock.Of<ILoggerManager>(), settings.Object);
+        return new WsAxonRespuestaTransaccionesSoapClient(
+            Mock.Of<ILoggerManager>(),
+            settings.Object,
+            Options.Create(policy));
     }
+
+    private static WsAxonEndpointSecurityOptions ControlledLocalPolicy(string endpoint)
+        => new()
+        {
+            Mode = WsAxonEndpointSecurityMode.ControlledLocal,
+            AllowedPorts = [new Uri(endpoint).Port]
+        };
+
+    private static WsAxonEndpointSecurityOptions ConfiguredPolicy(
+        IEnumerable<string> schemes,
+        IEnumerable<string> hosts,
+        IEnumerable<string> paths,
+        IEnumerable<int>? ports = null,
+        bool requireHttps = false)
+        => new()
+        {
+            Mode = WsAxonEndpointSecurityMode.ConfiguredAllowlist,
+            AllowedSchemes = [.. schemes],
+            AllowedHosts = [.. hosts],
+            AllowedPorts = ports is null ? [] : [.. ports],
+            AllowedPaths = [.. paths],
+            RequireHttps = requireHttps
+        };
 
     private sealed class LocalSoapServer : IDisposable
     {

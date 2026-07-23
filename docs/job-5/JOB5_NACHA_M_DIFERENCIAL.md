@@ -2,7 +2,9 @@
 
 Fecha de evaluación: 2026-07-23
 
-Línea base: `5abd1e91aefc346adbd2dde09632a4e48d7daabb`
+Línea base funcional JOB 5: `5abd1e91aefc346adbd2dde09632a4e48d7daabb`
+
+Línea base de la corrección focal: `b317e5df7813479ec4d76dc721f5f7f7367ebba7`
 
 Veredicto: **NO-GO NORMATIVO**
 
@@ -14,7 +16,7 @@ No se habilitó un layout, parser, generador ni despacho diferencial para ACHCOL
 - CENIT: los anexos prueban reglas operativas y catálogos de causales, pero el DSP-152 remite al `Manual de Especificaciones del Formato para el Servicio de Transferencia de Archivos – STA`, que no está disponible. No existe un vector diferencial oficial o referencia real verificada.
 - Los archivos `.RET` existentes son fixtures sintéticos de regresión. No se reclasificaron como oficiales ni se modificaron.
 
-La ausencia de un perfil normativamente sustentado bloquea el procesamiento antes del parser y antes de toda correlación, evento funcional o llamada SOAP.
+La ausencia de un perfil normativamente sustentado bloquea el procesamiento antes del parser y antes de toda correlación, evento funcional o llamada SOAP. Las pruebas E2E de ACHCOL y CENIT usan los `.RET` solo como `SyntheticFixture` y demuestran `ProfileNotFound`, persistencia auditable y cero decisiones o despachos.
 
 ## Arquitectura resultante
 
@@ -91,13 +93,14 @@ descripcionCausal
 
 Cada intento ahora persiste un request JSON con esos siete nombres y una respuesta funcional sanitizada. Los errores técnicos persisten solamente estado y tipo de excepción; el XML completo no se registra.
 
-El cliente físico resuelve endpoint y SOAPAction desde la configuración persistida, pero valida antes de red:
+El cliente físico resuelve endpoint y SOAPAction desde la configuración persistida, pero aplica antes de red una política independiente por ambiente:
 
-- esquema `http`;
-- host `localhost`, `127.0.0.1` o `host.docker.internal`;
-- ruta `/WSAxonRespuestaTransacciones.svc`.
+- `ControlledLocal`: solo `http`, `localhost`, `127.0.0.1` o `host.docker.internal`, puerto permitido y ruta `/WSAxonRespuestaTransacciones.svc`;
+- `ConfiguredAllowlist`: esquemas, hosts, puertos opcionalmente restringidos y rutas exactas configuradas; `RequireHttps` puede endurecer el ambiente;
+- `Unconfigured` o configuración inconsistente: rechazo fail-closed;
+- credenciales embebidas, fragmentos, comodines y allowlists incompletas: rechazo antes de crear la solicitud HTTP.
 
-Una configuración distinta queda bloqueada sin conexión. `RegistrarRespuestaTransaccion` continúa clasificado como no monetario.
+No se hardcodearon destinos UAT o productivos. El endpoint persistido no sustituye la allowlist y la allowlist no selecciona el endpoint funcional. Los siete parámetros permanecen intactos y `RegistrarRespuestaTransaccion` continúa clasificado como no monetario.
 
 ## Doble carga e idempotencia
 
@@ -140,4 +143,4 @@ No se modificaron snapshots de SQL Server/PostgreSQL ni golden files.
 4. Vector diferencial CENIT oficial o referencia real verificada y trazable.
 5. Perfil `nacha-config` diferencial homologado por cámara.
 6. Parser/generador diferencial consumiendo exclusivamente el snapshot seleccionado.
-7. Evidencia Live pendiente hasta resolver la compuerta normativa y una configuración local efectiva.
+7. Evidencia Live pendiente hasta resolver la compuerta normativa; `Development` ya dispone de `ControlledLocal` para el WSAXON local.
