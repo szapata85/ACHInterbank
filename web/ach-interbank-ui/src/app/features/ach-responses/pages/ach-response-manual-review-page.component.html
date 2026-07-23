@@ -1,25 +1,12 @@
-<app-page-header
-  title="Revisión manual de respuestas ACH"
-  description="Bandeja operativa para respuestas no homologadas, errores funcionales y casos pendientes de revisión"
-></app-page-header>
+<app-page-header title="Revisión manual de respuestas ACH" description="Bandeja resolutiva de respuestas críticas y huérfanas"></app-page-header>
 
 <form class="filtros" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
   <div class="campo"><label>Fecha desde</label><input type="date" formControlName="fechaDesde" /></div>
   <div class="campo"><label>Fecha hasta</label><input type="date" formControlName="fechaHasta" /></div>
-  <div class="campo">
-    <label>Estado crítico</label>
-    <select formControlName="estadoProcesamiento">
-      <option *ngFor="let estado of criticalStates" [value]="estado">{{ estado }}</option>
-    </select>
-  </div>
-  <div class="campo">
-    <label>Tipo respuesta</label>
-    <select formControlName="tipoRespuesta">
-      <option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</option>
-    </select>
-  </div>
-  <div class="campo"><label>Id transacción</label><input type="text" formControlName="idTransaccion" /></div>
-  <div class="campo"><label>Cámara</label><input type="text" formControlName="codigoCamaraCompensacion" /></div>
+  <div class="campo"><label>Estado crítico</label><select formControlName="estadoProcesamiento"><option *ngFor="let estado of criticalStates" [value]="estado">{{ estado }}</option></select></div>
+  <div class="campo"><label>Tipo respuesta</label><select formControlName="tipoRespuesta"><option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</option></select></div>
+  <div class="campo"><label>ID transacción</label><input type="text" formControlName="idTransaccion" /></div>
+  <div class="campo"><label>Selector de cámara</label><input type="text" formControlName="codigoCamaraCompensacion" /></div>
   <div class="campo"><label>Entidad origen</label><input type="text" formControlName="codigoEntidadOrigen" /></div>
   <div class="campo"><label>Entidad destino</label><input type="text" formControlName="codigoEntidadDestino" /></div>
   <div class="acciones">
@@ -29,31 +16,37 @@
 </form>
 
 <p class="resumen">Mostrando {{ rows.length }} de {{ totalCount }} casos. Página {{ filtrosForm.controls.pageNumber.value }} de {{ totalPages || 1 }}.</p>
-
-<ui-grilla-empresarial
-  [columnas]="columnas"
-  [datos]="rows"
-  [cargando]="loading"
-  [error]="error"
+<ui-grilla-empresarial [columnas]="columnas" [datos]="rows" [cargando]="loading" [error]="error"
   [mensajeError]="'No fue posible cargar los casos de revisión manual ACH'"
-  [mensajeCargando]="'Cargando casos críticos de revisión manual... '"
-  [tituloVacio]="'Sin casos críticos'"
-  [mensajeVacio]="'No se encontraron respuestas en estado crítico para los filtros aplicados.'"
-  [placeholderBusqueda]="'Buscar en resultados de revisión manual...'"
-  [paginacion]="true"
-  [tamanoPagina]="filtrosForm.controls.pageSize.value ?? 20"
-  (reintentar)="applyFilters()"
-></ui-grilla-empresarial>
+  [mensajeCargando]="'Cargando casos críticos de revisión manual...'" [tituloVacio]="'Sin casos críticos'"
+  [mensajeVacio]="'No se encontraron respuestas en estado crítico.'" [placeholderBusqueda]="'Buscar en revisión manual...'"
+  [paginacion]="true" [tamanoPagina]="filtrosForm.controls.pageSize.value ?? 20" (reintentar)="applyFilters()">
+</ui-grilla-empresarial>
 
 <div class="paginacion">
   <label for="pageSize">Tamaño página</label>
-  <select id="pageSize" [value]="filtrosForm.controls.pageSize.value ?? 20" (change)="setPageSize(+$any($event.target).value)">
-    <option [value]="10">10</option>
-    <option [value]="20">20</option>
-    <option [value]="50">50</option>
-  </select>
+  <select id="pageSize" [value]="filtrosForm.controls.pageSize.value ?? 20" (change)="setPageSize(+$any($event.target).value)"><option [value]="10">10</option><option [value]="20">20</option><option [value]="50">50</option></select>
   <ui-boton texto="Anterior" variante="contorno" [deshabilitado]="loading || (filtrosForm.controls.pageNumber.value ?? 1) <= 1" (accion)="previousPage()"></ui-boton>
   <ui-boton texto="Siguiente" variante="contorno" [deshabilitado]="loading || (filtrosForm.controls.pageNumber.value ?? 1) >= (totalPages || 1)" (accion)="nextPage()"></ui-boton>
 </div>
 
-<p class="nota-operativa">Esta bandeja es de consulta y priorización. Las acciones de resolución, homologación o reintento se implementarán en fases posteriores.</p>
+<h2>Respuestas huérfanas</h2>
+<p *ngIf="orphanLoading">Cargando huérfanas...</p>
+<p *ngIf="!orphanLoading && orphans.length === 0">No hay respuestas huérfanas pendientes.</p>
+<div *ngFor="let orphan of orphans" class="nota-operativa">
+  <strong>{{ orphan.responseType }} · {{ orphan.externalCode }}</strong>
+  <span> Estado: {{ orphan.resolutionStatus }} · Cámara #{{ orphan.clearingHouseId }}</span>
+  <span> Motivo: {{ orphan.orphanReason }}</span>
+  <ui-boton texto="Seleccionar" variante="contorno" [deshabilitado]="resolving" (accion)="selectOrphan(orphan)"></ui-boton>
+</div>
+
+<form class="filtros" [formGroup]="resolutionForm">
+  <div class="campo"><label>Huérfana seleccionada</label><input type="text" formControlName="orphanId" readonly /></div>
+  <div class="campo"><label>Referencia funcional exacta</label><input type="text" formControlName="functionalReference" /></div>
+  <div class="campo"><label>Justificación obligatoria</label><textarea formControlName="reason" rows="2"></textarea></div>
+  <div class="campo"><label><input type="checkbox" formControlName="reject" /> Rechazar sin asociar</label></div>
+  <div class="acciones">
+    <ui-boton texto="Iniciar revisión" variante="contorno" [deshabilitado]="resolving" (accion)="beginSelectedReview()"></ui-boton>
+    <ui-boton texto="Resolver" variante="primario" [deshabilitado]="resolving" (accion)="resolveSelectedOrphan()"></ui-boton>
+  </div>
+</form>

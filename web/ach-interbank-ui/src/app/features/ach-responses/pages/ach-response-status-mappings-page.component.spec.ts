@@ -25,9 +25,9 @@ describe('AchResponseStatusMappingsPageComponent', () => {
   ] as any;
 
   beforeEach(() => {
-    apiSpy = jasmine.createSpyObj<AchResponsesApiService>('AchResponsesApiService', ['getStatusMappings']);
+    apiSpy = jasmine.createSpyObj<AchResponsesApiService>('AchResponsesApiService', ['getStatusMappings', 'getStatusMapping', 'createStatusMapping', 'updateStatusMapping']);
     apiSpy.getStatusMappings.and.returnValue(of(mappingsMock));
-    notificationSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['error']);
+    notificationSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['error', 'success', 'warning']);
 
     TestBed.configureTestingModule({
       imports: [AchResponseStatusMappingsPageComponent],
@@ -132,5 +132,52 @@ describe('AchResponseStatusMappingsPageComponent', () => {
     const forbiddenTerms = ['idTransaccionAxon', 'Axon', 'Soap', 'SOAP', 'Wsdl', 'Envelope', 'RequestPayload', 'ResponsePayload', 'Xml'];
 
     forbiddenTerms.forEach((term) => expect(visibleKeys).not.toContain(term));
+  });
+
+  it('AchResponseStatusMappingsPageComponent_ShouldRequireJustificationAndValidDates', () => {
+    const fixture = TestBed.createComponent(AchResponseStatusMappingsPageComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.newMapping();
+    component.mappingForm.patchValue({ effectiveFrom: '2026-07-10', effectiveTo: '2026-07-01' });
+
+    component.saveMapping();
+
+    expect(apiSpy.createStatusMapping).not.toHaveBeenCalled();
+    expect(notificationSpy.error).toHaveBeenCalled();
+  });
+
+  it('AchResponseStatusMappingsPageComponent_ShouldCreateMappingWithPriorityAndValidity', () => {
+    apiSpy.createStatusMapping.and.returnValue(of({ id: 2 } as any));
+    const fixture = TestBed.createComponent(AchResponseStatusMappingsPageComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.newMapping();
+    component.mappingForm.patchValue({ clearingHouseId: 1, responseType: 'Transaccion', externalCode: 'R01',
+      internalStatusId: 10, externalServiceStatusId: 20, internalStatusName: 'Rechazada', priority: 100,
+      effectiveFrom: '2026-07-01', effectiveTo: '2026-12-31', reason: 'Alta controlada' });
+
+    component.saveMapping();
+
+    const request = apiSpy.createStatusMapping.calls.mostRecent().args[0];
+    expect(request.clearingHouseId).toBe(1);
+    expect(request.priority).toBe(100);
+    expect(request.reason).toBe('Alta controlada');
+  });
+
+  it('AchResponseStatusMappingsPageComponent_ShouldReloadOn409Conflict', () => {
+    apiSpy.createStatusMapping.and.returnValue(throwError(() => ({ status: 409, error: { detail: 'conflict' } })));
+    const fixture = TestBed.createComponent(AchResponseStatusMappingsPageComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.newMapping();
+    component.mappingForm.patchValue({ clearingHouseId: 1, externalCode: 'R01', internalStatusId: 10,
+      externalServiceStatusId: 20, internalStatusName: 'Rechazada', effectiveFrom: '2026-07-01',
+      reason: 'Alta controlada' });
+
+    component.saveMapping();
+
+    expect(notificationSpy.warning).toHaveBeenCalled();
+    expect(apiSpy.getStatusMappings.calls.count()).toBeGreaterThan(1);
   });
 });

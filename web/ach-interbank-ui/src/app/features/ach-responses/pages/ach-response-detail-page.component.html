@@ -6,6 +6,7 @@
 <div class="acciones-header">
   <ui-boton texto="Volver" variante="contorno" (accion)="backToList()"></ui-boton>
   <ui-boton *ngIf="detail" texto="Ver intentos" variante="primario" (accion)="goToAttempts()"></ui-boton>
+  <ui-boton *ngIf="detail" texto="Auditoría" variante="contorno" (accion)="toggleAudit()"></ui-boton>
 </div>
 
 <ui-estado-carga *ngIf="loading" [mensaje]="'Cargando detalle de respuesta ACH...'"></ui-estado-carga>
@@ -17,6 +18,23 @@
 ></ui-estado-error>
 
 <div *ngIf="!loading && !error && detail" class="detalle-layout">
+  <section class="card" *ngIf="canReprocess()">
+    <h3>Reproceso gobernado</h3>
+    <label>Justificación obligatoria</label>
+    <textarea rows="2" [value]="reprocessReason" (input)="reprocessReason = $any($event.target).value"></textarea>
+    <ui-boton texto="Solicitar reproceso" variante="primario" [deshabilitado]="reprocessing" (accion)="requestReprocess()"></ui-boton>
+  </section>
+
+  <section class="card" *ngIf="auditVisible">
+    <h3>Auditoría inmutable</h3>
+    <p *ngIf="auditEntries.length === 0">No hay eventos registrados.</p>
+    <details *ngFor="let event of auditEntries">
+      <summary>{{ event.action }} · {{ formatDate(event.occurredAtUtc) }}</summary>
+      <p>{{ event.previousState || '—' }} → {{ event.newState || '—' }}</p>
+      <p><strong>Actor:</strong> {{ event.actor }} · <strong>Motivo:</strong> {{ event.reason }}</p>
+      <pre *ngIf="event.sanitizedMetadata">{{ event.sanitizedMetadata }}</pre>
+    </details>
+  </section>
   <section class="card">
     <h3>Datos principales</h3>
     <div class="grid-campos">

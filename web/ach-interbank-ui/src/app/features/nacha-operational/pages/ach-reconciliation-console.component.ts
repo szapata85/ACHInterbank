@@ -5,7 +5,7 @@ import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { SharedModule } from '../../../shared/shared.module';
 import { AchReconciliationDetail, AchReconciliationItem } from '../models/nacha-operational.models';
-import { AchReconciliationConsoleData, AchReconciliationService } from '../services/ach-reconciliation.service';
+import { AchReconciliationConsoleData, AchReconciliationException, AchReconciliationService } from '../services/ach-reconciliation.service';
 
 @Component({
   selector: 'app-ach-reconciliation-console',
@@ -27,6 +27,10 @@ export class AchReconciliationConsoleComponent implements OnInit {
   camara = '';
   tipo = '';
   soloRevision = false;
+  selectedException?: AchReconciliationException;
+  resolution = '';
+  resolutionReason = '';
+  resolving = false;
 
   readonly columnas: ColDef<AchReconciliationItem>[] = [
     { field: 'reconciliationId', headerName: 'ID', minWidth: 170 },
@@ -91,6 +95,36 @@ export class AchReconciliationConsoleComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  selectException(item: AchReconciliationException): void {
+    this.selectedException = item;
+    this.resolution = '';
+    this.resolutionReason = '';
+  }
+
+  resolveSelectedException(): void {
+    const item = this.selectedException;
+    if (!item || this.resolution.trim().length < 3 || this.resolutionReason.trim().length < 5) {
+      this.error = 'La resolución y la justificación son obligatorias.';
+      return;
+    }
+    this.resolving = true;
+    this.error = '';
+    this.service.resolveException(item.id, item.version, this.resolution.trim(), this.resolutionReason.trim())
+      .pipe(finalize(() => { this.resolving = false; this.cdr.markForCheck(); }))
+      .subscribe({
+        next: (updated) => {
+          const index = this.data?.exceptions.findIndex(x => x.id === updated.id) ?? -1;
+          if (this.data && index >= 0) this.data.exceptions[index] = updated;
+          this.selectedException = updated;
+        },
+        error: (err) => {
+          this.error = err?.status === 409
+            ? 'La excepción cambió; recargue la versión vigente.'
+            : err?.message ?? 'No fue posible resolver la excepción.';
+        }
+      });
   }
 
   badgeClass(value: string | boolean | undefined): string {

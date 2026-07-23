@@ -6,6 +6,7 @@ import { AchResponseDetailPageComponent } from './pages/ach-response-detail-page
 import { AchResponseListPageComponent } from './pages/ach-response-list-page.component';
 import { AchResponseManualReviewPageComponent } from './pages/ach-response-manual-review-page.component';
 import { AchResponseStatusMappingsPageComponent } from './pages/ach-response-status-mappings-page.component';
+import { AchResponseAuditPageComponent } from './pages/ach-response-audit-page.component';
 import { permissionGuard } from '../../core/guards/permission.guard';
 
 export const ACH_RESPONSES_ROUTES: Routes = [
@@ -32,6 +33,12 @@ export const ACH_RESPONSES_ROUTES: Routes = [
     component: AchResponseDashboardPageComponent,
     canActivate: [permissionGuard],
     data: { permissions: ['CanReadAch'], title: 'Panel de respuestas ACH', breadcrumb: 'Panel' }
+  },
+  {
+    path: 'audit',
+    component: AchResponseAuditPageComponent,
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], title: 'Auditoría de respuestas ACH', breadcrumb: 'Auditoría' }
   },
   {
     path: ':id/notification-attempts',

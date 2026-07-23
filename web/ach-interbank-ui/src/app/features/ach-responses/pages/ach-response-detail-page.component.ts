@@ -4,7 +4,8 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { AchResponseDetailResponse } from '../models/ach-responses.models';
+import { AchResponseAuditModel, AchResponseDetailResponse } from '../models/ach-responses.models';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
 import { formatAchDate, formatAchValue } from '../utils/ach-response-formatters';
 import { formatAchNotificationStatus, formatAchProcessingStatus, getAchNotificationStatusClass, getAchProcessingStatusClass } from '../utils/ach-response-status.utils';
@@ -28,6 +29,10 @@ export class AchResponseDetailPageComponent implements OnInit {
   loading = false;
   error = false;
   responseId: string | null = null;
+  reprocessReason = '';
+  reprocessing = false;
+  auditEntries: AchResponseAuditModel[] = [];
+  auditVisible = false;
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -72,6 +77,43 @@ export class AchResponseDetailPageComponent implements OnInit {
   goToAttempts(): void {
     if (!this.detail) return;
     this.router.navigate(['/ach-responses', this.detail.id, 'notification-attempts']);
+  }
+
+  canReprocess(): boolean {
+    return !!this.detail && ['ErrorTecnico', 'PendienteReintento', 'NoHomologada', 'ErrorFuncional', 'Resuelta']
+      .includes(this.detail.estadoProcesamiento);
+  }
+
+  requestReprocess(): void {
+    if (!this.detail || !this.canReprocess()) return;
+    if (this.reprocessReason.trim().length < 5) {
+      this.notifications.error('La justificación de reproceso es obligatoria.');
+      return;
+    }
+    this.reprocessing = true;
+    const commandId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-0000-4000-8000-000000000000`;
+    this.api.requestReprocess(this.detail.id, commandId, this.detail.version, this.reprocessReason.trim())
+      .pipe(finalize(() => { this.reprocessing = false; this.cdr.markForCheck(); }))
+      .subscribe({ next: () => {
+        this.notifications.success('Reproceso solicitado y pendiente de ejecución gobernada.');
+        this.reprocessReason = '';
+        this.loadDetail(this.detail!.id);
+      }, error: (error: HttpErrorResponse) => {
+        if (error.status === 409) {
+          this.notifications.warning('La respuesta cambió o ya tiene un reproceso activo. Se recargó el detalle.');
+          this.loadDetail(this.detail!.id);
+        } else this.notifications.error(typeof error.error?.detail === 'string' ? error.error.detail : 'No fue posible solicitar el reproceso.');
+      }});
+  }
+
+  toggleAudit(): void {
+    if (!this.detail) return;
+    this.auditVisible = !this.auditVisible;
+    if (!this.auditVisible || this.auditEntries.length > 0) return;
+    this.api.getResponseAudit(this.detail.id).subscribe({
+      next: (items) => { this.auditEntries = items ?? []; this.cdr.markForCheck(); },
+      error: () => this.notifications.error('No fue posible cargar la auditoría de la respuesta.')
+    });
   }
 
   formatValue(value: unknown): string { return formatAchValue(value); }

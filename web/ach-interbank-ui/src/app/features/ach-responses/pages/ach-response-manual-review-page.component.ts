@@ -1,12 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { AchResponseListItemResponse, AchResponseSearchRequest } from '../models/ach-responses.models';
+import { AchResponseListItemResponse, AchResponseOrphanModel, AchResponseSearchRequest } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
 import { formatAchDate, formatAchValue, normalizeAchFilter } from '../utils/ach-response-formatters';
 import { createAchBadgeElement, createAchButtonElement } from '../utils/ach-response-renderers';
@@ -49,6 +50,14 @@ export class AchResponseManualReviewPageComponent implements OnInit {
     codigoEntidadDestino: [''],
     pageNumber: [1],
     pageSize: [20]
+  });
+
+  readonly resolutionForm = this.fb.group({
+    orphanId: ['', Validators.required],
+    expectedVersion: ['', Validators.required],
+    reason: ['', [Validators.required, Validators.minLength(5)]],
+    functionalReference: [''],
+    reject: [false]
   });
 
   readonly columnas: ColDef<AchManualReviewRow>[] = [
@@ -94,9 +103,13 @@ export class AchResponseManualReviewPageComponent implements OnInit {
   totalPages = 0;
   loading = false;
   error = false;
+  orphans: AchResponseOrphanModel[] = [];
+  orphanLoading = false;
+  resolving = false;
 
   ngOnInit(): void {
     this.loadManualReviewCases();
+    this.loadOrphans();
   }
 
   applyFilters(): void {
@@ -141,6 +154,48 @@ export class AchResponseManualReviewPageComponent implements OnInit {
 
   openDetail(row: AchManualReviewRow): void {
     this.router.navigate(['/ach-responses', row.id]);
+  }
+
+  selectOrphan(orphan: AchResponseOrphanModel): void {
+    this.resolutionForm.patchValue({ orphanId: orphan.id, expectedVersion: orphan.version,
+      reason: '', functionalReference: orphan.resolvedReference ?? '', reject: false });
+    this.cdr.markForCheck();
+  }
+
+  beginSelectedReview(): void {
+    const raw = this.resolutionForm.getRawValue();
+    if (!raw.orphanId || !raw.expectedVersion || !raw.reason || raw.reason.trim().length < 5) {
+      this.notifications.error('Seleccione una huérfana e indique una justificación.');
+      return;
+    }
+    this.resolving = true;
+    this.api.beginOrphanReview(raw.orphanId, raw.expectedVersion, raw.reason.trim()).pipe(
+      finalize(() => { this.resolving = false; this.cdr.markForCheck(); })
+    ).subscribe({ next: (item) => {
+      this.notifications.success('Revisión iniciada.');
+      this.selectOrphan(item);
+      this.loadOrphans();
+    }, error: (error: HttpErrorResponse) => this.handleOperationError(error) });
+  }
+
+  resolveSelectedOrphan(): void {
+    const raw = this.resolutionForm.getRawValue();
+    const reject = !!raw.reject;
+    if (!raw.orphanId || !raw.expectedVersion || !raw.reason || raw.reason.trim().length < 5 ||
+        (!reject && !raw.functionalReference?.trim())) {
+      this.notifications.error('Complete la justificación y la referencia funcional para asociar.');
+      return;
+    }
+    this.resolving = true;
+    this.api.resolveOrphan(raw.orphanId, raw.expectedVersion, raw.reason.trim(),
+      reject ? null : raw.functionalReference!.trim(), reject).pipe(
+      finalize(() => { this.resolving = false; this.cdr.markForCheck(); })
+    ).subscribe({ next: () => {
+      this.notifications.success(reject ? 'Respuesta huérfana rechazada.' : 'Respuesta huérfana asociada.');
+      this.resolutionForm.reset({ orphanId: '', expectedVersion: '', reason: '', functionalReference: '', reject: false });
+      this.loadOrphans();
+      this.loadManualReviewCases();
+    }, error: (error: HttpErrorResponse) => this.handleOperationError(error) });
   }
 
   getPriority(status: string | null | undefined): string {
@@ -193,6 +248,26 @@ export class AchResponseManualReviewPageComponent implements OnInit {
         this.notifications.error('No fue posible cargar los casos de revisión manual ACH');
       }
     });
+  }
+
+  private loadOrphans(): void {
+    this.orphanLoading = true;
+    this.api.getOrphans(undefined, undefined).pipe(finalize(() => {
+      this.orphanLoading = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: (items) => { this.orphans = items ?? []; },
+      error: () => { this.orphans = []; this.notifications.error('No fue posible cargar las respuestas huérfanas.'); }
+    });
+  }
+
+  private handleOperationError(error: HttpErrorResponse): void {
+    if (error.status === 409) {
+      this.notifications.warning('Otro usuario modificó el caso. Se recargó la versión vigente.');
+      this.loadOrphans();
+      return;
+    }
+    this.notifications.error(typeof error.error?.detail === 'string' ? error.error.detail : 'No fue posible completar la operación.');
   }
 
   private buildSearchRequest(): AchResponseSearchRequest {

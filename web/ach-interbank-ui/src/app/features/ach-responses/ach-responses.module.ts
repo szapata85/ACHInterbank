@@ -8,6 +8,7 @@ import { AchResponseDetailPageComponent } from './pages/ach-response-detail-page
 import { AchResponseListPageComponent } from './pages/ach-response-list-page.component';
 import { AchResponseManualReviewPageComponent } from './pages/ach-response-manual-review-page.component';
 import { AchResponseStatusMappingsPageComponent } from './pages/ach-response-status-mappings-page.component';
+import { AchResponseAuditPageComponent } from './pages/ach-response-audit-page.component';
 
 @NgModule({
   imports: [
@@ -19,7 +20,8 @@ import { AchResponseStatusMappingsPageComponent } from './pages/ach-response-sta
     AchResponseAttemptsPageComponent,
     AchResponseManualReviewPageComponent,
     AchResponseStatusMappingsPageComponent,
-    AchResponseDashboardPageComponent
+    AchResponseDashboardPageComponent,
+    AchResponseAuditPageComponent
   ]
 })
 export class AchResponsesModule {}

@@ -6,6 +6,21 @@ import { AchReconciliationDashboard, AchReconciliationDetail, AchReconciliationI
 export interface AchReconciliationConsoleData {
   dashboard: AchReconciliationDashboard;
   items: AchReconciliationItem[];
+  exceptions: AchReconciliationException[];
+}
+
+export interface AchReconciliationException {
+  id: string;
+  clearingHouseId: number;
+  achResponseId?: string | null;
+  exceptionType: string;
+  status: string;
+  reference: string;
+  details?: string | null;
+  detectedAtUtc: string;
+  resolution?: string | null;
+  resolutionReason?: string | null;
+  version: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -32,7 +47,17 @@ export class AchReconciliationService {
     return this.api.get<AchReconciliationDetail>(`${this.basePath}/items/by-correlation/${encodeURIComponent(correlationId)}`);
   }
 
+  getExceptions(): Observable<AchReconciliationException[]> {
+    return this.api.get<AchReconciliationException[]>(`${this.basePath}/exceptions`);
+  }
+
+  resolveException(id: string, expectedVersion: string, resolution: string, reason: string): Observable<AchReconciliationException> {
+    return this.api.post<AchReconciliationException>(`${this.basePath}/exceptions/${encodeURIComponent(id)}/resolve`, {
+      expectedVersion, resolution, reason, correlationId: crypto.randomUUID()
+    });
+  }
+
   getConsoleData(): Observable<AchReconciliationConsoleData> {
-    return forkJoin({ dashboard: this.getDashboard(), items: this.getItems() });
+    return forkJoin({ dashboard: this.getDashboard(), items: this.getItems(), exceptions: this.getExceptions() });
   }
 }

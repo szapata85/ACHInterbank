@@ -6,12 +6,11 @@
   ]"></ui-migas-pan>
 
   <ui-encabezado-pagina
-    titulo="Consola de conciliación ACH solo lectura"
+    titulo="Consola de conciliación ACH"
     descripcion="Cruce operativo de respuestas, diferenciales, devoluciones, ROR, prenotificaciones y estados internos contra NACHA-M desagregado."
   ></ui-encabezado-pagina>
 
-  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="Consulta solo lectura; no habilita salida productiva."></ui-alerta>
-  <ui-alerta tipo="info" titulo="Solo lectura sanitizada" mensaje="Sin aprobaciones, rechazos manuales, reprocesos, generación de archivos ni edición de estados."></ui-alerta>
+  <ui-alerta tipo="advertencia" titulo="Productivo NO-GO" mensaje="La resolución es operacional y no habilita salida productiva."></ui-alerta>
   <ui-alerta tipo="advertencia" titulo="Sin movimientos monetarios" mensaje="No ejecuta SOAP, no mueve dinero y solo marca candidatos monetarios controlados."></ui-alerta>
 
   <ui-alerta *ngIf="error" tipo="error" titulo="Error" [mensaje]="error"></ui-alerta>
@@ -89,6 +88,18 @@
         <span class="badge badge-neutral" *ngIf="detailVm.controlSummary">CONTROLES</span>
         <span class="badge badge-neutral" *ngIf="detailVm.internalTransactionSummary">TRANSACCION INTERNA</span>
       </div>
+    </ui-tarjeta>
+    <ui-tarjeta titulo="Excepciones operacionales" subtitulo="Resolución persistida, no contable y auditada.">
+      <p *ngIf="vm.exceptions.length === 0">No hay excepciones operacionales.</p>
+      <div class="badge-row" *ngFor="let item of vm.exceptions">
+        <span>{{ item.exceptionType }} · {{ item.reference }} · {{ item.status }}</span>
+        <button type="button" class="btn-link" (click)="selectException(item)">Seleccionar excepción</button>
+      </div>
+      <section *ngIf="selectedException as selected" class="badge-row">
+        <label>Resultado de resolución <input type="text" [(ngModel)]="resolution" [disabled]="selected.status === 'Resolved'"></label>
+        <label>Justificación obligatoria <textarea [(ngModel)]="resolutionReason" [disabled]="selected.status === 'Resolved'"></textarea></label>
+        <button type="button" (click)="resolveSelectedException()" [disabled]="resolving || selected.status === 'Resolved'">Resolver excepción</button>
+      </section>
     </ui-tarjeta>
   </ng-container>
 </section>

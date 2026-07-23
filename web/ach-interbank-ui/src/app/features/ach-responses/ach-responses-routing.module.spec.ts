@@ -9,6 +9,7 @@ describe('AchResponsesRoutingModule', () => {
     expect(paths).toContain('manual-review');
     expect(paths).toContain('status-mappings');
     expect(paths).toContain('dashboard');
+    expect(paths).toContain('audit');
     expect(paths).toContain(':id/notification-attempts');
     expect(paths).toContain(':id');
   });
@@ -21,6 +22,7 @@ describe('AchResponsesRoutingModule', () => {
       'manual-review',
       'status-mappings',
       'dashboard',
+      'audit',
       ':id/notification-attempts',
       ':id'
     ]);

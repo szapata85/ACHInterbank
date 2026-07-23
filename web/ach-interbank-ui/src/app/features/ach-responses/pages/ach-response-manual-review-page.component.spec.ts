@@ -31,9 +31,10 @@ describe('AchResponseManualReviewPageComponent', () => {
   } as any;
 
   beforeEach(() => {
-    apiSpy = jasmine.createSpyObj<AchResponsesApiService>('AchResponsesApiService', ['search']);
+    apiSpy = jasmine.createSpyObj<AchResponsesApiService>('AchResponsesApiService', ['search', 'getOrphans', 'beginOrphanReview', 'resolveOrphan']);
     apiSpy.search.and.returnValue(of(responseMock));
-    notificationSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['error']);
+    apiSpy.getOrphans.and.returnValue(of([]));
+    notificationSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['error', 'success', 'warning']);
     routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
 
     TestBed.configureTestingModule({
@@ -49,6 +50,37 @@ describe('AchResponseManualReviewPageComponent', () => {
   it('AchResponseManualReviewPageComponent_ShouldCreate', () => {
     const fixture = TestBed.createComponent(AchResponseManualReviewPageComponent);
     expect(fixture.componentInstance).toBeTruthy();
+  });
+
+  it('AchResponseManualReviewPageComponent_ShouldLoadOrphansAndRequireJustification', () => {
+    apiSpy.getOrphans.and.returnValue(of([{ id: 'orphan-1', version: 'v1', responseType: 'Transaccion',
+      externalCode: 'R01', clearingHouseId: 1, resolutionStatus: 'Pending', orphanReason: 'Sin correlación' }] as any));
+    const fixture = TestBed.createComponent(AchResponseManualReviewPageComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectOrphan(component.orphans[0]);
+
+    component.beginSelectedReview();
+
+    expect(apiSpy.beginOrphanReview).not.toHaveBeenCalled();
+    expect(notificationSpy.error).toHaveBeenCalled();
+  });
+
+  it('AchResponseManualReviewPageComponent_ShouldStartManualReview', () => {
+    const orphan = { id: 'orphan-1', version: 'version-1', responseType: 'Transaccion', externalCode: 'R01',
+      clearingHouseId: 1, resolutionStatus: 'Pending', orphanReason: 'Sin correlación' } as any;
+    apiSpy.getOrphans.and.returnValue(of([orphan]));
+    apiSpy.beginOrphanReview.and.returnValue(of({ ...orphan, version: 'version-2', resolutionStatus: 'InReview' }));
+    const fixture = TestBed.createComponent(AchResponseManualReviewPageComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectOrphan(orphan);
+    component.resolutionForm.patchValue({ reason: 'Análisis operativo' });
+
+    component.beginSelectedReview();
+
+    expect(apiSpy.beginOrphanReview).toHaveBeenCalledWith('orphan-1', 'version-1', 'Análisis operativo');
+    expect(notificationSpy.success).toHaveBeenCalled();
   });
 
   it('AchResponseManualReviewPageComponent_ShouldLoadNoHomologadaByDefault', () => {
