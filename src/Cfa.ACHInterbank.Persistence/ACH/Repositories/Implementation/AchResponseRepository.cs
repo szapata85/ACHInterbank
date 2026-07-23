@@ -16,7 +16,7 @@ public class AchResponseRepository : IAchResponseRepository
     public AchResponseRepository(AchDbContext context) => _context = context;
 
     public Task<AchResponse?> FindByIdempotencyHashAsync(string hashIdempotencia, CancellationToken cancellationToken = default)
-        => _context.AchResponses.AsNoTracking().FirstOrDefaultAsync(x => x.HashIdempotencia == hashIdempotencia, cancellationToken);
+        => _context.AchResponses.FirstOrDefaultAsync(x => x.HashIdempotencia == hashIdempotencia, cancellationToken);
 
     public async Task AddAsync(AchResponse response, CancellationToken cancellationToken = default)
         => await _context.AchResponses.AddAsync(response, cancellationToken);
@@ -26,6 +26,9 @@ public class AchResponseRepository : IAchResponseRepository
         _context.AchResponses.Update(response);
         return Task.CompletedTask;
     }
+
+    public async Task AddAuditAsync(AchResponseAudit audit, CancellationToken cancellationToken = default)
+        => await _context.AchResponseAudits.AddAsync(audit, cancellationToken);
 
     public async Task<PagedResult<AchResponseListItemModel>> SearchAsync(AchResponseSearchQuery query, CancellationToken cancellationToken = default)
     {
@@ -91,7 +94,7 @@ public class AchResponseRepository : IAchResponseRepository
                 x.MotivoNoHomologacion, x.PermiteNotificacion, x.CorrelationId, x.FechaRecepcion, x.FechaCreacion, x.FechaActualizacion,
                 x.NotificationAttempts.OrderBy(a => a.NumeroIntento)
                     .Select(a => new AchResponseNotificationAttemptModel(a.Id, a.AchResponseId, a.NumeroIntento, a.EstadoNotificacion.ToString(), a.IdCanal, a.NombreCanal, a.IdTransaccion, a.IdEstado, a.Causal, a.IdTransaccionServicioExterno, a.DescripcionCausal, a.ExisteError, a.CodigoError, a.DescripcionError, a.ErrorTecnico, a.FechaCreacion, a.FechaEnvio))
-                    .ToList()))
+                    .ToList(), x.ClearingHouseId ?? 0, x.AppliedMappingId, x.DuplicateReceiptCount, x.Version))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

@@ -124,6 +124,10 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<AchResponseStatusMapping> AchResponseStatusMappings => Set<AchResponseStatusMapping>();
     public DbSet<AchResponse> AchResponses => Set<AchResponse>();
     public DbSet<AchResponseNotificationAttempt> AchResponseNotificationAttempts => Set<AchResponseNotificationAttempt>();
+    public DbSet<AchResponseAudit> AchResponseAudits => Set<AchResponseAudit>();
+    public DbSet<AchResponseOrphan> AchResponseOrphans => Set<AchResponseOrphan>();
+    public DbSet<AchResponseReprocessAttempt> AchResponseReprocessAttempts => Set<AchResponseReprocessAttempt>();
+    public DbSet<AchResponseReconciliationCase> AchResponseReconciliationCases => Set<AchResponseReconciliationCase>();
     public DbSet<CatClearingHouse> CatClearingHouses => Set<CatClearingHouse>();
     public DbSet<CatFlowType> CatFlowTypes => Set<CatFlowType>();
     public DbSet<CatDirection> CatDirections => Set<CatDirection>();
@@ -447,6 +451,18 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (ChangeTracker.Entries<AchResponseAudit>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("La auditoría de respuestas ACH es inmutable.");
+
+        foreach (var entry in ChangeTracker.Entries<AchResponse>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+            entry.Entity.Version = Guid.NewGuid();
+        foreach (var entry in ChangeTracker.Entries<AchResponseStatusMapping>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+            entry.Entity.Version = Guid.NewGuid();
+        foreach (var entry in ChangeTracker.Entries<AchResponseOrphan>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+            entry.Entity.Version = Guid.NewGuid();
+        foreach (var entry in ChangeTracker.Entries<AchResponseReconciliationCase>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+            entry.Entity.Version = Guid.NewGuid();
+
         var now = DateTimeOffset.UtcNow;
         var changedBy = ResolveChangedBy();
         var auditNow = now.ToOffset(ColombiaOffset).DateTime;

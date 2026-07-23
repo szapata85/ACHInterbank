@@ -11,4 +11,5 @@ public interface IAchResponseRepository
     Task<PagedResult<AchResponseListItemModel>> SearchAsync(AchResponseSearchQuery query, CancellationToken cancellationToken = default);
     Task<AchResponseDashboardModel> GetDashboardAsync(AchResponseDashboardQuery query, CancellationToken cancellationToken = default);
     Task<AchResponseDetailModel?> FindDetailByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task AddAuditAsync(AchResponseAudit audit, CancellationToken cancellationToken = default);
 }

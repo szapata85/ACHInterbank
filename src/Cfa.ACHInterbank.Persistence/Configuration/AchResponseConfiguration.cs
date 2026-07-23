@@ -12,6 +12,7 @@ public class AchResponseConfiguration : IEntityTypeConfiguration<AchResponse>
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.TipoRespuesta).HasConversion<string>().HasMaxLength(30).IsRequired();
+        builder.Property(x => x.ClearingHouseId);
         builder.Property(x => x.IdTransaccion).IsRequired().HasMaxLength(100);
         builder.Property(x => x.CodigoCamaraCompensacion).IsRequired().HasMaxLength(30);
         builder.Property(x => x.CodigoEntidadOrigen).HasMaxLength(30);
@@ -22,6 +23,9 @@ public class AchResponseConfiguration : IEntityTypeConfiguration<AchResponse>
         builder.Property(x => x.CausalNormalizada).HasMaxLength(50);
         builder.Property(x => x.DescripcionCausal).HasMaxLength(300);
         builder.Property(x => x.HashIdempotencia).IsRequired().HasMaxLength(128);
+        builder.Property(x => x.CanonicalPayloadHash).IsRequired().HasMaxLength(128);
+        builder.Property(x => x.OperationalDate).IsRequired();
+        builder.Property(x => x.Version).IsRequired().IsConcurrencyToken().ValueGeneratedNever();
         builder.Property(x => x.EstadoProcesamiento).HasConversion<string>().HasMaxLength(40).IsRequired();
         builder.Property(x => x.MotivoNoHomologacion).HasMaxLength(500);
         builder.Property(x => x.CorrelationId).HasMaxLength(100);
@@ -33,10 +37,21 @@ public class AchResponseConfiguration : IEntityTypeConfiguration<AchResponse>
             .HasForeignKey(x => x.AchResponseId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.ClearingHouse)
+            .WithMany()
+            .HasForeignKey(x => x.ClearingHouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.AppliedMapping)
+            .WithMany(x => x.AppliedResponses)
+            .HasForeignKey(x => x.AppliedMappingId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(x => x.HashIdempotencia).IsUnique().HasDatabaseName("UX_AchResponses_HashIdempotencia");
         builder.HasIndex(x => x.IdTransaccion).HasDatabaseName("IX_AchResponses_IdTransaccion");
         builder.HasIndex(x => new { x.TipoRespuesta, x.CodigoCamaraCompensacion, x.CodigoEstadoExterno }).HasDatabaseName("IX_AchResponses_Filter");
         builder.HasIndex(x => x.EstadoProcesamiento).HasDatabaseName("IX_AchResponses_EstadoProcesamiento");
         builder.HasIndex(x => x.CorrelationId).HasDatabaseName("IX_AchResponses_CorrelationId");
+        builder.HasIndex(x => new { x.ClearingHouseId, x.OperationalDate, x.EstadoProcesamiento }).HasDatabaseName("IX_AchResponses_Operational");
     }
 }

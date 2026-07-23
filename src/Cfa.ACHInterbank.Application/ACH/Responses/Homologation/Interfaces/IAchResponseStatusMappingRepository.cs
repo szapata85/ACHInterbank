@@ -7,6 +7,8 @@ namespace Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Interfaces;
 
 public interface IAchResponseStatusMappingRepository
 {
+    Task<int?> ResolveClearingHouseIdAsync(string codigoCamaraCompensacion, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<AchResponseStatusMappingModel>> FindCandidatesAsync(
         string codigoCamaraCompensacion,
         TipoRespuestaAch tipoRespuesta,

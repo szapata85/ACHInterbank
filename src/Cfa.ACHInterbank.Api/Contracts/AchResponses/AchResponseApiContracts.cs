@@ -115,7 +115,11 @@ public sealed record AchResponseDetailResponse(
     DateTime FechaRecepcion,
     DateTime FechaCreacion,
     DateTime? FechaActualizacion,
-    IReadOnlyList<AchResponseNotificationAttemptResponse> NotificationAttempts);
+    IReadOnlyList<AchResponseNotificationAttemptResponse> NotificationAttempts,
+    int ClearingHouseId = 0,
+    int? AppliedMappingId = null,
+    int DuplicateReceiptCount = 0,
+    Guid Version = default);
 
 public sealed record AchResponseNotificationAttemptResponse(
     long Id,
@@ -151,7 +155,10 @@ public sealed record AchResponseStatusMappingResponse(
     bool PermiteNotificacion,
     bool Activo,
     DateTime FechaInicioVigencia,
-    DateTime? FechaFinVigencia);
+    DateTime? FechaFinVigencia,
+    int ClearingHouseId = 0,
+    int Priority = 0,
+    Guid Version = default);
 
 public sealed record AchResponseStatusMappingRequest(
     string CodigoCamaraCompensacion,

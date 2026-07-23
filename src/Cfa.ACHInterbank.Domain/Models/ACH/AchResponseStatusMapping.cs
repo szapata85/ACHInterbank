@@ -5,6 +5,8 @@ namespace Cfa.ACHInterbank.Domain.Models.ACH;
 public class AchResponseStatusMapping
 {
     public int Id { get; set; }
+    public int? ClearingHouseId { get; set; }
+    public ClearingHouse? ClearingHouse { get; set; }
     public string CodigoCamaraCompensacion { get; set; } = string.Empty;
     public TipoRespuestaAch TipoRespuesta { get; set; }
     public string CodigoEstadoExterno { get; set; } = string.Empty;
@@ -17,8 +19,11 @@ public class AchResponseStatusMapping
     public bool RequiereCausal { get; set; }
     public bool PermiteNotificacion { get; set; }
     public bool Activo { get; set; }
+    public int Priority { get; set; }
     public DateTime FechaInicioVigencia { get; set; }
     public DateTime? FechaFinVigencia { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime? FechaActualizacion { get; set; }
+    public Guid Version { get; set; }
+    public ICollection<AchResponse> AppliedResponses { get; set; } = new List<AchResponse>();
 }

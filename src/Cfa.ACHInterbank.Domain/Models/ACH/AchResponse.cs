@@ -5,6 +5,8 @@ namespace Cfa.ACHInterbank.Domain.Models.ACH;
 public class AchResponse
 {
     public Guid Id { get; set; }
+    public int? ClearingHouseId { get; set; }
+    public ClearingHouse? ClearingHouse { get; set; }
     public TipoRespuestaAch TipoRespuesta { get; set; }
     public string IdTransaccion { get; set; } = string.Empty;
     public string CodigoCamaraCompensacion { get; set; } = string.Empty;
@@ -19,6 +21,12 @@ public class AchResponse
     public string? DescripcionCausal { get; set; }
     public int IdTransaccionServicioExterno { get; set; }
     public string HashIdempotencia { get; set; } = string.Empty;
+    public string CanonicalPayloadHash { get; set; } = string.Empty;
+    public DateTime OperationalDate { get; set; }
+    public int? AppliedMappingId { get; set; }
+    public AchResponseStatusMapping? AppliedMapping { get; set; }
+    public int DuplicateReceiptCount { get; set; }
+    public Guid Version { get; set; }
     public AchResponseProcessingStatus EstadoProcesamiento { get; set; }
     public string? MotivoNoHomologacion { get; set; }
     public bool PermiteNotificacion { get; set; }
@@ -28,4 +36,6 @@ public class AchResponse
     public DateTime? FechaActualizacion { get; set; }
 
     public ICollection<AchResponseNotificationAttempt> NotificationAttempts { get; set; } = new List<AchResponseNotificationAttempt>();
+    public ICollection<AchResponseAudit> AuditEntries { get; set; } = new List<AchResponseAudit>();
+    public AchResponseOrphan? Orphan { get; set; }
 }

@@ -90,7 +90,11 @@ public sealed record AchResponseDetailModel(
     DateTime FechaRecepcion,
     DateTime FechaCreacion,
     DateTime? FechaActualizacion,
-    IReadOnlyList<AchResponseNotificationAttemptModel> NotificationAttempts);
+    IReadOnlyList<AchResponseNotificationAttemptModel> NotificationAttempts,
+    int ClearingHouseId = 0,
+    int? AppliedMappingId = null,
+    int DuplicateReceiptCount = 0,
+    Guid Version = default);
 
 public sealed record AchResponseStatusMappingListItemModel(
     int Id,
@@ -107,7 +111,10 @@ public sealed record AchResponseStatusMappingListItemModel(
     bool PermiteNotificacion,
     bool Activo,
     DateTime FechaInicioVigencia,
-    DateTime? FechaFinVigencia);
+    DateTime? FechaFinVigencia,
+    int ClearingHouseId = 0,
+    int Priority = 0,
+    Guid Version = default);
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int PageNumber, int PageSize, int TotalCount)
 {

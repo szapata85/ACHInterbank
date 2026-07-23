@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
 
@@ -16,5 +17,27 @@ public sealed class UnitOfWork : IUnitOfWork
     public Task<int> CommitAsync(CancellationToken cancellationToken = default)
     {
         return _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<int> CommitIdempotentAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            _dbContext.ChangeTracker.Clear();
+            throw new IdempotentWriteConflictException(ex);
+        }
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException exception)
+    {
+        var message = exception.InnerException?.Message ?? exception.Message;
+        return message.Contains("unique", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("2601", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("2627", StringComparison.OrdinalIgnoreCase);
     }
 }

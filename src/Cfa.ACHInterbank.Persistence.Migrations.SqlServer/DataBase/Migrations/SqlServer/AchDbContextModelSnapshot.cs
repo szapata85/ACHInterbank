@@ -2860,9 +2860,20 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("AppliedMappingId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CanonicalPayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<string>("CausalNormalizada")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("ClearingHouseId")
+                        .HasColumnType("int");
 
                     b.Property<string>("CodigoCamaraCompensacion")
                         .IsRequired()
@@ -2893,6 +2904,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<string>("DescripcionCausal")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("DuplicateReceiptCount")
+                        .HasColumnType("int");
 
                     b.Property<string>("EstadoInternoNombre")
                         .HasMaxLength(100)
@@ -2935,6 +2949,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<DateTime>("OperationalDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("PermiteNotificacion")
                         .HasColumnType("bit");
 
@@ -2943,7 +2960,13 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("AppliedMappingId");
 
                     b.HasIndex("CorrelationId")
                         .HasDatabaseName("IX_AchResponses_CorrelationId");
@@ -2958,10 +2981,80 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("IdTransaccion")
                         .HasDatabaseName("IX_AchResponses_IdTransaccion");
 
+                    b.HasIndex("ClearingHouseId", "OperationalDate", "EstadoProcesamiento")
+                        .HasDatabaseName("IX_AchResponses_Operational");
+
                     b.HasIndex("TipoRespuesta", "CodigoCamaraCompensacion", "CodigoEstadoExterno")
                         .HasDatabaseName("IX_AchResponses_Filter");
 
                     b.ToTable("AchResponses", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseAudit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid?>("AchResponseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("NewState")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PreviousState")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("SanitizedMetadata")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AchResponseId");
+
+                    b.HasIndex("CorrelationId");
+
+                    b.HasIndex("EntityType", "EntityId", "OccurredAtUtc");
+
+                    b.ToTable("AchResponseAudits", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseNotificationAttempt", b =>
@@ -3052,6 +3145,221 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.ToTable("AchResponseNotificationAttempts", (string)null);
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseOrphan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AchResponseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CandidateReferences")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("CanonicalPayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ExternalCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ExternalIdentifiers")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("OperationalDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OrphanReason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ResolutionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ResolutionStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ResolvedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("ResolvedReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ResponseType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AchResponseId")
+                        .IsUnique();
+
+                    b.HasIndex("ClearingHouseId", "ResolutionStatus", "ReceivedAtUtc");
+
+                    b.ToTable("AchResponseOrphans", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseReconciliationCase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AchResponseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ClearingHouseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("DetectedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ExceptionType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ResolutionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ResolvedBy")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AchResponseId");
+
+                    b.HasIndex("CorrelationId");
+
+                    b.HasIndex("ClearingHouseId", "Status", "ExceptionType");
+
+                    b.ToTable("AchResponseReconciliationCases", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseReprocessAttempt", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid>("AchResponseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Result")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommandId")
+                        .IsUnique();
+
+                    b.HasIndex("AchResponseId", "AttemptNumber")
+                        .IsUnique();
+
+                    b.HasIndex("AchResponseId", "Status");
+
+                    b.ToTable("AchResponseReprocessAttempts", (string)null);
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseStatusMapping", b =>
                 {
                     b.Property<int>("Id")
@@ -3066,6 +3374,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<string>("CausalNormalizada")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("ClearingHouseId")
+                        .HasColumnType("int");
 
                     b.Property<string>("CodigoCamaraCompensacion")
                         .IsRequired()
@@ -3111,6 +3422,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<bool>("PermiteNotificacion")
                         .HasColumnType("bit");
 
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
                     b.Property<bool>("RequiereCausal")
                         .HasColumnType("bit");
 
@@ -3118,6 +3432,10 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
@@ -3129,6 +3447,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasIndex("CodigoCamaraCompensacion", "TipoRespuesta", "CodigoEstadoExterno", "CodigoCausalExterna", "Activo")
                         .HasDatabaseName("IX_AchRespStatusMap_Causal");
+
+                    b.HasIndex("ClearingHouseId", "TipoRespuesta", "CodigoEstadoExterno", "CodigoCausalExterna", "Priority", "Activo")
+                        .HasDatabaseName("IX_AchRespStatusMap_Resolution");
 
                     b.ToTable("AchResponseStatusMappings", (string)null);
                 });
@@ -10998,6 +11319,33 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Navigation("ClearingHouse");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseStatusMapping", "AppliedMapping")
+                        .WithMany("AppliedResponses")
+                        .HasForeignKey("AppliedMappingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AppliedMapping");
+
+                    b.Navigation("ClearingHouse");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseAudit", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", "AchResponse")
+                        .WithMany("AuditEntries")
+                        .HasForeignKey("AchResponseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AchResponse");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseNotificationAttempt", b =>
                 {
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", "AchResponse")
@@ -11007,6 +11355,64 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .IsRequired();
 
                     b.Navigation("AchResponse");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseOrphan", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", "AchResponse")
+                        .WithOne("Orphan")
+                        .HasForeignKey("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseOrphan", "AchResponseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AchResponse");
+
+                    b.Navigation("ClearingHouse");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseReconciliationCase", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", "AchResponse")
+                        .WithMany()
+                        .HasForeignKey("AchResponseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AchResponse");
+
+                    b.Navigation("ClearingHouse");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseReprocessAttempt", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", "AchResponse")
+                        .WithMany()
+                        .HasForeignKey("AchResponseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AchResponse");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseStatusMapping", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ClearingHouse");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnCode", b =>
@@ -12275,7 +12681,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", b =>
                 {
+                    b.Navigation("AuditEntries");
+
                     b.Navigation("NotificationAttempts");
+
+                    b.Navigation("Orphan");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseStatusMapping", b =>
+                {
+                    b.Navigation("AppliedResponses");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnOfReturnGeneratedFileAudit", b =>

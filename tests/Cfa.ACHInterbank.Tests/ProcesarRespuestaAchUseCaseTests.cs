@@ -43,7 +43,8 @@ public class ProcesarRespuestaAchUseCaseTests
         mapping.Verify(x => x.HomologarAsync(It.IsAny<HomologarRespuestaAchRequest>(), It.IsAny<CancellationToken>()), Times.Never);
         responseRepo.Verify(x => x.AddAsync(It.IsAny<AchResponse>(), It.IsAny<CancellationToken>()), Times.Never);
         attemptRepo.Verify(x => x.AddAsync(It.IsAny<AchResponseNotificationAttempt>(), It.IsAny<CancellationToken>()), Times.Never);
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Never);
+        responseRepo.Verify(x => x.AddAuditAsync(It.Is<AchResponseAudit>(a => a.Action == "DuplicateReceipt"), It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -59,7 +60,7 @@ public class ProcesarRespuestaAchUseCaseTests
         Assert.Equal(AchResponseProcessingStatus.NoHomologada, result.EstadoProcesamiento);
         responseRepo.Verify(x => x.AddAsync(It.Is<AchResponse>(r => r.EstadoProcesamiento == AchResponseProcessingStatus.NoHomologada), It.IsAny<CancellationToken>()), Times.Once);
         attemptRepo.Verify(x => x.AddAsync(It.IsAny<AchResponseNotificationAttempt>(), It.IsAny<CancellationToken>()), Times.Never);
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitIdempotentAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -74,6 +75,34 @@ public class ProcesarRespuestaAchUseCaseTests
 
         Assert.Equal(AchResponseProcessingStatus.RequiereRevisionManual, result.EstadoProcesamiento);
         attemptRepo.Verify(x => x.AddAsync(It.IsAny<AchResponseNotificationAttempt>(), It.IsAny<CancellationToken>()), Times.Never);
+        uow.Verify(x => x.CommitIdempotentAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldRecoverLogicalIdentity_WhenConcurrentInsertWins()
+    {
+        var sut = BuildUseCase(out var responseRepo, out _, out var mapping, out var uow, out var hash);
+        hash.Setup(x => x.BuildHash(It.IsAny<ProcesarRespuestaAchCommand>())).Returns("CONCURRENT-HASH");
+        var winner = new AchResponse
+        {
+            Id = Guid.NewGuid(), EstadoProcesamiento = AchResponseProcessingStatus.Homologada,
+            IdEstadoInterno = 1, PermiteNotificacion = false, Version = Guid.NewGuid()
+        };
+        responseRepo.SetupSequence(x => x.FindByIdempotencyHashAsync("CONCURRENT-HASH", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AchResponse?)null)
+            .ReturnsAsync(winner);
+        mapping.Setup(x => x.HomologarAsync(It.IsAny<HomologarRespuestaAchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HomologarRespuestaAchResult.Success(false, 1, 1, "Aplicada", null, null));
+        uow.Setup(x => x.CommitIdempotentAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IdempotentWriteConflictException(new Exception("unique")));
+
+        var result = await sut.ExecuteAsync(BuildValidCommand());
+
+        Assert.True(result.Duplicada);
+        Assert.Equal(winner.Id, result.AchResponseId);
+        Assert.Equal(1, winner.DuplicateReceiptCount);
+        responseRepo.Verify(x => x.AddAuditAsync(It.Is<AchResponseAudit>(a => a.Action == "DuplicateReceipt"),
+            It.IsAny<CancellationToken>()), Times.Once);
         uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -89,7 +118,7 @@ public class ProcesarRespuestaAchUseCaseTests
 
         Assert.Equal(AchResponseProcessingStatus.Homologada, result.EstadoProcesamiento);
         attemptRepo.Verify(x => x.AddAsync(It.Is<AchResponseNotificationAttempt>(a => a.EstadoNotificacion == AchResponseNotificationStatus.Pendiente && a.IdEstado == 20), It.IsAny<CancellationToken>()), Times.Once);
-        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitIdempotentAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -164,6 +193,8 @@ public class ProcesarRespuestaAchUseCaseTests
         responseRepo = new Mock<IAchResponseRepository>();
         attemptRepo = new Mock<IAchResponseNotificationAttemptRepository>();
         mappingService = new Mock<IRespuestaAchStatusMappingService>();
+        mappingService.Setup(x => x.ResolveClearingHouseIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
         unitOfWork = new Mock<IUnitOfWork>();
         hash = new Mock<IAchResponseIdempotencyHashService>();
         hash.Setup(h => h.BuildHash(It.IsAny<ProcesarRespuestaAchCommand>())).Returns("HASH");
