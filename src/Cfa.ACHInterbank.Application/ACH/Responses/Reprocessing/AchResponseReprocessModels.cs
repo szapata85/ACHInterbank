@@ -15,6 +15,8 @@ public enum AchResponseReprocessResultCode
     MappingNotFound,
     MappingAmbiguous,
     CorrelationNotFound,
+    MissingOperationalData,
+    LostOwnership,
     AlreadyApplied,
     TechnicalFailure
 }
@@ -24,7 +26,8 @@ public sealed record AchResponseReprocessExecutionResult(
 {
     public bool IsTechnicalFailure => Code == AchResponseReprocessResultCode.TechnicalFailure;
     public bool RequiresManualReview => Code is AchResponseReprocessResultCode.MappingNotFound
-        or AchResponseReprocessResultCode.MappingAmbiguous or AchResponseReprocessResultCode.CorrelationNotFound;
+        or AchResponseReprocessResultCode.MappingAmbiguous or AchResponseReprocessResultCode.CorrelationNotFound
+        or AchResponseReprocessResultCode.MissingOperationalData;
 }
 
 public sealed record AchResponseReprocessDispatchResult(int Candidates, int Claimed, int Completed,

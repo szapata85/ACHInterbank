@@ -2,33 +2,31 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Reprocessing;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Microsoft.Extensions.Configuration;
 using Quartz;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 
 [DisallowConcurrentExecution]
 [Scoped]
-public sealed class AchResponseReprocessDispatcherHandler : ITaskHandler
+public sealed class AchResponseReprocessDispatcherHandler : ISchedulerContextAwareTaskHandler
 {
     public const string TaskCode = "ach-response-reprocess-dispatcher";
     private readonly IAchResponseReprocessDispatcher _dispatcher;
-    private readonly IConfiguration _configuration;
-
-    public AchResponseReprocessDispatcherHandler(IAchResponseReprocessDispatcher dispatcher, IConfiguration configuration)
+    public AchResponseReprocessDispatcherHandler(IAchResponseReprocessDispatcher dispatcher)
     {
         _dispatcher = dispatcher;
-        _configuration = configuration;
     }
 
     public string Code => TaskCode;
 
     public async Task<string> ExecuteAsync(TaskDefinition task, CancellationToken cancellationToken)
+        => await ExecuteAsync(task, new SchedulerTaskExecutionContext(Guid.Empty, "scheduler:unknown", "manual", Environment.MachineName, false, 0), cancellationToken);
+
+    public async Task<string> ExecuteAsync(TaskDefinition task, SchedulerTaskExecutionContext context, CancellationToken cancellationToken)
     {
         var batch = ReadPositive(task, "BatchSize", 50);
         var leaseSeconds = ReadPositive(task, "LeaseSeconds", 120);
-        var instance = _configuration["Quartz:InstanceId"]
-            ?? Environment.MachineName;
+        var instance = string.IsNullOrWhiteSpace(context.SchedulerInstanceId) ? Environment.MachineName : context.SchedulerInstanceId;
         return (await _dispatcher.DispatchAsync(batch, TimeSpan.FromSeconds(leaseSeconds), instance, cancellationToken)).Summary;
     }
 
