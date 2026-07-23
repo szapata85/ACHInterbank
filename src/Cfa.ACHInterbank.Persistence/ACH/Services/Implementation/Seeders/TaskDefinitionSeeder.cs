@@ -100,6 +100,19 @@ public class TaskDefinitionSeeder : IDbSeeder
                 StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
             });
         }
+        if (!_context.TaskDefinitions.Any(t => t.Code == "ach-response-reprocess-dispatcher"))
+        {
+            _context.TaskDefinitions.Add(new TaskDefinition
+            {
+                Code = "ach-response-reprocess-dispatcher",
+                Name = "Dispatcher de reprocesos de respuestas ACH",
+                PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+                N = 1,
+                TimeZoneId = "America/Bogota",
+                ManualExecutionEnabled = true,
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        }
         await _context.SaveChangesAsync();
         _context.ChangeTracker.AutoDetectChangesEnabled = true;
     }

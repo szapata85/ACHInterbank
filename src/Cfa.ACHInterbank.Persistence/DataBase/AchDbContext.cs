@@ -462,6 +462,8 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
             entry.Entity.Version = Guid.NewGuid();
         foreach (var entry in ChangeTracker.Entries<AchResponseReconciliationCase>().Where(x => x.State is EntityState.Added or EntityState.Modified))
             entry.Entity.Version = Guid.NewGuid();
+        foreach (var entry in ChangeTracker.Entries<AchResponseReprocessAttempt>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+            entry.Entity.Version = Guid.NewGuid();
 
         var now = DateTimeOffset.UtcNow;
         var changedBy = ResolveChangedBy();

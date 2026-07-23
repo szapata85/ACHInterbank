@@ -18,7 +18,7 @@ public static class AchResponseStatePolicy
             [AchResponseProcessingStatus.ErrorFuncional] = [AchResponseProcessingStatus.EnRevision, AchResponseProcessingStatus.PendienteReproceso],
             [AchResponseProcessingStatus.ErrorTecnico] = [AchResponseProcessingStatus.PendienteReproceso],
             [AchResponseProcessingStatus.PendienteReproceso] = [AchResponseProcessingStatus.Reprocesando],
-            [AchResponseProcessingStatus.Reprocesando] = [AchResponseProcessingStatus.Reprocesada, AchResponseProcessingStatus.ErrorTecnico],
+            [AchResponseProcessingStatus.Reprocesando] = [AchResponseProcessingStatus.Reprocesada, AchResponseProcessingStatus.ErrorTecnico, AchResponseProcessingStatus.RequiereRevisionManual],
             [AchResponseProcessingStatus.Reprocesada] = [AchResponseProcessingStatus.Cerrada],
             [AchResponseProcessingStatus.Resuelta] = [AchResponseProcessingStatus.PendienteReproceso, AchResponseProcessingStatus.Cerrada],
             [AchResponseProcessingStatus.Rechazada] = [AchResponseProcessingStatus.Cerrada],

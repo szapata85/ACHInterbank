@@ -60,11 +60,17 @@ public sealed class AchResponseReprocessAttemptConfiguration : IEntityTypeConfig
         builder.Property(x => x.RequestedBy).HasMaxLength(150).IsRequired();
         builder.Property(x => x.Reason).HasMaxLength(500).IsRequired();
         builder.Property(x => x.CorrelationId).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.ClaimedBy).HasMaxLength(150);
+        builder.Property(x => x.ResultCode).HasMaxLength(50);
         builder.Property(x => x.Result).HasMaxLength(1000);
+        builder.Property(x => x.ErrorType).HasMaxLength(100);
+        builder.Property(x => x.ErrorDetailSanitized).HasMaxLength(1000);
+        builder.Property(x => x.Version).IsRequired().IsConcurrencyToken().ValueGeneratedNever();
         builder.HasOne(x => x.AchResponse).WithMany().HasForeignKey(x => x.AchResponseId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => new { x.AchResponseId, x.AttemptNumber }).IsUnique();
         builder.HasIndex(x => x.CommandId).IsUnique();
         builder.HasIndex(x => new { x.AchResponseId, x.Status });
+        builder.HasIndex(x => new { x.Status, x.LeaseExpiresAtUtc, x.RequestedAtUtc, x.Id });
     }
 }
 

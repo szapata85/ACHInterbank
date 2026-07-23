@@ -55,7 +55,16 @@ public sealed class AchResponseReprocessAttempt
     public string CorrelationId { get; set; } = string.Empty;
     public DateTime RequestedAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
+    public string? ClaimedBy { get; set; }
+    public DateTime? ClaimedAtUtc { get; set; }
+    public DateTime? LeaseExpiresAtUtc { get; set; }
+    public DateTime? StartedAtUtc { get; set; }
+    public DateTime? LastHeartbeatAtUtc { get; set; }
+    public string? ResultCode { get; set; }
     public string? Result { get; set; }
+    public string? ErrorType { get; set; }
+    public string? ErrorDetailSanitized { get; set; }
+    public Guid Version { get; set; }
     public Guid CommandId { get; set; }
 }
 
