@@ -28,3 +28,8 @@ Estado: **NO-GO condicionado a evidencia de infraestructura**.
 El cierre de código incorpora claim atómico, lease recuperable, pipeline sobre la entidad existente, terminales auditables, consultas de intentos y migraciones por proveedor. La build Release y las pruebas focalizadas están aprobadas.
 
 Pendiente para GO: ejecutar y aprobar las pruebas reales SQL Server y PostgreSQL, Quartz persistent-store con dos instancias, Angular y Playwright. No se declara GO mientras esa evidencia no exista.
+# JOB 4.2 — Hardening y certificación final
+
+Estado: **NO-GO**.
+
+El hardening de código y las migraciones PostgreSQL reales están verificados, pero faltan las evidencias ejecutadas de SQL Server, dos nodos Quartz, Angular y Playwright requeridas para el GO definitivo del JOB 4.

@@ -67,3 +67,13 @@ Playwright utilizó API, SPA y SQL Server locales sin `page.route` ni mocks de A
 - Migraciones: `20260723000000_Job41ReprocessDispatcher` para PostgreSQL y SQL Server; incluyen columnas de lease/concurrencia, backfill de versión e índice de adquisición.
 - Ejecutado: `dotnet restore`, build Release (0 warnings/0 errors) y pruebas focalizadas (9 aprobadas, 0 fallidas, 0 omitidas). La suite backend completa fue iniciada y excedió el límite de 120 s sin resultado final; no se contabiliza como aprobada.
 - No ejecutado: validación real SQL Server/PostgreSQL, cluster Quartz de dos instancias, Angular y Playwright; requieren servicios/conexiones locales no disponibles en este worktree.
+# JOB 4.2 — Hardening y certificación final
+
+- Base: `9ed5b2d71105be06ab928b6ddb8510e1c0c34d2a`; rama `job4.2/reprocess-hardening`.
+- Corregido: la identidad de ownership se obtiene del `SchedulerInstanceId` efectivo entregado por el ejecutor Quartz, nunca del valor configurado `AUTO`.
+- Corregido: heartbeat periódico usa scopes/DbContexts independientes, renueva el lease antes de un tercio de su duración y condiciona por estado, owner, lease y `Version`.
+- Corregido: finalización aplica una actualización condicional por owner, versión y lease dentro de transacción corta antes de cambiar respuesta/auditoría.
+- Corregido: `Completed` no se devuelve por crear un checkpoint; no se inventan `IdCanal=0` ni `NombreCanal=reprocess`. Checkpoint inexistente o pendiente es `MissingOperationalData` y revisión manual.
+- Migraciones: snapshots PostgreSQL y SQL Server actualizados. PostgreSQL real verificó discovery, forward, rollback y reaplicación de `20260723000000_Job41ReprocessDispatcher`.
+- Ejecutado: build Release 0 warnings/0 errors; focalizadas 9 aprobadas, 0 fallidas, 0 omitidas.
+- No ejecutado: integración SQL Server, suite multimotor dedicada, cluster Quartz, Angular y Playwright. No se declara GO sin esas evidencias.
