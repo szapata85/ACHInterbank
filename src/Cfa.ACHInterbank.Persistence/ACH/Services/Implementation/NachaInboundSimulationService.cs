@@ -20,11 +20,16 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
     private const string UploadFlow = "NachaUpload";
     private readonly AchDbContext _context;
     private readonly NachaInboundSimulatorOptions _options;
+    private readonly INachaConfigResolver _profileResolver;
 
-    public NachaInboundSimulationService(AchDbContext context, IOptions<NachaInboundSimulatorOptions> options)
+    public NachaInboundSimulationService(
+        AchDbContext context,
+        IOptions<NachaInboundSimulatorOptions> options,
+        INachaConfigResolver? profileResolver = null)
     {
         _context = context;
         _options = options.Value;
+        _profileResolver = profileResolver ?? new NachaConfigResolver(context);
     }
 
     public async Task<GenerateNachaInboundSimulationResponse> GenerateAsync(GenerateNachaInboundSimulationRequest request, string userName, CancellationToken ct = default)
@@ -319,16 +324,16 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
         if (request.SimulationMode == NachaSimulationMode.DifferentialResponses)
         {
-            var profile = await ResolvePublishedDifferentialProfileAsync(clearingHouse, request.BusinessDate, ct);
-            if (profile is null)
+            var profileResolution = await ResolvePublishedDifferentialProfileAsync(clearingHouse, request.BusinessDate, ct);
+            if (!profileResolution.Success)
             {
-                return Blocked("DIFFERENTIAL_PROFILE_NOT_PUBLISHED",
-                    "No existe un perfil NACHA-M publicado y vigente para RETORNO/ENTRADA en la cámara seleccionada. La generación permanece bloqueada para no inventar una regla financiera.",
+                return Blocked(profileResolution.DiagnosticCode,
+                    $"No se seleccionó un perfil NACHA-M diferencial sustentado para RETORNO/ENTRADA. {string.Join(" ", profileResolution.Warnings)}",
                     request.SimulationMode);
             }
 
             return Blocked("DIFFERENTIAL_GENERATOR_NOT_HOMOLOGATED",
-                $"El perfil {profile} existe, pero el generador diferencial aún no tiene homologación demostrada. No se generará un archivo con semántica ambigua.",
+                $"El perfil {profileResolution.Profile!.ProfileCode} existe, pero el generador diferencial aún no tiene homologación demostrada. No se generará un archivo con semántica ambigua.",
                 request.SimulationMode);
         }
 
@@ -957,34 +962,34 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             : $"{baseName}.OUT";
     }
 
-    private async Task<string?> ResolvePublishedDifferentialProfileAsync(
+    private Task<NachaConfigResolutionResult> ResolvePublishedDifferentialProfileAsync(
         ClearingHouse clearingHouse,
         DateOnly businessDate,
         CancellationToken ct)
     {
         if (!_options.RequirePublishedDifferentialProfile)
         {
-            return "PROFILE_CHECK_EXPLICITLY_DISABLED";
+            return Task.FromResult(new NachaConfigResolutionResult
+            {
+                Success = false,
+                SelectionStatus = NachaProfileSelectionStatus.ProfileInactive,
+                Warnings = ["La comprobación de perfil diferencial fue deshabilitada explícitamente; el flujo permanece cerrado."]
+            });
         }
 
-        var effectiveAt = businessDate.ToDateTime(TimeOnly.MinValue);
-        var clearingHouseCodes = clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
-            ? new[] { "CENIT" }
-            : new[] { "ACH", "ACHCOL" };
+        var configClearingHouseCode = clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+            ? "CENIT"
+            : "ACH";
 
-        return await _context.CfgProfiles
-            .AsNoTracking()
-            .Where(x => clearingHouseCodes.Contains(x.ClearingHouse.Code)
-                && x.FlowType.Code == "RETORNO"
-                && x.Direction.Code == "ENTRADA"
-                && x.Status.Code == "PUBLICADO"
-                && x.EffectiveFrom <= effectiveAt
-                && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= effectiveAt))
-            .OrderByDescending(x => x.ContextPriority)
-            .ThenByDescending(x => x.VersionMajor)
-            .ThenByDescending(x => x.VersionMinor)
-            .Select(x => x.ProfileCode)
-            .FirstOrDefaultAsync(ct);
+        return _profileResolver.ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = configClearingHouseCode,
+            FlowTypeCode = "RETORNO",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = businessDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            RecordCodes = ["1", "5", "6", "7", "8", "9"],
+            RequireHomologated = true
+        }, ct);
     }
 
     private string ResolveOutputDirectory(string clearingHouseCode, NachaInboundSimulationType scenario)

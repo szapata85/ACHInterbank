@@ -141,6 +141,20 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         Assert.Contains("action", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("https://backend1.example.com/WSAxonRespuestaTransacciones.svc")]
+    [InlineData("http://localhost:7083/WSCFAACH.svc")]
+    [InlineData("ftp://localhost/WSAxonRespuestaTransacciones.svc")]
+    public async Task RegistrarRespuestaTransaccionAsync_WhenEndpointIsOutsideControlledAllowlist_BlocksBeforeNetwork(string endpoint)
+    {
+        var sut = BuildClient(endpoint, out _);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+
+        Assert.Contains("controlled-local", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static WsAxonRespuestaTransaccionesSoapClient BuildClient(string endpoint, out Mock<ISoapIntegrationSettingsService> settingsMock, string? soapAction = null)
     {
         var mapping = new SoapEndpointMethodMappingDto
@@ -197,7 +211,7 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         public static async Task<LocalSoapServer> StartAsync(Func<HttpListenerRequest, string, HttpResponseMessage> handler)
         {
             var port = GetFreePort();
-            var url = $"http://127.0.0.1:{port}/";
+            var url = $"http://127.0.0.1:{port}/WSAxonRespuestaTransacciones.svc/";
             var server = new LocalSoapServer(url, handler);
             await Task.Delay(20);
             return server;

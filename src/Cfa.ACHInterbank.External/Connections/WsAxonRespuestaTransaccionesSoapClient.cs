@@ -118,7 +118,7 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         return responseContent;
     }
 
-    private async Task<(string Endpoint, string SoapAction)> ResolveConfigurationAsync(CancellationToken ct)
+    private async Task<(Uri Endpoint, string SoapAction)> ResolveConfigurationAsync(CancellationToken ct)
     {
         const string action = "RegistrarRespuestaTransaccion";
         var settings = await _soapSettingsService.GetAsync(ct).ConfigureAwait(false);
@@ -146,7 +146,33 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
             throw new InvalidOperationException($"SOAP action for '{action}' is not configured in database.");
         }
 
-        return (mapping.Endpoint, mapping.SoapAction);
+        return (ValidateControlledEndpoint(mapping.Endpoint), mapping.SoapAction);
+    }
+
+    private static Uri ValidateControlledEndpoint(string endpoint)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "SOAP endpoint for 'RegistrarRespuestaTransaccion' must be an absolute controlled-local HTTP endpoint.");
+        }
+
+        var allowedHost = string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(uri.Host, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(uri.Host, "host.docker.internal", StringComparison.OrdinalIgnoreCase);
+        var expectedPath = string.Equals(
+            uri.AbsolutePath.TrimEnd('/'),
+            "/WSAxonRespuestaTransacciones.svc",
+            StringComparison.OrdinalIgnoreCase);
+
+        if (!allowedHost || !expectedPath)
+        {
+            throw new InvalidOperationException(
+                "SOAP endpoint for 'RegistrarRespuestaTransaccion' is outside the controlled-local WSAXON service allowlist.");
+        }
+
+        return uri;
     }
 
     private static string BuildEnvelope(string body)

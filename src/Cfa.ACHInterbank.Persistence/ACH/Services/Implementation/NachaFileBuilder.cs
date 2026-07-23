@@ -1874,13 +1874,23 @@ public class NachaFileBuilder : INachaFileBuilder
 
         var request = BuildConfigResolutionRequest(context, recordCodes);
         var resolution = await _configResolver.ResolveAsync(request, ct);
-        if (resolution.Warnings.Any(x => x.Contains("Ambig", StringComparison.OrdinalIgnoreCase)))
+        if (resolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous
+            || resolution.Warnings.Any(x => x.Contains("Ambig", StringComparison.OrdinalIgnoreCase)))
         {
             throw new NachaGenerationException("NACHA_PROFILE_AMBIGUOUS", string.Join(" | ", resolution.Warnings));
         }
 
         if (!resolution.Success || resolution.Profile is null)
         {
+            if (resolution.Profile is not null
+                && resolution.SelectionStatus == NachaProfileSelectionStatus.ProfileNotFound
+                && resolution.Warnings.Any(x => x.Contains("RecordCode=", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new NachaGenerationException(
+                    "NACHA_REQUIRED_RECORD_MISSING",
+                    string.Join(" | ", resolution.Warnings));
+            }
+
             var code = await ResolveProfileFailureCodeAsync(request, ct);
             throw new NachaGenerationException(code, $"No existe perfil NACHA-M publicado/vigente para {request.ClearingHouseCode}/{request.FlowTypeCode}/{request.DirectionCode}.");
         }

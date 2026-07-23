@@ -26,6 +26,9 @@ public sealed class IncomingNachaIngestionResponse
     public int? ResolvedClearingHouseId { get; init; }
     public string? ResolvedAchCycleId { get; init; }
     public DateTime? OperationalDate { get; init; }
+    public NachaProfileSelectionStatus? ProfileSelectionStatus { get; init; }
+    public string? SelectedProfileCode { get; init; }
+    public string? SelectedProfileVersion { get; init; }
     public int TotalBatches { get; init; }
     public int TotalEntries { get; init; }
     public int TotalAddendas { get; init; }

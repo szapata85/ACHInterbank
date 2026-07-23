@@ -28,6 +28,7 @@ public class NachaConfigResolverTests
         });
 
         result.Success.Should().BeTrue();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileSelected);
         result.Profile.Should().NotBeNull();
         result.LayoutsByRecordCode.Should().ContainKey("1");
         result.LayoutsByRecordCode.Should().ContainKey("5");
@@ -50,7 +51,123 @@ public class NachaConfigResolverTests
             RecordCodes = ["1"]
         });
 
-        result.Warnings.Should().Contain(x => x.Contains("Ambigüedad", StringComparison.OrdinalIgnoreCase));
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileAmbiguous);
+        result.Profile.Should().NotBeNull();
+        result.LayoutsByRecordCode.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldReturnProfileNotFound_WhenDimensionsDoNotExist()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "RETORNO",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = DateTime.UtcNow
+        });
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileNotFound);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldReturnProfileInactive_WhenProfileIsOutsideEffectivePeriod()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        var profile = await context.CfgProfiles.SingleAsync();
+        profile.EffectiveFrom = DateTime.UtcNow.AddDays(2);
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequest());
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileInactive);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldReturnProfileVersionUnsupported_WhenRequestedVersionDoesNotExist()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = DateTime.UtcNow,
+            RequestedVersionMajor = 32,
+            RequestedVersionMinor = 0
+        });
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileVersionUnsupported);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldReturnClearingHouseUndetermined_WhenClearingHouseIsBlank()
+    {
+        await using var context = CreateContext();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = " ",
+            FlowTypeCode = "RETORNO",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = DateTime.UtcNow
+        });
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ClearingHouseUndetermined);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldReturnProfileAmbiguous_WhenProfilesHaveSamePriorityAndVersion()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        context.CfgProfiles.Add(new CfgProfile
+        {
+            Id = 11,
+            ProfileCode = "P2",
+            NameEs = "Perfil duplicado",
+            ClearingHouseId = 1,
+            FlowTypeId = 1,
+            DirectionId = 1,
+            ServiceClassId = 1,
+            ContextPriority = 100,
+            EffectiveFrom = DateTime.UtcNow.AddDays(-1),
+            StatusId = 1,
+            VersionMajor = 1,
+            VersionMinor = 0,
+            RowVersion = [2]
+        });
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequest());
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileAmbiguous);
+        result.Profile.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldReturnProfileInactive_WhenHomologationIsRequiredButMissing()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequest(requireHomologated: true));
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileInactive);
     }
 
     private static AchDbContext CreateContext()
@@ -140,7 +257,7 @@ public class NachaConfigResolverTests
                 EffectiveFrom = DateTime.UtcNow.AddDays(-1),
                 StatusId = 1,
                 TotalLength = 106,
-                IsDefaultForRecord = false
+                IsDefaultForRecord = true
             });
         }
 
@@ -150,4 +267,16 @@ public class NachaConfigResolverTests
 
         await context.SaveChangesAsync();
     }
+
+    private static NachaConfigResolutionRequest BaseRequest(bool requireHomologated = false)
+        => new()
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = DateTime.UtcNow,
+            RecordCodes = ["1"],
+            RequireHomologated = requireHomologated
+        };
 }

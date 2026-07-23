@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.ACH.Responses.Repositories;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
+using System.Text.Json;
 
 namespace Cfa.ACHInterbank.Application.ACH.Responses.Notification.Services;
 
@@ -74,6 +75,16 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         }
 
         var cmd = _mapper.Map(response, attempt);
+        attempt.RequestPayload = JsonSerializer.Serialize(new
+        {
+            idCanal = cmd.IdCanal,
+            nombreCanal = cmd.NombreCanal,
+            idTransaccion = cmd.IdTransaccion,
+            idEstado = cmd.IdEstado,
+            causal = cmd.Causal,
+            idTransaccionAxon = cmd.IdTransaccionServicioExterno,
+            descripcionCausal = cmd.DescripcionCausal
+        });
 
         try
         {
@@ -95,6 +106,12 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
             }
 
             var result = await _gateway.RegistrarRespuestaAsync(cmd, cancellationToken);
+            attempt.ResponsePayload = JsonSerializer.Serialize(new
+            {
+                existeError = result.ExisteError,
+                codigoError = result.CodigoError,
+                descripcionError = result.DescripcionError
+            });
             attempt.ExisteError = result.ExisteError;
             attempt.CodigoError = result.CodigoError;
             attempt.DescripcionError = result.DescripcionError;
@@ -120,6 +137,11 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
         }
         catch (Exception ex)
         {
+            attempt.ResponsePayload = JsonSerializer.Serialize(new
+            {
+                technicalStatus = "ErrorTecnico",
+                exceptionType = ex.GetType().Name
+            });
             attempt.EstadoNotificacion = AchResponseNotificationStatus.ErrorTecnico;
             attempt.ErrorTecnico = ex.Message;
             attempt.FechaEnvio = DateTime.UtcNow;

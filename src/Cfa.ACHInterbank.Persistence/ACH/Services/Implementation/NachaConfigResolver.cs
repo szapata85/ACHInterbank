@@ -23,8 +23,21 @@ public class NachaConfigResolver : INachaConfigResolver
         var trace = new List<string>();
         var warnings = new List<string>();
 
+        if (string.IsNullOrWhiteSpace(request.ClearingHouseCode))
+        {
+            return Failure(
+                NachaProfileSelectionStatus.ClearingHouseUndetermined,
+                "No se recibió una cámara explícita para seleccionar el perfil.",
+                trace,
+                warnings);
+        }
+
+        var clearingHouseCode = request.ClearingHouseCode.Trim().ToUpperInvariant();
+        var flowTypeCode = request.FlowTypeCode.Trim().ToUpperInvariant();
+        var directionCode = request.DirectionCode.Trim().ToUpperInvariant();
+        var serviceClassCode = request.ServiceClassCode?.Trim().ToUpperInvariant();
         var date = request.ProcessDateUtc.Date;
-        var profileCandidates = await _context.CfgProfiles
+        var dimensionCandidates = await _context.CfgProfiles
             .AsNoTracking()
             .Include(x => x.Status)
             .Include(x => x.ClearingHouse)
@@ -34,37 +47,87 @@ public class NachaConfigResolver : INachaConfigResolver
             .Include(x => x.Tags)
             .Include(x => x.Records)
                 .ThenInclude(x => x.RecordCode)
-            .Where(x => x.ClearingHouse.Code == request.ClearingHouseCode
-                        && x.FlowType.Code == request.FlowTypeCode
-                        && x.Direction.Code == request.DirectionCode
-                        && (x.ServiceClass == null || x.ServiceClass.Code == request.ServiceClassCode)
-                        && x.Status.Code == "PUBLICADO"
-                        && x.EffectiveFrom.Date <= date
-                        && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date))
-            .OrderBy(x => x.ContextPriority)
-            .ThenByDescending(x => x.VersionMajor)
-            .ThenByDescending(x => x.VersionMinor)
+            .Where(x => x.ClearingHouse.Code == clearingHouseCode
+                        && x.FlowType.Code == flowTypeCode
+                        && x.Direction.Code == directionCode
+                        && (x.ServiceClass == null || x.ServiceClass.Code == serviceClassCode))
             .ToListAsync(ct);
 
-        trace.Add($"Perfiles candidatos encontrados: {profileCandidates.Count}.");
+        trace.Add($"Perfiles para las dimensiones exactas: {dimensionCandidates.Count}.");
 
-        if (profileCandidates.Count == 0)
+        if (dimensionCandidates.Count == 0)
         {
-            warnings.Add("No hay perfiles publicados para el contexto solicitado.");
-            return new NachaConfigResolutionResult { Success = false, Trace = trace, Warnings = warnings, UsedFallback = true };
+            return Failure(
+                NachaProfileSelectionStatus.ProfileNotFound,
+                "No existe un perfil para la combinación de cámara, flujo, dirección y clase de servicio.",
+                trace,
+                warnings);
         }
 
-        var topPriority = profileCandidates[0].ContextPriority;
-        var topProfiles = profileCandidates.Where(x => x.ContextPriority == topPriority).ToList();
-        if (topProfiles.Count > 1)
+        var versionCandidates = dimensionCandidates
+            .Where(x => !request.RequestedVersionMajor.HasValue || x.VersionMajor == request.RequestedVersionMajor.Value)
+            .Where(x => !request.RequestedVersionMinor.HasValue || x.VersionMinor == request.RequestedVersionMinor.Value)
+            .ToList();
+
+        if (versionCandidates.Count == 0)
         {
-            warnings.Add($"Ambigüedad de perfiles en prioridad {topPriority}: {string.Join(",", topProfiles.Select(x => x.ProfileCode))}.");
+            return Failure(
+                NachaProfileSelectionStatus.ProfileVersionUnsupported,
+                $"La versión solicitada no está disponible para el contexto. Version={FormatRequestedVersion(request)}.",
+                trace,
+                warnings);
         }
 
-        var profile = topProfiles
-            .OrderByDescending(x => x.VersionMajor)
-            .ThenByDescending(x => x.VersionMinor)
-            .First();
+        var activeCandidates = versionCandidates
+            .Where(x => string.Equals(x.Status.Code, "PUBLICADO", StringComparison.OrdinalIgnoreCase)
+                        && x.EffectiveFrom.Date <= date
+                        && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date))
+            .Where(x => !request.RequireHomologated || IsNormativelyEnabled(x))
+            .ToList();
+
+        if (activeCandidates.Count == 0)
+        {
+            return Failure(
+                NachaProfileSelectionStatus.ProfileInactive,
+                request.RequireHomologated
+                    ? "El perfil existe, pero no está publicado, vigente y homologado para el contexto solicitado."
+                    : "El perfil existe, pero no está publicado o vigente para la fecha solicitada.",
+                trace,
+                warnings);
+        }
+
+        if (!string.IsNullOrWhiteSpace(serviceClassCode)
+            && activeCandidates.Any(x => x.ServiceClass is not null))
+        {
+            activeCandidates = activeCandidates
+                .Where(x => x.ServiceClass is not null
+                            && string.Equals(x.ServiceClass.Code, serviceClassCode, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        var topPriority = activeCandidates.Min(x => x.ContextPriority);
+        var topPriorityCandidates = activeCandidates
+            .Where(x => x.ContextPriority == topPriority)
+            .ToList();
+        var highestMajor = topPriorityCandidates.Max(x => x.VersionMajor);
+        var highestMinor = topPriorityCandidates
+            .Where(x => x.VersionMajor == highestMajor)
+            .Max(x => x.VersionMinor);
+        var topProfiles = topPriorityCandidates
+            .Where(x => x.VersionMajor == highestMajor && x.VersionMinor == highestMinor)
+            .OrderBy(x => x.ProfileCode)
+            .ToList();
+
+        if (topProfiles.Count != 1)
+        {
+            return Failure(
+                NachaProfileSelectionStatus.ProfileAmbiguous,
+                $"Existen {topProfiles.Count} perfiles indistinguibles en prioridad {topPriority} y versión {highestMajor}.{highestMinor}: {string.Join(",", topProfiles.Select(x => x.ProfileCode))}.",
+                trace,
+                warnings);
+        }
+
+        var profile = topProfiles[0];
 
         trace.Add($"Perfil seleccionado: {profile.ProfileCode} (Id={profile.Id}).");
 
@@ -104,24 +167,41 @@ public class NachaConfigResolver : INachaConfigResolver
 
             if (candidates.Count == 0)
             {
-                warnings.Add($"No existe layout publicado para RecordCode={recordCode}.");
-                continue;
+                return Failure(
+                    NachaProfileSelectionStatus.ProfileNotFound,
+                    $"No existe layout publicado para RecordCode={recordCode}.",
+                    trace,
+                    warnings,
+                    profile);
             }
 
-            var filtered = ApplySelectionPredicate(candidates, request.SelectionContext, warnings, recordCode);
-            var chosenPool = filtered.Count > 0 ? filtered : candidates;
-            var firstPriority = chosenPool[0].Priority;
-            var firstPriorityCandidates = chosenPool.Where(x => x.Priority == firstPriority).ToList();
-
-            if (firstPriorityCandidates.Count > 1)
+            var chosenPool = ApplySelectionPredicate(candidates, request.SelectionContext, warnings, recordCode);
+            if (chosenPool.Count == 0)
             {
-                warnings.Add($"Ambigüedad de layout para RecordCode={recordCode} en prioridad {firstPriority}: {string.Join(",", firstPriorityCandidates.Select(x => x.VariantCode))}.");
+                return Failure(
+                    NachaProfileSelectionStatus.ProfileNotFound,
+                    $"No existe layout aplicable al contexto para RecordCode={recordCode}.",
+                    trace,
+                    warnings,
+                    profile);
             }
 
-            var chosen = firstPriorityCandidates
-                .OrderByDescending(x => x.IsDefaultForRecord)
-                .ThenBy(x => x.Id)
-                .First();
+            var firstPriority = chosenPool.Min(x => x.Priority);
+            var firstPriorityCandidates = chosenPool.Where(x => x.Priority == firstPriority).ToList();
+            var defaultCandidates = firstPriorityCandidates.Where(x => x.IsDefaultForRecord).ToList();
+            var finalists = defaultCandidates.Count > 0 ? defaultCandidates : firstPriorityCandidates;
+
+            if (finalists.Count != 1)
+            {
+                return Failure(
+                    NachaProfileSelectionStatus.ProfileAmbiguous,
+                    $"Existen {finalists.Count} layouts indistinguibles para RecordCode={recordCode} en prioridad {firstPriority}: {string.Join(",", finalists.Select(x => x.VariantCode))}.",
+                    trace,
+                    warnings,
+                    profile);
+            }
+
+            var chosen = finalists[0];
 
             selectedLayouts[recordCode] = chosen;
             trace.Add($"Layout seleccionado para RecordCode={recordCode}: {chosen.VariantCode} (Id={chosen.Id}).");
@@ -129,8 +209,9 @@ public class NachaConfigResolver : INachaConfigResolver
 
         return new NachaConfigResolutionResult
         {
-            Success = selectedLayouts.Count > 0,
-            UsedFallback = selectedLayouts.Count != neededRecordCodes.Count,
+            Success = true,
+            SelectionStatus = NachaProfileSelectionStatus.ProfileSelected,
+            UsedFallback = false,
             Profile = profile,
             LayoutsByRecordCode = selectedLayouts,
             LayoutVariantsByRecordCode = variantsByRecordCode,
@@ -145,13 +226,14 @@ public class NachaConfigResolver : INachaConfigResolver
         List<string> warnings,
         string recordCode)
     {
-        var filtered = new List<CfgLayoutVariant>();
+        var predicateMatches = new List<CfgLayoutVariant>();
+        var defaults = new List<CfgLayoutVariant>();
 
         foreach (var candidate in candidates)
         {
             if (string.IsNullOrWhiteSpace(candidate.SelectionPredicateJson))
             {
-                filtered.Add(candidate);
+                defaults.Add(candidate);
                 continue;
             }
 
@@ -160,7 +242,7 @@ public class NachaConfigResolver : INachaConfigResolver
                 var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(candidate.SelectionPredicateJson);
                 if (dict == null || dict.Count == 0)
                 {
-                    filtered.Add(candidate);
+                    defaults.Add(candidate);
                     continue;
                 }
 
@@ -169,7 +251,7 @@ public class NachaConfigResolver : INachaConfigResolver
 
                 if (matches)
                 {
-                    filtered.Add(candidate);
+                    predicateMatches.Add(candidate);
                 }
             }
             catch
@@ -178,6 +260,46 @@ public class NachaConfigResolver : INachaConfigResolver
             }
         }
 
-        return filtered;
+        return predicateMatches.Count > 0 ? predicateMatches : defaults;
+    }
+
+    private static NachaConfigResolutionResult Failure(
+        NachaProfileSelectionStatus status,
+        string warning,
+        List<string> trace,
+        List<string> warnings,
+        CfgProfile? profile = null)
+    {
+        warnings.Add(warning);
+        trace.Add($"Selección cerrada: {status}.");
+        return new NachaConfigResolutionResult
+        {
+            Success = false,
+            SelectionStatus = status,
+            UsedFallback = false,
+            Profile = profile,
+            Trace = trace,
+            Warnings = warnings
+        };
+    }
+
+    private static bool IsNormativelyEnabled(CfgProfile profile)
+    {
+        var tags = profile.Tags
+            .GroupBy(x => x.TagKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.Last().TagValue, StringComparer.OrdinalIgnoreCase);
+        return tags.TryGetValue("IsHomologated", out var homologated)
+               && bool.TryParse(homologated, out var isHomologated)
+               && isHomologated
+               && (!tags.TryGetValue("IsPlaceholder", out var placeholder)
+                   || !bool.TryParse(placeholder, out var isPlaceholder)
+                   || !isPlaceholder);
+    }
+
+    private static string FormatRequestedVersion(NachaConfigResolutionRequest request)
+    {
+        var major = request.RequestedVersionMajor?.ToString() ?? "*";
+        var minor = request.RequestedVersionMinor?.ToString() ?? "*";
+        return $"{major}.{minor}";
     }
 }

@@ -38,7 +38,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         private static readonly Regex OfficialNachaNamePattern = new(@"^\d{7}\.\d{3}\.\d{8}\.\d+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            ".ach", ".nacha", ".txt"
+            ".ach", ".nacha", ".txt", ".OUT", ".RET"
         };
         private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -88,7 +88,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     Success = false,
                     Partial = false,
                     Message = "Extensión de archivo no permitida.",
-                    Errors = ["Nombres oficiales CENIT permitidos: RRRRTTT.ZZZ.YYYYMMDD.N, o extensiones internas .ach, .nacha, .txt."],
+                    Errors = ["Nombres CENIT permitidos: RRRRTTT.ZZZ.YYYYMMDD.N; ACH Colombia: .OUT; devoluciones controladas: .RET; fixtures internos: .ach, .nacha, .txt."],
                     TraceId = traceId
                 });
             }
@@ -126,6 +126,8 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     Message = result.IngestionStatus switch
                     {
                         Domain.Models.ACH.IncomingNachaIngestionStatus.Duplicado => "Archivo duplicado detectado.",
+                        Domain.Models.ACH.IncomingNachaIngestionStatus.Bloqueado when result.ProfileSelectionStatus.HasValue
+                            => "Archivo bloqueado por selección de perfil NACHA-M.",
                         Domain.Models.ACH.IncomingNachaIngestionStatus.Bloqueado => "Archivo bloqueado por ambigüedad de ciclo.",
                         Domain.Models.ACH.IncomingNachaIngestionStatus.PendienteResolucion => "Archivo pendiente de resolución de ciclo.",
                         Domain.Models.ACH.IncomingNachaIngestionStatus.Completado => "Archivo procesado correctamente.",
@@ -144,6 +146,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     ResolvedClearingHouseId = result.ResolvedClearingHouseId,
                     ResolvedAchCycleId = result.ResolvedAchCycleId,
                     OperationalDate = result.OperationalDate,
+                    ProfileSelectionStatus = result.ProfileSelectionStatus?.ToString(),
+                    SelectedProfileCode = result.SelectedProfileCode,
+                    SelectedProfileVersion = result.SelectedProfileVersion,
                     TotalBatches = result.TotalBatches,
                     TotalEntries = result.TotalEntries,
                     TotalAddendas = result.TotalAddendas
@@ -313,6 +318,9 @@ namespace Cfa.ACHInterbank.Api.Controllers
         public int? ResolvedClearingHouseId { get; set; }
         public string? ResolvedAchCycleId { get; set; }
         public DateTime? OperationalDate { get; set; }
+        public string? ProfileSelectionStatus { get; set; }
+        public string? SelectedProfileCode { get; set; }
+        public string? SelectedProfileVersion { get; set; }
         public int TotalBatches { get; set; }
         public int TotalEntries { get; set; }
         public int TotalAddendas { get; set; }

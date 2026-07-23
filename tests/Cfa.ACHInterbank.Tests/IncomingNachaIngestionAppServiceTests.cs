@@ -82,6 +82,7 @@ public class IncomingNachaIngestionAppServiceTests
         Assert.Equal(IncomingNachaIngestionStatus.Duplicado, response.IngestionStatus);
         Assert.Equal(1, await context.IncomingNachaFileIngestions.CountAsync());
         Assert.Equal(context.IncomingNachaFileIngestions.Single().Id, response.IngestionId);
+        Assert.Equal(1, await context.IncomingNachaProcessingEvents.CountAsync(x => x.EventType == "DuplicateUploadAttempt"));
         parser.Verify(x => x.ParseAndSaveDetailedAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<NachaParseRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -125,6 +126,142 @@ public class IncomingNachaIngestionAppServiceTests
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest { FileStream = BuildStream(), FileName = "sin.ach" });
 
         Assert.Equal(IncomingNachaIngestionStatus.PendienteResolucion, response.IngestionStatus);
+    }
+
+    [Fact]
+    public async Task IngestAsync_DifferentialWithoutSupportedProfile_BlocksBeforeParser_AndSecondLoadIsDuplicate()
+    {
+        using var context = BuildContext();
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 1,
+            ClearingHouseId = 1,
+            Code = "ACHCOL",
+            Name = "ACH Colombia",
+            OriginCode = "0001283"
+        });
+        await context.SaveChangesAsync();
+
+        var cycleResolver = new Mock<IIncomingNachaCycleResolver>();
+        cycleResolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaCycleResolutionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaCycleResolutionResult
+            {
+                IsResolved = true,
+                Status = IncomingNachaCycleResolutionStatus.ResueltoConfirmado,
+                ClearingHouseId = 1,
+                DetectedClearingHouseId = 1,
+                AchCycleId = "ACH-20260723-01",
+                OperationalDate = new DateTime(2026, 7, 23),
+                Confidence = 1m,
+                EvidenceJson = "{}"
+            });
+
+        var profileResolver = new Mock<INachaConfigResolver>();
+        profileResolver.Setup(x => x.ResolveAsync(
+                It.Is<NachaConfigResolutionRequest>(request =>
+                    request.ClearingHouseCode == "ACH"
+                    && request.FlowTypeCode == "RETORNO"
+                    && request.DirectionCode == "ENTRADA"
+                    && request.RequireHomologated),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaConfigResolutionResult
+            {
+                Success = false,
+                SelectionStatus = NachaProfileSelectionStatus.ProfileNotFound,
+                Warnings = ["Sin perfil diferencial sustentado."]
+            });
+
+        var parser = new Mock<INachaParserService>();
+        var sut = new IncomingNachaIngestionAppService(
+            context,
+            cycleResolver.Object,
+            parser.Object,
+            Mock.Of<IIncomingNachaPostParseProcessor>(),
+            BuildExternalPolicyMock().Object,
+            Mock.Of<ILogger<IncomingNachaIngestionAppService>>(),
+            profileResolver.Object);
+
+        var first = await sut.IngestAsync(new IncomingNachaIngestionRequest
+        {
+            FileStream = BuildDifferentialStream(),
+            FileName = "0001283.001.RET",
+            RequestedBy = "tester"
+        });
+        var second = await sut.IngestAsync(new IncomingNachaIngestionRequest
+        {
+            FileStream = BuildDifferentialStream(),
+            FileName = "0001283.001.RET",
+            RequestedBy = "tester"
+        });
+
+        Assert.Equal(IncomingNachaIngestionStatus.Bloqueado, first.IngestionStatus);
+        Assert.Equal(NachaProfileSelectionStatus.ProfileNotFound, first.ProfileSelectionStatus);
+        Assert.Equal(IncomingNachaIngestionStatus.Duplicado, second.IngestionStatus);
+        Assert.Equal(1, await context.IncomingNachaFileIngestions.CountAsync());
+        Assert.Equal(1, await context.IncomingNachaProcessingEvents.CountAsync(x => x.EventType == "NachaProfileSelection"));
+        Assert.Equal(1, await context.IncomingNachaProcessingEvents.CountAsync(x => x.EventType == "DuplicateUploadAttempt"));
+        Assert.Equal(0, await context.IncomingNachaDispatchQueue.CountAsync());
+        Assert.Equal(0, await context.IncomingNachaIntegrationExecution.CountAsync());
+        parser.Verify(x => x.ParseAndSaveDetailedAsync(
+            It.IsAny<Stream>(),
+            It.IsAny<string>(),
+            It.IsAny<NachaParseRequest>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+        profileResolver.Verify(x => x.ResolveAsync(
+            It.IsAny<NachaConfigResolutionRequest>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task IngestAsync_SameNameWithDifferentBytes_PersistsIndependentConflictAudit()
+    {
+        using var context = BuildContext();
+        var cycleResolver = new Mock<IIncomingNachaCycleResolver>();
+        cycleResolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaCycleResolutionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaCycleResolutionResult
+            {
+                IsResolved = true,
+                Status = IncomingNachaCycleResolutionStatus.ResueltoInferido,
+                ClearingHouseId = 1,
+                OperationalDate = new DateTime(2026, 7, 23),
+                Confidence = 1m,
+                EvidenceJson = "{}"
+            });
+        var parser = new Mock<INachaParserService>();
+        parser.Setup(x => x.ParseAndSaveDetailedAsync(
+                It.IsAny<Stream>(),
+                It.IsAny<string>(),
+                It.IsAny<NachaParseRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaParseResult());
+        var sut = new IncomingNachaIngestionAppService(
+            context,
+            cycleResolver.Object,
+            parser.Object,
+            Mock.Of<IIncomingNachaPostParseProcessor>(),
+            BuildExternalPolicyMock().Object,
+            Mock.Of<ILogger<IncomingNachaIngestionAppService>>());
+
+        var first = await sut.IngestAsync(new IncomingNachaIngestionRequest
+        {
+            FileStream = BuildStream('1'),
+            FileName = "mismo-nombre.ach"
+        });
+        var second = await sut.IngestAsync(new IncomingNachaIngestionRequest
+        {
+            FileStream = BuildStream('2'),
+            FileName = "mismo-nombre.ach"
+        });
+
+        Assert.Equal(IncomingNachaIngestionStatus.Completado, first.IngestionStatus);
+        Assert.Equal(IncomingNachaIngestionStatus.Completado, second.IngestionStatus);
+        Assert.Equal(2, await context.IncomingNachaFileIngestions.CountAsync());
+        Assert.Equal(1, await context.IncomingNachaProcessingEvents.CountAsync(x => x.EventType == "FileNameContentConflict"));
+        parser.Verify(x => x.ParseAndSaveDetailedAsync(
+            It.IsAny<Stream>(),
+            "mismo-nombre.ach",
+            It.IsAny<NachaParseRequest>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -204,9 +341,19 @@ public class IncomingNachaIngestionAppServiceTests
         return new AchDbContext(options);
     }
 
-    private static MemoryStream BuildStream()
+    private static MemoryStream BuildStream(char recordType = '1')
     {
-        return new MemoryStream(System.Text.Encoding.UTF8.GetBytes(new string('1', 106)));
+        return new MemoryStream(System.Text.Encoding.UTF8.GetBytes(new string(recordType, 106)));
+    }
+
+    private static MemoryStream BuildDifferentialStream()
+    {
+        var records = new[]
+        {
+            "1" + new string(' ', 105),
+            "7" + "99" + new string(' ', 103)
+        };
+        return new MemoryStream(System.Text.Encoding.ASCII.GetBytes(string.Concat(records)));
     }
 
     private static Mock<IExternalFileNamePolicy> BuildExternalPolicyMock()

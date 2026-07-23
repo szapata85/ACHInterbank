@@ -23,6 +23,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
     private readonly IIncomingNachaPostParseProcessor _postParseProcessor;
     private readonly IExternalFileNamePolicy _externalFileNamePolicy;
     private readonly ILogger<IncomingNachaIngestionAppService> _logger;
+    private readonly INachaConfigResolver _profileResolver;
 
     public IncomingNachaIngestionAppService(
         AchDbContext context,
@@ -30,7 +31,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         INachaParserService parserService,
         IIncomingNachaPostParseProcessor postParseProcessor,
         IExternalFileNamePolicy externalFileNamePolicy,
-        ILogger<IncomingNachaIngestionAppService> logger)
+        ILogger<IncomingNachaIngestionAppService> logger,
+        INachaConfigResolver? profileResolver = null)
     {
         _context = context;
         _cycleResolver = cycleResolver;
@@ -38,6 +40,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         _postParseProcessor = postParseProcessor;
         _externalFileNamePolicy = externalFileNamePolicy;
         _logger = logger;
+        _profileResolver = profileResolver ?? new NachaConfigResolver(context);
     }
 
     public async Task<IncomingNachaIngestionResponse> IngestAsync(IncomingNachaIngestionRequest request, CancellationToken ct = default)
@@ -55,6 +58,10 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
 
         var fileHash = ComputeSha256(fileBytes);
         var records = ChunkFixed106(fileBytes);
+        var sameNameDifferentContent = await _context.IncomingNachaFileIngestions
+            .AsNoTracking()
+            .AnyAsync(x => x.FileName == request.FileName
+                           && (x.FileHashSha256 != fileHash || x.FileSize != fileBytes.LongLength), ct);
 
         var candidatesByFingerprint = await _context.IncomingNachaFileIngestions.AsNoTracking()
             .Where(x => x.FileHashSha256 == fileHash && x.FileSize == fileBytes.LongLength)
@@ -88,15 +95,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             }
         }
 
-        var authorizedPreDispatchRetry = !request.ForceReprocess
-            && canonicalCandidate is not null
-            && await IsAuthorizedPreDispatchBlockedRetryAsync(canonicalCandidate, ct);
-
-        if (authorizedPreDispatchRetry)
-        {
-            parentIngestionId = canonicalCandidate!.Id;
-        }
-        else if (!request.ForceReprocess && canonicalCandidate is not null)
+        if (!request.ForceReprocess && canonicalCandidate is not null)
         {
             var nextAttempt = await _context.IncomingNachaFileProcessingResults
                 .AsNoTracking()
@@ -115,6 +114,20 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 ErrorCount = 1,
                 ParserErrorsJson = JsonSerializer.Serialize(new[] { "Archivo duplicado" }),
                 IsReprocessable = true
+            });
+            _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+            {
+                IncomingNachaFileIngestionId = canonicalCandidate.Id,
+                EventType = "DuplicateUploadAttempt",
+                EventStatus = IncomingNachaIngestionStatus.Duplicado.ToString(),
+                Message = "Segundo intento auditado; no se repitieron parsing, evento funcional ni despacho.",
+                EvidenceJson = JsonSerializer.Serialize(new
+                {
+                    attemptedFileName = request.FileName,
+                    samePhysicalName = string.Equals(request.FileName, canonicalCandidate.FileName, StringComparison.OrdinalIgnoreCase),
+                    contentFingerprintMatched = true
+                }),
+                RaisedBy = "IncomingNachaIngestionAppService"
             });
 
             await _context.SaveChangesAsync(ct);
@@ -149,26 +162,14 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ReceivedAtUtc = DateTime.UtcNow,
             CorrelationId = correlationId,
             ParentIngestionId = parentIngestionId,
-            IsReprocess = request.ForceReprocess || authorizedPreDispatchRetry,
+            IsReprocess = request.ForceReprocess,
             IngestionStatus = IncomingNachaIngestionStatus.Recibido,
             ParsingStatus = IncomingNachaParsingStatus.NoEjecutado,
             CycleResolutionStatus = IncomingNachaCycleResolutionStatus.NoIntentado,
-            Notes = authorizedPreDispatchRetry
-                ? $"AUTHORIZED_REPLAY_AFTER_PRE_DISPATCH_FAILURE; PreviousIngestionId={canonicalCandidate!.Id}; NewIngestionId={ingestionId}; FileHash={canonicalCandidate.FileHashSha256}; Reason=BlockedWithoutQueueOrIntegrationExecution; OccurredAtUtc={DateTime.UtcNow:O}"
-                : request.ForceReprocess
-                    ? $"Reproceso autorizado. ParentIngestionId={parentIngestionId}"
-                    : "Archivo recibido.",
-            ResolutionEvidenceJson = authorizedPreDispatchRetry
-                ? JsonSerializer.Serialize(new
-                {
-                    eventType = "AUTHORIZED_REPLAY_AFTER_PRE_DISPATCH_FAILURE",
-                    previousIngestionId = canonicalCandidate!.Id,
-                    newIngestionId = ingestionId,
-                    fileHash = canonicalCandidate.FileHashSha256,
-                    reason = "BlockedWithoutQueueOrIntegrationExecution",
-                    occurredAtUtc = DateTime.UtcNow
-                })
-                : request.ForceReprocess
+            Notes = request.ForceReprocess
+                ? $"Reproceso autorizado. ParentIngestionId={parentIngestionId}"
+                : "Archivo recibido.",
+            ResolutionEvidenceJson = request.ForceReprocess
                     ? JsonSerializer.Serialize(new
                 {
                     eventType = "ReprocesoAutorizado",
@@ -180,6 +181,24 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         };
 
         _context.IncomingNachaFileIngestions.Add(ingestion);
+        if (sameNameDifferentContent)
+        {
+            _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                EventType = "FileNameContentConflict",
+                EventStatus = "Detected",
+                Message = "El nombre físico ya existe con contenido diferente; se conserva como ingesta independiente.",
+                EvidenceJson = JsonSerializer.Serialize(new
+                {
+                    fileName = request.FileName,
+                    contentFingerprintMatched = false,
+                    overwritePrevented = true
+                }),
+                RaisedBy = "IncomingNachaIngestionAppService"
+            });
+        }
+
         try
         {
             await _context.SaveChangesAsync(ct);
@@ -281,6 +300,100 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
 
             await _context.SaveChangesAsync(ct);
             return BuildResponse(ingestion, null, resolution.Errors);
+        }
+
+        if (IsDifferentialCandidate(records))
+        {
+            var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct);
+            var profileResolution = await _profileResolver.ResolveAsync(new NachaConfigResolutionRequest
+            {
+                ClearingHouseCode = ToConfigClearingHouseCode(clearingHouseCode),
+                FlowTypeCode = "RETORNO",
+                DirectionCode = "ENTRADA",
+                ProcessDateUtc = ingestion.OperationalDate ?? DateTime.UtcNow.Date,
+                RecordCodes = records
+                    .Where(record => record.Length == 106 && !record.All(character => character == '9'))
+                    .Select(record => record[0].ToString())
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray(),
+                SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["MessageType"] = "DifferentialResponse",
+                    ["AddendaType"] = "99"
+                },
+                RequireHomologated = true
+            }, ct);
+
+            _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                EventType = "NachaProfileSelection",
+                EventStatus = profileResolution.SelectionStatus.ToString(),
+                Message = profileResolution.Success
+                    ? "Perfil NACHA-M diferencial seleccionado."
+                    : "Procesamiento diferencial bloqueado antes del parser.",
+                EvidenceJson = JsonSerializer.Serialize(new
+                {
+                    clearingHouseCode,
+                    flowType = "RETORNO",
+                    direction = "ENTRADA",
+                    selectionStatus = profileResolution.SelectionStatus.ToString(),
+                    profileCode = profileResolution.Profile?.ProfileCode,
+                    profileVersion = profileResolution.Profile is null
+                        ? null
+                        : $"{profileResolution.Profile.VersionMajor}.{profileResolution.Profile.VersionMinor}",
+                    requireHomologated = true
+                }),
+                RaisedBy = "IncomingNachaIngestionAppService"
+            });
+
+            if (!profileResolution.Success)
+            {
+                var diagnostic = profileResolution.SelectionStatus.ToString();
+                ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
+                ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+                ingestion.Notes = $"PROFILE_SELECTION_BLOCKED;Status={diagnostic}";
+
+                _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+                {
+                    IncomingNachaFileIngestionId = ingestion.Id,
+                    AttemptNumber = 1,
+                    StartedAtUtc = DateTime.UtcNow,
+                    FinishedAtUtc = DateTime.UtcNow,
+                    OutcomeStatus = profileResolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous
+                        ? IncomingNachaProcessingOutcomeStatus.BloqueadoAmbiguo
+                        : IncomingNachaProcessingOutcomeStatus.Fallido,
+                    FailureStage = "SeleccionPerfilNacha",
+                    WarningCount = profileResolution.Warnings.Count,
+                    ErrorCount = 1,
+                    ParserWarningsJson = JsonSerializer.Serialize(profileResolution.Warnings),
+                    ParserErrorsJson = JsonSerializer.Serialize(new[] { diagnostic }),
+                    IsReprocessable = true
+                });
+
+                await _context.SaveChangesAsync(ct);
+                return BuildResponse(ingestion, null, [diagnostic], profileResolution);
+            }
+
+            // El parser actual aún usa descriptores estáticos. Un perfil diferencial publicado no
+            // puede habilitarse hasta que el parser consuma exactamente el snapshot seleccionado.
+            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
+            ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+            ingestion.Notes = "DIFFERENTIAL_TABLE_DRIVEN_PARSER_NOT_ENABLED";
+            _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                AttemptNumber = 1,
+                StartedAtUtc = DateTime.UtcNow,
+                FinishedAtUtc = DateTime.UtcNow,
+                OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Fallido,
+                FailureStage = "ParserDiferencialTableDriven",
+                ErrorCount = 1,
+                ParserErrorsJson = JsonSerializer.Serialize(new[] { "DIFFERENTIAL_TABLE_DRIVEN_PARSER_NOT_ENABLED" }),
+                IsReprocessable = true
+            });
+            await _context.SaveChangesAsync(ct);
+            return BuildResponse(ingestion, null, ["DIFFERENTIAL_TABLE_DRIVEN_PARSER_NOT_ENABLED"], profileResolution);
         }
 
         ingestion.IngestionStatus = IncomingNachaIngestionStatus.ListoParaParseo;
@@ -422,7 +535,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
     private static IncomingNachaIngestionResponse BuildResponse(
         IncomingNachaFileIngestion ingestion,
         IncomingNachaFileProcessingResult? processing,
-        IReadOnlyList<string> errors)
+        IReadOnlyList<string> errors,
+        NachaConfigResolutionResult? profileSelection = null)
     {
         return new IncomingNachaIngestionResponse
         {
@@ -437,6 +551,11 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ResolvedClearingHouseId = ingestion.ResolvedClearingHouseId,
             ResolvedAchCycleId = ingestion.ResolvedAchCycleId,
             OperationalDate = ingestion.OperationalDate,
+            ProfileSelectionStatus = profileSelection?.SelectionStatus,
+            SelectedProfileCode = profileSelection?.Profile?.ProfileCode,
+            SelectedProfileVersion = profileSelection?.Profile is null
+                ? null
+                : $"{profileSelection.Profile.VersionMajor}.{profileSelection.Profile.VersionMinor}",
             TotalBatches = processing?.TotalBatches ?? 0,
             TotalEntries = processing?.TotalEntries ?? 0,
             TotalAddendas = processing?.TotalAddendas ?? 0,
@@ -444,30 +563,6 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ErrorCount = processing?.ErrorCount ?? errors.Count,
             Errors = errors
         };
-    }
-
-    private async Task<bool> IsAuthorizedPreDispatchBlockedRetryAsync(
-        IncomingNachaFileIngestion ingestion,
-        CancellationToken ct)
-    {
-        if (ingestion.IngestionStatus != IncomingNachaIngestionStatus.Bloqueado)
-        {
-            return false;
-        }
-
-        var hasQueue = await _context.IncomingNachaDispatchQueue
-            .AsNoTracking()
-            .AnyAsync(x => x.IncomingNachaFileIngestionId == ingestion.Id, ct);
-        if (hasQueue)
-        {
-            return false;
-        }
-
-        var hasIntegrationExecution = await _context.IncomingNachaIntegrationExecution
-            .AsNoTracking()
-            .AnyAsync(x => x.DispatchQueue.IncomingNachaFileIngestionId == ingestion.Id, ct);
-
-        return !hasIntegrationExecution;
     }
 
     private static string ComputeSha256(byte[] bytes)
@@ -498,6 +593,19 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
 
         return [content];
     }
+
+    private static bool IsDifferentialCandidate(IReadOnlyList<string> records)
+        => records.Any(record =>
+            record.Length == 106
+            && record[0] == '7'
+            && string.Equals(record.Substring(1, 2), "99", StringComparison.Ordinal));
+
+    private static string ToConfigClearingHouseCode(string clearingHouseCode)
+        => clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+            ? "CENIT"
+            : clearingHouseCode.Contains("ACH", StringComparison.OrdinalIgnoreCase)
+                ? "ACH"
+                : string.Empty;
 
     private async Task<string> ResolveClearingHouseCodeAsync(int? clearingHouseId, CancellationToken ct)
     {

@@ -114,7 +114,7 @@ public class NachaInboundSimulatorTests
         var transaction = await context.AchTransactions.SingleAsync(x => x.Reference == "UAT-PRE-001");
         Assert.Equal(AchTransferStateEnum.Pending, transaction.State);
         Assert.False(preview.Eligible);
-        Assert.Equal("DIFFERENTIAL_PROFILE_NOT_PUBLISHED", preview.FunctionalCode);
+        Assert.Equal(NachaProfileSelectionStatus.ProfileNotFound.ToString(), preview.FunctionalCode);
     }
 
     [Fact]

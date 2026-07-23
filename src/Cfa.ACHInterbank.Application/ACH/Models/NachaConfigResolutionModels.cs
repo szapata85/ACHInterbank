@@ -3,12 +3,25 @@ using System.Text.Json.Serialization;
 
 namespace Cfa.ACHInterbank.Application.ACH.Models;
 
+public enum NachaProfileSelectionStatus
+{
+    ProfileSelected = 1,
+    ProfileNotFound = 2,
+    ProfileAmbiguous = 3,
+    ProfileInactive = 4,
+    ProfileVersionUnsupported = 5,
+    ClearingHouseUndetermined = 6
+}
+
 public class NachaConfigResolutionRequest
 {
     public string ClearingHouseCode { get; init; } = "ACH";
     public string FlowTypeCode { get; init; } = "ORIGINAL";
     public string DirectionCode { get; init; } = "SALIDA";
     public string? ServiceClassCode { get; init; }
+    public int? RequestedVersionMajor { get; init; }
+    public int? RequestedVersionMinor { get; init; }
+    public bool RequireHomologated { get; init; }
     public DateTime ProcessDateUtc { get; init; }
     public IReadOnlyCollection<string> RecordCodes { get; init; } = Array.Empty<string>();
     public IReadOnlyDictionary<string, string> SelectionContext { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -17,6 +30,8 @@ public class NachaConfigResolutionRequest
 public class NachaConfigResolutionResult
 {
     public bool Success { get; init; }
+    public NachaProfileSelectionStatus SelectionStatus { get; init; } = NachaProfileSelectionStatus.ProfileNotFound;
+    public string DiagnosticCode => SelectionStatus.ToString();
     public bool UsedFallback { get; set; }
     public CfgProfile? Profile { get; init; }
     public IReadOnlyDictionary<string, CfgLayoutVariant> LayoutsByRecordCode { get; init; } = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
