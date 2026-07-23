@@ -13,7 +13,7 @@ namespace Cfa.ACHInterbank.Tests;
 public sealed class AchResponseReprocessPipelineTests
 {
     [Fact]
-    public async Task ExecuteAsync_ReusesPersistedResponse_WithoutDuplicateReceiptOrEffect()
+    public async Task ExecuteAsync_MissingCheckpoint_IsFunctionalAndDoesNotInventOperationalData()
     {
         await using var db = NewDb();
         var response = Response();
@@ -24,14 +24,14 @@ public sealed class AchResponseReprocessPipelineTests
 
         var result = await sut.ExecuteAsync(response.Id, 1);
 
-        Assert.Equal(AchResponseReprocessResultCode.Completed, result.Code);
+        Assert.Equal(AchResponseReprocessResultCode.MissingOperationalData, result.Code);
         Assert.Equal(1, await db.AchResponses.CountAsync());
         Assert.Equal(0, (await db.AchResponses.SingleAsync()).DuplicateReceiptCount);
-        Assert.Equal(1, await db.AchResponseNotificationAttempts.CountAsync());
+        Assert.Equal(0, await db.AchResponseNotificationAttempts.CountAsync());
 
         var second = await sut.ExecuteAsync(response.Id, 1);
-        Assert.Equal(AchResponseReprocessResultCode.Completed, second.Code);
-        Assert.Equal(1, await db.AchResponseNotificationAttempts.CountAsync());
+        Assert.Equal(AchResponseReprocessResultCode.MissingOperationalData, second.Code);
+        Assert.Equal(0, await db.AchResponseNotificationAttempts.CountAsync());
     }
 
     [Theory]

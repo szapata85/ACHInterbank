@@ -45,7 +45,7 @@ public sealed class AchResponseReprocessPipeline : IAchResponseReprocessPipeline
             return new(AchResponseReprocessResultCode.MappingNotFound,
                 "No existe mapping vigente; requiere revisión manual.");
         if (!mapping.PermiteNotificacion)
-            return new(AchResponseReprocessResultCode.CorrelationNotFound,
+            return new(AchResponseReprocessResultCode.MissingOperationalData,
                 "El mapping vigente no permite automatización; requiere revisión manual.");
 
         response.IdEstadoInterno = mapping.IdEstadoInterno;
@@ -58,26 +58,16 @@ public sealed class AchResponseReprocessPipeline : IAchResponseReprocessPipeline
         response.PermiteNotificacion = true;
         response.FechaActualizacion = DateTime.UtcNow;
 
-        // Reuse an existing pending checkpoint. A reprocess never creates a second external dispatch.
+        // A reprocess never invents channel data or creates a second external dispatch.
         if (response.NotificationAttempts.Count == 0)
-        {
-            _db.AchResponseNotificationAttempts.Add(new AchResponseNotificationAttempt
-            {
-                AchResponseId = response.Id,
-                NumeroIntento = 1,
-                EstadoNotificacion = AchResponseNotificationStatus.Pendiente,
-                IdCanal = 0,
-                NombreCanal = "reprocess",
-                IdTransaccion = response.IdTransaccion,
-                IdEstado = mapping.IdEstadoServicioExterno ?? 0,
-                Causal = mapping.CausalNormalizada ?? response.CodigoCausalExterna,
-                IdTransaccionServicioExterno = response.IdTransaccionServicioExterno,
-                DescripcionCausal = response.DescripcionCausal,
-                FechaCreacion = DateTime.UtcNow
-            });
-        }
+            return new(AchResponseReprocessResultCode.MissingOperationalData,
+                "Falta un checkpoint de notificación con datos operacionales verificables.");
+
+        if (response.NotificationAttempts.Any(x => x.EstadoNotificacion == AchResponseNotificationStatus.Pendiente))
+            return new(AchResponseReprocessResultCode.MissingOperationalData,
+                "Existe una etapa de notificación pendiente sin evidencia de ejecución funcional.");
 
         await _db.SaveChangesAsync(cancellationToken);
-        return new(AchResponseReprocessResultCode.Completed, "Mapping reevaluado y checkpoint idempotente confirmado.");
+        return new(AchResponseReprocessResultCode.Completed, "La rehomologación no tiene etapas funcionales pendientes.");
     }
 }
