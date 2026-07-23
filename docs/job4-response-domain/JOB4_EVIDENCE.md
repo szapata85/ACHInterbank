@@ -55,3 +55,15 @@ Playwright utilizó API, SPA y SQL Server locales sin `page.route` ni mocks de A
 - `web/ach-interbank-ui/src/app/features/ach-responses`
 - `web/ach-interbank-ui/e2e/ach-responses-job4.spec.ts`
 
+# JOB 4.1 — Dispatcher de reprocesos
+
+- Commit base: `cefccb2748c0c2cbf4372d7afcd1bb9176524b14`.
+- Rama: `job4.1/reprocess-dispatcher`.
+- Dispatcher: tarea Quartz canónica `ach-response-reprocess-dispatcher`, handler registrado por el patrón dinámico existente y ejecución manual por `/scheduler/tasks`.
+- Claim: `ExecuteUpdateAsync` condicional para `Pending` o `Running` con lease vencido; el ganador asigna instancia, heartbeat y lease.
+- Recuperación: los leases vencidos se reclaman y auditan como `ReprocessLeaseRecovered`; el lease se renueva explícitamente antes del pipeline.
+- Pipeline: reevaluación sobre `AchResponse` persistida, sin crear recepción ni incrementar duplicados; reutiliza correlation ID y checkpoints de notificación.
+- Terminales: `Completed`, `FailedFunctional`, `FailedTechnical`; la respuesta termina respectivamente en `Reprocesada`, `RequiereRevisionManual` o `ErrorTecnico`.
+- Migraciones: `20260723000000_Job41ReprocessDispatcher` para PostgreSQL y SQL Server; incluyen columnas de lease/concurrencia, backfill de versión e índice de adquisición.
+- Ejecutado: `dotnet restore`, build Release (0 warnings/0 errors) y pruebas focalizadas (9 aprobadas, 0 fallidas, 0 omitidas). La suite backend completa fue iniciada y excedió el límite de 120 s sin resultado final; no se contabiliza como aprobada.
+- No ejecutado: validación real SQL Server/PostgreSQL, cluster Quartz de dos instancias, Angular y Playwright; requieren servicios/conexiones locales no disponibles en este worktree.

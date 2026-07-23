@@ -21,3 +21,10 @@
 ## Acción de desbloqueo
 
 Implementar un dispatcher de `PendingReprocess` sobre la abstracción existente, con exclusión por intento, ejecución idempotente del pipeline, transición terminal y auditoría; agregar su prueba de integración en ambos proveedores y repetir backend y Playwright.
+# JOB 4.1 — Dispatcher de reprocesos
+
+Estado: **NO-GO condicionado a evidencia de infraestructura**.
+
+El cierre de código incorpora claim atómico, lease recuperable, pipeline sobre la entidad existente, terminales auditables, consultas de intentos y migraciones por proveedor. La build Release y las pruebas focalizadas están aprobadas.
+
+Pendiente para GO: ejecutar y aprobar las pruebas reales SQL Server y PostgreSQL, Quartz persistent-store con dos instancias, Angular y Playwright. No se declara GO mientras esa evidencia no exista.
