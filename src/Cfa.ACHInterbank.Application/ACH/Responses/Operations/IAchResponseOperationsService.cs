@@ -13,6 +13,8 @@ public interface IAchResponseOperationsService
     Task<AchResponseOrphanModel> BeginReviewAsync(Guid orphanId, Guid expectedVersion, string reason, string actor, string correlationId, CancellationToken ct = default);
     Task<AchResponseOrphanModel> ResolveOrphanAsync(Guid orphanId, ManualResolutionCommand command, string actor, CancellationToken ct = default);
     Task<AchResponseReprocessModel> RequestReprocessAsync(Guid responseId, ReprocessCommand command, string actor, CancellationToken ct = default);
+    Task<IReadOnlyList<AchResponseReprocessModel>> ListReprocessAttemptsAsync(Guid responseId, CancellationToken ct = default);
+    Task<AchResponseReprocessModel?> GetReprocessAttemptAsync(Guid responseId, long attemptId, CancellationToken ct = default);
     Task<IReadOnlyList<AchResponseReconciliationCaseModel>> ListReconciliationCasesAsync(int? clearingHouseId, string? status, CancellationToken ct = default);
     Task<AchResponseReconciliationCaseModel> ResolveReconciliationCaseAsync(Guid id, ReconciliationResolutionCommand command, string actor, CancellationToken ct = default);
 }

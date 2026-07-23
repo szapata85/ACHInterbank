@@ -37,7 +37,9 @@ public sealed record AchResponseOrphanModel(
 
 public sealed record AchResponseReprocessModel(
     long Id, Guid AchResponseId, int AttemptNumber, string Status, string RequestedBy, string Reason,
-    string CorrelationId, DateTime RequestedAtUtc, DateTime? CompletedAtUtc, string? Result, Guid CommandId);
+    string CorrelationId, DateTime RequestedAtUtc, DateTime? CompletedAtUtc, string? Result, Guid CommandId,
+    string? ClaimedBy = null, DateTime? StartedAtUtc = null, string? ResultCode = null,
+    string? ErrorDetailSanitized = null);
 
 public sealed record AchResponseReconciliationCaseModel(
     Guid Id, int ClearingHouseId, Guid? AchResponseId, string ExceptionType, string Status, string Reference,

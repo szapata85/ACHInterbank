@@ -240,11 +240,22 @@ public sealed class AchResponseOperationsService : IAchResponseOperationsService
             AchResponseId = responseId,
             AttemptNumber = await _db.AchResponseReprocessAttempts.CountAsync(x => x.AchResponseId == responseId, ct) + 1,
             Status = "Pending", RequestedBy = actor, Reason = command.Reason, CorrelationId = command.CorrelationId,
-            RequestedAtUtc = DateTime.UtcNow, CommandId = command.CommandId
+            RequestedAtUtc = DateTime.UtcNow, CommandId = command.CommandId, Version = Guid.NewGuid()
         };
         _db.AchResponseReprocessAttempts.Add(attempt);
         await Save(ct);
         return Map(attempt);
+    }
+
+    public async Task<IReadOnlyList<AchResponseReprocessModel>> ListReprocessAttemptsAsync(Guid responseId, CancellationToken ct = default)
+        => (await _db.AchResponseReprocessAttempts.AsNoTracking().Where(x => x.AchResponseId == responseId)
+            .OrderByDescending(x => x.AttemptNumber).ToListAsync(ct)).Select(Map).ToList();
+
+    public async Task<AchResponseReprocessModel?> GetReprocessAttemptAsync(Guid responseId, long attemptId, CancellationToken ct = default)
+    {
+        var item = await _db.AchResponseReprocessAttempts.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.AchResponseId == responseId && x.Id == attemptId, ct);
+        return item is null ? null : Map(item);
     }
 
     public async Task<IReadOnlyList<AchResponseReconciliationCaseModel>> ListReconciliationCasesAsync(
@@ -372,7 +383,8 @@ public sealed class AchResponseOperationsService : IAchResponseOperationsService
 
     private static AchResponseReprocessModel Map(AchResponseReprocessAttempt x)
         => new(x.Id, x.AchResponseId, x.AttemptNumber, x.Status, x.RequestedBy, x.Reason, x.CorrelationId,
-            x.RequestedAtUtc, x.CompletedAtUtc, x.Result, x.CommandId);
+            x.RequestedAtUtc, x.CompletedAtUtc, x.Result, x.CommandId, x.ClaimedBy, x.StartedAtUtc,
+            x.ResultCode, x.ErrorDetailSanitized);
 
     private static AchResponseReconciliationCaseModel Map(AchResponseReconciliationCase x)
         => new(x.Id, x.ClearingHouseId, x.AchResponseId, x.ExceptionType, x.Status, x.Reference, x.Details,

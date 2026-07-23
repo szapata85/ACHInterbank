@@ -90,6 +90,19 @@ public sealed class AchResponseOperationsController : ControllerBase
             new ReprocessCommand(request.CommandId, request.ExpectedVersion, request.Reason,
                 Correlation(request.CorrelationId)), Actor(), ct)));
 
+    [HttpGet("api/ach/responses/{id:guid}/reprocess-attempts")]
+    [Authorize(Policy = P1Policies.NachaRead)]
+    public async Task<IActionResult> ReprocessAttempts(Guid id, CancellationToken ct)
+        => Ok(await _service.ListReprocessAttemptsAsync(id, ct));
+
+    [HttpGet("api/ach/responses/{id:guid}/reprocess-attempts/{attemptId:long}")]
+    [Authorize(Policy = P1Policies.NachaRead)]
+    public async Task<IActionResult> ReprocessAttempt(Guid id, long attemptId, CancellationToken ct)
+    {
+        var item = await _service.GetReprocessAttemptAsync(id, attemptId, ct);
+        return item is null ? NotFound(Problem("Intento de reproceso no encontrado.", 404)) : Ok(item);
+    }
+
     private async Task<IActionResult> Execute(Func<Task<IActionResult>> action)
     {
         try { return await action(); }
