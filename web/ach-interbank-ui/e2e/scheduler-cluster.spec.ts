@@ -23,7 +23,7 @@ test.describe.serial('administracion real del scheduler', () => {
     await page.goto('/scheduler/tasks');
 
     await expect(page.getByRole('heading', { name: 'Administración de tareas programadas', level: 1 })).toBeVisible();
-    await expect(page.getByText('ACHInterbankScheduler', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Identificador técnico: ACHInterbankScheduler/)).toBeVisible();
     const tasks = page.getByRole('region', { name: 'Tareas' });
     await expect(tasks.getByText('SCHEDULER_CLUSTER_PROBE', { exact: true })).toBeVisible();
     const instances = page.getByRole('region', { name: 'Instancias del clúster' });

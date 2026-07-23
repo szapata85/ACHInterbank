@@ -28,8 +28,9 @@ describe('AchResponseDetailPageComponent', () => {
   } as any;
 
   function configureWithId(id: string | null): void {
-    apiSpy = jasmine.createSpyObj<AchResponsesApiService>('AchResponsesApiService', ['getDetail']);
+    apiSpy = jasmine.createSpyObj<AchResponsesApiService>('AchResponsesApiService', ['getDetail', 'getReprocessAttempts']);
     apiSpy.getDetail.and.returnValue(of(detailMock));
+    apiSpy.getReprocessAttempts.and.returnValue(of([]));
     notificationSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['error']);
     routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
 
@@ -65,6 +66,17 @@ describe('AchResponseDetailPageComponent', () => {
     const component = fixture.componentInstance;
     expect(component.detail?.id).toBe('resp-1');
     expect(apiSpy.getDetail).toHaveBeenCalledWith('resp-1');
+    expect(apiSpy.getReprocessAttempts).toHaveBeenCalledWith('resp-1');
+  });
+
+  it('AchResponseDetailPageComponent_ShouldLabelReprocessTerminalStates', () => {
+    configureWithId('resp-1');
+    const component = TestBed.createComponent(AchResponseDetailPageComponent).componentInstance;
+    expect(component.formatReprocessStatus('Pending')).toBe('Pendiente de ejecución');
+    expect(component.formatReprocessStatus('Running')).toBe('En ejecución');
+    expect(component.formatReprocessStatus('Completed')).toBe('Completado');
+    expect(component.formatReprocessStatus('FailedFunctional')).toBe('Requiere revisión');
+    expect(component.formatReprocessStatus('FailedTechnical')).toBe('Error técnico');
   });
 
   it('AchResponseDetailPageComponent_ShouldNotCallApi_WhenIdMissing', () => {

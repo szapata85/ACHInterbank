@@ -33,3 +33,13 @@ Pendiente para GO: ejecutar y aprobar las pruebas reales SQL Server y PostgreSQL
 Estado: **NO-GO**.
 
 El hardening de código y las migraciones PostgreSQL reales están verificados, pero faltan las evidencias ejecutadas de SQL Server, dos nodos Quartz, Angular y Playwright requeridas para el GO definitivo del JOB 4.
+
+# JOB 4 — Certificación final
+
+Estado local: **GO**.
+
+Se cerraron las brechas de catálogo/bootstrap Quartz y compatibilidad con las estrategias de reintento de EF. SQL Server y PostgreSQL aprobaron migration forward, rollback, reaplicación y la suite dedicada sin omisiones. El claim concurrente produjo un ganador y una invocación; heartbeat, recuperación de lease y ownership terminal quedaron comprobados.
+
+Quartz operó con dos instancias e IDs distintos sobre persistent store compartido. La caída controlada del propietario fue recuperada por la segunda instancia y terminó como `Recovered`. Angular aprobó build y 459 unitarias. Playwright runtime aprobó JOB 4 y el clúster (4/4, sin skips). Backend final: 1923 aprobadas, 0 fallidas y 1 diagnóstico deliberadamente omitido.
+
+No se ejecutó SOAP LIVE, no se creó una segunda respuesta, no aumentó `DuplicateReceiptCount` y no se inventaron datos de canal. La ronda GitHub Actions del HEAD se identifica en el informe final, una vez disponible tras el único push.

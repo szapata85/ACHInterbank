@@ -17,6 +17,7 @@ internal static class SchedulerTaskCatalog
         new("TACIT_ACCEPTANCE", "AchTacitAcceptanceJob", "Aplica las reglas de aceptación tácita.", "ACH Colombia", false),
         new("CONTRAPARTIDA_DISPATCH", "AchContrapartidasByCycle", "Despacha contrapartidas elegibles por ciclo y cámara.", null, false),
         new("INCOMING_NACHA_PROCESSING", "IncomingNachaPostProcessing", "Procesa entradas NACHA-M elegibles y su despacho controlado.", null, false),
+        new("ach-response-reprocess-dispatcher", "ach-response-reprocess-dispatcher", "Procesa solicitudes gobernadas de reproceso de respuestas ACH.", null, true),
         new("SCHEDULER_CLUSTER_PROBE", "SCHEDULER_CLUSTER_PROBE", "Prueba técnica idempotente de clúster y recuperación.", null, true)
     ];
 

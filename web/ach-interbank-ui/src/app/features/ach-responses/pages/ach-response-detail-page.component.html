@@ -36,6 +36,38 @@
     </details>
   </section>
   <section class="card">
+    <div class="acciones-header">
+      <h3>Historial de reprocesos</h3>
+      <ui-boton texto="Actualizar" variante="contorno" (accion)="loadReprocessAttempts(detail.id)"></ui-boton>
+    </div>
+    <p *ngIf="reprocessAttempts.length === 0">No hay reprocesos registrados.</p>
+    <div class="tabla-wrapper" *ngIf="reprocessAttempts.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Intento</th><th>Estado</th><th>Solicitado por</th><th>Solicitud</th>
+            <th>Inicio</th><th>Terminación</th><th>Instancia</th><th>Correlation ID</th>
+            <th>Resultado</th><th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let attempt of reprocessAttempts">
+            <td>{{ attempt.attemptNumber }}</td>
+            <td><span class="estado-pill" [ngClass]="getReprocessStatusClass(attempt.status)">{{ formatReprocessStatus(attempt.status) }}</span></td>
+            <td>{{ formatValue(attempt.requestedBy) }}</td>
+            <td>{{ formatDate(attempt.requestedAtUtc) }}</td>
+            <td>{{ formatDate(attempt.startedAtUtc) }}</td>
+            <td>{{ formatDate(attempt.completedAtUtc) }}</td>
+            <td>{{ formatValue(attempt.claimedBy) }}</td>
+            <td>{{ formatValue(attempt.correlationId) }}</td>
+            <td>{{ formatValue(attempt.resultCode) }}</td>
+            <td>{{ formatValue(attempt.errorDetailSanitized || attempt.result) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="card">
     <h3>Datos principales</h3>
     <div class="grid-campos">
       <p><strong>Tipo respuesta:</strong> {{ formatValue(detail.tipoRespuesta) }}</p>

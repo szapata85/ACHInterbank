@@ -77,3 +77,20 @@ Playwright utilizó API, SPA y SQL Server locales sin `page.route` ni mocks de A
 - Migraciones: snapshots PostgreSQL y SQL Server actualizados. PostgreSQL real verificó discovery, forward, rollback y reaplicación de `20260723000000_Job41ReprocessDispatcher`.
 - Ejecutado: build Release 0 warnings/0 errors; focalizadas 9 aprobadas, 0 fallidas, 0 omitidas.
 - No ejecutado: integración SQL Server, suite multimotor dedicada, cluster Quartz, Angular y Playwright. No se declara GO sin esas evidencias.
+
+# JOB 4 — Certificación final
+
+- Base: `6fd7456e02b5e9dca81bf91f1030a7ae1efc1b09`; rama: `job4/final-certification`.
+- HEAD: commit final que contiene esta sección; no se mezclaron commits posteriores a la base.
+- Correcciones descubiertas por runtime: transacciones de claim/finalización envueltas en la estrategia de ejecución EF; tarea incluida en el catálogo autorizado y bootstrap idempotente; harness Quartz y Playwright corregidos.
+- Migración SQL Server `20260723000000_Job41ReprocessDispatcher`: discovery, forward, columnas/índice, preservación de dato previo, rollback y reaplicación aprobados.
+- Migración PostgreSQL `20260723000000_Job41ReprocessDispatcher`: discovery, forward, columnas/índice, preservación de dato previo, rollback y reaplicación aprobados.
+- Suite dedicada `AchResponseReprocessDispatcherMultiDbTests`: SQL Server 1/1 y PostgreSQL 1/1; 0 fallidas y 0 omitidas. Incluye claim concurrente, una invocación, heartbeat, lease vigente/vencido, ownership terminal, recuperación y terminales.
+- Quartz persistent store: dos contenedores API contra la misma base funcional y Quartz; IDs efectivos distintos. Un disparo produjo una ejecución efectiva. Caída forzada de A recuperada por B con `IsRecovery=true`, estado `Recovered` y fire original persistido.
+- Angular: build 1/1; unitarias 459/459, 0 fallidas y 0 omitidas.
+- Playwright runtime: JOB 4 2/2 y administración de clúster 2/2, 0 fallidas y 0 omitidas. El dispatcher se invocó desde `/scheduler/tasks`; se comprobó terminal, auditoría, una ejecución, duplicados sin incremento, historial y móvil.
+- Backend final: 1924 ejecutadas, 1923 aprobadas, 0 fallidas y 1 omitida (`SoapArchitectureDiagnosticTests`, diagnóstico deliberado preexistente).
+- Regresiones multimotor incluidas en la suite final: FinancialIntegrity y ClearingHouseMultiDb aprobadas en SQL Server/PostgreSQL; mappings, idempotencia de recepción, huérfanas, revisión manual, conciliación, auditoría, ciclos y autenticación aprobados.
+- Workflows: `reprocess-dispatcher-certification.yml` ejecuta la suite dedicada sin skips y reutiliza el runtime clustered de ambos motores; los IDs del único push final se reportan en el informe de entrega porque solo existen después de crear este commit.
+- SOAP LIVE: no ejecutado. No hubo efectos monetarios ni datos operacionales inventados.
+- Riesgo residual: la única omisión backend es un diagnóstico arquitectónico no funcional; no afecta JOB 4.

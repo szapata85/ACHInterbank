@@ -46,6 +46,7 @@ public sealed class SchedulerRuntimeService : BackgroundService
         scheduler.ListenerManager.AddTriggerListener(_misfireListener);
 
         await EnsureProbeTaskAsync(stoppingToken);
+        await EnsureReprocessDispatcherTaskAsync(stoppingToken);
 
         _logger.LogInformation(
             "Scheduler iniciado; SchedulerName={SchedulerName}; SchedulerInstanceId={SchedulerInstanceId}; InstanceName={InstanceName}; Host={Host}; Persistent={Persistent}; Clustered={Clustered}",
@@ -159,6 +160,50 @@ public sealed class SchedulerRuntimeService : BackgroundService
             [
                 new TaskParameter { Key = "DurationSeconds", Value = "15" },
                 new TaskParameter { Key = "RecoveryDurationSeconds", Value = "2" }
+            ]
+        };
+        db.TaskDefinitions.Add(task);
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            db.Entry(task).State = EntityState.Detached;
+        }
+    }
+
+    private async Task EnsureReprocessDispatcherTaskAsync(CancellationToken cancellationToken)
+    {
+        const string taskCode = "ach-response-reprocess-dispatcher";
+        await using var scope = _services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
+        if (await db.TaskDefinitions.AnyAsync(x => x.Code == taskCode, cancellationToken))
+        {
+            return;
+        }
+
+        var task = new TaskDefinition
+        {
+            Code = taskCode,
+            Name = "Dispatcher de reprocesos de respuestas ACH",
+            Description = "Adquiere y ejecuta reprocesos pendientes con ownership y lease persistidos.",
+            Status = TaskStatusEnum.Enabled,
+            CalendarPolicy = CalendarPolicyEnum.IgnoreCalendar,
+            ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+            RetryOnFailure = false,
+            PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+            N = 1,
+            TimeZoneId = "America/Bogota",
+            MisfirePolicy = SchedulerMisfirePolicy.FireAndProceed,
+            RequestsRecovery = true,
+            ManualExecutionEnabled = true,
+            StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            Parameters =
+            [
+                new TaskParameter { Key = "BatchSize", Value = "50" },
+                new TaskParameter { Key = "LeaseSeconds", Value = "120" }
             ]
         };
         db.TaskDefinitions.Add(task);

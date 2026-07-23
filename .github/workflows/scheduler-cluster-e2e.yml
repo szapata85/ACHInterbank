@@ -62,8 +62,10 @@ jobs:
         working-directory: web/ach-interbank-ui
         env:
           E2E_BASE_URL: http://localhost:${{ env.SPA_PORT }}
+          ACH_UI_URL: http://localhost:${{ env.SPA_PORT }}
+          ACH_API_URL: http://localhost:${{ env.API_01_PORT }}
           PLAYWRIGHT_JUNIT_OUTPUT_FILE: ../../${{ env.EVIDENCE_DIR }}/scheduler-junit.xml
-        run: npx playwright test e2e/scheduler-cluster.spec.ts --project=chromium --reporter=line,junit,html
+        run: npx playwright test e2e/scheduler-cluster.spec.ts e2e/ach-responses-job4.spec.ts --project=chromium --workers=1 --reporter=line,junit,html
 
       - name: Verify Playwright execution and collect evidence
         if: always()

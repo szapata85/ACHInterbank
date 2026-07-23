@@ -1,0 +1,37 @@
+name: achinterbank-job4-certification
+
+services:
+  job4-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: job4_test
+      POSTGRES_PASSWORD: job4_local_password
+    ports:
+      - "127.0.0.1:${JOB4_POSTGRES_PORT:-5544}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U job4_test -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks: [job4_certification]
+
+  job4-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${JOB4_SQL_PASSWORD:-Job4_Local_123!}
+    ports:
+      - "127.0.0.1:${JOB4_SQLSERVER_PORT:-15444}:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\""]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks: [job4_certification]
+
+networks:
+  job4_certification:
+    driver: bridge

@@ -1,0 +1,105 @@
+name: JOB 4 — Reprocess dispatcher certification
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/Cfa.ACHInterbank.Application/ACH/Responses/**"
+      - "src/Cfa.ACHInterbank.Domain/Models/ACH/**"
+      - "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/AchResponseReprocess*.cs"
+      - "src/Cfa.ACHInterbank.Persistence/ACH/Quartz/Jobs/Implementation/AchResponseReprocess*.cs"
+      - "src/Cfa.ACHInterbank.Persistence/Configuration/AchResponseOperationsConfiguration.cs"
+      - "src/Cfa.ACHInterbank.Persistence*/DataBase/Migrations/**/20260723000000_Job41ReprocessDispatcher.cs"
+      - "tests/Cfa.ACHInterbank.Tests/AchResponseReprocess*.cs"
+      - "web/ach-interbank-ui/e2e/ach-responses-job4*.spec.ts"
+      - "docker-compose.job4-certification.yml"
+      - ".github/workflows/reprocess-dispatcher-certification.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: job4-reprocess-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  multidb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      JOB4_REQUIRE_DATABASES: "true"
+      JOB4_POSTGRES_CONNECTION_STRING: Host=localhost;Port=5544;Database=postgres;Username=job4_test;Password=job4_local_password
+      JOB4_SQLSERVER_CONNECTION_STRING: Server=localhost,15444;Database=master;User Id=sa;Password=Job4_Local_123!;Encrypt=True;TrustServerCertificate=True
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Start isolated databases
+        run: docker compose -f docker-compose.job4-certification.yml up -d
+
+      - name: Wait for healthchecks
+        shell: bash
+        run: |
+          for service in job4-postgres job4-sqlserver; do
+            id="$(docker compose -f docker-compose.job4-certification.yml ps -q "$service")"
+            for attempt in {1..60}; do
+              status="$(docker inspect --format '{{.State.Health.Status}}' "$id")"
+              [ "$status" = healthy ] && break
+              [ "$attempt" = 60 ] && exit 1
+              sleep 3
+            done
+          done
+
+      - name: Restore and build
+        run: |
+          dotnet restore ACHInterbank.sln
+          dotnet build ACHInterbank.sln -c Release --no-restore
+
+      - name: Discover dedicated tests
+        shell: bash
+        run: |
+          count="$(dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build --list-tests --filter 'FullyQualifiedName~AchResponseReprocessDispatcherMultiDbTests' | grep -c 'DispatcherCertification_')"
+          [ "$count" -eq 2 ]
+
+      - name: Run dispatcher certification
+        run: >
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+          -c Release --no-build
+          --filter "FullyQualifiedName~AchResponseReprocessDispatcherMultiDbTests"
+          --logger "trx;LogFileName=job4-dispatcher.trx"
+          --results-directory artifacts/job4
+
+      - name: Require two passing non-skipped tests
+        shell: bash
+        run: |
+          grep -q 'total="2"' artifacts/job4/job4-dispatcher.trx
+          grep -q 'passed="2"' artifacts/job4/job4-dispatcher.trx
+          ! grep -q 'outcome="NotExecuted"' artifacts/job4/job4-dispatcher.trx
+
+      - name: Validate existing clustered Quartz compose definitions
+        run: |
+          docker compose -f docker-compose.scheduler-cluster.yml config --quiet
+          docker compose -f docker-compose.scheduler-cluster.sqlserver.yml config --quiet
+
+      - name: Collect logs
+        if: always()
+        run: docker compose -f docker-compose.job4-certification.yml logs --no-color > artifacts/job4/docker.log || true
+
+      - name: Publish results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: job4-reprocess-certification
+          path: artifacts/job4
+          if-no-files-found: error
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.job4-certification.yml down -v --remove-orphans
+
+  quartz-cluster:
+    needs: multidb
+    uses: ./.github/workflows/scheduler-cluster-e2e.yml

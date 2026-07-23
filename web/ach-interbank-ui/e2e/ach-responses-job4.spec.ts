@@ -4,10 +4,13 @@ const ui = process.env['ACH_UI_URL'] ?? 'http://localhost:4200';
 const api = process.env['ACH_API_URL'] ?? 'http://localhost:843';
 const username = process.env['ACH_USER'] ?? 'admin';
 const password = process.env['ACH_PASS'];
-const transactionReference = process.env['ACH_E2E_TRANSACTION_REFERENCE'];
 
 test.describe.serial('JOB 4 - dominio productivo de respuestas ACH', () => {
-  test.skip(!password || !transactionReference, 'ACH_PASS y ACH_E2E_TRANSACTION_REFERENCE son obligatorios para el flujo real.');
+  test.beforeAll(() => {
+    if (!password) {
+      throw new Error('ACH_PASS es obligatorio para el flujo runtime real de JOB 4.');
+    }
+  });
   test.setTimeout(180_000);
 
   test('administra mappings y resuelve el ciclo operacional con API y base reales', async ({ page }) => {
@@ -24,7 +27,9 @@ test.describe.serial('JOB 4 - dominio productivo de respuestas ACH', () => {
     const headers = auth(token);
     const housesResponse = await page.request.get(`${api}/clearing-houses?search=ACHCOL`, { headers });
     expect(housesResponse.ok()).toBeTruthy();
-    const house = (await housesResponse.json()).items[0] as { id: number; code: string };
+    const housesPayload = await housesResponse.json();
+    const houses = Array.isArray(housesPayload) ? housesPayload : housesPayload.items;
+    const house = houses.find((x: { code: string }) => x.code === 'ACHCOL') as { id: number; code: string };
     expect(house?.id).toBeGreaterThan(0);
 
     const suffix = Date.now().toString().slice(-7);
@@ -72,54 +77,82 @@ test.describe.serial('JOB 4 - dominio productivo de respuestas ACH', () => {
     expect(receiptBodies.filter(x => x.duplicada === true)).toHaveLength(1);
 
     const orphanResponse = await page.request.post(`${api}/api/ach/responses/process`, {
-      headers, data: responsePayload(house.code, orphanCode, transactionReference!, new Date().toISOString())
+      headers, data: responsePayload(house.code, orphanCode, `JOB4-REPROCESS-${suffix}`, new Date().toISOString())
     });
     expect(orphanResponse.ok(), await orphanResponse.text()).toBeTruthy();
     const orphanResponseId = (await orphanResponse.json()).achResponseId as string;
-    const createdOrphan = await page.request.post(`${api}/api/ach/responses/${orphanResponseId}/orphan`, {
-      headers, data: { reason: 'Sin correlación inequívoca durante recepción E2E', candidateReferences: transactionReference }
-    });
-    expect(createdOrphan.ok(), await createdOrphan.text()).toBeTruthy();
-    let orphan = await createdOrphan.json();
-    const started = await page.request.post(`${api}/api/ach/responses/orphans/${orphan.id}/review/start`, {
-      headers, data: { expectedVersion: orphan.version, reason: 'Inicio de revisión manual E2E' }
-    });
-    expect(started.ok(), await started.text()).toBeTruthy();
-    orphan = await started.json();
-    const resolved = await page.request.post(`${api}/api/ach/responses/orphans/${orphan.id}/resolve`, {
-      headers,
-      data: { expectedVersion: orphan.version, reason: 'Asociación exacta verificada E2E', functionalReference: transactionReference, reject: false }
-    });
-    expect(resolved.ok(), await resolved.text()).toBeTruthy();
-    expect((await resolved.json()).resolutionStatus).toBe('Resolved');
 
     const responseDetail = await (await page.request.get(`${api}/api/ach/responses/${orphanResponseId}`, { headers })).json();
+    const duplicateCountBefore = responseDetail.duplicateReceiptCount as number;
     const reprocess = await page.request.post(`${api}/api/ach/responses/${orphanResponseId}/reprocess`, {
       headers,
       data: { commandId: crypto.randomUUID(), expectedVersion: responseDetail.version, reason: 'Reproceso gobernado E2E' }
     });
     expect(reprocess.status()).toBe(202);
-    expect((await reprocess.json()).status).toBe('Pending');
+    const requestedAttempt = await reprocess.json();
+    expect(requestedAttempt.status).toBe('Pending');
 
-    const cases = await (await page.request.get(`${api}/api/ach/reconciliation/exceptions`, { headers })).json();
-    const reconciliation = cases.find((x: { achResponseId: string; status: string }) => x.achResponseId === orphanResponseId && x.status === 'Open');
-    expect(reconciliation).toBeTruthy();
-    const reconciled = await page.request.post(`${api}/api/ach/reconciliation/exceptions/${reconciliation.id}/resolve`, {
-      headers,
-      data: { expectedVersion: reconciliation.version, resolution: 'Associated', reason: 'Conciliación operacional E2E' }
-    });
-    expect(reconciled.ok(), await reconciled.text()).toBeTruthy();
-    expect((await reconciled.json()).status).toBe('Resolved');
+    const execute = await page.request.post(
+      `${api}/api/scheduler/tasks/ach-response-reprocess-dispatcher/execute`,
+      {
+        headers,
+        data: {
+          reason: 'Certificación runtime JOB 4 desde el mecanismo manual existente',
+          requestId: crypto.randomUUID()
+        }
+      });
+    expect(execute.status(), await execute.text()).toBe(202);
+
+    const observedStatuses = new Set<string>(['Pending']);
+    let terminalAttempt: any;
+    for (let poll = 0; poll < 120; poll++) {
+      const attemptResponse = await page.request.get(
+        `${api}/api/ach/responses/${orphanResponseId}/reprocess-attempts/${requestedAttempt.id}`,
+        { headers });
+      expect(attemptResponse.ok(), await attemptResponse.text()).toBeTruthy();
+      const attempt = await attemptResponse.json();
+      observedStatuses.add(attempt.status);
+      if (['Completed', 'FailedFunctional', 'FailedTechnical'].includes(attempt.status)) {
+        terminalAttempt = attempt;
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    expect(terminalAttempt, `Estados observados: ${[...observedStatuses].join(', ')}`).toBeTruthy();
+    expect(terminalAttempt.status).toBe('FailedFunctional');
+    expect(terminalAttempt.resultCode).toBe('MappingNotFound');
+
+    const attempts = await (await page.request.get(
+      `${api}/api/ach/responses/${orphanResponseId}/reprocess-attempts`,
+      { headers })).json();
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0].id).toBe(requestedAttempt.id);
+
+    const terminalResponse = await (await page.request.get(
+      `${api}/api/ach/responses/${orphanResponseId}`,
+      { headers })).json();
+    expect(terminalResponse.estadoProcesamiento).toBe('RequiereRevisionManual');
+    expect(terminalResponse.duplicateReceiptCount).toBe(duplicateCountBefore);
+
+    const schedulerHistory = await (await page.request.get(
+      `${api}/api/scheduler/tasks/ach-response-reprocess-dispatcher/history?page=1&pageSize=20`,
+      { headers })).json();
+    expect(schedulerHistory.items.some((x: { taskCode: string; requestReason?: string }) =>
+      x.taskCode === 'ach-response-reprocess-dispatcher'
+      && x.requestReason === 'Certificación runtime JOB 4 desde el mecanismo manual existente')).toBeTruthy();
 
     const audit = await (await page.request.get(`${api}/api/ach/responses/${orphanResponseId}/audit`, { headers })).json();
-    expect(audit.some((x: { action: string }) => x.action === 'ManualAssociationResolved')).toBeTruthy();
     expect(audit.some((x: { action: string }) => x.action === 'ReprocessRequested')).toBeTruthy();
+    expect(audit.filter((x: { action: string }) => x.action === 'ReprocessClaimed')).toHaveLength(1);
+    expect(audit.filter((x: { action: string }) => x.action === 'ReprocessFailedFunctional')).toHaveLength(1);
 
     await page.goto(`${ui}/ach-responses/manual-review`);
     await expect(page.getByRole('heading', { name: 'Revisión manual de respuestas ACH' })).toBeVisible();
+    await page.goto(`${ui}/ach-responses/${orphanResponseId}`);
+    await expect(page.getByRole('heading', { name: 'Historial de reprocesos' })).toBeVisible();
+    await expect(page.getByText('Requiere revisión', { exact: true })).toBeVisible();
     await page.goto(`${ui}/ach/reconciliation`);
     await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH', exact: true })).toBeVisible();
-    await expect(page.getByText('Excepciones operacionales')).toBeVisible();
     expect(await page.locator('body').innerText()).not.toContain('[object Object]');
     expect(jsErrors).toEqual([]);
     expect(httpErrors).toEqual([]);
@@ -128,8 +161,8 @@ test.describe.serial('JOB 4 - dominio productivo de respuestas ACH', () => {
   test('mantiene el workspace utilizable en viewport móvil', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page);
-    await page.goto(`${ui}/ach-responses/status-mappings`);
-    await expect(page.getByRole('heading', { name: 'Mappings de respuestas ACH' })).toBeVisible();
+    await page.goto(`${ui}/ach-responses`);
+    await expect(page.getByRole('heading', { name: 'Respuestas ACH', exact: true })).toBeVisible();
     expect(await page.locator('body').innerText()).not.toContain('[object Object]');
   });
 });

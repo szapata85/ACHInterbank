@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { AchResponseAuditModel, AchResponseDetailResponse } from '../models/ach-responses.models';
+import { AchResponseAuditModel, AchResponseDetailResponse, AchResponseReprocessModel } from '../models/ach-responses.models';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
 import { formatAchDate, formatAchValue } from '../utils/ach-response-formatters';
@@ -33,6 +33,7 @@ export class AchResponseDetailPageComponent implements OnInit {
   reprocessing = false;
   auditEntries: AchResponseAuditModel[] = [];
   auditVisible = false;
+  reprocessAttempts: AchResponseReprocessModel[] = [];
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
@@ -46,6 +47,17 @@ export class AchResponseDetailPageComponent implements OnInit {
     }
 
     this.loadDetail(id);
+    this.loadReprocessAttempts(id);
+  }
+
+  loadReprocessAttempts(id: string): void {
+    this.api.getReprocessAttempts(id).subscribe({
+      next: items => {
+        this.reprocessAttempts = items ?? [];
+        this.cdr.markForCheck();
+      },
+      error: () => this.notifications.error('No fue posible cargar el historial de reprocesos.')
+    });
   }
 
   loadDetail(id: string): void {
@@ -98,12 +110,30 @@ export class AchResponseDetailPageComponent implements OnInit {
         this.notifications.success('Reproceso solicitado y pendiente de ejecución gobernada.');
         this.reprocessReason = '';
         this.loadDetail(this.detail!.id);
+        this.loadReprocessAttempts(this.detail!.id);
       }, error: (error: HttpErrorResponse) => {
         if (error.status === 409) {
           this.notifications.warning('La respuesta cambió o ya tiene un reproceso activo. Se recargó el detalle.');
           this.loadDetail(this.detail!.id);
         } else this.notifications.error(typeof error.error?.detail === 'string' ? error.error.detail : 'No fue posible solicitar el reproceso.');
       }});
+  }
+
+  formatReprocessStatus(status: string): string {
+    return ({
+      Pending: 'Pendiente de ejecución',
+      Running: 'En ejecución',
+      Completed: 'Completado',
+      FailedFunctional: 'Requiere revisión',
+      FailedTechnical: 'Error técnico'
+    } as Record<string, string>)[status] ?? status;
+  }
+
+  getReprocessStatusClass(status: string): string {
+    if (status === 'Completed') return 'estado-exitoso';
+    if (status === 'Pending' || status === 'Running' || status === 'FailedFunctional') return 'estado-advertencia';
+    if (status === 'FailedTechnical') return 'estado-error';
+    return 'estado-neutro';
   }
 
   toggleAudit(): void {

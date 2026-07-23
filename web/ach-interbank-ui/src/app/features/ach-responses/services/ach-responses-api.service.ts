@@ -131,6 +131,12 @@ export class AchResponsesApiService {
       { commandId, expectedVersion, reason });
   }
 
+  getReprocessAttempts(id: string) {
+    return this.api.get<AchResponseReprocessModel[]>(
+      `api/ach/responses/${encodeURIComponent(id)}/reprocess-attempts`
+    );
+  }
+
   private addParam(
     params: Record<string, string | number | boolean>,
     key: string,

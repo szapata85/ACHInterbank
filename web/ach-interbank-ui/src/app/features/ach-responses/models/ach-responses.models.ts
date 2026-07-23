@@ -305,8 +305,15 @@ export interface AchResponseReprocessModel {
   achResponseId: string;
   attemptNumber: number;
   status: string;
+  requestedBy: string;
   reason: string;
   correlationId: string;
   requestedAtUtc: string;
+  completedAtUtc?: string | null;
+  result?: string | null;
   commandId: string;
+  claimedBy?: string | null;
+  startedAtUtc?: string | null;
+  resultCode?: string | null;
+  errorDetailSanitized?: string | null;
 }
