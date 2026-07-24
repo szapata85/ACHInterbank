@@ -102,10 +102,10 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
             && _prenotificationResponseProcessor is not null)
         {
             prenotificationProcessing = await _prenotificationResponseProcessor.ProcessAsync(command, response, hom, cancellationToken);
-            response.PermiteNotificacion = false;
 
             if (!prenotificationProcessing.Success)
             {
+                response.PermiteNotificacion = false;
                 var failedStatus = prenotificationProcessing.Duplicate
                     ? AchResponseProcessingStatus.Duplicada
                     : IsManualReview(prenotificationProcessing.ErrorCode)
@@ -145,12 +145,6 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         {
             Transition(response, AchResponseProcessingStatus.RequiereRevisionManual, "MappingApplied",
                 "El mapping aplicado requiere revisión manual.", correlationId, now);
-            response.PermiteNotificacion = false;
-        }
-        else if (prenotificationProcessing?.Success == true)
-        {
-            Transition(response, AchResponseProcessingStatus.Notificada, "MappingApplied",
-                "Mapping aplicado a prenotificación.", correlationId, now);
             response.PermiteNotificacion = false;
         }
         else

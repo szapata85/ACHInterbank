@@ -1,6 +1,24 @@
 import { classifyNachaUploadFile } from './nacha-upload.component';
 
 describe('NachaUploadComponent file validation', () => {
+  it('should classify ACH Colombia production references without implying homologation', () => {
+    const result = classifyNachaUploadFile('0001283.001.20250331.1.OUT');
+
+    expect(result.allowed).toBeTrue();
+    expect(result.kind).toBe('production-reference-achcol');
+    expect(result.label).toBe('Referencia productiva ACH Colombia');
+    expect(result.detail).toContain('no implica homologación normativa');
+  });
+
+  it('should classify CENIT production references without adding an extension', () => {
+    const result = classifyNachaUploadFile('0001283.002.20250331.1');
+
+    expect(result.allowed).toBeTrue();
+    expect(result.kind).toBe('production-reference-cenit');
+    expect(result.label).toBe('Referencia productiva CENIT');
+    expect(result.detail).toContain('no implica homologación normativa');
+  });
+
   it('should classify ACH Colombia official operational files', () => {
     for (const suffix of ['1', '5', '6', '10']) {
       const result = classifyNachaUploadFile(`0001283.001.${suffix}`);
@@ -52,6 +70,6 @@ describe('NachaUploadComponent file validation', () => {
 
     expect(result.allowed).toBeFalse();
     expect(result.kind).toBe('rejected');
-    expect(result.rejectionMessage).toContain('RRRRTTT.ZZZ.N');
+    expect(result.rejectionMessage).toContain('nombre operativo ACHCOL/CENIT');
   });
 });

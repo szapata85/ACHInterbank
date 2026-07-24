@@ -167,6 +167,42 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
     }
 
     [Fact]
+    public async Task ControlledLocal_AppliesConfiguredLocalHostHeader()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var endpoint = new Uri(server.Url);
+        var policy = ControlledLocalPolicy(server.Url);
+        policy.HostHeader = $"127.0.0.1:{endpoint.Port}";
+        var sut = BuildClient(server.Url, out _, policy: policy);
+
+        await sut.RegistrarRespuestaTransaccionAsync("<x/>");
+
+        Assert.Equal(policy.HostHeader, server.Requests.Single().Host);
+    }
+
+    [Fact]
+    public async Task ConfiguredAllowlist_RejectsHostHeaderOverrideBeforeNetwork()
+    {
+        using var server = await LocalSoapServer.StartAsync((_, _) =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<unexpected/>") });
+        var endpoint = new Uri(server.Url);
+        var policy = ConfiguredPolicy(
+            schemes: ["http"],
+            hosts: ["127.0.0.1"],
+            ports: [endpoint.Port],
+            paths: ["/WSAxonRespuestaTransacciones.svc"]);
+        policy.HostHeader = $"localhost:{endpoint.Port}";
+        var sut = BuildClient(server.Url, out _, policy: policy);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+
+        Assert.Contains("ControlledLocal", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
     public async Task ConfiguredAllowlist_AllowsExplicitHost()
     {
         using var server = await LocalSoapServer.StartAsync((_, _) =>
@@ -405,7 +441,8 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
                 Requests.Add(new CapturedRequest(
                     body,
                     context.Request.Headers["SOAPAction"] ?? string.Empty,
-                    context.Request.ContentType ?? string.Empty));
+                    context.Request.ContentType ?? string.Empty,
+                    context.Request.Headers["Host"] ?? string.Empty));
 
                 var response = _handler(context.Request, body);
                 context.Response.StatusCode = (int)response.StatusCode;
@@ -441,5 +478,5 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         }
     }
 
-    private sealed record CapturedRequest(string Body, string SoapAction, string ContentType);
+    private sealed record CapturedRequest(string Body, string SoapAction, string ContentType, string Host);
 }

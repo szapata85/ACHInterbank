@@ -7,7 +7,9 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { SharedModule } from '../../../../shared/shared.module';
 import { NachaUploadRecord, NachaUploadService } from '../../services/nacha-upload.service';
 
-const officialAchColombiaPattern = /^\d{7}\.\d{3}\.[1-9]\d*$/;
+const achColombiaProductionReferencePattern = /^\d{7}\.\d{3}\.\d{8}\.\d+\.OUT$/i;
+const cenitProductionReferencePattern = /^\d{7}\.\d{3}\.\d{8}\.\d+$/;
+const legacyOperationalPattern = /^\d{7}\.\d{3}\.[1-9]\d*$/;
 const officialReturnPattern = /^\d{7}\.\d{3}\.RET$/i;
 const internalFixturePattern = /\.ach$/i;
 const rejectedExtensionPattern = /\.(txt|nacha|env)$/i;
@@ -297,7 +299,27 @@ export function classifyNachaUploadFile(fileName: string): NachaUploadFileValida
     };
   }
 
-  if (officialAchColombiaPattern.test(normalizedName)) {
+  if (achColombiaProductionReferencePattern.test(normalizedName)) {
+    return {
+      allowed: true,
+      kind: 'production-reference-achcol',
+      label: 'Referencia productiva ACH Colombia',
+      detail: 'Patrón operativo RRRRTTT.ZZZ.YYYYMMDD.N.OUT; no implica homologación normativa.',
+      rejectionMessage: ''
+    };
+  }
+
+  if (cenitProductionReferencePattern.test(normalizedName)) {
+    return {
+      allowed: true,
+      kind: 'production-reference-cenit',
+      label: 'Referencia productiva CENIT',
+      detail: 'Patrón operativo RRRRTTT.ZZZ.YYYYMMDD.N; no implica homologación normativa.',
+      rejectionMessage: ''
+    };
+  }
+
+  if (legacyOperationalPattern.test(normalizedName)) {
     return {
       allowed: true,
       kind: 'official-ach',
@@ -331,8 +353,8 @@ export function classifyNachaUploadFile(fileName: string): NachaUploadFileValida
     allowed: false,
     kind: 'rejected',
     label: 'Formato no permitido',
-      detail: 'Usa RRRRTTT.ZZZ.N, RRRRTTT.ZZZ.RET o un fixture UAT .ach.',
-      rejectionMessage: 'Formato no permitido. Usa RRRRTTT.ZZZ.N, RRRRTTT.ZZZ.RET o un fixture UAT .ach.'
+      detail: 'Usa un nombre operativo ACHCOL/CENIT, RRRRTTT.ZZZ.RET o un fixture UAT .ach.',
+      rejectionMessage: 'Formato no permitido. Usa un nombre operativo ACHCOL/CENIT, RRRRTTT.ZZZ.RET o un fixture UAT .ach.'
     };
   }
 
@@ -354,7 +376,7 @@ type NachaUploadResultView = {
 
 export type NachaUploadFileValidation = {
   allowed: boolean;
-  kind: 'official-ach' | 'official-ret' | 'uat-fixture' | 'rejected';
+  kind: 'production-reference-achcol' | 'production-reference-cenit' | 'official-ach' | 'official-ret' | 'uat-fixture' | 'rejected';
   label: string;
   detail: string;
   rejectionMessage: string;

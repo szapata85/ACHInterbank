@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -815,21 +816,29 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         var effective = request.BusinessDate.ToString("yyyyMMdd");
         var receivingDfi = (destination.RoutingNumber + destination.TransitCode).PadLeft(8, '0')[..8];
         var originDfi = (origin.RoutingNumber + origin.TransitCode).PadLeft(8, '0')[..8];
+        var clearingHouseOrigin = new string((clearingHouse.OriginCode ?? string.Empty).Where(char.IsDigit).ToArray())
+            .Trim();
+        if (clearingHouseOrigin.Length > 10)
+        {
+            clearingHouseOrigin = clearingHouseOrigin[^10..];
+        }
         var entries = new List<NachaInboundSimulationEntry>();
         long debitTotal = 0;
         long creditTotal = 0;
 
         records.Add(Record('1',
-            (4, "01"),
-            (14, originDfi),
-            (24, receivingDfi),
-            (34, fileId.ToString()),
-            (36, DateTime.UtcNow.ToString("yyMMdd")),
-            (42, DateTime.UtcNow.ToString("HHmm")),
-            (50, "106"),
-            (54, clearingHouse.Name),
-            (78, destination.Name),
-            (97, "1")));
+            (2, "01"),
+            (4, receivingDfi),
+            (14, clearingHouseOrigin),
+            (24, effective),
+            (32, DateTime.UtcNow.ToString("HHmm")),
+            (36, fileId.ToString()),
+            (37, "106"),
+            (40, "10"),
+            (42, "1"),
+            (43, destination.Name),
+            (66, clearingHouse.Name),
+            (89, "1")));
 
         records.Add(Record('5',
             (2, ServiceClassCode(request.ScenarioType)),
@@ -839,9 +848,10 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             (54, ScenarioDescription(request.ScenarioType)),
             (64, effective),
             (72, effective),
+            (80, request.BusinessDate.DayOfYear.ToString("000")),
             (83, "1"),
             (84, originDfi),
-            (99, "1")));
+            (92, "1".PadLeft(7, '0'))));
 
         for (var i = 0; i < entriesCount; i++)
         {
@@ -855,7 +865,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             var entry = Record('6',
                 (2, transactionCode),
                 (4, receivingDfi),
-                (12, "0"),
+                (12, DigitoChequeoHelper.CalcularDigitoChequeo(receivingDfi)),
                 (13, $"0000009{i + 1:000}"),
                 (30, amountCents.ToString().PadLeft(18, '0')),
                 (48, "900900900"),
@@ -863,11 +873,21 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 (85, "UT"),
                 (87, "1"),
                 (88, trace));
-            var addenda = Record('7',
-                (2, "05"),
-                (4, $"{reference} {request.ResponseMode?.ToString() ?? "SIMULADO"} {request.ReasonCode ?? "OK"}"),
-                (84, (i + 1).ToString().PadLeft(4, '0')),
-                (88, (i + 1).ToString().PadLeft(7, '0')));
+            var addenda = IsDebitScenario(request.ScenarioType)
+                ? Record('7',
+                    (2, "05"),
+                    (4, "900900900".PadLeft(13, '0')),
+                    (17, reference),
+                    (47, "JOB5C SINTETICO"),
+                    (84, (i + 1).ToString().PadLeft(4, '0')),
+                    (88, trace[^7..]))
+                : Record('7',
+                    (2, "05"),
+                    (4, "900900900"),
+                    (21, "JOB5C"),
+                    (31, reference),
+                    (84, (i + 1).ToString().PadLeft(4, '0')),
+                    (88, trace[^7..]));
 
             entryRecords.Add(entry);
             addendaRecords.Add(addenda);
@@ -901,7 +921,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             (39, creditTotal.ToString().PadLeft(18, '0')),
             (57, "900999999"),
             (92, originDfi),
-            (100, "1")));
+            (100, "1".PadLeft(7, '0'))));
 
         var blockCount = (int)Math.Ceiling((records.Count + 1) / 10m);
         records.Add(Record('9',

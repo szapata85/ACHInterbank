@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Configuration;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Configuration;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -11,6 +12,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -45,7 +47,22 @@ public class NachaInboundSimulatorTests
         Assert.False(response.AutoImported);
         Assert.True(response.UploadRequired);
         Assert.False(response.ExternalTransmission);
-        Assert.Single(Directory.GetFiles(output, response.FileName, SearchOption.AllDirectories));
+        var generatedPath = Assert.Single(Directory.GetFiles(output, response.FileName, SearchOption.AllDirectories));
+        var generated = await File.ReadAllTextAsync(generatedPath);
+        var records = Enumerable.Range(0, generated.Length / 106)
+            .Select(index => generated.Substring(index * 106, 106))
+            .ToArray();
+        var header = Assert.Single(records, x => x[0] == '1');
+        var batchHeader = Assert.Single(records, x => x[0] == '5');
+        Assert.Equal("01", header.Substring(1, 2));
+        Assert.All(header.Substring(3, 20), character => Assert.True(character is >= '0' and <= '9' or ' '));
+        Assert.Equal(clearingHouseCode == "CENIT" ? "011111111 " : "000101006 ", header.Substring(13, 10));
+        Assert.Equal("20260520", header.Substring(23, 8));
+        Assert.All(header.Substring(31, 4), character => Assert.True(char.IsDigit(character)));
+        Assert.Equal("106", header.Substring(36, 3));
+        Assert.Equal("10", header.Substring(39, 2));
+        Assert.Equal('1', header[41]);
+        Assert.Equal("0000001", batchHeader.Substring(91, 7));
         if (clearingHouseCode == "CENIT")
         {
             Assert.Matches(@"^\d{7}\.\d{3}\.\d{8}\.\d+$", response.FileName);
@@ -64,6 +81,55 @@ public class NachaInboundSimulatorTests
         Assert.False(evidence!.OriginIsDefaultSource);
         Assert.True(evidence.DestinationIsDefaultSource);
         Assert.Equal(1, evidence.DestinationFinancialInstitutionId);
+    }
+
+    [Fact]
+    public async Task GeneratedIncomingCredit_ShouldRoundTripThroughParser_WhenUnrelatedOriginCodesAreDuplicated()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        context.ClearingHouseConfigs.AddRange(
+            new ClearingHouseConfig { Id = 3, ClearingHouseId = 3, HolidayStrategy = "Colombian" },
+            new ClearingHouseConfig { Id = 4, ClearingHouseId = 4, HolidayStrategy = "Colombian" });
+        context.ClearingHouses.AddRange(
+            new ClearingHouse { Id = 3, Name = "Red local A", Code = "LOCAL-A", OriginCode = "901", ClearingHouseId = 3 },
+            new ClearingHouse { Id = 4, Name = "Red local B", Code = "LOCAL-B", OriginCode = "901", ClearingHouseId = 4 });
+        await context.SaveChangesAsync();
+        var output = CreateTempOutput();
+        var service = CreateService(context, output);
+        var generated = await service.GenerateAsync(new GenerateNachaInboundSimulationRequest
+        {
+            ClearingHouseCode = "ACHCOL",
+            ScenarioType = NachaInboundSimulationType.IncomingCredit,
+            OriginFinancialInstitutionId = 2,
+            EntriesCount = 1,
+            Amount = 1000,
+            ReferencePrefix = "ROUNDTRIP",
+            BusinessDate = new DateOnly(2026, 5, 20),
+            CycleCode = "ACH-CYCLE"
+        }, "qa");
+        var generatedPath = Assert.Single(Directory.GetFiles(output, generated.FileName, SearchOption.AllDirectories));
+        var parser = new NachaParserService(
+            context,
+            NullLogger<NachaParserService>.Instance,
+            Mock.Of<IAchStateTransitionService>());
+        await using var stream = File.OpenRead(generatedPath);
+
+        var result = await parser.ParseAndSaveDetailedAsync(
+            stream,
+            generated.FileName,
+            new NachaParseRequest
+            {
+                ResolvedClearingHouseId = 1,
+                ResolvedAchCycleId = "ACH-CYCLE",
+                OperationalDate = new DateTime(2026, 5, 20),
+                CorrelationId = "simulator-parser-roundtrip"
+            });
+
+        Assert.Empty(result.Failures);
+        Assert.Equal(1, result.TotalBatches);
+        Assert.Equal(1, result.TotalEntries);
+        Assert.Equal(1, result.TotalAddendas);
     }
 
     [Fact]
@@ -449,8 +515,8 @@ public class NachaInboundSimulatorTests
             new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" },
             new ClearingHouseConfig { Id = 2, ClearingHouseId = 2, HolidayStrategy = "Colombian" });
         context.ClearingHouses.AddRange(
-            new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "ACH", ClearingHouseId = 1 },
-            new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT", OriginCode = "CEN", ClearingHouseId = 2 });
+            new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "000101006", ClearingHouseId = 1 },
+            new ClearingHouse { Id = 2, Name = "CENIT", Code = "CENIT", OriginCode = "011111111", ClearingHouseId = 2 });
         context.ClearingHouseCycleConfigs.AddRange(
             new ClearingHouseCycleConfig
             {

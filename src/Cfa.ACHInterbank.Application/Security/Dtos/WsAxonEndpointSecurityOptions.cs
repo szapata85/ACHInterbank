@@ -10,6 +10,7 @@ public sealed class WsAxonEndpointSecurityOptions
     public List<int> AllowedPorts { get; set; } = [];
     public List<string> AllowedPaths { get; set; } = [];
     public bool RequireHttps { get; set; }
+    public string? HostHeader { get; set; }
 }
 
 public enum WsAxonEndpointSecurityMode

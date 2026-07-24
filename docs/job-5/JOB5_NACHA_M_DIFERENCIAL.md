@@ -6,6 +6,8 @@ Línea base funcional JOB 5: `5abd1e91aefc346adbd2dde09632a4e48d7daabb`
 
 Línea base de la corrección focal: `b317e5df7813479ec4d76dc721f5f7f7367ebba7`
 
+Línea base de JOB 5C Live local: `e152d48f20c8161604ae4d39b9496caa538e5851`
+
 Veredicto: **NO-GO NORMATIVO**
 
 ## Decisión
@@ -102,6 +104,21 @@ El cliente físico resuelve endpoint y SOAPAction desde la configuración persis
 
 No se hardcodearon destinos UAT o productivos. El endpoint persistido no sustituye la allowlist y la allowlist no selecciona el endpoint funcional. Los siete parámetros permanecen intactos y `RegistrarRespuestaTransaccion` continúa clasificado como no monetario.
 
+En JOB 5C la frontera se ejecutó realmente contra el WCF local. El proceso dentro de Docker usó `host.docker.internal:7083` con `Host: localhost:7083`; desde Windows el destino es `http://localhost:7083/WSAxonRespuestaTransacciones.svc`. El intento persistió request y response, terminó `Exitosa` y la respuesta terminó `Notificada`. Un segundo envío del mismo intento fue omitido por idempotencia y no aumentó el log WCF.
+
+La corrección también eliminó una transición prematura: una prenotificación diferencial validada queda `Homologada` con intento pendiente; únicamente `NotificarRespuestaAchUseCase`, después del gateway real, puede marcarla `Notificada`. El evento de estado conserva que no se creó movimiento monetario ni se afectaron saldos.
+
+## Prueba Live E2E con referencias productivas de terceros
+
+Se cargaron mediante Playwright y el selector real de la SPA dos referencias externas, sin copiarlas al repositorio:
+
+- ACHCOL, `0001283.***.OUT`, SHA-256 `F090B5D4BFAB75FE04CD19313EA1ED467D0205F0FC603DE255CF9688C4753518`;
+- CENIT, `0001283.***`, SHA-256 `3566E425E7786B841482612C6EBC507ECD4E41996A1B8391D1CF5BE7F29468BE`.
+
+Su identificación estructural y la documentación UAT existente las clasifican como transacciones entrantes con addenda `05`, no como respuestas diferenciales. Por eso ambas quedaron `NoResuelto`/`NoEjecutado`, sin correlación ni SOAP, y la segunda carga exacta fue auditada como duplicada. Se clasifican `ProductionReference`, nunca `OfficialGoldenFile`, `NormativeGoldenFile` ni `HomologatedProfile`.
+
+La prueba técnica SOAP se realizó aparte con una fuente sintética de un registro válido, una prenotificación sintética y `JOB5C-LIVE-20260723-006`. Produjo una sola invocación física, respuesta funcional exitosa, persistencia de request/response y cero invocaciones adicionales al repetir el envío. Este éxito técnico no modifica el **NO-GO NORMATIVO** de ACHCOL ni CENIT.
+
 ## Doble carga e idempotencia
 
 - Mismos bytes, mismo o distinto nombre: se detecta por SHA-256 y tamaño; se conserva una sola ingesta canónica. El segundo intento genera auditoría `DuplicateUploadAttempt` y no repite parser, evento funcional, transición ni despacho.
@@ -143,4 +160,4 @@ No se modificaron snapshots de SQL Server/PostgreSQL ni golden files.
 4. Vector diferencial CENIT oficial o referencia real verificada y trazable.
 5. Perfil `nacha-config` diferencial homologado por cámara.
 6. Parser/generador diferencial consumiendo exclusivamente el snapshot seleccionado.
-7. Evidencia Live pendiente hasta resolver la compuerta normativa; `Development` ya dispone de `ControlledLocal` para el WSAXON local.
+7. Obtener un vector diferencial productivo verificable; la evidencia SOAP Live técnica local ya existe, pero ninguna de las referencias productivas disponibles es diferencial.

@@ -14,6 +14,15 @@ Veredicto: **NO-GO NORMATIVO**
 | HEAD inicial igual a la base | Sí |
 | Estado inicial | Limpio |
 
+### Línea base JOB 5C
+
+| Verificación | Resultado |
+|---|---|
+| Rama | `ACH-Interbank-Postgresql` |
+| Commit inicial y base exacta | `e152d48f20c8161604ae4d39b9496caa538e5851` |
+| HEAD inicial igual a la base | Sí |
+| Estado inicial | Limpio |
+
 ## Evidencia normativa y hashes
 
 Los hashes se calcularon con `Get-FileHash -Algorithm SHA256`. No se modificó ningún original.
@@ -68,30 +77,68 @@ Comprobación de disponibilidad, sin ejecutar métodos SOAP:
 | PostgreSQL | Contenedor healthy |
 | WSAXON WSDL `http://localhost:7083/WSAxonRespuestaTransacciones.svc?wsdl` | HTTP 200; 3218 bytes; XML no impreso |
 
-El endpoint persistido y la política de seguridad del ambiente son controles complementarios. `Development` usa `ControlledLocal` con puerto 7083; la configuración base queda sin modo y por ello falla cerrada. No se realizó una invocación SOAP en esta corrección.
+El endpoint persistido y la política de seguridad del ambiente son controles complementarios. `Development` usa `ControlledLocal` con puerto 7083; la configuración base queda sin modo y por ello falla cerrada. En la corrección focal anterior no se realizó una invocación SOAP; la ejecución física de JOB 5C se documenta a continuación.
 
-## Live
+## Prueba Live E2E con referencias productivas de terceros
 
-| Paso | Estado | Motivo |
-|---|---|---|
-| WSDL local disponible | PASS | HTTP 200 |
-| Archivo diferencial oficial/verificado | SKIPPED | No existe en el repositorio |
-| Perfil seleccionado | SKIPPED | ACHCOL y CENIT están en NO-GO normativo |
-| Validación/correlación diferencial | SKIPPED | La compuerta bloquea antes del parser |
-| Request/response Live | SKIPPED | No se autoriza inventar un perfil ni despachar sin superar la compuerta normativa |
-| Segunda carga Live | SKIPPED | No existió primera carga Live elegible |
-| Invocaciones reales | 0 | Bloqueo normativo anterior al despacho |
+La validación se ejecutó exclusivamente en el ambiente local controlado. Los archivos externos se leyeron desde sus rutas originales, no se copiaron al repositorio y no se imprimieron cuentas, nombres, documentos, montos ni contenido completo.
 
-No se usó un mock como evidencia Live.
+Carpetas efectivas:
+
+- ACHCOL: `C:\Users\CHECHO\Documents\proyectos\Interbank\ACHInterbank_SPA2\docs\referencias-reales\tercero-ACHCOL`
+- CENIT: la ruta solicitada `tercero-CEN` no existe; se usó la carpeta hermana comprobada `C:\Users\CHECHO\Documents\proyectos\Interbank\ACHInterbank_SPA2\docs\referencias-reales\tercero-CENIT`.
+
+| Cámara | Archivo enmascarado | Clasificación | SHA-256 | Identificación estructural | Resultado Playwright |
+|---|---|---|---|---|---|
+| ACHCOL | `0001283.***.OUT` | ProductionReference | `F090B5D4BFAB75FE04CD19313EA1ED467D0205F0FC603DE255CF9688C4753518` | 420 registros físicos; 130 T6; addendas T7 tipo `05` | Ingesta canónica `f910d1bb-…`, cámara 1, `NoResuelto`, parser `NoEjecutado`; segunda carga `Duplicado` |
+| CENIT | `0001283.***` | ProductionReference | `3566E425E7786B841482612C6EBC507ECD4E41996A1B8391D1CF5BE7F29468BE` | 20 registros físicos; 4 T6; addendas T7 tipo `05` | Ingesta canónica `ba82dbff-…`, cámara 3, `NoResuelto`, parser `NoEjecutado`; segunda carga `Duplicado` |
+
+Ambos archivos corresponden a transacciones monetarias entrantes, no a respuestas diferenciales. En consecuencia, el resultado correcto fue fail-closed: cero clasificaciones funcionales, cero correlaciones, cero despachos y cero llamadas a `RegistrarRespuestaTransaccion`. Cada segunda carga produjo un único evento `DuplicateUploadAttempt`. No se presentó este resultado como homologación normativa.
+
+La ruta principal atravesó login SPA, navegación por menú, selector real con `setInputFiles`, `NachaUpload`, respuesta JSON y conciliación. En ambas cámaras hubo cero errores de navegador/HTTP, cero `index.html` en lugar de JSON y cero `[object Object]`.
+
+### Validación técnica SOAP Live separada
+
+Como los dos archivos productivos no contienen respuestas diferenciales, la frontera SOAP se validó separadamente con datos totalmente sintéticos. El simulador local generó una fuente de un T6/T7, fue cargada por el selector SPA y el parser persistió 1 lote, 1 entrada válida y 1 addenda. Una prenotificación CFA sintética correlacionada transitó de `Pending` a `Certified`; el evento persistido confirma `monetaryMovementCreated=false` y `balancesAffected=false`.
+
+| Evidencia | Resultado |
+|---|---|
+| Correlation ID | `JOB5C-LIVE-20260723-006` |
+| Fuente técnica enmascarada | `0000100.***.OUT`; SHA-256 `08E8A7A80944AEFC925CAEDF0356B26CAD8F178DAA28C8717D9EDF08AD04FF7A` |
+| Cadena real | `ProcesarRespuestaAchUseCase` → intento persistido → `NotificarRespuestaAchUseCase` → mapper/gateway/cliente real |
+| Endpoint efectivo Windows | `http://localhost:7083/WSAxonRespuestaTransacciones.svc` |
+| Topología del proceso Docker | `http://host.docker.internal:7083/WSAxonRespuestaTransacciones.svc`, con `Host: localhost:7083`, misma instancia WCF local |
+| SOAPAction | `http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion` |
+| Request persistido | JSON de 160 caracteres; exactamente siete claves: `idCanal`, `nombreCanal`, `idTransaccion`, `idEstado`, `causal`, `idTransaccionAxon`, `descripcionCausal` |
+| Response persistida | JSON funcional de 60 caracteres; `existeError=false`; sin error técnico |
+| Resultado | intento 1 `Exitosa`; respuesta `Notificada`; una invocación física |
+| Idempotencia | segundo envío `yaProcesada=true`; el log WCF conservó el mismo tamaño, sin invocación adicional |
+| Log WCF | `C:\WebServices\WSCFAACH\Log\Trama_ACH_20260723.log`; `2026-07-23 21:10:18,924`; operación y siete nombres comprobados; identificador `000***051` |
+
+No se usó un mock como evidencia Live. La referencia productiva, la prueba SOAP técnica y la homologación normativa se mantienen explícitamente separadas: **GO operativo local de ingestión**, **GO técnico SOAP Live** y **NO-GO normativo**.
+
+### Incidencias locales corregidas durante JOB 5C
+
+- drift local PostgreSQL: la migración constaba aplicada pero faltaba `ClearingHouseConfigs.PaymentRailCode`; se reparó la columna/backfill exacto de la migración, sin generar una migración nueva;
+- el simulador entrante emitía T1/T5/T7 y dígito de chequeo incompatibles con el parser productivo;
+- el parser fallaba globalmente ante `OriginCode` duplicados ajenos a la cámara ya resuelta;
+- una prenotificación diferencial validada se marcaba `Notificada` antes del gateway; ahora crea el intento pendiente y solo `NotificarRespuestaAchUseCase` completa la transición;
+- la topología WCF local en Docker requirió un `HostHeader` local validado por la política `ControlledLocal`.
 
 ## Validación final
 
 | Prueba | Entorno/proveedor | Resultado | Observación |
 |---|---|---|---|
-| Build Release | .NET 10 | PASS | 0 warnings, 0 errors |
-| Corrección focal | .NET 10 | PASS | 45 passed, 0 failed, 0 skipped |
-| Suite completa local, sin variables multimotor | .NET 10 | FAIL ambiental | 1939 passed, 2 failed, 5 skipped; fallaron exclusivamente los dos `ClearingHouseMultiDbTests` porque faltó `CLEARING_HOUSES_REQUIRE_DATABASES=true` y sus cadenas |
-| Suite efectiva de `dotnet-ci` | .NET 10 | PASS | 1939 passed, 0 failed, 5 skipped; filtro `Category!=ClearingHouseMultiDb`, `MaxCpuCount=1` |
+| Build Release JOB 5C | .NET 10 | PASS | 0 warnings, 0 errors |
+| Backend focal JOB 5C | .NET 10 | PASS | 157 passed, 0 failed, 0 skipped |
+| Suite final CI-equivalente JOB 5C | .NET 10 | PASS | 1943 passed, 0 failed, 5 skipped; filtro `Category!=ClearingHouseMultiDb` |
+| Angular unitarias | Chrome Headless 147 | PASS | 461 passed |
+| Angular build | Producción | PASS | Build completado |
+| Playwright referencias productivas | Chromium / SPA real | PASS | 2 cámaras; primera carga persistida y segunda carga duplicada; cero errores de navegador/HTTP |
+| Playwright SOAP Live | Chromium / SPA/API/WCF reales | PASS | intento 1 `Exitosa`; verificación idempotente posterior 1 passed; una invocación física total |
+| Corrección focal anterior | .NET 10 | PASS | 45 passed, 0 failed, 0 skipped |
+| Suite completa local anterior, sin variables multimotor | .NET 10 | FAIL ambiental histórico | 1939 passed, 2 failed, 5 skipped; fallaron exclusivamente los dos `ClearingHouseMultiDbTests` sin configuración opt-in |
+| Suite efectiva anterior de `dotnet-ci` | .NET 10 | PASS | 1939 passed, 0 failed, 5 skipped; filtro `Category!=ClearingHouseMultiDb`, `MaxCpuCount=1` |
 | GitHub Actions anterior a la corrección | `dotnet-ci` run `30051435354` | FAIL | 1928 passed, 3 failed, 5 skipped; causa corregida por este cambio |
 | Golden/regresión diferencial | In-memory/archivos | PASS fail-closed | Los goldens diferenciales siguen clasificados como sintéticos y no habilitan parser ni SOAP |
 | SQL Server multimotor | SQL Server local | SKIPPED | Corrección sin cambios de persistencia; opt-in no configurado en esta ejecución |
@@ -99,9 +146,7 @@ No se usó un mock como evidencia Live.
 | SQL Server diferencial E2E | SQL Server local | SKIPPED | Sin perfil/vector diferencial sustentado; no hubo cambio de esquema |
 | PostgreSQL diferencial E2E | PostgreSQL local | SKIPPED | Sin perfil/vector diferencial sustentado; no hubo cambio de esquema |
 | Migraciones | SQL Server/PostgreSQL | SKIPPED | No se modificó el modelo EF |
-| SPA build/test | Angular | SKIPPED | SPA no modificada |
-| Playwright focalizado | Chromium | SKIPPED | SPA no modificada y la compuerta impide demostrar un flujo diferencial válido |
-| SOAP Live | WCF local | SKIPPED | NO-GO normativo; el flujo queda bloqueado antes del despacho |
+| SOAP Live | WCF local | PASS técnico | Una invocación física real y un segundo envío omitido por idempotencia; no representa homologación normativa |
 
 ### SKIPPED legítimos y exclusiones
 
@@ -111,4 +156,4 @@ No se usó un mock como evidencia Live.
 | `SoapArchitectureDiagnosticTests.ApplicationAndDomain_ShouldReportSoapXmlProviderTerms_ForFutureRefactor` | `[Fact(Skip=...)]` permanente: diagnóstico inicial anterior al refactor | Retirar el `Skip` en una tarea arquitectural explícita |
 | 2 pruebas `ClearingHouseMultiDbTests` | Excluidas por el filtro oficial de `dotnet-ci`; la ejecución local sin variables las reportó como fallos de configuración, no como PASS | Definir `CLEARING_HOUSES_REQUIRE_DATABASES=true` y ambas cadenas `CLEARING_HOUSES_*_CONNECTION_STRING` |
 | Live diferencial | No existe perfil/vector diferencial sustentado | Aportar evidencia normativa verificable, publicar/homologar el perfil y configurar WSAXON bajo una política permitida |
-| SPA/Playwright | No se modificó SPA; el backend bloquea antes de un resultado diferencial válido | Resolver la compuerta normativa y ejecutar la ruta operatoria existente |
+| E2E diferencial con referencia productiva | Las referencias disponibles son transacciones entrantes con addenda `05`, no respuestas diferenciales | Aportar un archivo diferencial verificable y su perfil homologado |

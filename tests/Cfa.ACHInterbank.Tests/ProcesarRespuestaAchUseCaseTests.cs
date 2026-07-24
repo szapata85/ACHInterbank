@@ -122,6 +122,47 @@ public class ProcesarRespuestaAchUseCaseTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ShouldCreatePendingSoapAttempt_WhenValidatedPrenotificationAllowsNotification()
+    {
+        var processor = new Mock<IDifferentialPrenotificationResponseProcessor>();
+        processor.Setup(x => x.ProcessAsync(
+                It.IsAny<ProcesarRespuestaAchCommand>(),
+                It.IsAny<AchResponse>(),
+                It.IsAny<HomologarRespuestaAchResult>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DifferentialPrenotificationResponseProcessResult(
+                true, true, true, true, false, false, false, 101, Guid.NewGuid(), "Certified", null,
+                "Respuesta diferencial validada sin movimiento monetario."));
+        var sut = BuildUseCase(
+            out var responseRepo,
+            out var attemptRepo,
+            out var mapping,
+            out var uow,
+            out _,
+            processor.Object);
+        responseRepo.Setup(r => r.FindByIdempotencyHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AchResponse?)null);
+        mapping.Setup(m => m.HomologarAsync(It.IsAny<HomologarRespuestaAchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HomologarRespuestaAchResult.Success(true, 10, 20, "Aprobada", null, "Aprobada"));
+
+        var result = await sut.ExecuteAsync(BuildValidCommand() with
+        {
+            TipoRespuesta = TipoRespuestaAch.Prenota,
+            CodigoCausalExterna = null
+        });
+
+        Assert.Equal(AchResponseProcessingStatus.Homologada, result.EstadoProcesamiento);
+        Assert.True(result.PermiteNotificacion);
+        Assert.True(result.IntentoPendienteCreado);
+        attemptRepo.Verify(x => x.AddAsync(
+            It.Is<AchResponseNotificationAttempt>(attempt =>
+                attempt.EstadoNotificacion == AchResponseNotificationStatus.Pendiente
+                && attempt.IdEstado == 20),
+            It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(x => x.CommitIdempotentAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ShouldUseFechaRecepcionFromCommand_WhenProvided()
     {
         var sut = BuildUseCase(out var responseRepo, out _, out var mapping, out var uow, out _);
@@ -188,7 +229,7 @@ public class ProcesarRespuestaAchUseCaseTests
             Assert.DoesNotContain(forbidden, x => (t.FullName ?? t.Name).Contains(x, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static ProcesarRespuestaAchUseCase BuildUseCase(out Mock<IAchResponseRepository> responseRepo, out Mock<IAchResponseNotificationAttemptRepository> attemptRepo, out Mock<IRespuestaAchStatusMappingService> mappingService, out Mock<IUnitOfWork> unitOfWork, out Mock<IAchResponseIdempotencyHashService> hash)
+    private static ProcesarRespuestaAchUseCase BuildUseCase(out Mock<IAchResponseRepository> responseRepo, out Mock<IAchResponseNotificationAttemptRepository> attemptRepo, out Mock<IRespuestaAchStatusMappingService> mappingService, out Mock<IUnitOfWork> unitOfWork, out Mock<IAchResponseIdempotencyHashService> hash, IDifferentialPrenotificationResponseProcessor? prenotificationResponseProcessor = null)
     {
         responseRepo = new Mock<IAchResponseRepository>();
         attemptRepo = new Mock<IAchResponseNotificationAttemptRepository>();
@@ -198,7 +239,7 @@ public class ProcesarRespuestaAchUseCaseTests
         unitOfWork = new Mock<IUnitOfWork>();
         hash = new Mock<IAchResponseIdempotencyHashService>();
         hash.Setup(h => h.BuildHash(It.IsAny<ProcesarRespuestaAchCommand>())).Returns("HASH");
-        return new ProcesarRespuestaAchUseCase(new ProcesarRespuestaAchCommandValidator(), hash.Object, responseRepo.Object, attemptRepo.Object, mappingService.Object, unitOfWork.Object);
+        return new ProcesarRespuestaAchUseCase(new ProcesarRespuestaAchCommandValidator(), hash.Object, responseRepo.Object, attemptRepo.Object, mappingService.Object, unitOfWork.Object, prenotificationResponseProcessor);
     }
 
     private static ProcesarRespuestaAchCommand BuildValidCommand() => new(

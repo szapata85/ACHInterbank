@@ -12,6 +12,9 @@ namespace Cfa.ACHInterbank.External.Connections;
 [Scoped]
 public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccionesSoapClient
 {
+    private static readonly HashSet<string> ControlledLocalHosts =
+        new(["localhost", "127.0.0.1", "host.docker.internal"], StringComparer.OrdinalIgnoreCase);
+
     private readonly ILoggerManager _logger;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly WsAxonEndpointSecurityOptions _endpointSecurity;
@@ -98,6 +101,7 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         using var client = new HttpClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
+        ApplyControlledLocalHostHeader(request, endpoint, _endpointSecurity);
         request.Headers.Add("SOAPAction", soapAction);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
@@ -121,6 +125,35 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         }
 
         return responseContent;
+    }
+
+    private static void ApplyControlledLocalHostHeader(
+        HttpRequestMessage request,
+        Uri endpoint,
+        WsAxonEndpointSecurityOptions policy)
+    {
+        if (string.IsNullOrWhiteSpace(policy.HostHeader))
+        {
+            return;
+        }
+
+        if (policy.Mode != WsAxonEndpointSecurityMode.ControlledLocal)
+        {
+            throw new InvalidOperationException(
+                "SOAP Host header override is only allowed by the ControlledLocal WSAXON policy.");
+        }
+
+        var hostHeader = policy.HostHeader.Trim();
+        if (hostHeader.IndexOfAny(['/', '\\', '@', '?', '#', '\r', '\n']) >= 0
+            || !Uri.TryCreate($"{endpoint.Scheme}://{hostHeader}", UriKind.Absolute, out var hostUri)
+            || !ControlledLocalHosts.Contains(hostUri.IdnHost)
+            || hostUri.Port != endpoint.Port)
+        {
+            throw new InvalidOperationException(
+                "SOAP Host header override is outside the ControlledLocal WSAXON policy.");
+        }
+
+        request.Headers.Host = hostHeader;
     }
 
     private async Task<(Uri Endpoint, string SoapAction)> ResolveConfigurationAsync(CancellationToken ct)
@@ -185,9 +218,8 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
 
     private static Uri ValidateControlledLocal(Uri uri, WsAxonEndpointSecurityOptions policy)
     {
-        string[] allowedHosts = ["localhost", "127.0.0.1", "host.docker.internal"];
         var allowedPorts = policy.AllowedPorts.Count == 0 ? [7083] : ValidatePorts(policy.AllowedPorts);
-        var allowedHost = allowedHosts.Contains(uri.Host, StringComparer.OrdinalIgnoreCase);
+        var allowedHost = ControlledLocalHosts.Contains(uri.Host);
         var expectedPath = PathsEqual(uri.AbsolutePath, "/WSAxonRespuestaTransacciones.svc");
 
         if (policy.RequireHttps

@@ -77,9 +77,24 @@ public class NachaParserService : INachaParserService
 
             var lines = await ReadPhysicalRecordsAsync(nachaStream, ct);
 
-            var clearingHouseMap = await _context.ClearingHouses
+            var clearingHouseOrigins = await _context.ClearingHouses
                 .AsNoTracking()
-                .ToDictionaryAsync(ch => ch.OriginCode.Trim(), ch => ch.Id, ct);
+                .Select(ch => new { ch.Id, ch.OriginCode })
+                .ToListAsync(ct);
+            var originGroups = clearingHouseOrigins
+                .Where(ch => !string.IsNullOrWhiteSpace(ch.OriginCode))
+                .GroupBy(ch => ch.OriginCode.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var clearingHouseMap = originGroups
+                .Where(group => group.Count() == 1)
+                .ToDictionary(group => group.Key, group => group.Single().Id, StringComparer.OrdinalIgnoreCase);
+            var ambiguousOriginCount = originGroups.Count(group => group.Count() > 1);
+            if (ambiguousOriginCount > 0)
+            {
+                _logger.LogWarning(
+                    "Se excluyeron {AmbiguousOriginCount} códigos OriginCode ambiguos del catálogo de cámaras durante el parseo NACHA-M.",
+                    ambiguousOriginCount);
+            }
 
             List<NachaHeader> headers = new();
             NachaHeader? currentHeader = null;
