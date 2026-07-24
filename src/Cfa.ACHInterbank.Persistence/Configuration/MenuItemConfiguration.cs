@@ -43,6 +43,8 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int NachaConfigRecordsId = 2802;
     public const int NachaConfigVariantsFieldsId = 2803;
     public const int ClearingHousesAdminId = 2804;
+    public const int NachaCertificatesId = 2805;
+    public const int AchCyclesCatalogId = 2806;
 
     public void Configure(EntityTypeBuilder<MenuItem> builder)
     {

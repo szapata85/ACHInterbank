@@ -47,6 +47,25 @@ public sealed class CyclesMenuSeeder : IDbSeeder
         canonical.Exact = true;
         canonical.IsActive = true;
 
+        var catalog = await UpsertMenuItemAsync(
+            MenuItemConfiguration.AchCyclesCatalogId,
+            canonical.Id,
+            "Catálogo de ciclos",
+            "/ach-cycles",
+            "schedule",
+            order: 1);
+
+        var export = await _context.MenuItems
+            .FirstOrDefaultAsync(x => x.Id == MenuItemConfiguration.NachaExportId);
+        if (export is not null)
+        {
+            export.ParentId = canonical.Id;
+            export.Order = 2;
+            export.IsActive = true;
+        }
+
+        await _context.SaveChangesAsync();
+
         if (!await _context.MenuItemPermissions.AnyAsync(x =>
                 x.MenuItemId == MenuItemConfiguration.AchCyclesId
                 && x.PermissionId == PermissionConfiguration.ReadAchPermissionId))
@@ -54,6 +73,17 @@ public sealed class CyclesMenuSeeder : IDbSeeder
             _context.MenuItemPermissions.Add(new MenuItemPermission
             {
                 MenuItemId = MenuItemConfiguration.AchCyclesId,
+                PermissionId = PermissionConfiguration.ReadAchPermissionId
+            });
+        }
+
+        if (!await _context.MenuItemPermissions.AnyAsync(x =>
+                x.MenuItemId == catalog.Id
+                && x.PermissionId == PermissionConfiguration.ReadAchPermissionId))
+        {
+            _context.MenuItemPermissions.Add(new MenuItemPermission
+            {
+                MenuItemId = catalog.Id,
                 PermissionId = PermissionConfiguration.ReadAchPermissionId
             });
         }
@@ -67,5 +97,34 @@ public sealed class CyclesMenuSeeder : IDbSeeder
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<MenuItem> UpsertMenuItemAsync(
+        int id,
+        int? parentId,
+        string label,
+        string route,
+        string icon,
+        int order)
+    {
+        var item = await _context.MenuItems.FirstOrDefaultAsync(x => x.Id == id)
+            ?? await _context.MenuItems.FirstOrDefaultAsync(x =>
+                x.ParentId == parentId && x.Route == route);
+
+        if (item is null)
+        {
+            item = new MenuItem();
+            _context.MenuItems.Add(item);
+        }
+
+        item.MenuId = MenuConfiguration.MainMenuId;
+        item.ParentId = parentId;
+        item.Label = label;
+        item.Route = route;
+        item.Icon = icon;
+        item.Order = order;
+        item.Exact = true;
+        item.IsActive = true;
+        return item;
     }
 }

@@ -57,7 +57,7 @@ test.describe('Administracion real de certificados con SQL Server', () => {
     await loginThroughUi(page, userName, userPassword);
     await page.goto(`${spaBaseUrl}/nacha-security/certificates`);
     await expect(page).not.toHaveURL(/\/nacha-security\/certificates$/);
-    await expect(page.getByRole('heading', { name: 'Seguridad de archivos NACHA-M' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Certificados digitales' })).toHaveCount(0);
 
     await logoutThroughUi(page);
     await loginThroughUi(page, adminUser, adminPassword);
@@ -248,7 +248,8 @@ async function deactivateTestUser(page: Page, userName: string): Promise<void> {
 async function openCertificateScreen(page: Page): Promise<void> {
   await page.goto(`${spaBaseUrl}/nacha-security/certificates`);
   await expect(page).toHaveURL(/\/nacha-security\/certificates$/);
-  await expect(page.getByRole('heading', { name: 'Seguridad de archivos NACHA-M' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Certificados digitales' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Certificados digitales', exact: true })).toHaveCount(1);
   await expect(page.locator('section.cards')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('[object Object]');
 }

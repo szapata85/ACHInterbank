@@ -52,7 +52,7 @@ test('cifra y descifra un NACHA-M real mediante SPA, Nginx, API y SQL Server', a
 
   await loginThroughUi(page);
   await page.goto(`${baseUrl}/nacha-security/certificates`);
-  await expect(page.getByRole('heading', { name: 'Seguridad de archivos NACHA-M' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Certificados digitales' })).toBeVisible();
   await expect(page.locator('body')).toContainText('ACHcolombia.cer');
   await expect(page.locator('body')).toContainText('CFA.pfx');
   await page.screenshot({ path: testInfo.outputPath('certificates-from-database.png'), fullPage: true });
