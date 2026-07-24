@@ -1,7 +1,8 @@
+import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
@@ -16,6 +17,7 @@ describe('NachaConfigProfilesPageComponent', () => {
   let router: Router;
   let notificationsSpy: jasmine.SpyObj<NotificationService>;
   let authStub: { hasPermission: jasmine.Spy };
+  let querySpy: jasmine.SpyObj<NachaConfigQueryService>;
 
   const catalogos = {
     estados: [{ code: 'BORRADOR', labelEs: 'Borrador' }],
@@ -62,19 +64,20 @@ describe('NachaConfigProfilesPageComponent', () => {
     commandSpy = jasmine.createSpyObj<NachaConfigCommandService>('NachaConfigCommandService', ['crearBorrador', 'validar']);
     notificationsSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error', 'info', 'warning']);
     authStub = { hasPermission: jasmine.createSpy().and.returnValue(true) };
+    querySpy = jasmine.createSpyObj<NachaConfigQueryService>('NachaConfigQueryService', [
+      'dashboardReadOnly',
+      'perfilesReadOnly',
+      'catalogosFiltro'
+    ]);
+    querySpy.dashboardReadOnly.and.returnValue(of(dashboard));
+    querySpy.perfilesReadOnly.and.returnValue(of([perfilReadOnly]));
+    querySpy.catalogosFiltro.and.returnValue(of(catalogos));
 
     await TestBed.configureTestingModule({
       imports: [SharedModule, RouterTestingModule],
       declarations: [NachaConfigProfilesPageComponent],
       providers: [
-        {
-          provide: NachaConfigQueryService,
-          useValue: {
-            dashboardReadOnly: () => of(dashboard),
-            perfilesReadOnly: () => of([perfilReadOnly]),
-            catalogosFiltro: () => of(catalogos)
-          }
-        },
+        { provide: NachaConfigQueryService, useValue: querySpy },
         { provide: NachaConfigCommandService, useValue: commandSpy },
         { provide: NotificationService, useValue: notificationsSpy },
         { provide: AuthService, useValue: authStub }
@@ -124,6 +127,76 @@ describe('NachaConfigProfilesPageComponent', () => {
 
     expect(commandSpy.crearBorrador).toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledWith(['/nacha-config-admin/perfiles', 99]);
+  });
+
+  it('mantiene el formulario deshabilitado mientras cargan los catálogos', () => {
+    const pendingCatalogs = new Subject<typeof catalogos>();
+    querySpy.catalogosFiltro.and.returnValue(pendingCatalogs.asObservable());
+
+    component.cargarCatalogos(true);
+    fixture.detectChanges();
+
+    expect(component.crearForm.disabled).toBeTrue();
+    expect(component.catalogosCargando).toBeTrue();
+    expect(fixture.nativeElement.textContent).toContain('Cargando catálogos requeridos');
+  });
+
+  it('bloquea creación y muestra reintento cuando fallan los catálogos', () => {
+    querySpy.catalogosFiltro.and.returnValue(
+      throwError(() => new HttpErrorResponse({
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: new HttpHeaders({ 'Retry-After': '1' })
+      }))
+    );
+
+    component.cargarCatalogos(true);
+    fixture.detectChanges();
+
+    expect(component.crearForm.disabled).toBeTrue();
+    expect(component.catalogosDisponibles).toBeFalse();
+    expect(fixture.nativeElement.textContent).toContain('procesando varias solicitudes');
+    expect(fixture.nativeElement.textContent).toContain('Reintentar catálogos');
+  });
+
+  it('reconstruye opciones y habilita el formulario después de recuperar catálogos', () => {
+    const recoveredCatalogs = {
+      ...catalogos,
+      camaras: [...catalogos.camaras, { code: 'JOB6TEST', labelEs: 'Red sintética JOB 6' }]
+    };
+    querySpy.catalogosFiltro.and.returnValues(
+      throwError(() => new HttpErrorResponse({ status: 429, statusText: 'Too Many Requests' })),
+      of(recoveredCatalogs)
+    );
+
+    component.cargarCatalogos(true);
+    component.reintentarCatalogos();
+    fixture.detectChanges();
+
+    expect(component.catalogosEstado).toBe('recuperados');
+    expect(component.crearForm.enabled).toBeTrue();
+    expect(component.opcionesCamara.map((option) => option.valor)).toContain('JOB6TEST');
+    component.crearForm.controls.camaraCode.setValue('JOB6TEST');
+    expect(component.crearForm.controls.camaraCode.value).toBe('JOB6TEST');
+  });
+
+  it('no crea un perfil cuando los catálogos no están disponibles', () => {
+    querySpy.catalogosFiltro.and.returnValue(
+      throwError(() => new HttpErrorResponse({ status: 503, statusText: 'Service Unavailable' }))
+    );
+    component.cargarCatalogos(true);
+    component.crearForm.patchValue({
+      profileCode: 'JOB6-NO-CATALOGS',
+      nombreEs: 'Perfil bloqueado',
+      camaraCode: 'JOB6TEST',
+      flujoCode: 'ORIGINAL',
+      direccionCode: 'SALIDA',
+      effectiveFrom: '2026-07-24'
+    });
+
+    component.crearBorrador();
+
+    expect(commandSpy.crearBorrador).not.toHaveBeenCalled();
   });
 
   it('Component_ShouldValidateProfileAndStoreValidationResult', () => {

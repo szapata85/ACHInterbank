@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test';
+import { expect, Page, Response, test } from '@playwright/test';
 import { Client } from 'pg';
 
 const spa = process.env['ACH_UI_URL'] ?? process.env['E2E_BASE_URL'] ?? 'http://localhost:743';
@@ -67,75 +67,84 @@ test.describe.serial('JOB 6 - runtime integrado real', () => {
 
   test('login, menú autorizado y administración NACHA por tercera cámara', async ({ page }) => {
     test.setTimeout(120_000);
-    const token = await login(page);
-    await expect(page.getByRole('navigation', { name: /menú principal/i })).toBeVisible();
+    try {
+      const token = await login(page);
+      await expect(page.getByRole('navigation', { name: /menú principal/i })).toBeVisible();
 
-    const clearingHouseDeepLink = await page.goto(`${spa}/clearing-houses`);
-    expect(clearingHouseDeepLink?.status()).toBe(200);
-    expect(clearingHouseDeepLink?.headers()['content-type']).toContain('text/html');
-    await expect(page.locator('app-clearing-houses')).toBeVisible();
+      const clearingHouseDeepLink = await page.goto(`${spa}/clearing-houses`);
+      expect(clearingHouseDeepLink?.status()).toBe(200);
+      expect(clearingHouseDeepLink?.headers()['content-type']).toContain('text/html');
+      await expect(page.locator('app-clearing-houses')).toBeVisible();
 
-    const invalid = await page.request.post(`${api}/nacha-config/perfiles`, {
-      headers: authorization(token),
-      data: {}
-    });
-    expect(invalid.status()).toBe(400);
-    expect(await invalid.text()).not.toContain('[object Object]');
+      const invalid = await page.request.post(`${api}/nacha-config/perfiles`, {
+        headers: authorization(token),
+        data: {}
+      });
+      expect(invalid.status()).toBe(400);
+      expect(await invalid.text()).not.toContain('[object Object]');
 
-    await page.goto(`${spa}/nacha-config-admin/perfiles`);
-    const profilesPage = page.getByTestId('nacha-config-profiles-page');
-    await expect(profilesPage).toBeVisible();
-    await expect(profilesPage.getByRole('heading', { name: 'Configuración NACHA-M' })).toBeVisible();
+      const catalogResult = await waitForNachaCatalogs(page, () => page.goto(`${spa}/nacha-config-admin/perfiles`));
+      expect(catalogResult.status).toBe(200);
+      expect(catalogResult.cameraCodes).toContain(thirdCameraCode);
+      const profilesPage = page.getByTestId('nacha-config-profiles-page');
+      await expect(profilesPage).toBeVisible();
+      await expect(profilesPage.getByRole('heading', { name: 'Configuración NACHA-M' })).toBeVisible();
 
-    const createForm = page.locator('form.crear-grid');
-    await createForm.getByLabel('Código del perfil').fill('');
-    await createForm.getByLabel('Nombre').fill('');
-    await expect(page.getByRole('button', { name: 'Crear borrador' })).toBeDisabled();
+      const createForm = page.locator('form.crear-grid');
+      const clearingHouseSelect = createForm.getByLabel('Cámara');
+      await expect(clearingHouseSelect).toBeEnabled();
+      await expect(clearingHouseSelect.locator(`option[value="${thirdCameraCode}"]`)).toHaveCount(1);
+      await createForm.getByLabel('Código del perfil').fill('');
+      await createForm.getByLabel('Nombre').fill('');
+      await expect(page.getByRole('button', { name: 'Crear borrador' })).toBeDisabled();
 
-    await createForm.getByLabel('Código del perfil').fill(profileCode);
-    await createForm.getByLabel('Nombre').fill('Perfil autónomo tercera cámara');
-    await createForm.getByLabel('Descripción').fill('Fixture controlado y eliminado por Playwright.');
-    await createForm.getByLabel('Cámara').selectOption(thirdCameraCode);
+      await createForm.getByLabel('Código del perfil').fill(profileCode);
+      await createForm.getByLabel('Nombre').fill('Perfil autónomo tercera cámara');
+      await createForm.getByLabel('Descripción').fill('Fixture controlado y eliminado por Playwright.');
+      await clearingHouseSelect.selectOption(thirdCameraCode);
 
-    let createRequests = 0;
-    page.on('request', request => {
-      if (request.method() === 'POST' && request.url().endsWith('/nacha-config/perfiles')) {
-        createRequests += 1;
+      let createRequests = 0;
+      page.on('request', request => {
+        if (request.method() === 'POST' && request.url().endsWith('/nacha-config/perfiles')) {
+          createRequests += 1;
+        }
+      });
+
+      await page.getByRole('button', { name: 'Crear borrador' }).click();
+      await expect(page).toHaveURL(/\/nacha-config-admin\/perfiles\/\d+$/);
+      await expect(page.getByTestId('nacha-config-profile-workspace-page')).toContainText(
+        `${thirdCameraCode} - ${thirdCameraName}`
+      );
+      expect(createRequests).toBe(1);
+      expect(await page.locator('body').innerText()).not.toContain('[object Object]');
+
+      await page.getByRole('button', { name: 'Volver' }).first().click();
+      const filters = page.locator('ui-tarjeta').filter({ hasText: 'Filtros de perfiles' });
+      await filters.getByPlaceholder('Buscar cámara').fill(thirdCameraCode);
+      await filters.getByRole('button', { name: new RegExp(`${thirdCameraCode}.*${thirdCameraName}`, 'i') }).click();
+      await expect(page.getByText(profileCode, { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole('gridcell', { name: `${thirdCameraCode} - ${thirdCameraName}`, exact: true })
+      ).toBeVisible();
+
+      const publishedId = await publishFixtureProfile(database);
+      await navigateClientSide(page, `/nacha-config-admin/perfiles/${publishedId}`);
+      await expect(page.getByRole('button', { name: 'Inactivar' })).toBeVisible();
+      for (const viewport of viewports.filter(item => item.width <= 390)) {
+        await page.setViewportSize(viewport);
+        await page.getByRole('button', { name: 'Inactivar' }).click();
+        const dialog = page.getByRole('dialog', { name: 'Confirmación' });
+        await expect(dialog).toBeVisible();
+        const bounds = await dialog.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.x).toBeGreaterThanOrEqual(0);
+        expect(bounds!.y).toBeGreaterThanOrEqual(0);
+        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+        expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
+        await dialog.getByRole('button', { name: 'Cancelar' }).click();
       }
-    });
-
-    await page.getByRole('button', { name: 'Crear borrador' }).click();
-    await expect(page).toHaveURL(/\/nacha-config-admin\/perfiles\/\d+$/);
-    await expect(page.getByTestId('nacha-config-profile-workspace-page')).toContainText(
-      `${thirdCameraCode} - ${thirdCameraName}`
-    );
-    expect(createRequests).toBe(1);
-    expect(await page.locator('body').innerText()).not.toContain('[object Object]');
-
-    await page.getByRole('button', { name: 'Volver' }).first().click();
-    const filters = page.locator('ui-tarjeta').filter({ hasText: 'Filtros de perfiles' });
-    await filters.getByPlaceholder('Buscar cámara').fill(thirdCameraCode);
-    await filters.getByRole('button', { name: new RegExp(`${thirdCameraCode}.*${thirdCameraName}`, 'i') }).click();
-    await expect(page.getByText(profileCode, { exact: true })).toBeVisible();
-    await expect(
-      page.getByRole('gridcell', { name: `${thirdCameraCode} - ${thirdCameraName}`, exact: true })
-    ).toBeVisible();
-
-    const publishedId = await publishedProfileId(database);
-    await navigateClientSide(page, `/nacha-config-admin/perfiles/${publishedId}`);
-    await expect(page.getByRole('button', { name: 'Inactivar' })).toBeVisible();
-    for (const viewport of viewports.filter(item => item.width <= 390)) {
-      await page.setViewportSize(viewport);
-      await page.getByRole('button', { name: 'Inactivar' }).click();
-      const dialog = page.getByRole('dialog', { name: 'Confirmación' });
-      await expect(dialog).toBeVisible();
-      const bounds = await dialog.boundingBox();
-      expect(bounds).not.toBeNull();
-      expect(bounds!.x).toBeGreaterThanOrEqual(0);
-      expect(bounds!.y).toBeGreaterThanOrEqual(0);
-      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
-      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
-      await dialog.getByRole('button', { name: 'Cancelar' }).click();
+    } finally {
+      await cleanupFixture(database);
     }
   });
 
@@ -182,6 +191,88 @@ async function login(page: Page): Promise<string> {
   return token;
 }
 
+interface CatalogAttempt {
+  status: number;
+  url: string;
+  retryAfter: string | null;
+  cameraCodes: string[];
+}
+
+async function waitForNachaCatalogs(
+  page: Page,
+  navigate: () => Promise<unknown>
+): Promise<CatalogAttempt> {
+  const attempts: CatalogAttempt[] = [];
+  let resolveAttempt!: (attempt: CatalogAttempt) => void;
+  let rejectAttempt!: (error: Error) => void;
+  const completed = new Promise<CatalogAttempt>((resolve, reject) => {
+    resolveAttempt = resolve;
+    rejectAttempt = reject;
+  });
+
+  const timeout = setTimeout(() => {
+    rejectAttempt(new Error(`Catálogos NACHA no respondieron en 15 s. ${catalogDiagnostic(attempts)}`));
+  }, 15_000);
+
+  const onResponse = async (response: Response): Promise<void> => {
+    if (!new URL(response.url()).pathname.endsWith('/nacha-config/catalogos-filtro')) {
+      return;
+    }
+
+    const attempt: CatalogAttempt = {
+      status: response.status(),
+      url: response.url(),
+      retryAfter: response.headers()['retry-after'] ?? null,
+      cameraCodes: []
+    };
+
+    if (attempt.status === 200) {
+      try {
+        const payload = await response.json() as { data?: { camaras?: Array<{ code?: string }> }; camaras?: Array<{ code?: string }> };
+        const catalogs = payload.data ?? payload;
+        attempt.cameraCodes = (catalogs.camaras ?? []).map((camera) => camera.code ?? '').filter(Boolean);
+      } catch {
+        // El diagnóstico conserva status y URL cuando el payload no es JSON válido.
+      }
+    }
+
+    attempts.push(attempt);
+    if (attempt.status === 200) {
+      if (!attempt.cameraCodes.includes(thirdCameraCode)) {
+        rejectAttempt(new Error(`El catálogo HTTP 200 no contiene ${thirdCameraCode}. ${catalogDiagnostic(attempts)}`));
+        return;
+      }
+      resolveAttempt(attempt);
+      return;
+    }
+
+    if (attempt.status !== 429 || attempts.length >= 3) {
+      rejectAttempt(new Error(`La carga de catálogos terminó sin HTTP 200. ${catalogDiagnostic(attempts)}`));
+    }
+  };
+
+  page.on('response', onResponse);
+  try {
+    await navigate();
+    return await completed;
+  } finally {
+    clearTimeout(timeout);
+    page.off('response', onResponse);
+  }
+}
+
+function catalogDiagnostic(attempts: CatalogAttempt[]): string {
+  if (attempts.length === 0) {
+    return 'No se recibió respuesta del endpoint.';
+  }
+
+  return attempts
+    .map((attempt, index) =>
+      `intento=${index + 1}, status=${attempt.status}, url=${attempt.url}, Retry-After=${attempt.retryAfter ?? 'ausente'}, cámaras=[${attempt.cameraCodes.join(',')}]`
+    )
+    .join('; ');
+}
+
 async function assertNoGlobalOverflow(page: Page, context: string): Promise<void> {
   const dimensions = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
@@ -211,17 +302,17 @@ async function cleanupFixture(database: Client): Promise<void> {
   await database.query(`DELETE FROM "CatClearingHouse" WHERE "Code" = $1`, [thirdCameraCode]);
 }
 
-async function publishedProfileId(database: Client): Promise<number> {
+async function publishFixtureProfile(database: Client): Promise<number> {
   const result = await database.query<{ Id: number }>(
-    `SELECT p."Id"
-       FROM "CfgProfile" p
-       JOIN "CatConfigStatus" s ON s."Id" = p."StatusId"
-      WHERE s."Code" = 'PUBLICADO'
-      ORDER BY p."Id"
-      LIMIT 1`
+    `UPDATE "CfgProfile"
+        SET "StatusId" = (SELECT "Id" FROM "CatConfigStatus" WHERE "Code" = 'PUBLICADO'),
+            "UpdatedAt" = NOW()
+      WHERE "ProfileCode" = $1
+      RETURNING "Id"`,
+    [profileCode]
   );
   if (!result.rows[0]) {
-    throw new Error('El runtime no contiene un perfil PUBLICADO para validar la confirmación.');
+    throw new Error('No se pudo publicar el perfil sintético para validar la confirmación.');
   }
   return result.rows[0].Id;
 }

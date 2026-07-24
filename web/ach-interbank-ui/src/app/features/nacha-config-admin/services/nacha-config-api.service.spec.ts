@@ -1,7 +1,9 @@
+import { HttpHeaders } from '@angular/common/http';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
-import { TestBed } from '@angular/core/testing';
+import { fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { environment } from '../../../../environments/environment';
 import { NachaConfigApiService } from './nacha-config-api.service';
+import { NACHA_CONFIG_READ_FALLBACK_DELAY_MS } from './nacha-config-read-retry';
 
 describe('NachaConfigApiService', () => {
   let service: NachaConfigApiService;
@@ -51,6 +53,78 @@ describe('NachaConfigApiService', () => {
     expect(req.request.method).toBe('GET');
     req.flush({ estados: [], camaras: [], flujos: [], direcciones: [], servicios: [] });
   });
+
+  it('reintenta GET 429 respetando Retry-After y entrega el resultado recuperado', fakeAsync(() => {
+    const url = `${environment.apiBaseUrl}/nacha-config/catalogos-filtro`;
+    const retries: number[] = [];
+    let result: unknown;
+
+    service.catalogosFiltro((event) => retries.push(event.delayMs)).subscribe((value) => (result = value));
+    httpMock.expectOne(url).flush(
+      {},
+      {
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: new HttpHeaders({ 'Retry-After': '2' })
+      }
+    );
+
+    tick(1999);
+    httpMock.expectNone(url);
+    tick(1);
+    httpMock.expectOne(url).flush({ estados: [], camaras: [{ code: 'JOB6TEST' }], flujos: [], direcciones: [], servicios: [] });
+
+    expect(retries).toEqual([2000]);
+    expect((result as any).camaras[0].code).toBe('JOB6TEST');
+  }));
+
+  it('usa el fallback acotado cuando GET 429 no incluye Retry-After', fakeAsync(() => {
+    const url = `${environment.apiBaseUrl}/nacha-config/catalogos-filtro`;
+    let completed = false;
+
+    service.catalogosFiltro().subscribe(() => (completed = true));
+    httpMock.expectOne(url).flush({}, { status: 429, statusText: 'Too Many Requests' });
+
+    tick(NACHA_CONFIG_READ_FALLBACK_DELAY_MS - 1);
+    httpMock.expectNone(url);
+    tick(1);
+    httpMock.expectOne(url).flush({ estados: [], camaras: [], flujos: [], direcciones: [], servicios: [] });
+
+    expect(completed).toBeTrue();
+  }));
+
+  it('agota exactamente dos reintentos GET 429 y propaga el error final', fakeAsync(() => {
+    const url = `${environment.apiBaseUrl}/nacha-config/catalogos-filtro`;
+    let finalStatus = 0;
+
+    service.catalogosFiltro().subscribe({ error: (error) => (finalStatus = error.status) });
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      httpMock.expectOne(url).flush({}, { status: 429, statusText: 'Too Many Requests' });
+      if (attempt < 3) {
+        tick(NACHA_CONFIG_READ_FALLBACK_DELAY_MS);
+      }
+    }
+
+    expect(finalStatus).toBe(429);
+    httpMock.expectNone(url);
+  }));
+
+  it('no reintenta operaciones mutables POST o PUT ante 429', fakeAsync(() => {
+    const postUrl = `${environment.apiBaseUrl}/nacha-config/perfiles`;
+    const putUrl = `${environment.apiBaseUrl}/nacha-config/perfiles/9`;
+    let errors = 0;
+
+    service.crearBorrador({ profileCode: 'JOB6-MUTABLE' }).subscribe({ error: () => (errors += 1) });
+    httpMock.expectOne(postUrl).flush({}, { status: 429, statusText: 'Too Many Requests' });
+
+    service.editarBorrador(9, { nombreEs: 'Sin retry' }).subscribe({ error: () => (errors += 1) });
+    httpMock.expectOne(putUrl).flush({}, { status: 429, statusText: 'Too Many Requests' });
+
+    tick(NACHA_CONFIG_READ_FALLBACK_DELAY_MS * 3);
+    httpMock.expectNone(postUrl);
+    httpMock.expectNone(putUrl);
+    expect(errors).toBe(2);
+  }));
 
   it('debe publicar enviando expectedRowVersion', () => {
     service.publicar(9, 'abc=').subscribe();

@@ -17,6 +17,7 @@ import {
   NachaConfigSnapshotItem,
   NachaConfigValidationResult
 } from '../models/nacha-config-admin.models';
+import { NachaConfigReadRetryEvent, retryNachaConfigRead } from './nacha-config-read-retry';
 
 @Injectable({ providedIn: 'root' })
 export class NachaConfigApiService {
@@ -25,11 +26,13 @@ export class NachaConfigApiService {
   private readonly readOnlyBasePath = 'api/ach/nacha/config-profiles';
 
   dashboardReadOnly(): Observable<NachaConfigProfilesDashboardReadModel> {
-    return this.api.get<NachaConfigProfilesDashboardReadModel>(`${this.readOnlyBasePath}/dashboard`);
+    return this.api
+      .get<NachaConfigProfilesDashboardReadModel>(`${this.readOnlyBasePath}/dashboard`)
+      .pipe(retryNachaConfigRead());
   }
 
   listarPerfilesReadOnly(): Observable<NachaConfigProfileReadModel[]> {
-    return this.api.get<NachaConfigProfileReadModel[]>(this.readOnlyBasePath);
+    return this.api.get<NachaConfigProfileReadModel[]>(this.readOnlyBasePath).pipe(retryNachaConfigRead());
   }
 
   obtenerPerfilReadOnly(id: number): Observable<NachaConfigProfileDetailReadModel> {
@@ -52,8 +55,10 @@ export class NachaConfigApiService {
     return this.api.get<NachaConfigProfileListItem[]>(`${this.basePath}/perfiles`);
   }
 
-  catalogosFiltro(): Observable<NachaConfigFilterCatalogs> {
-    return this.api.get<NachaConfigFilterCatalogs>(`${this.basePath}/catalogos-filtro`);
+  catalogosFiltro(onRetry?: (event: NachaConfigReadRetryEvent) => void): Observable<NachaConfigFilterCatalogs> {
+    return this.api
+      .get<NachaConfigFilterCatalogs>(`${this.basePath}/catalogos-filtro`)
+      .pipe(retryNachaConfigRead(onRetry));
   }
 
   obtenerPerfil(id: number): Observable<NachaConfigProfileDetail> {

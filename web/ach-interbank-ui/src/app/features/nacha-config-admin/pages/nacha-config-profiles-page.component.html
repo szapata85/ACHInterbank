@@ -28,9 +28,34 @@
   </section>
 
   <ui-alerta *ngFor="let warning of dashboard?.warnings ?? []" tipo="advertencia" [mensaje]="warning"></ui-alerta>
+  <ui-alerta *ngIf="dashboardError" tipo="advertencia" mensaje="El resumen NACHA Config no está disponible; el listado se mantiene independiente."></ui-alerta>
 
   <ng-template #crearTpl>
-    <form [formGroup]="crearForm" class="crear-grid">
+    <ui-alerta
+      *ngIf="catalogosCargando"
+      tipo="info"
+      [mensaje]="catalogosEstado === 'reintentando' ? 'La API limitó temporalmente la lectura. Esperando la ventana indicada para reintentar los catálogos…' : 'Cargando catálogos requeridos para crear perfiles…'"
+    ></ui-alerta>
+    <ui-alerta
+      *ngIf="catalogosEstado === 'fallidos' || catalogosEstado === 'vacios'"
+      [tipo]="catalogosEstado === 'fallidos' ? 'error' : 'advertencia'"
+      [mensaje]="catalogosErrorMessage"
+    ></ui-alerta>
+    <ui-alerta
+      *ngIf="catalogosEstado === 'recuperados'"
+      tipo="exito"
+      mensaje="Los catálogos se recuperaron y el formulario está disponible."
+    ></ui-alerta>
+    <div class="acciones-catalogos" *ngIf="catalogosEstado === 'fallidos' || catalogosEstado === 'vacios'">
+      <ui-boton
+        texto="Reintentar catálogos"
+        variante="contorno"
+        [cargando]="catalogosCargando"
+        (accion)="reintentarCatalogos()"
+      ></ui-boton>
+    </div>
+
+    <form [formGroup]="crearForm" class="crear-grid" [attr.aria-busy]="catalogosCargando">
       <ui-campo-texto etiqueta="Código del perfil" [control]="crearForm.controls.profileCode" placeholder="UAT-NACHA-CONFIG-..." />
       <ui-campo-texto etiqueta="Nombre" [control]="crearForm.controls.nombreEs" placeholder="Nombre descriptivo" />
       <ui-campo-textarea etiqueta="Descripción" [control]="crearForm.controls.descripcion" placeholder="Descripción opcional" [filas]="3" />
@@ -38,6 +63,7 @@
       <label class="selector-campo">
         <span>Cámara</span>
         <select [formControl]="crearForm.controls.camaraCode">
+          <option value="" disabled>Selecciona una cámara</option>
           <option *ngFor="let opcion of opcionesCamara.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
         </select>
         <ui-error-campo [control]="crearForm.controls.camaraCode"></ui-error-campo>
@@ -46,6 +72,7 @@
       <label class="selector-campo">
         <span>Flujo</span>
         <select [formControl]="crearForm.controls.flujoCode">
+          <option value="" disabled>Selecciona un flujo</option>
           <option *ngFor="let opcion of opcionesFlujo.slice(1)" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
         </select>
         <ui-error-campo [control]="crearForm.controls.flujoCode"></ui-error-campo>
@@ -54,6 +81,7 @@
       <label class="selector-campo">
         <span>Dirección</span>
         <select [formControl]="crearForm.controls.direccionCode">
+          <option value="" disabled>Selecciona una dirección</option>
           <option *ngFor="let opcion of opcionesDireccion" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
         </select>
         <ui-error-campo [control]="crearForm.controls.direccionCode"></ui-error-campo>
@@ -71,7 +99,7 @@
     </form>
 
     <div class="acciones-crear">
-      <ui-boton texto="Crear borrador" variante="primario" [cargando]="creando" [deshabilitado]="crearForm.invalid" (accion)="crearBorrador()"></ui-boton>
+      <ui-boton texto="Crear borrador" variante="primario" [cargando]="creando" [deshabilitado]="!catalogosDisponibles || crearForm.invalid" (accion)="crearBorrador()"></ui-boton>
       <ui-boton texto="Validar" variante="contorno" [deshabilitado]="visibles.length === 0 || validando" (accion)="validarPrimerPerfil()"></ui-boton>
     </div>
   </ng-template>

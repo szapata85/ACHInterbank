@@ -15,6 +15,9 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       EnableHttpsRedirection: ${ENABLE_HTTPS_REDIRECTION:-false}
       Database__ApplyMigrations: ${DATABASE_APPLY_MIGRATIONS:-false}
+      RateLimiting__PermitLimit: ${RATE_LIMITING_PERMIT_LIMIT:-10}
+      RateLimiting__WindowSeconds: ${RATE_LIMITING_WINDOW_SECONDS:-1}
+      RateLimiting__QueueLimit: ${RATE_LIMITING_QUEUE_LIMIT:-2}
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
       DigitalEnvelope__CertificateBootstrap__Enabled: ${DIGITAL_ENVELOPE_CERTIFICATE_BOOTSTRAP_ENABLED:-true}
       DigitalEnvelope__CertificateBootstrap__DirectoryPath: ${DIGITAL_ENVELOPE_CERTIFICATE_BOOTSTRAP_CONTAINER_PATH:-/app/certificates/uat}

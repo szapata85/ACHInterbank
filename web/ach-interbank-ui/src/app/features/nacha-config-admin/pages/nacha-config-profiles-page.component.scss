@@ -85,6 +85,12 @@
   flex-wrap: wrap;
 }
 
+.acciones-catalogos {
+  display: flex;
+  justify-content: flex-start;
+  margin: 0.75rem 0;
+}
+
 @media (max-width: 600px) {
   .filtros-grid,
   .crear-grid,

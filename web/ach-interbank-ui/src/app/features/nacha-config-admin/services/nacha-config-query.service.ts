@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { map } from 'rxjs';
 import { NachaConfigApiService } from './nacha-config-api.service';
+import { NachaConfigReadRetryEvent } from './nacha-config-read-retry';
 
 @Injectable({ providedIn: 'root' })
 export class NachaConfigQueryService {
@@ -30,8 +31,8 @@ export class NachaConfigQueryService {
     return this.api.fieldsReadOnly(profileId).pipe(map((rows) => rows ?? []));
   }
 
-  catalogosFiltro() {
-    return this.api.catalogosFiltro().pipe(map((catalogos) => ({
+  catalogosFiltro(onRetry?: (event: NachaConfigReadRetryEvent) => void) {
+    return this.api.catalogosFiltro(onRetry).pipe(map((catalogos) => ({
       estados: catalogos?.estados ?? [],
       camaras: catalogos?.camaras ?? [],
       flujos: catalogos?.flujos ?? [],
