@@ -277,6 +277,13 @@ public static class DependencyInjectionService
             app.Logger.LogInformation("Skipping database migrations. Set Database__ApplyMigrations=true to enable.");
         }
 
+        if (app.Configuration.GetValue("Database:ApplySeed", false))
+        {
+            using var seedScope = app.Services.CreateScope();
+            DbInitializer.SeedAllAsync(seedScope.ServiceProvider).GetAwaiter().GetResult();
+            app.Logger.LogInformation("Database seed completed.");
+        }
+
         app.UseRouting();
         app.UseCors(CorsPolicyName);
 

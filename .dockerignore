@@ -36,6 +36,10 @@ web
 docker-compose-up-build.log
 LICENSE
 README.md
+!artifacts/
+!artifacts/sql/
+!artifacts/sql/quartz/
+!artifacts/sql/quartz/sqlserver-qrtz-schema.sql
 !**/.gitignore
 !.git/HEAD
 !.git/config
