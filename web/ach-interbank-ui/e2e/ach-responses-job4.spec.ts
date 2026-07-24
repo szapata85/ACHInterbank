@@ -168,14 +168,14 @@ test.describe.serial('JOB 4 - dominio productivo de respuestas ACH', () => {
 });
 
 async function login(page: Page): Promise<string> {
-  const response = await page.request.post(`${api}/auth/login`, { data: { username, password } });
-  expect(response.ok(), 'El login real debe responder 200.').toBeTruthy();
-  const token = (await response.json()).data.token as string;
   await page.goto(`${ui}/login`);
   await page.locator('input[formControlName="username"]').fill(username);
   await page.locator('input[formControlName="password"]').fill(password!);
   await page.getByRole('button', { name: 'Ingresar' }).click();
   await expect(page).not.toHaveURL(/\/login$/);
+  const token = await page.evaluate(() =>
+    window.sessionStorage.getItem('ach.interbank.access_token'));
+  expect(token, 'El login real debe persistir el token de la sesión UI.').toBeTruthy();
   return token;
 }
 

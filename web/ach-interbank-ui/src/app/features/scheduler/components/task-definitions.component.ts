@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, finalize, forkJoin, of, Subject, switchMap, takeUntil, timer } from 'rxjs';
+import { catchError, finalize, forkJoin, map, Observable, of, Subject, switchMap, takeUntil, timer } from 'rxjs';
 import { SharedModule } from '../../../shared/shared.module';
 import {
   SchedulerExecution,
@@ -37,7 +37,13 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
   instances: SchedulerInstance[] = [];
   historyTotal = 0;
   loading = false;
-  loadError = '';
+  overviewError = '';
+  tasksError = '';
+  instancesError = '';
+  historyError = '';
+  tasksLoaded = false;
+  instancesLoaded = false;
+  historyLoaded = false;
   manualTask: SchedulerTask | null = null;
   detailTask: SchedulerTask | null = null;
   scheduleTask: SchedulerTask | null = null;
@@ -45,6 +51,7 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
   savingSchedule = false;
   previewing = false;
   preview: SchedulerSchedulePreview | null = null;
+  private retryBlockedUntil = 0;
 
   readonly manualForm = this.fb.nonNullable.group({
     reason: ['', [Validators.required, Validators.minLength(10), Validators.maxLength(500)]],
@@ -107,20 +114,27 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
   get canExecute(): boolean { return this.auth.hasPermission('Scheduler.Execute'); }
   get canManageSchedule(): boolean { return this.auth.hasPermission('Scheduler.ManageSchedule'); }
   get canPauseResume(): boolean { return this.auth.hasPermission('Scheduler.PauseResume'); }
+  get reloadBlocked(): boolean { return Date.now() < this.retryBlockedUntil; }
 
   ngOnInit(): void {
     this.load();
     timer(30_000, 30_000)
       .pipe(
-        switchMap(() => forkJoin({
-          overview: this.service.getOverview().pipe(catchError(() => of(this.overview))),
-          instances: this.canViewInstances ? this.service.getInstances().pipe(catchError(() => of(this.instances))) : of([])
-        })),
+        switchMap(() => {
+          if (this.loading || this.reloadBlocked) return of(null);
+          return forkJoin({
+            overview: this.sectionResult(this.service.getOverview(), 'No fue posible actualizar el resumen del clúster.'),
+            instances: this.canViewInstances
+              ? this.sectionResult(this.service.getInstances(), 'No fue posible actualizar las instancias del clúster.')
+              : of({ succeeded: true, value: [] as SchedulerInstance[], error: '' })
+          });
+        }),
         takeUntil(this.destroy$)
       )
-      .subscribe(({ overview, instances }) => {
-        this.overview = overview;
-        this.instances = instances;
+      .subscribe((result) => {
+        if (!result) return;
+        this.applyOverviewResult(result.overview);
+        this.applyInstancesResult(result.instances);
         this.cdr.markForCheck();
       });
   }
@@ -131,13 +145,21 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
   }
 
   load(): void {
+    if (this.loading || this.reloadBlocked) return;
     this.loading = true;
-    this.loadError = '';
+    this.overviewError = '';
+    this.tasksError = '';
+    this.instancesError = '';
+    this.historyError = '';
     forkJoin({
-      overview: this.service.getOverview(),
-      tasks: this.service.getSchedulerTasks(),
-      instances: this.canViewInstances ? this.service.getInstances() : of([]),
-      history: this.canViewHistory ? this.service.getHistory({ page: 1, pageSize: 25 }) : of({ items: [], page: 1, pageSize: 25, total: 0 })
+      overview: this.sectionResult(this.service.getOverview(), 'No fue posible cargar el resumen del clúster.'),
+      tasks: this.sectionResult(this.service.getSchedulerTasks(), 'No fue posible cargar las tareas del programador.'),
+      instances: this.canViewInstances
+        ? this.sectionResult(this.service.getInstances(), 'No fue posible cargar las instancias del clúster.')
+        : of({ succeeded: true, value: [] as SchedulerInstance[], error: '' }),
+      history: this.canViewHistory
+        ? this.sectionResult(this.service.getHistory({ page: 1, pageSize: 25 }), 'No fue posible cargar el historial funcional.')
+        : of({ succeeded: true, value: { items: [], page: 1, pageSize: 25, total: 0 }, error: '' })
     })
       .pipe(
         finalize(() => {
@@ -146,23 +168,27 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
         }),
         takeUntil(this.destroy$)
       )
-      .subscribe({
-        next: ({ overview, tasks, instances, history }) => {
-          this.overview = overview;
-          this.tasks = tasks ?? [];
-          this.instances = instances ?? [];
-          this.history = history.items ?? [];
-          this.historyTotal = history.total;
-        },
-        error: (error) => {
-          this.loadError = this.errorMessage(error, 'No fue posible cargar la administración del programador.');
+      .subscribe(({ overview, tasks, instances, history }) => {
+        this.applyOverviewResult(overview);
+        this.tasksError = tasks.error;
+        if (tasks.succeeded) {
+          this.tasks = tasks.value ?? [];
+          this.tasksLoaded = true;
+        }
+        this.applyInstancesResult(instances);
+        this.historyError = history.error;
+        if (history.succeeded && history.value) {
+          this.history = history.value.items ?? [];
+          this.historyTotal = history.value.total;
+          this.historyLoaded = true;
         }
       });
   }
 
   filterHistory(): void {
-    if (!this.canViewHistory) return;
+    if (!this.canViewHistory || this.reloadBlocked) return;
     const raw = this.historyForm.getRawValue();
+    this.historyError = '';
     this.service.getHistory({
       page: 1,
       pageSize: 50,
@@ -178,9 +204,15 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
       next: (result) => {
         this.history = result.items ?? [];
         this.historyTotal = result.total;
+        this.historyLoaded = true;
         this.cdr.markForCheck();
       },
-      error: (error) => this.notifications.error(this.errorMessage(error, 'No fue posible filtrar el historial.'))
+      error: (error) => {
+        this.registerRetryAfter(error);
+        this.historyError = this.errorMessage(error, 'No fue posible filtrar el historial.');
+        this.notifications.error(this.historyError);
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -400,8 +432,62 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
     return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   }
 
+  private sectionResult<T>(request: Observable<T>, fallback: string): Observable<SectionLoadResult<T>> {
+    return request.pipe(
+      map((value) => ({ succeeded: true, value, error: '' })),
+      catchError((error) => {
+        this.registerRetryAfter(error);
+        return of({ succeeded: false, error: this.errorMessage(error, fallback) });
+      })
+    );
+  }
+
+  private applyOverviewResult(result: SectionLoadResult<SchedulerOverview>): void {
+    this.overviewError = result.error;
+    if (result.succeeded && result.value) this.overview = result.value;
+  }
+
+  private applyInstancesResult(result: SectionLoadResult<SchedulerInstance[]>): void {
+    this.instancesError = result.error;
+    if (result.succeeded) {
+      this.instances = result.value ?? [];
+      this.instancesLoaded = true;
+    }
+  }
+
+  private registerRetryAfter(error: unknown): void {
+    if (!(error instanceof HttpErrorResponse) || error.status !== 429) return;
+    const retryAfterSeconds = this.retryAfterSeconds(error);
+    if (retryAfterSeconds <= 0) return;
+
+    const candidate = Date.now() + retryAfterSeconds * 1000;
+    if (candidate <= this.retryBlockedUntil) return;
+    this.retryBlockedUntil = candidate;
+    timer(retryAfterSeconds * 1000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.cdr.markForCheck());
+  }
+
+  private retryAfterSeconds(error: HttpErrorResponse): number {
+    const retryAfter = error.headers?.get('Retry-After')?.trim();
+    if (!retryAfter) return 0;
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+    const date = Date.parse(retryAfter);
+    return Number.isNaN(date) ? 0 : Math.max(0, Math.ceil((date - Date.now()) / 1000));
+  }
+
   private errorMessage(error: unknown, fallback: string): string {
     if (!(error instanceof HttpErrorResponse)) return fallback;
+    if (error.status === 401) {
+      return 'La sesión no está autorizada o expiró. Inicie sesión nuevamente.';
+    }
+    if (error.status === 429) {
+      const retryAfter = this.retryAfterSeconds(error);
+      return retryAfter > 0
+        ? `Se alcanzó temporalmente el límite de solicitudes. Intente de nuevo en ${retryAfter} segundos.`
+        : 'Se alcanzó temporalmente el límite de solicitudes. Intente de nuevo en unos instantes.';
+    }
     const payload = error.error as { message?: unknown; title?: unknown; errors?: Record<string, unknown> } | string | null;
     if (typeof payload === 'string' && payload.trim()) return payload;
     if (payload && typeof payload === 'object') {
@@ -415,4 +501,10 @@ export class TaskDefinitionsComponent implements OnInit, OnDestroy {
     }
     return error.status === 409 ? 'La tarea ya tiene una ejecución activa.' : fallback;
   }
+}
+
+interface SectionLoadResult<T> {
+  succeeded: boolean;
+  value?: T;
+  error: string;
 }

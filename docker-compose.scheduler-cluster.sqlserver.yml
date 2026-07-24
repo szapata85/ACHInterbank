@@ -29,6 +29,10 @@ x-api-common: &api-common
     Cors__Origins__0: http://localhost:745
     DigitalEnvelope__CertificateBootstrap__Enabled: "false"
     DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
+    # Perfil CI acotado: idéntico al de PostgreSQL; producción conserva 10/1 s y cola 2.
+    RateLimiting__PermitLimit: "60"
+    RateLimiting__WindowSeconds: "1"
+    RateLimiting__QueueLimit: "20"
   healthcheck:
     test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/live >/dev/null"]
     interval: 5s

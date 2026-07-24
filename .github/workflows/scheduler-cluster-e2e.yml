@@ -59,6 +59,7 @@ jobs:
         run: bash scripts/ci/scheduler-cluster/verify-cluster.sh "$COMPOSE_FILE" "http://localhost:${API_01_PORT}" "http://localhost:${API_02_PORT}" "http://localhost:${SPA_PORT}" "$EVIDENCE_DIR"
 
       - name: Run real scheduler Playwright scenarios
+        id: playwright
         working-directory: web/ach-interbank-ui
         env:
           E2E_BASE_URL: http://localhost:${{ env.SPA_PORT }}
@@ -69,7 +70,7 @@ jobs:
 
       - name: Verify Playwright execution and collect evidence
         if: always()
-        run: bash scripts/ci/scheduler-cluster/collect-evidence.sh "$COMPOSE_FILE" "http://localhost:${API_01_PORT}" "http://localhost:${API_02_PORT}" "$EVIDENCE_DIR"
+        run: bash scripts/ci/scheduler-cluster/collect-evidence.sh "$COMPOSE_FILE" "http://localhost:${API_01_PORT}" "http://localhost:${API_02_PORT}" "$EVIDENCE_DIR" "${{ steps.playwright.outcome }}"
 
       - name: Publish scheduler evidence
         if: always()

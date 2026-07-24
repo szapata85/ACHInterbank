@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.Helpers.AddressIp;
 using Cfa.ACHInterbank.Application.Helpers.Middleware;
+using Cfa.ACHInterbank.Api.Configuration;
 using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Api.Mappers.AchResponses;
 using Cfa.ACHInterbank.Api.Validation.AchResponses;
@@ -24,6 +25,8 @@ public static class DependencyInjectionService
 
     public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
+        var inboundRateLimit = ApiRateLimitingOptions.FromConfiguration(configuration);
+
         // Configuración del formato Json que reciben los controladores
         services.AddControllers().AddJsonOptions(options =>
         {
@@ -66,16 +69,27 @@ public static class DependencyInjectionService
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = (context, _) =>
+            {
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                {
+                    context.HttpContext.Response.Headers.RetryAfter =
+                        Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+                }
+
+                return ValueTask.CompletedTask;
+            };
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
                 return RateLimitPartition.GetFixedWindowLimiter(
                     AddressIp.GetAddressIp(context.Request),
-                    partition => new FixedWindowRateLimiterOptions
+                    _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromSeconds(1),
-                        QueueLimit = 2,
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                        PermitLimit = inboundRateLimit.PermitLimit,
+                        Window = TimeSpan.FromSeconds(inboundRateLimit.WindowSeconds),
+                        QueueLimit = inboundRateLimit.QueueLimit,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        AutoReplenishment = true
                     });
             });
         });
@@ -92,7 +106,8 @@ public static class DependencyInjectionService
             builder
                 .AllowAnyMethod()
                 .AllowAnyHeader()
-                .AllowCredentials();
+                .AllowCredentials()
+                .WithExposedHeaders("Retry-After");
 
             if (origins.Length > 0)
             {

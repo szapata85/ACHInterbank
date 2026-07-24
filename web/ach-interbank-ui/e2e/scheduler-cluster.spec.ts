@@ -1,4 +1,4 @@
-import { expect, Page, test } from '@playwright/test';
+import { expect, Page, Response, test } from '@playwright/test';
 
 const username = process.env['ACH_USER'];
 const password = process.env['ACH_PASS'];
@@ -20,7 +20,9 @@ test.describe.serial('administracion real del scheduler', () => {
   test('dashboard, historial, ejecucion segura, pausa, reanudacion y programacion', async ({ page }, testInfo) => {
     test.setTimeout(70_000);
     await login(page);
+    const schedulerApiLoad = expectSchedulerApiLoad(page);
     await page.goto('/scheduler/tasks');
+    await schedulerApiLoad;
 
     await expect(page.getByRole('heading', { name: 'Administración de tareas programadas', level: 1 })).toBeVisible();
     await expect(page.getByText(/Identificador técnico: ACHInterbankScheduler/)).toBeVisible();
@@ -76,7 +78,9 @@ test.describe.serial('administracion real del scheduler', () => {
     await page.addInitScript((token) => {
       window.sessionStorage.setItem('ach.interbank.access_token', token);
     }, viewOnlyToken!);
+    const schedulerApiLoad = expectSchedulerApiLoad(page);
     await page.goto('/scheduler/tasks');
+    await schedulerApiLoad;
 
     await expect(page.getByRole('heading', { name: 'Administración de tareas programadas', level: 1 })).toBeVisible();
     await openActions(page);
@@ -105,4 +109,41 @@ async function openActions(page: Page): Promise<void> {
   if ((await details.getAttribute('open')) === null) {
     await row.getByLabel('Abrir acciones').click();
   }
+}
+
+function expectSchedulerApiLoad(page: Page): Promise<void> {
+  const endpoints = [
+    '/api/scheduler/overview',
+    '/api/scheduler/tasks',
+    '/api/scheduler/instances',
+    '/api/scheduler/history'
+  ];
+
+  return Promise.all(endpoints.map(async (endpoint) => {
+    const response = await page.waitForResponse((candidate) => {
+      const url = new URL(candidate.url());
+      return url.pathname === endpoint;
+    });
+    await expectSuccessfulSchedulerResponse(response);
+  })).then(() => undefined);
+}
+
+async function expectSuccessfulSchedulerResponse(response: Response): Promise<void> {
+  if (response.status() === 200) return;
+
+  const retryAfter = response.headers()['retry-after'] ?? 'no enviado';
+  const body = sanitizeResponseBody(await response.text());
+  throw new Error(
+    `La SPA recibió una respuesta inesperada del scheduler. ` +
+    `URL=${response.url()} status=${response.status()} Retry-After=${retryAfter} body=${body}`
+  );
+}
+
+function sanitizeResponseBody(body: string): string {
+  return body
+    .replace(/"(?:access_?token|token|password|authorization|account|document|email)"\s*:\s*"[^"]*"/gi, '"datoSensible":"[redacted]"')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 1000) || '[cuerpo vacío]';
 }

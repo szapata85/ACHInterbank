@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
@@ -149,7 +149,9 @@ describe('TaskDefinitionsComponent', () => {
     pending.complete();
   });
 
-  it('presenta errores funcionales sin serializar objetos', () => {
+  it('presenta errores de tareas sin convertirlos en una lista vacía válida', () => {
+    component.tasks = [];
+    component.tasksLoaded = false;
     service.getSchedulerTasks.and.returnValue(throwError(() => new HttpErrorResponse({
       status: 409,
       error: { message: 'La tarea ya tiene una ejecucion activa.' }
@@ -157,7 +159,49 @@ describe('TaskDefinitionsComponent', () => {
 
     component.load();
 
-    expect(component.loadError).toBe('La tarea ya tiene una ejecucion activa.');
-    expect(component.loadError).not.toContain('[object Object]');
+    expect(component.tasksError).toBe('La tarea ya tiene una ejecucion activa.');
+    expect(component.tasksError).not.toContain('[object Object]');
+    expect(component.tasksLoaded).toBeFalse();
+  });
+
+  it('conserva tareas e instancias cuando falla únicamente el historial', () => {
+    service.getHistory.and.returnValue(throwError(() => new HttpErrorResponse({
+      status: 503,
+      error: { title: 'Historial temporalmente no disponible' }
+    })));
+
+    component.load();
+    fixture.detectChanges();
+
+    expect(component.tasks).toEqual([task]);
+    expect(component.instances).toHaveSize(1);
+    expect(component.tasksLoaded).toBeTrue();
+    expect(component.instancesLoaded).toBeTrue();
+    expect(component.historyError).toBe('Historial temporalmente no disponible');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Programador de ciclos');
+    expect(text).toContain('api-01');
+    expect(text).toContain('No se pudo cargar el historial');
+  });
+
+  it('distingue HTTP 429, respeta Retry-After y bloquea la recarga inmediata', () => {
+    service.getHistory.and.returnValue(throwError(() => new HttpErrorResponse({
+      status: 429,
+      headers: new HttpHeaders({ 'Retry-After': '3' })
+    })));
+
+    component.load();
+
+    expect(component.historyError).toContain('límite de solicitudes');
+    expect(component.historyError).toContain('3 segundos');
+    expect(component.reloadBlocked).toBeTrue();
+  });
+
+  it('distingue una sesión no autorizada', () => {
+    service.getOverview.and.returnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
+
+    component.load();
+
+    expect(component.overviewError).toContain('sesión no está autorizada');
   });
 });

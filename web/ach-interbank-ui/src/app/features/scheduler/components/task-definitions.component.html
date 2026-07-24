@@ -6,18 +6,19 @@
 <div class="toolbar">
   <div>
     <strong>Programador de ACHInterbank</strong>
-    <small>Identificador técnico: {{ overview?.schedulerName || 'ACHInterbankScheduler' }}</small>
-    <span class="environment-badge" [class.ok]="overview?.persistentStore && overview?.clustered">
-      {{ overview?.persistentStore ? 'Almacenamiento persistente' : 'Almacenamiento temporal' }} ·
-      {{ overview?.clustered ? 'Clúster activo' : 'Sin clúster' }}
+    <small>Identificador técnico: {{ overview?.schedulerName || 'Pendiente de carga' }}</small>
+    <span class="environment-badge" *ngIf="overview; else unavailableOverview" [class.ok]="overview.persistentStore && overview.clustered">
+      {{ overview.persistentStore ? 'Almacenamiento persistente' : 'Almacenamiento temporal' }} ·
+      {{ overview.clustered ? 'Clúster activo' : 'Sin clúster' }}
     </span>
+    <ng-template #unavailableOverview><span class="environment-badge">Estado del clúster no disponible</span></ng-template>
   </div>
-  <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">Actualizar</button>
+  <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading || reloadBlocked">Actualizar</button>
 </div>
 
-<div class="state-panel error" *ngIf="loadError" role="alert">
-  <strong>No se pudo cargar el programador</strong>
-  <span>{{ loadError }}</span>
+<div class="state-panel error" *ngIf="overviewError" role="alert">
+  <strong>No se pudo cargar el resumen del clúster</strong>
+  <span>{{ overviewError }}</span>
 </div>
 
 <div class="state-panel" *ngIf="loading" aria-live="polite">Cargando estado del programador…</div>
@@ -39,10 +40,14 @@
       <h2 id="tasks-title">Tareas</h2>
       <p>La programación legible se muestra primero; cron y zona horaria quedan como información avanzada.</p>
     </div>
-    <span>{{ tasks.length }} registradas</span>
+    <span *ngIf="tasksLoaded">{{ tasks.length }} registradas</span>
+    <span *ngIf="!tasksLoaded">Estado no disponible</span>
   </div>
 
-  <div class="empty" *ngIf="!loading && !tasks.length">No hay tareas autorizadas para mostrar.</div>
+  <div class="state-panel error" *ngIf="tasksError" role="alert">
+    <strong>No se pudieron cargar las tareas</strong><span>{{ tasksError }}</span>
+  </div>
+  <div class="empty" *ngIf="!loading && tasksLoaded && !tasks.length">No hay tareas autorizadas para mostrar.</div>
 
   <div class="table-wrap" *ngIf="tasks.length">
     <table>
@@ -109,7 +114,10 @@
   <div class="section-heading">
     <div><h2 id="instances-title">Instancias del clúster</h2><p>La señal de actividad permite conocer el estado de cada instancia sin depender de las tablas internas de Quartz.</p></div>
   </div>
-  <div class="instance-grid" *ngIf="instances.length; else noInstances">
+  <div class="state-panel error" *ngIf="instancesError" role="alert">
+    <strong>No se pudieron cargar las instancias</strong><span>{{ instancesError }}</span>
+  </div>
+  <div class="instance-grid" *ngIf="instances.length">
     <article *ngFor="let instance of instances; trackBy: trackByInstance">
       <div><strong>{{ instance.instanceName }}</strong><span class="status">{{ instanceStatusLabel(instance.status) }}</span></div>
       <dl>
@@ -122,13 +130,18 @@
       <small *ngIf="instance.isCurrentInstance">Instancia que atendió esta consulta</small>
     </article>
   </div>
-  <ng-template #noInstances><div class="empty">Todavía no hay señales de actividad registradas.</div></ng-template>
+  <div class="empty" *ngIf="instancesLoaded && !instances.length">Todavía no hay señales de actividad registradas.</div>
 </section>
 
 <section class="panel" *ngIf="canViewHistory" aria-labelledby="history-title">
   <div class="section-heading">
     <div><h2 id="history-title">Historial funcional</h2><p>Programadas, manuales, recuperaciones, rechazos y ejecuciones perdidas.</p></div>
-    <span>{{ historyTotal }} registros</span>
+    <span *ngIf="historyLoaded">{{ historyTotal }} registros</span>
+    <span *ngIf="!historyLoaded">Estado no disponible</span>
+  </div>
+
+  <div class="state-panel error" *ngIf="historyError" role="alert">
+    <strong>No se pudo cargar el historial</strong><span>{{ historyError }}</span>
   </div>
 
   <form class="filters" [formGroup]="historyForm" (ngSubmit)="filterHistory()">
@@ -140,10 +153,10 @@
     <label>Identificador de correlación<input formControlName="correlationId" /></label>
     <label>Desde<input type="datetime-local" formControlName="fromUtc" /></label>
     <label>Hasta<input type="datetime-local" formControlName="toUtc" /></label>
-    <button type="submit" class="btn btn-outline">Aplicar filtros</button>
+    <button type="submit" class="btn btn-outline" [disabled]="reloadBlocked">Aplicar filtros</button>
   </form>
 
-  <div class="empty" *ngIf="!history.length">No hay ejecuciones para los filtros seleccionados.</div>
+  <div class="empty" *ngIf="historyLoaded && !history.length">No hay ejecuciones para los filtros seleccionados.</div>
   <div class="table-wrap" *ngIf="history.length">
     <table>
       <thead><tr><th>Inicio</th><th>Tarea</th><th>Tipo</th><th>Estado</th><th>Instancia</th><th>Usuario / motivo</th><th>Resultado</th></tr></thead>
