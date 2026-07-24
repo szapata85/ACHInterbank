@@ -23,7 +23,12 @@ describe('NachaCertificateManagerComponent', () => {
         { provide: CertificateManagementApiService, useValue: api },
         {
           provide: ClearingHousesApiService,
-          useValue: { list: () => of([{ id: 1, code: 'ACHCOL', name: 'ACH Colombia', isActive: true }]) }
+          useValue: {
+            list: () => of([
+              { id: 1, code: 'ACHCOL', name: 'ACH Colombia', isActive: true },
+              { id: 3, code: 'REDTEST', name: 'Red sintética', isActive: true }
+            ])
+          }
         }
       ]
     }).compileComponents();
@@ -97,6 +102,16 @@ describe('NachaCertificateManagerComponent', () => {
     selectFile('EncryptionPublic', new File(['pkcs12'], 'wrong.pfx'));
     expect(component.fileError('EncryptionPublic')).toContain('Formato no permitido');
     expect(component.forms.EncryptionPublic.invalid).toBeTrue();
+  });
+
+  it('uses the catalog code for a synthetic third clearing house without inheriting ACHCOL or CENIT', () => {
+    component.contextForm.controls.clearingHouseId.setValue(3);
+
+    expect(component.slots[0].code).toBe('REDTEST-OUTBOUND-ENCRYPTION');
+    expect(component.slots[1].code).toBe('CFA-REDTEST-OUTBOUND-SIGNING');
+    expect(component.slots[0].displayName).toContain('Red sintética');
+    expect(component.slots.map(slot => slot.code).join(' ')).not.toContain('ACHCOL');
+    expect(component.slots.map(slot => slot.code).join(' ')).not.toContain('CENIT');
   });
 
   function selectFile(type: 'EncryptionPublic' | 'SigningKeyPair', file: File): void {

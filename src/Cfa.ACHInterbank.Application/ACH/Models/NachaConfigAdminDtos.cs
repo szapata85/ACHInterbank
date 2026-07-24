@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Cfa.ACHInterbank.Application.ACH.Models;
 
 public sealed class NachaConfigProfileListItemDto
@@ -24,6 +26,11 @@ public sealed class NachaConfigProfileDetailDto
     public string NombreEs { get; init; } = string.Empty;
     public string? Descripcion { get; init; }
     public string Estado { get; init; } = string.Empty;
+    public string Camara { get; init; } = string.Empty;
+    public string CamaraNombre { get; init; } = string.Empty;
+    public string Flujo { get; init; } = string.Empty;
+    public string Direccion { get; init; } = string.Empty;
+    public string? Servicio { get; init; }
     public int VersionMajor { get; init; }
     public int VersionMinor { get; init; }
     public int ContextPriority { get; init; }
@@ -81,31 +88,61 @@ public sealed class NachaConfigFieldRuleDto
 
 public sealed class NachaConfigCreateDraftRequest
 {
+    [Required, StringLength(100, MinimumLength = 6)]
+    [RegularExpression(@"^[A-Za-z0-9][A-Za-z0-9._-]*$")]
     public string ProfileCode { get; init; } = string.Empty;
+
+    [Required, StringLength(200, MinimumLength = 3)]
     public string NombreEs { get; init; } = string.Empty;
+
+    [StringLength(1000)]
     public string? Descripcion { get; init; }
-    public string CamaraCode { get; init; } = "ACH";
-    public string FlujoCode { get; init; } = "ORIGINAL";
-    public string DireccionCode { get; init; } = "SALIDA";
+
+    [Required, StringLength(40)]
+    public string CamaraCode { get; init; } = string.Empty;
+
+    [Required, StringLength(40)]
+    public string FlujoCode { get; init; } = string.Empty;
+
+    [Required, StringLength(40)]
+    public string DireccionCode { get; init; } = string.Empty;
+
+    [StringLength(40)]
     public string? ServicioCode { get; init; }
+
     public DateTime EffectiveFrom { get; init; }
 }
 
 public sealed class NachaConfigUpdateProfileRequest
 {
+    [Required, StringLength(200, MinimumLength = 3)]
     public string NombreEs { get; init; } = string.Empty;
+
+    [StringLength(1000)]
     public string? Descripcion { get; init; }
+
+    [Range(1, 10000)]
     public int ContextPriority { get; init; } = 100;
+
     public DateTime EffectiveFrom { get; init; }
     public DateTime? EffectiveTo { get; init; }
+
+    [Required]
     public string ExpectedRowVersion { get; init; } = string.Empty;
 }
 
 public sealed class NachaConfigCloneProfileRequest
 {
+    [Required, StringLength(100, MinimumLength = 6)]
+    [RegularExpression(@"^[A-Za-z0-9][A-Za-z0-9._-]*$")]
     public string NuevoProfileCode { get; init; } = string.Empty;
+
+    [Required, StringLength(200, MinimumLength = 3)]
     public string NuevoNombreEs { get; init; } = string.Empty;
+
     public DateTime EffectiveFrom { get; init; }
+
+    [Required]
     public string ExpectedRowVersion { get; init; } = string.Empty;
 }
 
@@ -220,6 +257,7 @@ public sealed class NachaConfigFieldRuleEditDto
 
 public sealed class NachaConfigStateTransitionRequest
 {
+    [Required]
     public string ExpectedRowVersion { get; init; } = string.Empty;
 }
 

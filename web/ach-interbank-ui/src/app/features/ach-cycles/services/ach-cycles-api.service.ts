@@ -83,7 +83,7 @@ export class AchCyclesApiService {
 @Injectable({ providedIn: 'root' })
 export class ClearingHousesApiService {
   private readonly api = inject(ApiService);
-  private readonly basePath = 'clearing-houses';
+  private readonly basePath = 'api/clearing-houses';
   private cachedClearingHouses$?: Observable<ClearingHouseOption[]>;
 
   list(): Observable<ClearingHouseOption[]> {

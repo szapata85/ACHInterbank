@@ -30,7 +30,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
-  readonly puedeGestionar = this.auth.hasPermission('CanManageAch');
+  readonly puedeGestionar = this.auth.hasPermission(['Config.Manage', 'CanManageAch']);
 
   perfilId = 0;
   perfil: NachaConfigProfileDetail | null = null;
@@ -287,7 +287,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   }
 
   confirmarModal(): void {
-    if (!this.modalAccion || !this.perfil) {
+    if (!this.modalAccion || !this.perfil || this.publicando || this.inactivando || this.archivando) {
       return;
     }
 

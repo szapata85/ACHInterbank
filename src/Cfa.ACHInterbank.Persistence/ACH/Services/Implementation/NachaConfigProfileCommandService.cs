@@ -28,19 +28,29 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
 
     public async Task<NachaConfigProfileDetailDto> CreateDraftAsync(NachaConfigCreateDraftRequest request, string actor, CancellationToken ct = default)
     {
+        ValidateCreateRequest(request);
         var createdId = await ExecuteInTransactionAsync(async () =>
         {
+            var profileCode = request.ProfileCode.Trim().ToUpperInvariant();
+            if (await _context.CfgProfiles.AnyAsync(x => x.ProfileCode == profileCode, ct))
+            {
+                throw new NachaConfigException(
+                    "PROFILE_CODE_ALREADY_EXISTS",
+                    $"Ya existe un perfil con el código {profileCode}.",
+                    409);
+            }
+
             var profile = new CfgProfile
             {
-                ProfileCode = request.ProfileCode.Trim(),
+                ProfileCode = profileCode,
                 NameEs = request.NombreEs.Trim(),
-                Description = request.Descripcion,
-                ClearingHouseId = await ResolveCatalogIdAsync<CatClearingHouse>(request.CamaraCode, ct),
-                FlowTypeId = await ResolveCatalogIdAsync<CatFlowType>(request.FlujoCode, ct),
-                DirectionId = await ResolveCatalogIdAsync<CatDirection>(request.DireccionCode, ct),
+                Description = request.Descripcion?.Trim(),
+                ClearingHouseId = await ResolveCatalogIdAsync<CatClearingHouse>(request.CamaraCode.Trim().ToUpperInvariant(), ct),
+                FlowTypeId = await ResolveCatalogIdAsync<CatFlowType>(request.FlujoCode.Trim().ToUpperInvariant(), ct),
+                DirectionId = await ResolveCatalogIdAsync<CatDirection>(request.DireccionCode.Trim().ToUpperInvariant(), ct),
                 ServiceClassId = string.IsNullOrWhiteSpace(request.ServicioCode)
                     ? null
-                    : await ResolveCatalogIdAsync<CatServiceClass>(request.ServicioCode, ct),
+                    : await ResolveCatalogIdAsync<CatServiceClass>(request.ServicioCode.Trim().ToUpperInvariant(), ct),
                 StatusId = await ResolveCatalogIdAsync<CatConfigStatus>("BORRADOR", ct),
                 EffectiveFrom = request.EffectiveFrom,
                 ContextPriority = 100,
@@ -61,6 +71,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
 
     public async Task<NachaConfigProfileDetailDto?> UpdateDraftAsync(int profileId, NachaConfigUpdateProfileRequest request, string actor, CancellationToken ct = default)
     {
+        ValidateEffectiveDates(request.EffectiveFrom, request.EffectiveTo);
         var exists = false;
         await ExecuteInTransactionAsync(async () =>
         {
@@ -96,6 +107,11 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
 
     public async Task<NachaConfigProfileDetailDto?> CloneProfileAsync(int profileId, NachaConfigCloneProfileRequest request, string actor, CancellationToken ct = default)
     {
+        if (request.EffectiveFrom == default)
+        {
+            throw new NachaConfigException("EFFECTIVE_FROM_REQUIRED", "La vigencia inicial es obligatoria.", 400);
+        }
+
         var cloneId = 0;
         await ExecuteInTransactionAsync(async () =>
         {
@@ -111,11 +127,19 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             }
 
             EnsureExpectedRowVersion(source, request.ExpectedRowVersion);
+            var profileCode = request.NuevoProfileCode.Trim().ToUpperInvariant();
+            if (await _context.CfgProfiles.AnyAsync(x => x.ProfileCode == profileCode, ct))
+            {
+                throw new NachaConfigException(
+                    "PROFILE_CODE_ALREADY_EXISTS",
+                    $"Ya existe un perfil con el código {profileCode}.",
+                    409);
+            }
 
             var draftStatusId = await ResolveCatalogIdAsync<CatConfigStatus>("BORRADOR", ct);
             var clone = new CfgProfile
             {
-                ProfileCode = request.NuevoProfileCode.Trim(),
+                ProfileCode = profileCode,
                 NameEs = request.NuevoNombreEs.Trim(),
                 Description = source.Description,
                 ClearingHouseId = source.ClearingHouseId,
@@ -377,6 +401,42 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
         if (!string.Equals(profile.Status.Code, "BORRADOR", StringComparison.OrdinalIgnoreCase))
         {
             throw new NachaConfigException("INVALID_PROFILE_STATE", "Solo se puede editar perfiles en estado BORRADOR.", 409, Convert.ToBase64String(profile.RowVersion));
+        }
+    }
+
+    private static void ValidateCreateRequest(NachaConfigCreateDraftRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProfileCode)
+            || string.IsNullOrWhiteSpace(request.NombreEs)
+            || string.IsNullOrWhiteSpace(request.CamaraCode)
+            || string.IsNullOrWhiteSpace(request.FlujoCode)
+            || string.IsNullOrWhiteSpace(request.DireccionCode))
+        {
+            throw new NachaConfigException(
+                "REQUIRED_FIELDS_MISSING",
+                "Código, nombre, cámara, flujo y dirección son obligatorios.",
+                400);
+        }
+
+        if (request.EffectiveFrom == default)
+        {
+            throw new NachaConfigException("EFFECTIVE_FROM_REQUIRED", "La vigencia inicial es obligatoria.", 400);
+        }
+    }
+
+    private static void ValidateEffectiveDates(DateTime effectiveFrom, DateTime? effectiveTo)
+    {
+        if (effectiveFrom == default)
+        {
+            throw new NachaConfigException("EFFECTIVE_FROM_REQUIRED", "La vigencia inicial es obligatoria.", 400);
+        }
+
+        if (effectiveTo.HasValue && effectiveTo.Value < effectiveFrom)
+        {
+            throw new NachaConfigException(
+                "INVALID_EFFECTIVE_RANGE",
+                "La vigencia final no puede ser anterior a la vigencia inicial.",
+                400);
         }
     }
 

@@ -128,4 +128,14 @@ describe('MainLayoutComponent navigation icons', () => {
     expect(parent.tabIndex).toBe(0);
     expect(parent.querySelectorAll('button, a, [tabindex]:not([tabindex="-1"])').length).toBe(0);
   });
+
+  it('closes the mobile menu with Escape', () => {
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.isMenuOpen = true;
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(component.isMenuOpen).toBeFalse();
+  });
 });

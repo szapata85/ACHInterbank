@@ -14,7 +14,7 @@ export const NACHA_CONFIG_ADMIN_ROUTES: Routes = [
     canActivate: [roleGuard, permissionGuard],
     data: {
       roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanReadAch'],
+      permissions: ['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch'],
       title: 'Configuración NACHA-M',
       breadcrumb: 'Configuración NACHA-M'
     }
@@ -25,7 +25,7 @@ export const NACHA_CONFIG_ADMIN_ROUTES: Routes = [
     canActivate: [roleGuard, permissionGuard],
     data: {
       roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanReadAch'],
+      permissions: ['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch'],
       title: 'Registros oficiales',
       breadcrumb: 'Registros oficiales'
     }
@@ -36,7 +36,7 @@ export const NACHA_CONFIG_ADMIN_ROUTES: Routes = [
     canActivate: [roleGuard, permissionGuard],
     data: {
       roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanReadAch'],
+      permissions: ['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch'],
       title: 'Variantes y campos',
       breadcrumb: 'Variantes y campos'
     }
@@ -47,8 +47,8 @@ export const NACHA_CONFIG_ADMIN_ROUTES: Routes = [
     canActivate: [roleGuard, permissionGuard],
     data: {
       roles: ['Admin', 'ACH.Operator'],
-      permissions: ['CanReadAch'],
-      title: 'Perfil oficial NACHA-M',
+      permissions: ['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch'],
+      title: 'Perfil NACHA-M',
       breadcrumb: 'Detalle de perfil'
     }
   },

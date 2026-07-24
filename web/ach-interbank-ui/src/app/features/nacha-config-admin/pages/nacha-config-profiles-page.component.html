@@ -1,11 +1,11 @@
 <section class="nacha-config-profiles-page" data-testid="nacha-config-profiles-page">
   <ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config' }]" />
-  <ui-encabezado-pagina titulo="Configuración NACHA-M" descripcion="Administración oficial de perfiles NACHA-M, en modo solo lectura y administración controlada"></ui-encabezado-pagina>
+  <ui-encabezado-pagina titulo="Configuración NACHA-M" descripcion="Consulta y administración controlada de perfiles NACHA-M por cámara compensadora"></ui-encabezado-pagina>
 
   <section class="banners">
-    <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: perfiles de configuración oficiales."></ui-alerta>
-    <ui-alerta tipo="advertencia" mensaje="Layouts/definitions legacy obsoletos: solo diagnóstico en lectura, no son la fuente oficial."></ui-alerta>
-    <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificación/UAT formal pendiente; sin ejecución SOAP ni mutaciones."></ui-alerta>
+    <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: perfiles de configuración asociados a cada cámara."></ui-alerta>
+    <ui-alerta tipo="advertencia" mensaje="Los layouts y definitions legacy no son la fuente oficial de parametrización."></ui-alerta>
+    <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificación y UAT formal pendientes. La administración local no habilita ejecución productiva."></ui-alerta>
   </section>
 
   <section class="summary-grid" *ngIf="dashboard">
@@ -75,7 +75,7 @@
       <ui-boton texto="Validar" variante="contorno" [deshabilitado]="visibles.length === 0 || validando" (accion)="validarPrimerPerfil()"></ui-boton>
     </div>
   </ng-template>
-  <ui-tarjeta *ngIf="puedeGestionar" titulo="Crear borrador" subtitulo="Solo perfiles BORRADOR/CLONE pueden editarse; create borra datos si el usuario confirma." [contenido]="crearTpl"></ui-tarjeta>
+  <ui-tarjeta *ngIf="puedeGestionar" titulo="Crear borrador" subtitulo="El nuevo perfil queda asociado a la cámara seleccionada y se puede editar antes de publicarlo." [contenido]="crearTpl"></ui-tarjeta>
 
   <ng-template #filtrosTpl>
     <div class="filtros-grid" [formGroup]="filtrosForm">
@@ -94,7 +94,7 @@
       </label>
     </div>
   </ng-template>
-  <ui-tarjeta titulo="Filtros solo lectura" subtitulo="Consulta oficial GET-only de perfiles, cámaras ACH Colombia/CENIT, registros 1/5/6/7/8/9, variantes y campos." [contenido]="filtrosTpl"></ui-tarjeta>
+  <ui-tarjeta titulo="Filtros de perfiles" subtitulo="Consulta por código, nombre, estado, cámara y flujo. Las cámaras se obtienen del catálogo activo." [contenido]="filtrosTpl"></ui-tarjeta>
 
   <ui-grilla-empresarial
     [columnas]="columnas"

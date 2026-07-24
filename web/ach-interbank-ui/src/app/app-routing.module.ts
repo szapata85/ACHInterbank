@@ -199,9 +199,9 @@ export const APP_ROUTES: Routes = [
         canActivate: [roleGuard, permissionGuard],
         data: {
           roles: ['Admin', 'ACH.Operator'],
-          permissions: ['CanReadAch'],
+          permissions: ['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch'],
           breadcrumb: 'Configuración NACHA-M',
-          title: 'Configuración NACHA-M solo lectura'
+          title: 'Administración de perfiles NACHA-M'
         },
         loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
       },

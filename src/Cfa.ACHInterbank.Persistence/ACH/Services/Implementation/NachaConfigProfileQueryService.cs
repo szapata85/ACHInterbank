@@ -52,6 +52,10 @@ public sealed class NachaConfigProfileQueryService : INachaConfigProfileQuerySer
         var profile = await _context.CfgProfiles
             .AsNoTracking()
             .Include(x => x.Status)
+            .Include(x => x.ClearingHouse)
+            .Include(x => x.FlowType)
+            .Include(x => x.Direction)
+            .Include(x => x.ServiceClass)
             .Include(x => x.Records)
                 .ThenInclude(x => x.RecordCode)
             .Include(x => x.LayoutVariants)
@@ -77,6 +81,11 @@ public sealed class NachaConfigProfileQueryService : INachaConfigProfileQuerySer
             NombreEs = profile.NameEs,
             Descripcion = profile.Description,
             Estado = profile.Status.Code,
+            Camara = profile.ClearingHouse.Code,
+            CamaraNombre = profile.ClearingHouse.Name,
+            Flujo = profile.FlowType.Code,
+            Direccion = profile.Direction.Code,
+            Servicio = profile.ServiceClass?.Code,
             VersionMajor = profile.VersionMajor,
             VersionMinor = profile.VersionMinor,
             ContextPriority = profile.ContextPriority,

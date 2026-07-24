@@ -16,6 +16,7 @@ export interface NachaConfigProfileListItem {
 
 export interface NachaConfigProfileDetail extends NachaConfigProfileListItem {
   descripcion?: string | null;
+  camaraNombre?: string | null;
   contextPriority: number;
   records: NachaConfigProfileRecord[];
   variantes: NachaConfigLayoutVariant[];

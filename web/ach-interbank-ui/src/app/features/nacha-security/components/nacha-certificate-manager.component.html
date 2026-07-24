@@ -7,7 +7,8 @@
   <label>
     Cámara
     <select formControlName="clearingHouseId">
-      <option *ngFor="let item of clearingHouses" [ngValue]="item.id">{{ item.name }}</option>
+      <option [ngValue]="null" disabled>Seleccione una cámara</option>
+      <option *ngFor="let item of clearingHouses" [ngValue]="item.id">{{ item.code }} - {{ item.name }}</option>
     </select>
   </label>
   <label>
@@ -88,7 +89,7 @@
         <small class="field-error" *ngIf="passwordError(slot.type)">{{ passwordError(slot.type) }}</small>
       </ng-container>
 
-      <button appButton type="submit" [disabled]="!!uploadingType || forms[slot.type].invalid">
+      <button appButton type="submit" [disabled]="contextForm.invalid || !!uploadingType || forms[slot.type].invalid">
         {{ uploadingType === slot.type ? 'Cargando...' : 'Cargar certificado' }}
       </button>
     </form>

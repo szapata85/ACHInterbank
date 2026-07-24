@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnIn
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
-import { forkJoin, finalize } from 'rxjs';
+import { catchError, forkJoin, finalize, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -32,7 +32,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
-  readonly puedeGestionar = this.auth.hasPermission('CanManageAch');
+  readonly puedeGestionar = this.auth.hasPermission(['Config.Manage', 'CanManageAch']);
 
   cargando = false;
   creando = false;
@@ -54,9 +54,9 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     profileCode: ['', [Validators.required, Validators.minLength(6)]],
     nombreEs: ['', [Validators.required, Validators.minLength(3)]],
     descripcion: [''],
-    camaraCode: ['ACH', Validators.required],
-    flujoCode: ['ORIGINAL', Validators.required],
-    direccionCode: ['SALIDA', Validators.required],
+    camaraCode: ['', Validators.required],
+    flujoCode: ['', Validators.required],
+    direccionCode: ['', Validators.required],
     servicioCode: [''],
     effectiveFrom: [this.todayIsoDate(), Validators.required]
   });
@@ -69,14 +69,14 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   });
 
   readonly columnas: ColDef<NachaConfigProfileReadModel>[] = [
-    { field: 'profileCode', headerName: 'Codigo', minWidth: 160 },
+    { field: 'profileCode', headerName: 'Código', minWidth: 160 },
     { field: 'profileName', headerName: 'Nombre', minWidth: 240 },
-    { field: 'clearingHouseCode', headerName: 'Camara', minWidth: 120 },
+    { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 190, valueGetter: (p) => this.camaraLabel(p.data?.clearingHouseCode) },
     { field: 'status', headerName: 'Estado', minWidth: 130 },
-    { field: 'version', headerName: 'Version', minWidth: 110 },
-    { field: 'layoutVariantCount', headerName: 'Variants', minWidth: 100 },
-    { field: 'fieldCount', headerName: 'Fields', minWidth: 100 },
-    { headerName: 'Records', minWidth: 140, valueGetter: (p) => (p.data?.recordTypes ?? []).join(', ') },
+    { field: 'version', headerName: 'Versión', minWidth: 110 },
+    { field: 'layoutVariantCount', headerName: 'Variantes', minWidth: 110 },
+    { field: 'fieldCount', headerName: 'Campos', minWidth: 100 },
+    { headerName: 'Registros', minWidth: 140, valueGetter: (p) => (p.data?.recordTypes ?? []).join(', ') },
     {
       headerName: 'Vigencia',
       minWidth: 220,
@@ -107,20 +107,26 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     this.visibles = [];
 
     forkJoin({
-      catalogos: this.query.catalogosFiltro(),
-      dashboard: this.query.dashboardReadOnly(),
-      perfiles: this.query.perfilesReadOnly()
+      catalogos: this.query.catalogosFiltro().pipe(catchError(() => of(null))),
+      dashboard: this.query.dashboardReadOnly().pipe(catchError(() => of(null))),
+      perfiles: this.query.perfilesReadOnly().pipe(catchError(() => of(null)))
     })
       .pipe(finalize(() => {
         this.cargando = false;
       }))
       .subscribe({
         next: ({ catalogos, dashboard, perfiles }) => {
-          this.catalogos = catalogos;
-          this.actualizarOpciones();
+          this.errorCarga = !catalogos || !dashboard || !perfiles;
+          if (catalogos) {
+            this.catalogos = catalogos;
+            this.actualizarOpciones();
+          }
           this.dashboard = dashboard;
-          this.perfiles = perfiles;
+          this.perfiles = perfiles ?? [];
           this.aplicarFiltros();
+          if (this.errorCarga) {
+            this.notifications.warning('Parte de la informacion NACHA Config no pudo cargarse. Las acciones disponibles siguen operativas.');
+          }
         },
         error: () => {
           this.errorCarga = true;
@@ -144,9 +150,9 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       profileCode: (form.profileCode ?? '').trim(),
       nombreEs: (form.nombreEs ?? '').trim(),
       descripcion: (form.descripcion ?? '').trim() || null,
-      camaraCode: form.camaraCode ?? 'ACH',
-      flujoCode: form.flujoCode ?? 'ORIGINAL',
-      direccionCode: form.direccionCode ?? 'SALIDA',
+      camaraCode: form.camaraCode ?? '',
+      flujoCode: form.flujoCode ?? '',
+      direccionCode: form.direccionCode ?? '',
       servicioCode: (form.servicioCode ?? '').trim() || null,
       effectiveFrom: form.effectiveFrom
     };
@@ -284,6 +290,29 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     ];
     this.opcionesDireccion = this.catalogos.direcciones.map((x) => ({ valor: x.code, etiqueta: `${x.code} - ${x.labelEs}` }));
     this.opcionesServicio = this.catalogos.servicios.map((x) => ({ valor: x.code, etiqueta: `${x.code} - ${x.labelEs}` }));
+
+    this.seleccionarPrimeraOpcionDisponible('camaraCode', this.opcionesCamara.slice(1));
+    this.seleccionarPrimeraOpcionDisponible('flujoCode', this.opcionesFlujo.slice(1));
+    this.seleccionarPrimeraOpcionDisponible('direccionCode', this.opcionesDireccion);
+  }
+
+  camaraLabel(code?: string | null): string {
+    if (!code) {
+      return '-';
+    }
+
+    const catalogo = this.catalogos.camaras.find((item) => item.code === code);
+    return catalogo ? `${catalogo.code} - ${catalogo.labelEs}` : code;
+  }
+
+  private seleccionarPrimeraOpcionDisponible(
+    controlName: 'camaraCode' | 'flujoCode' | 'direccionCode',
+    opciones: OpcionSelectorBuscable[]
+  ): void {
+    const control = this.crearForm.controls[controlName];
+    if (!opciones.some((opcion) => opcion.valor === control.value)) {
+      control.setValue(opciones[0] ? String(opciones[0].valor) : '');
+    }
   }
 
   private todayIsoDate(): string {

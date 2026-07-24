@@ -37,6 +37,46 @@ public sealed class NachaConfigAdminServicesHardeningTests
     }
 
     [Fact]
+    public async Task ThirdClearingHouse_ShouldAppearInCatalog_AndOwnItsProfile()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        await SeedCatalogAsync(context);
+        context.CatClearingHouses.Add(new CatClearingHouse
+        {
+            Id = 3,
+            Code = "REDTEST",
+            Name = "Red sintética de pruebas",
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var created = await command.CreateDraftAsync(new NachaConfigCreateDraftRequest
+        {
+            ProfileCode = "REDTEST_PROFILE_01",
+            NombreEs = "Perfil propio de tercera cámara",
+            CamaraCode = "REDTEST",
+            FlujoCode = "ORIGINAL",
+            DireccionCode = "SALIDA",
+            ServicioCode = "PPD",
+            EffectiveFrom = new DateTime(2026, 7, 24)
+        }, "job6-test");
+
+        var catalogs = await query.GetFilterCatalogsAsync();
+        var detail = await query.GetProfileDetailAsync(created.Id);
+
+        catalogs.Camaras.Should().ContainSingle(x =>
+            x.Code == "REDTEST" && x.LabelEs == "Red sintética de pruebas");
+        detail.Should().NotBeNull();
+        detail!.Camara.Should().Be("REDTEST");
+        detail.CamaraNombre.Should().Be("Red sintética de pruebas");
+        detail.Flujo.Should().Be("ORIGINAL");
+        detail.Direccion.Should().Be("SALIDA");
+        detail.Servicio.Should().Be("PPD");
+    }
+
+    [Fact]
     public async Task UpdateDraftAsync_ShouldFail_OnConcurrencyConflict()
     {
         await using var context = await CreateSqliteContextAsync();

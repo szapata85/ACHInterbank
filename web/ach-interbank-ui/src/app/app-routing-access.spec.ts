@@ -24,7 +24,8 @@ describe('route access control', () => {
   it('mantiene las pantallas NACHA Config disponibles en modo lectura', () => {
     NACHA_CONFIG_ADMIN_ROUTES.filter((route) => route.component).forEach((route) => {
       expect(route.canActivate).withContext(`Falta guard en ${route.path}`).toContain(permissionGuard);
-      expect(route.data?.['permissions']).withContext(`Permiso incorrecto en ${route.path}`).toEqual(['CanReadAch']);
+      expect(route.data?.['permissions']).withContext(`Falta permiso fino de lectura en ${route.path}`).toContain('Config.Read');
+      expect(route.data?.['permissions']).withContext(`Falta permiso legacy de lectura en ${route.path}`).toContain('CanReadAch');
     });
   });
 

@@ -18,7 +18,14 @@ import { UiBotonComponent } from './ui-boton.component';
       </section>
     </div>
   `,
-  styles: [`.overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:grid;place-items:center;z-index:70}.modal{width:min(520px,92vw);background:#fff;border-radius:var(--radius-lg);padding:1rem 1.1rem}.modal h3{margin:0}.modal p{margin:.5rem 0 1rem;color:var(--color-text-soft)}.acciones{display:flex;justify-content:flex-end;gap:.65rem}`]
+  styles: [`
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:grid;place-items:center;z-index:70;padding:1rem}
+    .modal{width:min(520px,100%);max-height:calc(100dvh - 2rem);overflow:auto;background:#fff;border-radius:var(--radius-lg);padding:1rem 1.1rem}
+    .modal h3{margin:0;overflow-wrap:anywhere}
+    .modal p{margin:.5rem 0 1rem;color:var(--color-text-soft);overflow-wrap:anywhere}
+    .acciones{display:flex;justify-content:flex-end;gap:.65rem;flex-wrap:wrap}
+    @media(max-width:480px){.overlay{padding:.5rem}.modal{max-height:calc(100dvh - 1rem);padding:.9rem}.acciones{align-items:stretch;flex-direction:column-reverse}.acciones ui-boton{display:block}}
+  `]
 })
 export class UiModalConfirmacionComponent {
   @Input() abierto = false;

@@ -86,3 +86,20 @@
   display: grid;
   gap: 0.35rem;
 }
+
+@media (max-width: 600px) {
+  .resumen,
+  .form-grid,
+  .validacion-resumen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .acciones-inline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .btn-workspace {
+    width: 100%;
+  }
+}

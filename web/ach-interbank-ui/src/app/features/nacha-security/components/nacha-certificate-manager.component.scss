@@ -217,3 +217,27 @@ table {
 @keyframes certificate-spin {
   to { transform: rotate(360deg); }
 }
+
+@media (max-width: 600px) {
+  .certificate-context {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.75rem;
+  }
+
+  .card {
+    padding: 0.9rem;
+
+    &__header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+
+  .meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .upload button {
+    width: 100%;
+  }
+}

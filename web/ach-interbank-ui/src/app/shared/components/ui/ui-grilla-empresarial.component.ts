@@ -58,9 +58,10 @@ import { UiEstadoVacioComponent } from './ui-estado-vacio.component';
   `,
   styles: [
     `
-      .grilla-empresarial { display: grid; gap: .75rem; }
+      :host { display: block; min-width: 0; max-width: 100%; }
+      .grilla-empresarial { display: grid; gap: .75rem; min-width: 0; max-width: 100%; }
       .toolbar { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; }
-      .grilla { width: 100%; min-height: 320px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; transition: opacity .18s ease; }
+      .grilla { width: 100%; max-width: 100%; min-width: 0; min-height: 320px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; transition: opacity .18s ease; }
       .estado-contenedor { opacity: 0; transform: translateY(2px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; height: 0; overflow: hidden; }
       .estado-contenedor.visible { opacity: 1; transform: translateY(0); pointer-events: auto; height: auto; }
       :host ::ng-deep .ag-header-cell-label { font-weight: 700; }
@@ -68,6 +69,11 @@ import { UiEstadoVacioComponent } from './ui-estado-vacio.component';
       :host ::ng-deep .ag-row:hover { background: #f8fbff !important; }
       :host ::ng-deep .ag-row.ag-row-selected { background: #e8f0ff !important; }
       :host ::ng-deep .ag-cell .btn-grid { font-size: .78rem; padding: .25rem .5rem; border-radius: var(--radius-sm); }
+      @media (max-width: 600px) {
+        .toolbar { align-items: stretch; flex-direction: column; }
+        :host ::ng-deep .ag-paging-panel { flex-wrap: wrap; height: auto; min-height: 56px; padding-block: .35rem; }
+        :host ::ng-deep .ag-paging-page-summary-panel { margin-left: 0; }
+      }
     `
   ],
   changeDetection: ChangeDetectionStrategy.OnPush

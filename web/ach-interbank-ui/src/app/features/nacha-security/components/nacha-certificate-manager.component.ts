@@ -48,7 +48,7 @@ export class NachaCertificateManagerComponent implements OnInit {
   clearingHouses: ClearingHouseOption[] = [];
 
   readonly contextForm = this.fb.group({
-    clearingHouseId: [1, Validators.required],
+    clearingHouseId: [null as number | null, Validators.required],
     environment: ['Test' as 'Test' | 'Production', Validators.required]
   });
 
@@ -56,13 +56,13 @@ export class NachaCertificateManagerComponent implements OnInit {
     {
       type: 'EncryptionPublic',
       title: 'Certificado de cifrado (llave pública)',
-      description: 'Certificado público de ACH Colombia usado para cifrar los sobres digitales.',
+      description: 'Certificado público de la cámara usado para cifrar los sobres digitales.',
       requiresPassword: false,
       accept: '.cer,.crt,.pem',
       allowedExtensions: ['.cer', '.crt', '.pem'],
-      code: 'ACHCOL-OUTBOUND-ENCRYPTION',
-      displayName: 'ACH Colombia - cifrado saliente',
-      clearingHouseId: 1,
+      code: 'CAMARA-OUTBOUND-ENCRYPTION',
+      displayName: 'Cámara - cifrado saliente',
+      clearingHouseId: 0,
       environment: 'Test',
       purpose: 'OutboundEncryption',
       holderType: 'ClearingHouse'
@@ -74,9 +74,9 @@ export class NachaCertificateManagerComponent implements OnInit {
       requiresPassword: true,
       accept: '.pfx,.p12',
       allowedExtensions: ['.pfx', '.p12'],
-      code: 'CFA-OUTBOUND-SIGNING',
-      displayName: 'CFA - firma saliente',
-      clearingHouseId: 1,
+      code: 'CFA-CAMARA-OUTBOUND-SIGNING',
+      displayName: 'CFA - firma saliente por cámara',
+      clearingHouseId: 0,
       environment: 'Test',
       purpose: 'OutboundSigning',
       holderType: 'Participant'
@@ -98,7 +98,7 @@ export class NachaCertificateManagerComponent implements OnInit {
           this.clearingHouses = items;
           const currentExists = items.some((item) => item.id === this.contextForm.controls.clearingHouseId.value);
           this.contextForm.controls.clearingHouseId.setValue(
-            currentExists ? this.contextForm.controls.clearingHouseId.value : items[0]?.id ?? 1,
+            currentExists ? this.contextForm.controls.clearingHouseId.value : items[0]?.id ?? null,
             { emitEvent: false });
           this.syncSlotContext();
           this.loadCertificates();
@@ -238,24 +238,31 @@ export class NachaCertificateManagerComponent implements OnInit {
   private syncSlotContext(): void {
     const clearingHouseId = Number(this.contextForm.controls.clearingHouseId.value ?? 0);
     const selectedHouse = this.clearingHouses.find((item) => item.id === clearingHouseId);
-    const chamberCode = (selectedHouse?.name ?? 'ACHCOL').replace(/\s+/g, '').toUpperCase().includes('CENIT')
-      ? 'CENIT'
-      : 'ACHCOL';
+    const chamberCode = this.normalizeClearingHouseCode(selectedHouse, clearingHouseId);
+    const chamberName = selectedHouse?.name ?? `Cámara ${clearingHouseId}`;
     const environment = this.contextForm.controls.environment.value ?? 'Test';
 
     for (const slot of this.slots) {
-      slot.clearingHouseId = clearingHouseId || 1;
+      slot.clearingHouseId = clearingHouseId;
       slot.environment = environment;
       if (slot.type === 'EncryptionPublic') {
         slot.code = `${chamberCode}-OUTBOUND-ENCRYPTION`;
-        slot.displayName = `${selectedHouse?.name ?? 'ACH Colombia'} - cifrado saliente`;
-        slot.description = `Certificado público de ${selectedHouse?.name ?? 'la cámara'} usado para cifrar sobres digitales.`;
+        slot.displayName = `${chamberName} - cifrado saliente`;
+        slot.description = `Certificado público de ${chamberName} usado para cifrar sobres digitales.`;
       } else {
-        slot.code = chamberCode === 'ACHCOL' ? 'CFA-OUTBOUND-SIGNING' : `CFA-${chamberCode}-OUTBOUND-SIGNING`;
-        slot.displayName = `CFA - firma saliente ${selectedHouse?.name ?? 'ACH Colombia'}`;
-        slot.description = `Certificado privado de CFA para firmar archivos dirigidos a ${selectedHouse?.name ?? 'la cámara'}.`;
+        slot.code = `CFA-${chamberCode}-OUTBOUND-SIGNING`;
+        slot.displayName = `CFA - firma saliente ${chamberName}`;
+        slot.description = `Certificado privado de CFA para firmar archivos dirigidos a ${chamberName}.`;
       }
     }
+  }
+
+  private normalizeClearingHouseCode(
+    selectedHouse: ClearingHouseOption | undefined,
+    clearingHouseId: number
+  ): string {
+    const code = selectedHouse?.code?.trim().toUpperCase().replace(/[^A-Z0-9_-]+/g, '-');
+    return code || `CAMARA-${clearingHouseId || 'SIN-SELECCION'}`;
   }
 
   private loadCertificates(): void {
@@ -276,7 +283,9 @@ export class NachaCertificateManagerComponent implements OnInit {
           this.certificates = certificates;
           this.slots.forEach((slot) => {
             slot.certificate = certificates
-              .filter((certificate) => certificate.code === slot.code)
+              .filter((certificate) =>
+                certificate.purpose === slot.purpose
+                && certificate.holderType === slot.holderType)
               .sort((left, right) => right.versionNumber - left.versionNumber)[0];
           });
           this.cdr.markForCheck();

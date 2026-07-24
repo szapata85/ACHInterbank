@@ -5,6 +5,8 @@
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   box-shadow: var(--shadow-sm);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .toolbar {
@@ -325,6 +327,7 @@ table td button:not([class]):hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  max-width: 100%;
 }
 
 table,
@@ -356,6 +359,7 @@ td,
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-4);
+  flex-wrap: wrap;
 }
 
 .empty,
@@ -394,4 +398,27 @@ td,
   --ag-secondary-border-color: #f3f4f6;
   --ag-header-background-color: #f9fafb;
   --ag-odd-row-background-color: #f9fafb;
+}
+
+@media (max-width: 600px) {
+  .card {
+    padding: var(--space-4);
+  }
+
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form-actions,
+  .actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .form-actions > button,
+  .actions > button,
+  .form-actions > .btn,
+  .actions > .btn {
+    width: 100%;
+  }
 }

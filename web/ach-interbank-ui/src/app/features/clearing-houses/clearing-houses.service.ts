@@ -6,7 +6,7 @@ import { ClearingHouse, ClearingHouseInput, ClearingHousePage, NachaProfileOptio
 @Injectable({ providedIn: 'root' })
 export class ClearingHousesService {
   private readonly api = inject(ApiService);
-  private readonly path = 'clearing-houses';
+  private readonly path = 'api/clearing-houses';
 
   list(search: string, isActive: boolean | null, page: number): Observable<ClearingHousePage> {
     const params: Record<string, string | number | boolean> = { page, pageSize: 20 };

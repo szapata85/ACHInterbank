@@ -9,6 +9,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
 [Route("clearing-houses")]
+[Route("api/clearing-houses")]
 [Authorize]
 public class ClearingHousesController : ControllerBase
 {

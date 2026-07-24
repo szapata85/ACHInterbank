@@ -367,7 +367,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   private payload(): GenerateNachaInboundSimulationRequest {
     return {
       simulationMode: this.form.controls.simulationMode.value ?? 'IncomingTransactions',
-      clearingHouseCode: this.form.controls.clearingHouseCode.value ?? 'ACHCOL',
+      clearingHouseCode: this.form.controls.clearingHouseCode.value ?? '',
       scenarioType: this.form.controls.scenarioType.value ?? 'IncomingCredit',
       originFinancialInstitutionId: Number(this.form.controls.originFinancialInstitutionId.value),
       entriesCount: Number(this.form.controls.entriesCount.value ?? 1),

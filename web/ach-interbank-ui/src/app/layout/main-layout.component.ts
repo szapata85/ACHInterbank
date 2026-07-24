@@ -152,6 +152,13 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     }
   }
 
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.isMenuOpen) {
+      this.closeMenu();
+    }
+  }
+
   private buildBreadcrumbs(): void {
     const breadcrumbs: Breadcrumb[] = [];
     let currentRoute: ActivatedRoute | null = this.route.root;
