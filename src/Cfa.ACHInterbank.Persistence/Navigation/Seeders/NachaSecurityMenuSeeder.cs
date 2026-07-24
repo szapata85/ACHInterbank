@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Entities.Navigation;
+using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.Configuration;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -21,6 +22,8 @@ public sealed class NachaSecurityMenuSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
+        await EnsureManageCertificatesPermissionAsync();
+
         var group = await UpsertMenuItemAsync(
             MenuItemConfiguration.NachaSecurityId,
             parentId: null,
@@ -54,6 +57,24 @@ public sealed class NachaSecurityMenuSeeder : IDbSeeder
         await DisableDuplicateCertificateRoutesAsync(certificates.Id);
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task EnsureManageCertificatesPermissionAsync()
+    {
+        var permissionExists = await _context.Permissions.AnyAsync(
+            x => x.Id == PermissionConfiguration.ManageCertificatesPermissionId);
+
+        if (!permissionExists)
+        {
+            _context.Permissions.Add(new Permission
+            {
+                Id = PermissionConfiguration.ManageCertificatesPermissionId,
+                Name = "CanManageCertificates",
+                Description = "Administración de certificados digitales"
+            });
+
+            await _context.SaveChangesAsync();
+        }
     }
 
     private async Task<MenuItem> UpsertMenuItemAsync(

@@ -18,6 +18,10 @@ on:
       - "docker-compose.postgres.yml"
   workflow_dispatch:
 
+concurrency:
+  group: angular-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -109,10 +113,16 @@ jobs:
             echo "E2E_DB_NAME=ACHInterbank"
             echo "E2E_DB_USER=example_user"
             echo "E2E_DB_PASSWORD=$db_password"
+            echo "COMPOSE_PROJECT_NAME=achinterbank_ci_postgres"
           } >> "$GITHUB_ENV"
 
+      - name: Validate PostgreSQL runtime Compose
+        run: |
+          docker compose -f ../../docker-compose.postgres.yml config --quiet
+          docker compose -f ../../docker-compose.postgres.yml config --services
+
       - name: Start runtime stack
-        run: docker compose -f ../../docker-compose.yml -f ../../docker-compose.postgres.yml up -d --build postgres achinterbank-api achinterbank-spa
+        run: docker compose -f ../../docker-compose.postgres.yml up -d --build
 
       - name: Wait for API readiness
         run: |
@@ -130,9 +140,9 @@ jobs:
         shell: bash
         run: |
           admin_hash="$(printf '%s' "$ACH_PASS" | sha256sum | cut -d' ' -f1)"
-          docker exec \
+          docker compose -f ../../docker-compose.postgres.yml exec -T \
             -e PGPASSWORD="$POSTGRES_PASSWORD" \
-            achinterbank-postgres \
+            postgres \
             psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
             -c "UPDATE \"Users\" SET \"PasswordHash\" = '$admin_hash', \"FailedLoginAttempts\" = 0, \"LockoutEnd\" = NULL, \"UpdatedAt\" = NOW() WHERE \"Username\" = 'admin';"
 
@@ -158,7 +168,8 @@ jobs:
         if: always()
         run: |
           mkdir -p ../../artifacts/job6-runtime
-          docker compose -f ../../docker-compose.yml -f ../../docker-compose.postgres.yml logs --no-color postgres achinterbank-api achinterbank-spa > ../../artifacts/job6-runtime/docker-compose.log
+          docker compose -f ../../docker-compose.postgres.yml ps -a > ../../artifacts/job6-runtime/docker-compose-ps.log 2>&1 || true
+          docker compose -f ../../docker-compose.postgres.yml logs --no-color > ../../artifacts/job6-runtime/docker-compose.log 2>&1 || true
 
       - name: Upload Playwright diagnostics
         if: always()
@@ -169,9 +180,10 @@ jobs:
             web/ach-interbank-ui/playwright-report
             web/ach-interbank-ui/test-results
             artifacts/job6-runtime/docker-compose.log
+            artifacts/job6-runtime/docker-compose-ps.log
           if-no-files-found: warn
           retention-days: 14
 
       - name: Stop runtime stack
         if: always()
-        run: docker compose -f ../../docker-compose.yml -f ../../docker-compose.postgres.yml down --volumes --remove-orphans
+        run: docker compose -f ../../docker-compose.postgres.yml down --volumes --remove-orphans || true
