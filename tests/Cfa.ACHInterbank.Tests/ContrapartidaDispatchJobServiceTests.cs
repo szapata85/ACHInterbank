@@ -18,6 +18,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
+using Cfa.ACHInterbank.Tests.TestSupport;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -50,7 +51,8 @@ public class ContrapartidaDispatchJobServiceTests
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
             soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
-            responseCatalogResolver: Catalog(Success("R96", "Débito aplicado correctamente")));
+            responseCatalogResolver: Catalog(Success("R96", "Débito aplicado correctamente")),
+            timeProvider: TestClock.Create());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -127,7 +129,8 @@ public class ContrapartidaDispatchJobServiceTests
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
             soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
-            responseCatalogResolver: new IntegrationResponseCatalogResolver(context));
+            responseCatalogResolver: new IntegrationResponseCatalogResolver(context),
+            timeProvider: TestClock.Create());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -226,7 +229,8 @@ public class ContrapartidaDispatchJobServiceTests
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
             soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
-            responseCatalogResolver: Catalog(Success("00", "Aplicado")));
+            responseCatalogResolver: Catalog(Success("00", "Aplicado")),
+            timeProvider: TestClock.Create());
 
         var result = await sut.ProcessTransactionAsync(cycleId, 1, targetId, "uat-targeted", CancellationToken.None);
 
@@ -263,7 +267,8 @@ public class ContrapartidaDispatchJobServiceTests
             mapper.Object,
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
-            LiveDispatchOptions());
+            LiveDispatchOptions(),
+            timeProvider: TestClock.Create());
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             sut.ProcessTransactionAsync(transactionId, "uat-duplicate-gate", CancellationToken.None));
@@ -330,7 +335,8 @@ public class ContrapartidaDispatchJobServiceTests
             mapper.Object,
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
-            LiveDispatchOptions());
+            LiveDispatchOptions(),
+            timeProvider: TestClock.Create());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -400,7 +406,8 @@ public class ContrapartidaDispatchJobServiceTests
             NullLogger<ContrapartidaDispatchJobService>.Instance,
             LiveDispatchOptions(),
             soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
-            responseCatalogResolver: Catalog(Rejected("R01", "Rechazo parametrizado")));
+            responseCatalogResolver: Catalog(Rejected("R01", "Rechazo parametrizado")),
+            timeProvider: TestClock.Create());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-r01", 100, CancellationToken.None);
 
@@ -485,7 +492,8 @@ public class ContrapartidaDispatchJobServiceTests
             LiveDispatchOptions(),
             responseCatalogResolver: Catalog(
                 Success("R96", "Débito aplicado correctamente"),
-                Rejected("R10", "Rechazo funcional")));
+                Rejected("R10", "Rechazo funcional")),
+            timeProvider: TestClock.Create());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-2b", 100, CancellationToken.None);
 
@@ -548,7 +556,8 @@ public class ContrapartidaDispatchJobServiceTests
             mapper.Object,
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
-            Options.Create(new ProcContrapartidasDispatchOptions { Mode = "DryRun" }));
+            Options.Create(new ProcContrapartidasDispatchOptions { Mode = "DryRun" }),
+            timeProvider: TestClock.Create());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-soap-dry-run", 100, CancellationToken.None);
 
@@ -618,7 +627,8 @@ public class ContrapartidaDispatchJobServiceTests
             mapper.Object,
             parser.Object,
             NullLogger<ContrapartidaDispatchJobService>.Instance,
-            Options.Create(new ProcContrapartidasDispatchOptions { Mode = "DryRun" }));
+            Options.Create(new ProcContrapartidasDispatchOptions { Mode = "DryRun" }),
+            timeProvider: TestClock.Create());
 
         var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-no-fallback", 100, CancellationToken.None);
 
@@ -662,7 +672,7 @@ public class ContrapartidaDispatchJobServiceTests
             Id = cycleId,
             ClearingHouseId = 1,
             CycleName = "CICLO-QA",
-            ProcessingDate = DateTime.Today,
+            ProcessingDate = TestClock.OperationalDate,
             StartTime = TimeSpan.Zero,
             EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = new TimeSpan(23, 0, 0)
@@ -714,7 +724,7 @@ public class ContrapartidaDispatchJobServiceTests
             CompanyEntryDescription = "NOMINAS",
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginOrOdfi = "12345678",
-            EffectiveEntryDate = DateTime.Today,
+            EffectiveEntryDate = TestClock.OperationalDate,
             ServiceClassCode = "220",
             BatchSequenceNumber = 1
         };
@@ -734,7 +744,7 @@ public class ContrapartidaDispatchJobServiceTests
             ReceivingDFI = "765432100",
             TraceNumber = $"12345678{sufijo}",
             TraceSequenceNumber = consecutivo,
-            EffectiveEntryDate = DateTime.Today,
+            EffectiveEntryDate = TestClock.OperationalDate,
             AddendaRecordIndicator = true,
             IsPrenotification = false,
             SourceAccountNumber = "111122223333",
@@ -820,11 +830,11 @@ public class ContrapartidaDispatchJobServiceTests
             AchTransactionId = txId,
             AchCycleId = cycleId,
             ClearingHouseId = 1,
-            OperationalDate = DateTime.Today,
+            OperationalDate = TestClock.OperationalDate,
             QueueStatus = IncomingNachaDispatchQueueStatus.Queued,
             Priority = 100,
             IdempotencyDispatchKey = $"qa-contrapartida-{suffix}-{txId}",
-            NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(-1)
+            NextAttemptAtUtc = TestClock.UtcNow.UtcDateTime.AddMinutes(-1)
         });
 
         await context.SaveChangesAsync();

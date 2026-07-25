@@ -19,6 +19,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
+using Cfa.ACHInterbank.Tests.TestSupport;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -34,7 +35,7 @@ public class AchTransactionNachaTests
         {
             SeedCoreEntities(arrangeContext);
 
-            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
             var service = BuildTransactionService(arrangeContext, cycleId);
 
             tx = await service.RegisterTransactionAsync(
@@ -113,7 +114,7 @@ public class AchTransactionNachaTests
         {
             SeedCoreEntities(arrangeContext);
 
-            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+            string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
             var service = BuildTransactionService(arrangeContext, cycleId);
 
             tx = await service.RegisterTransactionAsync(
@@ -164,12 +165,12 @@ public class AchTransactionNachaTests
         using var context = CreateContext(connection);
         SeedCoreEntities(context);
 
-        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var policyService = new Mock<ITransactionPolicyService>();
         policyService
             .SetupSequence(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Credit:111122223333:999988887777:1500:TX-DUP-001", false))
-            .ReturnsAsync(new TransactionPolicyPreview(false, "Ya existe una transacción equivalente para el mismo ciclo.", cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Credit:111122223333:999988887777:1500:TX-DUP-001", true));
+            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", TestClock.OperationalDate, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Credit:111122223333:999988887777:1500:TX-DUP-001", false))
+            .ReturnsAsync(new TransactionPolicyPreview(false, "Ya existe una transacción equivalente para el mismo ciclo.", cycleId, "CICLO-TEST", TestClock.OperationalDate, "ACH Colombia", 1, "", true, null, null, null, $"{cycleId}:Credit:111122223333:999988887777:1500:TX-DUP-001", true));
 
         var service = BuildTransactionService(context, cycleId, policyService.Object);
 
@@ -229,7 +230,7 @@ public class AchTransactionNachaTests
         arrangeContext.FinancialInstitutions.Update(defaultSource);
         await arrangeContext.SaveChangesAsync();
 
-        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        string cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var service = BuildTransactionService(arrangeContext, cycleId);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
@@ -255,7 +256,7 @@ public class AchTransactionNachaTests
     {
         using var connection = CreateOpenConnection();
 
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -320,7 +321,7 @@ public class AchTransactionNachaTests
 
             var prenote = await arrangeContext.AchTransactions
                 .SingleAsync(t => t.Reference == "PAGOPRE-002");
-            prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+            prenote.EffectiveEntryDate = TestClock.OperationalDate.AddDays(-5);
             arrangeContext.AchTransactions.Update(prenote);
             await arrangeContext.SaveChangesAsync();
         }
@@ -368,7 +369,7 @@ public class AchTransactionNachaTests
         SeedCoreEntities(arrangeContext);
         SeedNachaLayouts(arrangeContext);
 
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var (service, contrapartida) = BuildTransactionServiceWithDispatchMock(arrangeContext, cycleId);
 
         var transaction = await service.RegisterTransactionAsync(
@@ -411,7 +412,7 @@ public class AchTransactionNachaTests
     public async Task BuildNachaFileByCycleAsync_Throws_WhenAddendaBusinessTypeIsIncompatibleWithTransactionType()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -494,7 +495,7 @@ public class AchTransactionNachaTests
     public async Task RegisterTransactions_WithSavingsCheckingAndPrenote_BuildsNachaFile()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -593,7 +594,7 @@ public class AchTransactionNachaTests
                 .ToListAsync();
             foreach (var prenote in prenotes)
             {
-                prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+                prenote.EffectiveEntryDate = TestClock.OperationalDate.AddDays(-5);
             }
 
             arrangeContext.AchTransactions.UpdateRange(prenotes);
@@ -625,7 +626,7 @@ public class AchTransactionNachaTests
     public async Task BuildNachaFileByCycleAsync_DebitAddenda_UsesGoldenPositions()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -692,7 +693,7 @@ public class AchTransactionNachaTests
             var prenote = await arrangeContext.AchTransactions
                 .SingleAsync(t => t.Reference == "PRE-RECAUDO-SERVICIO");
             Assert.Equal("28", prenote.TransactionCode);
-            prenote.EffectiveEntryDate = DateTime.Today.AddDays(-5);
+                prenote.EffectiveEntryDate = TestClock.OperationalDate.AddDays(-5);
             arrangeContext.AchTransactions.Update(prenote);
             await arrangeContext.SaveChangesAsync();
         }
@@ -723,7 +724,7 @@ public class AchTransactionNachaTests
     {
         using var connection = CreateOpenConnection();
 
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -819,7 +820,7 @@ public class AchTransactionNachaTests
     {
         using var connection = CreateOpenConnection();
 
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -894,7 +895,7 @@ public class AchTransactionNachaTests
     public async Task GenerateReturnsFileAsync_WhenCatalogPolicyRejectsReason_ThrowsRegulatoryMessage()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
 
         using (var arrangeContext = CreateContext(connection))
         {
@@ -963,7 +964,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WithValidBaseFile_ShouldParseSuccessfully()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
 
         using var parseContext = CreateContext(connection);
@@ -984,7 +985,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenBatchControlCountDoesNotMatch_ThrowsFatal51()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         var controlIndex = records.FindIndex(record => record.StartsWith("8"));
@@ -1003,7 +1004,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenBatchControlHashDoesNotMatch_ThrowsFatal52()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         var controlIndex = records.FindIndex(record => record.StartsWith("8"));
@@ -1022,7 +1023,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenBatchControlReservedFieldContainsData_ThrowsFatal87()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         var controlIndex = records.FindIndex(record => record.StartsWith("8"));
@@ -1041,7 +1042,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenFileControlCountDoesNotMatch_ThrowsFatal60()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         var fileControlIndex = records.FindIndex(record => record.StartsWith("9") && record != new string('9', 106));
@@ -1060,7 +1061,7 @@ public class AchTransactionNachaTests
     public async Task ParseAndSaveAsync_WhenPaddingContainsCharactersOtherThanNine_ThrowsFatal64()
     {
         using var connection = CreateOpenConnection();
-        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today);
+        var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
         var nachaContent = await BuildValidNachaFileAsync(connection, cycleId);
         var records = ChunkRecords(nachaContent);
         records[^1] = ReplaceSegment(records[^1], 50, 1, "0");
@@ -1131,9 +1132,9 @@ public class AchTransactionNachaTests
 
         var cycle = new AchCycle
         {
-            Id = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", DateTime.Today),
+            Id = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate),
             CycleName = "CICLO-TEST",
-            ProcessingDate = DateTime.Today,
+            ProcessingDate = TestClock.OperationalDate,
             StartTime = TimeSpan.Zero,
             EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = TimeSpan.FromHours(17),
@@ -1274,7 +1275,7 @@ public class AchTransactionNachaTests
         var validator = new TransactionValidator(context);
         var achBatchRepository = new AchBatchRepository(context);
         var achTransactionRepository = new AchTransactionRepository(context);
-        var batchResolver = new BatchResolver(context, achBatchRepository, routing.Object);
+        var batchResolver = new BatchResolver(context, achBatchRepository, routing.Object, timeProvider: TestClock.Create());
         var persister = new TransactionPersister(achTransactionRepository, achBatchRepository, validator);
         var customerRepo = new AchCustomerRepository(context);
         var thirdPartyRepo = new CustomerThirdPartyRepository(context);
@@ -1283,7 +1284,7 @@ public class AchTransactionNachaTests
         var policyService = new Mock<ITransactionPolicyService>();
         policyService
             .Setup(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", DateTime.Today, "ACH Colombia", 1, "", true, null, null, null, null, false));
+            .ReturnsAsync(new TransactionPolicyPreview(true, null, cycleId, "CICLO-TEST", TestClock.OperationalDate, "ACH Colombia", 1, "", true, null, null, null, null, false));
 
         var unitOfWork = new UnitOfWork(context);
         var contrapartida = new Mock<IContrapartidaDispatchPersistenceService>();
@@ -1496,7 +1497,7 @@ public class AchTransactionNachaTests
         using var arrangeContext = CreateContext(connection);
         SeedCoreEntities(arrangeContext);
 
-        var processingDate = DateTime.Today;
+        var processingDate = TestClock.OperationalDate;
         const string receivingDfi = "76543210";
         const string companyId = "1234567800";
         const string batchNumber = "0000001";

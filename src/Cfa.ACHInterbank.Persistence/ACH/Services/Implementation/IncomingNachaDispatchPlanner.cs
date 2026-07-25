@@ -21,6 +21,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
     private readonly IPaymentRailShadowCompareService? _shadowCompareService;
     private readonly ILogger<IncomingNachaDispatchPlanner> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public IncomingNachaDispatchPlanner(
         AchDbContext context,
@@ -28,7 +29,8 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         IPaymentRailContextService? paymentRailContextService = null,
         IPaymentRailOperationalStrategyResolver? strategyResolver = null,
         IPaymentRailShadowCompareService? shadowCompareService = null,
-        ILogger<IncomingNachaDispatchPlanner>? logger = null)
+        ILogger<IncomingNachaDispatchPlanner>? logger = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _eligibility = eligibility;
@@ -36,6 +38,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         _strategyResolver = strategyResolver;
         _shadowCompareService = shadowCompareService;
         _logger = logger ?? NullLogger<IncomingNachaDispatchPlanner>.Instance;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<int> PlanForIngestionAsync(Guid ingestionId, string plannedBy, CancellationToken ct = default)
@@ -73,6 +76,8 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
             .ToDictionaryAsync(config => config.ClearingHouseId, config => config.PaymentRailCode, ct);
 
         var created = 0;
+        var nowUtcOffset = _timeProvider.GetUtcNow();
+        var nowLocal = _timeProvider.GetLocalNow().LocalDateTime;
         foreach (var candidate in candidates)
         {
             if (!txMap.TryGetValue(candidate.AchTransactionId, out var tx))
@@ -85,7 +90,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
                 candidate.Classification,
                 candidate.Link,
                 tx,
-                nowLocal: DateTime.Now,
+                nowLocal: nowLocal,
                 ct);
 
             var dispatchKey = BuildIdempotencyKey(ingestion.Id, tx.Id, tx.AchCycleId, candidate.Classification.Id);
@@ -124,7 +129,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
                 QueueStatus = status,
                 Priority = evaluation.Priority,
                 IdempotencyDispatchKey = dispatchKey,
-                NextAttemptAtUtc = status == IncomingNachaDispatchQueueStatus.Queued ? DateTime.UtcNow : null,
+                NextAttemptAtUtc = status == IncomingNachaDispatchQueueStatus.Queued ? nowUtcOffset.UtcDateTime : null,
                 LastErrorCode = status == IncomingNachaDispatchQueueStatus.Blocked ? "POLICY_BLOCKED" : string.Empty,
                 LastErrorMessage = evaluation.Reason
             });

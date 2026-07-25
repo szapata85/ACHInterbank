@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
+using Cfa.ACHInterbank.Tests.TestSupport;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -16,7 +17,7 @@ public class IncomingNachaDispatchPlannerTests
         var ingestion = SeedCommonGraph(context);
 
         var eligibility = new IncomingNachaDispatchEligibilityPolicy();
-        var sut = new IncomingNachaDispatchPlanner(context, eligibility);
+        var sut = new IncomingNachaDispatchPlanner(context, eligibility, timeProvider: TestClock.Create());
 
         var created = await sut.PlanForIngestionAsync(ingestion.Id, "tester");
 
@@ -33,7 +34,7 @@ public class IncomingNachaDispatchPlannerTests
         await using var context = BuildContext();
         var firstIngestion = SeedCommonGraph(context);
         var eligibility = new IncomingNachaDispatchEligibilityPolicy();
-        var sut = new IncomingNachaDispatchPlanner(context, eligibility);
+        var sut = new IncomingNachaDispatchPlanner(context, eligibility, timeProvider: TestClock.Create());
 
         await sut.PlanForIngestionAsync(firstIngestion.Id, "tester");
         var firstQueue = await context.IncomingNachaDispatchQueue
@@ -53,7 +54,7 @@ public class IncomingNachaDispatchPlannerTests
             CycleResolutionStatus = IncomingNachaCycleResolutionStatus.ResueltoConfirmado,
             ResolvedAchCycleId = "C1",
             ResolvedClearingHouseId = 1,
-            OperationalDate = DateTime.Today
+            OperationalDate = TestClock.OperationalDate
         };
         var secondClassification = new IncomingNachaEntryClassification
         {
@@ -93,13 +94,13 @@ public class IncomingNachaDispatchPlannerTests
             Id = "C1",
             CycleName = "ciclo 1",
             ClearingHouseId = 1,
-            ProcessingDate = DateTime.Today,
+            ProcessingDate = TestClock.OperationalDate,
             StartTime = TimeSpan.Zero,
             EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = new TimeSpan(23, 0, 0)
         };
         context.AchCycles.Add(cycle);
-        context.AchBatches.Add(new AchBatch { Id = 1, AchCycleId = "C1", CompanyEntryDescriptionId = 1, EffectiveEntryDate = DateTime.Today });
+        context.AchBatches.Add(new AchBatch { Id = 1, AchCycleId = "C1", CompanyEntryDescriptionId = 1, EffectiveEntryDate = TestClock.OperationalDate });
 
         var tx1 = new AchTransaction
         {
@@ -120,7 +121,7 @@ public class IncomingNachaDispatchPlannerTests
             CompanyIdentification = "I",
             AchCycleId = "C1",
             AchBatchId = 1,
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = TestClock.OperationalDate
         };
         var tx2 = new AchTransaction
         {
@@ -141,7 +142,7 @@ public class IncomingNachaDispatchPlannerTests
             CompanyIdentification = "I",
             AchCycleId = "C1",
             AchBatchId = 1,
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = TestClock.OperationalDate
         };
         context.AchTransactions.AddRange(tx1, tx2);
 
@@ -159,7 +160,7 @@ public class IncomingNachaDispatchPlannerTests
             CycleResolutionStatus = IncomingNachaCycleResolutionStatus.ResueltoConfirmado,
             ResolvedAchCycleId = "C1",
             ResolvedClearingHouseId = 1,
-            OperationalDate = DateTime.Today
+            OperationalDate = TestClock.OperationalDate
         };
         context.IncomingNachaFileIngestions.Add(ingestion);
 

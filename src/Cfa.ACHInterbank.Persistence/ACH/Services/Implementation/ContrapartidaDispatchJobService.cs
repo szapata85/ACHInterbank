@@ -48,6 +48,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
     private readonly ISoapIntegrationSettingsService? _soapIntegrationSettingsService;
     private readonly IIntegrationResponseCatalogResolver? _responseCatalogResolver;
+    private readonly TimeProvider _timeProvider;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
@@ -59,7 +60,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         ITransactionIntegrationOperationResolver? operationResolver = null,
         IIntegrationMappingReadinessService? mappingReadinessService = null,
         ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
-        IIntegrationResponseCatalogResolver? responseCatalogResolver = null)
+        IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _soapClient = soapClient;
@@ -71,6 +73,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         _mappingReadinessService = mappingReadinessService;
         _soapIntegrationSettingsService = soapIntegrationSettingsService;
         _responseCatalogResolver = responseCatalogResolver;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<ContrapartidaCycleDispatchResult> ProcessCycleAsync(
@@ -147,6 +150,9 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     {
         chunkSize = Math.Clamp(chunkSize, 10, 2000);
         var safeTriggeredBy = string.IsNullOrWhiteSpace(triggeredBy) ? "quartz:contrapartida" : triggeredBy.Trim();
+        var nowUtcOffset = _timeProvider.GetUtcNow();
+        var nowUtc = nowUtcOffset.UtcDateTime;
+        var nowLocal = _timeProvider.GetLocalNow().LocalDateTime;
 
         var cycle = await _context.AchCycles
             .AsNoTracking()
@@ -155,7 +161,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             .FirstOrDefaultAsync(c => c.Id == cycleId && c.ClearingHouseId == clearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {cycleId} para cámara {clearingHouseId}.");
 
-        ValidateCycleOperationalWindow(cycle, DateTime.Now);
+        ValidateCycleOperationalWindow(cycle, nowLocal);
 
         var processed = 0;
         var succeeded = 0;
@@ -170,7 +176,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 .Where(i => i.AchCycleId == cycleId && i.ClearingHouseId == clearingHouseId)
                 .Where(i => !transactionId.HasValue || i.AchTransactionId == transactionId.Value)
                 .Where(i => EligibleStates.Contains(i.State))
-                .Where(i => !i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= DateTime.UtcNow)
+                .Where(i => !i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= nowUtc)
                 .OrderBy(i => i.Id)
                 .Select(i => i.Id)
                 .Take(chunkSize)
@@ -191,8 +197,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 ClearingHouseId = cycle.ClearingHouseId,
                 TriggerType = ContrapartidaDispatchBatchTriggerTypeEnum.Scheduled,
                 RequestedBy = safeTriggeredBy,
-                TriggeredAtUtc = DateTime.UtcNow,
-                StartedAtUtc = DateTime.UtcNow,
+                TriggeredAtUtc = nowUtc,
+                StartedAtUtc = nowUtc,
                 Status = ContrapartidaDispatchBatchStatusEnum.Processing,
                 TotalItems = pendingItemIds.Count
             };
@@ -202,12 +208,12 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             await _context.ContrapartidaDispatchItems
                 .Where(i => pendingItemIds.Contains(i.Id)
                     && EligibleStates.Contains(i.State)
-                    && (!i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= DateTime.UtcNow))
+                    && (!i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= nowUtc))
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(i => i.State, ContrapartidaDispatchItemStateEnum.ReportingContrapartida)
                     .SetProperty(i => i.LastCorrelationId, operationToken)
                     .SetProperty(i => i.LastDispatchedBy, safeTriggeredBy)
-                    .SetProperty(i => i.UpdatedAt, DateTimeOffset.UtcNow), ct);
+                    .SetProperty(i => i.UpdatedAt, nowUtcOffset), ct);
 
             var dispatchItems = await _context.ContrapartidaDispatchItems
                 .Where(i => pendingItemIds.Contains(i.Id)
@@ -219,7 +225,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             {
                 batch.Status = ContrapartidaDispatchBatchStatusEnum.Cancelled;
                 batch.SummaryMessage = "Sin items reclamados para este chunk (ya tomados por otro worker).";
-                batch.FinishedAtUtc = DateTime.UtcNow;
+                batch.FinishedAtUtc = nowUtc;
                 await _context.SaveChangesAsync(ct);
                 continue;
             }
@@ -244,12 +250,12 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             string dispatchEndpoint = string.Empty;
             string technicalException = string.Empty;
             ProcContrapartidasParsedResponse? parseResult = null;
-            var startedAtUtc = DateTime.UtcNow;
+            var startedAtUtc = nowUtc;
 
             try
             {
                 await EnsureContrapartidasReadinessAsync(transactions, ct);
-                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, DateTime.Now, ct);
+                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, nowLocal, ct);
                 EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 dispatchEndpoint = await ResolveProcContrapartidasEndpointAsync(ct);
@@ -282,7 +288,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 responsePayload = technicalException;
             }
 
-            var finishedAtUtc = DateTime.UtcNow;
+            var finishedAtUtc = nowUtc;
             var durationMs = CalculateDurationMs(startedAtUtc, finishedAtUtc);
             batch.RequestPayloadXml = requestPayload;
             batch.ResponsePayloadXml = responsePayload;
@@ -486,7 +492,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             .Include(c => c.ClearingHouseCycleConfig)
             .FirstOrDefaultAsync(x => x.Id == sourceBatch.AchCycleId && x.ClearingHouseId == sourceBatch.ClearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {sourceBatch.AchCycleId} para cámara {sourceBatch.ClearingHouseId}.");
-        ValidateCycleOperationalWindow(cycle, DateTime.Now);
+        var nowUtcOffset = _timeProvider.GetUtcNow();
+        var nowUtc = nowUtcOffset.UtcDateTime;
+        var nowLocal = _timeProvider.GetLocalNow().LocalDateTime;
+        ValidateCycleOperationalWindow(cycle, nowLocal);
 
         var sourceItemIds = await _context.ContrapartidaDispatchAttempts
             .AsNoTracking()
@@ -555,8 +564,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             TriggerType = ContrapartidaDispatchBatchTriggerTypeEnum.ManualRetry,
             RequestedBy = safeTriggeredBy,
             JobId = retryJobId,
-            TriggeredAtUtc = DateTime.UtcNow,
-            StartedAtUtc = DateTime.UtcNow,
+            TriggeredAtUtc = nowUtc,
+            StartedAtUtc = nowUtc,
             Status = ContrapartidaDispatchBatchStatusEnum.Processing,
             TotalItems = selectedItemIds.Count,
             SummaryMessage = $"Retry manual scope={request.Scope}"
@@ -584,7 +593,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     .SetProperty(i => i.State, ContrapartidaDispatchItemStateEnum.Retrying)
                     .SetProperty(i => i.LastCorrelationId, operationToken)
                     .SetProperty(i => i.LastDispatchedBy, safeTriggeredBy)
-                    .SetProperty(i => i.UpdatedAt, DateTimeOffset.UtcNow), ct);
+                    .SetProperty(i => i.UpdatedAt, nowUtcOffset), ct);
 
             var claimed = await _context.ContrapartidaDispatchItems
                 .Where(i => chunkIds.Contains(i.Id)
@@ -605,7 +614,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 .ToListAsync(ct);
             var txById = txs.ToDictionary(x => x.Id);
 
-            var startedAtUtc = DateTime.UtcNow;
+            var startedAtUtc = nowUtc;
             string requestPayload = string.Empty;
             string responsePayload = string.Empty;
             string dispatchEndpoint = string.Empty;
@@ -614,7 +623,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             try
             {
                 await EnsureContrapartidasReadinessAsync(txs, ct);
-                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, DateTime.Now, ct);
+                var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, nowLocal, ct);
                 EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
                 dispatchEndpoint = await ResolveProcContrapartidasEndpointAsync(ct);
@@ -641,7 +650,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 responsePayload = technicalException;
             }
 
-            var finishedAtUtc = DateTime.UtcNow;
+            var finishedAtUtc = nowUtc;
             var durationMs = CalculateDurationMs(startedAtUtc, finishedAtUtc);
             foreach (var item in claimed)
             {
@@ -755,7 +764,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         processingBatch.TotalSucceeded = totalSucceeded;
         processingBatch.TotalFailed = totalFailed;
         processingBatch.TotalPartial = totalPartial;
-        processingBatch.FinishedAtUtc = DateTime.UtcNow;
+        processingBatch.FinishedAtUtc = nowUtc;
         processingBatch.Status = totalFailed == 0
             ? ContrapartidaDispatchBatchStatusEnum.Completed
             : totalSucceeded > 0
@@ -1129,7 +1138,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         }
     }
 
-    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
+    internal static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
     {
         if (startTime <= endTime)
         {
@@ -1139,12 +1148,12 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
     }
 
-    private static DateTime CalculateNextAttemptAtUtc(int attemptCount)
+    private DateTime CalculateNextAttemptAtUtc(int attemptCount)
     {
         var exponent = Math.Clamp(attemptCount, 1, 5);
         var delay = TimeSpan.FromMinutes(Math.Pow(2, exponent));
         var capped = delay > TimeSpan.FromMinutes(30) ? TimeSpan.FromMinutes(30) : delay;
-        return DateTime.UtcNow.Add(capped);
+        return _timeProvider.GetUtcNow().UtcDateTime.Add(capped);
     }
 
     private sealed record ProcContrapartidasDispatchExecutionResult(
