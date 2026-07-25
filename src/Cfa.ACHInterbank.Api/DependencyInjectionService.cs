@@ -45,7 +45,12 @@ public static class DependencyInjectionService
         });
 
         services.AddEndpointsApiExplorer();
-        services.AddOpenApi("v1");
+        services.AddOpenApi("v1", options =>
+        {
+            options.AddOperationTransformer<ScalarOperationDocumentationTransformer>();
+            options.AddOperationTransformer<OpenApiSecurityMetadataTransformer>();
+            options.AddDocumentTransformer<OpenApiBearerSecuritySchemeTransformer>();
+        });
 
         services.ConfigureHttpJsonOptions(options =>
         {

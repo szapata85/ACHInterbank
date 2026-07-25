@@ -9,6 +9,8 @@ public sealed class OpenApiSecurityMetadataTransformer : IOpenApiOperationTransf
 {
     public Task TransformAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var action = context.Description.ActionDescriptor as ControllerActionDescriptor;
         var endpointMetadata = action?.EndpointMetadata ?? Array.Empty<object>();
 
@@ -23,26 +25,13 @@ public sealed class OpenApiSecurityMetadataTransformer : IOpenApiOperationTransf
             return Task.CompletedTask;
         }
 
-        operation.Security ??= new List<OpenApiSecurityRequirement>();
-
-        var bearerScheme = new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.Http,
-            Scheme = "bearer",
-            BearerFormat = "JWT"
-        };
-
-        var alreadyPresent = operation.Security.Any(static req => req.Keys.Any(k =>
-            string.Equals(k.Scheme, "bearer", StringComparison.OrdinalIgnoreCase)
-            && k.Type == SecuritySchemeType.Http));
-
-        if (!alreadyPresent)
-        {
-            operation.Security.Add(new OpenApiSecurityRequirement
+        operation.Security =
+        [
+            new OpenApiSecurityRequirement
             {
-                [new OpenApiSecuritySchemeReference("Bearer", context.Document, null)] = new List<string>()
-            });
-        }
+                [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = []
+            }
+        ];
 
         return Task.CompletedTask;
     }
