@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
@@ -30,6 +31,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
   readonly puedeGestionar = this.auth.hasPermission(['Config.Manage', 'CanManageAch']);
 
   perfilId = 0;
@@ -108,13 +110,19 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.perfilId = Number(this.route.snapshot.paramMap.get('id'));
-    if (!this.perfilId) {
-      this.router.navigate(['/nacha-config-admin/perfiles']);
-      return;
-    }
+    this.route.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        const nextProfileId = Number(params.get('id'));
+        if (!nextProfileId) {
+          void this.router.navigate(['/nacha-config-admin/perfiles']);
+          return;
+        }
 
-    this.cargar();
+        this.perfilId = nextProfileId;
+        this.perfil = null;
+        this.cargar();
+      });
   }
 
   cargar(): void {
@@ -177,6 +185,10 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
           this.notifications.error(this.errorMessage(error, 'No fue posible guardar el borrador.'));
         }
       });
+  }
+
+  cancelarEdicion(): void {
+    this.sincronizarFormularios();
   }
 
   validarPerfil(): void {
@@ -267,16 +279,20 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
       });
   }
 
+  cancelarClonacion(): void {
+    this.sincronizarFormularios();
+  }
+
   volver(): void {
     this.router.navigate(['/nacha-config-admin/perfiles']);
   }
 
   irARecords(): void {
-    this.router.navigate(['/nacha-config-admin/records']);
+    this.router.navigate(['/nacha-config-admin/records'], { queryParams: { profileId: this.perfilId } });
   }
 
   irAVariantsFields(): void {
-    this.router.navigate(['/nacha-config-admin/variants-fields']);
+    this.router.navigate(['/nacha-config-admin/variants-fields'], { queryParams: { profileId: this.perfilId } });
   }
 
   cerrarModal(): void {
@@ -423,7 +439,7 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
       this.editarForm.disable({ emitEvent: false });
     }
 
-    this.cloneForm.patchValue(
+    this.cloneForm.reset(
       {
         nuevoProfileCode: `${this.perfil.profileCode}-CLONE`,
         nuevoNombreEs: `${this.perfil.nombreEs} (copia)`,
@@ -449,8 +465,14 @@ export class NachaConfigProfileWorkspacePageComponent implements OnInit {
   }
 
   private errorMessage(error: unknown, fallback: string): string {
-    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
-      return (error as { message: string }).message;
+    if (error && typeof error === 'object' && 'errorCode' in error) {
+      const errorCode = String((error as { errorCode?: unknown }).errorCode ?? '');
+      if (errorCode.includes('409') || errorCode === 'CONCURRENCY_CONFLICT') {
+        return 'El perfil cambió mientras lo editabas. Recarga la página e intenta nuevamente.';
+      }
+      if (errorCode.includes('400') || errorCode === 'VALIDATION_ERROR') {
+        return 'La operación contiene datos no válidos. Revisa el formulario e intenta nuevamente.';
+      }
     }
     return fallback;
   }

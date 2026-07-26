@@ -38,8 +38,21 @@
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: .5rem .75rem;
+}
+
+.summary-grid > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: .25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summary-wide {
+  grid-column: span 2;
 }
 
 .section-header {
@@ -51,7 +64,14 @@
 
 .records-table {
   width: 100%;
+  min-width: 760px;
   border-collapse: collapse;
+}
+
+.table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-gutter: stable;
 }
 
 .records-table th,
@@ -64,6 +84,17 @@
 
 .records-table thead th {
   font-weight: 600;
+}
+
+.records-table td:nth-child(2) {
+  min-width: 175px;
+}
+
+.records-table td:nth-child(2) small {
+  display: block;
+  margin-top: .15rem;
+  color: var(--color-text-soft, #64748b);
+  white-space: normal;
 }
 
 .flag {
@@ -106,8 +137,11 @@
     flex-direction: column;
   }
 
-  .records-table {
-    display: block;
-    overflow-x: auto;
+  .summary-wide {
+    grid-column: auto;
+  }
+
+  .selector-actions .btn {
+    width: 100%;
   }
 }

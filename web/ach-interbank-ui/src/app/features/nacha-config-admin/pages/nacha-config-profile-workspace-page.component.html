@@ -1,11 +1,10 @@
 <section class="nacha-config-profile-workspace-page" data-testid="nacha-config-profile-workspace-page">
-  <ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'Configuración NACHA-M', route: '/nacha-config-admin/perfiles' }, { label: perfil?.profileCode || 'Perfil' }]" />
+  <ui-migas-pan [items]="[{ etiqueta: 'Inicio', ruta: '/dashboard' }, { etiqueta: 'Perfiles NACHA-M', ruta: '/nacha-config-admin/perfiles' }, { etiqueta: perfil?.profileCode || 'Perfil' }]" />
   <ui-encabezado-pagina [titulo]="'Perfil ' + (perfil?.profileCode || '')" descripcion="Detalle oficial administrativo del perfil NACHA-M."></ui-encabezado-pagina>
 
   <section class="banners">
     <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: perfiles de configuración por cámara compensadora."></ui-alerta>
-    <ui-alerta tipo="advertencia" mensaje="Layouts/definitions legacy obsoletos: esta pantalla no usa endpoints legacy."></ui-alerta>
-    <ui-alerta tipo="error" mensaje="Productivo NO-GO: estas acciones administrativas locales no habilitan ejecución productiva ni SOAP."></ui-alerta>
+    <ui-alerta tipo="advertencia" mensaje="Las definiciones heredadas son solo de consulta; este perfil es la fuente oficial."></ui-alerta>
   </section>
 
   <ui-alerta *ngIf="errorCarga" tipo="error" mensaje="No fue posible cargar el perfil administrativo."></ui-alerta>
@@ -21,7 +20,6 @@
       <div><strong>Vigencia:</strong> {{ date(perfil.effectiveFrom) }} a {{ perfil.effectiveTo ? date(perfil.effectiveTo) : 'abierta' }}</div>
       <div><strong>Registros:</strong> {{ perfil.records.length }}</div>
       <div><strong>Variantes:</strong> {{ perfil.variantes.length }}</div>
-      <div><strong>RowVersion:</strong> {{ perfil.rowVersion }}</div>
     </div>
   </ng-template>
   <ui-tarjeta *ngIf="perfil" titulo="Resumen del perfil" subtitulo="Estado, versión, cámara, vigencia y versión de concurrencia." [contenido]="resumenTpl"></ui-tarjeta>
@@ -37,7 +35,8 @@
     </form>
 
     <div class="acciones-inline">
-      <button *ngIf="puedeEditarBorrador" type="button" class="btn-workspace btn-primary" [disabled]="guardando || editarForm.invalid" (click)="guardarBorrador()">Guardar borrador</button>
+      <button *ngIf="puedeEditarBorrador" type="button" class="btn-workspace btn-outline" [disabled]="guardando || !editarForm.dirty" (click)="cancelarEdicion()">Cancelar cambios</button>
+      <button *ngIf="puedeEditarBorrador" type="button" class="btn-workspace btn-primary" [disabled]="guardando || editarForm.invalid || !editarForm.dirty" (click)="guardarBorrador()">{{ guardando ? 'Guardando…' : 'Guardar borrador' }}</button>
       <button type="button" class="btn-workspace btn-outline" [disabled]="validando || !perfil" (click)="validarPerfil()">Validar</button>
       <button *ngIf="puedePublicar" type="button" class="btn-workspace btn-secondary" [disabled]="publicando" (click)="publicarPerfil()">Publicar</button>
       <button *ngIf="puedeInactivar" type="button" class="btn-workspace btn-outline" [disabled]="inactivando" (click)="inactivarPerfil()">Inactivar</button>
@@ -54,7 +53,8 @@
     </form>
 
     <div class="acciones-inline">
-      <button type="button" class="btn-workspace btn-primary" [disabled]="clonando || cloneForm.invalid" (click)="clonarPerfil()">Clonar como borrador</button>
+      <button type="button" class="btn-workspace btn-outline" [disabled]="clonando || !cloneForm.dirty" (click)="cancelarClonacion()">Cancelar clonación</button>
+      <button type="button" class="btn-workspace btn-primary" [disabled]="clonando || cloneForm.invalid || !cloneForm.dirty" (click)="clonarPerfil()">{{ clonando ? 'Clonando…' : 'Clonar como borrador' }}</button>
       <button type="button" class="btn-workspace btn-outline" (click)="irARecords()">Ir a registros oficiales</button>
       <button type="button" class="btn-workspace btn-outline" (click)="irAVariantsFields()">Ir a variantes y campos</button>
       <button type="button" class="btn-workspace btn-ghost" (click)="volver()">Volver</button>
@@ -91,8 +91,8 @@
       [columnas]="columnasRecords"
       [datos]="perfil?.records ?? []"
       [cargando]="cargando"
-      tituloVacio="Sin records"
-      mensajeVacio="No hay records configurados para este perfil."
+      tituloVacio="Sin registros"
+      mensajeVacio="No hay registros configurados para este perfil."
     ></ui-grilla-empresarial>
   </ng-template>
   <ui-tarjeta *ngIf="perfil" titulo="Registros" subtitulo="Consulta solo lectura de registros oficiales del perfil." [contenido]="recordsTpl"></ui-tarjeta>
@@ -102,8 +102,8 @@
       [columnas]="columnasVariantes"
       [datos]="perfil?.variantes ?? []"
       [cargando]="cargando"
-      tituloVacio="Sin variants"
-      mensajeVacio="No hay variants configuradas para este perfil."
+      tituloVacio="Sin variantes"
+      mensajeVacio="No hay variantes configuradas para este perfil."
     ></ui-grilla-empresarial>
   </ng-template>
   <ui-tarjeta *ngIf="perfil" titulo="Variantes" subtitulo="Consulta solo lectura de variantes oficiales del perfil." [contenido]="variantsTpl"></ui-tarjeta>

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
@@ -16,6 +16,8 @@ describe('NachaConfigProfileWorkspacePageComponent', () => {
   let router: Router;
   let notificationsSpy: jasmine.SpyObj<NotificationService>;
   let authStub: { hasPermission: jasmine.Spy };
+  let routeParams: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let queryDetailSpy: jasmine.Spy;
   let profileData = buildDetail('BORRADOR');
 
   beforeEach(async () => {
@@ -23,16 +25,22 @@ describe('NachaConfigProfileWorkspacePageComponent', () => {
     commandSpy = jasmine.createSpyObj<NachaConfigCommandService>('NachaConfigCommandService', ['editarBorrador', 'validar', 'publicar', 'inactivar', 'archivar', 'clonar']);
     notificationsSpy = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error', 'info', 'warning']);
     authStub = { hasPermission: jasmine.createSpy().and.returnValue(true) };
+    routeParams = new BehaviorSubject(convertToParamMap({ id: '1' }));
+    queryDetailSpy = jasmine.createSpy('detalle').and.callFake((id: number) => of({
+      ...profileData,
+      id,
+      profileCode: id === 1 ? profileData.profileCode : 'PW-LIVE-CLON'
+    }));
 
     await TestBed.configureTestingModule({
       imports: [SharedModule, RouterTestingModule],
       declarations: [NachaConfigProfileWorkspacePageComponent],
       providers: [
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
+        { provide: ActivatedRoute, useValue: { paramMap: routeParams.asObservable() } },
         {
           provide: NachaConfigQueryService,
           useValue: {
-            detalle: () => of(profileData)
+            detalle: queryDetailSpy
           }
         },
         { provide: NachaConfigCommandService, useValue: commandSpy },
@@ -155,6 +163,15 @@ describe('NachaConfigProfileWorkspacePageComponent', () => {
       expectedRowVersion: 'cm93'
     }));
     expect(router.navigate).toHaveBeenCalledWith(['/nacha-config-admin/perfiles', 1]);
+  });
+
+  it('Component_ShouldReloadWhenRouteChangesToClonedProfile', () => {
+    routeParams.next(convertToParamMap({ id: '2' }));
+    fixture.detectChanges();
+
+    expect(component.perfilId).toBe(2);
+    expect(queryDetailSpy).toHaveBeenCalledWith(2);
+    expect(component.perfil?.profileCode).toBe('PW-LIVE-CLON');
   });
 
   it('Component_ShouldNotRenderAdminActionsWithoutManagePermission', async () => {

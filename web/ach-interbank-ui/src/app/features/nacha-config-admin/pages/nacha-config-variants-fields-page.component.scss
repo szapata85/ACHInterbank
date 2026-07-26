@@ -125,11 +125,14 @@
 }
 
 .table-wrap {
+  max-width: 100%;
   overflow-x: auto;
+  scrollbar-gutter: stable;
 }
 
 .data-table {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
 }
 
@@ -146,6 +149,19 @@
 }
 
 .data-table tbody tr.is-selected {
+  background: #eff6ff;
+}
+
+.data-table th:last-child,
+.data-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: #fff;
+  box-shadow: -8px 0 10px -12px #334155;
+}
+
+.data-table tr.is-selected td:last-child {
   background: #eff6ff;
 }
 
@@ -203,5 +219,18 @@ button:disabled {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .header-actions .btn,
+  .form-actions .btn {
+    width: 100%;
+  }
+
+  .card {
+    padding: .85rem;
+  }
+
+  .data-table {
+    min-width: 680px;
   }
 }

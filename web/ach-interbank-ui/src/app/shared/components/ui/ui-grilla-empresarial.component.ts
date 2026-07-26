@@ -114,6 +114,7 @@ export class UiGrillaEmpresarialComponent<TData = any> {
     localeText: {
       noRowsToShow: 'No hay filas para mostrar',
       page: 'Página',
+      pageSizeSelectorLabel: 'Filas por página',
       to: 'a',
       of: 'de',
       next: 'Siguiente',

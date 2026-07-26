@@ -90,7 +90,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
                 throw new NachaConfigException("INVALID_PROFILE_STATE", "Solo se puede editar perfiles en estado BORRADOR.", 409, Convert.ToBase64String(profile.RowVersion));
             }
 
-            var before = JsonSerializer.Serialize(profile);
+            var before = JsonSerializer.SerializeToElement(profile, AuditJsonOptions);
             profile.NameEs = request.NombreEs.Trim();
             profile.Description = request.Descripcion;
             profile.ContextPriority = request.ContextPriority;
@@ -116,9 +116,15 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
         await ExecuteInTransactionAsync(async () =>
         {
             var source = await _context.CfgProfiles
+                .Include(x => x.Tags)
                 .Include(x => x.Records)
                 .Include(x => x.LayoutVariants)
                     .ThenInclude(v => v.Fields)
+                        .ThenInclude(f => f.SourceDefinition)
+                .Include(x => x.LayoutVariants)
+                    .ThenInclude(v => v.Fields)
+                        .ThenInclude(f => f.Rules)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(x => x.Id == profileId, ct);
 
             if (source is null)
@@ -137,6 +143,14 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             }
 
             var draftStatusId = await ResolveCatalogIdAsync<CatConfigStatus>("BORRADOR", ct);
+            var highestMajorVersion = await _context.CfgProfiles
+                .Where(x =>
+                    x.ClearingHouseId == source.ClearingHouseId
+                    && x.FlowTypeId == source.FlowTypeId
+                    && x.DirectionId == source.DirectionId
+                    && x.ServiceClassId == source.ServiceClassId)
+                .MaxAsync(x => (int?)x.VersionMajor, ct)
+                ?? source.VersionMajor;
             var clone = new CfgProfile
             {
                 ProfileCode = profileCode,
@@ -150,7 +164,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
                 EffectiveFrom = request.EffectiveFrom,
                 EffectiveTo = source.EffectiveTo,
                 StatusId = draftStatusId,
-                VersionMajor = source.VersionMajor + 1,
+                VersionMajor = highestMajorVersion + 1,
                 VersionMinor = 0,
                 SupersedesProfileId = source.Id
             };
@@ -159,17 +173,98 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             _context.CfgProfiles.Add(clone);
             await _context.SaveChangesAsync(ct);
 
+            foreach (var tag in source.Tags)
+            {
+                clone.Tags.Add(new CfgProfileTag
+                {
+                    TagKey = tag.TagKey,
+                    TagValue = tag.TagValue
+                });
+            }
+
+            var clonedVariants = new Dictionary<int, CfgLayoutVariant>();
+            foreach (var variant in source.LayoutVariants)
+            {
+                var clonedVariant = new CfgLayoutVariant
+                {
+                    RecordCodeId = variant.RecordCodeId,
+                    VariantCode = variant.VariantCode,
+                    NameEs = variant.NameEs,
+                    Description = variant.Description,
+                    Priority = variant.Priority,
+                    EffectiveFrom = request.EffectiveFrom,
+                    EffectiveTo = variant.EffectiveTo,
+                    StatusId = draftStatusId,
+                    TotalLength = variant.TotalLength,
+                    SelectionPredicateJson = variant.SelectionPredicateJson,
+                    IsDefaultForRecord = variant.IsDefaultForRecord
+                };
+
+                foreach (var field in variant.Fields)
+                {
+                    var clonedField = new CfgLayoutField
+                    {
+                        FieldCode = field.FieldCode,
+                        FieldNameEs = field.FieldNameEs,
+                        StartPosition = field.StartPosition,
+                        Length = field.Length,
+                        PadChar = field.PadChar,
+                        Justification = field.Justification,
+                        FormatMask = field.FormatMask,
+                        SortOrder = field.SortOrder,
+                        IsVisibleInBackoffice = field.IsVisibleInBackoffice,
+                        IsEnabled = field.IsEnabled,
+                        TransformationPipelineJson = field.TransformationPipelineJson,
+                        SourceDefinition = new CfgFieldSourceDefinition
+                        {
+                            DataSourceTypeId = field.SourceDefinition.DataSourceTypeId,
+                            ConstantValue = field.SourceDefinition.ConstantValue,
+                            EntityName = field.SourceDefinition.EntityName,
+                            PropertyPath = field.SourceDefinition.PropertyPath,
+                            SqlObjectName = field.SourceDefinition.SqlObjectName,
+                            ExpressionDsl = field.SourceDefinition.ExpressionDsl,
+                            ExternalCatalogCode = field.SourceDefinition.ExternalCatalogCode,
+                            FallbackPolicyJson = field.SourceDefinition.FallbackPolicyJson
+                        }
+                    };
+
+                    foreach (var rule in field.Rules)
+                    {
+                        clonedField.Rules.Add(new CfgFieldRule
+                        {
+                            RuleTypeId = rule.RuleTypeId,
+                            RuleCode = rule.RuleCode,
+                            ErrorCode = rule.ErrorCode,
+                            ErrorMessageEs = rule.ErrorMessageEs,
+                            Severity = rule.Severity,
+                            ConditionDsl = rule.ConditionDsl,
+                            RuleConfigJson = rule.RuleConfigJson,
+                            Order = rule.Order,
+                            IsEnabled = rule.IsEnabled
+                        });
+                    }
+
+                    clonedVariant.Fields.Add(clonedField);
+                }
+
+                clone.LayoutVariants.Add(clonedVariant);
+                clonedVariants[variant.Id] = clonedVariant;
+            }
+
             foreach (var record in source.Records)
             {
-                _context.CfgProfileRecords.Add(new CfgProfileRecord
+                clone.Records.Add(new CfgProfileRecord
                 {
-                    ProfileId = clone.Id,
                     RecordCodeId = record.RecordCodeId,
                     Sequence = record.Sequence,
                     IsEnabled = record.IsEnabled,
                     MinOccurs = record.MinOccurs,
                     MaxOccurs = record.MaxOccurs,
                     SourceStrategy = record.SourceStrategy,
+                    LayoutVariant = record.LayoutVariantId.HasValue
+                        && clonedVariants.TryGetValue(record.LayoutVariantId.Value, out var clonedVariant)
+                            ? clonedVariant
+                            : null,
                     SemanticRuleSetId = record.SemanticRuleSetId
                 });
             }

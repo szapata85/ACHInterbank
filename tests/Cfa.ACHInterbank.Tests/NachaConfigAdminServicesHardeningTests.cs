@@ -97,6 +97,34 @@ public sealed class NachaConfigAdminServicesHardeningTests
     }
 
     [Fact]
+    public async Task UpdateDraftAsync_ShouldUpdateDraft_AndAuditEntityGraph()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+
+        var updated = await command.UpdateDraftAsync(profile.Id, new NachaConfigUpdateProfileRequest
+        {
+            NombreEs = "Perfil actualizado",
+            Descripcion = "Descripción actualizada desde administración.",
+            ContextPriority = 25,
+            EffectiveFrom = profile.EffectiveFrom,
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "tester");
+
+        updated.Should().NotBeNull();
+        updated!.NombreEs.Should().Be("Perfil actualizado");
+        updated.Descripcion.Should().Be("Descripción actualizada desde administración.");
+        updated.ContextPriority.Should().Be(25);
+
+        var audit = await context.HistConfigChanges
+            .SingleAsync(x => x.ProfileId == profile.Id && x.ChangeType == "DRAFT_UPDATE");
+        audit.BeforeJson.Should().Contain("\"NameEs\"");
+        audit.AfterJson.Should().Contain("\"NameEs\"");
+    }
+
+    [Fact]
     public async Task UpdateLayoutVariantAsync_ShouldAllowEdit_WhenBorrador()
     {
         await using var context = await CreateSqliteContextAsync();
@@ -327,6 +355,13 @@ public sealed class NachaConfigAdminServicesHardeningTests
         var profile = await SeedProfileGraphAsync(context);
         var query = new NachaConfigProfileQueryService(context);
         var command = new NachaConfigProfileCommandService(context, query);
+        var sourceRecordCount = await context.CfgProfileRecords.CountAsync(x => x.ProfileId == profile.Id);
+        var sourceVariantIds = await context.CfgLayoutVariants
+            .Where(x => x.ProfileId == profile.Id)
+            .Select(x => x.Id)
+            .ToListAsync();
+        var sourceVariantCount = sourceVariantIds.Count;
+        var sourceFieldCount = await context.CfgLayoutFields.CountAsync(x => sourceVariantIds.Contains(x.LayoutVariantId));
 
         var cloned = await command.CloneProfileAsync(profile.Id, new NachaConfigCloneProfileRequest
         {
@@ -340,6 +375,28 @@ public sealed class NachaConfigAdminServicesHardeningTests
         cloned!.ProfileCode.Should().Be("P_CLONE_01");
         var cloneEntity = await context.CfgProfiles.SingleAsync(x => x.ProfileCode == "P_CLONE_01");
         cloneEntity.SupersedesProfileId.Should().Be(profile.Id);
+        cloneEntity.VersionMajor.Should().Be(2);
+        cloned.Records.Should().HaveCount(sourceRecordCount);
+        cloned.Variantes.Should().HaveCount(sourceVariantCount);
+        cloned.Variantes.Sum(x => x.Fields.Count).Should().Be(sourceFieldCount);
+        var refreshedSourceRowVersion = await context.CfgProfiles
+            .AsNoTracking()
+            .Where(x => x.Id == profile.Id)
+            .Select(x => x.RowVersion)
+            .SingleAsync();
+
+        var secondClone = await command.CloneProfileAsync(profile.Id, new NachaConfigCloneProfileRequest
+        {
+            NuevoProfileCode = "P_CLONE_02",
+            NuevoNombreEs = "Segundo perfil clonado",
+            EffectiveFrom = DateTime.UtcNow.Date,
+            ExpectedRowVersion = Convert.ToBase64String(refreshedSourceRowVersion)
+        }, "tester");
+
+        secondClone.Should().NotBeNull();
+        secondClone!.VersionMajor.Should().Be(3);
+        secondClone.Records.Should().HaveCount(sourceRecordCount);
+        secondClone.Variantes.Should().HaveCount(sourceVariantCount);
     }
 
     [Fact]

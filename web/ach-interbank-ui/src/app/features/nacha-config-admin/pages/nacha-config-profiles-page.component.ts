@@ -124,6 +124,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     })
       .pipe(finalize(() => {
         this.cargando = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: ({ dashboard, perfiles }) => {
@@ -134,15 +135,17 @@ export class NachaConfigProfilesPageComponent implements OnInit {
           this.perfiles = perfiles ?? [];
           this.aplicarFiltros();
           if (this.dashboardError) {
-            this.notifications.warning('El resumen NACHA Config no está disponible. El listado puede seguir utilizándose.');
+            this.notifications.warning('El resumen de configuración NACHA-M no está disponible. El listado puede seguir utilizándose.');
           }
           if (this.perfilesError) {
-            this.notifications.warning('El listado de perfiles NACHA Config no está disponible.');
+            this.notifications.warning('El listado de perfiles de configuración NACHA-M no está disponible.');
           }
+          this.cdr.markForCheck();
         },
         error: () => {
           this.errorCarga = true;
-          this.notifications.error('No fue posible cargar la informacion NACHA Config.');
+          this.notifications.error('No fue posible cargar la información de configuración NACHA-M.');
+          this.cdr.markForCheck();
         }
       });
   }
@@ -185,7 +188,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
             seRecuperaDeFallo || this.catalogosReintentos > 0 ? 'recuperados' : 'disponibles';
           this.crearForm.enable({ emitEvent: false });
           if (this.catalogosEstado === 'recuperados') {
-            this.notifications.success('Los catálogos NACHA Config se recuperaron correctamente.');
+            this.notifications.success('Los catálogos de configuración NACHA-M se recuperaron correctamente.');
           }
         },
         error: (error: unknown) => {
@@ -239,6 +242,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       .crearBorrador(payload)
       .pipe(finalize(() => {
         this.creando = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: (perfil) => {
@@ -251,15 +255,6 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       });
   }
 
-  validarPrimerPerfil(): void {
-    const perfil = this.visibles[0];
-    if (!perfil) {
-      return;
-    }
-
-    this.validarPerfil(perfil);
-  }
-
   validarPerfil(perfil: NachaConfigProfileReadModel): void {
     if (!this.puedeGestionar || this.validando) {
       return;
@@ -270,6 +265,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
       .validar(perfil.profileId)
       .pipe(finalize(() => {
         this.validando = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: (result) => {
@@ -342,8 +338,14 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   }
 
   private errorMessage(error: unknown, fallback: string): string {
-    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
-      return (error as { message: string }).message;
+    if (error && typeof error === 'object' && 'errorCode' in error) {
+      const errorCode = String((error as { errorCode?: unknown }).errorCode ?? '');
+      if (errorCode.includes('409') || errorCode === 'CONCURRENCY_CONFLICT') {
+        return 'La configuración cambió mientras la editabas. Actualiza el listado e intenta nuevamente.';
+      }
+      if (errorCode.includes('400') || errorCode === 'VALIDATION_ERROR') {
+        return 'No fue posible guardar el perfil. Revisa los campos e intenta nuevamente.';
+      }
     }
     return fallback;
   }
@@ -405,14 +407,14 @@ export class NachaConfigProfilesPageComponent implements OnInit {
         return 'No fue posible conectar con el servidor para cargar los catálogos.';
       }
       if (error.status === 401 || error.status === 403) {
-        return 'Tu sesión no permite consultar los catálogos NACHA Config.';
+        return 'Tu sesión no permite consultar los catálogos de configuración NACHA-M.';
       }
       if (error.status >= 500) {
-        return 'El servidor no pudo cargar los catálogos NACHA Config.';
+        return 'El servidor no pudo cargar los catálogos de configuración NACHA-M.';
       }
     }
 
-    return 'Los catálogos NACHA Config no están disponibles. Reintenta la carga.';
+    return 'Los catálogos de configuración NACHA-M no están disponibles. Reintenta la carga.';
   }
 
   camaraLabel(code?: string | null): string {

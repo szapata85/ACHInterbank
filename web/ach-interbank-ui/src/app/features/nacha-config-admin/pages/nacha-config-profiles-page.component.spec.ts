@@ -95,9 +95,8 @@ describe('NachaConfigProfilesPageComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('Component_ShouldRenderAdminCreateAndValidateActionsWhenManagePermissionExists', () => {
+  it('Component_ShouldRenderAdminCreateActionWhenManagePermissionExists', () => {
     expect(fixture.nativeElement.textContent).toContain('Crear borrador');
-    expect(fixture.nativeElement.textContent).toContain('Validar');
   });
 
   it('Component_ShouldHideAdminActionsWhenOnlyReadPermissionExists', async () => {

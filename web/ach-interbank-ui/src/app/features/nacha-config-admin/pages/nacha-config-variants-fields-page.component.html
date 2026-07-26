@@ -1,4 +1,5 @@
 ﻿<section class="page" data-testid="nacha-config-variants-fields-page">
+  <ui-migas-pan [items]="[{ etiqueta: 'Perfiles', ruta: '/nacha-config-admin/perfiles' }, { etiqueta: 'Registros', ruta: '/nacha-config-admin/records' }, { etiqueta: 'Variantes y campos' }]" />
   <ng-template #accionesHeader>
     <div class="header-actions">
       <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irADetallePerfil()">Ir a perfil</button>
@@ -8,13 +9,13 @@
 
   <ui-encabezado-pagina
     titulo="Variantes y campos NACHA-M"
-    descripcion="Espacio administrativo oficial sobre perfiles NACHA-M."
+    descripcion="Selecciona un perfil, un registro y una variante para consultar o editar sus campos."
     [acciones]="accionesHeader"
   ></ui-encabezado-pagina>
 
   <div class="alerts">
     <ui-alerta tipo="info" mensaje="NACHA-M oficial usa perfiles NACHA-M como fuente maestra para variantes y campos."></ui-alerta>
-    <ui-alerta *ngIf="!puedeGestionar" tipo="advertencia" mensaje="CanReadAch deja esta pantalla en consulta. CanManageAch es obligatorio para editar o guardar."></ui-alerta>
+    <ui-alerta *ngIf="!puedeGestionar" tipo="advertencia" mensaje="Tu rol permite consultar la configuración, pero no modificarla."></ui-alerta>
     <ui-alerta *ngIf="puedeGestionar && estadoNormalizado && estadoNormalizado !== 'BORRADOR'" tipo="advertencia" mensaje="El perfil seleccionado no está en BORRADOR. La edición queda bloqueada."></ui-alerta>
   </div>
 
@@ -52,19 +53,23 @@
         <span>Perfil</span>
         <select data-testid="profile-selector" [value]="selectedProfileId ?? ''" (change)="onProfileChange($event)">
           <option value="">Selecciona un perfil</option>
-          <option *ngFor="let profile of profiles; trackBy: trackByProfileId" [value]="profile.profileId">
+          <option
+            *ngFor="let profile of profiles; trackBy: trackByProfileId"
+            [value]="profile.profileId"
+            [selected]="profile.profileId === selectedProfileId"
+          >
             {{ profile.profileCode }} · {{ profile.profileName }} · {{ profile.status }} · v{{ profile.version }}
           </option>
         </select>
       </label>
 
       <div class="summary-grid" *ngIf="selectedProfile as profile">
+        <div><strong>Perfil</strong><span>{{ profile.profileCode }}</span></div>
         <div><strong>Cámara</strong><span>{{ profile.camara }}</span></div>
         <div><strong>Flujo</strong><span>{{ profile.flujo }}</span></div>
         <div><strong>Dirección</strong><span>{{ profile.direccion }}</span></div>
         <div><strong>Servicio</strong><span>{{ profile.servicio || 'Sin servicio' }}</span></div>
         <div><strong>Vigencia</strong><span>{{ formatDate(profile.effectiveFrom) }} a {{ profile.effectiveTo ? formatDate(profile.effectiveTo) : 'abierta' }}</span></div>
-        <div><strong>RowVersion</strong><span>{{ profile.rowVersion }}</span></div>
       </div>
     </article>
 
@@ -107,7 +112,7 @@
                 <td>{{ record.recordCode }}</td>
                 <td>{{ record.sequence }}</td>
                 <td>{{ record.isEnabled ? 'Habilitado' : 'Inactivo' }}</td>
-                <td>{{ record.sourceStrategy }}</td>
+                <td>{{ sourceStrategyLabel(record.sourceStrategy) }}</td>
                 <td>
                   <button type="button" class="btn btn-outline" [disabled]="isSelectedRecord(record)" (click)="onSelectRecord(record.recordCode)">Seleccionar</button>
                 </td>
@@ -194,8 +199,9 @@
                 <th>Campo</th>
                 <th>Nombre</th>
                 <th>Inicio</th>
-                <th>Largo</th>
-                <th>PropertyPath</th>
+                <th>Longitud</th>
+                <th>Posición final</th>
+                <th>Ruta técnica</th>
                 <th>Reglas</th>
                 <th>Estado</th>
                 <th>Acción</th>
@@ -207,6 +213,7 @@
                 <td>{{ field.fieldNameEs }}</td>
                 <td>{{ field.startPosition }}</td>
                 <td>{{ field.length }}</td>
+                <td>{{ field.startPosition + field.length - 1 }}</td>
                 <td>{{ fieldValue(field) }}</td>
                 <td>{{ fieldRulesCount(field) }}</td>
                 <td>{{ field.isEnabled ? 'Habilitado' : 'Inactivo' }}</td>
@@ -219,11 +226,11 @@
         </div>
       </article>
 
-      <article class="card editor-card">
+      <article class="card editor-card" *ngIf="puedeEditar">
         <div class="section-head">
           <div>
             <h3>Editar variante</h3>
-            <p *ngIf="selectedVariant; else noVariantSelected">Edita solo si el perfil está en BORRADOR y tienes CanManageAch.</p>
+            <p *ngIf="selectedVariant; else noVariantSelected">Modifica los datos descriptivos y la prioridad de la variante seleccionada.</p>
           </div>
           <span class="badge" *ngIf="selectedVariant">{{ selectedVariant.variantCode }}</span>
         </div>
@@ -269,17 +276,11 @@
         <div class="meta-note" *ngIf="selectedVariant">
           <span><strong>Registro:</strong> {{ selectedVariant.recordCode }}</span>
           <span><strong>Longitud total:</strong> {{ selectedVariant.totalLength }}</span>
-          <span><strong>RowVersion del perfil:</strong> {{ selectedProfile?.rowVersion }}</span>
         </div>
 
-        <ui-alerta
-          *ngIf="selectedVariant && !puedeEditarVariantActual"
-          tipo="advertencia"
-          mensaje="La edición de variants está bloqueada porque el profile no está en BORRADOR o no tienes CanManageAch."
-        ></ui-alerta>
-
         <div class="form-actions" *ngIf="puedeEditarVariantActual">
-          <button type="button" class="btn btn-primary" [disabled]="savingVariant || variantForm.invalid" (click)="guardarVariant()">Guardar variante</button>
+          <button type="button" class="btn btn-outline" [disabled]="savingVariant || !variantForm.dirty" (click)="cancelarVariant()">Cancelar cambios</button>
+          <button type="button" class="btn btn-primary" [disabled]="savingVariant || variantForm.invalid || !variantForm.dirty" (click)="guardarVariant()">{{ savingVariant ? 'Guardando…' : 'Guardar variante' }}</button>
         </div>
 
         <ui-alerta *ngIf="variantSaveError" tipo="error" [mensaje]="variantSaveError"></ui-alerta>
@@ -290,11 +291,11 @@
         </ul>
       </article>
 
-      <article class="card editor-card">
+      <article class="card editor-card" *ngIf="puedeEditar">
         <div class="section-head">
           <div>
             <h3>Editar campo</h3>
-            <p *ngIf="selectedField; else noFieldSelected">Edita solo si el perfil está en BORRADOR y tienes CanManageAch.</p>
+            <p *ngIf="selectedField; else noFieldSelected">Ajusta las posiciones y los datos funcionales del campo seleccionado.</p>
           </div>
           <span class="badge" *ngIf="selectedField">{{ selectedField.fieldCode }}</span>
         </div>
@@ -322,10 +323,20 @@
             <small *ngIf="fieldForm.controls.length.touched && fieldForm.controls.length.invalid" class="field-error">La longitud debe ser mayor o igual a 1.</small>
           </label>
 
+          <label class="field">
+            <span>Posición final calculada</span>
+            <input type="number" [value]="fieldEndPosition" readonly aria-readonly="true" />
+            <small class="field-hint">Se calcula como posición inicial + longitud − 1.</small>
+          </label>
+
+          <small *ngIf="fieldForm.touched && fieldForm.hasError('overlap')" class="field-error field--wide">
+            El campo se superpone con otro campo de la variante.
+          </small>
+
           <label class="field field--wide">
             <span>Ruta de propiedad</span>
             <input type="text" formControlName="propertyPath" />
-            <small class="field-hint">Si se deja vacío, el backend conserva el valor actual.</small>
+            <small class="field-hint">Si se deja vacía, la API conserva la ruta técnica actual.</small>
           </label>
 
           <label class="field field--inline">
@@ -337,17 +348,11 @@
         <div class="meta-note" *ngIf="selectedField">
           <span><strong>Código del campo:</strong> {{ selectedField.fieldCode }}</span>
           <span><strong>Tipo de fuente:</strong> {{ selectedField.sourceType || 'N/D' }}</span>
-          <span><strong>RowVersion del perfil:</strong> {{ selectedProfile?.rowVersion }}</span>
         </div>
 
-        <ui-alerta
-          *ngIf="selectedField && !puedeEditarFieldActual"
-          tipo="advertencia"
-          mensaje="La edición de campos está bloqueada porque el profile no está en BORRADOR o no tienes CanManageAch."
-        ></ui-alerta>
-
         <div class="form-actions" *ngIf="puedeEditarFieldActual">
-          <button type="button" class="btn btn-primary" [disabled]="savingField || fieldForm.invalid" (click)="guardarField()">Guardar campo</button>
+          <button type="button" class="btn btn-outline" [disabled]="savingField || !fieldForm.dirty" (click)="cancelarField()">Cancelar cambios</button>
+          <button type="button" class="btn btn-primary" [disabled]="savingField || fieldForm.invalid || !fieldForm.dirty" (click)="guardarField()">{{ savingField ? 'Guardando…' : 'Guardar campo' }}</button>
         </div>
 
         <ui-alerta *ngIf="fieldSaveError" tipo="error" [mensaje]="fieldSaveError"></ui-alerta>
@@ -407,11 +412,11 @@
         </div>
       </article>
 
-      <article class="card editor-card">
+      <article class="card editor-card" *ngIf="puedeEditar && selectedRules.length > 0">
         <div class="section-head">
           <div>
             <h3>Editar regla</h3>
-            <p *ngIf="selectedRule; else noRuleSelected">Edita solo si el perfil está en BORRADOR y tienes CanManageAch.</p>
+            <p *ngIf="selectedRule; else noRuleSelected">Modifica el mensaje y la severidad de la regla seleccionada.</p>
           </div>
           <span class="badge" *ngIf="selectedRule">{{ selectedRule.errorCode }}</span>
         </div>
@@ -437,7 +442,7 @@
             <span>Severidad</span>
             <select formControlName="severity">
               <option value="ERROR">ERROR</option>
-              <option value="WARN">WARN</option>
+              <option value="WARN">ADVERTENCIA</option>
             </select>
           </label>
 
@@ -449,18 +454,12 @@
 
         <div class="meta-note" *ngIf="selectedRule">
           <span><strong>ID de regla:</strong> {{ selectedRule.id }}</span>
-          <span><strong>RowVersion del perfil:</strong> {{ selectedProfile?.rowVersion }}</span>
           <span><strong>Campo:</strong> {{ selectedField?.fieldCode || 'N/D' }}</span>
         </div>
 
-        <ui-alerta
-          *ngIf="selectedRule && !puedeEditarRuleActual"
-          tipo="advertencia"
-          mensaje="La edición de reglas está bloqueada porque el perfil no está en BORRADOR o no tienes CanManageAch."
-        ></ui-alerta>
-
         <div class="form-actions" *ngIf="puedeEditarRuleActual">
-          <button type="button" class="btn btn-primary" [disabled]="savingRule || ruleForm.invalid" (click)="guardarRule()">Guardar regla</button>
+          <button type="button" class="btn btn-outline" [disabled]="savingRule || !ruleForm.dirty" (click)="cancelarRule()">Cancelar cambios</button>
+          <button type="button" class="btn btn-primary" [disabled]="savingRule || ruleForm.invalid || !ruleForm.dirty" (click)="guardarRule()">{{ savingRule ? 'Guardando…' : 'Guardar regla' }}</button>
         </div>
 
         <ui-alerta *ngIf="ruleSaveError" tipo="error" [mensaje]="ruleSaveError"></ui-alerta>

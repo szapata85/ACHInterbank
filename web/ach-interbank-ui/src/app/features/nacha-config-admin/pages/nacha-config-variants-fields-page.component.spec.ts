@@ -279,7 +279,7 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(querySpy.detalle).toHaveBeenCalledTimes(2);
     expect(component.selectedProfile?.rowVersion).toBe('cm93LTI=');
     expect(component.selectedVariant?.nombreEs).toBe('Record 1 base editado');
-    expect(notificationsSpy.success).toHaveBeenCalledWith('Variant actualizada correctamente.');
+    expect(notificationsSpy.success).toHaveBeenCalledWith('Variante actualizada correctamente.');
   });
 
   it('Component_ShouldSaveFieldWithProfileRowVersionAndRefreshDetail', () => {
@@ -288,7 +288,7 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     component.fieldForm.patchValue({
       fieldNameEs: 'Field A editado',
       startPosition: 3,
-      length: 11,
+      length: 7,
       propertyPath: 'Transaction.Amount.Editado',
       isEnabled: false
     });
@@ -297,7 +297,7 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     const expectedPayload: NachaConfigLayoutFieldEditRequest = {
       fieldNameEs: 'Field A editado',
       startPosition: 3,
-      length: 11,
+      length: 7,
       propertyPath: 'Transaction.Amount.Editado',
       isEnabled: false,
       expectedRowVersion: 'cm93'
@@ -307,7 +307,7 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(querySpy.detalle).toHaveBeenCalledTimes(2);
     expect(component.selectedProfile?.rowVersion).toBe('cm93LTM=');
     expect(component.selectedField?.fieldNameEs).toBe('Field A editado');
-    expect(notificationsSpy.success).toHaveBeenCalledWith('Field actualizado correctamente.');
+    expect(notificationsSpy.success).toHaveBeenCalledWith('Campo actualizado correctamente.');
   });
 
   it('Component_ShouldSaveRuleWithProfileRowVersionAndRefreshDetail', () => {
@@ -334,7 +334,7 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(querySpy.detalle).toHaveBeenCalledTimes(2);
     expect(component.selectedProfile?.rowVersion).toBe('cm93LTQ=');
     expect(component.selectedRule?.errorCode).toBe('ERR_UPDATED');
-    expect(notificationsSpy.success).toHaveBeenCalledWith('Rule actualizada correctamente.');
+    expect(notificationsSpy.success).toHaveBeenCalledWith('Regla actualizada correctamente.');
   });
 
   it('Component_ShouldBlockEditingWhenReadonlyOrWithoutManagePermission', async () => {
@@ -360,6 +360,7 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
 
   it('Component_ShouldSurfaceValidationAndConcurrencyErrors', () => {
     commandSpy.actualizarField.and.returnValue(throwError(() => ({
+      errorCode: 'CONCURRENCY_CONFLICT',
       message: 'El perfil fue modificado por otro usuario.',
       issues: [{ severidad: 'ERROR', codigo: 'CONCURRENCY_CONFLICT', mensaje: 'Concurrencia detectada.' }]
     })));
@@ -367,13 +368,13 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     component.fieldForm.patchValue({
       fieldNameEs: 'Field A editado',
       startPosition: 3,
-      length: 11,
+      length: 7,
       propertyPath: 'Transaction.Amount.Editado',
       isEnabled: false
     });
     component.guardarField();
 
-    expect(component.fieldSaveError).toContain('modificado por otro usuario');
+    expect(component.fieldSaveError).toContain('cambió mientras lo editabas');
     expect(component.fieldSaveIssues.length).toBe(1);
     expect(notificationsSpy.error).toHaveBeenCalled();
   });
@@ -398,6 +399,26 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/nacha-config-admin/perfiles', 11]);
 
     component.irARecords();
-    expect(router.navigate).toHaveBeenCalledWith(['/nacha-config-admin/records']);
+    expect(router.navigate).toHaveBeenCalledWith(
+      ['/nacha-config-admin/records'],
+      { queryParams: { profileId: 11 } }
+    );
+  });
+
+  it('Component_ShouldRejectOverlappingFieldAndCancelEdits', () => {
+    component.fieldForm.patchValue({
+      fieldNameEs: 'Campo superpuesto',
+      startPosition: 3,
+      length: 11
+    });
+    component.fieldForm.markAllAsTouched();
+
+    expect(component.fieldForm.hasError('overlap')).toBeTrue();
+    component.guardarField();
+    expect(commandSpy.actualizarField).not.toHaveBeenCalled();
+
+    component.cancelarField();
+    expect(component.fieldForm.controls.fieldNameEs.value).toBe('Field A');
+    expect(component.fieldForm.dirty).toBeFalse();
   });
 });

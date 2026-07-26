@@ -61,7 +61,7 @@ export class NachaConfigCommandService {
       const backend = error.error as NachaConfigApiError | undefined;
       const payload: NachaConfigApiError = {
         errorCode: backend?.errorCode ?? `HTTP_${error.status}`,
-        message: backend?.message ?? 'Ocurrió un error inesperado en NACHA Config.',
+        message: backend?.message ?? 'Ocurrió un error inesperado en la configuración NACHA-M.',
         currentRowVersion: backend?.currentRowVersion,
         issues: backend?.issues ?? []
       };

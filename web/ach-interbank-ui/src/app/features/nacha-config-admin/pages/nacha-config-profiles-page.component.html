@@ -1,11 +1,10 @@
 <section class="nacha-config-profiles-page" data-testid="nacha-config-profiles-page">
-  <ui-migas-pan [items]="[{ label: 'Inicio', route: '/dashboard' }, { label: 'NACHA Config' }]" />
-  <ui-encabezado-pagina titulo="Configuración NACHA-M" descripcion="Consulta y administración controlada de perfiles NACHA-M por cámara compensadora"></ui-encabezado-pagina>
+  <ui-migas-pan [items]="[{ etiqueta: 'Inicio', ruta: '/dashboard' }, { etiqueta: 'Configuración NACHA-M' }]" />
+  <ui-encabezado-pagina titulo="Perfiles de configuración NACHA-M" descripcion="Administra los perfiles técnicos de cada cámara compensadora."></ui-encabezado-pagina>
 
   <section class="banners">
     <ui-alerta tipo="info" mensaje="Modelo oficial NACHA-M: perfiles de configuración asociados a cada cámara."></ui-alerta>
-    <ui-alerta tipo="advertencia" mensaje="Los layouts y definitions legacy no son la fuente oficial de parametrización."></ui-alerta>
-    <ui-alerta tipo="error" mensaje="Productivo NO-GO: certificación y UAT formal pendientes. La administración local no habilita ejecución productiva."></ui-alerta>
+    <ui-alerta tipo="advertencia" mensaje="Las definiciones heredadas son solo de consulta; los perfiles son la fuente oficial de parametrización."></ui-alerta>
   </section>
 
   <section class="summary-grid" *ngIf="dashboard">
@@ -28,7 +27,7 @@
   </section>
 
   <ui-alerta *ngFor="let warning of dashboard?.warnings ?? []" tipo="advertencia" [mensaje]="warning"></ui-alerta>
-  <ui-alerta *ngIf="dashboardError" tipo="advertencia" mensaje="El resumen NACHA Config no está disponible; el listado se mantiene independiente."></ui-alerta>
+  <ui-alerta *ngIf="dashboardError" tipo="advertencia" mensaje="El resumen de configuración no está disponible; puedes seguir utilizando el listado."></ui-alerta>
 
   <ng-template #crearTpl>
     <ui-alerta
@@ -100,25 +99,33 @@
 
     <div class="acciones-crear">
       <ui-boton texto="Crear borrador" variante="primario" [cargando]="creando" [deshabilitado]="!catalogosDisponibles || crearForm.invalid" (accion)="crearBorrador()"></ui-boton>
-      <ui-boton texto="Validar" variante="contorno" [deshabilitado]="visibles.length === 0 || validando" (accion)="validarPrimerPerfil()"></ui-boton>
     </div>
   </ng-template>
-  <ui-tarjeta *ngIf="puedeGestionar" titulo="Crear borrador" subtitulo="El nuevo perfil queda asociado a la cámara seleccionada y se puede editar antes de publicarlo." [contenido]="crearTpl"></ui-tarjeta>
+  <details *ngIf="puedeGestionar" class="create-panel" data-testid="create-profile-panel">
+    <summary>Crear un perfil en borrador</summary>
+    <ui-tarjeta titulo="Datos del nuevo perfil" subtitulo="El borrador se asocia a la cámara seleccionada y puede completarse antes de publicarlo." [contenido]="crearTpl"></ui-tarjeta>
+  </details>
 
   <ng-template #filtrosTpl>
     <div class="filtros-grid" [formGroup]="filtrosForm">
       <ui-campo-texto etiqueta="Buscar" [control]="filtrosForm.controls.texto" placeholder="Código o nombre"></ui-campo-texto>
       <label class="selector-campo">
         <span>Estado</span>
-        <ui-selector-buscable [opciones]="opcionesEstado" [formControl]="filtrosForm.controls.estado" placeholderBusqueda="Buscar estado"></ui-selector-buscable>
+        <select [formControl]="filtrosForm.controls.estado">
+          <option *ngFor="let opcion of opcionesEstado" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+        </select>
       </label>
       <label class="selector-campo">
         <span>Cámara</span>
-        <ui-selector-buscable [opciones]="opcionesCamara" [formControl]="filtrosForm.controls.camara" placeholderBusqueda="Buscar cámara"></ui-selector-buscable>
+        <select [formControl]="filtrosForm.controls.camara">
+          <option *ngFor="let opcion of opcionesCamara" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+        </select>
       </label>
       <label class="selector-campo">
         <span>Flujo</span>
-        <ui-selector-buscable [opciones]="opcionesFlujo" [formControl]="filtrosForm.controls.flujo" placeholderBusqueda="Buscar flujo"></ui-selector-buscable>
+        <select [formControl]="filtrosForm.controls.flujo">
+          <option *ngFor="let opcion of opcionesFlujo" [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+        </select>
       </label>
     </div>
   </ng-template>

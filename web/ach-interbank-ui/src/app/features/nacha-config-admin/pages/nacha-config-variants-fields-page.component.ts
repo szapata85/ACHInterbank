@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { FormBuilder, ValidationErrors, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -37,7 +37,10 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private detailRequestId = 0;
 
   readonly puedeGestionar = this.auth.hasPermission('CanManageAch');
 
@@ -73,13 +76,16 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     effectiveTo: ['']
   });
 
-  readonly fieldForm = this.fb.group({
-    fieldNameEs: ['', [Validators.required, Validators.minLength(2)]],
-    startPosition: [1, [Validators.required, Validators.min(1)]],
-    length: [1, [Validators.required, Validators.min(1)]],
-    propertyPath: [''],
-    isEnabled: [true]
-  });
+  readonly fieldForm = this.fb.group(
+    {
+      fieldNameEs: ['', [Validators.required, Validators.minLength(2)]],
+      startPosition: [1, [Validators.required, Validators.min(1)]],
+      length: [1, [Validators.required, Validators.min(1)]],
+      propertyPath: [''],
+      isEnabled: [true]
+    },
+    { validators: [() => this.fieldOverlapValidation()] }
+  );
 
   readonly ruleForm = this.fb.group({
     errorCode: ['', [Validators.required, Validators.minLength(3)]],
@@ -89,6 +95,13 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    const requestedProfileId = Number(this.route.snapshot.queryParamMap.get('profileId'));
+    const requestedVariantId = Number(this.route.snapshot.queryParamMap.get('variantId'));
+    const requestedFieldId = Number(this.route.snapshot.queryParamMap.get('fieldId'));
+    this.selectedProfileId = Number.isFinite(requestedProfileId) && requestedProfileId > 0 ? requestedProfileId : null;
+    this.selectedRecordCode = this.route.snapshot.queryParamMap.get('recordCode');
+    this.selectedVariantId = Number.isFinite(requestedVariantId) && requestedVariantId > 0 ? requestedVariantId : null;
+    this.selectedFieldId = Number.isFinite(requestedFieldId) && requestedFieldId > 0 ? requestedFieldId : null;
     this.loadProfiles();
   }
 
@@ -182,6 +195,14 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     return this.puedeEditar && !!this.selectedRule;
   }
 
+  get fieldEndPosition(): number | null {
+    const start = Number(this.fieldForm.controls.startPosition.value);
+    const length = Number(this.fieldForm.controls.length.value);
+    return Number.isFinite(start) && Number.isFinite(length) && start >= 1 && length >= 1
+      ? start + length - 1
+      : null;
+  }
+
   loadProfiles(): void {
     this.loadingProfiles = true;
     this.profilesError = '';
@@ -189,6 +210,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.query.perfilesReadOnly()
       .pipe(finalize(() => {
         this.loadingProfiles = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: (profiles) => {
@@ -201,12 +223,14 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
           const nextProfileId = this.resolveProfileSelection(this.selectedProfileId);
           this.selectedProfileId = nextProfileId;
           this.loadDetail(nextProfileId, undefined, undefined, undefined);
+          this.cdr.markForCheck();
         },
         error: () => {
           this.profiles = [];
           this.clearWorkspace();
-          this.profilesError = 'No fue posible cargar nacha-config profiles oficiales.';
+          this.profilesError = 'No fue posible cargar los perfiles oficiales de configuración NACHA-M.';
           this.notifications.error(this.profilesError);
+          this.cdr.markForCheck();
         }
       });
   }
@@ -238,6 +262,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
       ? this.selectedRuleId
       : this.selectedRules[0]?.id ?? null;
     this.syncForms();
+    this.syncContextUrl();
   }
 
   onSelectVariant(variantId: number): void {
@@ -253,6 +278,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
       ? this.selectedRuleId
       : this.selectedRules[0]?.id ?? null;
     this.syncForms();
+    this.syncContextUrl();
   }
 
   onSelectField(fieldId: number): void {
@@ -265,6 +291,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
       ? this.selectedRuleId
       : this.selectedRules[0]?.id ?? null;
     this.syncForms();
+    this.syncContextUrl();
   }
 
   onSelectRule(ruleId: number): void {
@@ -274,6 +301,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
 
     this.selectedRuleId = ruleId;
     this.syncForms();
+    this.syncContextUrl();
   }
 
   guardarVariant(): void {
@@ -304,10 +332,11 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.command.actualizarVariante(this.selectedProfile.id, this.selectedVariant.id, payload as unknown as Record<string, unknown>)
       .pipe(finalize(() => {
         this.savingVariant = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: () => {
-          this.notifications.success('Variant actualizada correctamente.');
+          this.notifications.success('Variante actualizada correctamente.');
           this.reloadDetailAfterSave();
         },
         error: (error) => this.handleSaveError(error, 'variant')
@@ -341,10 +370,11 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.command.actualizarField(this.selectedProfile.id, this.selectedField.id, payload as unknown as Record<string, unknown>)
       .pipe(finalize(() => {
         this.savingField = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: () => {
-          this.notifications.success('Field actualizado correctamente.');
+          this.notifications.success('Campo actualizado correctamente.');
           this.reloadDetailAfterSave();
         },
         error: (error) => this.handleSaveError(error, 'field')
@@ -377,10 +407,11 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.command.actualizarRule(this.selectedProfile.id, this.selectedRule.id, payload as unknown as Record<string, unknown>)
       .pipe(finalize(() => {
         this.savingRule = false;
+        this.cdr.markForCheck();
       }))
       .subscribe({
         next: () => {
-          this.notifications.success('Rule actualizada correctamente.');
+          this.notifications.success('Regla actualizada correctamente.');
           this.reloadDetailAfterSave();
         },
         error: (error) => this.handleSaveError(error, 'rule')
@@ -396,7 +427,27 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   }
 
   irARecords(): void {
-    void this.router.navigate(['/nacha-config-admin/records']);
+    void this.router.navigate(['/nacha-config-admin/records'], {
+      queryParams: { profileId: this.selectedProfileId }
+    });
+  }
+
+  cancelarVariant(): void {
+    this.syncVariantForm();
+    this.variantSaveError = '';
+    this.variantSaveIssues = [];
+  }
+
+  cancelarField(): void {
+    this.syncFieldForm();
+    this.fieldSaveError = '';
+    this.fieldSaveIssues = [];
+  }
+
+  cancelarRule(): void {
+    this.syncRuleForm();
+    this.ruleSaveError = '';
+    this.ruleSaveIssues = [];
   }
 
   recargarDetalleActual(): void {
@@ -448,11 +499,15 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   }
 
   fieldValue(field: NachaConfigLayoutField): string {
-    return field.propertyPath?.trim() || 'Sin propertyPath';
+    return field.propertyPath?.trim() || 'Sin ruta técnica';
   }
 
   fieldRulesCount(field: NachaConfigLayoutField): number {
     return field.reglas?.length ?? 0;
+  }
+
+  sourceStrategyLabel(value: string): string {
+    return value === 'TABLE_DRIVEN' ? 'Configuración parametrizada' : value;
   }
 
   private loadDetail(
@@ -462,6 +517,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     preferredFieldId?: number | null,
     preferredRuleId?: number | null
   ): void {
+    const requestId = ++this.detailRequestId;
     this.loadingDetail = true;
     this.detailError = '';
     this.variantSaveError = '';
@@ -473,20 +529,32 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
 
     this.query.detalle(profileId)
       .pipe(finalize(() => {
-        this.loadingDetail = false;
+        if (requestId === this.detailRequestId) {
+          this.loadingDetail = false;
+          this.cdr.markForCheck();
+        }
       }))
       .subscribe({
         next: (detail) => {
+          if (requestId !== this.detailRequestId) {
+            return;
+          }
           this.selectedProfile = detail;
           this.selectedProfileId = detail.id;
           this.reconcileSelection(detail, preferredRecordCode, preferredVariantId, preferredFieldId, preferredRuleId ?? this.selectedRuleId);
           this.syncForms();
+          this.syncContextUrl();
+          this.cdr.markForCheck();
         },
         error: () => {
+          if (requestId !== this.detailRequestId) {
+            return;
+          }
           this.selectedProfile = null;
           this.clearWorkspaceSelection();
-          this.detailError = 'No fue posible cargar el detalle del perfil NACHA Config.';
+          this.detailError = 'No fue posible cargar el detalle del perfil de configuración NACHA-M.';
           this.notifications.error(this.detailError);
+          this.cdr.markForCheck();
         }
       });
   }
@@ -719,7 +787,12 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
 
   private handleSaveError(error: unknown, target: 'variant' | 'field' | 'rule'): void {
     const apiError = error as Partial<NachaConfigApiError> | null;
-    const message = apiError?.message?.trim() || `No fue posible guardar el ${target}.`;
+    const targetName = target === 'variant' ? 'variante' : target === 'field' ? 'campo' : 'regla';
+    const message = apiError?.errorCode === 'CONCURRENCY_CONFLICT' || apiError?.errorCode?.includes('409')
+      ? 'El perfil cambió mientras lo editabas. Recarga los datos e intenta nuevamente.'
+      : apiError?.issues?.length
+        ? `No fue posible guardar la ${targetName}. Revisa las observaciones e intenta nuevamente.`
+        : `No fue posible guardar la ${targetName}. Revisa los datos e intenta nuevamente.`;
     const issues = apiError?.issues ?? [];
 
     if (target === 'variant') {
@@ -742,6 +815,38 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     }
 
     return this.profiles[0].profileId;
+  }
+
+  private fieldOverlapValidation(): ValidationErrors | null {
+    const start = Number(this.fieldForm?.controls.startPosition.value);
+    const length = Number(this.fieldForm?.controls.length.value);
+    if (!Number.isFinite(start) || !Number.isFinite(length) || start < 1 || length < 1) {
+      return null;
+    }
+    const end = start + length - 1;
+    const overlaps = this.selectedFields
+      .filter((field) => field.id !== this.selectedFieldId)
+      .some((field) => {
+        const fieldEnd = field.startPosition + field.length - 1;
+        return start <= fieldEnd && end >= field.startPosition;
+      });
+    return overlaps ? { overlap: true } : null;
+  }
+
+  private syncContextUrl(): void {
+    if (!this.selectedProfileId) {
+      return;
+    }
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        profileId: this.selectedProfileId,
+        recordCode: this.selectedRecordCode,
+        variantId: this.selectedVariantId,
+        fieldId: this.selectedFieldId
+      },
+      replaceUrl: true
+    });
   }
 
   private dateInputValue(value?: string | null): string {

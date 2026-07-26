@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -33,6 +33,7 @@ export class NachaConfigRecordsPageComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly puedeGestionar = this.auth.hasPermission('CanManageAch');
 
@@ -48,9 +49,14 @@ export class NachaConfigRecordsPageComponent implements OnInit {
   profilesError = '';
   detailError = '';
   saveError = '';
+  sequenceError = '';
   saveIssues: NachaConfigValidationIssue[] = [];
+  sequencesDirty = false;
+  private originalSequences = new Map<number, number>();
 
   ngOnInit(): void {
+    const requestedProfileId = Number(this.route.snapshot.queryParamMap.get('profileId'));
+    this.selectedProfileId = Number.isFinite(requestedProfileId) && requestedProfileId > 0 ? requestedProfileId : null;
     this.loadProfiles();
   }
 
@@ -93,8 +99,8 @@ export class NachaConfigRecordsPageComponent implements OnInit {
           this.selectedProfileId = null;
           this.selectedProfile = null;
           this.records = [];
-          this.profilesError = 'No fue posible cargar perfiles oficiales NACHA Config.';
-          this.notifications.error('No fue posible cargar perfiles oficiales NACHA Config.');
+          this.profilesError = 'No fue posible cargar los perfiles oficiales de configuración NACHA-M.';
+          this.notifications.error(this.profilesError);
           this.cdr.markForCheck();
         }
       });
@@ -128,20 +134,29 @@ export class NachaConfigRecordsPageComponent implements OnInit {
           this.records = [...(detail.records ?? [])]
             .sort((a, b) => a.sequence - b.sequence || a.recordCode.localeCompare(b.recordCode))
             .map((record, index) => ({ ...record, position: index + 1 }));
+          this.originalSequences = new Map(this.records.map((record) => [record.id, record.sequence]));
+          this.sequencesDirty = false;
+          this.sequenceError = '';
+          this.syncContextUrl();
           this.cdr.markForCheck();
         },
         error: () => {
           this.selectedProfile = null;
           this.records = [];
-          this.detailError = 'No fue posible cargar el detalle del perfil NACHA Config.';
-          this.notifications.error('No fue posible cargar el detalle del perfil NACHA Config.');
+          this.detailError = 'No fue posible cargar el detalle del perfil de configuración NACHA-M.';
+          this.notifications.error(this.detailError);
           this.cdr.markForCheck();
         }
       });
   }
 
   guardarSecuencia(): void {
-    if (!this.puedeEditarSecuencia || !this.selectedProfile || this.saving) {
+    if (!this.puedeEditarSecuencia || !this.selectedProfile || this.saving || !this.sequencesDirty) {
+      return;
+    }
+
+    this.validateSequences();
+    if (this.sequenceError) {
       return;
     }
 
@@ -164,12 +179,12 @@ export class NachaConfigRecordsPageComponent implements OnInit {
       }))
       .subscribe({
         next: () => {
-          this.notifications.success('Secuencia de records actualizada correctamente.');
+          this.notifications.success('Secuencia de registros actualizada correctamente.');
           this.loadSelectedProfile(this.selectedProfile!.id);
         },
         error: (error) => {
           const apiError = error as Partial<NachaConfigApiError> | null;
-          this.saveError = apiError?.message?.trim() || 'No fue posible guardar la secuencia.';
+          this.saveError = this.friendlySaveError(apiError);
           this.saveIssues = apiError?.issues ?? [];
           this.notifications.error(this.saveError);
           this.cdr.markForCheck();
@@ -185,6 +200,19 @@ export class NachaConfigRecordsPageComponent implements OnInit {
 
     const value = Number(rawValue);
     record.sequence = Number.isFinite(value) ? Math.trunc(value) : record.sequence;
+    this.sequencesDirty = this.records.some((item) => this.originalSequences.get(item.id) !== item.sequence);
+    this.validateSequences();
+    this.cdr.markForCheck();
+  }
+
+  cancelarCambios(): void {
+    for (const record of this.records) {
+      record.sequence = this.originalSequences.get(record.id) ?? record.sequence;
+    }
+    this.sequencesDirty = false;
+    this.sequenceError = '';
+    this.saveError = '';
+    this.saveIssues = [];
     this.cdr.markForCheck();
   }
 
@@ -197,7 +225,9 @@ export class NachaConfigRecordsPageComponent implements OnInit {
   }
 
   irAVariantsFields(): void {
-    void this.router.navigate(['/nacha-config-admin/variants-fields']);
+    void this.router.navigate(['/nacha-config-admin/variants-fields'], {
+      queryParams: { profileId: this.selectedProfileId }
+    });
   }
 
   trackByRecordId(_: number, record: EditableRecordRow): number {
@@ -216,5 +246,54 @@ export class NachaConfigRecordsPageComponent implements OnInit {
     if (this.selectedProfileId) {
       this.loadSelectedProfile(this.selectedProfileId);
     }
+  }
+
+  recordDescription(code: string): string {
+    const names: Record<string, string> = {
+      '1': 'Cabecera de archivo',
+      '5': 'Cabecera de lote',
+      '6': 'Detalle de transacción',
+      '7': 'Información adicional',
+      '8': 'Control de lote',
+      '9': 'Control de archivo'
+    };
+    return names[code] ?? 'Registro configurado';
+  }
+
+  sourceStrategyLabel(value: string): string {
+    return value === 'TABLE_DRIVEN' ? 'Configuración parametrizada' : value;
+  }
+
+  private validateSequences(): void {
+    if (this.records.some((record) => !Number.isInteger(record.sequence) || record.sequence < 0)) {
+      this.sequenceError = 'Cada secuencia debe ser un número entero mayor o igual a cero.';
+      return;
+    }
+    if (new Set(this.records.map((record) => record.sequence)).size !== this.records.length) {
+      this.sequenceError = 'Cada registro debe tener una secuencia diferente.';
+      return;
+    }
+    this.sequenceError = '';
+  }
+
+  private syncContextUrl(): void {
+    if (!this.selectedProfileId) {
+      return;
+    }
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { profileId: this.selectedProfileId },
+      replaceUrl: true
+    });
+  }
+
+  private friendlySaveError(error: Partial<NachaConfigApiError> | null): string {
+    if (error?.errorCode === 'CONCURRENCY_CONFLICT' || error?.errorCode?.includes('409')) {
+      return 'El perfil cambió mientras lo editabas. Recarga los datos e intenta nuevamente.';
+    }
+    if (error?.issues?.length) {
+      return 'La secuencia contiene datos no válidos. Revisa las observaciones e intenta nuevamente.';
+    }
+    return 'No fue posible guardar la secuencia. Revisa los datos e intenta nuevamente.';
   }
 }

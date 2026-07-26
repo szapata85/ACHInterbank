@@ -1,20 +1,21 @@
 ﻿<section class="page" data-testid="nacha-config-records-page">
+  <ui-migas-pan [items]="[{ etiqueta: 'Perfiles', ruta: '/nacha-config-admin/perfiles' }, { etiqueta: 'Registros del perfil' }]" />
   <app-page-header
-    title="Registros oficiales NACHA-M"
-    subtitle="Administración de secuencia de registros oficiales basada en perfiles NACHA-M."
+    title="Registros del perfil NACHA-M"
+    subtitle="Consulta y administra el orden de los registros de un perfil."
   ></app-page-header>
 
   <ui-alerta
     tipo="info"
     titulo="Fuente oficial"
-    mensaje="nacha-config profiles es la fuente oficial. Esta pantalla solo administra secuencia y orden de registros del perfil seleccionado."
+    mensaje="Los perfiles de configuración son la fuente oficial. Esta pantalla administra únicamente la secuencia de sus registros."
   ></ui-alerta>
 
   <ui-alerta
     *ngIf="!puedeGestionar"
     tipo="advertencia"
     titulo="Solo lectura"
-    mensaje="CanReadAch permite consultar perfiles y registros. CanManageAch es obligatorio para guardar secuencia."
+    mensaje="Tu rol permite consultar perfiles y registros, pero no modificar su secuencia."
   ></ui-alerta>
 
   <ui-alerta
@@ -49,9 +50,12 @@
 
     <div class="selector-actions">
       <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irADetallePerfil()">Ver perfil</button>
-      <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irAVariantsFields()">Ir a variants-fields</button>
-      <button type="button" class="btn btn-outline" [disabled]="loadingProfiles || loadingDetail || saving" (click)="loadProfiles()">Refrescar</button>
-      <button *ngIf="puedeEditarSecuencia" type="button" class="btn btn-primary" [disabled]="saving || loadingDetail" (click)="guardarSecuencia()">Guardar secuencia</button>
+      <button type="button" class="btn btn-outline" [disabled]="!selectedProfileId" (click)="irAVariantsFields()">Ver variantes y campos</button>
+      <button type="button" class="btn btn-outline" [disabled]="loadingProfiles || loadingDetail || saving" (click)="loadProfiles()">Actualizar</button>
+      <button *ngIf="puedeEditarSecuencia" type="button" class="btn btn-outline" [disabled]="saving || !sequencesDirty" (click)="cancelarCambios()">Cancelar cambios</button>
+      <button *ngIf="puedeEditarSecuencia" type="button" class="btn btn-primary" [disabled]="saving || loadingDetail || !sequencesDirty || !!sequenceError" (click)="guardarSecuencia()">
+        {{ saving ? 'Guardando…' : 'Guardar secuencia' }}
+      </button>
     </div>
   </section>
 
@@ -70,8 +74,8 @@
 
   <section class="summary-card" *ngIf="selectedProfile">
     <div class="summary-grid">
-      <div><strong>Perfil:</strong> {{ selectedProfile.profileCode }}</div>
-      <div><strong>Nombre:</strong> {{ selectedProfile.nombreEs }}</div>
+      <div class="summary-wide"><strong>Perfil:</strong> <span>{{ selectedProfile.profileCode }}</span></div>
+      <div class="summary-wide"><strong>Nombre:</strong> <span>{{ selectedProfile.nombreEs }}</span></div>
       <div><strong>Estado:</strong> <span [class]="estadoBadgeClass()">{{ selectedProfile.estado }}</span></div>
       <div><strong>Versión:</strong> {{ selectedProfile.versionMajor }}.{{ selectedProfile.versionMinor }}</div>
       <div><strong>Cámara:</strong> {{ selectedProfile.camara }}</div>
@@ -79,10 +83,16 @@
       <div><strong>Dirección:</strong> {{ selectedProfile.direccion }}</div>
       <div><strong>Servicio:</strong> {{ selectedProfile.servicio || 'Sin servicio' }}</div>
       <div><strong>Vigencia:</strong> {{ formatDate(selectedProfile.effectiveFrom) }} a {{ selectedProfile.effectiveTo ? formatDate(selectedProfile.effectiveTo) : 'abierta' }}</div>
-      <div><strong>RowVersion:</strong> {{ selectedProfile.rowVersion }}</div>
       <div><strong>Registros:</strong> {{ selectedProfile.records.length }}</div>
     </div>
   </section>
+
+  <ui-alerta
+    *ngIf="sequenceError"
+    tipo="error"
+    titulo="Revisa la secuencia"
+    [mensaje]="sequenceError"
+  ></ui-alerta>
 
   <ui-alerta
     *ngIf="saveError"
@@ -92,7 +102,7 @@
   ></ui-alerta>
 
   <section class="issues-card" *ngIf="saveIssues.length > 0">
-    <div class="issues-title">Observaciones de validacion / concurrencia</div>
+    <div class="issues-title">Observaciones de validación</div>
     <ul class="issues-list">
       <li *ngFor="let issue of saveIssues">
         <strong>{{ issue.severidad }}</strong> · {{ issue.codigo }} · {{ issue.mensaje }}
@@ -107,22 +117,23 @@
       <span *ngIf="saving">Guardando secuencia...</span>
     </div>
 
+    <div class="table-wrap" tabindex="0" aria-label="Registros del perfil; desplázate horizontalmente para consultar todas las columnas">
     <table class="records-table">
       <thead>
         <tr>
           <th>#</th>
-          <th>Registro</th>
+          <th>Tipo de registro</th>
           <th>Secuencia</th>
           <th>Habilitado</th>
-          <th>MinOccurs</th>
-          <th>MaxOccurs</th>
-          <th>Estrategia fuente</th>
+          <th>Mínimo</th>
+          <th>Máximo</th>
+          <th>Origen</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngFor="let record of records; trackBy: trackByRecordId">
           <td>{{ record.position }}</td>
-          <td>{{ record.recordCode }}</td>
+          <td><strong>{{ record.recordCode }}</strong><small>{{ recordDescription(record.recordCode) }}</small></td>
           <td>
             <input
               type="number"
@@ -135,15 +146,16 @@
           </td>
           <td>
             <span [class]="'flag ' + (record.isEnabled ? 'flag-on' : 'flag-off')">
-              {{ record.isEnabled ? 'Si' : 'No' }}
+              {{ record.isEnabled ? 'Sí' : 'No' }}
             </span>
           </td>
           <td>{{ record.minOccurs }}</td>
           <td>{{ record.maxOccurs ?? '-' }}</td>
-          <td>{{ record.sourceStrategy }}</td>
+          <td>{{ sourceStrategyLabel(record.sourceStrategy) }}</td>
         </tr>
       </tbody>
     </table>
+    </div>
 
       <ui-estado-vacio
       *ngIf="!loadingDetail && records.length === 0"
