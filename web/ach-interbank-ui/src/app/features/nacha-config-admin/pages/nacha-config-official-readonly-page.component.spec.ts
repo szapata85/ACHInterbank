@@ -134,10 +134,10 @@ describe('NachaConfigRecordsPageComponent', () => {
     expect(querySpy.detalle).toHaveBeenCalledWith(11);
     expect(component.selectedProfile?.profileCode).toBe('UAT-NACHA-CONFIG-RECORDS-001');
     expect(component.records.length).toBe(6);
-    expect(fixture.nativeElement.textContent).toContain('Registros oficiales NACHA-M');
+    expect(fixture.nativeElement.textContent).toContain('Registros del perfil NACHA-M');
     expect(fixture.nativeElement.textContent).toContain('UAT-NACHA-CONFIG-RECORDS-001');
     expect(fixture.nativeElement.textContent).toContain('Secuencia');
-    expect(fixture.nativeElement.textContent).toContain('TABLE_DRIVEN');
+    expect(fixture.nativeElement.textContent).toContain('Configuración parametrizada');
   });
 
   it('Component_ShouldAllowSaveOnlyForDraftAndManagePermission', () => {
@@ -182,14 +182,16 @@ describe('NachaConfigRecordsPageComponent', () => {
 
   it('Component_ShouldSurfaceConcurrencyErrorWhenSavingSequence', () => {
     commandSpy.actualizarSecuencia.and.returnValue(throwError(() => ({
+      errorCode: 'CONCURRENCY_CONFLICT',
       message: 'El perfil fue modificado por otro usuario.',
       issues: [{ severidad: 'ERROR', codigo: 'CONCURRENCY_CONFLICT', mensaje: 'Concurrencia detectada.' }]
     })));
 
+    component.onSequenceChange(component.records[0], { target: { value: '99' } } as unknown as Event);
     component.guardarSecuencia();
 
     expect(notificationsSpy.error).toHaveBeenCalled();
-    expect(component.saveError).toContain('modificado por otro usuario');
+    expect(component.saveError).toContain('cambió mientras lo editabas');
     expect(component.saveIssues.length).toBe(1);
   });
 
@@ -198,6 +200,9 @@ describe('NachaConfigRecordsPageComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/nacha-config-admin/perfiles', 11]);
 
     component.irAVariantsFields();
-    expect(router.navigate).toHaveBeenCalledWith(['/nacha-config-admin/variants-fields']);
+    expect(router.navigate).toHaveBeenCalledWith(
+      ['/nacha-config-admin/variants-fields'],
+      { queryParams: { profileId: 11 } }
+    );
   });
 });

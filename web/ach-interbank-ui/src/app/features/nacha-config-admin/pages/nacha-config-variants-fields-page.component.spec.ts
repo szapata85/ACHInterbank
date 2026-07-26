@@ -72,9 +72,12 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
         recordCode: '1',
         variantCode: 'R1_BASE',
         nombreEs: 'Record 1 base',
+        descripcion: 'Variante principal del registro 1',
         priority: 1,
         isDefaultForRecord: true,
         totalLength: 106,
+        effectiveFrom: '2026-02-01',
+        effectiveTo: null,
         fields: [
           {
             id: 301,
@@ -83,7 +86,15 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
             startPosition: 1,
             length: 10,
             propertyPath: 'Transaction.Amount',
-            sourceType: 'CONSTANTE',
+            sourceType: 'ENTIDAD',
+            sourceTypeName: 'Entidad del dominio',
+            entityName: 'Transaction',
+            padChar: '0',
+            justification: 'R',
+            formatMask: null,
+            sortOrder: 1,
+            isVisibleInBackoffice: true,
+            transformationPipelineJson: null,
             isEnabled: true,
             reglas: [
               {
@@ -229,11 +240,28 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect(component.recordVariants.map((variant) => variant.variantCode)).toEqual(['R1_BASE', 'R1_ALT']);
     expect(component.selectedFields.map((field) => field.fieldCode)).toEqual(['FIELD_A', 'FIELD_B']);
     expect(component.selectedRules.map((rule) => rule.errorCode)).toEqual(['ERR_REQUIRED']);
-    expect(fixture.nativeElement.textContent).toContain('Variantes y campos NACHA-M');
+    expect((fixture.nativeElement.querySelector('[data-testid="profile-selector"]') as HTMLSelectElement).value).toBe('11');
+    expect((fixture.nativeElement.querySelector('[data-testid="record-selector"]') as HTMLSelectElement).value).toBe('1');
+    expect((fixture.nativeElement.querySelector('[data-testid="variant-selector"]') as HTMLSelectElement).value).toBe('201');
+    expect(fixture.nativeElement.textContent).toContain('Campos por variante NACHA-M');
     expect(fixture.nativeElement.textContent).toContain('Record 1 base');
     expect(fixture.nativeElement.textContent).toContain('Field A');
-    expect(fixture.nativeElement.textContent).toContain('Reglas del campo');
-    expect(fixture.nativeElement.textContent).toContain('ERR_REQUIRED');
+    expect(fixture.nativeElement.textContent).toContain('Posición final');
+    expect(fixture.nativeElement.textContent).toContain('Calculado por el sistema');
+  });
+
+  it('Component_ShouldExplainSemanticStatesAndUseVariantDatesFromApi', () => {
+    expect(component.variantForm.controls.effectiveFrom.value).toBe('2026-02-01');
+    expect(component.variantForm.controls.effectiveTo.value).toBe('');
+    expect(component.fieldSemanticItems.find(item => item.label === 'Ruta de origen')).toEqual(jasmine.objectContaining({
+      value: 'Transaction.Amount',
+      state: 'configured'
+    }));
+    expect(component.fieldSemanticItems.find(item => item.label === 'Posición final')?.state).toBe('calculated');
+    expect(component.fieldSemanticItems.find(item => item.label === 'Máscara de formato')?.state).toBe('not-applicable');
+    expect(fixture.nativeElement.textContent).toContain('Pendiente de configuración');
+    expect(fixture.nativeElement.textContent).toContain('Error bloqueante');
+    expect(component.selectedRules.map(rule => rule.errorCode)).toEqual(['ERR_REQUIRED']);
   });
 
   it('Component_ShouldAllowSelectingRecordVariantAndField', () => {

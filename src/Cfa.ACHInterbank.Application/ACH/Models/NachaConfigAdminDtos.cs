@@ -58,9 +58,12 @@ public sealed class NachaConfigLayoutVariantDto
     public string RecordCode { get; init; } = string.Empty;
     public string VariantCode { get; init; } = string.Empty;
     public string NombreEs { get; init; } = string.Empty;
+    public string? Descripcion { get; init; }
     public int Priority { get; init; }
     public bool IsDefaultForRecord { get; init; }
     public int TotalLength { get; init; }
+    public DateTime EffectiveFrom { get; init; }
+    public DateTime? EffectiveTo { get; init; }
     public IReadOnlyList<NachaConfigLayoutFieldDto> Fields { get; init; } = [];
 }
 
@@ -71,8 +74,21 @@ public sealed class NachaConfigLayoutFieldDto
     public string FieldNameEs { get; init; } = string.Empty;
     public int StartPosition { get; init; }
     public int Length { get; init; }
+    public string PadChar { get; init; } = " ";
+    public string Justification { get; init; } = "L";
+    public string? FormatMask { get; init; }
+    public int SortOrder { get; init; }
+    public bool IsVisibleInBackoffice { get; init; }
+    public string? TransformationPipelineJson { get; init; }
     public string? PropertyPath { get; init; }
     public string? SourceType { get; init; }
+    public string? SourceTypeName { get; init; }
+    public string? ConstantValue { get; init; }
+    public string? EntityName { get; init; }
+    public string? SqlObjectName { get; init; }
+    public string? ExpressionDsl { get; init; }
+    public string? ExternalCatalogCode { get; init; }
+    public string? FallbackPolicyJson { get; init; }
     public bool IsEnabled { get; init; }
     public IReadOnlyList<NachaConfigFieldRuleDto> Reglas { get; init; } = [];
 }

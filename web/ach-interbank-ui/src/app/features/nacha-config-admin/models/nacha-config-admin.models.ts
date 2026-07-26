@@ -41,6 +41,8 @@ export interface NachaConfigLayoutVariant {
   priority: number;
   isDefaultForRecord: boolean;
   totalLength: number;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
   fields: NachaConfigLayoutField[];
 }
 
@@ -50,8 +52,21 @@ export interface NachaConfigLayoutField {
   fieldNameEs: string;
   startPosition: number;
   length: number;
+  padChar?: string | null;
+  justification?: string | null;
+  formatMask?: string | null;
+  sortOrder?: number | null;
+  isVisibleInBackoffice?: boolean | null;
+  transformationPipelineJson?: string | null;
   propertyPath?: string | null;
   sourceType?: string | null;
+  sourceTypeName?: string | null;
+  constantValue?: string | null;
+  entityName?: string | null;
+  sqlObjectName?: string | null;
+  expressionDsl?: string | null;
+  externalCatalogCode?: string | null;
+  fallbackPolicyJson?: string | null;
   isEnabled: boolean;
   reglas: NachaConfigFieldRule[];
 }

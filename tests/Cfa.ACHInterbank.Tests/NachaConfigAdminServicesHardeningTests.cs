@@ -769,6 +769,53 @@ public sealed class NachaConfigAdminServicesHardeningTests
         result.Servicios.Should().Contain(x => x.Code == "PPD");
     }
 
+    [Fact]
+    public async Task GetProfileDetailAsync_ShouldProjectPersistedVariantAndFieldConfiguration()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var variant = await context.CfgLayoutVariants
+            .Include(x => x.Fields)
+                .ThenInclude(x => x.SourceDefinition)
+            .OrderBy(x => x.Id)
+            .FirstAsync(x => x.ProfileId == profile.Id);
+        var field = variant.Fields.OrderBy(x => x.Id).First();
+
+        variant.Description = "Descripción funcional persistida";
+        variant.EffectiveTo = new DateTime(2027, 7, 26);
+        field.PadChar = '0';
+        field.Justification = 'R';
+        field.FormatMask = "000000";
+        field.SortOrder = 17;
+        field.IsVisibleInBackoffice = false;
+        field.TransformationPipelineJson = """{"steps":["trim"]}""";
+        field.SourceDefinition.EntityName = "NachaRecordContext";
+        field.SourceDefinition.PropertyPath = "BatchCount";
+        field.SourceDefinition.FallbackPolicyJson = """{"mode":"strict"}""";
+        await context.SaveChangesAsync();
+
+        var query = new NachaConfigProfileQueryService(context);
+        var detail = await query.GetProfileDetailAsync(profile.Id);
+        var projectedVariant = detail!.Variantes.Single(x => x.Id == variant.Id);
+        var projectedField = projectedVariant.Fields.Single(x => x.Id == field.Id);
+
+        projectedVariant.Descripcion.Should().Be("Descripción funcional persistida");
+        projectedVariant.EffectiveFrom.Should().Be(variant.EffectiveFrom);
+        projectedVariant.EffectiveTo.Should().Be(new DateTime(2027, 7, 26));
+        projectedField.PadChar.Should().Be("0");
+        projectedField.Justification.Should().Be("R");
+        projectedField.FormatMask.Should().Be("000000");
+        projectedField.SortOrder.Should().Be(17);
+        projectedField.IsVisibleInBackoffice.Should().BeFalse();
+        projectedField.TransformationPipelineJson.Should().Be("""{"steps":["trim"]}""");
+        projectedField.SourceType.Should().Be("CONSTANTE");
+        projectedField.SourceTypeName.Should().NotBeNullOrWhiteSpace();
+        projectedField.ConstantValue.Should().Be("1");
+        projectedField.EntityName.Should().Be("NachaRecordContext");
+        projectedField.PropertyPath.Should().Be("BatchCount");
+        projectedField.FallbackPolicyJson.Should().Be("""{"mode":"strict"}""");
+    }
+
     private static async Task<CfgProfile> SetProfileStatusAsync(AchDbContext context, int profileId, string statusCode)
     {
         var profile = await context.CfgProfiles.SingleAsync(x => x.Id == profileId);

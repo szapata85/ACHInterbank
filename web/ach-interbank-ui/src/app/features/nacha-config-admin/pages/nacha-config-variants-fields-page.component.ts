@@ -23,6 +23,16 @@ import { NachaConfigQueryService } from '../services/nacha-config-query.service'
 
 interface ProfileOption extends NachaConfigProfileReadModel {}
 
+type DetailMode = 'variant' | 'field' | 'rules';
+type SemanticState = 'configured' | 'calculated' | 'not-applicable' | 'pending' | 'blocking';
+
+interface SemanticDetailItem {
+  label: string;
+  value: string;
+  state: SemanticState;
+  explanation: string;
+}
+
 @Component({
   selector: 'app-nacha-config-variants-fields-page',
   standalone: true,
@@ -51,6 +61,16 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   selectedVariantId: number | null = null;
   selectedFieldId: number | null = null;
   selectedRuleId: number | null = null;
+  detailMode: DetailMode = 'field';
+  fieldFilter = '';
+
+  readonly semanticLegend: ReadonlyArray<{ state: SemanticState; label: string; explanation: string }> = [
+    { state: 'configured', label: 'Configurado', explanation: 'El valor está almacenado y disponible para esta configuración.' },
+    { state: 'calculated', label: 'Calculado por el sistema', explanation: 'El valor se deriva de otros datos y no se captura manualmente.' },
+    { state: 'not-applicable', label: 'No aplicable', explanation: 'La configuración elegida no necesita este valor.' },
+    { state: 'pending', label: 'Pendiente de configuración', explanation: 'Es un dato opcional que todavía puede completarse.' },
+    { state: 'blocking', label: 'Error bloqueante', explanation: 'Falta un dato obligatorio para utilizar esta configuración.' }
+  ];
 
   loadingProfiles = false;
   loadingDetail = false;
@@ -166,6 +186,19 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     return this.selectedFields.find((field) => field.id === this.selectedFieldId) ?? null;
   }
 
+  get visibleFields(): NachaConfigLayoutField[] {
+    const filter = this.fieldFilter.trim().toLocaleLowerCase('es');
+    if (!filter) {
+      return this.selectedFields;
+    }
+
+    return this.selectedFields.filter(field =>
+      `${field.fieldCode} ${field.fieldNameEs} ${field.propertyPath ?? ''}`
+        .toLocaleLowerCase('es')
+        .includes(filter)
+    );
+  }
+
   get selectedRules(): NachaConfigFieldRule[] {
     if (!this.selectedField) {
       return [];
@@ -201,6 +234,125 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     return Number.isFinite(start) && Number.isFinite(length) && start >= 1 && length >= 1
       ? start + length - 1
       : null;
+  }
+
+  get variantSemanticItems(): SemanticDetailItem[] {
+    const variant = this.selectedVariant;
+    if (!variant) {
+      return [];
+    }
+
+    return [
+      this.semanticItem('Código de variante', variant.variantCode, 'configured', 'Identificador técnico persistido de la variante.'),
+      this.semanticItem(
+        'Descripción',
+        variant.descripcion,
+        variant.descripcion?.trim() ? 'configured' : 'pending',
+        variant.descripcion?.trim()
+          ? 'Describe el propósito funcional de esta variante.'
+          : 'La variante funciona sin descripción, pero conviene documentar su propósito.'
+      ),
+      this.semanticItem('Prioridad', variant.priority, 'configured', 'Orden utilizado para evaluar variantes del mismo registro.'),
+      this.semanticItem(
+        'Uso predeterminado',
+        variant.isDefaultForRecord ? 'Sí' : 'No',
+        'configured',
+        variant.isDefaultForRecord
+          ? 'Es la variante de respaldo para este tipo de registro.'
+          : 'Se utiliza únicamente cuando su criterio de selección aplica.'
+      ),
+      this.semanticItem('Longitud total', `${variant.totalLength} caracteres`, 'configured', 'Longitud fija definida para el registro NACHA-M.'),
+      this.semanticItem('Vigencia inicial', this.formatDate(variant.effectiveFrom), 'configured', 'Fecha desde la que esta variante puede utilizarse.'),
+      this.semanticItem(
+        'Vigencia final',
+        variant.effectiveTo ? this.formatDate(variant.effectiveTo) : 'Vigencia abierta',
+        variant.effectiveTo ? 'configured' : 'not-applicable',
+        variant.effectiveTo
+          ? 'Fecha hasta la que esta variante puede utilizarse.'
+          : 'No requiere fecha final mientras permanezca vigente.'
+      )
+    ];
+  }
+
+  get fieldSemanticItems(): SemanticDetailItem[] {
+    const field = this.selectedField;
+    if (!field) {
+      return [];
+    }
+
+    const sourceType = field.sourceType?.trim().toUpperCase() ?? '';
+    const sourceTypeValue = field.sourceTypeName?.trim()
+      ? `${field.sourceTypeName} (${sourceType})`
+      : sourceType;
+
+    return [
+      this.semanticItem('Código técnico', field.fieldCode, 'configured', 'Identificador persistido del campo dentro de la variante.'),
+      this.semanticItem(
+        'Nombre funcional',
+        field.fieldNameEs,
+        field.fieldNameEs?.trim() ? 'configured' : 'blocking',
+        field.fieldNameEs?.trim()
+          ? 'Nombre legible utilizado por los administradores.'
+          : 'El campo necesita un nombre funcional para poder administrarse.'
+      ),
+      this.semanticItem('Posición inicial', field.startPosition, 'configured', 'Primera posición ocupada por el campo.'),
+      this.semanticItem('Longitud', `${field.length} caracteres`, 'configured', 'Cantidad de caracteres reservados.'),
+      this.semanticItem(
+        'Posición final',
+        field.startPosition + field.length - 1,
+        'calculated',
+        'Se obtiene sumando posición inicial y longitud, menos uno.'
+      ),
+      this.semanticItem(
+        'Tipo de origen',
+        sourceTypeValue,
+        sourceType ? 'configured' : 'blocking',
+        sourceType
+          ? 'Indica cómo se obtiene el valor del campo.'
+          : 'No existe un tipo de origen; el campo no puede resolverse.'
+      ),
+      this.sourceDefinitionSemantic(field, sourceType),
+      this.semanticItem(
+        'Máscara de formato',
+        field.formatMask,
+        field.formatMask?.trim() ? 'configured' : 'not-applicable',
+        field.formatMask?.trim()
+          ? 'La máscara se aplica antes de escribir el valor.'
+          : 'El campo se escribe sin una máscara adicional.'
+      ),
+      this.semanticItem(
+        'Relleno',
+        this.paddingLabel(field.padChar),
+        field.padChar !== null && field.padChar !== undefined ? 'configured' : 'blocking',
+        'Carácter utilizado para completar la longitud fija.'
+      ),
+      this.semanticItem(
+        'Alineación',
+        this.justificationLabel(field.justification),
+        field.justification?.trim() ? 'configured' : 'blocking',
+        'Define hacia qué lado se alinea el contenido antes del relleno.'
+      ),
+      this.semanticItem(
+        'Transformaciones adicionales',
+        field.transformationPipelineJson?.trim() ? 'Canal de transformaciones definido' : 'No requiere transformaciones',
+        field.transformationPipelineJson?.trim() ? 'configured' : 'not-applicable',
+        field.transformationPipelineJson?.trim()
+          ? 'Existe una transformación declarativa antes de renderizar el campo.'
+          : 'El valor puede escribirse directamente con su origen y formato actuales.'
+      ),
+      this.semanticItem(
+        'Visibilidad administrativa',
+        field.isVisibleInBackoffice === false ? 'Oculto en backoffice' : 'Visible en backoffice',
+        field.isVisibleInBackoffice === null || field.isVisibleInBackoffice === undefined ? 'pending' : 'configured',
+        'Controla la visibilidad operativa del campo, no su presencia en el archivo.'
+      ),
+      this.semanticItem(
+        'Estado',
+        field.isEnabled ? 'Habilitado' : 'Inactivo',
+        'configured',
+        field.isEnabled ? 'El campo participa en la variante.' : 'El campo se conserva, pero no participa actualmente.'
+      )
+    ];
   }
 
   loadProfiles(): void {
@@ -242,7 +394,25 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     }
 
     this.selectedProfileId = value;
+    this.detailMode = 'field';
+    this.fieldFilter = '';
     this.loadDetail(value, undefined, undefined, undefined);
+  }
+
+  onRecordChange(event: Event): void {
+    this.onSelectRecord((event.target as HTMLSelectElement).value);
+  }
+
+  onVariantChange(event: Event): void {
+    this.onSelectVariant(Number((event.target as HTMLSelectElement).value));
+  }
+
+  onFieldFilter(event: Event): void {
+    this.fieldFilter = (event.target as HTMLInputElement).value;
+  }
+
+  showDetail(mode: DetailMode): void {
+    this.detailMode = mode;
   }
 
   onSelectRecord(recordCode: string): void {
@@ -261,6 +431,8 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.selectedRuleId = this.selectedRules.some((rule) => rule.id === this.selectedRuleId)
       ? this.selectedRuleId
       : this.selectedRules[0]?.id ?? null;
+    this.detailMode = 'variant';
+    this.fieldFilter = '';
     this.syncForms();
     this.syncContextUrl();
   }
@@ -277,6 +449,8 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.selectedRuleId = this.selectedRules.some((rule) => rule.id === this.selectedRuleId)
       ? this.selectedRuleId
       : this.selectedRules[0]?.id ?? null;
+    this.detailMode = 'variant';
+    this.fieldFilter = '';
     this.syncForms();
     this.syncContextUrl();
   }
@@ -290,6 +464,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     this.selectedRuleId = this.selectedRules.some((rule) => rule.id === this.selectedRuleId)
       ? this.selectedRuleId
       : this.selectedRules[0]?.id ?? null;
+    this.detailMode = 'field';
     this.syncForms();
     this.syncContextUrl();
   }
@@ -300,6 +475,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     }
 
     this.selectedRuleId = ruleId;
+    this.detailMode = 'rules';
     this.syncForms();
     this.syncContextUrl();
   }
@@ -495,11 +671,12 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   }
 
   formatDate(value?: string | null): string {
-    return value ? new Date(value).toLocaleDateString('es-CO') : '-';
+    return value ? new Date(value).toLocaleDateString('es-CO') : 'Fecha no disponible';
   }
 
   fieldValue(field: NachaConfigLayoutField): string {
-    return field.propertyPath?.trim() || 'Sin ruta técnica';
+    return field.propertyPath?.trim()
+      || this.sourceDefinitionSemantic(field, field.sourceType?.toUpperCase() ?? '').value;
   }
 
   fieldRulesCount(field: NachaConfigLayoutField): number {
@@ -508,6 +685,22 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
 
   sourceStrategyLabel(value: string): string {
     return value === 'TABLE_DRIVEN' ? 'Configuración parametrizada' : value;
+  }
+
+  semanticStateLabel(state: SemanticState): string {
+    return this.semanticLegend.find(item => item.state === state)?.label ?? state;
+  }
+
+  recordDescription(code: string): string {
+    const names: Record<string, string> = {
+      '1': 'Cabecera de archivo',
+      '5': 'Cabecera de lote',
+      '6': 'Detalle de transacción',
+      '7': 'Información adicional',
+      '8': 'Control de lote',
+      '9': 'Control de archivo'
+    };
+    return names[code] ?? 'Registro configurado';
   }
 
   private loadDetail(
@@ -692,8 +885,8 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
         descripcion: this.selectedVariant.descripcion ?? '',
         priority: this.selectedVariant.priority,
         isDefaultForRecord: this.selectedVariant.isDefaultForRecord,
-        effectiveFrom: this.dateInputValue(this.selectedProfile?.effectiveFrom),
-        effectiveTo: this.dateInputValue(this.selectedProfile?.effectiveTo)
+        effectiveFrom: this.dateInputValue(this.selectedVariant.effectiveFrom),
+        effectiveTo: this.dateInputValue(this.selectedVariant.effectiveTo)
       },
       { emitEvent: false }
     );
@@ -860,5 +1053,106 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   private normalizeNullableText(value: unknown): string | null {
     const text = this.normalizeText(value);
     return text.length > 0 ? text : null;
+  }
+
+  private semanticItem(
+    label: string,
+    rawValue: unknown,
+    state: SemanticState,
+    explanation: string
+  ): SemanticDetailItem {
+    const value = rawValue === null || rawValue === undefined || `${rawValue}`.trim() === ''
+      ? this.semanticStateLabel(state)
+      : `${rawValue}`;
+    return { label, value, state, explanation };
+  }
+
+  private sourceDefinitionSemantic(field: NachaConfigLayoutField, sourceType: string): SemanticDetailItem {
+    if (sourceType === 'CONSTANTE') {
+      return this.semanticItem(
+        'Definición de origen',
+        field.constantValue,
+        field.constantValue !== null && field.constantValue !== undefined ? 'configured' : 'blocking',
+        field.constantValue !== null && field.constantValue !== undefined
+          ? 'El campo utiliza el valor constante almacenado.'
+          : 'Un origen constante necesita un valor definido.'
+      );
+    }
+
+    if (sourceType === 'ENTIDAD') {
+      const path = field.propertyPath?.trim();
+      const qualifiedPath = path
+        ? field.entityName?.trim() && !path.startsWith(`${field.entityName.trim()}.`)
+          ? `${field.entityName}.${path}`
+          : path
+        : '';
+      return this.semanticItem(
+        'Ruta de origen',
+        qualifiedPath,
+        qualifiedPath ? 'configured' : 'blocking',
+        qualifiedPath
+          ? field.entityName?.trim()
+            ? 'La propiedad se obtiene de la entidad indicada.'
+            : 'La propiedad se resuelve sobre el contexto del registro; no requiere una entidad fija.'
+          : 'Un origen de entidad necesita una ruta de propiedad.'
+      );
+    }
+
+    if (sourceType === 'EXPRESION') {
+      return this.semanticItem(
+        'Definición de origen',
+        field.expressionDsl?.trim() ? 'Expresión declarativa definida' : '',
+        field.expressionDsl?.trim() ? 'calculated' : 'blocking',
+        field.expressionDsl?.trim()
+          ? 'El sistema calcula el valor evaluando la expresión configurada.'
+          : 'Un origen calculado necesita una expresión declarativa.'
+      );
+    }
+
+    if (sourceType === 'SQL_VIEW' || sourceType === 'SQL_PROCEDURE') {
+      return this.semanticItem(
+        'Objeto SQL de origen',
+        field.sqlObjectName,
+        field.sqlObjectName?.trim() ? 'configured' : 'blocking',
+        field.sqlObjectName?.trim()
+          ? 'El valor se consulta desde el objeto SQL configurado.'
+          : 'El tipo de origen SQL necesita un objeto configurado.'
+      );
+    }
+
+    if (field.externalCatalogCode?.trim()) {
+      return this.semanticItem(
+        'Catálogo externo',
+        field.externalCatalogCode,
+        'configured',
+        'El valor se resuelve mediante el catálogo configurado.'
+      );
+    }
+
+    return this.semanticItem(
+      'Definición de origen',
+      '',
+      sourceType ? 'pending' : 'blocking',
+      sourceType
+        ? 'El tipo de origen existe, pero su detalle todavía no está configurado.'
+        : 'Sin tipo ni definición de origen el campo no puede resolverse.'
+    );
+  }
+
+  private paddingLabel(value?: string | null): string {
+    if (value === ' ') {
+      return 'Espacio';
+    }
+    return value?.length ? value : '';
+  }
+
+  private justificationLabel(value?: string | null): string {
+    if (value === 'R') {
+      return 'Derecha (R)';
+    }
+    if (value === 'L') {
+      return 'Izquierda (L)';
+    }
+    return value?.trim() ?? '';
   }
 }
