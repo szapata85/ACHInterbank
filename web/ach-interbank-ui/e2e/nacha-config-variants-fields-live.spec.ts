@@ -1,13 +1,14 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { assertNoFunctionalSpanglish, collectVisibleFunctionalText } from './support/nacha-ui-language';
 
 const spaUrl = process.env['ACH_UI_URL'] ?? 'http://localhost:743';
 const apiUrl = process.env['ACH_API_URL'] ?? 'http://localhost:843';
 const adminUser = process.env['E2E_ADMIN_USER'] ?? process.env['ACH_USER'];
 const adminPassword = process.env['E2E_ADMIN_PASSWORD'] ?? process.env['ACH_PASS'];
 const exactPath = '/nacha-config-admin/variants-fields?profileId=1&recordCode=9&variantId=6&fieldId=48';
-const evidenceDir = join(process.cwd(), 'docs', 'uat', 'evidence', 'job6-variants-fields');
+const evidenceDir = join(process.cwd(), '..', '..', 'docs', 'uat', 'evidence', 'job6-variants-fields');
 
 const viewports = [
   { width: 1440, height: 900, name: 'desktop' },
@@ -62,7 +63,11 @@ test.describe.serial('NACHA Config variantes y campos LIVE', () => {
 
     await assertExactSelection(page);
     const root = page.getByTestId('nacha-config-variants-fields-page');
+    const visiblePage = page.locator('body');
     await expect(root.getByRole('heading', { name: 'Campos por variante NACHA-M' })).toBeVisible();
+    await expect(root.getByRole('heading', { name: 'Cantidad de lotes' })).toBeVisible();
+    await expect(root).toContainText('Perfil heredado de salidas ACH');
+    await expect(root).toContainText('Variante base del control de archivo');
     await expect(root.locator('.context-path')).toContainText('LEGACY_ACH_SALIDA_ORIGINAL_V1_0');
     await expect(root.locator('.context-path')).toContainText('Control de archivo');
     await expect(root.locator('.context-path')).toContainText('LEGACY_R9_BASE');
@@ -70,9 +75,15 @@ test.describe.serial('NACHA Config variantes y campos LIVE', () => {
     await expect(root.locator('.detail-panel')).toHaveCount(1);
     await expect(root.locator('.data-table')).toHaveCount(0);
 
-    const source = root.locator('.semantic-value').filter({ hasText: 'Ruta de origen' });
+    const source = root.locator('.semantic-value').filter({ hasText: 'Ruta técnica del dato' });
     await expect(source).toContainText('BatchCount');
     await expect(source).toContainText('Configurado');
+    const sourceType = root.locator('.semantic-value').filter({ hasText: 'Tipo de origen' });
+    await expect(sourceType).toContainText('Entidad del dominio');
+    await expect(sourceType).toContainText('ENTIDAD');
+    const alignment = root.locator('.semantic-value').filter({ hasText: 'Alineación' });
+    await expect(alignment).toContainText('Alineación a la derecha');
+    await expect(alignment).toContainText('Código persistido: R');
     const endPosition = root.locator('.semantic-value').filter({ hasText: 'Posición final' });
     await expect(endPosition).toContainText('7');
     await expect(endPosition).toContainText('Calculado por el sistema');
@@ -82,14 +93,35 @@ test.describe.serial('NACHA Config variantes y campos LIVE', () => {
     await expect(root).not.toContainText('N/D');
     await expect(root).not.toContainText('Sin configurar');
 
+    await root.locator('.semantic-legend summary').click();
+    await expect(root.locator('.legend-grid')).toContainText('Pendiente de configuración');
+    await expect(root.locator('.legend-grid')).toContainText('Error bloqueante');
+
+    await root.getByTestId('field-technical-details').locator('summary').click();
+    await expect(root.getByTestId('field-technical-details')).toContainText('Código del campo');
+    await expect(root.getByTestId('field-technical-details')).toContainText('R9_BATCHCOUNT');
+    await expect(root.getByTestId('field-technical-details')).toContainText('Ruta técnica del dato');
+    await expect(root.getByTestId('field-technical-details')).toContainText('BatchCount');
+
+    await assertNoFunctionalSpanglish(visiblePage);
+
     await root.getByRole('tab', { name: 'Variante' }).click();
     await expect(root.getByTestId('variant-detail')).toContainText('Registro control de archivo NACHA-M');
     await expect(root.getByTestId('variant-detail')).toContainText('Vigencia abierta');
+    await expect(root.getByTestId('variant-detail')).toContainText('Variante base del control de archivo');
+    await assertNoFunctionalSpanglish(visiblePage);
 
     await root.getByRole('tab', { name: /^Reglas/ }).click();
     await expect(root.getByTestId('rules-detail')).toContainText('No aplicable');
     await expect(root.getByTestId('rules-detail')).toContainText('Este campo no requiere reglas adicionales');
+    await assertNoFunctionalSpanglish(visiblePage);
 
+    await test.info().attach('texto-visible-funcional.txt', {
+      body: Buffer.from((await collectVisibleFunctionalText(visiblePage)).join('\n'), 'utf8'),
+      contentType: 'text/plain'
+    });
+
+    await page.waitForLoadState('networkidle');
     const reloadResponsePromise = waitForProfileDetail(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
     expect((await reloadResponsePromise).status()).toBe(200);
@@ -99,6 +131,9 @@ test.describe.serial('NACHA Config variantes y campos LIVE', () => {
     expect(runtime.pageErrors).toEqual([]);
     expect(runtime.requestFailures).toEqual([]);
     expect(runtime.failedResponses).toEqual([]);
+    expect(runtime.requestAborts.every(item =>
+      /\/auth\/refresh|\/api\/navigation-(?:logs|menu)/.test(item)
+    )).toBe(true);
   });
 
   for (const viewport of viewports) {
@@ -121,13 +156,31 @@ test.describe.serial('NACHA Config variantes y campos LIVE', () => {
       const root = page.getByTestId('nacha-config-variants-fields-page');
       await expect(root.locator('.detail-panel')).toBeVisible();
       await expect(root.locator('.master-item.is-selected')).toContainText('R9_BATCHCOUNT');
+      await expect(root.locator('.master-item.is-selected')).toContainText('Cantidad de lotes');
+      await expect(root.locator('.master-item.is-selected')).toContainText('BatchCount');
       await expect(root.getByRole('tab', { name: 'Campo', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await assertNoFunctionalSpanglish(page.locator('body'));
 
       mkdirSync(evidenceDir, { recursive: true });
       await page.screenshot({
-        path: join(evidenceDir, `final-${viewport.name}-${viewport.width}x${viewport.height}.png`),
+        path: join(evidenceDir, `final-${viewport.name}-campo-${viewport.width}x${viewport.height}.png`),
         fullPage: true
       });
+
+      if (viewport.name === 'desktop') {
+        await root.getByRole('tab', { name: 'Variante', exact: true }).click();
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({
+          path: join(evidenceDir, `final-${viewport.name}-variante-${viewport.width}x${viewport.height}.png`),
+          fullPage: true
+        });
+        await root.getByRole('tab', { name: /^Reglas/ }).click();
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({
+          path: join(evidenceDir, `final-${viewport.name}-reglas-${viewport.width}x${viewport.height}.png`),
+          fullPage: true
+        });
+      }
 
       expect(runtime.consoleErrors).toEqual([]);
       expect(runtime.pageErrors).toEqual([]);
@@ -178,6 +231,7 @@ async function assertExactSelection(page: Page): Promise<void> {
   await expect(page.getByTestId('record-selector')).toHaveValue('9');
   await expect(page.getByTestId('variant-selector')).toHaveValue('6');
   await expect(root.locator('.master-item.is-selected')).toContainText('R9_BATCHCOUNT');
+  await expect(root.locator('.master-item.is-selected')).toContainText('Cantidad de lotes');
   await expect(page).toHaveURL(`${spaUrl}${exactPath}`);
 }
 
@@ -193,6 +247,7 @@ function observeRuntime(page: Page) {
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   const requestFailures: string[] = [];
+  const requestAborts: string[] = [];
   const failedResponses: string[] = [];
 
   page.on('console', message => {
@@ -202,7 +257,12 @@ function observeRuntime(page: Page) {
   });
   page.on('pageerror', error => pageErrors.push(error.message));
   page.on('requestfailed', request => {
-    requestFailures.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`.trim());
+    const failure = `${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`.trim();
+    if (request.failure()?.errorText === 'net::ERR_ABORTED') {
+      requestAborts.push(failure);
+    } else {
+      requestFailures.push(failure);
+    }
   });
   page.on('response', response => {
     if (response.status() >= 400) {
@@ -210,7 +270,7 @@ function observeRuntime(page: Page) {
     }
   });
 
-  return { consoleErrors, pageErrors, requestFailures, failedResponses };
+  return { consoleErrors, pageErrors, requestFailures, requestAborts, failedResponses };
 }
 
 interface ProfileDetail {

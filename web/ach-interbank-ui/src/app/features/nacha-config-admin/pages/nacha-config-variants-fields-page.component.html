@@ -1,4 +1,4 @@
-<section class="page" data-testid="nacha-config-variants-fields-page">
+<section class="page" data-testid="nacha-config-variants-fields-page" data-ui-text="functional">
   <ui-migas-pan [items]="[{ etiqueta: 'Perfiles', ruta: '/nacha-config-admin/perfiles' }, { etiqueta: 'Registros', ruta: '/nacha-config-admin/records' }, { etiqueta: 'Variantes y campos' }]" />
 
   <ng-template #accionesHeader>
@@ -42,7 +42,7 @@
           <p>Cada selector limita el siguiente nivel. La URL conserva la combinación elegida.</p>
         </div>
         <span class="badge" [class.badge-readonly]="!puedeEditar" [class.badge-editable]="puedeEditar">
-          {{ estadoNormalizado || 'Estado pendiente' }}
+          {{ statusLabel(estadoNormalizado) }}
         </span>
       </div>
 
@@ -55,7 +55,7 @@
             [value]="profile.profileId"
             [selected]="profile.profileId === selectedProfileId"
           >
-            {{ profile.profileCode }} · {{ profile.profileName }} · {{ profile.status }} · v{{ profile.version }}
+            {{ profileFunctionalName(profile) }} · {{ statusLabel(profile.status) }} · v{{ profile.version }}
           </option>
         </select>
       </label>
@@ -76,7 +76,11 @@
         <ol class="context-path" aria-label="Contexto seleccionado">
           <li class="context-step is-complete">
             <span class="step-number">1</span>
-            <span><small>Perfil</small><strong>{{ profile.profileCode }}</strong></span>
+            <span>
+              <small>Perfil</small>
+              <strong>{{ profileFunctionalName(profile) }}</strong>
+              <small data-technical-value="true">Código del perfil: {{ profile.profileCode }}</small>
+            </span>
           </li>
           <li class="context-step" [class.is-complete]="selectedRecord">
             <span class="step-number">2</span>
@@ -84,19 +88,36 @@
           </li>
           <li class="context-step" [class.is-complete]="selectedVariant">
             <span class="step-number">3</span>
-            <span><small>Variante</small><strong>{{ selectedVariant?.variantCode || 'Pendiente' }}</strong></span>
+            <span>
+              <small>Variante</small>
+              <strong>{{ selectedVariant ? variantFunctionalName(selectedVariant) : 'Pendiente' }}</strong>
+              <small *ngIf="selectedVariant" data-technical-value="true">Código técnico: {{ selectedVariant.variantCode }}</small>
+            </span>
           </li>
           <li class="context-step" [class.is-complete]="selectedField">
             <span class="step-number">4</span>
-            <span><small>Campo</small><strong>{{ selectedField?.fieldCode || 'Pendiente' }}</strong></span>
+            <span>
+              <small>Campo</small>
+              <strong>{{ selectedField ? fieldFunctionalName(selectedField) : 'Pendiente' }}</strong>
+              <small *ngIf="selectedField" data-technical-value="true">Código técnico: {{ selectedField.fieldCode }}</small>
+            </span>
           </li>
         </ol>
 
         <div class="profile-summary">
           <span><strong>Cámara</strong>{{ profile.camaraNombre || profile.camara }}</span>
-          <span><strong>Flujo</strong>{{ profile.flujo }}</span>
-          <span><strong>Dirección</strong>{{ profile.direccion }}</span>
-          <span><strong>Servicio</strong>{{ profile.servicio || 'No aplicable · sin clase de servicio' }}</span>
+          <span>
+            <strong>Flujo</strong>{{ flowLabel(profile.flujo) }}
+            <small data-technical-value="true">Código persistido: {{ profile.flujo }}</small>
+          </span>
+          <span>
+            <strong>Dirección</strong>{{ directionLabel(profile.direccion) }}
+            <small data-technical-value="true">Código persistido: {{ profile.direccion }}</small>
+          </span>
+          <span>
+            <strong>Servicio</strong>{{ serviceLabel(profile.servicio) }}
+            <small *ngIf="profile.servicio" data-technical-value="true">Código persistido: {{ profile.servicio }}</small>
+          </span>
           <span><strong>Vigencia</strong>{{ formatDate(profile.effectiveFrom) }} · {{ profile.effectiveTo ? 'hasta ' + formatDate(profile.effectiveTo) : 'sin fecha final' }}</span>
         </div>
 
@@ -125,7 +146,7 @@
                 [value]="variant.id"
                 [selected]="variant.id === selectedVariantId"
               >
-                {{ variant.variantCode }} · {{ variant.nombreEs }}
+                {{ variantFunctionalName(variant) }}
               </option>
             </select>
             <small>{{ recordVariants.length }} variante{{ recordVariants.length === 1 ? '' : 's' }} para el registro seleccionado.</small>
@@ -140,7 +161,8 @@
           <div class="master-head">
             <div>
               <p class="eyebrow">Campos de la variante</p>
-              <h3>{{ selectedVariant.variantCode }}</h3>
+              <h3>{{ variantFunctionalName(selectedVariant) }}</h3>
+              <small data-technical-value="true">Código técnico: {{ selectedVariant.variantCode }}</small>
             </div>
             <span class="badge">{{ selectedFields.length }}</span>
           </div>
@@ -160,8 +182,9 @@
               (click)="onSelectField(field.id)"
             >
               <span class="master-item-main">
-                <strong>{{ field.fieldCode }}</strong>
-                <small>{{ field.fieldNameEs }}</small>
+                <strong>{{ fieldFunctionalName(field) }}</strong>
+                <small data-technical-value="true">Código técnico: {{ field.fieldCode }}</small>
+                <small *ngIf="field.propertyPath" data-technical-value="true">Ruta técnica: {{ field.propertyPath }}</small>
               </span>
               <span class="master-item-meta">Pos. {{ field.startPosition }}–{{ field.startPosition + field.length - 1 }}</span>
               <span class="status-dot" [class.is-inactive]="!field.isEnabled" aria-hidden="true"></span>
@@ -182,8 +205,8 @@
           <div class="detail-heading">
             <div>
               <p class="eyebrow">Detalle seleccionado</p>
-              <h2>{{ detailMode === 'variant' ? selectedVariant.nombreEs : selectedField?.fieldNameEs || selectedVariant.nombreEs }}</h2>
-              <p>{{ detailMode === 'variant' ? selectedVariant.variantCode : selectedField?.fieldCode || 'Selecciona un campo' }}</p>
+              <h2>{{ detailMode === 'variant' ? variantFunctionalName(selectedVariant) : selectedField ? fieldFunctionalName(selectedField) : variantFunctionalName(selectedVariant) }}</h2>
+              <p data-technical-value="true">{{ detailMode === 'variant' ? 'Código técnico: ' + selectedVariant.variantCode : selectedField ? 'Código técnico: ' + selectedField.fieldCode : 'Selecciona un campo' }}</p>
             </div>
             <span class="badge" *ngIf="selectedField">{{ selectedField.isEnabled ? 'Habilitado' : 'Inactivo' }}</span>
           </div>
@@ -211,15 +234,19 @@
               <div class="semantic-grid">
                 <article *ngFor="let item of variantSemanticItems" class="semantic-value" [attr.data-state]="item.state">
                   <div><strong>{{ item.label }}</strong><span class="semantic-badge" [attr.data-state]="item.state">{{ semanticStateLabel(item.state) }}</span></div>
-                  <p>{{ item.value }}</p>
+                  <p [attr.data-technical-value]="item.technicalValue ? 'true' : null">{{ item.value }}</p>
                   <small>{{ item.explanation }}</small>
+                  <small *ngIf="item.secondaryTechnicalValue" class="technical-note" data-technical-value="true">
+                    {{ item.secondaryTechnicalLabel }}: {{ item.secondaryTechnicalValue }}
+                  </small>
                 </article>
               </div>
 
               <form *ngIf="puedeEditarVariantActual" [formGroup]="variantForm" class="form-grid" aria-label="Editor de variante">
                 <label class="field">
-                  <span>Nombre funcional</span>
-                  <input type="text" formControlName="nombreEs" />
+                  <span>Nombre almacenado</span>
+                  <input type="text" formControlName="nombreEs" data-technical-value="true" />
+                  <small class="field-hint">El nombre funcional en español se presenta por separado sin modificar este valor persistido.</small>
                   <small *ngIf="variantForm.controls.nombreEs.touched && variantForm.controls.nombreEs.invalid" class="field-error">El nombre es obligatorio.</small>
                 </label>
                 <label class="field field--wide">
@@ -259,15 +286,29 @@
                 <div class="semantic-grid">
                   <article *ngFor="let item of fieldSemanticItems" class="semantic-value" [attr.data-state]="item.state">
                     <div><strong>{{ item.label }}</strong><span class="semantic-badge" [attr.data-state]="item.state">{{ semanticStateLabel(item.state) }}</span></div>
-                    <p>{{ item.value }}</p>
+                    <p [attr.data-technical-value]="item.technicalValue ? 'true' : null">{{ item.value }}</p>
                     <small>{{ item.explanation }}</small>
+                    <small *ngIf="item.secondaryTechnicalValue" class="technical-note" data-technical-value="true">
+                      {{ item.secondaryTechnicalLabel }}: {{ item.secondaryTechnicalValue }}
+                    </small>
                   </article>
                 </div>
 
+                <details class="technical-details" data-testid="field-technical-details">
+                  <summary>Información técnica avanzada</summary>
+                  <dl>
+                    <div *ngFor="let item of fieldTechnicalItems">
+                      <dt>{{ item.label }}</dt>
+                      <dd data-technical-value="true">{{ item.value }}</dd>
+                    </div>
+                  </dl>
+                </details>
+
                 <form *ngIf="puedeEditarFieldActual" [formGroup]="fieldForm" class="form-grid" aria-label="Editor de campo">
                   <label class="field">
-                    <span>Nombre funcional</span>
-                    <input type="text" formControlName="fieldNameEs" />
+                    <span>Nombre almacenado</span>
+                    <input type="text" formControlName="fieldNameEs" data-technical-value="true" />
+                    <small class="field-hint">El nombre funcional en español se obtiene del catálogo de presentación.</small>
                     <small *ngIf="fieldForm.controls.fieldNameEs.touched && fieldForm.controls.fieldNameEs.invalid" class="field-error">El nombre del campo es obligatorio.</small>
                   </label>
                   <label class="field">
@@ -289,9 +330,9 @@
                     El campo se superpone con otro campo de la variante.
                   </small>
                   <label class="field field--wide">
-                    <span>Ruta de propiedad</span>
-                    <input type="text" formControlName="propertyPath" />
-                    <small class="field-hint">Solo aplica a orígenes que resuelven una propiedad.</small>
+                    <span>Ruta técnica del dato</span>
+                    <input type="text" formControlName="propertyPath" data-technical-value="true" />
+                    <small class="field-hint">Solo aplica a orígenes que resuelven una propiedad del dominio.</small>
                   </label>
                   <label class="field field--inline">
                     <span>Campo habilitado</span>
@@ -323,16 +364,16 @@
                       [class.is-selected]="isSelectedRule(rule)"
                       (click)="onSelectRule(rule.id)"
                     >
-                      <strong>{{ rule.errorCode }}</strong>
+                      <strong data-technical-value="true">{{ rule.errorCode }}</strong>
                       <span>{{ rule.errorMessageEs }}</span>
-                      <small>{{ rule.severity === 'WARN' ? 'Advertencia' : 'Error' }} · {{ rule.isEnabled ? 'Habilitada' : 'Inactiva' }}</small>
+                      <small>{{ severityLabel(rule.severity) }} · {{ rule.isEnabled ? 'Habilitada' : 'Inactiva' }}</small>
                     </button>
                   </div>
 
                   <form *ngIf="puedeEditarRuleActual && selectedRule" [formGroup]="ruleForm" class="form-grid" aria-label="Editor de regla">
                     <label class="field">
                       <span>Código de error</span>
-                      <input type="text" formControlName="errorCode" />
+                      <input type="text" formControlName="errorCode" data-technical-value="true" />
                       <small *ngIf="ruleForm.controls.errorCode.touched && ruleForm.controls.errorCode.invalid" class="field-error">El código de error es obligatorio.</small>
                     </label>
                     <label class="field field--wide">
@@ -365,7 +406,8 @@
 
           <ul class="issues" *ngIf="variantSaveIssues.length + fieldSaveIssues.length + ruleSaveIssues.length > 0">
             <li *ngFor="let issue of variantSaveIssues.concat(fieldSaveIssues, ruleSaveIssues)">
-              <strong>{{ issue.severidad }}</strong> · {{ issue.codigo }} · {{ issue.mensaje }}
+              <strong>{{ severityLabel(issue.severidad) }}</strong> ·
+              <span data-technical-value="true">{{ issue.codigo }}</span> · {{ issue.mensaje }}
             </li>
           </ul>
         </main>

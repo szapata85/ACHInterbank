@@ -20,6 +20,19 @@ import {
 } from '../models/nacha-config-admin.models';
 import { NachaConfigCommandService } from '../services/nacha-config-command.service';
 import { NachaConfigQueryService } from '../services/nacha-config-query.service';
+import {
+  directionPresentation,
+  fieldPresentation,
+  flowPresentation,
+  justificationPresentation,
+  profilePresentation,
+  servicePresentation,
+  severityPresentation,
+  sourceStrategyPresentation,
+  sourceTypePresentation,
+  statusPresentation,
+  variantPresentation
+} from '../presentation/nacha-config-presentation.catalog';
 
 interface ProfileOption extends NachaConfigProfileReadModel {}
 
@@ -31,6 +44,14 @@ interface SemanticDetailItem {
   value: string;
   state: SemanticState;
   explanation: string;
+  technicalValue?: boolean;
+  secondaryTechnicalLabel?: string;
+  secondaryTechnicalValue?: string;
+}
+
+interface TechnicalDetailItem {
+  label: string;
+  value: string;
 }
 
 @Component({
@@ -193,7 +214,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     }
 
     return this.selectedFields.filter(field =>
-      `${field.fieldCode} ${field.fieldNameEs} ${field.propertyPath ?? ''}`
+      `${field.fieldCode} ${field.fieldNameEs} ${this.fieldFunctionalName(field)} ${field.propertyPath ?? ''}`
         .toLocaleLowerCase('es')
         .includes(filter)
     );
@@ -243,7 +264,15 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     }
 
     return [
-      this.semanticItem('Código de variante', variant.variantCode, 'configured', 'Identificador técnico persistido de la variante.'),
+      this.semanticItem(
+        'Nombre funcional',
+        this.variantFunctionalName(variant),
+        'configured',
+        'Nombre en español utilizado para identificar la variante.',
+        false,
+        'Código técnico',
+        variant.variantCode
+      ),
       this.semanticItem(
         'Descripción',
         variant.descripcion,
@@ -281,19 +310,15 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     }
 
     const sourceType = field.sourceType?.trim().toUpperCase() ?? '';
-    const sourceTypeValue = field.sourceTypeName?.trim()
-      ? `${field.sourceTypeName} (${sourceType})`
-      : sourceType;
+    const sourceTypeValue = sourceTypePresentation(sourceType);
 
     return [
-      this.semanticItem('Código técnico', field.fieldCode, 'configured', 'Identificador persistido del campo dentro de la variante.'),
+      this.semanticItem('Código técnico', field.fieldCode, 'configured', 'Identificador persistido del campo dentro de la variante.', true),
       this.semanticItem(
         'Nombre funcional',
-        field.fieldNameEs,
-        field.fieldNameEs?.trim() ? 'configured' : 'blocking',
-        field.fieldNameEs?.trim()
-          ? 'Nombre legible utilizado por los administradores.'
-          : 'El campo necesita un nombre funcional para poder administrarse.'
+        this.fieldFunctionalName(field),
+        'configured',
+        'Nombre en español utilizado por los administradores.'
       ),
       this.semanticItem('Posición inicial', field.startPosition, 'configured', 'Primera posición ocupada por el campo.'),
       this.semanticItem('Longitud', `${field.length} caracteres`, 'configured', 'Cantidad de caracteres reservados.'),
@@ -309,7 +334,10 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
         sourceType ? 'configured' : 'blocking',
         sourceType
           ? 'Indica cómo se obtiene el valor del campo.'
-          : 'No existe un tipo de origen; el campo no puede resolverse.'
+          : 'No existe un tipo de origen; el campo no puede resolverse.',
+        false,
+        sourceType ? 'Código persistido' : undefined,
+        sourceType || undefined
       ),
       this.sourceDefinitionSemantic(field, sourceType),
       this.semanticItem(
@@ -318,31 +346,36 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
         field.formatMask?.trim() ? 'configured' : 'not-applicable',
         field.formatMask?.trim()
           ? 'La máscara se aplica antes de escribir el valor.'
-          : 'El campo se escribe sin una máscara adicional.'
+          : 'El campo se escribe sin una máscara adicional.',
+        !!field.formatMask?.trim()
       ),
       this.semanticItem(
-        'Relleno',
+        'Carácter de relleno',
         this.paddingLabel(field.padChar),
         field.padChar !== null && field.padChar !== undefined ? 'configured' : 'blocking',
-        'Carácter utilizado para completar la longitud fija.'
+        'Carácter utilizado para completar la longitud fija.',
+        true
       ),
       this.semanticItem(
         'Alineación',
-        this.justificationLabel(field.justification),
+        justificationPresentation(field.justification),
         field.justification?.trim() ? 'configured' : 'blocking',
-        'Define hacia qué lado se alinea el contenido antes del relleno.'
+        'Define hacia qué lado se alinea el contenido antes del relleno.',
+        false,
+        field.justification?.trim() ? 'Código persistido' : undefined,
+        field.justification?.trim() || undefined
       ),
       this.semanticItem(
         'Transformaciones adicionales',
-        field.transformationPipelineJson?.trim() ? 'Canal de transformaciones definido' : 'No requiere transformaciones',
+        field.transformationPipelineJson?.trim() ? 'Transformaciones configuradas' : 'No requiere transformaciones',
         field.transformationPipelineJson?.trim() ? 'configured' : 'not-applicable',
         field.transformationPipelineJson?.trim()
-          ? 'Existe una transformación declarativa antes de renderizar el campo.'
+          ? 'Existe una transformación declarativa antes de generar el campo.'
           : 'El valor puede escribirse directamente con su origen y formato actuales.'
       ),
       this.semanticItem(
         'Visibilidad administrativa',
-        field.isVisibleInBackoffice === false ? 'Oculto en backoffice' : 'Visible en backoffice',
+        field.isVisibleInBackoffice === false ? 'Oculto en la consola administrativa' : 'Visible en la consola administrativa',
         field.isVisibleInBackoffice === null || field.isVisibleInBackoffice === undefined ? 'pending' : 'configured',
         'Controla la visibilidad operativa del campo, no su presencia en el archivo.'
       ),
@@ -353,6 +386,28 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
         field.isEnabled ? 'El campo participa en la variante.' : 'El campo se conserva, pero no participa actualmente.'
       )
     ];
+  }
+
+  get fieldTechnicalItems(): TechnicalDetailItem[] {
+    const field = this.selectedField;
+    if (!field) {
+      return [];
+    }
+
+    return [
+      { label: 'Código del campo', value: field.fieldCode },
+      { label: 'Ruta técnica del dato', value: field.propertyPath?.trim() ?? '' },
+      { label: 'Código del tipo de origen', value: field.sourceType?.trim() ?? '' },
+      { label: 'Entidad configurada', value: field.entityName?.trim() ?? '' },
+      { label: 'Objeto de base de datos', value: field.sqlObjectName?.trim() ?? '' },
+      { label: 'Expresión de cálculo', value: field.expressionDsl?.trim() ?? '' },
+      { label: 'Código de catálogo externo', value: field.externalCatalogCode?.trim() ?? '' },
+      { label: 'Máscara de formato', value: field.formatMask?.trim() ?? '' },
+      { label: 'Carácter de relleno', value: field.padChar ?? '' },
+      { label: 'Código de alineación', value: field.justification?.trim() ?? '' },
+      { label: 'Transformaciones (JSON)', value: field.transformationPipelineJson?.trim() ?? '' },
+      { label: 'Política alternativa (JSON)', value: field.fallbackPolicyJson?.trim() ?? '' }
+    ].filter(item => item.value !== '');
   }
 
   loadProfiles(): void {
@@ -684,7 +739,7 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
   }
 
   sourceStrategyLabel(value: string): string {
-    return value === 'TABLE_DRIVEN' ? 'Configuración parametrizada' : value;
+    return sourceStrategyPresentation(value);
   }
 
   semanticStateLabel(state: SemanticState): string {
@@ -701,6 +756,43 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
       '9': 'Control de archivo'
     };
     return names[code] ?? 'Registro configurado';
+  }
+
+  profileFunctionalName(profile: Pick<NachaConfigProfileReadModel, 'profileCode' | 'profileName'> | NachaConfigProfileDetail): string {
+    const persistedName = 'profileName' in profile ? profile.profileName : profile.nombreEs;
+    return profilePresentation(profile.profileCode, persistedName).functionalName;
+  }
+
+  variantFunctionalName(variant: NachaConfigLayoutVariant): string {
+    return variantPresentation(variant.variantCode, variant.nombreEs, variant.recordCode).functionalName;
+  }
+
+  fieldFunctionalName(field: NachaConfigLayoutField): string {
+    return fieldPresentation(field.fieldCode, field.fieldNameEs).functionalName;
+  }
+
+  statusLabel(value?: string | null): string {
+    return statusPresentation(value);
+  }
+
+  flowLabel(value?: string | null): string {
+    return flowPresentation(value);
+  }
+
+  directionLabel(value?: string | null): string {
+    return directionPresentation(value);
+  }
+
+  serviceLabel(value?: string | null): string {
+    return servicePresentation(value);
+  }
+
+  sourceTypeLabel(value?: string | null): string {
+    return sourceTypePresentation(value);
+  }
+
+  severityLabel(value?: string | null): string {
+    return severityPresentation(value);
   }
 
   private loadDetail(
@@ -1059,12 +1151,23 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     label: string,
     rawValue: unknown,
     state: SemanticState,
-    explanation: string
+    explanation: string,
+    technicalValue = false,
+    secondaryTechnicalLabel?: string,
+    secondaryTechnicalValue?: string
   ): SemanticDetailItem {
     const value = rawValue === null || rawValue === undefined || `${rawValue}`.trim() === ''
       ? this.semanticStateLabel(state)
       : `${rawValue}`;
-    return { label, value, state, explanation };
+    return {
+      label,
+      value,
+      state,
+      explanation,
+      technicalValue,
+      secondaryTechnicalLabel,
+      secondaryTechnicalValue
+    };
   }
 
   private sourceDefinitionSemantic(field: NachaConfigLayoutField, sourceType: string): SemanticDetailItem {
@@ -1075,7 +1178,8 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
         field.constantValue !== null && field.constantValue !== undefined ? 'configured' : 'blocking',
         field.constantValue !== null && field.constantValue !== undefined
           ? 'El campo utiliza el valor constante almacenado.'
-          : 'Un origen constante necesita un valor definido.'
+          : 'Un origen constante necesita un valor definido.',
+        field.constantValue !== null && field.constantValue !== undefined
       );
     }
 
@@ -1087,14 +1191,15 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
           : path
         : '';
       return this.semanticItem(
-        'Ruta de origen',
+        'Ruta técnica del dato',
         qualifiedPath,
         qualifiedPath ? 'configured' : 'blocking',
         qualifiedPath
           ? field.entityName?.trim()
             ? 'La propiedad se obtiene de la entidad indicada.'
             : 'La propiedad se resuelve sobre el contexto del registro; no requiere una entidad fija.'
-          : 'Un origen de entidad necesita una ruta de propiedad.'
+          : 'Un origen de entidad necesita una ruta técnica del dato.',
+        true
       );
     }
 
@@ -1116,7 +1221,8 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
         field.sqlObjectName?.trim() ? 'configured' : 'blocking',
         field.sqlObjectName?.trim()
           ? 'El valor se consulta desde el objeto SQL configurado.'
-          : 'El tipo de origen SQL necesita un objeto configurado.'
+          : 'El tipo de origen SQL necesita un objeto configurado.',
+        !!field.sqlObjectName?.trim()
       );
     }
 
@@ -1125,7 +1231,8 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
         'Catálogo externo',
         field.externalCatalogCode,
         'configured',
-        'El valor se resuelve mediante el catálogo configurado.'
+        'El valor se resuelve mediante el catálogo configurado.',
+        true
       );
     }
 
@@ -1146,13 +1253,4 @@ export class NachaConfigVariantsFieldsPageComponent implements OnInit {
     return value?.length ? value : '';
   }
 
-  private justificationLabel(value?: string | null): string {
-    if (value === 'R') {
-      return 'Derecha (R)';
-    }
-    if (value === 'L') {
-      return 'Izquierda (L)';
-    }
-    return value?.trim() ?? '';
-  }
 }

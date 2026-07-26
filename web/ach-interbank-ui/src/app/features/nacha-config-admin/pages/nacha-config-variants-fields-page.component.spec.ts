@@ -244,8 +244,8 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
     expect((fixture.nativeElement.querySelector('[data-testid="record-selector"]') as HTMLSelectElement).value).toBe('1');
     expect((fixture.nativeElement.querySelector('[data-testid="variant-selector"]') as HTMLSelectElement).value).toBe('201');
     expect(fixture.nativeElement.textContent).toContain('Campos por variante NACHA-M');
-    expect(fixture.nativeElement.textContent).toContain('Record 1 base');
-    expect(fixture.nativeElement.textContent).toContain('Field A');
+    expect(fixture.nativeElement.textContent).toContain('Variante base del registro 1');
+    expect(fixture.nativeElement.textContent).toContain('Campo a');
     expect(fixture.nativeElement.textContent).toContain('Posición final');
     expect(fixture.nativeElement.textContent).toContain('Calculado por el sistema');
   });
@@ -253,9 +253,10 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
   it('Component_ShouldExplainSemanticStatesAndUseVariantDatesFromApi', () => {
     expect(component.variantForm.controls.effectiveFrom.value).toBe('2026-02-01');
     expect(component.variantForm.controls.effectiveTo.value).toBe('');
-    expect(component.fieldSemanticItems.find(item => item.label === 'Ruta de origen')).toEqual(jasmine.objectContaining({
+    expect(component.fieldSemanticItems.find(item => item.label === 'Ruta técnica del dato')).toEqual(jasmine.objectContaining({
       value: 'Transaction.Amount',
-      state: 'configured'
+      state: 'configured',
+      technicalValue: true
     }));
     expect(component.fieldSemanticItems.find(item => item.label === 'Posición final')?.state).toBe('calculated');
     expect(component.fieldSemanticItems.find(item => item.label === 'Máscara de formato')?.state).toBe('not-applicable');
@@ -431,6 +432,17 @@ describe('NachaConfigVariantsFieldsPageComponent', () => {
       ['/nacha-config-admin/records'],
       { queryParams: { profileId: 11 } }
     );
+  });
+
+  it('Component_ShouldSearchFieldsBySpanishNameTechnicalCodeAndTechnicalPath', () => {
+    component.fieldFilter = 'Campo a';
+    expect(component.visibleFields.map(field => field.fieldCode)).toEqual(['FIELD_A']);
+
+    component.fieldFilter = 'FIELD_B';
+    expect(component.visibleFields.map(field => field.fieldCode)).toEqual(['FIELD_B']);
+
+    component.fieldFilter = 'Transaction.Amount';
+    expect(component.visibleFields.map(field => field.fieldCode)).toEqual(['FIELD_A']);
   });
 
   it('Component_ShouldRejectOverlappingFieldAndCancelEdits', () => {

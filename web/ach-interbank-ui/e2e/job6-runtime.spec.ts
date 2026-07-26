@@ -90,7 +90,11 @@ test.describe.serial('JOB 6 - runtime integrado real', () => {
       await expect(profilesPage).toBeVisible();
       await expect(profilesPage.getByRole('heading', { name: 'Configuración NACHA-M' })).toBeVisible();
 
+      const createPanel = profilesPage.getByTestId('create-profile-panel');
+      await expect(createPanel).toBeVisible();
+      await createPanel.locator('summary').click();
       const createForm = page.locator('form.crear-grid');
+      await expect(createForm).toBeVisible();
       const clearingHouseSelect = createForm.getByLabel('Cámara');
       await expect(clearingHouseSelect).toBeEnabled();
       await expect(clearingHouseSelect.locator(`option[value="${thirdCameraCode}"]`)).toHaveCount(1);
@@ -119,9 +123,10 @@ test.describe.serial('JOB 6 - runtime integrado real', () => {
       expect(await page.locator('body').innerText()).not.toContain('[object Object]');
 
       await page.getByRole('button', { name: 'Volver' }).first().click();
-      const filters = page.locator('ui-tarjeta').filter({ hasText: 'Filtros de perfiles' });
-      await filters.getByPlaceholder('Buscar cámara').fill(thirdCameraCode);
-      await filters.getByRole('button', { name: new RegExp(`${thirdCameraCode}.*${thirdCameraName}`, 'i') }).click();
+      const cameraFilter = page.locator('.filtros-grid label')
+        .filter({ hasText: /^Cámara/ })
+        .locator('select');
+      await cameraFilter.selectOption(thirdCameraCode);
       await expect(page.getByText(profileCode, { exact: true })).toBeVisible();
       await expect(
         page.getByRole('gridcell', { name: `${thirdCameraCode} - ${thirdCameraName}`, exact: true })
