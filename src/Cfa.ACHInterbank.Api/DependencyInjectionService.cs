@@ -8,10 +8,12 @@ using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using NLog.Extensions.Logging;
 using Npgsql;
 using Scalar.AspNetCore;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -22,6 +24,7 @@ namespace Cfa.ACHInterbank.Api;
 public static class DependencyInjectionService
 {
     private const string CorsPolicyName = "CorsPolicy";
+    private const string OpenApiOutputCachePolicyName = "OpenApiDocument";
 
     public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
@@ -57,6 +60,34 @@ public static class DependencyInjectionService
             options.SerializerOptions.MaxDepth = 256;
             options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            options.SerializerOptions.TypeInfoResolverChain.Insert(0, OpenApiSchemaJsonTypeInfoResolver.Create());
+        });
+
+        var openApiOutputCacheMinutes = Math.Clamp(
+            configuration.GetValue<int?>("OpenApi:OutputCacheMinutes") ?? 15,
+            1,
+            1_440);
+        services.AddOutputCache(options =>
+        {
+            options.AddPolicy(OpenApiOutputCachePolicyName, policy =>
+            {
+                policy.Expire(TimeSpan.FromMinutes(openApiOutputCacheMinutes));
+            });
+        });
+        services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<BrotliCompressionProvider>();
+            options.Providers.Add<GzipCompressionProvider>();
+            options.MimeTypes = ["application/json"];
+        });
+        services.Configure<BrotliCompressionProviderOptions>(options =>
+        {
+            options.Level = CompressionLevel.Fastest;
+        });
+        services.Configure<GzipCompressionProviderOptions>(options =>
+        {
+            options.Level = CompressionLevel.Fastest;
         });
 
         services.AddLogging(loggingBuilder =>
@@ -134,8 +165,14 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
-        app.MapOpenApi("/openapi/{documentName}.json").AllowAnonymous();
-        app.MapScalarApiReference().AllowAnonymous();
+        app.MapOpenApi("/openapi/{documentName}.json")
+            .CacheOutput(OpenApiOutputCachePolicyName)
+            .AllowAnonymous();
+        app.MapScalarApiReference(options => options
+                .DisableAgent()
+                .DisableMcp()
+                .HideDeveloperTools())
+            .AllowAnonymous();
 
         app.MapGet("/", context =>
         {
@@ -306,6 +343,10 @@ public static class DependencyInjectionService
         app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseWhen(
+            context => context.Request.Path.StartsWithSegments("/openapi", StringComparison.OrdinalIgnoreCase),
+            branch => branch.UseResponseCompression());
+        app.UseOutputCache();
         app.MapControllers();
     }
 
