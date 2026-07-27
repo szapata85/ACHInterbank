@@ -1,4 +1,5 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { Router } from '@angular/router';
 import { of, Subject } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -6,31 +7,89 @@ import { CustomerSummary } from '../../../customers/models/customer.model';
 import { CustomersApiService } from '../../../customers/services/customers-api.service';
 import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import { AccountTypeEnum, TransactionTypeEnum } from '../../transactions.types';
+import {
+  ActiveThirdPartyAccount,
+  CompanyEntryDescriptionOption,
+  DestinationInstitution
+} from '../../transactions.models';
+import {
+  AccountTypeEnum,
+  FinancialInstitutionStatusEnum,
+  TransactionTypeEnum
+} from '../../transactions.types';
 import { TransactionCreateComponent } from './transaction-create.component';
 
 describe('TransactionCreateComponent', () => {
   let component: TransactionCreateComponent;
   let fixture: ComponentFixture<TransactionCreateComponent>;
   let txApi: jasmine.SpyObj<TransactionsApiService>;
+  let customersApi: jasmine.SpyObj<CustomersApiService>;
+  let institutionsApi: jasmine.SpyObj<FinancialInstitutionsApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
-  const activeThirdPartyAccount = {
+  const activeThirdPartyAccount: ActiveThirdPartyAccount = {
+    id: 41,
     destinationAccountNumber: '9876543210',
     destinationInstitutionId: 7,
     recipientIdNumber: '10101010',
     destinationInstitutionName: 'Banco destino UAT'
   };
+  const customers: CustomerSummary[] = [
+    {
+      id: 10,
+      fullName: 'Ángela Pérez',
+      documentType: 'CC',
+      documentNumber: '12345678',
+      accountNumber: '1234567890',
+      accountNumbers: ['1234567890', '1234567891'],
+      personType: 'PN',
+      companyName: null
+    },
+    {
+      id: 20,
+      fullName: 'Empresa Nómina',
+      documentType: 'NIT',
+      documentNumber: '900123456',
+      accountNumber: '2234567890',
+      accountNumbers: ['2234567890'],
+      personType: 'PJ',
+      companyName: 'Empresa Nómina'
+    }
+  ];
+  const institutions: DestinationInstitution[] = [
+    {
+      id: 7,
+      name: 'Banco destino Ágil',
+      routingNumber: '007',
+      transitCode: '017',
+      checkDigit: '1',
+      isDefaultSource: false,
+      status: FinancialInstitutionStatusEnum.Active
+    },
+    {
+      id: 8,
+      name: 'Banco inactivo',
+      routingNumber: '008',
+      transitCode: '018',
+      checkDigit: '2',
+      isDefaultSource: false,
+      status: FinancialInstitutionStatusEnum.Inactive
+    }
+  ];
 
   beforeEach(async () => {
     txApi = jasmine.createSpyObj<TransactionsApiService>('TransactionsApiService', ['getCompanyEntryDescriptions', 'createTransaction', 'getActiveThirdParties', 'previewPolicy']);
+    customersApi = jasmine.createSpyObj<CustomersApiService>('CustomersApiService', ['getAll']);
+    institutionsApi = jasmine.createSpyObj<FinancialInstitutionsApiService>('FinancialInstitutionsApiService', ['getAll']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error']);
+    customersApi.getAll.and.returnValue(of(customers));
+    institutionsApi.getAll.and.returnValue(of(institutions));
 
     await TestBed.configureTestingModule({
-      imports: [TransactionCreateComponent],
+      imports: [TransactionCreateComponent, NoopAnimationsModule],
       providers: [
         { provide: TransactionsApiService, useValue: txApi },
-        { provide: FinancialInstitutionsApiService, useValue: { getAll: () => of([]) } },
-        { provide: CustomersApiService, useValue: { getAll: () => of([] as CustomerSummary[]) } },
+        { provide: FinancialInstitutionsApiService, useValue: institutionsApi },
+        { provide: CustomersApiService, useValue: customersApi },
         { provide: NotificationService, useValue: notifications },
         { provide: Router, useValue: jasmine.createSpyObj('Router', ['navigate']) }
       ]
@@ -38,8 +97,12 @@ describe('TransactionCreateComponent', () => {
 
     fixture = TestBed.createComponent(TransactionCreateComponent);
     component = fixture.componentInstance;
-    txApi.getCompanyEntryDescriptions.and.returnValue(of([{ id: 1, term: 'NOMINAS', description: 'Nómina' }] as any));
-    txApi.getActiveThirdParties.and.returnValue(of([activeThirdPartyAccount] as any));
+    const descriptions: CompanyEntryDescriptionOption[] = [
+      { id: 1, term: 'NOMINAS', description: 'Nómina', standardEntryClassCode: 'PPD' },
+      { id: 2, term: 'PAGOS', description: 'Pago de proveedores', standardEntryClassCode: 'CCD' }
+    ];
+    txApi.getCompanyEntryDescriptions.and.returnValue(of(descriptions));
+    txApi.getActiveThirdParties.and.returnValue(of([activeThirdPartyAccount]));
     txApi.previewPolicy.and.returnValue(of({ canSubmit: true } as any));
     fixture.detectChanges();
   });
@@ -63,8 +126,8 @@ describe('TransactionCreateComponent', () => {
       recipientPersonType: 'PN',
       companyEntryDescriptionId: 1
     });
-    component.activeDestinationAccounts = [activeThirdPartyAccount] as any;
-    component.filteredDestinationAccounts = [activeThirdPartyAccount] as any;
+    component.activeDestinationAccounts = [activeThirdPartyAccount];
+    component.filteredDestinationAccounts = [activeThirdPartyAccount];
     component.form.patchValue({
       destinationInstitutionId: activeThirdPartyAccount.destinationInstitutionId,
       destinationAccountNumber: activeThirdPartyAccount.destinationAccountNumber,
@@ -100,6 +163,170 @@ describe('TransactionCreateComponent', () => {
     expect(payload.legacyReference).toBeUndefined();
     expect(payload.legacyReferenceId).toBeUndefined();
     expect(payload.customerId).toBeUndefined();
+    expect(payload.customerSearchControl).toBeUndefined();
+    expect(payload.sourceAccountSearchControl).toBeUndefined();
+    expect(payload.companyEntryDescriptionSearchControl).toBeUndefined();
+    expect(payload.destinationInstitutionSearchControl).toBeUndefined();
+    expect(payload.destinationAccountSearchControl).toBeUndefined();
+    expect(typeof payload.destinationInstitutionId).toBe('number');
+    expect(typeof payload.companyEntryDescriptionId).toBe('number');
+    expect(typeof payload.sourceAccountNumber).toBe('string');
+    expect(typeof payload.destinationAccountNumber).toBe('string');
+  });
+
+  it('filtra clientes por nombre, documento, cuenta y sin distinguir acentos', () => {
+    component.customerSearchControl.setValue('angela');
+    expect(component.filteredCustomerOptions.map((option) => option.value)).toEqual([10]);
+
+    component.customerSearchControl.setValue('CC 12345678');
+    expect(component.filteredCustomerOptions.map((option) => option.value)).toEqual([10]);
+
+    component.customerSearchControl.setValue('1234567891');
+    expect(component.filteredCustomerOptions.map((option) => option.value)).toEqual([10]);
+  });
+
+  it('selecciona cliente por ID, autocompleta origen y conserva el flujo de terceros', () => {
+    const option = component.customerOptions.find((item) => item.value === 10)!;
+
+    component.selectCustomer(option);
+
+    expect(component.form.get('customerId')?.value).toBe(10);
+    expect(component.form.get('sourceAccountNumber')?.value).toBe('1234567890');
+    expect(component.form.get('companyIdentification')?.value).toBe('12345678');
+    expect(component.form.get('sourcePersonType')?.value).toBe('PN');
+    expect(component.selectedCustomerAccounts).toEqual(['1234567890', '1234567891']);
+    expect(txApi.getActiveThirdParties).toHaveBeenCalledWith('1234567890');
+  });
+
+  it('al editar el cliente seleccionado limpia solo el ID y ejecuta el comportamiento manual vigente', () => {
+    component.selectCustomer(component.customerOptions.find((item) => item.value === 10)!);
+    const completedCompanyName = component.form.get('companyName')?.value;
+    const completedSourceAccount = component.form.get('sourceAccountNumber')?.value;
+
+    component.customerSearchControl.setValue('cliente arbitrario');
+
+    expect(component.form.get('customerId')?.value).toBeNull();
+    expect(component.form.get('customerId')?.hasError('invalidSelection')).toBeTrue();
+    expect(component.selectedCustomerAccounts).toEqual([]);
+    expect(component.form.get('companyName')?.value).toBe(completedCompanyName);
+    expect(component.form.get('sourceAccountNumber')?.value).toBe(completedSourceAccount);
+  });
+
+  it('la opción manual conserva customerId nulo y una etiqueta segura', () => {
+    const manualOption = component.customerOptions.find((item) => item.manual)!;
+
+    component.selectCustomer(manualOption);
+
+    expect(component.form.get('customerId')?.value).toBeNull();
+    expect(component.displayCustomerOption(component.customerSearchControl.value)).toBe('Diligenciar manualmente');
+    expect(component.customerSearchControl.valid).toBeTrue();
+  });
+
+  it('filtra y selecciona la cuenta de origen exacta sin consultas por cada pulsación', fakeAsync(() => {
+    component.selectCustomer(component.customerOptions.find((item) => item.value === 10)!);
+    txApi.getActiveThirdParties.calls.reset();
+
+    component.sourceAccountSearchControl.setValue('7891');
+    tick(300);
+
+    expect(component.filteredSourceAccountOptions.map((option) => option.value)).toEqual(['1234567891']);
+    expect(component.form.get('sourceAccountNumber')?.value).toBe('');
+    expect(txApi.getActiveThirdParties).not.toHaveBeenCalled();
+
+    component.selectSourceAccount(component.filteredSourceAccountOptions[0]);
+    tick(300);
+
+    expect(component.form.get('sourceAccountNumber')?.value).toBe('1234567891');
+    expect(txApi.getActiveThirdParties).toHaveBeenCalledTimes(1);
+    expect(txApi.getActiveThirdParties).toHaveBeenCalledWith('1234567891');
+  }));
+
+  it('mantiene el campo manual de cuenta origen cuando no existe cliente seleccionado', () => {
+    component.clearCustomerSearch();
+    fixture.detectChanges();
+
+    const sourceInput = fixture.nativeElement.querySelector(
+      'input[formcontrolname="sourceAccountNumber"][data-testid="transaction-source-account"]'
+    );
+    expect(component.selectedCustomerAccounts).toEqual([]);
+    expect(sourceInput).not.toBeNull();
+  });
+
+  it('filtra descripción por texto y término, conserva ID y sincroniza NOMINAS', () => {
+    expect(component.form.get('companyEntryDescriptionId')?.value).toBe(1);
+    expect(component.displayCompanyEntryDescriptionOption(component.companyEntryDescriptionSearchControl.value))
+      .toBe('Nómina (NOMINAS)');
+
+    component.companyEntryDescriptionSearchControl.setValue('proveedores');
+    expect(component.filteredCompanyEntryDescriptionOptions.map((option) => option.value)).toEqual([2]);
+
+    component.companyEntryDescriptionSearchControl.setValue('pagos');
+    expect(component.filteredCompanyEntryDescriptionOptions.map((option) => option.value)).toEqual([2]);
+    component.selectCompanyEntryDescription(component.filteredCompanyEntryDescriptionOptions[0]);
+    expect(component.form.get('companyEntryDescriptionId')?.value).toBe(2);
+  });
+
+  it('filtra solo entidades activas, conserva el ID y lo limpia al editar texto', () => {
+    expect(component.destinationInstitutionOptions.map((option) => option.value)).toEqual([7]);
+
+    component.destinationInstitutionSearchControl.setValue('banco agil');
+    expect(component.filteredDestinationInstitutionOptions.map((option) => option.value)).toEqual([7]);
+    component.selectDestinationInstitution(component.filteredDestinationInstitutionOptions[0]);
+    expect(component.form.get('destinationInstitutionId')?.value).toBe(7);
+
+    component.destinationInstitutionSearchControl.setValue('entidad arbitraria');
+    expect(component.form.get('destinationInstitutionId')?.value).toBeNull();
+    expect(component.destinationInstitutionSearchControl.hasError('invalidSelection')).toBeTrue();
+  });
+
+  it('filtra cuenta destino por cuenta, receptor y entidad y autocompleta el receptor', () => {
+    component.form.patchValue({ sourceAccountNumber: '1234567890' }, { emitEvent: false });
+    component.selectDestinationInstitution(component.destinationInstitutionOptions[0]);
+    component.activeDestinationAccounts = [activeThirdPartyAccount];
+    component.filteredDestinationAccounts = [activeThirdPartyAccount];
+    component.form.get('destinationInstitutionId')?.setValue(7);
+
+    component.destinationAccountOptions = [{
+      value: activeThirdPartyAccount.destinationAccountNumber,
+      label: `${activeThirdPartyAccount.destinationAccountNumber} · ${activeThirdPartyAccount.recipientIdNumber} · ${activeThirdPartyAccount.destinationInstitutionName}`,
+      normalizedSearch: `${activeThirdPartyAccount.destinationAccountNumber} ${activeThirdPartyAccount.recipientIdNumber} banco destino uat`,
+      source: activeThirdPartyAccount
+    }];
+    component.filteredDestinationAccountSearchOptions = [...component.destinationAccountOptions];
+
+    component.destinationAccountSearchControl.setValue('10101010 banco destino');
+    expect(component.filteredDestinationAccountSearchOptions).toHaveSize(1);
+    component.selectDestinationAccount(component.filteredDestinationAccountSearchOptions[0]);
+
+    expect(component.form.get('destinationAccountNumber')?.value).toBe('9876543210');
+    expect(component.form.get('recipientIdNumber')?.value).toBe('10101010');
+  });
+
+  it('texto arbitrario en catálogo obligatorio bloquea envío, muestra mat-error y enfoca el autocomplete', fakeAsync(() => {
+    fillValidForm();
+    component.destinationInstitutionSearchControl.setValue('sin selección real');
+
+    component.submit();
+    tick();
+    fixture.detectChanges();
+
+    expect(txApi.createTransaction).not.toHaveBeenCalled();
+    expect(component.form.get('destinationInstitutionId')?.value).toBeNull();
+    expect(component.validationIssues.some((issue) => issue.path === 'destinationInstitutionId')).toBeTrue();
+    expect(fixture.nativeElement.textContent).toContain('Seleccione una entidad financiera destino de la lista.');
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('transaction-destination-institution');
+  }));
+
+  it('prenotificación mantiene cuenta destino manual y monto cero', () => {
+    component.form.get('isPrenotification')?.setValue(true);
+    fixture.detectChanges();
+
+    const manualDestination = fixture.nativeElement.querySelector(
+      'input[formcontrolname="destinationAccountNumber"][data-testid="transaction-destination-account"]'
+    );
+    expect(component.form.get('amount')?.value).toBe(0);
+    expect(manualDestination).not.toBeNull();
+    expect(component.destinationAccountSearchControl.value).toBe('');
   });
 
   it('elimina Referencia legado del FormGroup y de la interfaz visible', () => {
@@ -228,8 +455,10 @@ describe('TransactionCreateComponent', () => {
 
     expect(fixture.nativeElement.querySelectorAll('mat-form-field').length).toBeGreaterThan(10);
     expect(fixture.nativeElement.querySelectorAll('mat-select').length).toBeGreaterThan(3);
+    expect(fixture.nativeElement.querySelectorAll('mat-autocomplete').length).toBeGreaterThanOrEqual(4);
     expect(fixture.nativeElement.querySelectorAll('.mat-mdc-form-field-error').length).toBeGreaterThan(5);
     expect(fixture.nativeElement.querySelector('input[formcontrolname="reference"]')).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
   });
 
   it('muestra explicación aunque el formulario incompleto aún no se haya enviado', () => {
@@ -249,14 +478,22 @@ describe('TransactionCreateComponent', () => {
     expect(txApi.createTransaction).toHaveBeenCalledTimes(1);
     expect(component.createdResponse.value).toEqual({ id: 11 } as any);
     expect(notifications.success).toHaveBeenCalledWith('Transacción creada correctamente');
+    expect(component.form.get('customerId')?.value).toBeNull();
+    expect(component.customerSearchControl.value).toBe('');
+    expect(component.sourceAccountSearchControl.value).toBe('');
+    expect(component.destinationInstitutionSearchControl.value).toBe('');
+    expect(component.destinationAccountSearchControl.value).toBe('');
+    expect(component.form.get('companyEntryDescriptionId')?.value).toBe(1);
+    expect(component.displayCompanyEntryDescriptionOption(component.companyEntryDescriptionSearchControl.value))
+      .toBe('Nómina (NOMINAS)');
   });
 
   it('TransactionCreateComponent_ShouldSupportPrenotificationWithZeroAmount', () => {
     txApi.createTransaction.and.returnValue(of({ id: 11 } as any));
     fillValidForm(0);
     component.form.patchValue({ isPrenotification: true, amount: 0 });
-    component.activeDestinationAccounts = [activeThirdPartyAccount] as any;
-    component.filteredDestinationAccounts = [activeThirdPartyAccount] as any;
+    component.activeDestinationAccounts = [activeThirdPartyAccount];
+    component.filteredDestinationAccounts = [activeThirdPartyAccount];
     component.form.patchValue({
       destinationInstitutionId: activeThirdPartyAccount.destinationInstitutionId,
       destinationAccountNumber: activeThirdPartyAccount.destinationAccountNumber,

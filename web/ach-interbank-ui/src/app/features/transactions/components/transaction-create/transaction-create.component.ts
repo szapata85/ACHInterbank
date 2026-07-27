@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { AbstractControl, FormArray, FormBuilder, FormControl, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
@@ -10,7 +12,7 @@ import { EMPTY, catchError, debounceTime, distinctUntilChanged, finalize, map, s
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionPolicyPreview, TransactionResponse } from '../../transactions.models';
+import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, DestinationInstitution, TransactionDraft, TransactionPolicyPreview, TransactionResponse } from '../../transactions.models';
 import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
@@ -35,6 +37,27 @@ interface TransactionSectionState {
   status: 'complete' | 'attention' | 'pending';
   errorCount: number;
 }
+
+interface CatalogSearchOption<TValue, TSource> {
+  value: TValue;
+  label: string;
+  normalizedSearch: string;
+  source: TSource;
+}
+
+type CustomerSearchOption = CatalogSearchOption<number | null, CustomerSummary | null> & {
+  manual: boolean;
+};
+type SourceAccountSearchOption = CatalogSearchOption<string, string>;
+type CompanyEntryDescriptionSearchOption = CatalogSearchOption<number, CompanyEntryDescriptionOption>;
+type DestinationInstitutionSearchOption = CatalogSearchOption<number, DestinationInstitution>;
+type DestinationAccountSearchOption = CatalogSearchOption<string, ActiveThirdPartyAccount>;
+
+type CustomerSearchValue = string | CustomerSearchOption | null;
+type SourceAccountSearchValue = string | SourceAccountSearchOption | null;
+type CompanyEntryDescriptionSearchValue = string | CompanyEntryDescriptionSearchOption | null;
+type DestinationInstitutionSearchValue = string | DestinationInstitutionSearchOption | null;
+type DestinationAccountSearchValue = string | DestinationAccountSearchOption | null;
 
 const MAX_TRANSACTION_AMOUNT = 9_999_999_999_999_999.99;
 
@@ -84,14 +107,25 @@ const zeroMoneyValidator: ValidatorFn = (control: AbstractControl): ValidationEr
   return value === 0 ? null : { prenoteAmount: true };
 };
 
+function normalizeCatalogSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase();
+}
+
 @Component({
   selector: 'app-transaction-create',
   standalone: true,
   imports: [
     SharedModule,
+    MatAutocompleteModule,
     MatButtonModule,
     MatCheckboxModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
     MatProgressSpinnerModule,
     MatSelectModule
@@ -113,6 +147,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   validationAttempted = false;
 
   private readonly fieldMetadata: Record<string, { label: string; section: TransactionSection }> = {
+    customerId: { label: 'Cliente originador', section: 'originator' },
     amount: { label: 'Valor de la transacción', section: 'operation' },
     transactionExternalId: { label: 'ID de operación del cliente', section: 'operation' },
     type: { label: 'Tipo de operación', section: 'operation' },
@@ -152,19 +187,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       (list ?? [])
         .filter((item) => item.status === FinancialInstitutionStatusEnum.Active)
         .sort((a, b) => a.name.localeCompare(b.name))
-    )
-  );
-  readonly customerOptions$ = this.customers$.pipe(
-    map((customers) =>
-      (customers ?? []).map((customer) => ({
-        valor: customer.id,
-        etiqueta: `${customer.fullName} · ${customer.documentType} ${customer.documentNumber} · ${(customer.accountNumbers?.length ?? 0)} cuenta(s)`
-      }))
     ),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-  readonly institutionOptions$ = this.institutions$.pipe(
-    map((institutions) => (institutions ?? []).map((institution) => ({ valor: institution.id, etiqueta: institution.name }))),
     shareReplay({ bufferSize: 1, refCount: true })
   );
   readonly form: FormGroup = this.fb.group({
@@ -193,30 +216,56 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   readonly successMessage = new FormControl<string | null>(null);
   readonly createdResponse = new FormControl<TransactionResponse | null>(null);
 
+  customers: CustomerSummary[] = [];
+  institutions: DestinationInstitution[] = [];
   activeDestinationAccounts: ActiveThirdPartyAccount[] = [];
   filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
   selectedCustomerAccounts: string[] = [];
   companyEntryDescriptionOptions: CompanyEntryDescriptionOption[] = [];
+
+  customerOptions: CustomerSearchOption[] = [];
+  filteredCustomerOptions: CustomerSearchOption[] = [];
+  sourceAccountOptions: SourceAccountSearchOption[] = [];
+  filteredSourceAccountOptions: SourceAccountSearchOption[] = [];
+  companyEntryDescriptionSearchOptions: CompanyEntryDescriptionSearchOption[] = [];
+  filteredCompanyEntryDescriptionOptions: CompanyEntryDescriptionSearchOption[] = [];
+  destinationInstitutionOptions: DestinationInstitutionSearchOption[] = [];
+  filteredDestinationInstitutionOptions: DestinationInstitutionSearchOption[] = [];
+  destinationAccountOptions: DestinationAccountSearchOption[] = [];
+  filteredDestinationAccountSearchOptions: DestinationAccountSearchOption[] = [];
+
+  readonly customerSearchControl = new FormControl<CustomerSearchValue>(
+    '',
+    this.realSelectionValidator('customerId', true)
+  );
+  readonly sourceAccountSearchControl = new FormControl<SourceAccountSearchValue>(
+    '',
+    this.realSelectionValidator('sourceAccountNumber')
+  );
+  readonly companyEntryDescriptionSearchControl = new FormControl<CompanyEntryDescriptionSearchValue>(
+    '',
+    this.realSelectionValidator('companyEntryDescriptionId')
+  );
+  readonly destinationInstitutionSearchControl = new FormControl<DestinationInstitutionSearchValue>(
+    '',
+    this.realSelectionValidator('destinationInstitutionId')
+  );
+  readonly destinationAccountSearchControl = new FormControl<DestinationAccountSearchValue>(
+    '',
+    this.realSelectionValidator('destinationAccountNumber')
+  );
+
+  readonly displayCustomerOption = (value: CustomerSearchValue): string => this.displayCatalogOption(value);
+  readonly displaySourceAccountOption = (value: SourceAccountSearchValue): string => this.displayCatalogOption(value);
+  readonly displayCompanyEntryDescriptionOption = (value: CompanyEntryDescriptionSearchValue): string =>
+    this.displayCatalogOption(value);
+  readonly displayDestinationInstitutionOption = (value: DestinationInstitutionSearchValue): string =>
+    this.displayCatalogOption(value);
+  readonly displayDestinationAccountOption = (value: DestinationAccountSearchValue): string =>
+    this.displayCatalogOption(value);
+
   policyPreview: TransactionPolicyPreview | null = null;
   catalogsLoading = true;
-
-  get selectedCustomerAccountOptions() {
-    return this.selectedCustomerAccounts.map((accountNumber) => ({ valor: accountNumber, etiqueta: accountNumber }));
-  }
-
-  get filteredDestinationAccountOptions() {
-    return this.filteredDestinationAccounts.map((account) => ({
-      valor: account.destinationAccountNumber,
-      etiqueta: `${account.destinationAccountNumber} · ${account.recipientIdNumber} · ${account.destinationInstitutionName}`
-    }));
-  }
-
-  get companyEntryDescriptionOptionsForSelect() {
-    return this.companyEntryDescriptionOptions.map((option) => ({
-      valor: option.id,
-      etiqueta: `${option.description} (${option.term})`
-    }));
-  }
 
   get validationIssues(): TransactionValidationIssue[] {
     if (!this.validationAttempted && !this.form.touched) {
@@ -259,6 +308,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules, recipientIdentityValidator()]);
     this.ensureDefaultAddenda();
+    this.initializeAutocompleteSubscriptions();
 
     this.api.getCompanyEntryDescriptions()
       .pipe(
@@ -272,11 +322,11 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (items) => {
           this.companyEntryDescriptionOptions = (items ?? []).sort((a, b) => a.term.localeCompare(b.term));
-          const defaultItem = this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINAS')
-            ?? this.companyEntryDescriptionOptions[0];
-          if (defaultItem) {
-            this.form.patchValue({ companyEntryDescriptionId: defaultItem.id }, { emitEvent: false });
-          }
+          this.companyEntryDescriptionSearchOptions = this.companyEntryDescriptionOptions.map((option) =>
+            this.buildCompanyEntryDescriptionSearchOption(option)
+          );
+          this.filteredCompanyEntryDescriptionOptions = [...this.companyEntryDescriptionSearchOptions];
+          this.restoreDefaultCompanyEntryDescription();
         },
         error: () => {
           this.errorMessage.setValue('No fue posible cargar el catálogo de conceptos de entrada.');
@@ -293,35 +343,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.form
       .get('customerId')
       ?.valueChanges.pipe(takeUntil(this.destroy$))
-      .subscribe((customerId) => {
-        if (!customerId) {
-          this.selectedCustomerAccounts = [];
-          this.loadActiveDestinationAccounts();
-          this.cdr.markForCheck();
-          return;
-        }
-
-        this.customers$.pipe(take(1), takeUntil(this.destroy$)).subscribe((customers) => {
-          const selected = (customers ?? []).find((item) => item.id === Number(customerId));
-          if (!selected) {
-            return;
-          }
-
-          const accounts = ((selected.accountNumbers?.length ? selected.accountNumbers : [selected.accountNumber]) ?? [])
-            .filter((item) => !!item);
-          this.selectedCustomerAccounts = accounts;
-
-          this.form.patchValue({
-            sourceAccountNumber: accounts[0] ?? '',
-            companyName: this.normalizeCompanyName(selected),
-            companyIdentification: selected.documentNumber,
-            sourcePersonType: selected.personType === 'PN' ? 'PN' : 'PJ'
-          }, { emitEvent: false });
-
-          this.loadActiveDestinationAccounts();
-          this.cdr.markForCheck();
-        });
-      });
+      .subscribe((customerId) => this.onCustomerIdChanged(customerId));
 
     this.form
       .get('sourceAccountNumber')
@@ -356,8 +378,10 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
           amountControl.setValue(0, { emitEvent: false });
         }
 
+        this.resetDestinationAccountSelection();
         this.loadActiveDestinationAccounts();
         amountControl.updateValueAndValidity({ emitEvent: false });
+        this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
       });
 
     this.form
@@ -376,6 +400,155 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  filterCustomerOptions(value: CustomerSearchValue): void {
+    const term = this.searchText(value);
+    this.filteredCustomerOptions = this.customerOptions.filter((option) =>
+      this.matchesCatalogSearch(option.normalizedSearch, term)
+    );
+
+    if (typeof value === 'string') {
+      if (this.form.get('customerId')?.value !== null) {
+        this.form.get('customerId')?.setValue(null);
+      }
+      this.updateCustomerSelectionError(Boolean(term));
+    }
+
+    this.customerSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  filterSourceAccountOptions(value: SourceAccountSearchValue): void {
+    const term = this.searchText(value);
+    this.filteredSourceAccountOptions = this.sourceAccountOptions
+      .filter((option) => this.matchesCatalogSearch(option.normalizedSearch, term));
+
+    if (typeof value === 'string' && this.form.get('sourceAccountNumber')?.value) {
+      this.form.get('sourceAccountNumber')?.setValue('');
+    }
+
+    this.sourceAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  filterCompanyEntryDescriptionOptions(value: CompanyEntryDescriptionSearchValue): void {
+    const term = this.searchText(value);
+    this.filteredCompanyEntryDescriptionOptions = this.companyEntryDescriptionSearchOptions
+      .filter((option) => this.matchesCatalogSearch(option.normalizedSearch, term));
+
+    if (typeof value === 'string' && this.form.get('companyEntryDescriptionId')?.value !== null) {
+      this.form.get('companyEntryDescriptionId')?.setValue(null);
+    }
+
+    this.companyEntryDescriptionSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  filterDestinationInstitutionOptions(value: DestinationInstitutionSearchValue): void {
+    const term = this.searchText(value);
+    this.filteredDestinationInstitutionOptions = this.destinationInstitutionOptions
+      .filter((option) => this.matchesCatalogSearch(option.normalizedSearch, term));
+
+    if (typeof value === 'string' && this.form.get('destinationInstitutionId')?.value !== null) {
+      this.form.get('destinationInstitutionId')?.setValue(null);
+    }
+
+    this.destinationInstitutionSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  filterDestinationAccountOptions(value: DestinationAccountSearchValue): void {
+    const term = this.searchText(value);
+    this.filteredDestinationAccountSearchOptions = this.destinationAccountOptions
+      .filter((option) => this.matchesCatalogSearch(option.normalizedSearch, term));
+
+    if (typeof value === 'string' && this.form.get('destinationAccountNumber')?.value) {
+      this.form.get('destinationAccountNumber')?.setValue('');
+    }
+
+    this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  selectCustomer(option: CustomerSearchOption): void {
+    this.customerSearchControl.setValue(option, { emitEvent: false });
+    this.filteredCustomerOptions = [...this.customerOptions];
+    this.updateCustomerSelectionError(false);
+    this.form.get('customerId')?.setValue(option.value);
+    this.customerSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  selectSourceAccount(option: SourceAccountSearchOption): void {
+    this.sourceAccountSearchControl.setValue(option, { emitEvent: false });
+    this.filteredSourceAccountOptions = [...this.sourceAccountOptions];
+    this.form.get('sourceAccountNumber')?.setValue(option.value);
+    this.sourceAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  selectCompanyEntryDescription(option: CompanyEntryDescriptionSearchOption): void {
+    this.companyEntryDescriptionSearchControl.setValue(option, { emitEvent: false });
+    this.filteredCompanyEntryDescriptionOptions = [...this.companyEntryDescriptionSearchOptions];
+    this.form.get('companyEntryDescriptionId')?.setValue(option.value);
+    this.companyEntryDescriptionSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  selectDestinationInstitution(option: DestinationInstitutionSearchOption): void {
+    this.destinationInstitutionSearchControl.setValue(option, { emitEvent: false });
+    this.filteredDestinationInstitutionOptions = [...this.destinationInstitutionOptions];
+    this.form.get('destinationInstitutionId')?.setValue(option.value);
+    this.destinationInstitutionSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  selectDestinationAccount(option: DestinationAccountSearchOption): void {
+    this.destinationAccountSearchControl.setValue(option, { emitEvent: false });
+    this.filteredDestinationAccountSearchOptions = [...this.destinationAccountOptions];
+    this.form.get('destinationAccountNumber')?.setValue(option.value);
+    this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  clearCustomerSearch(): void {
+    this.customerSearchControl.setValue('', { emitEvent: false });
+    this.filteredCustomerOptions = [...this.customerOptions];
+    this.updateCustomerSelectionError(false);
+    this.form.get('customerId')?.setValue(null);
+    this.customerSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  clearSourceAccountSearch(): void {
+    this.sourceAccountSearchControl.setValue('', { emitEvent: false });
+    this.filteredSourceAccountOptions = [...this.sourceAccountOptions];
+    this.form.get('sourceAccountNumber')?.setValue('');
+    this.sourceAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  clearCompanyEntryDescriptionSearch(): void {
+    this.companyEntryDescriptionSearchControl.setValue('', { emitEvent: false });
+    this.filteredCompanyEntryDescriptionOptions = [...this.companyEntryDescriptionSearchOptions];
+    this.form.get('companyEntryDescriptionId')?.setValue(null);
+    this.companyEntryDescriptionSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  clearDestinationInstitutionSearch(): void {
+    this.destinationInstitutionSearchControl.setValue('', { emitEvent: false });
+    this.filteredDestinationInstitutionOptions = [...this.destinationInstitutionOptions];
+    this.form.get('destinationInstitutionId')?.setValue(null);
+    this.destinationInstitutionSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  clearDestinationAccountSearch(): void {
+    this.destinationAccountSearchControl.setValue('', { emitEvent: false });
+    this.filteredDestinationAccountSearchOptions = [...this.destinationAccountOptions];
+    this.form.get('destinationAccountNumber')?.setValue('');
+    this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  shouldShowAutocompleteError(control: AbstractControl): boolean {
+    return control.invalid && (control.touched || control.dirty || this.validationAttempted);
   }
 
   get addendas(): FormArray<FormGroup> {
@@ -405,6 +578,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     if (this.form.invalid) {
       this.validationAttempted = true;
       this.form.markAllAsTouched();
+      this.markAutocompleteControlsAsTouched();
       this.cdr.markForCheck();
       setTimeout(() => this.focusFirstInvalidControl());
       return;
@@ -416,6 +590,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       this.form.get('amount')?.setErrors({ invalidAmount: true });
       this.form.get('amount')?.markAsTouched();
       this.validationAttempted = true;
+      this.markAutocompleteControlsAsTouched();
       this.cdr.markForCheck();
       setTimeout(() => this.focusFirstInvalidControl());
       return;
@@ -466,7 +641,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
               isPrenotification: false,
               sourcePersonType: 'PJ',
               recipientPersonType: 'PN',
-              companyEntryDescriptionId: this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINAS')?.id ?? null
+              companyEntryDescriptionId: this.defaultCompanyEntryDescriptionOption()?.value ?? null
             });
             this.addendas.clear();
             this.ensureDefaultAddenda();
@@ -475,6 +650,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.selectedCustomerAccounts = [];
             this.policyPreview = null;
             this.validationAttempted = false;
+            this.resetAutocompleteStateAfterSubmit();
             this.cdr.markForCheck();
             this.router.navigate(['/transactions']);
           },
@@ -549,6 +725,314 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.form.get('amount')?.updateValueAndValidity({ emitEvent: false });
   }
 
+  private initializeAutocompleteSubscriptions(): void {
+    this.customerSearchControl.valueChanges
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((value) => this.filterCustomerOptions(value));
+    this.sourceAccountSearchControl.valueChanges
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((value) => this.filterSourceAccountOptions(value));
+    this.companyEntryDescriptionSearchControl.valueChanges
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((value) => this.filterCompanyEntryDescriptionOptions(value));
+    this.destinationInstitutionSearchControl.valueChanges
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((value) => this.filterDestinationInstitutionOptions(value));
+    this.destinationAccountSearchControl.valueChanges
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((value) => this.filterDestinationAccountOptions(value));
+
+    this.customers$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((customers) => {
+        this.customers = customers;
+        this.customerOptions = [
+          {
+            value: null,
+            label: 'Diligenciar manualmente',
+            normalizedSearch: normalizeCatalogSearch('Diligenciar manualmente'),
+            source: null,
+            manual: true
+          },
+          ...customers.map((customer) => this.buildCustomerSearchOption(customer))
+        ];
+        this.filteredCustomerOptions = [...this.customerOptions];
+        this.restoreCustomerSearchText();
+        this.cdr.markForCheck();
+      });
+
+    this.institutions$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((institutions) => {
+        this.institutions = institutions;
+        this.destinationInstitutionOptions = institutions.map((institution) =>
+          this.buildDestinationInstitutionSearchOption(institution)
+        );
+        this.filteredDestinationInstitutionOptions = [...this.destinationInstitutionOptions];
+        this.restoreDestinationInstitutionSearchText();
+        this.cdr.markForCheck();
+      });
+  }
+
+  private onCustomerIdChanged(customerId: unknown): void {
+    if (customerId == null) {
+      this.selectedCustomerAccounts = [];
+      this.rebuildSourceAccountOptions();
+      this.sourceAccountSearchControl.setValue('', { emitEvent: false });
+      this.sourceAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+      this.loadActiveDestinationAccounts();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const selected = this.customers.find((item) => item.id === Number(customerId));
+    if (!selected) {
+      return;
+    }
+
+    const accounts = this.getCustomerAccounts(selected);
+    this.selectedCustomerAccounts = accounts;
+    this.rebuildSourceAccountOptions();
+
+    this.form.patchValue({
+      sourceAccountNumber: accounts[0] ?? '',
+      companyName: this.normalizeCompanyName(selected),
+      companyIdentification: selected.documentNumber,
+      sourcePersonType: selected.personType === 'PN' ? 'PN' : 'PJ'
+    }, { emitEvent: false });
+
+    const selectedSourceAccount = this.sourceAccountOptions.find((option) => option.value === accounts[0]);
+    this.sourceAccountSearchControl.setValue(selectedSourceAccount ?? '', { emitEvent: false });
+    this.sourceAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.restoreCustomerSearchText();
+    this.loadActiveDestinationAccounts();
+    this.cdr.markForCheck();
+  }
+
+  private buildCustomerSearchOption(customer: CustomerSummary): CustomerSearchOption {
+    const accounts = this.getCustomerAccounts(customer);
+    const label = `${customer.fullName} · ${customer.documentType} ${customer.documentNumber} · ${accounts.length} cuenta(s)`;
+    return {
+      value: customer.id,
+      label,
+      normalizedSearch: normalizeCatalogSearch([
+        customer.fullName,
+        customer.companyName ?? '',
+        customer.documentType,
+        customer.documentNumber,
+        ...accounts
+      ].join(' ')),
+      source: customer,
+      manual: false
+    };
+  }
+
+  private buildCompanyEntryDescriptionSearchOption(
+    option: CompanyEntryDescriptionOption
+  ): CompanyEntryDescriptionSearchOption {
+    const label = `${option.description} (${option.term})`;
+    return {
+      value: option.id,
+      label,
+      normalizedSearch: normalizeCatalogSearch(
+        `${option.description} ${option.term} ${option.standardEntryClassCode ?? ''}`
+      ),
+      source: option
+    };
+  }
+
+  private buildDestinationInstitutionSearchOption(
+    institution: DestinationInstitution
+  ): DestinationInstitutionSearchOption {
+    return {
+      value: institution.id,
+      label: institution.name,
+      normalizedSearch: normalizeCatalogSearch([
+        institution.name,
+        institution.routingNumber,
+        institution.transitCode,
+        institution.checkDigit
+      ].join(' ')),
+      source: institution
+    };
+  }
+
+  private buildDestinationAccountSearchOption(
+    account: ActiveThirdPartyAccount
+  ): DestinationAccountSearchOption {
+    const label = `${account.destinationAccountNumber} · ${account.recipientIdNumber} · ${account.destinationInstitutionName}`;
+    return {
+      value: account.destinationAccountNumber,
+      label,
+      normalizedSearch: normalizeCatalogSearch(label),
+      source: account
+    };
+  }
+
+  private getCustomerAccounts(customer: CustomerSummary): string[] {
+    return (customer.accountNumbers?.length ? customer.accountNumbers : [customer.accountNumber])
+      .map((account) => String(account ?? '').trim())
+      .filter((account) => Boolean(account));
+  }
+
+  private rebuildSourceAccountOptions(): void {
+    this.sourceAccountOptions = this.selectedCustomerAccounts.map((accountNumber) => ({
+      value: accountNumber,
+      label: accountNumber,
+      normalizedSearch: normalizeCatalogSearch(accountNumber),
+      source: accountNumber
+    }));
+    this.filteredSourceAccountOptions = [...this.sourceAccountOptions];
+  }
+
+  private restoreCustomerSearchText(): void {
+    const customerId = this.form.get('customerId')?.value;
+    if (customerId == null) {
+      this.customerSearchControl.updateValueAndValidity({ emitEvent: false });
+      return;
+    }
+
+    const selectedOption = this.customerOptions.find((option) => option.value === Number(customerId));
+    this.customerSearchControl.setValue(selectedOption ?? '', { emitEvent: false });
+    this.customerSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private restoreDestinationInstitutionSearchText(): void {
+    const institutionId = Number(this.form.get('destinationInstitutionId')?.value ?? 0);
+    const selectedOption = this.destinationInstitutionOptions.find((option) => option.value === institutionId);
+    if (selectedOption) {
+      this.destinationInstitutionSearchControl.setValue(selectedOption, { emitEvent: false });
+    }
+    this.destinationInstitutionSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private restoreDefaultCompanyEntryDescription(): void {
+    const defaultOption = this.defaultCompanyEntryDescriptionOption();
+    this.form.patchValue(
+      { companyEntryDescriptionId: defaultOption?.value ?? null },
+      { emitEvent: false }
+    );
+    this.companyEntryDescriptionSearchControl.setValue(defaultOption ?? '', { emitEvent: false });
+    this.companyEntryDescriptionSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  private defaultCompanyEntryDescriptionOption(): CompanyEntryDescriptionSearchOption | null {
+    return this.companyEntryDescriptionSearchOptions.find(
+      (option) => option.source.term.trim().toUpperCase() === 'NOMINAS'
+    ) ?? this.companyEntryDescriptionSearchOptions[0] ?? null;
+  }
+
+  private resetDestinationAccountSelection(): void {
+    this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
+    this.destinationAccountSearchControl.setValue('', { emitEvent: false });
+    this.filteredDestinationAccountSearchOptions = [...this.destinationAccountOptions];
+    this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private resetAutocompleteStateAfterSubmit(): void {
+    this.customerSearchControl.reset('', { emitEvent: false });
+    this.sourceAccountSearchControl.reset('', { emitEvent: false });
+    this.destinationInstitutionSearchControl.reset('', { emitEvent: false });
+    this.destinationAccountSearchControl.reset('', { emitEvent: false });
+    const defaultDescription = this.defaultCompanyEntryDescriptionOption();
+    this.companyEntryDescriptionSearchControl.reset(defaultDescription ?? '', { emitEvent: false });
+
+    this.filteredCustomerOptions = [...this.customerOptions];
+    this.sourceAccountOptions = [];
+    this.filteredSourceAccountOptions = [];
+    this.filteredDestinationInstitutionOptions = [...this.destinationInstitutionOptions];
+    this.destinationAccountOptions = [];
+    this.filteredDestinationAccountSearchOptions = [];
+    this.filteredCompanyEntryDescriptionOptions = [...this.companyEntryDescriptionSearchOptions];
+    this.updateCustomerSelectionError(false);
+    this.updateAutocompleteValidity();
+  }
+
+  private markAutocompleteControlsAsTouched(): void {
+    [
+      this.customerSearchControl,
+      this.sourceAccountSearchControl,
+      this.companyEntryDescriptionSearchControl,
+      this.destinationInstitutionSearchControl,
+      this.destinationAccountSearchControl
+    ].forEach((control) => {
+      control.markAsTouched();
+      control.updateValueAndValidity({ emitEvent: false });
+    });
+  }
+
+  private updateAutocompleteValidity(): void {
+    this.customerSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.sourceAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.companyEntryDescriptionSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.destinationInstitutionSearchControl.updateValueAndValidity({ emitEvent: false });
+    this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private realSelectionValidator(functionalPath: string, allowEmpty = false): ValidatorFn {
+    return (searchControl: AbstractControl): ValidationErrors | null => {
+      const searchValue = searchControl.value;
+      const functionalValue = this.form.get(functionalPath)?.value;
+      const searchIsEmpty = searchValue == null || searchValue === '';
+      const functionalIsEmpty = functionalValue == null || functionalValue === '';
+
+      if (allowEmpty && searchIsEmpty && functionalIsEmpty) {
+        return null;
+      }
+
+      if (!this.isCatalogSearchOption(searchValue)) {
+        return { invalidSelection: true };
+      }
+
+      return searchValue.value === functionalValue
+        ? null
+        : { invalidSelection: true };
+    };
+  }
+
+  private isCatalogSearchOption(value: unknown): value is CatalogSearchOption<unknown, unknown> {
+    return typeof value === 'object'
+      && value !== null
+      && 'value' in value
+      && 'label' in value;
+  }
+
+  private displayCatalogOption(value: unknown): string {
+    if (typeof value === 'string') {
+      return value;
+    }
+    return this.isCatalogSearchOption(value) ? value.label : '';
+  }
+
+  private searchText(value: unknown): string {
+    if (typeof value === 'string') {
+      return normalizeCatalogSearch(value);
+    }
+    return this.isCatalogSearchOption(value)
+      ? value.normalizedSearch
+      : '';
+  }
+
+  private matchesCatalogSearch(normalizedOption: string, normalizedTerm: string): boolean {
+    return !normalizedTerm
+      || normalizedTerm.split(' ').every((token) => normalizedOption.includes(token));
+  }
+
+  private updateCustomerSelectionError(invalidSelection: boolean): void {
+    const control = this.form.get('customerId');
+    if (!control) {
+      return;
+    }
+
+    const errors = { ...(control.errors ?? {}) };
+    if (invalidSelection) {
+      errors['invalidSelection'] = true;
+    } else {
+      delete errors['invalidSelection'];
+    }
+    control.setErrors(Object.keys(errors).length > 0 ? errors : null);
+  }
 
   private normalizeCompanyName(customer: CustomerSummary): string {
     const raw = (customer.companyName?.trim() || customer.fullName.trim()).toUpperCase();
@@ -605,7 +1089,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     if (selectedIsPrenotification || !sourceAccountNumber) {
       this.activeDestinationAccounts = [];
       this.filteredDestinationAccounts = [];
-      this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
+      this.destinationAccountOptions = [];
+      this.filteredDestinationAccountSearchOptions = [];
+      this.resetDestinationAccountSelection();
       this.cdr.markForCheck();
       return;
     }
@@ -626,7 +1112,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     if (selectedIsPrenotification || this.sourceAccountRequiredForDestinationSelection) {
       this.filteredDestinationAccounts = [];
-      this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
+      this.destinationAccountOptions = [];
+      this.filteredDestinationAccountSearchOptions = [];
+      this.resetDestinationAccountSelection();
       this.cdr.markForCheck();
       return;
     }
@@ -634,11 +1122,18 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.filteredDestinationAccounts = institutionId > 0
       ? this.activeDestinationAccounts.filter((item) => item.destinationInstitutionId === institutionId)
       : this.activeDestinationAccounts;
+    this.destinationAccountOptions = this.filteredDestinationAccounts.map((account) =>
+      this.buildDestinationAccountSearchOption(account)
+    );
+    this.filteredDestinationAccountSearchOptions = [...this.destinationAccountOptions];
 
     const currentDestination = this.form.get('destinationAccountNumber')?.value;
-    const exists = this.filteredDestinationAccounts.some((item) => item.destinationAccountNumber === currentDestination);
-    if (!exists) {
-      this.form.patchValue({ destinationAccountNumber: '' }, { emitEvent: false });
+    const selectedOption = this.destinationAccountOptions.find((option) => option.value === currentDestination);
+    if (!selectedOption) {
+      this.resetDestinationAccountSelection();
+    } else {
+      this.destinationAccountSearchControl.setValue(selectedOption, { emitEvent: false });
+      this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
     }
 
     this.cdr.markForCheck();
@@ -833,6 +1328,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   private validationMessage(control: AbstractControl): string {
     const errors = control.errors ?? {};
+    if (errors['invalidSelection']) return 'Seleccione una opción válida de la lista.';
     if (errors['required']) return 'Campo obligatorio.';
     if (errors['pattern']) return 'Formato inválido.';
     if (errors['maxlength']) return `Longitud excedida. Máximo ${errors['maxlength'].requiredLength} caracteres.`;

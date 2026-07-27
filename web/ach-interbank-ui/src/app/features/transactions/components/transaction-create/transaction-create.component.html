@@ -94,13 +94,41 @@
 
           <mat-form-field appearance="outline">
             <mat-label>Descripción de la entrada</mat-label>
-            <mat-select formControlName="companyEntryDescriptionId" data-validation-path="companyEntryDescriptionId">
-              <mat-option *ngFor="let option of companyEntryDescriptionOptions" [value]="option.id">
-                {{ option.description }} ({{ option.term }})
+            <input
+              matInput
+              type="text"
+              [formControl]="companyEntryDescriptionSearchControl"
+              [matAutocomplete]="companyEntryDescriptionAutocomplete"
+              [attr.aria-invalid]="companyEntryDescriptionSearchControl.invalid"
+              aria-label="Descripción de la entrada"
+              aria-autocomplete="list"
+              autocomplete="off"
+              data-validation-path="companyEntryDescriptionId"
+              data-testid="transaction-company-entry-description"
+            />
+            <button
+              *ngIf="companyEntryDescriptionSearchControl.value"
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Limpiar descripción de la entrada"
+              (click)="clearCompanyEntryDescriptionSearch()"
+            >
+              <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+            </button>
+            <mat-autocomplete
+              #companyEntryDescriptionAutocomplete="matAutocomplete"
+              [displayWith]="displayCompanyEntryDescriptionOption"
+              (optionSelected)="selectCompanyEntryDescription($event.option.value)"
+            >
+              <mat-option *ngFor="let option of filteredCompanyEntryDescriptionOptions" [value]="option">
+                {{ option.label }}
               </mat-option>
-            </mat-select>
+            </mat-autocomplete>
             <mat-hint>Concepto vigente del catálogo ACH.</mat-hint>
-            <mat-error>Seleccione la descripción de la entrada.</mat-error>
+            <mat-error *ngIf="shouldShowAutocompleteError(companyEntryDescriptionSearchControl)">
+              Seleccione la descripción de entrada de la lista.
+            </mat-error>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -144,24 +172,58 @@
         <div class="field-grid">
           <mat-form-field appearance="outline" class="field-span">
             <mat-label>Cliente originador</mat-label>
-            <mat-select formControlName="customerId">
-              <mat-option [value]="null">Diligenciar manualmente</mat-option>
-              <mat-option *ngFor="let customer of (customers$ | async) ?? []" [value]="customer.id">
-                {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }}
+            <input
+              matInput
+              type="text"
+              [formControl]="customerSearchControl"
+              [matAutocomplete]="customerAutocomplete"
+              [attr.aria-invalid]="customerSearchControl.invalid"
+              aria-label="Cliente originador"
+              aria-autocomplete="list"
+              autocomplete="off"
+              data-validation-path="customerId"
+              data-testid="transaction-customer"
+            />
+            <button
+              *ngIf="customerSearchControl.value"
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Limpiar cliente originador"
+              (click)="clearCustomerSearch()"
+            >
+              <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+            </button>
+            <mat-autocomplete
+              #customerAutocomplete="matAutocomplete"
+              [displayWith]="displayCustomerOption"
+              (optionSelected)="selectCustomer($event.option.value)"
+            >
+              <mat-option *ngFor="let option of filteredCustomerOptions" [value]="option">
+                {{ option.label }}
               </mat-option>
-            </mat-select>
+            </mat-autocomplete>
             <mat-hint>Opcional. Al seleccionarlo se completan sus datos conocidos.</mat-hint>
+            <mat-error *ngIf="shouldShowAutocompleteError(customerSearchControl)">
+              Seleccione un cliente de la lista o elija diligenciamiento manual.
+            </mat-error>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Número de cuenta de origen</mat-label>
-            <mat-select
+            <input
               *ngIf="selectedCustomerAccounts.length > 0; else manualSourceAccount"
-              formControlName="sourceAccountNumber"
+              matInput
+              type="text"
+              [formControl]="sourceAccountSearchControl"
+              [matAutocomplete]="sourceAccountAutocomplete"
+              [attr.aria-invalid]="sourceAccountSearchControl.invalid"
+              aria-label="Número de cuenta de origen"
+              aria-autocomplete="list"
+              autocomplete="off"
               data-validation-path="sourceAccountNumber"
-            >
-              <mat-option *ngFor="let account of selectedCustomerAccounts" [value]="account">{{ account }}</mat-option>
-            </mat-select>
+              data-testid="transaction-source-account"
+            />
             <ng-template #manualSourceAccount>
               <input
                 matInput
@@ -171,11 +233,38 @@
                 maxlength="18"
                 autocomplete="off"
                 (input)="onNumericAccountInput('sourceAccountNumber', $event)"
+                data-testid="transaction-source-account"
               />
             </ng-template>
+            <button
+              *ngIf="selectedCustomerAccounts.length > 0 && sourceAccountSearchControl.value"
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Limpiar cuenta de origen"
+              (click)="clearSourceAccountSearch()"
+            >
+              <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+            </button>
+            <mat-autocomplete
+              #sourceAccountAutocomplete="matAutocomplete"
+              [displayWith]="displaySourceAccountOption"
+              (optionSelected)="selectSourceAccount($event.option.value)"
+            >
+              <mat-option *ngFor="let option of filteredSourceAccountOptions" [value]="option">
+                {{ option.label }}
+              </mat-option>
+            </mat-autocomplete>
             <mat-hint>Entre 6 y 18 dígitos.</mat-hint>
-            <mat-error *ngIf="form.get('sourceAccountNumber')?.hasError('required')">Ingrese el número de cuenta de origen.</mat-error>
-            <mat-error *ngIf="form.get('sourceAccountNumber')?.hasError('pattern')">Use entre 6 y 18 dígitos.</mat-error>
+            <mat-error *ngIf="selectedCustomerAccounts.length > 0 && shouldShowAutocompleteError(sourceAccountSearchControl)">
+              Seleccione una cuenta de origen válida.
+            </mat-error>
+            <mat-error *ngIf="selectedCustomerAccounts.length === 0 && form.get('sourceAccountNumber')?.hasError('required')">
+              Ingrese el número de cuenta de origen.
+            </mat-error>
+            <mat-error *ngIf="selectedCustomerAccounts.length === 0 && form.get('sourceAccountNumber')?.hasError('pattern')">
+              Use entre 6 y 18 dígitos.
+            </mat-error>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -236,12 +325,40 @@
         <div class="field-grid">
           <mat-form-field appearance="outline">
             <mat-label>Entidad financiera destino</mat-label>
-            <mat-select formControlName="destinationInstitutionId" data-validation-path="destinationInstitutionId">
-              <mat-option *ngFor="let institution of (institutions$ | async) ?? []" [value]="institution.id">
-                {{ institution.name }}
+            <input
+              matInput
+              type="text"
+              [formControl]="destinationInstitutionSearchControl"
+              [matAutocomplete]="destinationInstitutionAutocomplete"
+              [attr.aria-invalid]="destinationInstitutionSearchControl.invalid"
+              aria-label="Entidad financiera destino"
+              aria-autocomplete="list"
+              autocomplete="off"
+              data-validation-path="destinationInstitutionId"
+              data-testid="transaction-destination-institution"
+            />
+            <button
+              *ngIf="destinationInstitutionSearchControl.value"
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Limpiar entidad financiera destino"
+              (click)="clearDestinationInstitutionSearch()"
+            >
+              <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+            </button>
+            <mat-autocomplete
+              #destinationInstitutionAutocomplete="matAutocomplete"
+              [displayWith]="displayDestinationInstitutionOption"
+              (optionSelected)="selectDestinationInstitution($event.option.value)"
+            >
+              <mat-option *ngFor="let option of filteredDestinationInstitutionOptions" [value]="option">
+                {{ option.label }}
               </mat-option>
-            </mat-select>
-            <mat-error>Seleccione la entidad financiera destino.</mat-error>
+            </mat-autocomplete>
+            <mat-error *ngIf="shouldShowAutocompleteError(destinationInstitutionSearchControl)">
+              Seleccione una entidad financiera destino de la lista.
+            </mat-error>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -256,15 +373,19 @@
 
           <mat-form-field appearance="outline">
             <mat-label>Número de cuenta destino</mat-label>
-            <mat-select
+            <input
               *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount"
-              formControlName="destinationAccountNumber"
+              matInput
+              type="text"
+              [formControl]="destinationAccountSearchControl"
+              [matAutocomplete]="destinationAccountAutocomplete"
+              [attr.aria-invalid]="destinationAccountSearchControl.invalid"
+              aria-label="Número de cuenta destino"
+              aria-autocomplete="list"
+              autocomplete="off"
               data-validation-path="destinationAccountNumber"
-            >
-              <mat-option *ngFor="let account of filteredDestinationAccounts" [value]="account.destinationAccountNumber">
-                {{ account.destinationAccountNumber }} · {{ account.destinationInstitutionName }}
-              </mat-option>
-            </mat-select>
+              data-testid="transaction-destination-account"
+            />
             <ng-template #manualDestinationAccount>
               <input
                 matInput
@@ -274,14 +395,47 @@
                 maxlength="18"
                 autocomplete="off"
                 (input)="onNumericAccountInput('destinationAccountNumber', $event)"
+                data-testid="transaction-destination-account"
               />
             </ng-template>
+            <button
+              *ngIf="!form.get('isPrenotification')?.value && destinationAccountSearchControl.value"
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Limpiar cuenta destino"
+              (click)="clearDestinationAccountSearch()"
+            >
+              <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+            </button>
+            <mat-autocomplete
+              #destinationAccountAutocomplete="matAutocomplete"
+              [displayWith]="displayDestinationAccountOption"
+              (optionSelected)="selectDestinationAccount($event.option.value)"
+            >
+              <mat-option *ngFor="let option of filteredDestinationAccountSearchOptions" [value]="option">
+                {{ option.label }}
+              </mat-option>
+            </mat-autocomplete>
             <mat-hint *ngIf="sourceAccountRequiredForDestinationSelection">Primero ingrese la cuenta de origen.</mat-hint>
             <mat-hint *ngIf="!sourceAccountRequiredForDestinationSelection && !form.get('isPrenotification')?.value">
               Se muestran terceros con prenotificación activa.
             </mat-hint>
-            <mat-error *ngIf="form.get('destinationAccountNumber')?.hasError('required')">Ingrese el número de cuenta.</mat-error>
-            <mat-error *ngIf="form.get('destinationAccountNumber')?.hasError('pattern')">Use entre 6 y 18 dígitos.</mat-error>
+            <mat-error
+              *ngIf="!form.get('isPrenotification')?.value && shouldShowAutocompleteError(destinationAccountSearchControl)"
+            >
+              Seleccione una cuenta destino activa de la lista.
+            </mat-error>
+            <mat-error
+              *ngIf="form.get('isPrenotification')?.value && form.get('destinationAccountNumber')?.hasError('required')"
+            >
+              Ingrese el número de cuenta.
+            </mat-error>
+            <mat-error
+              *ngIf="form.get('isPrenotification')?.value && form.get('destinationAccountNumber')?.hasError('pattern')"
+            >
+              Use entre 6 y 18 dígitos.
+            </mat-error>
             <mat-error *ngIf="form.hasError('sameAccount')">La cuenta destino debe ser diferente de la cuenta de origen.</mat-error>
           </mat-form-field>
 

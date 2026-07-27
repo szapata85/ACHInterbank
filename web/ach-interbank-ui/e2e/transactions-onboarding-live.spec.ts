@@ -368,9 +368,18 @@ async function fill(page: Page, label: string, value: string): Promise<void> {
 }
 
 async function selectMaterialOption(page: Page, label: string, optionText: string): Promise<void> {
-  const select = page.getByLabel(label, { exact: true });
-  await expect(select).toBeVisible();
-  await select.click();
+  const control = page.getByLabel(label, { exact: true });
+  await expect(control).toBeVisible();
+  if (await control.getAttribute('aria-autocomplete') === 'list') {
+    await control.fill(optionText);
+    const options = page.getByRole('option').filter({ hasText: optionText });
+    await expect(options).toHaveCount(1);
+    await control.press('ArrowDown');
+    await control.press('Enter');
+    return;
+  }
+
+  await control.click();
   const option = page.getByRole('option').filter({ hasText: optionText });
   await expect(option).toHaveCount(1);
   await option.click();

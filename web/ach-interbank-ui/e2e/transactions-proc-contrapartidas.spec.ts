@@ -621,14 +621,23 @@ async function fillInput(page: Page, labelText: string, value: string): Promise<
 }
 
 async function selectOption(page: Page, labelText: string, optionText: string): Promise<void> {
-  const select = page.getByLabel(labelText, { exact: true });
-  await expect(select, `Debe existir selector para ${labelText}.`).toBeVisible();
-  const normalize = (value: string) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
-  if (normalize(await select.innerText()).includes(normalize(optionText))) {
+  const control = page.getByLabel(labelText, { exact: true });
+  await expect(control, `Debe existir selector para ${labelText}.`).toBeVisible();
+  if (await control.getAttribute('aria-autocomplete') === 'list') {
+    await control.fill(optionText);
+    const options = page.getByRole('option').filter({ hasText: optionText });
+    await expect(options, `Debe existir opción "${optionText}" en ${labelText}.`).toHaveCount(1);
+    await control.press('ArrowDown');
+    await control.press('Enter');
     return;
   }
 
-  await select.click();
+  const normalize = (value: string) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
+  if (normalize(await control.innerText()).includes(normalize(optionText))) {
+    return;
+  }
+
+  await control.click();
   const option = page.getByRole('option').filter({ hasText: optionText }).last();
   await expect(option, `Debe existir opcion "${optionText}" en ${labelText}.`).toBeVisible();
   await option.click();
