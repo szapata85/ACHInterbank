@@ -1,7 +1,16 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { FormBuilder } from '@angular/forms';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { AbstractControl, FormBuilder, FormControl, ValidationErrors, ValidatorFn } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
+import { finalize } from 'rxjs';
 import { SharedModule } from '../../../../shared/shared.module';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionListItem } from '../../transactions.models';
@@ -38,15 +47,39 @@ interface ColumnOption {
   label: string;
 }
 
+const validOptionalDate: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+  const value = control.value;
+  if (value == null || value === '') {
+    return null;
+  }
+
+  return value instanceof Date && !Number.isNaN(value.getTime())
+    ? null
+    : { invalidDate: true };
+};
+
 @Component({
   selector: 'app-transaction-list',
   standalone: true,
-  imports: [SharedModule, RouterModule, TransactionIntegrationResultComponent],
+  imports: [
+    SharedModule,
+    RouterModule,
+    MatButtonModule,
+    MatDatepickerModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatNativeDateModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
+    TransactionIntegrationResultComponent
+  ],
   templateUrl: './transaction-list.component.html',
   styleUrls: ['./transaction-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TransactionListComponent implements OnInit {
+  @ViewChild('selectedDateInput') private selectedDateInput?: ElementRef<HTMLInputElement>;
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(TransactionsApiService);
   private readonly achCyclesApi = inject(AchCyclesApiService);
@@ -139,11 +172,17 @@ export class TransactionListComponent implements OnInit {
   clearingHouses: ClearingHouseOption[] = [];
   selectedIntegrationResult: TransactionIntegrationResult | null = null;
   loadingIntegrationResult = false;
+  loadError = false;
+  searchAttempted = false;
   readonly filtrosForm = this.fb.group({
-    selectedCycleId: [null as string | null],
-    selectedClearingHouseId: [null as number | null],
-    selectedDate: ['']
+    selectedCycleId: new FormControl<string | null>(null),
+    selectedClearingHouseId: new FormControl<number | null>(null),
+    selectedDate: new FormControl<Date | null>(null, validOptionalDate)
   });
+
+  get totalTransactions(): number {
+    return this.groups.reduce((total, group) => total + group.items.length, 0);
+  }
 
   ngOnInit(): void {
     this.filtrosForm.controls.selectedClearingHouseId.valueChanges.subscribe(() => this.onClearingHouseChange());
@@ -164,16 +203,60 @@ export class TransactionListComponent implements OnInit {
   }
 
   applyFilters(): void {
+    if (this.loading) {
+      return;
+    }
+
+    this.searchAttempted = true;
+    this.filtrosForm.updateValueAndValidity();
+    if (this.filtrosForm.invalid) {
+      this.filtrosForm.markAllAsTouched();
+      this.focusFirstInvalidControl();
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.loadTransactions();
+  }
+
+  clearFilters(): void {
+    if (this.loading) {
+      return;
+    }
+
+    this.filtrosForm.reset({
+      selectedCycleId: null,
+      selectedClearingHouseId: null,
+      selectedDate: null
+    }, { emitEvent: false });
+    this.filtrosForm.markAsPristine();
+    this.filtrosForm.markAsUntouched();
+    this.searchAttempted = false;
+    this.returnView = 'all';
+    this.selectedIntegrationResult = null;
+    this.loadError = false;
+    this.loadCycles();
+    this.cdr.markForCheck();
+  }
+
+  shouldShowDateError(): boolean {
+    const control = this.filtrosForm.controls.selectedDate;
+    return control.invalid && (control.touched || control.dirty || this.searchAttempted);
   }
 
   onClearingHouseChange(): void {
     this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
+    if (this.filtrosForm.controls.selectedDate.invalid) {
+      return;
+    }
     this.loadCycles(false);
   }
 
   onDateChange(): void {
     this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
+    if (this.filtrosForm.controls.selectedDate.invalid) {
+      return;
+    }
     this.loadCycles(false);
   }
 
@@ -221,13 +304,18 @@ export class TransactionListComponent implements OnInit {
   }
 
   private loadCycles(autoLoadTransactions = true): void {
+    if (this.filtrosForm.controls.selectedDate.invalid) {
+      return;
+    }
+
+    const selectedDate = this.formatApiDate(this.filtrosForm.controls.selectedDate.value);
     this.achCyclesApi
       .search({
         page: 1,
         pageSize: 100,
         clearingHouseId: this.filtrosForm.controls.selectedClearingHouseId.value ?? undefined,
-        startDate: this.filtrosForm.controls.selectedDate.value || undefined,
-        endDate: this.filtrosForm.controls.selectedDate.value || undefined
+        startDate: selectedDate,
+        endDate: selectedDate
       })
       .subscribe({
         next: (response) => {
@@ -260,11 +348,16 @@ export class TransactionListComponent implements OnInit {
   }
 
   private loadTransactions(): void {
+    if (this.loading || this.filtrosForm.invalid) {
+      return;
+    }
+
     this.loading = true;
+    this.loadError = false;
     this.cdr.markForCheck();
     const selectedClearingHouseId = this.filtrosForm.controls.selectedClearingHouseId.value;
     const selectedCycleId = this.filtrosForm.controls.selectedCycleId.value;
-    const selectedDate = this.filtrosForm.controls.selectedDate.value;
+    const selectedDate = this.formatApiDate(this.filtrosForm.controls.selectedDate.value);
     const useCycleName = selectedClearingHouseId == null;
     this.api
       .getAll({
@@ -273,6 +366,12 @@ export class TransactionListComponent implements OnInit {
         effectiveDate: selectedDate || undefined,
         clearingHouseId: selectedClearingHouseId ?? undefined
       })
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: (items) => {
           const normalized = (items ?? []).map((item) => this.mapRow(item));
@@ -297,12 +396,9 @@ export class TransactionListComponent implements OnInit {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.groups = [];
+          this.loadError = true;
           this.notifications.error('No fue posible cargar las transacciones');
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        complete: () => {
-          this.loading = false;
           this.cdr.markForCheck();
         }
       });
@@ -342,7 +438,7 @@ export class TransactionListComponent implements OnInit {
 
   setReturnView(view: 'all' | 'received' | 'sent'): void {
     this.returnView = view;
-    this.loadTransactions();
+    this.applyFilters();
   }
 
   onTransactionSelection(rows: TransactionListRow[]): void {
@@ -408,6 +504,23 @@ export class TransactionListComponent implements OnInit {
 
     const date = new Date(value);
     return isNaN(date.getTime()) ? value : this.dateFormatter.format(date);
+  }
+
+  private formatApiDate(value: Date | null): string | undefined {
+    if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+      return undefined;
+    }
+
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private focusFirstInvalidControl(): void {
+    if (this.filtrosForm.controls.selectedDate.invalid) {
+      setTimeout(() => this.selectedDateInput?.nativeElement.focus());
+    }
   }
 
   private formatType(type: TransactionTypeEnum): string {
