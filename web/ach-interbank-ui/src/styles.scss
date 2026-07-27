@@ -1,4 +1,16 @@
+@use '@angular/material' as mat;
 @use './styles/tokens';
 @use './styles/base';
 @use './styles/components';
 @use './styles/utilities';
+
+html {
+  @include mat.theme((
+    color: (
+      primary: mat.$green-palette,
+      tertiary: mat.$azure-palette
+    ),
+    typography: Roboto,
+    density: -1
+  ));
+}

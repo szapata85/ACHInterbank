@@ -309,6 +309,7 @@ describe('MappingEditorPageComponent', () => {
     component.saveRule();
 
     const payload = apiMock.upsertRules.calls.mostRecent().args[2][0];
+    expect(payload.sourceKind).toBe(10);
     expect(payload.sourceFieldPath).toBe('EntryDetails.TraceNumber');
   });
 });

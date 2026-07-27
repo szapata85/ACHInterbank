@@ -19,7 +19,7 @@
         (click)="selectMethod(method)"
       >
         <span class="service-tab-title">{{ methodNameFor(method.group) }}</span>
-        <span class="service-tab-meta">{{ statusFor(method.group) }} - {{ method.clientName }}</span>
+        <span class="service-tab-meta">{{ statusFor(method.group) }} · {{ operatingModeFor(method.group) }} · {{ method.clientName }}</span>
       </button>
     </section>
 
@@ -42,19 +42,29 @@
       <section class="endpoint-editor">
         <label class="endpoint-field">
           Endpoint / URL
-          <input type="text" formControlName="endpoint" data-testid="soap-endpoint-input" />
+          <input type="text" formControlName="endpoint" data-testid="soap-endpoint-input" [readOnly]="!isEditingSelected" />
           <app-error-message [control]="method.group.get('endpoint')"></app-error-message>
         </label>
 
         <label>
           SOAP Action
-          <input type="text" formControlName="soapAction" data-testid="soap-action-input" />
+          <input type="text" formControlName="soapAction" data-testid="soap-action-input" [readOnly]="!isEditingSelected" />
           <app-error-message [control]="method.group.get('soapAction')"></app-error-message>
         </label>
 
         <label class="inline-check">
-          <input type="checkbox" formControlName="enabled" />
+          <input type="checkbox" formControlName="enabled" [attr.disabled]="!isEditingSelected ? true : null" />
           Servicio activo
+        </label>
+
+        <label>
+          Modo operativo
+          <select formControlName="operatingMode" data-testid="soap-operating-mode" [attr.disabled]="!isEditingSelected ? true : null">
+            <option value="Live">LIVE</option>
+            <option value="DryRun">Simulación sin envío</option>
+            <option value="Disabled">Inactivo</option>
+          </select>
+          <small>LIVE habilita el envío real al endpoint configurado.</small>
         </label>
       </section>
 
@@ -75,12 +85,36 @@
           [routerLink]="['/integraciones/mappings']"
           [queryParams]="{ method: methodCodeFor(method) }"
         >
-          Ver matriz de campos
+          Ver relación de campos
         </a>
+        <button
+          *ngIf="!isEditingSelected"
+          type="button"
+          class="btn-secondary"
+          data-testid="soap-edit-button"
+          (click)="beginEdit()"
+        >
+          Editar
+        </button>
+        <button
+          *ngIf="isEditingSelected"
+          type="button"
+          class="btn-secondary"
+          data-testid="soap-cancel-button"
+          (click)="cancelEdit()"
+          [disabled]="saving"
+        >
+          Cancelar edición
+        </button>
         <button type="button" class="btn-secondary" (click)="reload()" [disabled]="reloading || saving">
           {{ reloading ? 'Recargando...' : 'Recargar' }}
         </button>
-        <button type="submit" class="btn-primary" data-testid="soap-save-button" [disabled]="saving || method.group.invalid">
+        <button
+          type="submit"
+          class="btn-primary"
+          data-testid="soap-save-button"
+          [disabled]="saving || method.group.invalid || !isEditingSelected"
+        >
           {{ saving ? 'Guardando...' : 'Guardar cambios' }}
         </button>
       </footer>

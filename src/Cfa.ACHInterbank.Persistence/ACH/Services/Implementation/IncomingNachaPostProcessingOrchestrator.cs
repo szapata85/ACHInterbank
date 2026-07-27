@@ -146,6 +146,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         var blocked = 0;
         var waitingWindow = releasedFromWaitingWindow;
         var contrapartidaDispatchTargets = new HashSet<(string CycleId, int ClearingHouseId)>();
+        var procTransaccionesRuntime = await ResolveProcTransaccionesRuntimeAsync(ct);
 
         foreach (var queue in queues)
         {
@@ -186,7 +187,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 DispatchQueueId = queue.Id,
                 MethodName = SoapMethodName,
                 SoapMethodName = SoapMethodName,
-                ExecutionMode = NormalizeAuditValue(_dispatchOptions.NormalizedMode, 20),
+                ExecutionMode = NormalizeAuditValue(procTransaccionesRuntime.OperatingMode, 20),
                 CorrelationId = correlationId,
                 StartedAtUtc = DateTime.UtcNow
             };
@@ -217,15 +218,24 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, DateTime.Now, ct);
                 EnsureSnapshotConsistency(readinessContext.Readiness, resolution);
                 var requestXml = _mapper.BuildSoapBody(resolution.Contract);
-                var dispatchEndpoint = await ResolveProcTransaccionesEndpointAsync(ct);
-                ApplyRequestAudit(execution, resolution, requestXml, dispatchEndpoint);
-                await WriteMappingTraceAsync(readinessContext.Operation, resolution, queue, correlationId, ct);
+                ApplyRequestAudit(execution, resolution, requestXml, procTransaccionesRuntime.Endpoint);
+                await WriteMappingTraceAsync(
+                    readinessContext.Operation,
+                    resolution,
+                    queue,
+                    correlationId,
+                    procTransaccionesRuntime.OperatingMode,
+                    ct);
 
-                var responseXml = await DispatchProcTransaccionesAsync(requestXml, queue, ct);
+                var responseXml = await DispatchProcTransaccionesAsync(
+                    requestXml,
+                    queue,
+                    procTransaccionesRuntime.OperatingMode,
+                    ct);
                 var parsed = _parser.Parse(responseXml);
                 var finishedAtUtc = DateTime.UtcNow;
 
-                var transportStatus = ResolveTransportStatus(parsed);
+                var transportStatus = ResolveTransportStatus(parsed, procTransaccionesRuntime.OperatingMode);
                 var catalogResult = transportStatus == IntegrationTransportStatus.Succeeded
                     ? await ResolveCoreResponseAsync(parsed.ResponseCode, finishedAtUtc, ct)
                     : null;
@@ -233,7 +243,15 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     && catalogResult is { IsKnownCode: true, BusinessStatus: IntegrationResponseBusinessStatus.Success };
                 var retryAllowed = catalogResult is null ? parsed.IsRetryable : catalogResult.RetryAllowed;
 
-                ApplyResponseAudit(execution, parsed, responseXml, finishedAtUtc, transportStatus, catalogResult, retryAllowed);
+                ApplyResponseAudit(
+                    execution,
+                    parsed,
+                    responseXml,
+                    finishedAtUtc,
+                    transportStatus,
+                    catalogResult,
+                    retryAllowed,
+                    procTransaccionesRuntime.OperatingMode);
 
                 queue.LastResponseCode = parsed.ResponseCode;
                 queue.LastErrorCode = businessSuccess ? string.Empty : parsed.ResponseCode;
@@ -537,14 +555,18 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         }
     }
 
-    private async Task<string> DispatchProcTransaccionesAsync(string requestXml, IncomingNachaDispatchQueue queue, CancellationToken ct)
+    private async Task<string> DispatchProcTransaccionesAsync(
+        string requestXml,
+        IncomingNachaDispatchQueue queue,
+        string operatingMode,
+        CancellationToken ct)
     {
-        if (_dispatchOptions.IsLive)
+        if (IsLiveMode(operatingMode))
         {
             return await _soapClient.ProcTransaccionesAsync(requestXml, ct);
         }
 
-        if (_dispatchOptions.IsDisabled)
+        if (IsDisabledMode(operatingMode))
         {
             throw new InvalidOperationException("PROC_TRANSACCIONES_DISABLED: Proc_Transacciones disabled; no se transmite externamente.");
         }
@@ -587,7 +609,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         DateTime finishedAtUtc,
         IntegrationTransportStatus transportStatus,
         IntegrationResponseCatalogResult? catalogResult,
-        bool retryAllowed)
+        bool retryAllowed,
+        string operatingMode)
     {
         var soapCode = NormalizeAuditValue(parsed.ResponseCode, 80);
         var soapDescription = NormalizeAuditValue(catalogResult?.Description ?? parsed.ResponseMessage, 4000);
@@ -603,7 +626,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         execution.SoapResponseDescription = soapDescription;
         execution.SoapTechnicalStatus = transportStatus == IntegrationTransportStatus.Succeeded
             ? TechnicalStatusSucceeded
-            : ResolveSoapTechnicalStatus(parsed, isSuccessful, isFunctionalRejection);
+            : ResolveSoapTechnicalStatus(parsed, isSuccessful, isFunctionalRejection, operatingMode);
         execution.ResponseCatalogId = catalogResult?.CatalogId;
         execution.TransportStatus = transportStatus;
         execution.BusinessStatus = businessStatus;
@@ -624,14 +647,15 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private string ResolveSoapTechnicalStatus(
         ProcTransaccionesParsedResponse parsed,
         bool isSuccessful,
-        bool isFunctionalRejection)
+        bool isFunctionalRejection,
+        string operatingMode)
     {
-        if (_dispatchOptions.IsDisabled)
+        if (IsDisabledMode(operatingMode))
         {
             return TechnicalStatusDisabled;
         }
 
-        if (_dispatchOptions.IsDryRunLike)
+        if (IsDryRunLikeMode(operatingMode))
         {
             return TechnicalStatusDryRun;
         }
@@ -696,9 +720,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             false);
     }
 
-    private IntegrationTransportStatus ResolveTransportStatus(ProcTransaccionesParsedResponse parsed)
+    private IntegrationTransportStatus ResolveTransportStatus(
+        ProcTransaccionesParsedResponse parsed,
+        string operatingMode)
     {
-        if (_dispatchOptions.IsDisabled || _dispatchOptions.IsDryRunLike)
+        if (IsDisabledMode(operatingMode) || IsDryRunLikeMode(operatingMode))
         {
             return IntegrationTransportStatus.NotExecuted;
         }
@@ -758,18 +784,21 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         });
     }
 
-    private async Task<string> ResolveProcTransaccionesEndpointAsync(CancellationToken ct)
+    private async Task<(string Endpoint, string OperatingMode)> ResolveProcTransaccionesRuntimeAsync(
+        CancellationToken ct)
     {
         if (_soapIntegrationSettingsService is null)
         {
-            return string.Empty;
+            return (string.Empty, _dispatchOptions.NormalizedMode);
         }
 
         var settings = await _soapIntegrationSettingsService.GetAsync(ct);
-        return settings.WscfaachMappings
-            .FirstOrDefault(x => string.Equals(x.MethodName, SoapMethodName, StringComparison.OrdinalIgnoreCase))
-            ?.Endpoint
-            ?.Trim() ?? string.Empty;
+        var mapping = settings.WscfaachMappings
+            .FirstOrDefault(x => string.Equals(x.MethodName, SoapMethodName, StringComparison.OrdinalIgnoreCase));
+        var mode = mapping?.Enabled == false
+            ? "Disabled"
+            : NormalizeOperatingMode(mapping?.OperatingMode, _dispatchOptions.NormalizedMode);
+        return (mapping?.Endpoint?.Trim() ?? string.Empty, mode);
     }
 
     private static long CalculateDurationMs(DateTime startedAtUtc, DateTime finishedAtUtc)
@@ -803,6 +832,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         ProcTransaccionesRequestResolution resolution,
         IncomingNachaDispatchQueue queue,
         string correlationId,
+        string operatingMode,
         CancellationToken ct)
     {
         if (_mappingTraceWriter is null || operation is null)
@@ -816,8 +846,33 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             queue.AchTransactionId,
             queue.AchTransaction.Reference,
             correlationId,
-            dryRun: !_dispatchOptions.IsLive,
+            dryRun: !IsLiveMode(operatingMode),
             externalTransmission: false,
             ct);
     }
+
+    private static string NormalizeOperatingMode(string? mode, string fallback)
+    {
+        var candidate = string.IsNullOrWhiteSpace(mode) ? fallback : mode.Trim();
+        if (string.Equals(candidate, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Live";
+        }
+
+        if (string.Equals(candidate, "Disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Disabled";
+        }
+
+        return "DryRun";
+    }
+
+    private static bool IsLiveMode(string mode)
+        => string.Equals(mode, "Live", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDisabledMode(string mode)
+        => string.Equals(mode, "Disabled", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDryRunLikeMode(string mode)
+        => !IsLiveMode(mode) && !IsDisabledMode(mode);
 }

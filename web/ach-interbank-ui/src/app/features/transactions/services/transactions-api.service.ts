@@ -32,7 +32,6 @@ export class TransactionsApiService {
     const params: Record<string, string | number | boolean> = {
       amount: Number(payload.amount),
       transactionExternalId: payload.transactionExternalId?.trim() || '',
-      reference: payload.reference?.trim() || '',
       type: Number(payload.type),
       accountType: Number(payload.accountType),
       isPrenotification: Boolean(payload.isPrenotification),
@@ -56,7 +55,6 @@ export class TransactionsApiService {
       isPrenotification: Boolean(payload.isPrenotification),
       requiresIdentityValidation: Boolean(payload.requiresIdentityValidation),
       transactionExternalId: payload.transactionExternalId?.trim() || '',
-      reference: payload.reference?.trim() || undefined,
       recipientIdNumber: payload.recipientIdNumber?.trim() || undefined,
       recipientName: payload.recipientName?.trim() || undefined
     };

@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
-import { AbstractControl, FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, catchError, debounceTime, distinctUntilChanged, map, shareReplay, take, takeUntil, tap } from 'rxjs';
+import { AbstractControl, FormArray, FormBuilder, FormControl, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { EMPTY, catchError, debounceTime, distinctUntilChanged, finalize, map, shareReplay, take, takeUntil, tap } from 'rxjs';
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
@@ -30,10 +36,66 @@ interface TransactionSectionState {
   errorCount: number;
 }
 
+const MAX_TRANSACTION_AMOUNT = 9_999_999_999_999_999.99;
+
+function parseMonetaryValue(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const raw = String(value ?? '').trim();
+  if (!raw) {
+    return null;
+  }
+
+  const negative = raw.startsWith('-');
+  const normalized = raw.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = Number(`${negative ? '-' : ''}${normalized}`);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+const positiveMoneyValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+  const raw = String(control.value ?? '').trim();
+  if (!raw) {
+    return null;
+  }
+
+  const value = parseMonetaryValue(raw);
+  if (value === null) {
+    return { invalidAmount: true };
+  }
+  if (value <= 0) {
+    return { nonPositiveAmount: true };
+  }
+  if (value > MAX_TRANSACTION_AMOUNT) {
+    return { amountOverflow: true };
+  }
+
+  const decimalPart = raw.replace(/\./g, '').split(',')[1] ?? '';
+  return decimalPart.length > 2 ? { amountScale: true } : null;
+};
+
+const zeroMoneyValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+  const value = parseMonetaryValue(control.value);
+  return value === 0 ? null : { prenoteAmount: true };
+};
+
 @Component({
   selector: 'app-transaction-create',
   standalone: true,
-  imports: [SharedModule],
+  imports: [
+    SharedModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressSpinnerModule,
+    MatSelectModule
+  ],
   templateUrl: './transaction-create.component.html',
   styleUrls: ['./transaction-create.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -51,27 +113,27 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   validationAttempted = false;
 
   private readonly fieldMetadata: Record<string, { label: string; section: TransactionSection }> = {
-    amount: { label: 'Monto', section: 'operation' },
-    transactionExternalId: { label: 'ID operación cliente', section: 'operation' },
-    type: { label: 'Tipo de transacción', section: 'operation' },
-    accountType: { label: 'Tipo de cuenta', section: 'operation' },
-    sourceAccountNumber: { label: 'Cuenta origen', section: 'originator' },
-    companyName: { label: 'Nombre del originador', section: 'originator' },
+    amount: { label: 'Valor de la transacción', section: 'operation' },
+    transactionExternalId: { label: 'ID de operación del cliente', section: 'operation' },
+    type: { label: 'Tipo de operación', section: 'operation' },
+    accountType: { label: 'Tipo de cuenta destino', section: 'recipient' },
+    sourceAccountNumber: { label: 'Número de cuenta de origen', section: 'originator' },
+    companyName: { label: 'Nombre o razón social del originador', section: 'originator' },
     companyIdentification: { label: 'Identificación del originador', section: 'originator' },
-    sourcePersonType: { label: 'Tipo de persona originador', section: 'originator' },
-    destinationInstitutionId: { label: 'Institución destino', section: 'recipient' },
-    destinationAccountNumber: { label: 'Cuenta destino', section: 'recipient' },
+    sourcePersonType: { label: 'Tipo de persona del originador', section: 'originator' },
+    destinationInstitutionId: { label: 'Entidad financiera destino', section: 'recipient' },
+    destinationAccountNumber: { label: 'Número de cuenta destino', section: 'recipient' },
     recipientIdNumber: { label: 'Identificación del receptor', section: 'recipient' },
-    recipientName: { label: 'Nombre del receptor', section: 'recipient' },
-    recipientPersonType: { label: 'Tipo de persona receptor', section: 'recipient' },
+    recipientName: { label: 'Nombre o razón social del receptor', section: 'recipient' },
+    recipientPersonType: { label: 'Tipo de identificación del receptor', section: 'recipient' },
     companyEntryDescriptionId: { label: 'Descripción de la entrada', section: 'concept' }
   };
 
   private readonly sectionDefinitions: Array<{ key: TransactionSection; label: string }> = [
     { key: 'operation', label: 'Operación' },
-    { key: 'originator', label: 'Originador' },
-    { key: 'recipient', label: 'Receptor' },
-    { key: 'concept', label: 'Concepto y addenda' },
+    { key: 'originator', label: 'Origen CFA' },
+    { key: 'recipient', label: 'Entidad y receptor' },
+    { key: 'concept', label: 'Recaudo o addenda' },
     { key: 'review', label: 'Revisión' }
   ];
 
@@ -107,16 +169,15 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   );
   readonly form: FormGroup = this.fb.group({
     customerId: [null],
-    amount: ['', [Validators.required]],
+    amount: ['', [Validators.required, positiveMoneyValidator]],
     transactionExternalId: ['', [Validators.required, Validators.maxLength(64)]],
-    reference: ['', [Validators.maxLength(30)]],
     type: [TransactionTypeEnum.Credit, Validators.required],
     accountType: [AccountTypeEnum.Checking, Validators.required],
     isPrenotification: [false],
     destinationInstitutionId: [null, [Validators.required, Validators.min(1)]],
     sourceAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
     destinationAccountNumber: ['', [Validators.required, Validators.pattern(/^[0-9]{6,18}$/)]],
-    recipientIdNumber: [''],
+    recipientIdNumber: ['', [Validators.maxLength(20)]],
     recipientName: ['', [Validators.maxLength(100)]],
     requiresIdentityValidation: [false],
     companyName: ['', [Validators.required, Validators.maxLength(16)]],
@@ -137,6 +198,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   selectedCustomerAccounts: string[] = [];
   companyEntryDescriptionOptions: CompanyEntryDescriptionOption[] = [];
   policyPreview: TransactionPolicyPreview | null = null;
+  catalogsLoading = true;
 
   get selectedCustomerAccountOptions() {
     return this.selectedCustomerAccounts.map((accountNumber) => ({ valor: accountNumber, etiqueta: accountNumber }));
@@ -198,14 +260,28 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.form.setValidators([this.validateAccountDifference, this.validateBusinessRules, recipientIdentityValidator()]);
     this.ensureDefaultAddenda();
 
-    this.api.getCompanyEntryDescriptions().pipe(take(1), takeUntil(this.destroy$)).subscribe((items) => {
-      this.companyEntryDescriptionOptions = (items ?? []).sort((a, b) => a.term.localeCompare(b.term));
-      const defaultItem = this.companyEntryDescriptionOptions.find((x) => x.term === "NOMINAS") ?? this.companyEntryDescriptionOptions[0];
-      if (defaultItem) {
-        this.form.patchValue({ companyEntryDescriptionId: defaultItem.id }, { emitEvent: false });
-      }
-      this.cdr.markForCheck();
-    });
+    this.api.getCompanyEntryDescriptions()
+      .pipe(
+        take(1),
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.catalogsLoading = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (items) => {
+          this.companyEntryDescriptionOptions = (items ?? []).sort((a, b) => a.term.localeCompare(b.term));
+          const defaultItem = this.companyEntryDescriptionOptions.find((x) => x.term === 'NOMINAS')
+            ?? this.companyEntryDescriptionOptions[0];
+          if (defaultItem) {
+            this.form.patchValue({ companyEntryDescriptionId: defaultItem.id }, { emitEvent: false });
+          }
+        },
+        error: () => {
+          this.errorMessage.setValue('No fue posible cargar el catálogo de conceptos de entrada.');
+        }
+      });
     this.form.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.errorMessage.setValue(null);
       this.successMessage.setValue(null);
@@ -272,8 +348,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         }
 
         const validators = isPrenotification
-          ? [Validators.required, Validators.min(0), Validators.max(0)]
-          : [Validators.required, Validators.min(0.01)];
+          ? [Validators.required, zeroMoneyValidator]
+          : [Validators.required, positiveMoneyValidator];
 
         amountControl.setValidators(validators);
         if (isPrenotification) {
@@ -283,6 +359,18 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         this.loadActiveDestinationAccounts();
         amountControl.updateValueAndValidity({ emitEvent: false });
       });
+
+    this.form
+      .get('type')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.updateConditionalValidators());
+
+    this.form
+      .get('requiresIdentityValidation')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.updateConditionalValidators());
+
+    this.updateConditionalValidators();
   }
 
   ngOnDestroy(): void {
@@ -295,15 +383,15 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   }
 
   addAddenda(): void {
-    this.addendas.push(
-      this.fb.group({
+    const group = this.fb.group({
         addendaType: ['05', [Validators.required]],
         collectorId: ['', [Validators.maxLength(13)]],
         receiverCustomerCode: ['', [Validators.maxLength(30)]],
         serviceDescription: ['', [Validators.maxLength(15)]],
         information: ['', [Validators.required, Validators.maxLength(80)]]
-      })
-    );
+      });
+    this.addendas.push(group);
+    this.updateAddendaValidators(group);
   }
 
   removeAddenda(index: number): void {
@@ -318,7 +406,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       this.validationAttempted = true;
       this.form.markAllAsTouched();
       this.cdr.markForCheck();
-      setTimeout(() => this.validationSummary?.nativeElement.focus());
+      setTimeout(() => this.focusFirstInvalidControl());
       return;
     }
 
@@ -329,19 +417,20 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       this.form.get('amount')?.markAsTouched();
       this.validationAttempted = true;
       this.cdr.markForCheck();
-      setTimeout(() => this.validationSummary?.nativeElement.focus());
+      setTimeout(() => this.focusFirstInvalidControl());
       return;
     }
 
+    const addendas = payload.addendas
+      .map((item) => this.buildAddendaPayload(item))
+      .filter((item) => item.addendaType && item.information);
     const sanitized: TransactionDraft = {
-      ...payload,
       type: Number(payload.type) as TransactionTypeEnum,
       accountType: Number(payload.accountType) as AccountTypeEnum,
       isPrenotification: Boolean(payload.isPrenotification),
       amount: parsedAmount,
       destinationInstitutionId: Number(payload.destinationInstitutionId),
       transactionExternalId: payload.transactionExternalId.trim(),
-      reference: payload.reference?.trim() || undefined,
       sourceAccountNumber: this.extractDigits(payload.sourceAccountNumber).slice(0, 18),
       destinationAccountNumber: this.extractDigits(payload.destinationAccountNumber).slice(0, 18),
       recipientIdNumber: payload.recipientIdNumber?.trim() || undefined,
@@ -352,9 +441,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       sourcePersonType: payload.sourcePersonType === 'PN' ? 'PN' : 'PJ',
       recipientPersonType: payload.recipientPersonType === 'PJ' ? 'PJ' : 'PN',
       companyEntryDescriptionId: Number(payload.companyEntryDescriptionId),
-      addendas: payload.addendas
-        .map((item) => this.buildAddendaPayload(item))
-        .filter((item) => item.addendaType && item.information)
+      addendas
     };
 
     this.isSubmitting.setValue(true);
@@ -374,7 +461,6 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.form.reset({
               customerId: null,
               transactionExternalId: '',
-              reference: '',
               type: TransactionTypeEnum.Credit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
@@ -428,6 +514,17 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       ? container
       : container.querySelector<HTMLElement>('input, select, textarea, button, [tabindex]');
     (focusTarget ?? container).focus();
+  }
+
+  focusFirstInvalidControl(): string | null {
+    const issue = this.collectValidationIssues()[0] ?? null;
+    if (!issue) {
+      this.validationSummary?.nativeElement.focus();
+      return null;
+    }
+
+    this.focusIssue(issue);
+    return issue.path;
   }
 
   focusSection(section: TransactionSection): void {
@@ -555,7 +652,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     if (!raw.destinationInstitutionId
       || !raw.sourceAccountNumber
       || !raw.destinationAccountNumber
-      || (!String(raw.transactionExternalId ?? '').trim() && !String(raw.reference ?? '').trim())
+      || !String(raw.transactionExternalId ?? '').trim()
       || parsedAmount === null) {
       this.policyPreview = null;
       this.form.updateValueAndValidity({ emitEvent: false });
@@ -628,6 +725,54 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     return Object.keys(errors).length > 0 ? errors : null;
   };
 
+  private updateConditionalValidators(): void {
+    const type = Number(this.form.get('type')?.value) as TransactionTypeEnum;
+    const identityRequired = type === TransactionTypeEnum.Debit
+      || type === TransactionTypeEnum.Reversal
+      || (type === TransactionTypeEnum.Credit && Boolean(this.form.get('requiresIdentityValidation')?.value));
+    const recipientId = this.form.get('recipientIdNumber');
+    recipientId?.setValidators([
+      ...(identityRequired ? [Validators.required] : []),
+      Validators.maxLength(20)
+    ]);
+    recipientId?.updateValueAndValidity({ emitEvent: false });
+
+    if (type !== TransactionTypeEnum.Credit) {
+      this.form.get('requiresIdentityValidation')?.setValue(false, { emitEvent: false });
+    }
+
+    this.addendas.controls.forEach((group) => this.updateAddendaValidators(group));
+    this.form.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  private updateAddendaValidators(group: FormGroup): void {
+    const type = Number(this.form.get('type')?.value) as TransactionTypeEnum;
+    const debitFieldsRequired = type === TransactionTypeEnum.Debit
+      || type === TransactionTypeEnum.Reversal;
+    const validators: Record<string, ValidatorFn[]> = {
+      collectorId: [
+        ...(debitFieldsRequired ? [Validators.required] : []),
+        Validators.pattern(/^\d{1,13}$/),
+        Validators.maxLength(13)
+      ],
+      receiverCustomerCode: [
+        ...(debitFieldsRequired ? [Validators.required] : []),
+        Validators.maxLength(30)
+      ],
+      serviceDescription: [
+        ...(debitFieldsRequired ? [Validators.required] : []),
+        Validators.maxLength(15)
+      ]
+    };
+
+    Object.entries(validators).forEach(([controlName, controlValidators]) => {
+      const control = group.get(controlName);
+      control?.setValidators(controlValidators);
+      control?.updateValueAndValidity({ emitEvent: false });
+    });
+  }
+
   private collectValidationIssues(): TransactionValidationIssue[] {
     const issues: TransactionValidationIssue[] = [];
     Object.entries(this.fieldMetadata).forEach(([path, metadata]) => {
@@ -691,6 +836,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     if (errors['required']) return 'Campo obligatorio.';
     if (errors['pattern']) return 'Formato inválido.';
     if (errors['maxlength']) return `Longitud excedida. Máximo ${errors['maxlength'].requiredLength} caracteres.`;
+    if (errors['nonPositiveAmount']) return 'El valor debe ser mayor que cero.';
+    if (errors['amountScale']) return 'Use máximo dos decimales.';
+    if (errors['amountOverflow']) return 'El valor supera el máximo permitido.';
     if (errors['min'] || errors['max']) return 'Valor fuera del rango permitido.';
     if (errors['invalidAmount']) return 'Ingrese un monto válido.';
     return 'Revise el valor ingresado.';
@@ -720,6 +868,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       return '';
     }
 
+    const negative = raw.trim().startsWith('-');
     const normalized = raw
       .replace(/\./g, '')
       .replace(/[^\d,]/g, '');
@@ -731,7 +880,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     const separatorIndex = normalized.indexOf(',');
     if (separatorIndex === -1) {
       const digits = normalized.replace(/\D/g, '');
-      return digits ? this.amountFormatter.format(Number(digits)) : '';
+      return digits ? `${negative ? '-' : ''}${this.amountFormatter.format(Number(digits))}` : '';
     }
 
     const integerDigits = normalized.slice(0, separatorIndex).replace(/\D/g, '');
@@ -740,28 +889,13 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     const hasTrailingSeparator = separatorIndex === normalized.length - 1;
 
     if (decimalDigits) {
-      return `${integerFormatted},${decimalDigits}`;
+      return `${negative ? '-' : ''}${integerFormatted},${decimalDigits}`;
     }
 
-    return hasTrailingSeparator ? `${integerFormatted},` : integerFormatted;
+    return `${negative ? '-' : ''}${hasTrailingSeparator ? `${integerFormatted},` : integerFormatted}`;
   }
 
   private parseMaskedAmount(value: unknown): number | null {
-    if (typeof value === 'number') {
-      return Number.isFinite(value) ? value : null;
-    }
-
-    const raw = String(value ?? '').trim();
-    if (!raw) {
-      return null;
-    }
-
-    const normalized = raw.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
-    if (!normalized) {
-      return null;
-    }
-
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : null;
+    return parseMonetaryValue(value);
   }
 }

@@ -166,8 +166,10 @@ public class IntegrationMappingSetService : IIntegrationMappingSetService
             entity.SourceKind = rule.SourceKind;
             entity.SourceCatalogFieldId = rule.SourceCatalogFieldId;
             entity.SourceFieldPath = rule.SourceFieldPath?.Trim() ?? string.Empty;
-            entity.FixedValue = string.IsNullOrWhiteSpace(rule.FixedValue) ? null : rule.FixedValue.Trim();
-            entity.DefaultValue = string.IsNullOrWhiteSpace(rule.DefaultValue) ? null : rule.DefaultValue.Trim();
+            // Los espacios finales pueden formar parte del contrato SOAP (por ejemplo, campos
+            // alfanuméricos de longitud fija). No deben normalizarse al guardar desde el SPA.
+            entity.FixedValue = string.IsNullOrEmpty(rule.FixedValue) ? null : rule.FixedValue;
+            entity.DefaultValue = string.IsNullOrEmpty(rule.DefaultValue) ? null : rule.DefaultValue;
             entity.TransformationCode = string.IsNullOrWhiteSpace(rule.TransformationCode) ? null : rule.TransformationCode.Trim();
             entity.FormatMask = string.IsNullOrWhiteSpace(rule.FormatMask) ? null : rule.FormatMask.Trim();
             entity.Priority = Math.Max(1, rule.Priority);

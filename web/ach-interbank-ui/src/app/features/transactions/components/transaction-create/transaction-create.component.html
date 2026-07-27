@@ -1,400 +1,499 @@
-﻿<section class="transaction-card" aria-labelledby="transaction-create-title">
-  <div class="header">
-    <h2 id="transaction-create-title">Crear transacción ACH</h2>
-    <p class="subtitle">Complete los datos de la transacción</p>
-  </div>
+<section class="transaction-page" aria-labelledby="transaction-create-title" data-testid="transaction-create-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Operación ACH</p>
+      <h1 id="transaction-create-title">Crear transacción ACH</h1>
+      <p>Registre la operación en cuatro secciones. La entidad de origen se mantiene en CFA.</p>
+    </div>
+    <span class="source-chip">Origen: CFA</span>
+  </header>
 
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <form
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    novalidate
+    [attr.aria-busy]="isSubmitting.value"
+    data-testid="transaction-create-form"
+  >
     <nav class="section-status" aria-label="Estado de las secciones">
-      <button *ngFor="let section of sectionStates" type="button"
-        [class]="'section-status__item ' + section.status" (click)="focusSection(section.key)">
-        <span aria-hidden="true">{{ section.symbol }}</span> {{ section.label }}
+      <button
+        mat-button
+        *ngFor="let section of sectionStates"
+        type="button"
+        [class]="'section-status__item ' + section.status"
+        (click)="focusSection(section.key)"
+      >
+        <span aria-hidden="true">{{ section.symbol }}</span>
+        {{ section.label }}
         <span *ngIf="section.errorCount">({{ section.errorCount }})</span>
       </button>
     </nav>
 
-    <section #validationSummary *ngIf="validationIssues.length" class="validation-summary"
-      role="alert" aria-live="assertive" tabindex="-1">
-      <h3>Faltan datos para registrar la transacción</h3>
-      <p>Revise los siguientes campos:</p>
-      <div *ngFor="let section of validationSections" class="validation-summary__section">
-        <h4>{{ section.label }}</h4>
-        <ul><li *ngFor="let issue of section.issues">
-          <button type="button" (click)="focusIssue(issue)"><strong>{{ issue.label }}</strong>: {{ issue.message }}</button>
-        </li></ul>
+    <section
+      #validationSummary
+      *ngIf="validationIssues.length"
+      class="validation-summary"
+      role="alert"
+      aria-live="assertive"
+      tabindex="-1"
+      data-testid="validation-summary"
+    >
+      <h2>Faltan datos para registrar la transacción</h2>
+      <p>Seleccione un mensaje para ir al campo que necesita atención.</p>
+      <div *ngFor="let section of validationSections">
+        <h3>{{ section.label }}</h3>
+        <ul>
+          <li *ngFor="let issue of section.issues">
+            <button type="button" (click)="focusIssue(issue)">
+              <strong>{{ issue.label }}</strong>
+              <span>{{ issue.message }}</span>
+            </button>
+          </li>
+        </ul>
       </div>
     </section>
 
-    <div class="form-grid">
-      <fieldset class="form-group" data-transaction-section="operation" tabindex="-1">
-        <legend>Datos de la transacción</legend>
-        <div class="fieldset-grid">
-          <label>
-            <span>Monto *</span>
+    <div class="sections">
+      <section class="form-section" data-transaction-section="operation" tabindex="-1">
+        <div class="section-heading">
+          <span>1</span>
+          <div>
+            <h2>Información de la operación</h2>
+            <p>Identificación, naturaleza y valor de la instrucción.</p>
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>ID de operación del cliente</mat-label>
             <input
+              matInput
+              formControlName="transactionExternalId"
+              data-validation-path="transactionExternalId"
+              maxlength="64"
+              autocomplete="off"
+            />
+            <mat-hint>Identificador único para trazabilidad e idempotencia.</mat-hint>
+            <mat-error *ngIf="form.get('transactionExternalId')?.hasError('required')">
+              Ingrese el identificador único de la operación.
+            </mat-error>
+            <mat-error *ngIf="form.get('transactionExternalId')?.hasError('maxlength')">
+              El identificador supera 64 caracteres.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de operación</mat-label>
+            <mat-select formControlName="type" data-validation-path="type">
+              <mat-option [value]="TransactionType.Credit">Crédito</mat-option>
+              <mat-option [value]="TransactionType.Debit">Débito</mat-option>
+              <mat-option [value]="TransactionType.Reversal">Reverso</mat-option>
+            </mat-select>
+            <mat-error>Seleccione el tipo de transacción.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Descripción de la entrada</mat-label>
+            <mat-select formControlName="companyEntryDescriptionId" data-validation-path="companyEntryDescriptionId">
+              <mat-option *ngFor="let option of companyEntryDescriptionOptions" [value]="option.id">
+                {{ option.description }} ({{ option.term }})
+              </mat-option>
+            </mat-select>
+            <mat-hint>Concepto vigente del catálogo ACH.</mat-hint>
+            <mat-error>Seleccione la descripción de la entrada.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Valor de la transacción</mat-label>
+            <span matTextPrefix>$&nbsp;</span>
+            <input
+              matInput
               type="text"
               formControlName="amount"
               data-validation-path="amount"
               inputmode="decimal"
+              autocomplete="off"
               (input)="onAmountInput($event)"
-              placeholder="0,00"
-              required
-              aria-describedby="amount-help"
             />
-            <small id="amount-help">Ingrese el monto en pesos colombianos.</small>
-            <small class="muted" *ngIf="form.get('isPrenotification')?.value">Las prenotificaciones deben ser $0.</small>
-            <small class="muted">Valor a enviar: {{ amountPreviewValue | currencyCol }}</small>
-            <app-error-message [control]="form.get('amount')"></app-error-message>
-          </label>
+            <mat-hint>
+              {{ form.get('isPrenotification')?.value ? 'La prenotificación se registra en cero.' : (amountPreviewValue | currencyCol) }}
+            </mat-hint>
+            <mat-error *ngIf="form.get('amount')?.hasError('required')">Ingrese el valor de la transacción.</mat-error>
+            <mat-error *ngIf="form.get('amount')?.hasError('nonPositiveAmount')">El valor debe ser mayor que cero.</mat-error>
+            <mat-error *ngIf="form.get('amount')?.hasError('amountScale')">Use máximo dos decimales.</mat-error>
+            <mat-error *ngIf="form.get('amount')?.hasError('amountOverflow')">El valor supera la longitud permitida.</mat-error>
+            <mat-error *ngIf="form.get('amount')?.hasError('prenoteAmount')">La prenotificación debe tener valor cero.</mat-error>
+            <mat-error *ngIf="form.get('amount')?.hasError('invalidAmount')">Ingrese un valor monetario válido.</mat-error>
+          </mat-form-field>
 
-          <label>
-            <span>ID operación cliente *</span>
-            <input type="text" formControlName="transactionExternalId" data-validation-path="transactionExternalId" maxlength="64" required />
-            <small class="muted">Identificador operativo/idempotencia. Debe ser único por instrucción.</small>
-            <app-error-message [control]="form.get('transactionExternalId')"></app-error-message>
-          </label>
-
-          <label>
-            <span>Referencia legado (opcional)</span>
-            <input type="text" formControlName="reference" maxlength="30" />
-            <small class="muted">Solo para coexistencia histórica. El contexto funcional viaja en addenda.</small>
-            <app-error-message [control]="form.get('reference')"></app-error-message>
-          </label>
-
-          <label>
-            <span>Tipo *</span>
-            <ui-selector-buscable
-              [opciones]="[
-                { valor: TransactionType.Credit, etiqueta: 'Crédito' },
-                { valor: TransactionType.Debit, etiqueta: 'Débito' },
-                { valor: TransactionType.Reversal, etiqueta: 'Reverso' }
-              ]"
-              formControlName="type"
-              data-validation-path="type"
-              placeholderBusqueda="Buscar tipo"
-            ></ui-selector-buscable>
-            <app-error-message [control]="form.get('type')"></app-error-message>
-          </label>
-
-          <label>
-            <span>Tipo de cuenta *</span>
-            <ui-selector-buscable
-              [opciones]="[
-                { valor: AccountType.Checking, etiqueta: 'Cuenta corriente' },
-                { valor: AccountType.Savings, etiqueta: 'Cuenta de ahorros' },
-                { valor: AccountType.ElectronicDeposits, etiqueta: 'Depósitos electrónicos' }
-              ]"
-              formControlName="accountType"
-              data-validation-path="accountType"
-              placeholderBusqueda="Buscar tipo de cuenta"
-            ></ui-selector-buscable>
-            <app-error-message [control]="form.get('accountType')"></app-error-message>
-          </label>
-
-          <label class="toggle">
-            <span>Prenotificación</span>
-            <input type="checkbox" formControlName="isPrenotification" />
-            <small class="muted">Se enviará con monto cero.</small>
-          </label>
+          <mat-checkbox formControlName="isPrenotification" class="field-span">
+            Es una prenotificación
+          </mat-checkbox>
         </div>
-      </fieldset>
+      </section>
 
-      <fieldset class="form-group" data-transaction-section="originator" tabindex="-1">
-        <legend>Datos del originador</legend>
-        <div class="fieldset-grid">
-          <label>
-            <span>Cliente originador (opcional)</span>
-            <ui-selector-buscable
-              [opciones]="(customerOptions$ | async) ?? []"
-              formControlName="customerId"
-              placeholderBusqueda="Buscar cliente originador"
-            ></ui-selector-buscable>
-            <small class="muted">Seleccionarlo autocompleta identificación, nombre y cuenta origen.</small>
-            <small class="muted">Si no existe, crea la transacción y el cliente se registrará silenciosamente.</small>
-          </label>
+      <section class="form-section" data-transaction-section="originator" tabindex="-1">
+        <div class="section-heading">
+          <span>2</span>
+          <div>
+            <h2>Información del origen CFA</h2>
+            <p>Datos de la cuenta y del usuario que origina la operación.</p>
+          </div>
+        </div>
 
-          <label>
-            <span>Cuenta origen *</span>
-            <ng-container *ngIf="selectedCustomerAccounts.length > 0; else manualSourceAccount">
-              <ui-selector-buscable
-                [opciones]="selectedCustomerAccountOptions"
+        <div class="field-grid">
+          <mat-form-field appearance="outline" class="field-span">
+            <mat-label>Cliente originador</mat-label>
+            <mat-select formControlName="customerId">
+              <mat-option [value]="null">Diligenciar manualmente</mat-option>
+              <mat-option *ngFor="let customer of (customers$ | async) ?? []" [value]="customer.id">
+                {{ customer.fullName }} · {{ customer.documentType }} {{ customer.documentNumber }}
+              </mat-option>
+            </mat-select>
+            <mat-hint>Opcional. Al seleccionarlo se completan sus datos conocidos.</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Número de cuenta de origen</mat-label>
+            <mat-select
+              *ngIf="selectedCustomerAccounts.length > 0; else manualSourceAccount"
+              formControlName="sourceAccountNumber"
+              data-validation-path="sourceAccountNumber"
+            >
+              <mat-option *ngFor="let account of selectedCustomerAccounts" [value]="account">{{ account }}</mat-option>
+            </mat-select>
+            <ng-template #manualSourceAccount>
+              <input
+                matInput
                 formControlName="sourceAccountNumber"
                 data-validation-path="sourceAccountNumber"
-                placeholderBusqueda="Buscar cuenta origen"
-              ></ui-selector-buscable>
-              <small class="muted">Puedes digitar otra cuenta limpiando el cliente originador.</small>
-            </ng-container>
-            <ng-template #manualSourceAccount>
-              <input type="text" formControlName="sourceAccountNumber" data-validation-path="sourceAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('sourceAccountNumber', $event)" />
-              <small class="muted">Digite la cuenta origen (6 a 18 dígitos).</small>
+                inputmode="numeric"
+                maxlength="18"
+                autocomplete="off"
+                (input)="onNumericAccountInput('sourceAccountNumber', $event)"
+              />
             </ng-template>
-            <app-error-message [control]="form.get('sourceAccountNumber')"></app-error-message>
-          </label>
+            <mat-hint>Entre 6 y 18 dígitos.</mat-hint>
+            <mat-error *ngIf="form.get('sourceAccountNumber')?.hasError('required')">Ingrese el número de cuenta de origen.</mat-error>
+            <mat-error *ngIf="form.get('sourceAccountNumber')?.hasError('pattern')">Use entre 6 y 18 dígitos.</mat-error>
+          </mat-form-field>
 
-          <label>
-            <span>Tipo persona originador *</span>
-            <ui-selector-buscable
-              [opciones]="[
-                { valor: 'PJ', etiqueta: 'Persona jurídica (PJ)' },
-                { valor: 'PN', etiqueta: 'Persona natural (PN)' }
-              ]"
-              formControlName="sourcePersonType"
-              data-validation-path="sourcePersonType"
-              placeholderBusqueda="Buscar tipo de persona"
-            ></ui-selector-buscable>
-          </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de persona del originador</mat-label>
+            <mat-select formControlName="sourcePersonType" data-validation-path="sourcePersonType">
+              <mat-option value="PJ">Persona jurídica</mat-option>
+              <mat-option value="PN">Persona natural</mat-option>
+            </mat-select>
+            <mat-error>Seleccione el tipo de persona del originador.</mat-error>
+          </mat-form-field>
 
-          <label>
-            <span>Identificación usuario originador *</span>
-            <input type="text" formControlName="companyIdentification" data-validation-path="companyIdentification" required maxlength="10" />
-            <small class="muted">Este dato se usa para alta silenciosa/actualización del cliente originador.</small>
-            <app-error-message [control]="form.get('companyIdentification')"></app-error-message>
-          </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Número de identificación del originador</mat-label>
+            <input
+              matInput
+              formControlName="companyIdentification"
+              data-validation-path="companyIdentification"
+              maxlength="10"
+              autocomplete="off"
+            />
+            <mat-error *ngIf="form.get('companyIdentification')?.hasError('required')">
+              Ingrese la identificación del originador.
+            </mat-error>
+            <mat-error *ngIf="form.get('companyIdentification')?.hasError('pattern')">
+              Use de 4 a 10 letras mayúsculas o números.
+            </mat-error>
+          </mat-form-field>
 
-          <label>
-            <span>Nombre usuario originador *</span>
-            <input type="text" formControlName="companyName" data-validation-path="companyName" required maxlength="16" />
-            <small class="muted">Si seleccionas cliente se autocompleta, pero puedes ajustarlo.</small>
-            <app-error-message [control]="form.get('companyName')"></app-error-message>
-          </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre o razón social del originador</mat-label>
+            <input
+              matInput
+              formControlName="companyName"
+              data-validation-path="companyName"
+              maxlength="16"
+              autocomplete="organization"
+            />
+            <mat-hint>Máximo 16 caracteres.</mat-hint>
+            <mat-error *ngIf="form.get('companyName')?.hasError('required')">
+              Ingrese el nombre o razón social del originador.
+            </mat-error>
+            <mat-error *ngIf="form.get('companyName')?.hasError('maxlength')">
+              El nombre supera 16 caracteres.
+            </mat-error>
+          </mat-form-field>
         </div>
-      </fieldset>
+      </section>
 
-      <fieldset class="form-group" data-transaction-section="recipient" tabindex="-1">
-        <legend>Datos del receptor</legend>
-        <div class="fieldset-grid">
-          <label>
-            <span>Institución destino *</span>
-            <ui-selector-buscable
-              [opciones]="(institutionOptions$ | async) ?? []"
-              formControlName="destinationInstitutionId"
-              data-validation-path="destinationInstitutionId"
-              placeholderBusqueda="Buscar institución"
-            ></ui-selector-buscable>
-            <small class="muted">Seleccione una institución habilitada.</small>
-            <app-error-message [control]="form.get('destinationInstitutionId')"></app-error-message>
-          </label>
+      <section class="form-section" data-transaction-section="recipient" tabindex="-1">
+        <div class="section-heading">
+          <span>3</span>
+          <div>
+            <h2>Entidad y cuenta destino</h2>
+            <p>Seleccione la entidad, la cuenta y la identificación del receptor.</p>
+          </div>
+        </div>
 
-          <label>
-            <span>Cuenta destino *</span>
-            <ng-container *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount">
-              <ui-selector-buscable
-                [opciones]="filteredDestinationAccountOptions"
+        <div class="field-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Entidad financiera destino</mat-label>
+            <mat-select formControlName="destinationInstitutionId" data-validation-path="destinationInstitutionId">
+              <mat-option *ngFor="let institution of (institutions$ | async) ?? []" [value]="institution.id">
+                {{ institution.name }}
+              </mat-option>
+            </mat-select>
+            <mat-error>Seleccione la entidad financiera destino.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de cuenta destino</mat-label>
+            <mat-select formControlName="accountType" data-validation-path="accountType">
+              <mat-option [value]="AccountType.Checking">Cuenta corriente</mat-option>
+              <mat-option [value]="AccountType.Savings">Cuenta de ahorros</mat-option>
+              <mat-option [value]="AccountType.ElectronicDeposits">Depósitos electrónicos</mat-option>
+            </mat-select>
+            <mat-error>Seleccione el tipo de cuenta.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Número de cuenta destino</mat-label>
+            <mat-select
+              *ngIf="!form.get('isPrenotification')?.value; else manualDestinationAccount"
+              formControlName="destinationAccountNumber"
+              data-validation-path="destinationAccountNumber"
+            >
+              <mat-option *ngFor="let account of filteredDestinationAccounts" [value]="account.destinationAccountNumber">
+                {{ account.destinationAccountNumber }} · {{ account.destinationInstitutionName }}
+              </mat-option>
+            </mat-select>
+            <ng-template #manualDestinationAccount>
+              <input
+                matInput
                 formControlName="destinationAccountNumber"
                 data-validation-path="destinationAccountNumber"
-                [cargando]="sourceAccountRequiredForDestinationSelection"
-                placeholderBusqueda="Buscar cuenta destino"
-              ></ui-selector-buscable>
-              <small class="muted">Solo se muestran cuentas con prenotificación aprobada (Activa).</small>
-              <small class="muted" *ngIf="sourceAccountRequiredForDestinationSelection">
-                Primero selecciona/digita la cuenta origen para cargar las cuentas destino permitidas.
-              </small>
-              <small class="muted" *ngIf="filteredDestinationAccounts.length === 0">
-                No hay cuentas activas para la institución seleccionada.
-              </small>
-              <small class="muted">Para registrar receptores usa <a routerLink="/customer-third-parties">Terceros</a>.</small>
-            </ng-container>
-            <ng-template #manualDestinationAccount>
-              <input type="text" formControlName="destinationAccountNumber" data-validation-path="destinationAccountNumber" required inputmode="numeric" maxlength="18" (input)="onNumericAccountInput('destinationAccountNumber', $event)" />
-              <small class="muted">Para prenotificación puedes registrar una cuenta destino nueva.</small>
+                inputmode="numeric"
+                maxlength="18"
+                autocomplete="off"
+                (input)="onNumericAccountInput('destinationAccountNumber', $event)"
+              />
             </ng-template>
-            <app-error-message [control]="form.get('destinationAccountNumber')"></app-error-message>
-          </label>
+            <mat-hint *ngIf="sourceAccountRequiredForDestinationSelection">Primero ingrese la cuenta de origen.</mat-hint>
+            <mat-hint *ngIf="!sourceAccountRequiredForDestinationSelection && !form.get('isPrenotification')?.value">
+              Se muestran terceros con prenotificación activa.
+            </mat-hint>
+            <mat-error *ngIf="form.get('destinationAccountNumber')?.hasError('required')">Ingrese el número de cuenta.</mat-error>
+            <mat-error *ngIf="form.get('destinationAccountNumber')?.hasError('pattern')">Use entre 6 y 18 dígitos.</mat-error>
+            <mat-error *ngIf="form.hasError('sameAccount')">La cuenta destino debe ser diferente de la cuenta de origen.</mat-error>
+          </mat-form-field>
 
-          <label>
-            <span>Tipo persona receptor *</span>
-            <ui-selector-buscable
-              [opciones]="[
-                { valor: 'PN', etiqueta: 'Persona natural (PN)' },
-                { valor: 'PJ', etiqueta: 'Persona jurídica (PJ)' }
-              ]"
-              formControlName="recipientPersonType"
-              data-validation-path="recipientPersonType"
-              placeholderBusqueda="Buscar tipo de persona"
-            ></ui-selector-buscable>
-          </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de identificación del receptor</mat-label>
+            <mat-select formControlName="recipientPersonType" data-validation-path="recipientPersonType">
+              <mat-option value="PN">Persona natural</mat-option>
+              <mat-option value="PJ">Persona jurídica</mat-option>
+            </mat-select>
+            <mat-error>Seleccione el tipo de identificación.</mat-error>
+          </mat-form-field>
 
-          <label>
-            <span>Identificación del receptor</span>
-            <input type="text" formControlName="recipientIdNumber" data-validation-path="recipientIdNumber" maxlength="20" />
-            <small class="error" *ngIf="form.errors?.recipientIdentityFormat">El formato de identificación no coincide con el tipo de persona.</small>
-            <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Debit">
-              Obligatoria para transacciones débito.
-            </small>
-            <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Reversal">
-              Obligatoria para reversos por trazabilidad regulatoria.
-            </small>
-            <small class="muted" *ngIf="form.get('type')?.value === TransactionType.Credit">
-              Obligatoria si se solicita validación de identidad.
-            </small>
-            <small class="error" *ngIf="form.errors?.missingRecipientId">
-              Debes diligenciar la identificación del receptor.
-            </small>
-          </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Número de identificación del receptor</mat-label>
+            <input
+              matInput
+              formControlName="recipientIdNumber"
+              data-validation-path="recipientIdNumber"
+              maxlength="20"
+              autocomplete="off"
+            />
+            <mat-error *ngIf="form.get('recipientIdNumber')?.hasError('required')">
+              Ingrese el número de identificación del receptor.
+            </mat-error>
+            <mat-error *ngIf="form.hasError('recipientIdentityFormat')">
+              La identificación no coincide con el tipo de persona.
+            </mat-error>
+            <mat-error *ngIf="form.get('recipientIdNumber')?.hasError('maxlength')">
+              La identificación supera 20 caracteres.
+            </mat-error>
+          </mat-form-field>
 
-          <label>
-            <span>Nombre del receptor</span>
-            <input type="text" formControlName="recipientName" data-validation-path="recipientName" maxlength="100" />
-            <small class="muted">Se usa para crear/actualizar el cliente receptor en alta silenciosa.</small>
-            <small class="error" *ngIf="form.errors?.missingRecipientName">
-              Debes diligenciar el nombre del receptor cuando ingresas su identificación.
-            </small>
-          </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre o razón social del receptor</mat-label>
+            <input
+              matInput
+              formControlName="recipientName"
+              data-validation-path="recipientName"
+              maxlength="100"
+              autocomplete="name"
+            />
+            <mat-error *ngIf="form.hasError('missingRecipientName')">
+              Ingrese el nombre o razón social del receptor.
+            </mat-error>
+            <mat-error *ngIf="form.get('recipientName')?.hasError('maxlength')">
+              El nombre supera 100 caracteres.
+            </mat-error>
+          </mat-form-field>
 
-          <label class="toggle" *ngIf="form.get('type')?.value === TransactionType.Credit">
-            <span>Validar identidad</span>
-            <input type="checkbox" formControlName="requiresIdentityValidation" />
-            <small class="muted">Marca V para validar identidad.</small>
-          </label>
+          <mat-checkbox
+            *ngIf="form.get('type')?.value === TransactionType.Credit"
+            formControlName="requiresIdentityValidation"
+            class="field-span"
+          >
+            Solicitar validación de identidad
+          </mat-checkbox>
         </div>
-      </fieldset>
+      </section>
 
-      <label data-transaction-section="concept" tabindex="-1">
-        <span>Descripción de la entrada *</span>
-        <ui-selector-buscable
-          [opciones]="companyEntryDescriptionOptionsForSelect"
-          formControlName="companyEntryDescriptionId"
-          data-validation-path="companyEntryDescriptionId"
-          placeholderBusqueda="Buscar concepto"
-        ></ui-selector-buscable>
-        <small class="muted">Seleccione un concepto del catálogo.</small>
-        <app-error-message [control]="form.get('companyEntryDescriptionId')"></app-error-message>
-      </label>
+      <section class="form-section" data-transaction-section="concept" tabindex="-1">
+        <div class="section-heading">
+          <span>4</span>
+          <div>
+            <h2>Información de recaudo o addenda</h2>
+            <p>Los tres datos de recaudo son obligatorios para débitos y reversos.</p>
+          </div>
+          <button mat-stroked-button type="button" (click)="addAddenda()">Agregar addenda</button>
+        </div>
+
+        <div class="addenda-list" data-validation-path="addendas">
+          <article
+            class="addenda-item"
+            *ngFor="let addenda of addendas.controls; let i = index; trackBy: trackAddenda"
+            [formGroup]="addenda"
+          >
+            <div class="addenda-title">
+              <h3>Addenda {{ i + 1 }}</h3>
+              <button
+                mat-button
+                type="button"
+                color="warn"
+                (click)="removeAddenda(i)"
+                [disabled]="addendas.length === 1"
+                [attr.aria-label]="'Eliminar addenda ' + (i + 1)"
+              >
+                Eliminar
+              </button>
+            </div>
+
+            <div class="field-grid addenda-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Tipo de addenda</mat-label>
+                <mat-select formControlName="addendaType" [attr.data-validation-path]="'addendas.' + i + '.addendaType'">
+                  <mat-option value="05">05 · Información adicional</mat-option>
+                </mat-select>
+                <mat-error>Seleccione el tipo de addenda.</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Código del recaudador</mat-label>
+                <input
+                  matInput
+                  formControlName="collectorId"
+                  [attr.data-validation-path]="'addendas.' + i + '.collectorId'"
+                  maxlength="13"
+                  inputmode="numeric"
+                  autocomplete="off"
+                />
+                <mat-hint>NIT o EAN-13.</mat-hint>
+                <mat-error *ngIf="addenda.get('collectorId')?.hasError('required')">Ingrese el código del recaudador.</mat-error>
+                <mat-error *ngIf="addenda.get('collectorId')?.hasError('pattern')">Use hasta 13 dígitos.</mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Código de cliente del receptor</mat-label>
+                <input
+                  matInput
+                  formControlName="receiverCustomerCode"
+                  [attr.data-validation-path]="'addendas.' + i + '.receiverCustomerCode'"
+                  maxlength="30"
+                  autocomplete="off"
+                />
+                <mat-error *ngIf="addenda.get('receiverCustomerCode')?.hasError('required')">
+                  Ingrese el código de cliente del receptor.
+                </mat-error>
+                <mat-error *ngIf="addenda.get('receiverCustomerCode')?.hasError('maxlength')">
+                  El código supera 30 caracteres.
+                </mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Descripción del servicio</mat-label>
+                <input
+                  matInput
+                  formControlName="serviceDescription"
+                  [attr.data-validation-path]="'addendas.' + i + '.serviceDescription'"
+                  maxlength="15"
+                  autocomplete="off"
+                />
+                <mat-error *ngIf="addenda.get('serviceDescription')?.hasError('required')">
+                  Ingrese la descripción del servicio.
+                </mat-error>
+                <mat-error *ngIf="addenda.get('serviceDescription')?.hasError('maxlength')">
+                  La descripción supera 15 caracteres.
+                </mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="field-span">
+                <mat-label>Información adicional</mat-label>
+                <input
+                  matInput
+                  formControlName="information"
+                  [attr.data-validation-path]="'addendas.' + i + '.information'"
+                  maxlength="80"
+                  autocomplete="off"
+                />
+                <mat-hint>Máximo 80 caracteres.</mat-hint>
+                <mat-error *ngIf="addenda.get('information')?.hasError('required')">
+                  Ingrese la información de la addenda.
+                </mat-error>
+                <mat-error *ngIf="addenda.get('information')?.hasError('maxlength')">
+                  La información supera 80 caracteres.
+                </mat-error>
+              </mat-form-field>
+            </div>
+          </article>
+        </div>
+
+        <p class="inline-error" *ngIf="form.hasError('missingAddenda')">Debe registrar al menos una addenda.</p>
+        <p class="inline-error" *ngIf="form.hasError('invalidAddenda')">Solo se admite la addenda tipo 05.</p>
+      </section>
     </div>
 
-    <div class="addenda-section" data-validation-path="addendas">
-      <div class="section-header">
-        <h3>Addendas</h3>
-        <button type="button" class="link" (click)="addAddenda()">Agregar addenda</button>
+    <section
+      class="policy-summary"
+      data-transaction-section="review"
+      tabindex="-1"
+      *ngIf="policyPreview as preview"
+      [class.policy-summary--warning]="!preview.canSubmit"
+    >
+      <div>
+        <h2>Resumen operativo</h2>
+        <p>{{ preview.clearingHouseName || 'Cámara por determinar' }} · {{ preview.cycleName || 'Ciclo por determinar' }}</p>
       </div>
-      <ng-container *ngIf="addendas.controls.length; else noAddendas">
-        <div
-          class="addenda-item"
-          *ngFor="let addenda of addendas.controls; let i = index; trackBy: trackAddenda"
-          [formGroup]="addenda"
-        >
-          <label>
-            <span>Código tipo registro adenda *</span>
-            <ui-selector-buscable
-              [opciones]="[{ valor: '05', etiqueta: '05 - Información adicional' }]"
-              formControlName="addendaType"
-              [attr.data-validation-path]="'addendas.' + i + '.addendaType'"
-              placeholderBusqueda="Buscar tipo de adenda"
-            ></ui-selector-buscable>
-            <app-error-message [control]="addenda.get('addendaType')"></app-error-message>
-          </label>
-          <label>
-            <span>NIT/EAN-13 recaudador</span>
-            <input type="text" formControlName="collectorId" [attr.data-validation-path]="'addendas.' + i + '.collectorId'" maxlength="13" />
-            <app-error-message [control]="addenda.get('collectorId')"></app-error-message>
-          </label>
-          <label>
-            <span>Código cliente receptor</span>
-            <input type="text" formControlName="receiverCustomerCode" [attr.data-validation-path]="'addendas.' + i + '.receiverCustomerCode'" maxlength="30" />
-            <app-error-message [control]="addenda.get('receiverCustomerCode')"></app-error-message>
-          </label>
-          <label>
-            <span>Servicio</span>
-            <input type="text" formControlName="serviceDescription" [attr.data-validation-path]="'addendas.' + i + '.serviceDescription'" maxlength="15" />
-            <app-error-message [control]="addenda.get('serviceDescription')"></app-error-message>
-          </label>
-          <label>
-            <span>Información *</span>
-            <input type="text" formControlName="information" [attr.data-validation-path]="'addendas.' + i + '.information'" required maxlength="80" />
-            <app-error-message [control]="addenda.get('information')"></app-error-message>
-          </label>
-          <button type="button" class="btn btn-danger" (click)="removeAddenda(i)" aria-label="Eliminar addenda">
-            Eliminar
-          </button>
-        </div>
-      </ng-container>
-      <ng-template #noAddendas>
-        <p class="muted">Se requiere al menos una addenda por transacción.</p>
-      </ng-template>
-      <p class="error" *ngIf="form.errors?.missingAddenda">Debes registrar al menos una addenda.</p>
-      <p class="error" *ngIf="form.errors?.invalidAddenda">En esta pantalla solo se permite addenda tipo 05.</p>
-      <p class="muted" *ngIf="policyPreview && !policyPreview.canSubmit">
-        Advertencia operativa: {{ policyPreview.message }}. Se intentará registrar la transacción para que el backend gestione ciclo automático cuando aplique.
-      </p>
-    </div>
-
-
-    <section class="result" data-transaction-section="review" tabindex="-1" *ngIf="policyPreview as preview" [class.error]="!preview.canSubmit" [class.success]="preview.canSubmit">
-      <h3>Resumen operativo del ciclo</h3>
       <dl>
-        <div>
-          <dt>Cámara</dt>
-          <dd>{{ preview.clearingHouseName || '-' }}</dd>
-        </div>
-        <div>
-          <dt>Ciclo</dt>
-          <dd>{{ preview.cycleName || '-' }}</dd>
-        </div>
-        <div>
-          <dt>Ventana</dt>
-          <dd>{{ preview.windowLabel || '-' }}</dd>
-        </div>
-        <div>
-          <dt>Monto restante</dt>
-          <dd>{{ (preview.remainingAmountForCycle ?? 0) | currencyCol }}</dd>
-        </div>
-        <div>
-          <dt>Límite por transacción</dt>
-          <dd>{{ preview.maxAmountPerTransaction != null ? (preview.maxAmountPerTransaction | currencyCol) : '-' }}</dd>
-        </div>
-        <div>
-          <dt>Transacciones restantes</dt>
-          <dd>{{ preview.remainingTransactionsForCycle ?? '-' }}</dd>
-        </div>
-        <div>
-          <dt>Idempotencia</dt>
-          <dd>{{ preview.idempotencyKey || '-' }}</dd>
-        </div>
+        <div><dt>Ventana</dt><dd>{{ preview.windowLabel || 'No disponible' }}</dd></div>
+        <div><dt>Límite por transacción</dt><dd>{{ preview.maxAmountPerTransaction != null ? (preview.maxAmountPerTransaction | currencyCol) : 'No disponible' }}</dd></div>
+        <div><dt>Operaciones restantes</dt><dd>{{ preview.remainingTransactionsForCycle ?? 'No disponible' }}</dd></div>
       </dl>
-      <p class="muted" *ngIf="preview.canSubmit">La transacción cumple la política operativa vigente.</p>
-      <p class="error" *ngIf="!preview.canSubmit">{{ preview.message }}</p>
-      <p class="error" *ngIf="preview.wouldDuplicate">Advertencia: ya existe una transacción equivalente en el mismo ciclo operativo.</p>
-      <p class="muted" *ngIf="!preview.isWithinProcessingWindow">Advertencia: el ciclo está fuera de ventana; el backend intentará crear ciclo operativo automático.</p>
+      <p *ngIf="!preview.canSubmit" class="inline-error">{{ preview.message }}</p>
     </section>
 
-    <div class="actions">
-      <button type="submit" [disabled]="isSubmitting.value">
-        {{ isSubmitting.value ? 'Registrando…' : 'Registrar transacción' }}
+    <section *ngIf="errorMessage.value" class="feedback feedback--error" role="alert">
+      <h2>No fue posible crear la transacción</h2>
+      <p>{{ errorMessage.value }}</p>
+    </section>
+
+    <footer class="actions">
+      <button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        [disabled]="isSubmitting.value || catalogsLoading"
+        data-testid="transaction-submit"
+      >
+        <mat-spinner *ngIf="isSubmitting.value" diameter="20" aria-hidden="true"></mat-spinner>
+        {{ isSubmitting.value ? 'Creando transacción...' : 'Crear transacción' }}
       </button>
-      <button type="button" class="btn btn-outline" [disabled]="isSubmitting.value" routerLink="/transactions">
+      <button mat-stroked-button type="button" [disabled]="isSubmitting.value" routerLink="/transactions">
         Cancelar
       </button>
-      <p class="form-incomplete-help" *ngIf="form.invalid && !isSubmitting.value">
-        Complete {{ incompleteFieldCount }} {{ incompleteFieldCount === 1 ? 'campo obligatorio' : 'campos con problemas' }} para continuar.
-      </p>
-    </div>
+      <p *ngIf="catalogsLoading">Cargando catálogos requeridos...</p>
+    </footer>
   </form>
-
-  <section *ngIf="successMessage.value" class="result success" role="status">
-    <h3>{{ successMessage.value }}</h3>
-    <dl *ngIf="createdResponse.value">
-      <div>
-        <dt>ID</dt>
-        <dd>{{ createdResponse.value?.id }}</dd>
-      </div>
-      <div>
-        <dt>Monto</dt>
-        <dd>{{ createdResponse.value?.amount | currency: 'COP': 'symbol-narrow' }}</dd>
-      </div>
-      <div>
-        <dt>ID operación</dt>
-        <dd>{{ createdResponse.value?.transactionExternalId }}</dd>
-      </div>
-      <div>
-        <dt>Referencia legado</dt>
-        <dd>{{ createdResponse.value?.reference || '-' }}</dd>
-      </div>
-    </dl>
-  </section>
-
-  <section *ngIf="errorMessage.value" class="result error" role="alert">
-    <h3>Error al crear la transacción</h3>
-    <p>{{ errorMessage.value }}</p>
-  </section>
 </section>
-

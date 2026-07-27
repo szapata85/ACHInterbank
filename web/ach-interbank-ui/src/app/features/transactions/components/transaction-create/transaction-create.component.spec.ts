@@ -48,7 +48,6 @@ describe('TransactionCreateComponent', () => {
     component.form.patchValue({
       amount,
       transactionExternalId: 'tx-001',
-      reference: 'ref',
       type: TransactionTypeEnum.Credit,
       accountType: AccountTypeEnum.Checking,
       isPrenotification: false,
@@ -97,6 +96,18 @@ describe('TransactionCreateComponent', () => {
     expect(payload.addendas[0].collectorId).toBe('9001234567890');
     expect(payload.addendas[0].receiverCustomerCode).toBe('CLI0000000001');
     expect(payload.addendas[0].serviceDescription).toBe('SERVQA');
+    expect(payload.reference).toBeUndefined();
+    expect(payload.legacyReference).toBeUndefined();
+    expect(payload.legacyReferenceId).toBeUndefined();
+    expect(payload.customerId).toBeUndefined();
+  });
+
+  it('elimina Referencia legado del FormGroup y de la interfaz visible', () => {
+    fixture.detectChanges();
+
+    expect(component.form.contains('reference')).toBeFalse();
+    expect(component.form.contains('legacyReference')).toBeFalse();
+    expect(fixture.nativeElement.textContent).not.toContain('Referencia legado');
   });
 
   it('TransactionCreateComponent_ShouldInitializeDefaultAddenda', () => {
@@ -112,6 +123,25 @@ describe('TransactionCreateComponent', () => {
     component.submit();
 
     expect(txApi.createTransaction).not.toHaveBeenCalled();
+    expect(component.form.get('transactionExternalId')?.touched).toBeTrue();
+  });
+
+  it('rechaza valor cero y negativo en una transacción monetaria', () => {
+    component.form.get('amount')?.setValue('0');
+    expect(component.form.get('amount')?.hasError('nonPositiveAmount')).toBeTrue();
+
+    component.form.get('amount')?.setValue('-1');
+    expect(component.form.get('amount')?.hasError('nonPositiveAmount')).toBeTrue();
+  });
+
+  it('respeta longitudes máximas del contrato', () => {
+    component.form.get('transactionExternalId')?.setValue('X'.repeat(65));
+    component.form.get('companyName')?.setValue('N'.repeat(17));
+    component.form.get('recipientName')?.setValue('R'.repeat(101));
+
+    expect(component.form.get('transactionExternalId')?.hasError('maxlength')).toBeTrue();
+    expect(component.form.get('companyName')?.hasError('maxlength')).toBeTrue();
+    expect(component.form.get('recipientName')?.hasError('maxlength')).toBeTrue();
   });
 
   it('muestra resumen accesible con etiquetas funcionales, secciones y conteo', () => {
@@ -123,8 +153,8 @@ describe('TransactionCreateComponent', () => {
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Faltan datos para registrar la transacción');
-    expect(text).toContain('Monto');
-    expect(text).toContain('Institución destino');
+    expect(text).toContain('Valor de la transacción');
+    expect(text).toContain('Entidad financiera destino');
     expect(text).toContain('Descripción de la entrada');
     expect(text).toContain('Información adicional · Addenda 1');
     expect(text).not.toContain('companyEntryDescriptionId');
@@ -176,11 +206,38 @@ describe('TransactionCreateComponent', () => {
     expect(component.isSubmitting.value).toBeFalse();
   });
 
+  it('aplica validadores condicionales y limpia la opción oculta de identidad', () => {
+    component.form.patchValue({ type: TransactionTypeEnum.Credit, requiresIdentityValidation: true });
+    expect(component.form.get('recipientIdNumber')?.hasError('required')).toBeTrue();
+
+    component.form.patchValue({ requiresIdentityValidation: false });
+    expect(component.form.get('recipientIdNumber')?.hasError('required')).toBeFalse();
+
+    component.form.patchValue({ type: TransactionTypeEnum.Debit, requiresIdentityValidation: true });
+    expect(component.form.get('requiresIdentityValidation')?.value).toBeFalse();
+    expect(component.form.get('recipientIdNumber')?.hasError('required')).toBeTrue();
+    expect(component.addendas.at(0).get('collectorId')?.hasError('required')).toBeTrue();
+
+    component.form.patchValue({ type: TransactionTypeEnum.Credit });
+    expect(component.addendas.at(0).get('collectorId')?.hasError('required')).toBeFalse();
+  });
+
+  it('renderiza controles editables con Angular Material y mensajes mat-error', () => {
+    component.submit();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelectorAll('mat-form-field').length).toBeGreaterThan(10);
+    expect(fixture.nativeElement.querySelectorAll('mat-select').length).toBeGreaterThan(3);
+    expect(fixture.nativeElement.querySelectorAll('.mat-mdc-form-field-error').length).toBeGreaterThan(5);
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="reference"]')).toBeNull();
+  });
+
   it('muestra explicación aunque el formulario incompleto aún no se haya enviado', () => {
     fixture.detectChanges();
     const submit = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
     expect(submit.disabled).toBeFalse();
-    expect(fixture.nativeElement.textContent).toContain('campos con problemas');
+    expect(fixture.nativeElement.textContent).toContain('Registre la operación en cuatro secciones');
+    expect(fixture.nativeElement.querySelector('[data-testid="validation-summary"]')).toBeNull();
   });
 
   it('TransactionCreateComponent_ShouldCreateTransaction_WhenValid', () => {

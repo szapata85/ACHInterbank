@@ -248,6 +248,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             string requestPayload = string.Empty;
             string responsePayload = string.Empty;
             string dispatchEndpoint = string.Empty;
+            string executionMode = _dispatchOptions.NormalizedMode;
             string technicalException = string.Empty;
             ProcContrapartidasParsedResponse? parseResult = null;
             var startedAtUtc = nowUtc;
@@ -258,12 +259,19 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, transactions, nowLocal, ct);
                 EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
-                dispatchEndpoint = await ResolveProcContrapartidasEndpointAsync(ct);
+                var runtime = await ResolveProcContrapartidasRuntimeAsync(ct);
+                dispatchEndpoint = runtime.Endpoint;
+                executionMode = runtime.OperatingMode;
                 batch.MappingSetId = resolution.MappingSetId;
                 batch.MappingVersion = resolution.MappingVersion;
                 batch.MappingSnapshotHash = resolution.MappingSnapshotHash;
 
-                var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
+                var dispatchResult = await DispatchProcContrapartidasAsync(
+                    requestPayload,
+                    cycle.Id,
+                    cycle.ClearingHouseId,
+                    executionMode,
+                    ct);
                 responsePayload = dispatchResult.ResponsePayload;
                 parseResult = dispatchResult.ParseResult;
             }
@@ -299,7 +307,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var hasItemResult = parseResult.ItemResults.TryGetValue(txId, out var txResult);
 
                 var itemCode = hasItemResult ? txResult!.ResponseCode : parseResult.ResponseCode;
-                var transportStatus = ResolveTransportStatus(parseResult, technicalException);
+                var transportStatus = ResolveTransportStatus(parseResult, technicalException, executionMode);
                 var catalogResult = transportStatus == IntegrationTransportStatus.Succeeded
                     ? await ResolveCoreResponseAsync(itemCode, finishedAtUtc, ct)
                     : null;
@@ -319,7 +327,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     itemMessage,
                     dispatchEndpoint,
                     durationMs,
-                    technicalException);
+                    technicalException,
+                    executionMode);
 
                 var attempt = new ContrapartidaDispatchAttempt
                 {
@@ -618,6 +627,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             string requestPayload = string.Empty;
             string responsePayload = string.Empty;
             string dispatchEndpoint = string.Empty;
+            string executionMode = _dispatchOptions.NormalizedMode;
             string technicalException = string.Empty;
             ProcContrapartidasParsedResponse parseResult;
             try
@@ -626,11 +636,18 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 var resolution = await _procContrapartidasRequestMapper.ResolveAsync(cycle, txs, nowLocal, ct);
                 EnsureNoFallbackResolution(resolution);
                 requestPayload = _procContrapartidasRequestMapper.BuildSoapBody(resolution.Contract);
-                dispatchEndpoint = await ResolveProcContrapartidasEndpointAsync(ct);
+                var runtime = await ResolveProcContrapartidasRuntimeAsync(ct);
+                dispatchEndpoint = runtime.Endpoint;
+                executionMode = runtime.OperatingMode;
                 processingBatch.MappingSetId = resolution.MappingSetId;
                 processingBatch.MappingVersion = resolution.MappingVersion;
                 processingBatch.MappingSnapshotHash = resolution.MappingSnapshotHash;
-                var dispatchResult = await DispatchProcContrapartidasAsync(requestPayload, cycle.Id, cycle.ClearingHouseId, ct);
+                var dispatchResult = await DispatchProcContrapartidasAsync(
+                    requestPayload,
+                    cycle.Id,
+                    cycle.ClearingHouseId,
+                    executionMode,
+                    ct);
                 responsePayload = dispatchResult.ResponsePayload;
                 parseResult = dispatchResult.ParseResult;
             }
@@ -656,7 +673,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             {
                 var hasItemResult = parseResult.ItemResults.TryGetValue(item.AchTransactionId, out var txResult);
                 var code = hasItemResult ? txResult!.ResponseCode : parseResult.ResponseCode;
-                var transportStatus = ResolveTransportStatus(parseResult, technicalException);
+                var transportStatus = ResolveTransportStatus(parseResult, technicalException, executionMode);
                 var catalogResult = transportStatus == IntegrationTransportStatus.Succeeded
                     ? await ResolveCoreResponseAsync(code, finishedAtUtc, ct)
                     : null;
@@ -677,7 +694,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                     message,
                     dispatchEndpoint,
                     durationMs,
-                    technicalException);
+                    technicalException,
+                    executionMode);
 
                 _context.ContrapartidaDispatchAttempts.Add(new ContrapartidaDispatchAttempt
                 {
@@ -791,9 +809,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         string requestPayload,
         string cycleId,
         int clearingHouseId,
+        string executionMode,
         CancellationToken ct)
     {
-        if (_dispatchOptions.IsLive)
+        if (IsLiveMode(executionMode))
         {
             _logger.LogInformation(
                 "Proc_Contrapartidas live habilitado para ciclo {CycleId} camara {ClearingHouseId}.",
@@ -804,11 +823,11 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             return new ProcContrapartidasDispatchExecutionResult(responsePayload, _responseParser.Parse(responsePayload));
         }
 
-        var code = _dispatchOptions.IsDisabled
+        var code = IsDisabledMode(executionMode)
             ? "PROC_DISABLED"
             : "PROC_DRY_RUN";
-        var mode = _dispatchOptions.IsDisabled ? "disabled" : "dry-run";
-        var message = _dispatchOptions.IsDisabled
+        var mode = IsDisabledMode(executionMode) ? "disabled" : "dry-run";
+        var message = IsDisabledMode(executionMode)
             ? "Proc_Contrapartidas disabled: envelope generado, no transmitido."
             : "Proc_Contrapartidas dry-run: envelope generado, no transmitido.";
 
@@ -873,18 +892,21 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         }
     }
 
-    private async Task<string> ResolveProcContrapartidasEndpointAsync(CancellationToken ct)
+    private async Task<(string Endpoint, string OperatingMode)> ResolveProcContrapartidasRuntimeAsync(
+        CancellationToken ct)
     {
         if (_soapIntegrationSettingsService is null)
         {
-            return string.Empty;
+            return (string.Empty, _dispatchOptions.NormalizedMode);
         }
 
         var settings = await _soapIntegrationSettingsService.GetAsync(ct);
-        return settings.WscfaachMappings
-            .FirstOrDefault(x => string.Equals(x.MethodName, SoapMethodName, StringComparison.OrdinalIgnoreCase))
-            ?.Endpoint
-            ?.Trim() ?? string.Empty;
+        var mapping = settings.WscfaachMappings
+            .FirstOrDefault(x => string.Equals(x.MethodName, SoapMethodName, StringComparison.OrdinalIgnoreCase));
+        var mode = mapping?.Enabled == false
+            ? "Disabled"
+            : NormalizeOperatingMode(mapping?.OperatingMode, _dispatchOptions.NormalizedMode);
+        return (mapping?.Endpoint?.Trim() ?? string.Empty, mode);
     }
 
     private AttemptSoapAuditFields BuildAttemptSoapAuditFields(
@@ -895,7 +917,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         string? responseDescription,
         string soapEndpoint,
         long durationMs,
-        string technicalException)
+        string technicalException,
+        string executionMode)
     {
         var normalizedCode = NormalizeAuditValue(
             string.IsNullOrWhiteSpace(responseCode) ? parseResult.ResponseCode : responseCode,
@@ -912,14 +935,18 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         var technicalFailure = !isSuccess
             && !functionalRejection
             && (!string.IsNullOrWhiteSpace(technicalException)
-                || (!_dispatchOptions.IsDryRunLike && !_dispatchOptions.IsDisabled));
+                || (!IsDryRunLikeMode(executionMode) && !IsDisabledMode(executionMode)));
 
-        var technicalStatus = ResolveSoapTechnicalStatus(parseResult, isSuccess, functionalRejection);
+        var technicalStatus = ResolveSoapTechnicalStatus(
+            parseResult,
+            isSuccess,
+            functionalRejection,
+            executionMode);
 
         return new AttemptSoapAuditFields(
             SoapMethodName,
             NormalizeAuditValue(soapEndpoint, 500),
-            NormalizeAuditValue(_dispatchOptions.NormalizedMode, 20),
+            NormalizeAuditValue(executionMode, 20),
             durationMs,
             normalizedCode,
             normalizedDescription,
@@ -933,19 +960,20 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private string ResolveSoapTechnicalStatus(
         ProcContrapartidasParsedResponse parseResult,
         bool isSuccess,
-        bool isFunctionalRejection)
+        bool isFunctionalRejection,
+        string executionMode)
     {
         if (parseResult.ResponseCode.Equals("SOAP_EXCEPTION", StringComparison.OrdinalIgnoreCase))
         {
             return TechnicalStatusTechnicalException;
         }
 
-        if (_dispatchOptions.IsDisabled)
+        if (IsDisabledMode(executionMode))
         {
             return TechnicalStatusDisabled;
         }
 
-        if (_dispatchOptions.IsDryRunLike)
+        if (IsDryRunLikeMode(executionMode))
         {
             return TechnicalStatusDryRun;
         }
@@ -1010,7 +1038,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
     private IntegrationTransportStatus ResolveTransportStatus(
         ProcContrapartidasParsedResponse parsed,
-        string technicalException)
+        string technicalException,
+        string executionMode)
     {
         if (parsed.ResponseCode.Contains("TIMEOUT", StringComparison.OrdinalIgnoreCase)
             || technicalException.Contains("TIMEOUT", StringComparison.OrdinalIgnoreCase))
@@ -1025,13 +1054,38 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             return IntegrationTransportStatus.Failed;
         }
 
-        if (_dispatchOptions.IsDisabled || _dispatchOptions.IsDryRunLike)
+        if (IsDisabledMode(executionMode) || IsDryRunLikeMode(executionMode))
         {
             return IntegrationTransportStatus.NotExecuted;
         }
 
         return IntegrationTransportStatus.Succeeded;
     }
+
+    private static string NormalizeOperatingMode(string? mode, string fallback)
+    {
+        var candidate = string.IsNullOrWhiteSpace(mode) ? fallback : mode.Trim();
+        if (string.Equals(candidate, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Live";
+        }
+
+        if (string.Equals(candidate, "Disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Disabled";
+        }
+
+        return "DryRun";
+    }
+
+    private static bool IsLiveMode(string mode)
+        => string.Equals(mode, "Live", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDisabledMode(string mode)
+        => string.Equals(mode, "Disabled", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDryRunLikeMode(string mode)
+        => !IsLiveMode(mode) && !IsDisabledMode(mode);
 
     private void ApplySuccessfulTransactionState(
         AchTransaction transaction,

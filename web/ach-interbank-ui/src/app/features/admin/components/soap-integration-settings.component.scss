@@ -131,7 +131,7 @@
 
 .endpoint-editor {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.9rem;
   align-items: start;
 }
@@ -146,7 +146,8 @@ label {
   font-weight: 650;
 }
 
-input[type='text'] {
+input[type='text'],
+select {
   width: 100%;
   min-width: 0;
   min-height: 42px;
@@ -158,10 +159,18 @@ input[type='text'] {
   color: #111827;
 }
 
-input[type='text']:focus {
+input[type='text']:focus,
+select:focus {
   border-color: #0b4a8b;
   outline: 2px solid rgba(11, 74, 139, 0.16);
   outline-offset: 1px;
+}
+
+input[readonly],
+select:disabled {
+  background: #f1f5f9;
+  color: #475569;
+  cursor: not-allowed;
 }
 
 .inline-check {

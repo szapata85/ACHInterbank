@@ -13,6 +13,7 @@ export interface SoapEndpointMethodMapping {
   methodName: string;
   endpoint: string;
   soapAction: string;
+  operatingMode: 'Live' | 'DryRun' | 'Disabled';
   enabled: boolean;
   inputParameterMappings: SoapInputParameterMapping[];
 }

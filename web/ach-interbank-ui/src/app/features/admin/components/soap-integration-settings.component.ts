@@ -76,6 +76,8 @@ export class SoapIntegrationSettingsComponent {
   modalMode: ModalMode = null;
   selectedClientKey: SoapClientKey | null = null;
   selectedMethodName: string | null = null;
+  editingMethodCode: string | null = null;
+  private editSnapshot: SoapEndpointMethodMapping | null = null;
 
   constructor() {
     this.loadSettings(false);
@@ -124,6 +126,7 @@ export class SoapIntegrationSettingsComponent {
   }
 
   selectMethod(method: SoapMethodView): void {
+    this.cancelEdit(false);
     this.selectedClientKey = method.clientKey;
     this.selectedMethodName = this.methodNameFor(method.group);
     this.cdr.markForCheck();
@@ -131,6 +134,36 @@ export class SoapIntegrationSettingsComponent {
 
   isSelected(method: SoapMethodView): boolean {
     return this.selectedClientKey === method.clientKey && this.selectedMethodName === this.methodNameFor(method.group);
+  }
+
+  get isEditingSelected(): boolean {
+    const method = this.selectedMethod;
+    return method !== null && this.editingMethodCode === this.methodCodeFor(method);
+  }
+
+  beginEdit(): void {
+    const method = this.selectedMethod;
+    if (!method) {
+      return;
+    }
+
+    this.editingMethodCode = this.methodCodeFor(method);
+    this.editSnapshot = method.group.getRawValue() as SoapEndpointMethodMapping;
+    this.cdr.markForCheck();
+  }
+
+  cancelEdit(showNotification = true): void {
+    const method = this.selectedMethod;
+    if (method && this.editSnapshot && this.editingMethodCode === this.methodCodeFor(method)) {
+      method.group.patchValue(this.editSnapshot, { emitEvent: false });
+      method.group.markAsPristine();
+    }
+    this.editingMethodCode = null;
+    this.editSnapshot = null;
+    if (showNotification) {
+      this.notifications.success('Edición cancelada. No se guardaron cambios.');
+    }
+    this.cdr.markForCheck();
   }
 
   openHelp(): void {
@@ -161,6 +194,8 @@ export class SoapIntegrationSettingsComponent {
         next: (settings) => {
           this.hydrate(settings, currentSelection);
           this.form.markAsPristine();
+          this.editingMethodCode = null;
+          this.editSnapshot = null;
           this.notifications.success('Configuracion SOAP guardada.');
         },
         error: () => this.notifications.error('No fue posible guardar la configuracion SOAP.')
@@ -181,6 +216,17 @@ export class SoapIntegrationSettingsComponent {
 
   statusFor(group: FormGroup): string {
     return group.get('enabled')?.value ? 'Activo' : 'Inactivo';
+  }
+
+  operatingModeFor(group: FormGroup): string {
+    const mode = group.get('operatingMode')?.value;
+    if (mode === 'Live') {
+      return 'LIVE';
+    }
+    if (mode === 'Disabled') {
+      return 'Inactivo';
+    }
+    return 'Simulación';
   }
 
   methodCodeFor(method: SoapMethodView): string {
@@ -265,6 +311,7 @@ export class SoapIntegrationSettingsComponent {
       methodName: [mapping.methodName, [Validators.required]],
       endpoint: [mapping.endpoint, [Validators.required]],
       soapAction: [mapping.soapAction, [Validators.required]],
+      operatingMode: [mapping.operatingMode ?? 'DryRun', [Validators.required]],
       enabled: [mapping.enabled],
       inputParameterMappings: inputMappings
     });

@@ -309,7 +309,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       id: this.ruleForm.value.id,
       methodId: this.mappingSet.methodId,
       parameterId: this.selectedParameterId,
-      sourceKind: this.ruleForm.value.sourceKind,
+      sourceKind: this.toApiSourceKind(this.ruleForm.value.sourceKind),
       sourceCatalogFieldId: this.ruleForm.value.sourceCatalogFieldId,
       sourceFieldPath: this.resolveControlledSourceFieldPath(),
       fixedValue: this.ruleForm.value.fixedValue,
@@ -338,7 +338,9 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     if (!this.mappingSet || this.validating) return;
 
     this.validating = true;
-    this.api.validate(this.mappingSet.id).subscribe({
+    this.api.validate(this.mappingSet.id).pipe(
+      finalize(() => (this.validating = false))
+    ).subscribe({
       next: (result) => {
         this.validationResult = result;
         const message = result.isValid
@@ -350,8 +352,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       error: () => {
         this.notifications.error('No fue posible validar la configuración.');
         onDone?.(false);
-      },
-      complete: () => (this.validating = false)
+      }
     });
   }
 
@@ -575,6 +576,28 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     if (lowered === 'prenotification') return 'Prenotification';
     if (lowered === 'differentialresponse') return 'DifferentialResponse';
     return raw;
+  }
+
+  private toApiSourceKind(kind: string | number | null | undefined): number {
+    const normalized = this.normalizeSourceKind(kind);
+    const values: Record<string, number> = {
+      Transaction: 1,
+      Addenda: 2,
+      Batch: 3,
+      Cycle: 4,
+      ClearingHouse: 5,
+      Constant: 6,
+      Expression: 7,
+      NachaHeader: 8,
+      BatchHeader: 9,
+      EntryDetail: 10,
+      AddendaRecord: 11,
+      BatchControl: 12,
+      FileControl: 13,
+      Prenotification: 14,
+      DifferentialResponse: 15
+    };
+    return values[normalized] ?? 0;
   }
 
   private failEditorLoad<T>(message: string, error?: unknown): Observable<T> {

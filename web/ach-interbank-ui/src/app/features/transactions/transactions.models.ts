@@ -13,11 +13,9 @@ export interface DestinationInstitution {
 export interface TransactionDraft {
   amount: number;
   transactionExternalId: string;
-  reference?: string;
   type: TransactionTypeEnum;
   accountType: AccountTypeEnum;
   isPrenotification: boolean;
-  transactionCode: string;
   destinationInstitutionId: number;
   sourceAccountNumber: string;
   destinationAccountNumber: string;

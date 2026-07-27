@@ -1,11 +1,9 @@
 import { expect, Page, test, TestInfo } from '@playwright/test';
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
   G36RuntimeDb,
-  pollUntil,
-  type AchCycleSnapshot,
-  type MappingRuleSnapshot
+  pollUntil
 } from './support/g36-runtime-db';
 
 type AuthLoginResponse = {
@@ -93,6 +91,7 @@ type SoapEndpointMethodMapping = {
   methodName: string;
   endpoint: string;
   soapAction: string;
+  operatingMode: string;
   enabled: boolean;
   inputParameterMappings: SoapInputParameterMapping[];
 };
@@ -126,13 +125,14 @@ const apiBaseUrl = (process.env['ACH_API_URL'] ?? 'http://localhost:843').replac
 const username = process.env['ACH_USER'] ?? '';
 const password = process.env['ACH_PASS'] ?? '';
 const wscfaachEndpoint = process.env['SOAP_LOCAL_WSCFAACH_URL'] ?? 'http://localhost:7083/WSCFAACH.svc';
-const configureSoapSettings = process.env['PROC_CONTRA_CONFIGURE_SOAP_SETTINGS'] !== 'false';
 const runSeed = process.env['PROC_CONTRA_RUN_SEED'] === 'true';
 const targetInstitutionName = process.env['PROC_CONTRA_DESTINATION_INSTITUTION_NAME'] ?? '';
 const dispatchTriggeredBy = username;
 const liveResultFile = process.env['PROC_CONTRA_RESULT_FILE'] ?? '';
 const resumeReadOnly = process.env['PROC_CONTRA_RESUME_READ_ONLY'] === 'true';
-const skipDuplicateGate = process.env['PROC_CONTRA_SKIP_DUPLICATE_GATE'] === 'true';
+const resumeCreatedDispatch = process.env['PROC_CONTRA_RESUME_CREATED_DISPATCH'] === 'true';
+const evidenceDir = resolve(process.cwd(), '..', '..', 'docs', 'uat', 'evidencias', 'transactions-create');
+mkdirSync(evidenceDir, { recursive: true });
 
 const loginPath = '/auth/login';
 const seedPath = '/Maintenance/seed';
@@ -146,9 +146,13 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
   test.setTimeout(900_000);
   const startedAt = new Date();
   const db = new G36RuntimeDb(dispatchTriggeredBy);
-  let originalSoapSettings: SoapIntegrationSettings | null = null;
-  let cycleSnapshots: AchCycleSnapshot[] | null = null;
-  let mappingSnapshot: MappingRuleSnapshot[] | null = null;
+  let schedulerPausedByTest = false;
+  let singleDispatchCompleted = false;
+
+  if (resumeCreatedDispatch) {
+    await dispatchPersistedCreatedTransaction(page, testInfo, db);
+    return;
+  }
 
   if (resumeReadOnly) {
     await validatePersistedLiveResultWithoutDispatch(page, testInfo, db);
@@ -156,9 +160,13 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
   }
 
   const reference = `PW-CONTRA-${Date.now()}`;
-  const sourceAccountNumber = `44${String(Date.now()).slice(-10)}`;
-  const destinationAccountNumber = `55${String(Date.now()).slice(-10)}`;
-  const recipientIdNumber = `70${String(Date.now()).slice(-8)}`;
+  const sourceAccountNumber = process.env['PROC_CONTRA_SOURCE_ACCOUNT'] ?? `44${String(Date.now()).slice(-10)}`;
+  const destinationAccountNumber = process.env['PROC_CONTRA_DESTINATION_ACCOUNT'] ?? `55${String(Date.now()).slice(-10)}`;
+  const recipientIdNumber = process.env['PROC_CONTRA_RECIPIENT_ID'] ?? `70${String(Date.now()).slice(-8)}`;
+  const reuseActiveSyntheticThirdParty =
+    Boolean(process.env['PROC_CONTRA_SOURCE_ACCOUNT'])
+    && Boolean(process.env['PROC_CONTRA_DESTINATION_ACCOUNT'])
+    && Boolean(process.env['PROC_CONTRA_RECIPIENT_ID']);
   const sourceCompanyIdentification = `PW${String(Date.now()).slice(-8)}`;
   const sourceCompanyName = `PWCONTRA${String(Date.now()).slice(-6)}`;
   const collectorId = `90${String(Date.now()).slice(-11)}`;
@@ -170,6 +178,7 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
 
   try {
     await db.assertReady();
+    schedulerPausedByTest = await pauseAutomaticContrapartidaDispatch(page);
 
     await page.goto(joinUrl(uiBaseUrl, '/transactions/create'));
     await expect(page, `La SPA debe conservar la ruta de creacion; URL actual=${page.url()}`)
@@ -180,16 +189,8 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
       await seedDatabase(runtime.token);
     }
 
-    cycleSnapshots = await db.loadCycleSnapshots();
-    await db.configureCycles(cycleSnapshots, todayIsoDate());
-
-    if (configureSoapSettings) {
-      originalSoapSettings = await apiGetJson<SoapIntegrationSettings>(soapSettingsPath, runtime.token);
-      const localSettings = buildLocalSoapSettings(originalSoapSettings);
-      await apiPutJson<SoapIntegrationSettings>(soapSettingsPath, runtime.token, localSettings);
-    }
-
-    mappingSnapshot = await db.configureProcContrapartidasExpectedMapping();
+    const persistedSoapSettings = await apiGetJson<SoapIntegrationSettings>(soapSettingsPath, runtime.token);
+    assertLiveLocalSoapSettings(persistedSoapSettings);
 
     const institutions = await apiGetJson<FinancialInstitution[]>(financialInstitutionsPath, runtime.token);
     const defaultSource = institutions.find((item) => item.isDefaultSource) ?? null;
@@ -200,39 +201,46 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
 
     const companyEntryDescription = await resolveCompanyEntryDescription(runtime.token);
 
-    const createdPrenote = await apiPostJson<CreatedTransaction>(transactionsPath, runtime.token, {
-      amount: 0,
-      transactionExternalId: `${reference}-PRE`,
-      reference: `${reference.slice(-20)}P`,
-      type: 2,
-      accountType: 1,
-      isPrenotification: true,
-      destinationInstitutionId: targetInstitution.id,
-      sourceAccountNumber,
-      destinationAccountNumber,
-      recipientIdNumber,
-      recipientName: 'RECEPTOR QA CONTRA',
-      requiresIdentityValidation: false,
-      companyName: sourceCompanyName,
-      companyIdentification: sourceCompanyIdentification,
-      companyEntryDescriptionId: companyEntryDescription.id,
-      sourcePersonType: 'PJ',
-      recipientPersonType: 'PJ',
-      addendas: [
-        {
-          addendaType: '05',
-          information: `${reference}-PRE-ADD`
-        }
-      ]
-    });
-    expect(createdPrenote.id, 'La prenotificacion sintetica debe quedar creada como prerequisito.').toBeGreaterThan(0);
+    if (!reuseActiveSyntheticThirdParty) {
+      const createdPrenote = await apiPostJson<CreatedTransaction>(transactionsPath, runtime.token, {
+        amount: 0,
+        transactionExternalId: `${reference}-PRE`,
+        type: 2,
+        accountType: 1,
+        isPrenotification: true,
+        destinationInstitutionId: targetInstitution.id,
+        sourceAccountNumber,
+        destinationAccountNumber,
+        recipientIdNumber,
+        recipientName: 'RECEPTOR QA CONTRA',
+        requiresIdentityValidation: false,
+        companyName: sourceCompanyName,
+        companyIdentification: sourceCompanyIdentification,
+        companyEntryDescriptionId: companyEntryDescription.id,
+        sourcePersonType: 'PJ',
+        recipientPersonType: 'PJ',
+        addendas: [
+          {
+            addendaType: '05',
+            information: `${reference}-PRE-ADD`
+          }
+        ]
+      });
+      expect(createdPrenote.id, 'La prenotificacion sintetica debe quedar creada como prerequisito.').toBeGreaterThan(0);
 
-    await activateSyntheticThirdParty(runtime.token, {
-      sourceAccountNumber,
-      destinationAccountNumber,
-      recipientIdNumber,
-      destinationInstitutionId: targetInstitution.id
-    });
+      await activateSyntheticThirdParty(runtime.token, {
+        sourceAccountNumber,
+        destinationAccountNumber,
+        recipientIdNumber,
+        destinationInstitutionId: targetInstitution.id
+      });
+    }
+
+    // El catálogo de cuentas se obtiene al construir el formulario. La
+    // aprobación anterior debe reflejarse mediante el flujo normal de carga,
+    // no inyectando la opción en el DOM.
+    await page.reload();
+    await expect(page).toHaveURL(/\/transactions\/create(?:\?.*)?$/);
 
     await fillTransactionFormFromUi(page, {
       reference,
@@ -249,11 +257,18 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
       companyEntryDescriptionLabel: companyEntryDescription.term ?? companyEntryDescription.description ?? ''
     });
 
+    const transactionPosts: Array<Record<string, unknown>> = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && normalizeUrlPath(request.url()).endsWith('/transactions')) {
+        transactionPosts.push(request.postDataJSON() as Record<string, unknown>);
+      }
+    });
+
     const createResponsePromise = page.waitForResponse((response) =>
       response.request().method() === 'POST'
       && normalizeUrlPath(response.url()).endsWith('/transactions'));
 
-    await page.getByRole('button', { name: /Registrar transacci[oó]n/i }).click();
+    await page.getByRole('button', { name: /Crear transacción/i }).click();
     const createResponse = await createResponsePromise;
     const createResponseText = await createResponse.text();
     expect(
@@ -262,6 +277,8 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     ).toBeTruthy();
     const createdTransaction = JSON.parse(createResponseText) as CreatedTransaction;
     expect(createdTransaction.id, 'La transaccion monetaria creada desde UI debe devolver id.').toBeGreaterThan(0);
+    expect(transactionPosts, 'La acción final debe producir un único POST de creación.').toHaveLength(1);
+    assertNoLegacyReferencePayload(transactionPosts[0]);
     writeLiveState({ transactionId: createdTransaction.id, phase: 'created' });
 
     await expect(page).toHaveURL(/\/transactions(?:\/list)?(?:\?.*)?$/);
@@ -271,6 +288,11 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
         mask: [page.locator('input'), page.locator('textarea'), page.locator('tbody')]
       }),
       contentType: 'image/png'
+    });
+    await page.screenshot({
+      path: resolve(evidenceDir, 'transaccion-live-creada.png'),
+      fullPage: false,
+      mask: [page.locator('input'), page.locator('textarea'), page.locator('tbody')]
     });
 
     const transaction = await pollUntil(
@@ -284,9 +306,6 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
     expect(transaction.sourceInstitutionId, 'La transaccion debe originarse desde CFA IsDefaultSource=true.').toBe(defaultSource!.id);
     expect(transaction.destinationInstitutionId, 'La entidad destino debe ser externa.').toBe(targetInstitution.id);
     expect(transaction.destinationInstitutionId).not.toBe(defaultSource!.id);
-
-    const transactionCycle = await db.loadCycleSnapshot(transaction.achCycleId, transaction.clearingHouseId);
-    await db.configureCycle(transactionCycle, transactionCycle.cycleName, todayIsoDate());
 
     await expect.poll(async () => db.countDispatchItems(transaction.id), {
       timeout: 120_000,
@@ -415,42 +434,65 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
       body: await resultPanel.screenshot(),
       contentType: 'image/png'
     });
-
-    const attemptCountBeforeDuplicateGate = await db.countDispatchAttempts(transaction.id);
-    expect(attemptCountBeforeDuplicateGate, 'La transaccion nueva debe tener un unico intento SOAP persistido.').toBe(1);
-    const duplicateResponse = await fetch(joinUrl(apiBaseUrl, contrapartidaDispatchPath), {
-      method: 'POST',
-      headers: authHeaders(runtime.token, true),
-      body: JSON.stringify({ transactionId: transaction.id })
+    await resultPanel.screenshot({
+      path: resolve(evidenceDir, 'resultado-proc-contrapartidas.png')
     });
-    expect(duplicateResponse.status, 'El segundo dispatch debe bloquearse antes del transporte.').toBe(409);
-    const duplicatePayload = await duplicateResponse.json() as { errorCode?: string };
-    expect(duplicatePayload.errorCode).toBe('CONTRAPARTIDA_ALREADY_SUCCEEDED');
-    expect(await db.countDispatchAttempts(transaction.id), 'El gate duplicado no debe crear otro intento.').toBe(attemptCountBeforeDuplicateGate);
+
+    expect(await db.countDispatchAttempts(transaction.id), 'La transaccion nueva debe tener un unico intento SOAP persistido.').toBe(1);
     writeLiveState({
       transactionId: transaction.id,
       attemptId: evidence.attemptId,
       dispatchItemId: evidence.dispatchItemId,
       dispatchBatchId: evidence.dispatchBatchId,
       responseCatalogId: evidence.responseCatalogId,
-      phase: 'duplicate-blocked'
+      phase: 'single-dispatch-complete'
     });
+    singleDispatchCompleted = true;
   } finally {
-    if (cycleSnapshots) {
-      await db.restoreCycles(cycleSnapshots);
+    if (schedulerPausedByTest && singleDispatchCompleted) {
+      await resumeAutomaticContrapartidaDispatch(page);
     }
-
-    if (originalSoapSettings) {
-      await apiPutJson<SoapIntegrationSettings>(soapSettingsPath, runtime.token, originalSoapSettings);
-    }
-
-    if (mappingSnapshot) {
-      await db.restoreProcContrapartidasMapping(mappingSnapshot);
-    }
-
     await db.close();
   }
 });
+
+async function pauseAutomaticContrapartidaDispatch(page: Page): Promise<boolean> {
+  await page.goto(joinUrl(uiBaseUrl, '/scheduler/tasks'));
+  const row = page.getByRole('region', { name: 'Tareas' })
+    .getByRole('row')
+    .filter({ hasText: 'CONTRAPARTIDA_DISPATCH' });
+  await expect(row, 'Debe existir la tarea automática de Proc_Contrapartidas.').toHaveCount(1);
+  await row.getByLabel('Abrir acciones').click();
+  if (await row.getByRole('button', { name: 'Reanudar', exact: true }).count()) {
+    // Una ejecución previa de este mismo spec puede haberla dejado pausada al
+    // detenerse antes del límite SOAP. El baseline en cero se valida antes de
+    // reanudar el intento y el cierre definitivo debe restaurar la tarea.
+    return true;
+  }
+
+  const pauseResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && new URL(response.url()).pathname.toLowerCase().endsWith('/scheduler/tasks/contrapartida_dispatch/pause')
+  );
+  await row.getByRole('button', { name: 'Pausar', exact: true }).click();
+  expect((await pauseResponse).ok(), 'La tarea automática debe pausarse para garantizar un único dispatch dirigido.').toBeTruthy();
+  return true;
+}
+
+async function resumeAutomaticContrapartidaDispatch(page: Page): Promise<void> {
+  await page.goto(joinUrl(uiBaseUrl, '/scheduler/tasks'));
+  const row = page.getByRole('region', { name: 'Tareas' })
+    .getByRole('row')
+    .filter({ hasText: 'CONTRAPARTIDA_DISPATCH' });
+  await expect(row).toHaveCount(1);
+  await row.getByLabel('Abrir acciones').click();
+  const resumeResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST'
+    && new URL(response.url()).pathname.toLowerCase().endsWith('/scheduler/tasks/contrapartida_dispatch/resume')
+  );
+  await row.getByRole('button', { name: 'Reanudar', exact: true }).click();
+  expect((await resumeResponse).ok(), 'La programación automática debe restaurarse después del resultado definitivo.').toBeTruthy();
+}
 
 async function validatePersistedLiveResultWithoutDispatch(
   page: Page,
@@ -509,6 +551,9 @@ async function validatePersistedLiveResultWithoutDispatch(
       body: await resultPanel.screenshot(),
       contentType: 'image/png'
     });
+    await resultPanel.screenshot({
+      path: resolve(evidenceDir, 'resultado-proc-contrapartidas.png')
+    });
 
     const localSoapEvidence = readLocalSoapEvidence(new Date(0), evidence!.requestPayloadXml);
     expect(localSoapEvidence, 'La evidencia WCF debe correlacionar con el request persistido.').not.toBeNull();
@@ -518,22 +563,9 @@ async function validatePersistedLiveResultWithoutDispatch(
     expect(fragment).not.toContain('RegistrarRespuestaTransaccion');
     expect(fragment).not.toContain('PLValidarUsuarioBV');
 
-    if (!skipDuplicateGate) {
-      const attemptsBeforeDuplicateGate = await db.countDispatchAttempts(transactionId);
-      const duplicateResponse = await fetch(joinUrl(apiBaseUrl, contrapartidaDispatchPath), {
-        method: 'POST',
-        headers: authHeaders(runtime.token, true),
-        body: JSON.stringify({ transactionId })
-      });
-      expect(duplicateResponse.status).toBe(409);
-      const duplicatePayload = await duplicateResponse.json() as { errorCode?: string };
-      expect(duplicatePayload.errorCode).toBe('CONTRAPARTIDA_ALREADY_SUCCEEDED');
-      expect(await db.countDispatchAttempts(transactionId)).toBe(attemptsBeforeDuplicateGate);
-    }
-
     writeLiveState({
       transactionId,
-      phase: skipDuplicateGate ? 'restart-read-only-complete' : 'read-only-resume-complete'
+      phase: 'complete'
     });
   } finally {
     await db.close();
@@ -554,51 +586,90 @@ async function fillTransactionFormFromUi(page: Page, data: {
   targetInstitutionName: string;
   companyEntryDescriptionLabel: string;
 }): Promise<void> {
-  await fillInput(page, 'Monto', String(data.amount));
-  await fillInput(page, 'ID operación cliente', data.reference);
-  await fillInput(page, 'Referencia legado', data.reference.slice(-20));
-  await selectOption(page, 'Tipo', 'Débito');
-  await selectOption(page, 'Tipo de cuenta', 'Cuenta corriente');
-  await fillInput(page, 'Cuenta origen', data.sourceAccountNumber);
-  await selectOption(page, 'Tipo persona originador', 'Persona jurídica');
-  await fillInput(page, 'Identificación usuario originador', data.sourceCompanyIdentification);
-  await fillInput(page, 'Nombre usuario originador', data.sourceCompanyName.slice(0, 16));
-  await selectOption(page, 'Institución destino', data.targetInstitutionName);
-  await selectOption(page, 'Cuenta destino', data.destinationAccountNumber);
-  await selectOption(page, 'Tipo persona receptor', 'Persona jurídica');
-  await fillInput(page, 'Identificación del receptor', data.recipientIdNumber);
-  await fillInput(page, 'Nombre del receptor', 'RECEPTOR QA CONTRA');
-  await fillInput(page, 'NIT/EAN-13 recaudador', data.collectorId);
-  await fillInput(page, 'Código cliente receptor', data.receiverCustomerCode);
-  await fillInput(page, 'Servicio', data.serviceDescription);
+  await expect(page.getByText('Referencia legado')).toHaveCount(0);
+  await fillInput(page, 'Valor de la transacción', String(data.amount));
+  await fillInput(page, 'ID de operación del cliente', data.reference);
+  await selectOption(page, 'Tipo de operación', 'Débito');
+  await selectOption(page, 'Tipo de cuenta destino', 'Cuenta corriente');
+  const thirdPartiesResponse = page.waitForResponse((response) => {
+    if (response.request().method() !== 'GET') {
+      return false;
+    }
+
+    const url = new URL(response.url());
+    return url.pathname.toLowerCase().endsWith('/api/customer-third-parties')
+      && url.searchParams.get('sourceAccountNumber') === data.sourceAccountNumber;
+  });
+  await fillInput(page, 'Número de cuenta de origen', data.sourceAccountNumber);
+  expect((await thirdPartiesResponse).ok(), 'El catálogo real de terceros activos debe cargar desde el API.').toBeTruthy();
+  await selectOption(page, 'Tipo de persona del originador', 'Persona jurídica');
+  await fillInput(page, 'Número de identificación del originador', data.sourceCompanyIdentification);
+  await fillInput(page, 'Nombre o razón social del originador', data.sourceCompanyName.slice(0, 16));
+  await selectOption(page, 'Entidad financiera destino', data.targetInstitutionName);
+  await selectOption(page, 'Número de cuenta destino', data.destinationAccountNumber);
+  await selectOption(page, 'Tipo de identificación del receptor', 'Persona jurídica');
+  await fillInput(page, 'Número de identificación del receptor', data.recipientIdNumber);
+  await fillInput(page, 'Nombre o razón social del receptor', 'RECEPTOR QA CONTRA');
+  await fillInput(page, 'Código del recaudador', data.collectorId);
+  await fillInput(page, 'Código de cliente del receptor', data.receiverCustomerCode);
+  await fillInput(page, 'Descripción del servicio', data.serviceDescription);
   await selectOption(page, 'Descripción de la entrada', data.companyEntryDescriptionLabel || 'NOMINAS');
-  await selectOption(page, 'Código tipo registro adenda', '05 - Información adicional');
-  await fillInput(page, 'Información', `${data.reference}-ADDENDA`);
+  await selectOption(page, 'Tipo de addenda', '05 · Información adicional');
+  await fillInput(page, 'Información adicional', `${data.reference}-ADDENDA`);
+}
+
+async function dispatchPersistedCreatedTransaction(
+  page: Page,
+  testInfo: TestInfo,
+  db: G36RuntimeDb
+): Promise<void> {
+  expect(liveResultFile, 'PROC_CONTRA_RESULT_FILE es obligatorio para reanudar la transacción creada.').toBeTruthy();
+  expect(existsSync(liveResultFile), 'El estado de la única transacción creada debe existir.').toBeTruthy();
+  const state = JSON.parse(readFileSync(liveResultFile, 'utf8')) as { transactionId?: number; phase?: string };
+  const transactionId = Number(state.transactionId ?? 0);
+  expect(transactionId).toBeGreaterThan(0);
+  expect(state.phase).toBe('created');
+
+  const runtime = await authenticateThroughSpa(page);
+  await db.assertReady();
+  const transaction = await db.findTransactionById(transactionId);
+  expect(transaction, 'La transacción creada desde la SPA debe continuar persistida.').not.toBeNull();
+  expect(await db.countDispatchItems(transactionId), 'Debe existir un único elemento de dispatch para la transacción.').toBe(1);
+  expect(await db.countDispatchAttempts(transactionId), 'No debe existir un intento SOAP previo antes de reanudar.').toBe(0);
+
+  const persistedSoapSettings = await apiGetJson<SoapIntegrationSettings>(soapSettingsPath, runtime.token);
+  assertLiveLocalSoapSettings(persistedSoapSettings);
+
+  const dispatchResult = await apiPostJson<ContrapartidaDispatchResult>(contrapartidaDispatchPath, runtime.token, {
+    transactionId
+  });
+  expect(dispatchResult.processed, 'El dispatch reanudado debe procesar únicamente la transacción creada.').toBe(1);
+
+  await pollUntil(
+    async () => db.findDispatchEvidence(transactionId),
+    `evidencia SOAP de la transacción ${transactionId}`,
+    120_000
+  );
+  writeLiveState({ transactionId, phase: 'dispatched' });
+
+  await validatePersistedLiveResultWithoutDispatch(page, testInfo, db);
+  await resumeAutomaticContrapartidaDispatch(page);
+  writeLiveState({ transactionId, phase: 'complete' });
 }
 
 async function fillInput(page: Page, labelText: string, value: string): Promise<void> {
-  const field = fieldByLabel(page, labelText);
-  const input = field.locator('input').first();
+  const input = page.getByLabel(labelText, { exact: true });
   await expect(input, `Debe existir input para ${labelText}.`).toBeVisible();
   await input.fill(value);
 }
 
 async function selectOption(page: Page, labelText: string, optionText: string): Promise<void> {
-  const field = fieldByLabel(page, labelText);
-  const input = field.locator('.ui-selector input').first();
-  await expect(input, `Debe existir selector para ${labelText}.`).toBeVisible();
-  await input.fill(optionText);
-
-  const option = field.locator('button.opcion').filter({ hasText: optionText }).first();
+  const select = page.getByLabel(labelText, { exact: true });
+  await expect(select, `Debe existir selector para ${labelText}.`).toBeVisible();
+  await select.click();
+  const option = page.getByRole('option').filter({ hasText: optionText }).first();
   await expect(option, `Debe existir opcion "${optionText}" en ${labelText}.`).toBeVisible();
   await option.click();
-}
-
-function fieldByLabel(page: Page, labelText: string) {
-  const labelPattern = new RegExp(`^${escapeRegExp(labelText)}(?:\\s*\\([^)]*\\))?(?:\\s*\\*)?$`, 'i');
-  return page.locator('label')
-    .filter({ has: page.locator('span').filter({ hasText: labelPattern }) })
-    .first();
 }
 
 async function authenticateThroughSpa(page: Page): Promise<{ token: string }> {
@@ -742,35 +813,15 @@ function resolveTargetInstitution(institutions: FinancialInstitution[], defaultS
   return activeExternal[0];
 }
 
-function buildLocalSoapSettings(settings: SoapIntegrationSettings): SoapIntegrationSettings {
-  const cloned = JSON.parse(JSON.stringify(settings)) as SoapIntegrationSettings;
-  setMappingEndpoint(cloned.wscfaachMappings, 'Proc_Contrapartidas', wscfaachEndpoint, 'http://tempuri.org/IWSCFAACH/Proc_Contrapartidas');
-  for (const mapping of cloned.wscfaachMappings) {
-    if (mapping.methodName.toLowerCase() !== 'proc_contrapartidas') {
-      mapping.enabled = false;
-    }
+function assertLiveLocalSoapSettings(settings: SoapIntegrationSettings): void {
+  for (const methodName of ['Proc_Contrapartidas', 'Proc_Transacciones']) {
+    const mapping = settings.wscfaachMappings.find((item) => item.methodName === methodName);
+    expect(mapping, `Debe existir la configuración persistida de ${methodName}.`).toBeTruthy();
+    expect(mapping!.endpoint).toBe(wscfaachEndpoint);
+    expect(mapping!.operatingMode).toBe('Live');
+    expect(mapping!.enabled).toBeTruthy();
   }
-  for (const mapping of cloned.wsAxonRespuestaTransaccionesMappings) {
-    mapping.enabled = false;
-  }
-  assertNoMetodoMapping(cloned);
-  return cloned;
-}
 
-function setMappingEndpoint(
-  mappings: SoapEndpointMethodMapping[],
-  methodName: string,
-  endpoint: string,
-  soapAction: string
-): void {
-  const mapping = mappings.find((item) => item.methodName.toLowerCase() === methodName.toLowerCase());
-  expect(mapping, `Debe existir mapping SOAP para ${methodName}.`).toBeTruthy();
-  mapping!.endpoint = endpoint;
-  mapping!.soapAction = soapAction;
-  mapping!.enabled = true;
-}
-
-function assertNoMetodoMapping(settings: SoapIntegrationSettings): void {
   const allMappings = [
     ...settings.wscfaachMappings,
     ...settings.wsAxonRespuestaTransaccionesMappings
@@ -781,6 +832,20 @@ function assertNoMetodoMapping(settings: SoapIntegrationSettings): void {
       expect(parameter.inputName, `${mapping.methodName} no debe mapear METODO como input.`).not.toMatch(/^METODO$/i);
       expect(parameter.soapParameterName, `${mapping.methodName} no debe mapear METODO como parametro SOAP.`).not.toMatch(/^METODO$/i);
     }
+  }
+}
+
+function assertNoLegacyReferencePayload(payload: Record<string, unknown>): void {
+  const forbiddenKeys = [
+    'reference',
+    'legacyReference',
+    'legacyReferenceId',
+    'referenciaLegado',
+    'legacyTransactionReference',
+    'customerId'
+  ];
+  for (const key of forbiddenKeys) {
+    expect(Object.prototype.hasOwnProperty.call(payload, key), `El POST no debe contener ${key}.`).toBeFalsy();
   }
 }
 

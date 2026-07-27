@@ -75,6 +75,38 @@ public class IntegrationMappingEndToEndTests
     }
 
     [Fact]
+    public async Task MappingSet_PreservesContractSignificantTrailingSpaces()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var draft = await fixture.CreateDraftWithRulesAsync("FixedWidthSoapValue");
+        var original = draft.Rules.First();
+
+        var updated = await fixture.MappingSetService.UpsertRulesAsync(
+            draft.Id,
+            new UpsertIntegrationMappingRulesRequest("tester", [
+                new UpsertIntegrationMappingRuleRequest(
+                    original.Id,
+                    fixture.MethodId,
+                    original.ParameterId,
+                    IntegrationSourceKindEnum.Constant,
+                    null,
+                    string.Empty,
+                    "TRANSFER  ",
+                    "TRANSFER  ",
+                    null,
+                    null,
+                    1,
+                    original.RequiredOverride,
+                    true,
+                    null)
+            ]));
+
+        var rule = Assert.Single(updated.Rules, item => item.Id == original.Id);
+        Assert.Equal("TRANSFER  ", rule.FixedValue);
+        Assert.Equal("TRANSFER  ", rule.DefaultValue);
+    }
+
+    [Fact]
     public async Task MappingSet_Validation_DetectsErrors_AndCoverage()
     {
         await using var fixture = await IntegrationFixture.CreateAsync();

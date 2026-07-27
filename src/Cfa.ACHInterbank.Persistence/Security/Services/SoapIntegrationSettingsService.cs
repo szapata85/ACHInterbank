@@ -20,6 +20,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
     private readonly AchDbContext _dbContext;
     private readonly AppSettings? _appSettings = AppSettings.Settings;
     private readonly ProcTransaccionesDispatchOptions _procTransaccionesDispatchOptions;
+    private readonly ProcContrapartidasDispatchOptions _procContrapartidasDispatchOptions;
     private readonly IIntegrationMappingReadinessService? _mappingReadinessService;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -30,10 +31,13 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
     public SoapIntegrationSettingsService(
         AchDbContext dbContext,
         IOptions<ProcTransaccionesDispatchOptions> procTransaccionesDispatchOptions,
-        IIntegrationMappingReadinessService? mappingReadinessService = null)
+        IIntegrationMappingReadinessService? mappingReadinessService = null,
+        IOptions<ProcContrapartidasDispatchOptions>? procContrapartidasDispatchOptions = null)
     {
         _dbContext = dbContext;
         _procTransaccionesDispatchOptions = procTransaccionesDispatchOptions.Value;
+        _procContrapartidasDispatchOptions = procContrapartidasDispatchOptions?.Value
+            ?? new ProcContrapartidasDispatchOptions();
         _mappingReadinessService = mappingReadinessService;
     }
 
@@ -110,6 +114,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                     MethodName = "Proc_Contrapartidas",
                     Endpoint = defaultWscfaachEndpoint,
                     SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+                    OperatingMode = _procContrapartidasDispatchOptions.NormalizedMode,
                     Enabled = true,
                     InputParameterMappings = BuildProcContrapartidasInputMappings()
                 },
@@ -118,6 +123,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                     MethodName = "Proc_Transacciones",
                     Endpoint = defaultWscfaachEndpoint,
                     SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
+                    OperatingMode = _procTransaccionesDispatchOptions.NormalizedMode,
                     Enabled = true,
                     InputParameterMappings = BuildProcTransaccionesInputMappings()
                 }
@@ -129,6 +135,7 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                     MethodName = "RegistrarRespuestaTransaccion",
                     Endpoint = defaultWsAxonEndpoint,
                     SoapAction = "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
+                    OperatingMode = "Disabled",
                     Enabled = true,
                     InputParameterMappings =
                     [
@@ -214,6 +221,9 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                 {
                     Endpoint = string.IsNullOrWhiteSpace(mapping.Endpoint) ? defaultValue.Endpoint : mapping.Endpoint,
                     SoapAction = string.IsNullOrWhiteSpace(mapping.SoapAction) ? defaultValue.SoapAction : mapping.SoapAction,
+                    OperatingMode = string.IsNullOrWhiteSpace(mapping.OperatingMode)
+                        ? defaultValue.OperatingMode
+                        : mapping.OperatingMode,
                     InputParameterMappings = (mapping.InputParameterMappings is null || mapping.InputParameterMappings.Count == 0)
                         ? defaultValue.InputParameterMappings
                         : mapping.InputParameterMappings
@@ -240,10 +250,26 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
                 MethodName = m.MethodName.Trim(),
                 Endpoint = m.Endpoint?.Trim() ?? string.Empty,
                 SoapAction = m.SoapAction?.Trim() ?? string.Empty,
+                OperatingMode = NormalizeOperatingMode(m.OperatingMode),
                 Enabled = m.Enabled,
                 InputParameterMappings = NormalizeParameterMappings(m.InputParameterMappings)
             })
             .ToList();
+    }
+
+    private static string NormalizeOperatingMode(string? mode)
+    {
+        if (string.Equals(mode, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Live";
+        }
+
+        if (string.Equals(mode, "Disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Disabled";
+        }
+
+        return "DryRun";
     }
 
     private static List<SoapInputParameterMappingDto> NormalizeParameterMappings(
@@ -300,7 +326,9 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
             ProcTransaccionesEffectiveSettings = new ProcTransaccionesEffectiveSettingsDto
             {
                 Operation = "Proc_Transacciones",
-                EffectiveMode = _procTransaccionesDispatchOptions.NormalizedMode,
+                EffectiveMode = string.IsNullOrWhiteSpace(mapping?.OperatingMode)
+                    ? _procTransaccionesDispatchOptions.NormalizedMode
+                    : NormalizeOperatingMode(mapping.OperatingMode),
                 Endpoint = endpoint,
                 Enabled = enabled,
                 MappingReady = mappingReady,
