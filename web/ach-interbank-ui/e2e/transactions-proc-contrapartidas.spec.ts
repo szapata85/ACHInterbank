@@ -40,21 +40,6 @@ type CreatedTransaction = {
   } | null;
 };
 
-type PagedResponse<T> = {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-};
-
-type CustomerThirdParty = {
-  id: number;
-  destinationInstitutionId: number;
-  destinationAccountNumber: string;
-  recipientIdNumber: string;
-  status: number | string;
-};
-
 type ContrapartidaDispatchResult = {
   cycleId?: string;
   clearingHouseId?: number;
@@ -115,7 +100,7 @@ const hasRuntimeCredentials = Boolean(process.env['ACH_USER'] && process.env['AC
 const hasSoapLogSource = Boolean(process.env['SOAP_LOCAL_WSCFAACH_LOG'] || process.env['SOAP_LOCAL_LOG_DIR']);
 
 test.describe.configure({ mode: 'serial' });
-test.use({ trace: 'off', screenshot: 'off', video: 'off' });
+test.use({ trace: 'on', screenshot: 'only-on-failure', video: 'retain-on-failure' });
 test.skip(!shouldRun, 'ACH_SOAP_LIVE_TESTS=true, RUN_LOCAL_SOAP_PROC_CONTRAPARTIDAS_E2E=true y ALLOW_LOCAL_MONETARY_SOAP_E2E=true son requeridos para esta prueba local/UAT.');
 test.skip(!hasRuntimeCredentials, 'ACH_USER y ACH_PASS deben venir del entorno; el spec no contiene credenciales.');
 test.skip(!hasSoapLogSource, 'SOAP_LOCAL_WSCFAACH_LOG o SOAP_LOCAL_LOG_DIR es requerido para validar evidencia del SOAP local.');
@@ -163,12 +148,14 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
   const sourceAccountNumber = process.env['PROC_CONTRA_SOURCE_ACCOUNT'] ?? `44${String(Date.now()).slice(-10)}`;
   const destinationAccountNumber = process.env['PROC_CONTRA_DESTINATION_ACCOUNT'] ?? `55${String(Date.now()).slice(-10)}`;
   const recipientIdNumber = process.env['PROC_CONTRA_RECIPIENT_ID'] ?? `70${String(Date.now()).slice(-8)}`;
-  const reuseActiveSyntheticThirdParty =
+  const hasApprovedOnboardingContext =
     Boolean(process.env['PROC_CONTRA_SOURCE_ACCOUNT'])
     && Boolean(process.env['PROC_CONTRA_DESTINATION_ACCOUNT'])
     && Boolean(process.env['PROC_CONTRA_RECIPIENT_ID']);
-  const sourceCompanyIdentification = `PW${String(Date.now()).slice(-8)}`;
-  const sourceCompanyName = `PWCONTRA${String(Date.now()).slice(-6)}`;
+  const sourceCompanyIdentification =
+    process.env['PROC_CONTRA_SOURCE_IDENTIFICATION'] ?? `PW${String(Date.now()).slice(-8)}`;
+  const sourceCompanyName =
+    process.env['PROC_CONTRA_SOURCE_NAME'] ?? `PWCONTRA${String(Date.now()).slice(-6)}`;
   const collectorId = `90${String(Date.now()).slice(-11)}`;
   const receiverCustomerCode = `CLI${String(Date.now()).slice(-11)}`;
   const serviceDescription = 'SERVQA';
@@ -201,40 +188,10 @@ test('SPA /transactions crea debito CFA y dispara Proc_Contrapartidas contra SOA
 
     const companyEntryDescription = await resolveCompanyEntryDescription(runtime.token);
 
-    if (!reuseActiveSyntheticThirdParty) {
-      const createdPrenote = await apiPostJson<CreatedTransaction>(transactionsPath, runtime.token, {
-        amount: 0,
-        transactionExternalId: `${reference}-PRE`,
-        type: 2,
-        accountType: 1,
-        isPrenotification: true,
-        destinationInstitutionId: targetInstitution.id,
-        sourceAccountNumber,
-        destinationAccountNumber,
-        recipientIdNumber,
-        recipientName: 'RECEPTOR QA CONTRA',
-        requiresIdentityValidation: false,
-        companyName: sourceCompanyName,
-        companyIdentification: sourceCompanyIdentification,
-        companyEntryDescriptionId: companyEntryDescription.id,
-        sourcePersonType: 'PJ',
-        recipientPersonType: 'PJ',
-        addendas: [
-          {
-            addendaType: '05',
-            information: `${reference}-PRE-ADD`
-          }
-        ]
-      });
-      expect(createdPrenote.id, 'La prenotificacion sintetica debe quedar creada como prerequisito.').toBeGreaterThan(0);
-
-      await activateSyntheticThirdParty(runtime.token, {
-        sourceAccountNumber,
-        destinationAccountNumber,
-        recipientIdNumber,
-        destinationInstitutionId: targetInstitution.id
-      });
-    }
+    expect(
+      hasApprovedOnboardingContext,
+      'La prueba LIVE exige cuentas y receptor aprobados previamente por el onboarding UI; no crea prenotificaciones ni activa terceros por API.'
+    ).toBeTruthy();
 
     // El catálogo de cuentas se obtiene al construir el formulario. La
     // aprobación anterior debe reflejarse mediante el flujo normal de carga,
@@ -666,8 +623,13 @@ async function fillInput(page: Page, labelText: string, value: string): Promise<
 async function selectOption(page: Page, labelText: string, optionText: string): Promise<void> {
   const select = page.getByLabel(labelText, { exact: true });
   await expect(select, `Debe existir selector para ${labelText}.`).toBeVisible();
+  const normalize = (value: string) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
+  if (normalize(await select.innerText()).includes(normalize(optionText))) {
+    return;
+  }
+
   await select.click();
-  const option = page.getByRole('option').filter({ hasText: optionText }).first();
+  const option = page.getByRole('option').filter({ hasText: optionText }).last();
   await expect(option, `Debe existir opcion "${optionText}" en ${labelText}.`).toBeVisible();
   await option.click();
 }
@@ -748,20 +710,6 @@ async function apiPutJson<T>(path: string, token: string, body: unknown): Promis
   return await response.json() as T;
 }
 
-async function apiPatchJson<T>(path: string, token: string, body: unknown): Promise<T> {
-  const response = await fetch(joinUrl(apiBaseUrl, path), {
-    method: 'PATCH',
-    headers: authHeaders(token, true),
-    body: JSON.stringify(body)
-  });
-
-  if (!response.ok) {
-    throw new Error(`PATCH ${path} debe responder 200. Status=${response.status}, body=${await response.text()}`);
-  }
-
-  return await response.json() as T;
-}
-
 async function resolveCompanyEntryDescription(token: string): Promise<CompanyEntryDescription> {
   const items = await apiGetJson<CompanyEntryDescription[]>(companyEntryDescriptionsPath, token);
   const selected = items.find((item) => item.term?.toUpperCase() === 'NOMINAS')
@@ -769,36 +717,6 @@ async function resolveCompanyEntryDescription(token: string): Promise<CompanyEnt
     ?? null;
   expect(selected, 'Debe existir un concepto de entrada activo.').not.toBeNull();
   return selected!;
-}
-
-async function activateSyntheticThirdParty(token: string, request: {
-  sourceAccountNumber: string;
-  destinationAccountNumber: string;
-  recipientIdNumber: string;
-  destinationInstitutionId: number;
-}): Promise<void> {
-  const query = new URLSearchParams({
-    sourceAccountNumber: request.sourceAccountNumber,
-    destinationAccountNumber: request.destinationAccountNumber,
-    recipientIdNumber: request.recipientIdNumber,
-    destinationInstitutionId: String(request.destinationInstitutionId),
-    page: '1',
-    pageSize: '20'
-  });
-
-  const thirdParty = await pollUntil(async () => {
-    const page = await apiGetJson<PagedResponse<CustomerThirdParty>>(`/api/customer-third-parties?${query}`, token);
-    return page.items.find((item) =>
-      item.destinationInstitutionId === request.destinationInstitutionId
-      && item.destinationAccountNumber === request.destinationAccountNumber
-      && item.recipientIdNumber === request.recipientIdNumber
-    );
-  }, `tercero sintetico ${request.destinationAccountNumber}`, 60_000);
-
-  await apiPatchJson<CustomerThirdParty>(`/api/customer-third-parties/${thirdParty.id}/status`, token, {
-    status: 1,
-    validationMessage: 'Playwright local SOAP Proc_Contrapartidas synthetic approval'
-  });
 }
 
 function resolveTargetInstitution(institutions: FinancialInstitution[], defaultSourceId: number): FinancialInstitution {

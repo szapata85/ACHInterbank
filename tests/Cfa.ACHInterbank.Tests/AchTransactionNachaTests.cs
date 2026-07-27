@@ -409,6 +409,148 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
+    public async Task RegisterTransactionAsync_Prenotification_OnboardsParticipantsIdempotently()
+    {
+        using var connection = CreateOpenConnection();
+
+        using (var context = CreateContext(connection))
+        {
+            SeedCoreEntities(context);
+            var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+            var (service, contrapartida) = BuildTransactionServiceWithDispatchMock(context, cycleId);
+            var descriptionId = GetCompanyEntryDescriptionId(context, "RECAUDOS");
+
+            foreach (var sequence in new[] { "001", "002" })
+            {
+                await service.RegisterTransactionAsync(
+                    amount: 0m,
+                    reference: $"PRE-ONBOARD-{sequence}",
+                    type: TransactionTypeEnum.Debit,
+                    accountType: AccountTypeEnum.Checking,
+                    isPrenotification: true,
+                    destinationInstitutionId: 2,
+                    sourceAccountNumber: "700000000001",
+                    destinationAccountNumber: "800000000001",
+                    companyName: "ORIGEN SINTETICO",
+                    companyIdentification: "900777001",
+                    companyEntryDescriptionId: descriptionId,
+                    sourcePersonType: "PJ",
+                    recipientPersonType: "PN",
+                    recipientIdNumber: "1030555001",
+                    recipientName: "RECEPTOR SINTETICO",
+                    transactionExternalId: $"TX-PRE-ONBOARD-{sequence}",
+                    requiresIdentityValidation: false,
+                    addendas:
+                    [
+                        new()
+                        {
+                            AddendaType = "05",
+                            BusinessType = AchAddendaBusinessType.Debit,
+                            CollectorId = "900777001",
+                            ReceiverCustomerCode = "CLIENTE-SINTETICO",
+                            ServiceDescription = "PRENOTIFICACION"
+                        }
+                    ],
+                    ct: CancellationToken.None);
+            }
+
+            contrapartida.Verify(
+                dispatch => dispatch.EnsurePendingDispatchAsync(
+                    It.IsAny<AchTransaction>(),
+                    It.IsAny<int>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+
+        using var verification = CreateContext(connection);
+        var originator = await verification.Customers
+            .Include(customer => customer.Accounts)
+            .SingleAsync(customer => customer.DocumentType == "NIT" && customer.DocumentNumber == "900777001");
+        var recipient = await verification.Customers
+            .Include(customer => customer.Accounts)
+            .SingleAsync(customer => customer.DocumentType == "CC" && customer.DocumentNumber == "1030555001");
+        var thirdParty = await verification.CustomerThirdParties.SingleAsync(thirdParty =>
+            thirdParty.CustomerId == originator.Id
+            && thirdParty.DestinationInstitutionId == 2
+            && thirdParty.DestinationAccountNumber == "800000000001"
+            && thirdParty.RecipientIdNumber == "1030555001");
+
+        Assert.Single(originator.Accounts, account => account.AccountNumber == "700000000001");
+        Assert.Single(recipient.Accounts, account => account.AccountNumber == "800000000001");
+        Assert.Equal(CustomerThirdPartyStatusEnum.Pending, thirdParty.Status);
+        Assert.Equal(2, await verification.AchTransactions.CountAsync(transaction =>
+            transaction.TransactionExternalId.StartsWith("TX-PRE-ONBOARD-")));
+        Assert.Equal(1, await verification.CustomerThirdParties.CountAsync(candidate =>
+            candidate.CustomerId == originator.Id
+            && candidate.DestinationInstitutionId == 2
+            && candidate.DestinationAccountNumber == "800000000001"
+            && candidate.RecipientIdNumber == "1030555001"));
+    }
+
+    [Fact]
+    public async Task RegisterTransactionAsync_WhenDispatchPersistenceFails_RollsBackSilentOnboarding()
+    {
+        using var connection = CreateOpenConnection();
+
+        using (var context = CreateContext(connection))
+        {
+            SeedCoreEntities(context);
+            var cycleId = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate);
+            var (service, contrapartida) = BuildTransactionServiceWithDispatchMock(context, cycleId);
+            contrapartida
+                .Setup(dispatch => dispatch.EnsurePendingDispatchAsync(
+                    It.IsAny<AchTransaction>(),
+                    It.IsAny<int>(),
+                    It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("Fallo controlado de persistencia del dispatch."));
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.RegisterTransactionAsync(
+                amount: 1m,
+                reference: "FAIL-ONBOARD-001",
+                type: TransactionTypeEnum.Debit,
+                accountType: AccountTypeEnum.Checking,
+                isPrenotification: false,
+                destinationInstitutionId: 2,
+                sourceAccountNumber: "700000000002",
+                destinationAccountNumber: "800000000002",
+                companyName: "ORIGEN FALLIDO",
+                companyIdentification: "900777002",
+                companyEntryDescriptionId: GetCompanyEntryDescriptionId(context, "RECAUDOS"),
+                sourcePersonType: "PJ",
+                recipientPersonType: "PN",
+                recipientIdNumber: "1030555002",
+                recipientName: "RECEPTOR FALLIDO",
+                transactionExternalId: "TX-FAIL-ONBOARD-001",
+                requiresIdentityValidation: false,
+                addendas:
+                [
+                    new()
+                    {
+                        AddendaType = "05",
+                        BusinessType = AchAddendaBusinessType.Debit,
+                        CollectorId = "900777002",
+                        ReceiverCustomerCode = "CLIENTE-FALLIDO",
+                        ServiceDescription = "FALLO CONTROL"
+                    }
+                ],
+                ct: CancellationToken.None));
+        }
+
+        using var verification = CreateContext(connection);
+        Assert.Equal(0, await verification.Customers.CountAsync(customer =>
+            customer.DocumentNumber == "900777002" || customer.DocumentNumber == "1030555002"));
+        Assert.Equal(0, await verification.CustomerAccounts.CountAsync(account =>
+            account.AccountNumber == "700000000002" || account.AccountNumber == "800000000002"));
+        Assert.Equal(0, await verification.CustomerThirdParties.CountAsync(thirdParty =>
+            thirdParty.DestinationAccountNumber == "800000000002"
+            || thirdParty.RecipientIdNumber == "1030555002"));
+        Assert.Equal(0, await verification.AchTransactions.CountAsync(transaction =>
+            transaction.TransactionExternalId == "TX-FAIL-ONBOARD-001"));
+        Assert.Equal(0, await verification.ContrapartidaDispatchItems.CountAsync(item =>
+            item.AchTransaction.TransactionExternalId == "TX-FAIL-ONBOARD-001"));
+    }
+
+    [Fact]
     public async Task BuildNachaFileByCycleAsync_Throws_WhenAddendaBusinessTypeIsIncompatibleWithTransactionType()
     {
         using var connection = CreateOpenConnection();

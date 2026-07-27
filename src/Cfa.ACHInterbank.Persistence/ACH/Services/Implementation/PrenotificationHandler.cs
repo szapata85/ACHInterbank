@@ -37,20 +37,26 @@ public class PrenotificationHandler : IPrenotificationHandler
             return;
         }
 
-        var recipientIdNumber = request.RecipientIdNumber?.Trim() ?? string.Empty;
+        var destinationAccountNumber = request.DestinationAccountNumber.Trim();
+        var recipientIdNumber = request.RecipientIdNumber?.Trim().ToUpperInvariant() ?? string.Empty;
         CustomerThirdParty? existingThirdParty = null;
         if (customer.Id > 0)
         {
             existingThirdParty = await _customerThirdPartyRepository.FindAsync(
                 customer.Id,
                 request.DestinationInstitutionId,
-                request.DestinationAccountNumber,
+                destinationAccountNumber,
                 recipientIdNumber,
                 ct);
         }
 
         if (existingThirdParty is not null)
         {
+            if (existingThirdParty.Status is CustomerThirdPartyStatusEnum.Active or CustomerThirdPartyStatusEnum.Rejected)
+            {
+                return;
+            }
+
             existingThirdParty.Status = CustomerThirdPartyStatusEnum.Pending;
             existingThirdParty.PrenotificationTransaction = transaction;
             existingThirdParty.ValidationCycleId = null;
@@ -64,7 +70,7 @@ public class PrenotificationHandler : IPrenotificationHandler
                 Customer = customer,
                 CustomerId = customer.Id,
                 DestinationInstitutionId = request.DestinationInstitutionId,
-                DestinationAccountNumber = request.DestinationAccountNumber,
+                DestinationAccountNumber = destinationAccountNumber,
                 RecipientIdNumber = recipientIdNumber,
                 Status = CustomerThirdPartyStatusEnum.Pending,
                 PrenotificationTransaction = transaction

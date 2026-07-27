@@ -6,12 +6,69 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
 
 public class PrenotificationHandlerTests
 {
+    [Theory]
+    [InlineData(CustomerThirdPartyStatusEnum.Active)]
+    [InlineData(CustomerThirdPartyStatusEnum.Rejected)]
+    public async Task HandleAsync_DoesNotResetDefinitiveThirdPartyStatus(
+        CustomerThirdPartyStatusEnum definitiveStatus)
+    {
+        var customer = new Customer { Id = 17 };
+        var existing = new CustomerThirdParty
+        {
+            Id = 29,
+            CustomerId = customer.Id,
+            DestinationInstitutionId = 2,
+            DestinationAccountNumber = "999988887777",
+            RecipientIdNumber = "REC-001",
+            Status = definitiveStatus,
+            PrenotificationTransactionId = 41,
+            ValidationCycleId = "CYCLE-VALIDATED",
+            ValidationReceivedAt = new DateTime(2026, 7, 26, 12, 0, 0, DateTimeKind.Utc),
+            ValidationMessage = "Resultado definitivo"
+        };
+        var customerRepository = new Mock<Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories.IAchCustomerRepository>();
+        customerRepository
+            .Setup(repository => repository.FindBySourceAccountNumberAsync("111122223333", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(customer);
+        var thirdPartyRepository = new Mock<Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories.ICustomerThirdPartyRepository>();
+        thirdPartyRepository
+            .Setup(repository => repository.FindAsync(
+                customer.Id,
+                2,
+                "999988887777",
+                "REC-001",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        var handler = new PrenotificationHandler(customerRepository.Object, thirdPartyRepository.Object);
+
+        await handler.HandleAsync(
+            new AchTransactionRequestData
+            {
+                IsPrenotification = true,
+                SourceAccountNumber = "111122223333",
+                DestinationInstitutionId = 2,
+                DestinationAccountNumber = " 999988887777 ",
+                RecipientIdNumber = " rec-001 "
+            },
+            new AchTransaction { Id = 99 },
+            CancellationToken.None);
+
+        Assert.Equal(definitiveStatus, existing.Status);
+        Assert.Equal(41, existing.PrenotificationTransactionId);
+        Assert.Equal("CYCLE-VALIDATED", existing.ValidationCycleId);
+        Assert.Equal("Resultado definitivo", existing.ValidationMessage);
+        thirdPartyRepository.Verify(
+            repository => repository.AddAsync(It.IsAny<CustomerThirdParty>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     [Fact]
     public async Task HandleAsync_CreatesThirdParty_WithCustomerNavigation_WhenCustomerIsTrackedWithTemporaryKey()
     {
