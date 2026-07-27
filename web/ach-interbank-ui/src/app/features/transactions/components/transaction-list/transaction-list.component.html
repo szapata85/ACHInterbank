@@ -31,29 +31,71 @@
 
       <mat-form-field appearance="outline">
         <mat-label>Cámara compensadora</mat-label>
-        <mat-select
-          formControlName="selectedClearingHouseId"
-          canSelectNullableOptions
+        <input
+          matInput
+          type="text"
+          [formControl]="clearingHouseSearchControl"
+          [matAutocomplete]="clearingHouseAutocomplete"
+          autocomplete="off"
           aria-label="Cámara compensadora"
+          aria-autocomplete="list"
           data-testid="transaction-filter-clearing-house"
+        />
+        <button
+          *ngIf="clearingHouseSearchControl.value"
+          mat-icon-button
+          matSuffix
+          type="button"
+          aria-label="Limpiar búsqueda de cámara compensadora"
+          (click)="clearClearingHouseSearch()"
+          data-testid="transaction-filter-clearing-house-clear"
         >
-          <mat-option [value]="null">Todas las cámaras</mat-option>
-          <mat-option *ngFor="let house of clearingHouses" [value]="house.id">{{ house.name }}</mat-option>
-        </mat-select>
-        <mat-hint>La selección actualiza los ciclos disponibles.</mat-hint>
+          <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+        </button>
+        <mat-autocomplete
+          #clearingHouseAutocomplete="matAutocomplete"
+          [displayWith]="displayClearingHouseOption"
+          (optionSelected)="selectClearingHouse($event.option.value)"
+        >
+          <mat-option *ngFor="let option of filteredClearingHouseOptions" [value]="option">
+            {{ option.label }}
+          </mat-option>
+        </mat-autocomplete>
+        <mat-hint>Escribe para buscar; la selección actualiza los ciclos.</mat-hint>
       </mat-form-field>
 
       <mat-form-field appearance="outline">
         <mat-label>Ciclo ACH</mat-label>
-        <mat-select
-          formControlName="selectedCycleId"
-          canSelectNullableOptions
+        <input
+          matInput
+          type="text"
+          [formControl]="cycleSearchControl"
+          [matAutocomplete]="cycleAutocomplete"
+          autocomplete="off"
           aria-label="Ciclo ACH"
+          aria-autocomplete="list"
           data-testid="transaction-filter-cycle"
+        />
+        <button
+          *ngIf="cycleSearchControl.value"
+          mat-icon-button
+          matSuffix
+          type="button"
+          aria-label="Limpiar búsqueda de ciclo ACH"
+          (click)="clearCycleSearch()"
+          data-testid="transaction-filter-cycle-clear"
         >
-          <mat-option [value]="null">Todos los ciclos</mat-option>
-          <mat-option *ngFor="let cycle of cycles" [value]="cycle.id">{{ cycle.label }}</mat-option>
-        </mat-select>
+          <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+        </button>
+        <mat-autocomplete
+          #cycleAutocomplete="matAutocomplete"
+          [displayWith]="displayCycleOption"
+          (optionSelected)="selectCycle($event.option.value)"
+        >
+          <mat-option *ngFor="let option of filteredCycleOptions" [value]="option">
+            {{ option.label }}
+          </mat-option>
+        </mat-autocomplete>
         <mat-hint>{{ cycles.length ? cycles.length + ' ciclos disponibles.' : 'No hay ciclos disponibles.' }}</mat-hint>
       </mat-form-field>
 

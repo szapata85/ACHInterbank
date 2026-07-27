@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { AbstractControl, FormBuilder, FormControl, ValidationErrors, ValidatorFn } from '@angular/forms';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -7,7 +8,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
 import { finalize } from 'rxjs';
@@ -42,6 +42,19 @@ interface AchCycleOption {
   name: string;
 }
 
+interface ClearingHouseSearchOption {
+  id: number | null;
+  label: string;
+}
+
+interface CycleSearchOption {
+  id: string | null;
+  label: string;
+}
+
+type ClearingHouseSearchValue = string | ClearingHouseSearchOption | null;
+type CycleSearchValue = string | CycleSearchOption | null;
+
 interface ColumnOption {
   field: keyof TransactionListRow;
   label: string;
@@ -64,6 +77,7 @@ const validOptionalDate: ValidatorFn = (control: AbstractControl): ValidationErr
   imports: [
     SharedModule,
     RouterModule,
+    MatAutocompleteModule,
     MatButtonModule,
     MatDatepickerModule,
     MatFormFieldModule,
@@ -71,7 +85,6 @@ const validOptionalDate: ValidatorFn = (control: AbstractControl): ValidationErr
     MatInputModule,
     MatNativeDateModule,
     MatProgressSpinnerModule,
-    MatSelectModule,
     TransactionIntegrationResultComponent
   ],
   templateUrl: './transaction-list.component.html',
@@ -170,6 +183,12 @@ export class TransactionListComponent implements OnInit {
   groups: TransactionGroup[] = [];
   cycles: AchCycleOption[] = [];
   clearingHouses: ClearingHouseOption[] = [];
+  filteredClearingHouseOptions: ClearingHouseSearchOption[] = [
+    { id: null, label: 'Todas las cámaras' }
+  ];
+  filteredCycleOptions: CycleSearchOption[] = [
+    { id: null, label: 'Todos los ciclos' }
+  ];
   selectedIntegrationResult: TransactionIntegrationResult | null = null;
   loadingIntegrationResult = false;
   loadError = false;
@@ -179,6 +198,12 @@ export class TransactionListComponent implements OnInit {
     selectedClearingHouseId: new FormControl<number | null>(null),
     selectedDate: new FormControl<Date | null>(null, validOptionalDate)
   });
+  readonly clearingHouseSearchControl = new FormControl<ClearingHouseSearchValue>('');
+  readonly cycleSearchControl = new FormControl<CycleSearchValue>('');
+  readonly displayClearingHouseOption = (value: ClearingHouseSearchValue): string =>
+    typeof value === 'string' ? value : value?.label ?? '';
+  readonly displayCycleOption = (value: CycleSearchValue): string =>
+    typeof value === 'string' ? value : value?.label ?? '';
 
   get totalTransactions(): number {
     return this.groups.reduce((total, group) => total + group.items.length, 0);
@@ -186,6 +211,8 @@ export class TransactionListComponent implements OnInit {
 
   ngOnInit(): void {
     this.filtrosForm.controls.selectedClearingHouseId.valueChanges.subscribe(() => this.onClearingHouseChange());
+    this.clearingHouseSearchControl.valueChanges.subscribe((value) => this.filterClearingHouseOptions(value));
+    this.cycleSearchControl.valueChanges.subscribe((value) => this.filterCycleOptions(value));
     this.loadClearingHouses();
     this.loadCycles();
   }
@@ -229,13 +256,17 @@ export class TransactionListComponent implements OnInit {
       selectedClearingHouseId: null,
       selectedDate: null
     }, { emitEvent: false });
+    this.clearingHouseSearchControl.setValue('', { emitEvent: false });
+    this.cycleSearchControl.setValue('', { emitEvent: false });
+    this.filterClearingHouseOptions('');
+    this.filterCycleOptions('');
     this.filtrosForm.markAsPristine();
     this.filtrosForm.markAsUntouched();
     this.searchAttempted = false;
     this.returnView = 'all';
     this.selectedIntegrationResult = null;
     this.loadError = false;
-    this.loadCycles();
+    this.loadCycles(true, false);
     this.cdr.markForCheck();
   }
 
@@ -246,6 +277,8 @@ export class TransactionListComponent implements OnInit {
 
   onClearingHouseChange(): void {
     this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
+    this.cycleSearchControl.setValue('', { emitEvent: false });
+    this.filterCycleOptions('');
     if (this.filtrosForm.controls.selectedDate.invalid) {
       return;
     }
@@ -254,10 +287,71 @@ export class TransactionListComponent implements OnInit {
 
   onDateChange(): void {
     this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
+    this.cycleSearchControl.setValue('', { emitEvent: false });
+    this.filterCycleOptions('');
     if (this.filtrosForm.controls.selectedDate.invalid) {
       return;
     }
     this.loadCycles(false);
+  }
+
+  filterClearingHouseOptions(value: ClearingHouseSearchValue): void {
+    const term = this.normalizeSearchText(typeof value === 'string' ? value : value?.label ?? '');
+    this.filteredClearingHouseOptions = this.getClearingHouseSearchOptions()
+      .filter((option) => this.normalizeSearchText(option.label).includes(term));
+
+    if (typeof value === 'string') {
+      const selectedId = this.filtrosForm.controls.selectedClearingHouseId.value;
+      const selectedOption = this.getClearingHouseSearchOptions().find((option) => option.id === selectedId);
+      if (selectedId !== null && this.normalizeSearchText(selectedOption?.label ?? '') !== term) {
+        this.filtrosForm.controls.selectedClearingHouseId.setValue(null);
+      }
+    }
+
+    this.cdr.markForCheck();
+  }
+
+  filterCycleOptions(value: CycleSearchValue): void {
+    const term = this.normalizeSearchText(typeof value === 'string' ? value : value?.label ?? '');
+    this.filteredCycleOptions = this.getCycleSearchOptions()
+      .filter((option) => this.normalizeSearchText(option.label).includes(term));
+
+    if (typeof value === 'string') {
+      const selectedId = this.filtrosForm.controls.selectedCycleId.value;
+      const selectedOption = this.getCycleSearchOptions().find((option) => option.id === selectedId);
+      if (selectedId !== null && this.normalizeSearchText(selectedOption?.label ?? '') !== term) {
+        this.filtrosForm.controls.selectedCycleId.setValue(null, { emitEvent: false });
+      }
+    }
+
+    this.cdr.markForCheck();
+  }
+
+  selectClearingHouse(option: ClearingHouseSearchOption): void {
+    this.clearingHouseSearchControl.setValue(option, { emitEvent: false });
+    this.filteredClearingHouseOptions = this.getClearingHouseSearchOptions();
+    this.filtrosForm.controls.selectedClearingHouseId.setValue(option.id);
+  }
+
+  selectCycle(option: CycleSearchOption): void {
+    this.cycleSearchControl.setValue(option, { emitEvent: false });
+    this.filteredCycleOptions = this.getCycleSearchOptions();
+    this.filtrosForm.controls.selectedCycleId.setValue(option.id, { emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  clearClearingHouseSearch(): void {
+    const hadSelectedClearingHouse = this.filtrosForm.controls.selectedClearingHouseId.value !== null;
+    this.clearingHouseSearchControl.setValue('');
+    if (!hadSelectedClearingHouse) {
+      this.onClearingHouseChange();
+    }
+  }
+
+  clearCycleSearch(): void {
+    this.cycleSearchControl.setValue('');
+    this.filtrosForm.controls.selectedCycleId.setValue(null, { emitEvent: false });
+    this.cdr.markForCheck();
   }
 
   isColumnVisible(field: keyof TransactionListRow): boolean {
@@ -295,6 +389,8 @@ export class TransactionListComponent implements OnInit {
     this.clearingHousesApi.list().subscribe({
       next: (items) => {
         this.clearingHouses = items ?? [];
+        this.filteredClearingHouseOptions = this.getClearingHouseSearchOptions();
+        this.restoreClearingHouseSearchText();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -303,7 +399,7 @@ export class TransactionListComponent implements OnInit {
     });
   }
 
-  private loadCycles(autoLoadTransactions = true): void {
+  private loadCycles(autoLoadTransactions = true, restoreSearchText = true): void {
     if (this.filtrosForm.controls.selectedDate.invalid) {
       return;
     }
@@ -332,6 +428,11 @@ export class TransactionListComponent implements OnInit {
 
           if (this.cycles.length === 0) {
             this.filtrosForm.patchValue({ selectedCycleId: null }, { emitEvent: false });
+          }
+
+          this.filteredCycleOptions = this.getCycleSearchOptions();
+          if (restoreSearchText) {
+            this.restoreCycleSearchText();
           }
 
           if (autoLoadTransactions) {
@@ -504,6 +605,40 @@ export class TransactionListComponent implements OnInit {
 
     const date = new Date(value);
     return isNaN(date.getTime()) ? value : this.dateFormatter.format(date);
+  }
+
+  private getClearingHouseSearchOptions(): ClearingHouseSearchOption[] {
+    return [
+      { id: null, label: 'Todas las cámaras' },
+      ...this.clearingHouses.map((house) => ({ id: house.id, label: house.name }))
+    ];
+  }
+
+  private getCycleSearchOptions(): CycleSearchOption[] {
+    return [
+      { id: null, label: 'Todos los ciclos' },
+      ...this.cycles.map((cycle) => ({ id: cycle.id, label: cycle.label }))
+    ];
+  }
+
+  private restoreClearingHouseSearchText(): void {
+    const selectedId = this.filtrosForm.controls.selectedClearingHouseId.value;
+    const selectedOption = this.getClearingHouseSearchOptions().find((option) => option.id === selectedId);
+    this.clearingHouseSearchControl.setValue(selectedOption ?? '', { emitEvent: false });
+  }
+
+  private restoreCycleSearchText(): void {
+    const selectedId = this.filtrosForm.controls.selectedCycleId.value;
+    const selectedOption = this.getCycleSearchOptions().find((option) => option.id === selectedId);
+    this.cycleSearchControl.setValue(selectedOption ?? '', { emitEvent: false });
+  }
+
+  private normalizeSearchText(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLocaleLowerCase();
   }
 
   private formatApiDate(value: Date | null): string | undefined {
