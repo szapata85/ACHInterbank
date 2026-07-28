@@ -1,40 +1,257 @@
 <app-page-header
-  title="Exportar archivos NACHA-M"
-  subtitle="Descarga los archivos planos por ciclo ejecutado"
+  title="Exportación NACHA-M"
+  subtitle="Consulta los ciclos disponibles, valida su estado y genera los archivos NACHA-M para la cámara compensadora. También puedes descargar la versión protegida mediante sobre digital."
   [actionsTemplate]="headerActions"
 ></app-page-header>
 
-<div class="toolbar">
-  <form [formGroup]="filterForm" (ngSubmit)="submit()" class="filters">
-    <select formControlName="clearingHouseId">
-      <option [ngValue]="null">Todas las cámaras</option>
-      <option *ngFor="let ch of clearingHouses" [ngValue]="ch.id">{{ ch.name }}</option>
-    </select>
-    <label>
-      Desde
-      <input type="date" formControlName="startDate" />
-    </label>
-    <label>
-      Hasta
-      <input type="date" formControlName="endDate" />
-    </label>
-    <button type="submit">Filtrar</button>
-  </form>
-</div>
-
-<div class="export-wrapper">
-  <ui-grilla-empresarial
-    [columnas]="columnas"
-    [datos]="cycles"
-    [cargando]="loading"
-    [paginacion]="cycles.length > 10"
-    [tamanoPagina]="10"
-    [mensajeVacio]="'No hay ciclos disponibles para exportar.'"
-    [mensajeCargando]="'Cargando ciclos con transacciones...'"
-    (grillaLista)="onGrillaLista($event)"
-  ></ui-grilla-empresarial>
-</div>
-
 <ng-template #headerActions>
-  <a routerLink="/ach-cycles" class="link">Volver a ciclos</a>
+  <div class="header-actions">
+    @if (lastUpdatedAt) {
+      <span class="last-updated">Actualizado {{ lastUpdatedAt | date:'dd/MM/yyyy, HH:mm' }}</span>
+    }
+    <button mat-stroked-button type="button" (click)="load()" [disabled]="loading" aria-label="Actualizar ciclos NACHA-M">
+      <mat-icon fontSet="material-symbols-outlined">refresh</mat-icon>
+      <span class="refresh-label">Actualizar</span>
+    </button>
+  </div>
 </ng-template>
+
+<nav class="breadcrumb" aria-label="Ruta de navegación">
+  <a routerLink="/ach-cycles">Ciclos ACH</a>
+  <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">chevron_right</mat-icon>
+  <span aria-current="page">Exportación NACHA-M</span>
+</nav>
+
+<mat-card class="filters-card">
+  <mat-card-header>
+    <mat-card-title>Filtros de consulta</mat-card-title>
+    <mat-card-subtitle>Acota los ciclos por cámara o fecha operativa. La búsqueda de texto filtra los resultados cargados.</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="filterForm" (ngSubmit)="submit()" class="filters">
+      <mat-form-field appearance="outline">
+        <mat-label>Cámara compensadora</mat-label>
+        <mat-select formControlName="clearingHouseId">
+          <mat-option [value]="null">Todas las cámaras</mat-option>
+          @for (house of clearingHouses; track house.id) {
+            <mat-option [value]="house.id">{{ house.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha inicial</mat-label>
+        <input matInput [matDatepicker]="startPicker" formControlName="startDate" [max]="filterForm.controls.endDate.value">
+        <mat-datepicker-toggle matIconSuffix [for]="startPicker"></mat-datepicker-toggle>
+        <mat-datepicker #startPicker></mat-datepicker>
+        @if (filterForm.hasError('dateRange') && filterForm.controls.startDate.touched) {
+          <mat-error>La fecha inicial no puede ser posterior a la fecha final.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha final</mat-label>
+        <input matInput [matDatepicker]="endPicker" formControlName="endDate" [min]="filterForm.controls.startDate.value">
+        <mat-datepicker-toggle matIconSuffix [for]="endPicker"></mat-datepicker-toggle>
+        <mat-datepicker #endPicker></mat-datepicker>
+        @if (filterForm.hasError('dateRange') && filterForm.controls.endDate.touched) {
+          <mat-error>La fecha final no puede ser anterior a la fecha inicial.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Buscar en resultados</mat-label>
+        <mat-icon fontSet="material-symbols-outlined" matPrefix>search</mat-icon>
+        <input matInput formControlName="search" placeholder="Ciclo, cámara, archivo o identificador">
+      </mat-form-field>
+
+      <div class="filter-actions">
+        <button mat-flat-button type="submit" [disabled]="loading || filterForm.invalid">
+          <mat-icon fontSet="material-symbols-outlined">filter_alt</mat-icon>
+          Aplicar filtros
+        </button>
+        <button mat-button type="button" (click)="clearFilters()" [disabled]="loading">
+          Limpiar
+        </button>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>
+
+<section class="summary" aria-label="Resumen operativo">
+  <div><span>Total</span><strong>{{ summary.total }}</strong></div>
+  <div><span>Disponibles</span><strong>{{ summary.ready }}</strong></div>
+  <div><span>Generados</span><strong>{{ summary.generated }}</strong></div>
+  <div><span>Protegidos</span><strong>{{ summary.protected }}</strong></div>
+  <div><span>Bloqueados</span><strong>{{ summary.blocked }}</strong></div>
+</section>
+
+@if (operationError) {
+  <section class="error-panel" role="alert">
+    <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">error_outline</mat-icon>
+    <div>
+      <strong>No se completó la operación</strong>
+      <p>{{ operationError.message }}</p>
+      @if (operationError.errorCode) {
+        <span>Código: {{ operationError.errorCode }}</span>
+      }
+      @if (operationError.traceId) {
+        <span>Identificador de soporte: {{ operationError.traceId }}</span>
+      }
+    </div>
+    <button mat-stroked-button type="button" (click)="retryOperation()">Reintentar</button>
+  </section>
+}
+
+<mat-card class="results-card">
+  <mat-card-header>
+    <mat-card-title>Ciclos disponibles</mat-card-title>
+    <mat-card-subtitle>Las acciones generan o recuperan el mismo NACHA-M base; el sobre digital agrega la protección criptográfica configurada.</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    @if (loading) {
+      <div class="state-container" role="status">
+        <mat-spinner diameter="42"></mat-spinner>
+        <p>Consultando ciclos y estado de exportación…</p>
+      </div>
+    } @else if (loadError) {
+      <div class="state-container error-state" role="alert">
+        <mat-icon fontSet="material-symbols-outlined">cloud_off</mat-icon>
+        <h2>No pudimos cargar los ciclos</h2>
+        <p>{{ loadError }}</p>
+        <button mat-stroked-button type="button" (click)="load()">Reintentar</button>
+      </div>
+    } @else if (visibleCycles.length === 0) {
+      <div class="state-container empty-state">
+        <mat-icon fontSet="material-symbols-outlined">inventory_2</mat-icon>
+        <h2>No se encontraron ciclos disponibles</h2>
+        <p>No hay ciclos que coincidan con los filtros seleccionados o no existen transacciones elegibles.</p>
+        <button mat-stroked-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+      </div>
+    } @else {
+      <div class="desktop-table">
+        <table mat-table [dataSource]="visibleCycles" aria-label="Ciclos disponibles para exportación NACHA-M">
+          <ng-container matColumnDef="clearingHouse">
+            <th mat-header-cell *matHeaderCellDef>Cámara</th>
+            <td mat-cell *matCellDef="let cycle">{{ cycle.clearingHouseName || 'Sin cámara' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="cycle">
+            <th mat-header-cell *matHeaderCellDef>Ciclo</th>
+            <td mat-cell *matCellDef="let cycle">
+              <strong>{{ cycle.cycleName }}</strong>
+              <small class="technical-id" [matTooltip]="cycle.cycleId">ID {{ cycle.cycleId | slice:0:8 }}…</small>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="processingDate">
+            <th mat-header-cell *matHeaderCellDef>Fecha operativa</th>
+            <td mat-cell *matCellDef="let cycle">{{ cycle.processingDate | date:'dd/MM/yyyy':'UTC' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="transactions">
+            <th mat-header-cell *matHeaderCellDef>Contenido</th>
+            <td mat-cell *matCellDef="let cycle" class="numeric">
+              <strong>{{ cycle.transactionCount }}</strong> trans.
+              <small>{{ cycle.batchCount || 0 }} lotes</small>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let cycle">
+              <mat-chip [class]="statusClass(cycle)" [matTooltip]="cycle.isExportable ? statusLabel(cycle) : actionUnavailableReason(cycle)">
+                {{ statusLabel(cycle) }}
+              </mat-chip>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="fileName">
+            <th mat-header-cell *matHeaderCellDef>Último archivo</th>
+            <td mat-cell *matCellDef="let cycle">
+              <span class="file-name">{{ cycle.fileName || 'Aún no generado' }}</span>
+              @if (cycle.generatedAtUtc) {
+                <small>{{ cycle.generatedAtUtc | date:'dd/MM/yyyy HH:mm':'UTC' }}</small>
+              }
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef><span class="sr-only">Acciones</span></th>
+            <td mat-cell *matCellDef="let cycle" class="actions-cell">
+              @if (isProcessing(cycle)) {
+                <div class="row-progress" role="status">
+                  <mat-spinner diameter="24"></mat-spinner>
+                  <span>{{ processingAction(cycle) === 'encrypted' ? 'Protegiendo…' : 'Generando…' }}</span>
+                </div>
+              } @else {
+                <button
+                  mat-icon-button
+                  type="button"
+                  [matMenuTriggerFor]="actionsMenu"
+                  [disabled]="!cycle.isExportable || !cycle.cycleId"
+                  [matTooltip]="cycle.isExportable ? 'Abrir acciones de exportación' : actionUnavailableReason(cycle)"
+                  [attr.aria-label]="'Acciones de exportación para ' + cycle.cycleName">
+                  <mat-icon fontSet="material-symbols-outlined">more_vert</mat-icon>
+                </button>
+                <mat-menu #actionsMenu="matMenu">
+                  <button mat-menu-item type="button" (click)="downloadPlain(cycle)">
+                    <mat-icon fontSet="material-symbols-outlined">download</mat-icon>
+                    <span>Descargar NACHA-M</span>
+                  </button>
+                  <button mat-menu-item type="button" (click)="downloadEncrypted(cycle)">
+                    <mat-icon fontSet="material-symbols-outlined">enhanced_encryption</mat-icon>
+                    <span>Generar sobre digital</span>
+                  </button>
+                </mat-menu>
+              }
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        </table>
+      </div>
+
+      <div class="mobile-list">
+        @for (cycle of visibleCycles; track trackCycle($index, cycle)) {
+          <article class="cycle-card">
+            <div class="cycle-card-header">
+              <div>
+                <span>{{ cycle.clearingHouseName }}</span>
+                <h2>{{ cycle.cycleName }}</h2>
+              </div>
+              <mat-chip [class]="statusClass(cycle)">{{ statusLabel(cycle) }}</mat-chip>
+            </div>
+            <dl>
+              <div><dt>Fecha operativa</dt><dd>{{ cycle.processingDate | date:'dd/MM/yyyy':'UTC' }}</dd></div>
+              <div><dt>Transacciones</dt><dd>{{ cycle.transactionCount }}</dd></div>
+              <div><dt>Lotes</dt><dd>{{ cycle.batchCount || 0 }}</dd></div>
+              <div class="file-mobile"><dt>Archivo</dt><dd>{{ cycle.fileName || 'Aún no generado' }}</dd></div>
+            </dl>
+            @if (!cycle.isExportable) {
+              <p class="unavailable-reason">{{ actionUnavailableReason(cycle) }}</p>
+            }
+            @if (isProcessing(cycle)) {
+              <div class="row-progress" role="status">
+                <mat-spinner diameter="24"></mat-spinner>
+                <span>{{ processingAction(cycle) === 'encrypted' ? 'Protegiendo…' : 'Generando…' }}</span>
+              </div>
+            } @else {
+              <button
+                mat-stroked-button
+                type="button"
+                [matMenuTriggerFor]="mobileActions"
+                [disabled]="!cycle.isExportable || !cycle.cycleId"
+                [attr.aria-label]="'Acciones de exportación para ' + cycle.cycleName">
+                <mat-icon fontSet="material-symbols-outlined">more_vert</mat-icon>
+                Acciones
+              </button>
+              <mat-menu #mobileActions="matMenu">
+                <button mat-menu-item type="button" (click)="downloadPlain(cycle)">
+                  <mat-icon fontSet="material-symbols-outlined">download</mat-icon><span>Descargar NACHA-M</span>
+                </button>
+                <button mat-menu-item type="button" (click)="downloadEncrypted(cycle)">
+                  <mat-icon fontSet="material-symbols-outlined">enhanced_encryption</mat-icon><span>Generar sobre digital</span>
+                </button>
+              </mat-menu>
+            }
+          </article>
+        }
+      </div>
+    }
+  </mat-card-content>
+</mat-card>

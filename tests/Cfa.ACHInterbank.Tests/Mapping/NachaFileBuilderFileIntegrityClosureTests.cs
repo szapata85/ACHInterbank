@@ -16,9 +16,11 @@ namespace Cfa.ACHInterbank.Tests.Mapping;
 public class NachaFileBuilderFileIntegrityClosureTests
 {
     [Theory]
-    [InlineData("ACH Colombia")]
-    [InlineData("CENIT")]
-    public async Task BuildNachaFileAsync_ShouldGenerateCompleteFile_WithExpectedIntegrity(string chamberName)
+    [InlineData("ACH Colombia", "ACH")]
+    [InlineData("CENIT", "CENIT")]
+    public async Task BuildNachaFileAsync_ShouldGenerateCompleteFile_WithExpectedIntegrity(
+        string chamberName,
+        string chamberCode)
     {
         var loader = new Mock<INachaDataLoader>(MockBehavior.Strict);
         var renderer = new Mock<INachaFixedWidthRecordRenderer>(MockBehavior.Strict);
@@ -110,6 +112,14 @@ public class NachaFileBuilderFileIntegrityClosureTests
 
         var dbOptions = new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new AchDbContext(dbOptions);
+        db.CatClearingHouses.Add(new CatClearingHouse
+        {
+            Id = 1,
+            Code = chamberCode,
+            Name = chamberName,
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
         var options = Options.Create(new NachaGenerationOptions
         {
             Mode = "LEGACY",

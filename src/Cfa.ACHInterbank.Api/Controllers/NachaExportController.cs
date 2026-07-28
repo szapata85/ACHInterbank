@@ -230,11 +230,11 @@ public class NachaExportController : ControllerBase
     {
         var status = exception.ErrorCode switch
         {
-            "CERTIFICATE_NOT_FOUND" => StatusCodes.Status404NotFound,
-            "CERTIFICATE_INACTIVE" or "CERTIFICATE_EXPIRED" or "CERTIFICATE_NOT_YET_VALID"
+            "CERTIFICATE_NOT_FOUND" or "CERTIFICATE_INACTIVE" or "CERTIFICATE_EXPIRED" or "CERTIFICATE_NOT_YET_VALID"
                 or "CERTIFICATE_PURPOSE_INVALID" or "CERTIFICATE_PRIVATE_KEY_REQUIRED"
                 or "CERTIFICATE_PRIVATE_KEY_UNAVAILABLE" or "SIGNING_CERTIFICATE_NOT_FOUND"
-                => StatusCodes.Status409Conflict,
+                or "DIGITAL_ENVELOPE_CONFIGURATION_INVALID"
+                => StatusCodes.Status422UnprocessableEntity,
             "FILE_TOO_LARGE" => StatusCodes.Status413PayloadTooLarge,
             "ENVELOPE_INVALID" or "ENVELOPE_INTEGRITY_INVALID" or "SIGNED_CONTENT_INVALID"
                 => StatusCodes.Status422UnprocessableEntity,
@@ -259,9 +259,12 @@ public class NachaExportController : ControllerBase
         {
             Status = status,
             Title = title,
-            Detail = detail
+            Detail = detail,
+            Type = $"urn:achinterbank:errors:{code.ToLowerInvariant().Replace('_', '-')}",
+            Instance = HttpContext?.Request.Path
         };
         problem.Extensions["code"] = code;
+        problem.Extensions["errorCode"] = code;
         problem.Extensions["cycleId"] = cycleId;
         problem.Extensions["traceId"] = HttpContext?.TraceIdentifier ?? System.Diagnostics.Activity.Current?.Id ?? "unavailable";
         return problem;
@@ -274,6 +277,8 @@ public class NachaExportController : ControllerBase
             "NACHA_PROFILE_NOT_PUBLISHED",
             "NACHA_PROFILE_NOT_EFFECTIVE",
             "NACHA_PROFILE_AMBIGUOUS",
+            "NACHA_CLEARING_HOUSE_PROFILE_NOT_CONFIGURED",
+            "NACHA_CLEARING_HOUSE_PROFILE_AMBIGUOUS",
             "NACHA_REQUIRED_RECORD_MISSING",
             "NACHA_REQUIRED_FIELD_MISSING",
             "NACHA_FIELD_SOURCE_NOT_FOUND",

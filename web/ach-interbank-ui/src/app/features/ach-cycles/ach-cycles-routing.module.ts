@@ -23,7 +23,7 @@ export const ACH_CYCLES_ROUTES: Routes = [
     path: 'nacha/export',
     component: NachaExportComponent,
     canActivate: [permissionGuard],
-    data: { breadcrumb: 'Exportar NACHA', title: 'Exportar NACHA-M', permissions: ['CanReadAch'] }
+    data: { breadcrumb: 'Exportación NACHA-M', title: 'Exportación NACHA-M', permissions: ['CanReadAch'] }
   },
   {
     path: 'nacha/layouts',

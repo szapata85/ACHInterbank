@@ -116,8 +116,9 @@ public class NachaFileBuilder : INachaFileBuilder
             Batches = batches,
             Transactions = transactions
         };
-        EnforceCenitLiveGenerationGate(context);
-        EnforceLiveOfficialMode(context);
+        var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
+        EnforceCenitLiveGenerationGate(clearingHouseCode);
+        EnforceLiveOfficialMode(clearingHouseCode);
         await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
         if (IsOfficialTableDrivenMode())
         {
@@ -146,8 +147,9 @@ public class NachaFileBuilder : INachaFileBuilder
             throw new InvalidOperationException($"El ciclo {cycleId} no tiene lotes asociados para exportar.");
 
         var nachaHeader = await _dataLoader.LoadHeaderAsync(cycle.Id, ct);
-        EnforceCenitLiveGenerationGate(context);
-        EnforceLiveOfficialMode(context);
+        var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
+        EnforceCenitLiveGenerationGate(clearingHouseCode);
+        EnforceLiveOfficialMode(clearingHouseCode);
         await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
         if (IsOfficialTableDrivenMode())
         {
@@ -735,8 +737,8 @@ public class NachaFileBuilder : INachaFileBuilder
             TimeOnly.FromTimeSpan(context.Cycle.CutoffTime));
 
         var officialRecordCodes = new[] { "1", "5", "6", "7", "8", "9" };
-        var clearingHouseCode = ResolveClearingHouseCode(context);
-        var resolution = await ResolveOfficialRuntimeConfigAsync(context, officialRecordCodes, ct);
+        var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
+        var resolution = await ResolveOfficialRuntimeConfigAsync(context, clearingHouseCode, officialRecordCodes, ct);
         var lineLength = RequireOfficialLayout(resolution, "9").TotalLength;
         var batchNumberAssignment = await ResolveBatchNumberAssignmentAsync(
             orderedBatches,
@@ -1864,6 +1866,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private async Task<NachaConfigResolutionResult> ResolveOfficialRuntimeConfigAsync(
         NachaBuildContext context,
+        string clearingHouseCode,
         IReadOnlyCollection<string> recordCodes,
         CancellationToken ct)
     {
@@ -1872,7 +1875,7 @@ public class NachaFileBuilder : INachaFileBuilder
             throw new NachaGenerationException("NACHA_PROFILE_NOT_PUBLISHED", "Resolver NACHA table-driven no está registrado. No se habilita fallback legacy.");
         }
 
-        var request = BuildConfigResolutionRequest(context, recordCodes);
+        var request = BuildConfigResolutionRequest(context, clearingHouseCode, recordCodes);
         var resolution = await _configResolver.ResolveAsync(request, ct);
         if (resolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous
             || resolution.Warnings.Any(x => x.Contains("Ambig", StringComparison.OrdinalIgnoreCase)))
@@ -1945,9 +1948,8 @@ public class NachaFileBuilder : INachaFileBuilder
         }
     }
 
-    private void EnforceCenitLiveGenerationGate(NachaBuildContext context)
+    private void EnforceCenitLiveGenerationGate(string clearingHouseCode)
     {
-        var clearingHouseCode = ResolveClearingHouseCode(context);
         if (!string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
             || !string.Equals(_generationOptions.ExecutionScope?.Trim(), "LIVE", StringComparison.OrdinalIgnoreCase))
         {
@@ -1964,7 +1966,7 @@ public class NachaFileBuilder : INachaFileBuilder
             cause: "Generación LIVE bloqueada antes de seleccionar motor o perfil.");
     }
 
-    private void EnforceLiveOfficialMode(NachaBuildContext context)
+    private void EnforceLiveOfficialMode(string clearingHouseCode)
     {
         if (!string.Equals(_generationOptions.ExecutionScope?.Trim(), "LIVE", StringComparison.OrdinalIgnoreCase)
             || IsOfficialTableDrivenMode())
@@ -1976,7 +1978,7 @@ public class NachaFileBuilder : INachaFileBuilder
             "NACHA_LIVE_OFFICIAL_MODE_REQUIRED",
             "La generación LIVE exige el motor oficial table-driven; HYBRID y legacy quedan aislados a desarrollo controlado.",
             ruleId: "ACHCOL-GENERATION-FAIL-CLOSED",
-            chamber: ResolveClearingHouseCode(context),
+            chamber: clearingHouseCode,
             recordType: "FILE",
             fieldName: "GENERATION_MODE",
             cause: "Modo no oficial solicitado para alcance LIVE.");
@@ -1991,6 +1993,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private NachaConfigResolutionRequest BuildConfigResolutionRequest(
         NachaBuildContext context,
+        string clearingHouseCode,
         IReadOnlyCollection<string> recordCodes)
     {
         var serviceClassCode = context.Batches
@@ -1999,7 +2002,7 @@ public class NachaFileBuilder : INachaFileBuilder
 
         return new NachaConfigResolutionRequest
         {
-            ClearingHouseCode = ResolveClearingHouseCode(context),
+            ClearingHouseCode = clearingHouseCode,
             FlowTypeCode = NachaProfileDimensionResolver.ResolveFlowCode(context.Transactions),
             DirectionCode = NachaProfileDimensionResolver.ResolveDirectionCode(context.Transactions),
             ServiceClassCode = serviceClassCode,
@@ -2038,11 +2041,41 @@ public class NachaFileBuilder : INachaFileBuilder
         return "NACHA_PROFILE_NOT_PUBLISHED";
     }
 
-    private static string ResolveClearingHouseCode(NachaBuildContext context)
-        => context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true
-           || context.Cycle.ClearingHouse?.Code?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true
-            ? "CENIT"
-            : "ACH";
+    private async Task<string> ResolveClearingHouseCodeAsync(NachaBuildContext context, CancellationToken ct)
+    {
+        var configuredProfileCode = await _context.ClearingHouseConfigs
+            .AsNoTracking()
+            .Where(x => x.ClearingHouseId == context.Cycle.ClearingHouseId && x.NachaProfileId != null)
+            .Select(x => x.NachaProfile!.ClearingHouse.Code)
+            .FirstOrDefaultAsync(ct);
+        if (!string.IsNullOrWhiteSpace(configuredProfileCode))
+        {
+            return configuredProfileCode;
+        }
+
+        var operationalCode = context.Cycle.ClearingHouse?.Code?.Trim();
+        var operationalName = context.Cycle.ClearingHouse?.Name?.Trim();
+        var candidates = await _context.CatClearingHouses
+            .AsNoTracking()
+            .Where(x => x.IsActive
+                        && ((!string.IsNullOrEmpty(operationalCode) && x.Code == operationalCode)
+                            || (!string.IsNullOrEmpty(operationalName) && x.Name == operationalName)))
+            .Select(x => x.Code)
+            .Distinct()
+            .Take(2)
+            .ToListAsync(ct);
+
+        if (candidates.Count == 1)
+        {
+            return candidates[0];
+        }
+
+        throw new NachaGenerationException(
+            candidates.Count == 0 ? "NACHA_CLEARING_HOUSE_PROFILE_NOT_CONFIGURED" : "NACHA_CLEARING_HOUSE_PROFILE_AMBIGUOUS",
+            candidates.Count == 0
+                ? "La cámara del ciclo no está asociada a un catálogo de perfiles NACHA-M."
+                : "La cámara del ciclo coincide con más de un catálogo de perfiles NACHA-M.");
+    }
 
     private static CfgLayoutVariant RequireOfficialLayout(NachaConfigResolutionResult resolution, string recordCode)
     {

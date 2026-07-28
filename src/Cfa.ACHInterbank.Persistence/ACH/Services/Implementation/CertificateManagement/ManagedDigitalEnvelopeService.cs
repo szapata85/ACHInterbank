@@ -94,17 +94,22 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
             using var recipientCertificate = LoadPublicCertificate(recipient);
             ValidateRsaCertificate(recipientCertificate, requirePrivateKey: false);
 
+            var now = DateTime.UtcNow;
             var signerVersion = await _context.DigitalCertificateVersions
                 .AsNoTracking()
                 .Include(x => x.DigitalCertificate)
                 .Where(x => x.Status == CertificateStatus.Active
+                            && x.NotBefore <= now
+                            && x.NotAfter > now
                             && x.ClearingHouseId == recipient.ClearingHouseId
                             && x.Environment == recipient.Environment
                             && x.Purpose == CertificatePurpose.OutboundSigning
                             && x.HolderType == CertificateHolderType.Participant)
                 .OrderByDescending(x => x.VersionNumber)
+                .ThenByDescending(x => x.ActivatedAtUtc)
+                .ThenByDescending(x => x.Id)
                 .FirstOrDefaultAsync(cancellationToken)
-                ?? throw Error("SIGNING_CERTIFICATE_NOT_FOUND", "No existe un certificado activo de firma para el contexto seleccionado.");
+                ?? throw Error("SIGNING_CERTIFICATE_NOT_FOUND", "No existe un certificado de firma activo y vigente para la cámara seleccionada.");
 
             using var signerCertificate = await ResolvePrivateCertificateAsync(signerVersion, request.Actor, cancellationToken);
             ValidateRsaCertificate(signerCertificate, requirePrivateKey: true);

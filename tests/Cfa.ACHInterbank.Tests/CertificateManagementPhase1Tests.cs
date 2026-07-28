@@ -333,6 +333,56 @@ public class CertificateManagementPhase1Tests
     }
 
     [Fact]
+    public async Task Selection_ShouldIgnoreExpiredAndChooseLatestValidVersionDeterministically()
+    {
+        using var context = CreateContext(nameof(Selection_ShouldIgnoreExpiredAndChooseLatestValidVersionDeterministically));
+        var cert = new DigitalCertificate { Code = "RECIPIENT", DisplayName = "Recipient" };
+        context.DigitalCertificates.Add(cert);
+        await context.SaveChangesAsync();
+        var now = DateTime.UtcNow;
+
+        DigitalCertificateVersion BuildVersion(int versionNumber, DateTime notAfter) => new()
+        {
+            DigitalCertificateId = cert.Id,
+            ClearingHouseId = 7,
+            Environment = CertificateEnvironment.Test,
+            Purpose = CertificatePurpose.OutboundEncryption,
+            HolderType = CertificateHolderType.ClearingHouse,
+            Status = CertificateStatus.Active,
+            VersionNumber = versionNumber,
+            Subject = $"CN=v{versionNumber}",
+            Issuer = "CN=issuer",
+            SerialNumber = versionNumber.ToString(),
+            Thumbprint = $"thumb-{versionNumber}",
+            FingerprintSha256 = $"fingerprint-{versionNumber}",
+            NotBefore = now.AddDays(-5),
+            NotAfter = notAfter,
+            HasPrivateKey = false,
+            KeyAlgorithm = "RSA",
+            KeySize = 2048,
+            SignatureAlgorithm = "SHA256",
+            ActivatedAtUtc = now.AddDays(-1)
+        };
+
+        context.DigitalCertificateVersions.AddRange(
+            BuildVersion(1, now.AddDays(5)),
+            BuildVersion(2, now.AddMinutes(-1)),
+            BuildVersion(3, now.AddDays(5)));
+        await context.SaveChangesAsync();
+
+        var service = new CertificateSelectionService(context);
+        var result = await service.SelectActiveAsync(
+            7,
+            CertificateEnvironment.Test,
+            CertificatePurpose.OutboundEncryption,
+            CertificateHolderType.ClearingHouse);
+
+        result.Should().NotBeNull();
+        result!.VersionNumber.Should().Be(3);
+        result.NotAfter.Should().BeAfter(now);
+    }
+
+    [Fact]
     public async Task RevokeVersion_ShouldChangeStatusAndAudit()
     {
         using var context = CreateContext(nameof(RevokeVersion_ShouldChangeStatusAndAudit));

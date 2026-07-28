@@ -33,6 +33,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Name: "Perfil oficial ACH Colombia salida original",
             Description: "Perfil oficial UAT/local table-driven para ACH Colombia. Fuente normativa: MAN-004 V32.",
             ClearingHouseCode: "ACH",
+            FlowTypeCode: "ORIGINAL",
             NormativeSource: "MAN-004 V32",
             NormativeVersion: "V32",
             ApprovedRuleMatrix: "MATRIZ_REGLAS_ACHCOL.md@2026-07-16",
@@ -45,10 +46,28 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Prefix: "ACH"));
 
         await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V1_0",
+            Name: "Perfil oficial ACH Colombia salida prenotificación",
+            Description: "Perfil oficial UAT/local table-driven para prenotificaciones de ACH Colombia. Fuente normativa: MAN-004 V32.",
+            ClearingHouseCode: "ACH",
+            FlowTypeCode: "PRENOTIFICACION",
+            NormativeSource: "MAN-004 V32",
+            NormativeVersion: "V32",
+            ApprovedRuleMatrix: "MATRIZ_REGLAS_ACHCOL.md@2026-07-16",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "000101006",
+            RoutingDestination: "000128300",
+            ImmediateDestinationName: "ACH COLOMBIA",
+            ImmediateOriginName: "CFA UAT",
+            Prefix: "ACH_PRENOTE"));
+
+        await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
             Name: "Perfil oficial CENIT salida original",
             Description: "Perfil oficial UAT/local table-driven para CENIT. Fuente normativa pendiente de homologacion formal: CENIT/DSP-152 placeholder.",
             ClearingHouseCode: "CENIT",
+            FlowTypeCode: "ORIGINAL",
             NormativeSource: "CENIT/DSP-152 placeholder UAT",
             NormativeVersion: "NOT-DEMONSTRATED",
             ApprovedRuleMatrix: "MATRIZ_REGLAS_CENIT.md@NO-GO",
@@ -59,6 +78,23 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateDestinationName: "CENIT",
             ImmediateOriginName: "CFA UAT",
             Prefix: "CENIT"));
+
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: "OFFICIAL_CENIT_SALIDA_PRENOTIFICACION_V1_0",
+            Name: "Perfil oficial CENIT salida prenotificación",
+            Description: "Perfil UAT/local table-driven para prenotificaciones CENIT. Fuente normativa pendiente de homologación formal: CENIT/DSP-152 placeholder.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "PRENOTIFICACION",
+            NormativeSource: "CENIT/DSP-152 placeholder UAT",
+            NormativeVersion: "NOT-DEMONSTRATED",
+            ApprovedRuleMatrix: "MATRIZ_REGLAS_CENIT.md@NO-GO",
+            IsPlaceholder: true,
+            IsHomologated: false,
+            RoutingOrigin: "01111111",
+            RoutingDestination: "02222222",
+            ImmediateDestinationName: "CENIT",
+            ImmediateOriginName: "CFA UAT",
+            Prefix: "CENIT_PRENOTE"));
 
         await _context.SaveChangesAsync();
 
@@ -89,7 +125,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profile.NameEs = spec.Name;
             profile.Description = spec.Description;
             profile.ClearingHouseId = catalog.ClearingHouses[spec.ClearingHouseCode];
-            profile.FlowTypeId = catalog.FlowTypes["ORIGINAL"];
+            profile.FlowTypeId = catalog.FlowTypes[spec.FlowTypeCode];
             profile.DirectionId = catalog.Directions["SALIDA"];
             profile.ServiceClassId = null;
             profile.ContextPriority = 10;
@@ -678,6 +714,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         string Name,
         string Description,
         string ClearingHouseCode,
+        string FlowTypeCode,
         string NormativeSource,
         string NormativeVersion,
         string ApprovedRuleMatrix,

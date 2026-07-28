@@ -442,14 +442,21 @@ public class CertificateSelectionService : ICertificateSelectionService
 
     public async Task<CertificateVersionDto?> SelectActiveAsync(int clearingHouseId, CertificateEnvironment environment, CertificatePurpose purpose, CertificateHolderType holderType, CancellationToken cancellationToken = default)
     {
+        var now = DateTime.UtcNow;
         var version = await _context.DigitalCertificateVersions
             .AsNoTracking()
             .Include(x => x.DigitalCertificate)
-            .FirstOrDefaultAsync(x => x.ClearingHouseId == clearingHouseId
-                                      && x.Environment == environment
-                                      && x.Purpose == purpose
-                                      && x.HolderType == holderType
-                                      && x.Status == CertificateStatus.Active, cancellationToken);
+            .Where(x => x.ClearingHouseId == clearingHouseId
+                        && x.Environment == environment
+                        && x.Purpose == purpose
+                        && x.HolderType == holderType
+                        && x.Status == CertificateStatus.Active
+                        && x.NotBefore <= now
+                        && x.NotAfter > now)
+            .OrderByDescending(x => x.VersionNumber)
+            .ThenByDescending(x => x.ActivatedAtUtc)
+            .ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
         return version?.ToDto();
     }
 }
@@ -485,15 +492,16 @@ public class CertificateActivationService : ICertificateActivationService
                         && x.HolderType == version.HolderType
                         && x.Status == CertificateStatus.Active
                         && x.Id != version.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
 
-        if (currentActive != null)
+        foreach (var activeVersion in currentActive)
         {
-            currentActive.Status = CertificateStatus.Replaced;
-            currentActive.ReplacedByVersionId = version.Id;
+            activeVersion.Status = CertificateStatus.Replaced;
+            activeVersion.ReplacedByVersionId = version.Id;
             _context.CertificateRotationHistories.Add(new CertificateRotationHistory
             {
-                PreviousVersionId = currentActive.Id,
+                PreviousVersionId = activeVersion.Id,
                 NewVersionId = version.Id,
                 Reason = "Activation replacement",
                 RotatedBy = request.ActivatedBy

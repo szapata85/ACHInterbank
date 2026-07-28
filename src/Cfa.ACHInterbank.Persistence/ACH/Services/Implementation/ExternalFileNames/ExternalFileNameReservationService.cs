@@ -31,6 +31,16 @@ public sealed class ExternalFileNameReservationService : IExternalFileNameReserv
         string requestFingerprint,
         CancellationToken ct = default)
     {
+        var executionStrategy = _context.Database.CreateExecutionStrategy();
+        return await executionStrategy.ExecuteAsync(
+            () => ReserveWithinExecutionStrategyAsync(context, requestFingerprint, ct));
+    }
+
+    private async Task<ExternalFileNameReservationResult> ReserveWithinExecutionStrategyAsync(
+        ExternalFileNameContext context,
+        string requestFingerprint,
+        CancellationToken ct)
+    {
         if (string.IsNullOrWhiteSpace(context.IdempotencyKey))
         {
             throw new InvalidOperationException("ACH_EXTERNAL_FILENAME_IDEMPOTENCY_KEY_REQUIRED: la solicitud no tiene clave idempotente.");

@@ -63,7 +63,7 @@ const routes: SmokeRoute[] = [
   { id: 'payment-rail-capability-registry', path: '/payment-rail-capability-registry', title: /Capability Registry multi-riel/i, marker: /Capability Registry por riel/i },
   { id: 'catalogs', path: '/catalogs', title: /Cat[aá]logos/i, marker: /Instituciones financieras/i },
   { id: 'ach-cycles-list', path: '/ach-cycles', title: /Configuraci[oó]n de ciclos/i, marker: /Reglas de procesamiento/i },
-  { id: 'ach-cycles-export', path: '/ach-cycles/nacha/export', title: /Exportar NACHA-M/i, marker: /Exportable/i },
+  { id: 'ach-cycles-export', path: '/ach-cycles/nacha/export', title: /Exportación NACHA-M/i, marker: /Ciclos disponibles/i },
   { id: 'dashboard-home', path: '/dashboard', title: /.+/ },
   { id: 'users-home', path: '/users', title: /.+/ },
   { id: 'users-branding', path: '/users/branding', title: /.+/ },

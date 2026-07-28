@@ -36,11 +36,18 @@ public class AchCycleExportDto
     public string CycleId { get; set; } = null!;
     public string CycleName { get; set; } = null!;
     public DateTime ProcessingDate { get; set; }
+    public int ClearingHouseId { get; set; }
     public string? ClearingHouseName { get; set; }
+    public int BatchCount { get; set; }
     public int TransactionCount { get; set; }
     public bool IsExportable { get; set; } = true;
     public string? ExportUnavailableReason { get; set; }
     public string? ExportIdentifier { get; set; }
+    public bool HasGeneratedFile { get; set; }
+    public bool HasDigitalEnvelope { get; set; }
+    public string? FileName { get; set; }
+    public DateTime? GeneratedAtUtc { get; set; }
+    public DateTime? ProtectedAtUtc { get; set; }
 }
 
 public sealed record AchCycleConfigurationLinkRepairItem(

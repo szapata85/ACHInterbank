@@ -208,7 +208,9 @@ public class AchCycleAppService : IAchCycleAppService
                 ExportIdentifier = cycle.Id,
                 CycleName = cycle.CycleName,
                 ProcessingDate = cycle.ProcessingDate,
+                ClearingHouseId = cycle.ClearingHouseId,
                 ClearingHouseName = cycle.ClearingHouse != null ? cycle.ClearingHouse.Name : null,
+                BatchCount = _context.AchBatches.Count(batch => batch.AchCycleId == cycle.Id),
                 TransactionCount = _context.AchTransactions.Count(transaction =>
                     transaction.AchCycleId == cycle.Id
                     && NachaExportEligibility.ExportableStates.Contains(transaction.State)),
@@ -221,7 +223,26 @@ public class AchCycleAppService : IAchCycleAppService
                         transaction.AchCycleId == cycle.Id
                         && NachaExportEligibility.ExportableStates.Contains(transaction.State))
                     ? null
-                    : "El ciclo no tiene lotes y transacciones NACHA-M en estado exportable."
+                    : "El ciclo no tiene lotes y transacciones NACHA-M en estado exportable.",
+                HasGeneratedFile = _context.AchFileExports.Any(export =>
+                    export.AchCycleId == cycle.Id && !export.IsEncrypted),
+                HasDigitalEnvelope = _context.AchFileExports.Any(export =>
+                    export.AchCycleId == cycle.Id && export.IsEncrypted),
+                FileName = _context.AchFileExports
+                    .Where(export => export.AchCycleId == cycle.Id && !export.IsEncrypted)
+                    .OrderByDescending(export => export.GeneratedAtUtc)
+                    .Select(export => export.FileName)
+                    .FirstOrDefault(),
+                GeneratedAtUtc = _context.AchFileExports
+                    .Where(export => export.AchCycleId == cycle.Id && !export.IsEncrypted)
+                    .OrderByDescending(export => export.GeneratedAtUtc)
+                    .Select(export => (DateTime?)export.GeneratedAtUtc)
+                    .FirstOrDefault(),
+                ProtectedAtUtc = _context.AchFileExports
+                    .Where(export => export.AchCycleId == cycle.Id && export.IsEncrypted)
+                    .OrderByDescending(export => export.GeneratedAtUtc)
+                    .Select(export => (DateTime?)export.GeneratedAtUtc)
+                    .FirstOrDefault()
             })
             .OrderByDescending(cycle => cycle.ProcessingDate)
             .ThenBy(cycle => cycle.Id)

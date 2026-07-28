@@ -108,8 +108,10 @@ public class NachaConfigOfficialProfilesSeederTests
         var profiles = await LoadOfficialProfilesAsync(context);
 
         profiles.Should().OnlyContain(x => x.Tags.Any(t => t.TagKey == "NormativeSource" && !string.IsNullOrWhiteSpace(t.TagValue)));
-        profiles.Single(x => x.ClearingHouse.Code == "ACH").Tags.Should().Contain(t => t.TagValue == "MAN-004 V32");
-        profiles.Single(x => x.ClearingHouse.Code == "CENIT").Tags.Should().Contain(t => t.TagValue.Contains("CENIT/DSP-152"));
+        profiles.Where(x => x.ClearingHouse.Code == "ACH")
+            .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue == "MAN-004 V32"));
+        profiles.Where(x => x.ClearingHouse.Code == "CENIT")
+            .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue.Contains("CENIT/DSP-152")));
     }
 
     [Fact]
@@ -239,6 +241,32 @@ public class NachaConfigOfficialProfilesSeederTests
         result.Success.Should().BeTrue();
         result.UsedFallback.Should().BeFalse();
         result.Profile!.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
+        result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
+    }
+
+    [Theory]
+    [InlineData("ACH", "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V1_0")]
+    [InlineData("CENIT", "OFFICIAL_CENIT_SALIDA_PRENOTIFICACION_V1_0")]
+    public async Task PrenotificationProfiles_ShouldBeResolvable(
+        string clearingHouseCode,
+        string expectedProfileCode)
+    {
+        await using var context = await SeedAsync();
+        var resolver = new NachaConfigResolver(context);
+
+        var result = await resolver.ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = clearingHouseCode,
+            FlowTypeCode = "PRENOTIFICACION",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = new DateTime(2026, 7, 28, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = RequiredRecords
+        });
+
+        result.Success.Should().BeTrue();
+        result.UsedFallback.Should().BeFalse();
+        result.Profile!.ProfileCode.Should().Be(expectedProfileCode);
         result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
     }
 
