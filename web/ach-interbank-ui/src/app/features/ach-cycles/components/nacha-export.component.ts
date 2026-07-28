@@ -21,6 +21,8 @@ import {
   BlobDownloadService
 } from '../../../core/services/blob-download.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { OperationalErrorView } from '../../../core/models/operational-error.model';
+import { presentNachaError } from '../../../core/utils/nacha-error-presentation.util';
 import { SharedModule } from '../../../shared/shared.module';
 import { ExportableAchCycle } from '../models/ach-cycle-export.model';
 import { ClearingHouseOption } from '../models/ach-cycle.model';
@@ -30,9 +32,7 @@ import { NachaExportApiService } from '../services/nacha-export-api.service';
 type ExportAction = 'plain' | 'encrypted';
 
 interface ExportOperationError {
-  message: string;
-  errorCode?: string;
-  traceId?: string;
+  view: OperationalErrorView;
   cycle: ExportableAchCycle;
   action: ExportAction;
 }
@@ -272,21 +272,10 @@ export class NachaExportComponent implements OnInit {
       ? 'No fue posible generar y proteger el archivo NACHA-M.'
       : 'No fue posible generar el archivo NACHA-M.';
     const parsed: ApplicationDownloadError = await this.downloads.fromHttpError(error, fallback);
-    this.operationError = {
-      message: parsed.message,
-      errorCode: parsed.errorCode,
-      traceId: parsed.traceId,
-      cycle,
-      action
-    };
-    this.notifications.error(this.formatError(parsed));
+    const view = presentNachaError(parsed, fallback);
+    this.operationError = { view, cycle, action };
+    this.notifications.error(`${view.title}. ${view.message}`);
     this.cdr.markForCheck();
-  }
-
-  private formatError(error: ApplicationDownloadError): string {
-    const code = error.errorCode ? ` (${error.errorCode})` : '';
-    const trace = error.traceId ? ` [traceId: ${error.traceId}]` : '';
-    return `${error.message}${code}${trace}`;
   }
 
   private loadClearingHouses(): void {

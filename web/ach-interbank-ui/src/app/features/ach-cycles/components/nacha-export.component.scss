@@ -91,26 +91,9 @@
   }
 }
 
-.error-panel {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 0.8rem;
-  align-items: start;
+app-operational-error-panel {
+  display: block;
   margin-bottom: 1rem;
-  padding: 1rem;
-  border: 1px solid #d9a3a3;
-  border-radius: var(--radius-md);
-  background: #fff5f5;
-  color: #7d2020;
-
-  p {
-    margin: 0.25rem 0;
-  }
-
-  span {
-    display: block;
-    font-size: 0.8rem;
-  }
 }
 
 .results-card mat-card-content {
@@ -285,15 +268,6 @@ mat-chip.status-bloqueado {
 
     div {
       min-width: 120px;
-    }
-  }
-
-  .error-panel {
-    grid-template-columns: auto 1fr;
-
-    button {
-      grid-column: 1 / -1;
-      width: 100%;
     }
   }
 

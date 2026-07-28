@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Api.Encryption;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
@@ -101,6 +102,42 @@ public class NachaExportControllerTests
         Assert.DoesNotContain("token", payload);
         Assert.DoesNotContain("secret", payload);
         Assert.DoesNotContain("1234567890123456", payload);
+    }
+
+    [Fact]
+    public async Task NachaExport_FieldRuleError_ShouldSeparateOperationalAndSupportInformation()
+    {
+        const string cycleId = "cycle-field-rule";
+        var exception = new NachaGenerationException(
+            "NACHA_FIELD_RULE_FAILED",
+            "El nombre del receptor es obligatorio para el registro tipo 6.",
+            "ACHCOL-T6-INDIVIDUAL-NAME",
+            "ACHCOL",
+            "6",
+            "INDIVIDUALNAME",
+            "Valor obligatorio ausente",
+            63,
+            22);
+        var controller = BuildControllerThrowing(cycleId, exception);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { TraceIdentifier = "trace-field-safe" }
+        };
+
+        var result = await controller.Export(cycleId, CancellationToken.None);
+
+        var unprocessable = Assert.IsType<UnprocessableEntityObjectResult>(result);
+        var problem = Assert.IsType<ProblemDetails>(unprocessable.Value);
+        Assert.Equal("No fue posible generar el archivo NACHA-M", problem.Title);
+        Assert.Contains("nombre del receptor", problem.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("RuleId=", problem.Detail);
+        Assert.Equal("NACHA_FIELD_RULE_FAILED", problem.Extensions["errorCode"]);
+        Assert.Equal("ACHCOL-T6-INDIVIDUAL-NAME", problem.Extensions["ruleId"]);
+        Assert.Equal("INDIVIDUALNAME", problem.Extensions["fieldCode"]);
+        Assert.Equal("Nombre del receptor", problem.Extensions["fieldDisplayName"]);
+        Assert.Equal(63, problem.Extensions["startPosition"]);
+        Assert.Equal(22, problem.Extensions["expectedLength"]);
+        Assert.Equal("trace-field-safe", problem.Extensions["traceId"]);
     }
 
     [Fact]
@@ -467,6 +504,50 @@ public class NachaExportControllerTests
         builder
             .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(string.Empty);
+
+        return new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object,
+            externalFileNamePolicy.Object);
+    }
+
+    private static NachaExportController BuildControllerThrowing(string cycleId, Exception exception)
+    {
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
+        var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
+        var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+
+        cycleService
+            .Setup(service => service.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCycleDto
+            {
+                Id = cycleId,
+                ClearingHouseId = 1,
+                CycleName = "CICLO-1",
+                ProcessingDate = DateTime.UtcNow
+            });
+        clearingHouseService
+            .Setup(service => service.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto
+            {
+                Id = 1,
+                Code = "ACHCOL",
+                OriginCode = "12345678",
+                Name = "ACH Colombia"
+            });
+        builder
+            .Setup(service => service.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(exception);
 
         return new NachaExportController(
             builder.Object,

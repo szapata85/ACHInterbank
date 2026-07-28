@@ -4,10 +4,10 @@ export interface CertificateListItem {
   displayName: string;
   fileName: string;
   clearingHouseId: number;
-  environment: string;
-  purpose: string;
-  holderType: string;
-  status: string;
+  environment: string | number;
+  purpose: string | number;
+  holderType: string | number;
+  status: string | number;
   versionNumber: number;
   subject: string;
   issuer: string;
@@ -30,7 +30,8 @@ export interface CertificateListItem {
 export interface CertificateVersion extends CertificateListItem {}
 
 export interface CertificateValidationResult {
-  canActivate: boolean;
+  isValid?: boolean;
+  canActivate?: boolean;
   errors: string[];
-  warnings: string[];
+  warnings?: string[];
 }

@@ -1,70 +1,288 @@
-<div class="page-header">
-  <h1>Herramienta de Sobre Digital</h1>
-  <p class="subtitle">Cifra y descifra archivos con los certificados digitales cargados en la plataforma.</p>
-</div>
+<app-page-header
+  title="Sobre digital NACHA-M"
+  subtitle="Protege archivos NACHA-M mediante cifrado y firma digital, o procesa archivos recibidos utilizando los certificados configurados para la cámara compensadora.">
+</app-page-header>
 
-<section class="cards">
-  <div class="card">
-    <div class="card__header">
-      <div>
-        <h2>Cifrar archivo</h2>
-        <p>Genera un sobre digital (.ENV) a partir de un archivo NACHA-M.</p>
-      </div>
-      <span class="chip">Cifrado</span>
-    </div>
+<nav class="breadcrumb" aria-label="Ruta de navegación">
+  <a routerLink="/nacha-security/certificates">Seguridad NACHA</a>
+  <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">chevron_right</mat-icon>
+  <span aria-current="page">Sobre digital NACHA-M</span>
+</nav>
 
-    <form class="upload" [formGroup]="encryptForm" (ngSubmit)="submitEncrypt()">
-      <label class="field">
-        <span>Certificado destinatario</span>
-        <select formControlName="certificateVersionId" aria-label="Certificado para cifrar">
-          <option [ngValue]="null">Seleccionar certificado</option>
-          <option *ngFor="let certificate of encryptionCertificates" [ngValue]="certificate.id">
-            {{ certificate.displayName }} · {{ certificate.fileName }} · {{ certificate.thumbprintMasked }}
-          </option>
-        </select>
-      </label>
-
-      <label class="file-input">
-        <input aria-label="Archivo para cifrar" type="file" (change)="onFileSelected('encrypt', $event)" />
-        <span>{{ encryptForm.value.file?.name || 'Seleccionar archivo' }}</span>
-      </label>
-
-      <button appButton type="submit" [disabled]="encrypting || decrypting || loadingCertificates || encryptForm.invalid">
-        {{ encrypting ? 'Cifrando...' : 'Cifrar archivo' }}
-      </button>
-      <p class="result" *ngIf="lastEncryptedFileName">Generado: {{ lastEncryptedFileName }}</p>
-    </form>
-  </div>
-
-  <div class="card">
-    <div class="card__header">
-      <div>
-        <h2>Descifrar archivo</h2>
-        <p>Recupera el contenido original desde un sobre digital (.ENV).</p>
-      </div>
-      <span class="chip chip--accent">Descifrado</span>
-    </div>
-
-    <form class="upload" [formGroup]="decryptForm" (ngSubmit)="submitDecrypt()">
-      <label class="field">
-        <span>Identidad privada</span>
-        <select formControlName="certificateVersionId" aria-label="Certificado para descifrar">
-          <option [ngValue]="null">Seleccionar certificado</option>
-          <option *ngFor="let certificate of decryptionCertificates" [ngValue]="certificate.id">
-            {{ certificate.displayName }} · {{ certificate.fileName }} · {{ certificate.thumbprintMasked }}
-          </option>
-        </select>
-      </label>
-
-      <label class="file-input">
-        <input aria-label="Archivo .ENV para descifrar" type="file" accept=".ENV,.env" (change)="onFileSelected('decrypt', $event)" />
-        <span>{{ decryptForm.value.file?.name || 'Seleccionar archivo' }}</span>
-      </label>
-
-      <button appButton type="submit" [disabled]="encrypting || decrypting || loadingCertificates || decryptForm.invalid">
-        {{ decrypting ? 'Descifrando...' : 'Descifrar archivo' }}
-      </button>
-      <p class="result" *ngIf="lastDecryptedFileName">Recuperado: {{ lastDecryptedFileName }}</p>
-    </form>
-  </div>
+<section class="context-help" aria-label="Ayuda sobre el proceso">
+  <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">info</mat-icon>
+  <p>
+    Selecciona la cámara y el ambiente. La aplicación resolverá automáticamente la versión activa y vigente
+    para evitar el uso accidental de un certificado incorrecto.
+  </p>
 </section>
+
+@if (operationError) {
+  <app-operational-error-panel [error]="operationError" (retry)="retry()"></app-operational-error-panel>
+}
+
+<mat-card class="workspace-card">
+  @if (loadingConfiguration) {
+    <div class="state-container" role="status">
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+      <h2>Consultando configuración de seguridad</h2>
+      <p>Validando las cámaras y los certificados disponibles.</p>
+    </div>
+  } @else {
+    <mat-tab-group animationDuration="200ms">
+      <mat-tab label="Cifrar archivo">
+        <section class="tab-content">
+          <header class="tab-header">
+            <div>
+              <h2>Cifrar un archivo de salida</h2>
+              <p>Genera un sobre digital protegido y firmado a partir de un archivo NACHA-M.</p>
+            </div>
+            <mat-chip>Cifrado de salida</mat-chip>
+          </header>
+
+          <form [formGroup]="encryptForm" (ngSubmit)="submitEncrypt()" class="operation-form">
+            <div class="context-fields">
+              <mat-form-field appearance="outline">
+                <mat-label>Cámara compensadora</mat-label>
+                <mat-select formControlName="clearingHouseId">
+                  @for (house of availableHouses('encrypt'); track house.id) {
+                    <mat-option [value]="house.id">{{ house.name }}</mat-option>
+                  }
+                </mat-select>
+                @if (encryptForm.controls['clearingHouseId'].hasError('required')) {
+                  <mat-error>No hay una cámara con certificado de cifrado activo.</mat-error>
+                }
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Ambiente</mat-label>
+                <mat-select formControlName="environment">
+                  <mat-option value="Test">Pruebas</mat-option>
+                  <mat-option value="Production">Producción</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+
+            @if (selectedCertificate('encrypt'); as certificate) {
+              <section class="resolved-configuration">
+                <div class="resolved-title">
+                  <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">verified</mat-icon>
+                  <div>
+                    <strong>Certificado de cifrado seleccionado automáticamente</strong>
+                    <span>Versión activa más reciente para el contexto seleccionado.</span>
+                  </div>
+                </div>
+                <dl>
+                  <div><dt>Certificado</dt><dd>{{ certificate.displayName }}</dd></div>
+                  <div><dt>Propósito</dt><dd>{{ certificatePurposeLabel(certificate.purpose) }}</dd></div>
+                  <div><dt>Vigente hasta</dt><dd>{{ certificate.notAfter | date:'dd/MM/yyyy':'UTC' }}</dd></div>
+                  <div><dt>Huella digital</dt><dd class="technical">{{ certificate.thumbprintMasked }}</dd></div>
+                </dl>
+                <p class="signing-note">
+                  El certificado de firma de salida también se resuelve automáticamente en el servidor para la misma cámara y ambiente.
+                </p>
+              </section>
+            } @else {
+              <section class="missing-configuration" role="alert">
+                <mat-icon fontSet="material-symbols-outlined">gpp_bad</mat-icon>
+                <div>
+                  <strong>No hay un certificado de cifrado disponible</strong>
+                  <p>Activa una versión vigente para esta cámara y ambiente antes de continuar.</p>
+                  <a mat-button routerLink="/nacha-security/certificates">Ir a Certificados de seguridad NACHA-M</a>
+                </div>
+              </section>
+            }
+
+            @if (hasDuplicateConfiguration('encrypt')) {
+              <p class="configuration-warning">
+                Se encontraron varias versiones activas para el mismo contexto. Se utilizará de forma determinística la versión más reciente.
+              </p>
+            }
+
+            <label class="file-drop" for="encrypt-file" tabindex="0" (keydown.enter)="encryptFile.click()" (keydown.space)="$event.preventDefault(); encryptFile.click()">
+              <input #encryptFile id="encrypt-file" type="file" aria-label="Archivo NACHA-M para cifrar" (change)="onFileSelected('encrypt', $event)">
+              <mat-icon fontSet="material-symbols-outlined">upload_file</mat-icon>
+              <span>
+                <strong>{{ selectedFile('encrypt')?.name || 'Seleccionar archivo NACHA-M' }}</strong>
+                <small>Archivo de hasta 50 MB. También puedes activar este control con el teclado.</small>
+              </span>
+            </label>
+            @if (fileError('encrypt')) {
+              <mat-error class="standalone-error">{{ fileError('encrypt') }}</mat-error>
+            }
+
+            @if (processingMode === 'encrypt') {
+              <section class="process-state" role="status">
+                <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                <strong>Protegiendo el archivo</strong>
+                <span>Validando contenido, resolviendo certificados, cifrando y firmando el sobre digital.</span>
+              </section>
+            }
+
+            <div class="form-actions">
+              @if (selectedFile('encrypt')) {
+                <button mat-button type="button" (click)="removeFile('encrypt', encryptFile)" [disabled]="!!processingMode">
+                  Retirar archivo
+                </button>
+              }
+              <button mat-flat-button type="submit" [disabled]="!!processingMode || encryptForm.invalid">
+                <mat-icon fontSet="material-symbols-outlined">enhanced_encryption</mat-icon>
+                {{ processingMode === 'encrypt' ? 'Generando sobre…' : 'Generar sobre digital' }}
+              </button>
+            </div>
+          </form>
+        </section>
+      </mat-tab>
+
+      <mat-tab label="Descifrar archivo">
+        <section class="tab-content">
+          <header class="tab-header">
+            <div>
+              <h2>Descifrar un archivo recibido</h2>
+              <p>Recupera el contenido original y valida la firma y la integridad antes de permitir la descarga.</p>
+            </div>
+            <mat-chip>Descifrado de entrada</mat-chip>
+          </header>
+
+          <form [formGroup]="decryptForm" (ngSubmit)="submitDecrypt()" class="operation-form">
+            <div class="context-fields">
+              <mat-form-field appearance="outline">
+                <mat-label>Cámara compensadora</mat-label>
+                <mat-select formControlName="clearingHouseId">
+                  @for (house of availableHouses('decrypt'); track house.id) {
+                    <mat-option [value]="house.id">{{ house.name }}</mat-option>
+                  }
+                </mat-select>
+                @if (decryptForm.controls['clearingHouseId'].hasError('required')) {
+                  <mat-error>No hay una cámara con identidad privada activa.</mat-error>
+                }
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Ambiente</mat-label>
+                <mat-select formControlName="environment">
+                  <mat-option value="Test">Pruebas</mat-option>
+                  <mat-option value="Production">Producción</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+
+            @if (selectedCertificate('decrypt'); as certificate) {
+              <section class="resolved-configuration">
+                <div class="resolved-title">
+                  <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">lock_open</mat-icon>
+                  <div>
+                    <strong>Identidad privada seleccionada automáticamente</strong>
+                    <span>El material criptográfico privado permanece protegido y nunca se envía al navegador.</span>
+                  </div>
+                </div>
+                <dl>
+                  <div><dt>Certificado</dt><dd>{{ certificate.displayName }}</dd></div>
+                  <div><dt>Propósito</dt><dd>{{ certificatePurposeLabel(certificate.purpose) }}</dd></div>
+                  <div><dt>Vigente hasta</dt><dd>{{ certificate.notAfter | date:'dd/MM/yyyy':'UTC' }}</dd></div>
+                  <div><dt>Huella digital</dt><dd class="technical">{{ certificate.thumbprintMasked }}</dd></div>
+                </dl>
+              </section>
+            } @else {
+              <section class="missing-configuration" role="alert">
+                <mat-icon fontSet="material-symbols-outlined">gpp_bad</mat-icon>
+                <div>
+                  <strong>No hay una identidad privada disponible</strong>
+                  <p>Activa un certificado de descifrado con material criptográfico privado protegido.</p>
+                  <a mat-button routerLink="/nacha-security/certificates">Ir a Certificados de seguridad NACHA-M</a>
+                </div>
+              </section>
+            }
+
+            @if (hasDuplicateConfiguration('decrypt')) {
+              <p class="configuration-warning">
+                Se encontraron varias versiones activas para el mismo contexto. Se utilizará de forma determinística la versión más reciente.
+              </p>
+            }
+
+            <label class="file-drop" for="decrypt-file" tabindex="0" (keydown.enter)="decryptFile.click()" (keydown.space)="$event.preventDefault(); decryptFile.click()">
+              <input #decryptFile id="decrypt-file" type="file" accept=".ENV,.env" aria-label="Sobre digital para descifrar" (change)="onFileSelected('decrypt', $event)">
+              <mat-icon fontSet="material-symbols-outlined">upload_file</mat-icon>
+              <span>
+                <strong>{{ selectedFile('decrypt')?.name || 'Seleccionar sobre digital' }}</strong>
+                <small>El archivo debe terminar en .ENV y no superar 50 MB.</small>
+              </span>
+            </label>
+            @if (fileError('decrypt')) {
+              <mat-error class="standalone-error">{{ fileError('decrypt') }}</mat-error>
+            }
+
+            @if (processingMode === 'decrypt') {
+              <section class="process-state" role="status">
+                <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                <strong>Procesando el sobre digital</strong>
+                <span>Validando estructura, resolviendo la identidad, descifrando y comprobando firma e integridad.</span>
+              </section>
+            }
+
+            <div class="form-actions">
+              @if (selectedFile('decrypt')) {
+                <button mat-button type="button" (click)="removeFile('decrypt', decryptFile)" [disabled]="!!processingMode">
+                  Retirar archivo
+                </button>
+              }
+              <button mat-flat-button type="submit" [disabled]="!!processingMode || decryptForm.invalid">
+                <mat-icon fontSet="material-symbols-outlined">lock_open</mat-icon>
+                {{ processingMode === 'decrypt' ? 'Descifrando…' : 'Descifrar archivo' }}
+              </button>
+            </div>
+          </form>
+        </section>
+      </mat-tab>
+    </mat-tab-group>
+  }
+</mat-card>
+
+@if (result) {
+  <mat-card class="result-card" aria-live="polite">
+    <mat-card-header>
+      <mat-icon mat-card-avatar fontSet="material-symbols-outlined">task_alt</mat-icon>
+      <mat-card-title>
+        {{ result.mode === 'encrypt' ? 'Sobre digital generado correctamente' : 'Archivo descifrado correctamente' }}
+      </mat-card-title>
+      <mat-card-subtitle>{{ result.completedAt | date:'dd/MM/yyyy, HH:mm' }}</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <dl>
+        <div><dt>Nombre del archivo</dt><dd>{{ result.fileName }}</dd></div>
+        <div><dt>Tamaño</dt><dd>{{ formatSize(result.size) }}</dd></div>
+        <div><dt>Cámara compensadora</dt><dd>{{ clearingHouseName(result.certificate.clearingHouseId) }}</dd></div>
+        <div><dt>Certificado utilizado</dt><dd>{{ result.certificate.displayName }}</dd></div>
+      </dl>
+
+      <section class="validation-results">
+        @if (result.mode === 'encrypt') {
+          <span><mat-icon fontSet="material-symbols-outlined">check_circle</mat-icon>Contenido cifrado</span>
+          <span><mat-icon fontSet="material-symbols-outlined">check_circle</mat-icon>Firma incorporada</span>
+        } @else {
+          <span><mat-icon fontSet="material-symbols-outlined">check_circle</mat-icon>Firma digital válida</span>
+          <span><mat-icon fontSet="material-symbols-outlined">check_circle</mat-icon>Integridad confirmada</span>
+        }
+      </section>
+
+      @if (result.cryptographicProfile) {
+        <mat-expansion-panel class="technical-panel">
+          <mat-expansion-panel-header>
+            <mat-panel-title>Información técnica del proceso</mat-panel-title>
+          </mat-expansion-panel-header>
+          <dl>
+            <div class="wide"><dt>Perfil criptográfico</dt><dd class="technical">{{ result.cryptographicProfile }}</dd></div>
+            <div><dt>Versión del certificado</dt><dd>{{ result.certificate.versionNumber }}</dd></div>
+            <div><dt>Huella digital</dt><dd class="technical">{{ result.certificate.thumbprintMasked }}</dd></div>
+          </dl>
+        </mat-expansion-panel>
+      }
+    </mat-card-content>
+    <mat-card-actions align="end">
+      <button mat-stroked-button type="button" (click)="downloadAgain()">
+        <mat-icon fontSet="material-symbols-outlined">download</mat-icon>
+        Descargar nuevamente
+      </button>
+    </mat-card-actions>
+  </mat-card>
+}

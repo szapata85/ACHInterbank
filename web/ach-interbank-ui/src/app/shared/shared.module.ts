@@ -35,6 +35,7 @@ import { UiFormularioAccionesComponent } from './components/ui/ui-formulario-acc
 import { UiErrorCampoComponent } from './forms/ui-error-campo.component';
 import { AccionProtegidaDirective } from './directives/accion-protegida.directive';
 import { UiIconComponent } from './components/ui/ui-icon.component';
+import { OperationalErrorPanelComponent } from './components/operational-error-panel.component';
 
 @NgModule({
   imports: [
@@ -73,7 +74,8 @@ import { UiIconComponent } from './components/ui/ui-icon.component';
     UiFormularioAccionesComponent,
     UiErrorCampoComponent,
     AccionProtegidaDirective,
-    UiIconComponent
+    UiIconComponent,
+    OperationalErrorPanelComponent
   ],
   exports: [
     CommonModule,
@@ -111,7 +113,8 @@ import { UiIconComponent } from './components/ui/ui-icon.component';
     UiFormularioAccionesComponent,
     UiErrorCampoComponent,
     AccionProtegidaDirective,
-    UiIconComponent
+    UiIconComponent,
+    OperationalErrorPanelComponent
   ]
 })
 export class SharedModule {}

@@ -196,10 +196,43 @@ describe('NachaExportComponent', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     fixture.detectChanges();
 
-    expect(component.operationError?.message).toBe('No existe un perfil NACHA-M vigente.');
-    expect(component.operationError?.errorCode).toBe('NACHA_PROFILE_NOT_PUBLISHED');
-    expect(component.operationError?.traceId).toBe('trace-safe-42');
-    expect(fixture.nativeElement.textContent).toContain('Identificador de soporte: trace-safe-42');
+    expect(component.operationError?.view.title).toBe('No hay un perfil NACHA-M publicado');
+    expect(component.operationError?.view.support.errorCode).toBe('NACHA_PROFILE_NOT_PUBLISHED');
+    expect(component.operationError?.view.support.traceId).toBe('trace-safe-42');
+    expect(fixture.nativeElement.textContent).toContain('Identificador de soporte');
+    expect(fixture.nativeElement.textContent).toContain('trace-safe-42');
+  });
+
+  it('presenta NACHA_FIELD_RULE_FAILED en lenguaje operativo y separa la información técnica', async () => {
+    api.downloadFile.and.returnValue(throwError(() => new HttpErrorResponse({ status: 422 })));
+    downloads.fromHttpError.and.resolveTo(new ApplicationDownloadError(
+      'NACHA_FIELD_RULE_FAILED: RuleId=ACHCOL-T6-INDIVIDUAL-NAME; Campo=INDIVIDUALNAME',
+      422,
+      'NACHA_FIELD_RULE_FAILED',
+      'trace-safe-field',
+      'NACHA_FIELD_RULE_FAILED',
+      {
+        errorCode: 'NACHA_FIELD_RULE_FAILED',
+        fieldCode: 'INDIVIDUALNAME',
+        fieldDisplayName: 'Nombre del receptor',
+        ruleId: 'ACHCOL-T6-INDIVIDUAL-NAME',
+        recordType: '6',
+        startPosition: 63,
+        expectedLength: 22,
+        traceId: 'trace-safe-field'
+      }
+    ));
+
+    component.downloadPlain(exportableCycle);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('No se puede generar el archivo NACHA-M');
+    expect(text).toContain('nombre del receptor');
+    expect(text).not.toContain('RuleId=');
+    expect(text).not.toContain('ExpectedLength=');
+    expect(text.match(/NACHA_FIELD_RULE_FAILED/g)?.length).toBe(1);
   });
 
   it('finaliza el progreso de fila cuando ocurre un error', async () => {

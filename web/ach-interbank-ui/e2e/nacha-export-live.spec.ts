@@ -248,9 +248,11 @@ test.describe('Exportación NACHA-M — runtime real', () => {
     expect(problem.errorCode).toBeTruthy();
     expect(problem.detail).toBeTruthy();
     expect(problem.traceId).toBeTruthy();
-    await expect(page.getByRole('alert')).toContainText(problem.detail);
+    await expect(page.getByRole('alert')).toContainText(/No (se puede|fue posible)|No hay/);
+    await page.getByText('Información para soporte').click();
+    await expect(page.getByRole('alert')).toContainText(problem.errorCode);
     await expect(page.getByRole('alert')).toContainText(problem.traceId);
-    await expect(page.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Volver a intentar' })).toBeVisible();
     expect(downloadStarted).toBe(false);
 
     await page.evaluate(() => window.scrollTo(0, 0));

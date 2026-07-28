@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { expect, Page, test } from '@playwright/test';
+import { expect, Page, test, TestInfo } from '@playwright/test';
 
 interface EnvelopeCertificate {
   id: number;
   displayName: string;
   fileName: string;
   thumbprintMasked: string;
+  purpose: string | number;
   canEncrypt: boolean;
   canDecrypt: boolean;
 }
@@ -27,6 +28,7 @@ const originalPath = process.env['DIGITAL_ENVELOPE_TEST_FILE'] ?? resolve(
   '0001283.001.20250331.1.OUT'
 );
 const originalName = '0001283.001.20250331.1.OUT';
+const evidenceDir = resolve(process.cwd(), '../../docs/uat/evidencias/nacha-security-ux/final');
 
 test('cifra y descifra un NACHA-M real mediante SPA, Nginx, API y SQL Server', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
@@ -51,12 +53,6 @@ test('cifra y descifra un NACHA-M real mediante SPA, Nginx, API y SQL Server', a
   });
 
   await loginThroughUi(page);
-  await page.goto(`${baseUrl}/nacha-security/certificates`);
-  await expect(page.getByRole('heading', { name: 'Certificados digitales' })).toBeVisible();
-  await expect(page.locator('body')).toContainText('ACHcolombia.cer');
-  await expect(page.locator('body')).toContainText('CFA.pfx');
-  await page.screenshot({ path: testInfo.outputPath('certificates-from-database.png'), fullPage: true });
-
   const token = await page.evaluate(() => sessionStorage.getItem('ach.interbank.access_token'));
   expect(token).toBeTruthy();
   const certificateResponse = await page.request.get(`${baseUrl}/api/nacha-security/digital-envelope/certificates`, {
@@ -64,21 +60,29 @@ test('cifra y descifra un NACHA-M real mediante SPA, Nginx, API y SQL Server', a
   });
   expect(certificateResponse.status()).toBe(200);
   const certificates = await certificateResponse.json() as EnvelopeCertificate[];
-  const certificate = certificates.find((item) => item.canEncrypt && item.canDecrypt);
-  expect(certificate, 'Debe existir una identidad activa con llave privada apta para el round-trip.').toBeTruthy();
+  const encryptionCertificate = newestCertificate(certificates, 'OutboundEncryption');
+  const decryptionCertificate = newestCertificate(certificates, 'InboundDecryption');
+  expect(encryptionCertificate, 'Debe existir un certificado activo de cifrado de salida.').toBeTruthy();
+  expect(decryptionCertificate, 'Debe existir una identidad activa de descifrado con llave privada.').toBeTruthy();
+
+  await page.goto(`${baseUrl}/nacha-security/certificates`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Certificados de seguridad NACHA-M' })).toBeVisible();
+  await expect(page.locator('body')).toContainText(encryptionCertificate!.displayName);
+  await expect(page.locator('body')).toContainText(decryptionCertificate!.displayName);
+  await expect(page.locator('body')).not.toContainText(decryptionCertificate!.fileName);
+  await saveScreenshot(page, testInfo, 'certificates-from-database.png');
 
   await page.goto(`${baseUrl}/nacha-security/sobre-digital`);
-  await expect(page.getByRole('heading', { name: 'Herramienta de Sobre Digital' })).toBeVisible();
-  await chooseCertificate(page, 'Certificado para cifrar', certificate!.fileName);
-  await chooseCertificate(page, 'Certificado para descifrar', certificate!.fileName);
-  await page.getByLabel('Archivo para cifrar').setInputFiles(originalPath);
+  await expect(page.getByRole('heading', { level: 1, name: 'Sobre digital NACHA-M' })).toBeVisible();
+  await expect(page.getByText('Certificado de cifrado seleccionado automáticamente')).toBeVisible();
+  await page.getByLabel('Archivo NACHA-M para cifrar').setInputFiles(originalPath);
 
   const encryptResponsePromise = page.waitForResponse((response) =>
     new URL(response.url()).pathname === '/api/nacha-security/digital-envelope/encrypt'
       && response.request().method() === 'POST'
   );
   const encryptDownloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Cifrar archivo', exact: true }).click();
+  await page.getByRole('button', { name: 'Generar sobre digital', exact: true }).click();
   const [encryptResponse, encryptDownload] = await Promise.all([encryptResponsePromise, encryptDownloadPromise]);
   expect(encryptResponse.status()).toBe(200);
   expect(encryptResponse.headers()['content-type']).not.toContain('text/html');
@@ -90,10 +94,14 @@ test('cifra y descifra un NACHA-M real mediante SPA, Nginx, API y SQL Server', a
   const encrypted = readFileSync(encryptedPath);
   expect(encrypted.length).toBeGreaterThan(0);
   expect(encrypted.equals(original)).toBe(false);
-  await expect(page.locator('.result').filter({ hasText: `${originalName}.ENV` })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('encryption-completed.png'), fullPage: true });
+  await expect(page.getByText('Sobre digital generado correctamente', { exact: true })).toBeVisible();
+  await expect(page.getByText(`${originalName}.ENV`, { exact: true })).toBeVisible();
+  await expect(page.locator('body')).toContainText(encryptionCertificate!.displayName);
+  await saveScreenshot(page, testInfo, 'encryption-completed.png');
 
-  await page.getByLabel('Archivo .ENV para descifrar').setInputFiles(encryptedPath);
+  await page.getByRole('tab', { name: 'Descifrar archivo' }).click();
+  await expect(page.getByText('Identidad privada seleccionada automáticamente')).toBeVisible();
+  await page.getByLabel('Sobre digital para descifrar').setInputFiles(encryptedPath);
   const decryptResponsePromise = page.waitForResponse((response) =>
     new URL(response.url()).pathname === '/api/nacha-security/digital-envelope/decrypt'
       && response.request().method() === 'POST'
@@ -112,8 +120,11 @@ test('cifra y descifra un NACHA-M real mediante SPA, Nginx, API y SQL Server', a
   const decryptedSha256 = sha256(decrypted);
   expect(decrypted.equals(original)).toBe(true);
   expect(decryptedSha256).toBe(originalSha256);
-  await expect(page.locator('.result').filter({ hasText: `Recuperado: ${originalName}` })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('decryption-completed.png'), fullPage: true });
+  await expect(page.getByText('Archivo descifrado correctamente', { exact: true })).toBeVisible();
+  await expect(page.getByText('Firma digital válida')).toBeVisible();
+  await expect(page.getByText('Integridad confirmada')).toBeVisible();
+  await expect(page.locator('body')).toContainText(decryptionCertificate!.displayName);
+  await saveScreenshot(page, testInfo, 'decryption-completed.png');
 
   const rejectedResponses = apiResponses.filter((response) =>
     [404, 405, 500].includes(response.status)
@@ -132,14 +143,18 @@ test('cifra y descifra un NACHA-M real mediante SPA, Nginx, API y SQL Server', a
     originalSha256,
     decryptedSha256,
     byteIdentical: decrypted.equals(original),
-    certificateVersionId: certificate!.id,
-    certificateThumbprint: certificate!.thumbprintMasked,
+    encryptionCertificateVersionId: encryptionCertificate!.id,
+    encryptionCertificateThumbprint: encryptionCertificate!.thumbprintMasked,
+    decryptionCertificateVersionId: decryptionCertificate!.id,
+    decryptionCertificateThumbprint: decryptionCertificate!.thumbprintMasked,
     apiResponses,
     consoleErrors
   };
   const evidencePath = testInfo.outputPath('sobre-digital-evidence.json');
   mkdirSync(dirname(evidencePath), { recursive: true });
   writeFileSync(evidencePath, JSON.stringify(evidence, null, 2));
+  mkdirSync(evidenceDir, { recursive: true });
+  writeFileSync(resolve(evidenceDir, 'sobre-digital-evidence.json'), JSON.stringify(evidence, null, 2));
   await testInfo.attach('sobre-digital-evidence', { path: evidencePath, contentType: 'application/json' });
 });
 
@@ -154,15 +169,27 @@ async function loginThroughUi(page: Page): Promise<void> {
   await expect(page).not.toHaveURL(/\/login$/);
 }
 
-async function chooseCertificate(page: Page, label: string, fileName: string): Promise<void> {
-  const select = page.getByLabel(label);
-  const option = select.locator('option', { hasText: fileName }).first();
-  await expect(option).toBeAttached();
-  const value = await option.getAttribute('value');
-  expect(value).toBeTruthy();
-  await select.selectOption(value!);
-}
-
 function sha256(content: Buffer): string {
   return createHash('sha256').update(content).digest('hex').toUpperCase();
+}
+
+function newestCertificate(
+  certificates: EnvelopeCertificate[],
+  purpose: 'OutboundEncryption' | 'InboundDecryption'
+): EnvelopeCertificate | undefined {
+  const numericPurpose = purpose === 'OutboundEncryption' ? 1 : 2;
+  return certificates
+    .filter(certificate =>
+      (certificate.purpose === purpose || certificate.purpose === numericPurpose)
+      && (purpose === 'OutboundEncryption' ? certificate.canEncrypt : certificate.canDecrypt))
+    .sort((left, right) => right.id - left.id)[0];
+}
+
+async function saveScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  const screenshot = await page.screenshot({ fullPage: true });
+  const outputPath = testInfo.outputPath(name);
+  writeFileSync(outputPath, screenshot);
+  mkdirSync(evidenceDir, { recursive: true });
+  writeFileSync(resolve(evidenceDir, name), screenshot);
+  await testInfo.attach(name, { body: screenshot, contentType: 'image/png' });
 }

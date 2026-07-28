@@ -8,7 +8,10 @@ export interface SobreDigitalCertificate {
   code: string;
   displayName: string;
   fileName: string;
-  purpose: number;
+  clearingHouseId: number;
+  environment: string | number;
+  purpose: string | number;
+  versionNumber: number;
   hasPrivateKey: boolean;
   thumbprintMasked: string;
   notBefore: string;

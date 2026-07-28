@@ -11,6 +11,16 @@ export interface ApplicationProblemDetails {
   errorCode?: string;
   codigo?: string;
   traceId?: string;
+  instance?: string;
+  ruleId?: string;
+  recordType?: string;
+  fieldCode?: string;
+  fieldName?: string;
+  fieldDisplayName?: string;
+  startPosition?: number;
+  expectedLength?: number;
+  reason?: string;
+  cause?: string;
   errors?: Record<string, string[] | string>;
 }
 
@@ -20,7 +30,8 @@ export class ApplicationDownloadError extends Error {
     readonly status: number,
     readonly errorCode?: string,
     readonly traceId?: string,
-    readonly title?: string
+    readonly title?: string,
+    readonly problem?: ApplicationProblemDetails
   ) {
     super(message);
     this.name = 'ApplicationDownloadError';
@@ -115,7 +126,7 @@ export class BlobDownloadService {
       : undefined;
     const message = problem?.detail ?? problem?.mensaje ?? problem?.message ?? fieldMessage ?? problem?.title ?? fallback;
     const code = problem?.errorCode ?? problem?.code ?? problem?.codigo;
-    return new ApplicationDownloadError(message, status, code, problem?.traceId, problem?.title);
+    return new ApplicationDownloadError(message, status, code, problem?.traceId, problem?.title, problem);
   }
 
   private isJsonContentType(contentType: string): boolean {

@@ -115,7 +115,7 @@ public sealed class SobreDigitalController : ControllerBase
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Certificado requerido",
                 detail: "Selecciona una versión de certificado válida.",
-                extensions: new Dictionary<string, object?> { ["code"] = "CERTIFICATE_REQUIRED" });
+                extensions: ErrorExtensions("CERTIFICATE_REQUIRED"));
         }
         if (request.File is null || request.File.Length == 0)
         {
@@ -123,7 +123,7 @@ public sealed class SobreDigitalController : ControllerBase
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Archivo requerido",
                 detail: "Selecciona un archivo no vacío.",
-                extensions: new Dictionary<string, object?> { ["code"] = "FILE_EMPTY" });
+                extensions: ErrorExtensions("FILE_EMPTY"));
         }
         if (request.File.Length > MaximumFileSize)
         {
@@ -131,7 +131,7 @@ public sealed class SobreDigitalController : ControllerBase
                 statusCode: StatusCodes.Status413PayloadTooLarge,
                 title: "Archivo demasiado grande",
                 detail: "El archivo supera el máximo permitido de 50 MB.",
-                extensions: new Dictionary<string, object?> { ["code"] = "FILE_TOO_LARGE" });
+                extensions: ErrorExtensions("FILE_TOO_LARGE"));
         }
         if (requireEnvelopeExtension && !request.File.FileName.EndsWith(".ENV", StringComparison.OrdinalIgnoreCase))
         {
@@ -139,7 +139,7 @@ public sealed class SobreDigitalController : ControllerBase
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Extensión inválida",
                 detail: "El archivo para descifrar debe terminar en .ENV.",
-                extensions: new Dictionary<string, object?> { ["code"] = "ENVELOPE_EXTENSION_REQUIRED" });
+                extensions: ErrorExtensions("ENVELOPE_EXTENSION_REQUIRED"));
         }
         return null;
     }
@@ -164,8 +164,16 @@ public sealed class SobreDigitalController : ControllerBase
             statusCode: status,
             title: "Operación de sobre digital no completada",
             detail: exception.Message,
-            extensions: new Dictionary<string, object?> { ["code"] = exception.ErrorCode });
+            extensions: ErrorExtensions(exception.ErrorCode));
     }
+
+    private Dictionary<string, object?> ErrorExtensions(string errorCode)
+        => new()
+        {
+            ["code"] = errorCode,
+            ["errorCode"] = errorCode,
+            ["traceId"] = HttpContext.TraceIdentifier
+        };
 
     private static async Task<byte[]> ReadFileAsync(IFormFile file, CancellationToken cancellationToken)
     {

@@ -6,6 +6,7 @@ public sealed class NachaGenerationException : InvalidOperationException
         : base($"{code}: {message}")
     {
         Code = code;
+        UserMessage = message;
     }
 
     public NachaGenerationException(
@@ -21,6 +22,7 @@ public sealed class NachaGenerationException : InvalidOperationException
         : base(BuildSafeMessage(code, message, ruleId, chamber, recordType, fieldName, cause, startPosition, expectedLength))
     {
         Code = code;
+        UserMessage = message;
         RuleId = ruleId;
         Chamber = chamber;
         RecordType = recordType;
@@ -31,6 +33,7 @@ public sealed class NachaGenerationException : InvalidOperationException
     }
 
     public string Code { get; }
+    public string UserMessage { get; }
     public string? RuleId { get; }
     public string? Chamber { get; }
     public string? RecordType { get; }

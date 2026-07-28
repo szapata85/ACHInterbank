@@ -87,20 +87,10 @@
 </section>
 
 @if (operationError) {
-  <section class="error-panel" role="alert">
-    <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">error_outline</mat-icon>
-    <div>
-      <strong>No se completó la operación</strong>
-      <p>{{ operationError.message }}</p>
-      @if (operationError.errorCode) {
-        <span>Código: {{ operationError.errorCode }}</span>
-      }
-      @if (operationError.traceId) {
-        <span>Identificador de soporte: {{ operationError.traceId }}</span>
-      }
-    </div>
-    <button mat-stroked-button type="button" (click)="retryOperation()">Reintentar</button>
-  </section>
+  <app-operational-error-panel
+    [error]="operationError.view"
+    (retry)="retryOperation()">
+  </app-operational-error-panel>
 }
 
 <mat-card class="results-card">

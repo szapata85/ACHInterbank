@@ -99,7 +99,7 @@ public class NachaExportController : ControllerBase
         }
         catch (NachaGenerationException ex)
         {
-            return ExportPreconditionFailed(cycleId, ex.Code, ex.Message);
+            return ExportPreconditionFailed(cycleId, ex);
         }
         catch (InvalidOperationException ex) when (TryResolveNachaExportErrorCode(ex.Message, out var code))
         {
@@ -188,7 +188,7 @@ public class NachaExportController : ControllerBase
         }
         catch (NachaGenerationException ex)
         {
-            return ExportPreconditionFailed(cycleId, ex.Code, ex.Message);
+            return ExportPreconditionFailed(cycleId, ex);
         }
         catch (InvalidOperationException ex) when (TryResolveNachaExportErrorCode(ex.Message, out var code))
         {
@@ -226,6 +226,45 @@ public class NachaExportController : ControllerBase
             cycleId));
     }
 
+    private UnprocessableEntityObjectResult ExportPreconditionFailed(
+        string cycleId,
+        NachaGenerationException exception)
+    {
+        var fieldDisplayName = ResolveFieldDisplayName(exception.FieldName);
+        var detail = exception.Code == "NACHA_FIELD_RULE_FAILED" && fieldDisplayName is not null
+            ? $"Una de las transacciones no tiene registrado {ResolveFieldPhrase(fieldDisplayName)}. "
+              + "Este dato es obligatorio para construir el registro de detalle. "
+              + "Corrige la información del destinatario y vuelve a intentar."
+            : exception.UserMessage;
+
+        _logger.LogWarning(
+            "NACHA export rejected. CycleId={CycleId} Phase={Phase} ErrorCode={ErrorCode} RuleId={RuleId}",
+            cycleId,
+            "Generation",
+            exception.Code,
+            exception.RuleId);
+
+        var support = new Dictionary<string, object?>
+        {
+            ["ruleId"] = exception.RuleId,
+            ["chamber"] = exception.Chamber,
+            ["recordType"] = exception.RecordType,
+            ["fieldCode"] = exception.FieldName,
+            ["fieldDisplayName"] = fieldDisplayName,
+            ["startPosition"] = exception.StartPosition,
+            ["expectedLength"] = exception.ExpectedLength,
+            ["reason"] = exception.Cause
+        };
+
+        return UnprocessableEntity(CreateProblemDetails(
+            StatusCodes.Status422UnprocessableEntity,
+            "No fue posible generar el archivo NACHA-M",
+            detail,
+            exception.Code,
+            cycleId,
+            support));
+    }
+
     private IActionResult DigitalEnvelopeFailed(string cycleId, ManagedDigitalEnvelopeException exception)
     {
         var status = exception.ErrorCode switch
@@ -253,7 +292,13 @@ public class NachaExportController : ControllerBase
             cycleId));
     }
 
-    private ProblemDetails CreateProblemDetails(int status, string title, string detail, string code, string cycleId)
+    private ProblemDetails CreateProblemDetails(
+        int status,
+        string title,
+        string detail,
+        string code,
+        string cycleId,
+        IReadOnlyDictionary<string, object?>? support = null)
     {
         var problem = new ProblemDetails
         {
@@ -267,8 +312,31 @@ public class NachaExportController : ControllerBase
         problem.Extensions["errorCode"] = code;
         problem.Extensions["cycleId"] = cycleId;
         problem.Extensions["traceId"] = HttpContext?.TraceIdentifier ?? System.Diagnostics.Activity.Current?.Id ?? "unavailable";
+        if (support is not null)
+        {
+            foreach (var item in support.Where(item => item.Value is not null))
+            {
+                problem.Extensions[item.Key] = item.Value;
+            }
+        }
         return problem;
     }
+
+    private static string? ResolveFieldDisplayName(string? fieldCode)
+        => fieldCode?.ToUpperInvariant() switch
+        {
+            "INDIVIDUALNAME" => "Nombre del receptor",
+            "RECEIVERNAME" => "Nombre del receptor",
+            "COMPANYNAME" => "Nombre de la entidad originadora",
+            "RECEIVINGDFIIDENTIFICATION" => "Entidad receptora",
+            "DFIACCOUNTNUMBER" => "Cuenta receptora",
+            _ => null
+        };
+
+    private static string ResolveFieldPhrase(string fieldDisplayName)
+        => fieldDisplayName.StartsWith("Nombre", StringComparison.OrdinalIgnoreCase)
+            ? $"el {fieldDisplayName.ToLowerInvariant()}"
+            : $"la {fieldDisplayName.ToLowerInvariant()}";
 
     private static bool TryResolveNachaExportErrorCode(string message, out string code)
     {
