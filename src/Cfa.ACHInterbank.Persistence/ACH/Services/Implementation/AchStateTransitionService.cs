@@ -64,10 +64,65 @@ public class AchStateTransitionService : IAchStateTransitionService
             PayloadJson = BuildAuditPayloadJson(toState, payloadJson, normalizedReasonCode)
         };
 
+        await SynchronizePrenotificationThirdPartyAsync(
+            transaction,
+            toState,
+            normalizedReasonCode,
+            transaction.StateChangedAtUtc,
+            ct);
+
         await _context.AchTransactionStateEvents.AddAsync(stateEvent, ct);
         await _context.SaveChangesAsync(ct);
 
         return transaction;
+    }
+
+    private async Task SynchronizePrenotificationThirdPartyAsync(
+        AchTransaction transaction,
+        AchTransferStateEnum toState,
+        string? reasonCode,
+        DateTime changedAtUtc,
+        CancellationToken ct)
+    {
+        if (!transaction.IsPrenotification)
+        {
+            return;
+        }
+
+        var result = toState switch
+        {
+            AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified
+                => CustomerThirdPartyStatusEnum.Active,
+            AchTransferStateEnum.ReturnedByOperator or AchTransferStateEnum.ReturnedByEpr
+                => CustomerThirdPartyStatusEnum.Rejected,
+            _ => (CustomerThirdPartyStatusEnum?)null
+        };
+
+        if (!result.HasValue)
+        {
+            return;
+        }
+
+        var thirdParty = await _context.CustomerThirdParties
+            .FirstOrDefaultAsync(x => x.PrenotificationTransactionId == transaction.Id, ct);
+        if (thirdParty is null)
+        {
+            return;
+        }
+
+        var message = result == CustomerThirdPartyStatusEnum.Active
+            ? toState == AchTransferStateEnum.AppliedTacitly
+                ? "Prenotificación aprobada automáticamente por vencimiento del plazo normativo sin devolución."
+                : "Prenotificación aprobada automáticamente mediante respuesta NACHA-M."
+            : $"Prenotificación rechazada automáticamente mediante respuesta NACHA-M. Causal: {reasonCode}.";
+
+        thirdParty.ApplyAutomaticNachaResult(
+            result.Value,
+            transaction.Id,
+            transaction.AchCycleId,
+            changedAtUtc,
+            message,
+            $"ach-state-transition:{transaction.Id}:{toState}");
     }
 
     private static void ValidateTransition(AchTransferStateEnum fromState, AchTransferStateEnum toState)

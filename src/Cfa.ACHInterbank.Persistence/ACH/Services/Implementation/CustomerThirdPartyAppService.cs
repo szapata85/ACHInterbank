@@ -110,7 +110,33 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
                 t.PrenotificationTransactionId,
                 t.ValidationCycleId,
                 t.ValidationReceivedAt,
-                t.ValidationMessage
+                t.ValidationMessage,
+                ClearingHouseName = t.PrenotificationTransaction == null
+                    ? null
+                    : t.PrenotificationTransaction.AchCycle.ClearingHouse!.Name,
+                ClearingHouseCode = t.PrenotificationTransaction == null
+                    ? null
+                    : t.PrenotificationTransaction.AchCycle.ClearingHouse!.Code,
+                SendingCycleId = t.PrenotificationTransaction == null
+                    ? null
+                    : t.PrenotificationTransaction.AchCycleId,
+                PrenotificationState = t.PrenotificationTransaction == null
+                    ? null
+                    : (AchTransferStateEnum?)t.PrenotificationTransaction.State,
+                ResponseFileName = t.PrenotificationTransactionId == null
+                    ? null
+                    : _context.IncomingNachaTransactionLinks
+                        .Where(link => link.AchTransactionId == t.PrenotificationTransactionId && link.IsFinal)
+                        .OrderByDescending(link => link.LinkedAtUtc)
+                        .Select(link => link.Ingestion.FileName)
+                        .FirstOrDefault(),
+                ResponseCorrelationId = t.PrenotificationTransactionId == null
+                    ? null
+                    : _context.IncomingNachaTransactionLinks
+                        .Where(link => link.AchTransactionId == t.PrenotificationTransactionId && link.IsFinal)
+                        .OrderByDescending(link => link.LinkedAtUtc)
+                        .Select(link => link.Ingestion.CorrelationId)
+                        .FirstOrDefault()
             })
             .ToListAsync(ct);
 
@@ -129,7 +155,17 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
             PrenotificationTransactionId = t.PrenotificationTransactionId,
             ValidationCycleId = t.ValidationCycleId,
             ValidationReceivedAt = t.ValidationReceivedAt,
-            ValidationMessage = t.ValidationMessage
+            ValidationMessage = t.ValidationMessage,
+            ClearingHouseName = t.ClearingHouseName,
+            ClearingHouseCode = t.ClearingHouseCode,
+            SendingCycleId = t.SendingCycleId,
+            ResponseFileName = t.ResponseFileName,
+            ResponseCorrelationId = t.ResponseCorrelationId,
+            StatusSource = t.PrenotificationState == AchTransferStateEnum.AppliedTacitly
+                ? "Aceptación tácita automática"
+                : t.ValidationReceivedAt.HasValue
+                    ? "Procesador automático NACHA-M"
+                    : "Pendiente de resolución automática"
         }).ToList();
 
         return new PagedResponse<CustomerThirdPartyListDto>
@@ -141,40 +177,4 @@ public class CustomerThirdPartyAppService : ICustomerThirdPartyAppService
         };
     }
 
-    public async Task<CustomerThirdPartyListDto> UpdateStatusAsync(
-        int id,
-        CustomerThirdPartyStatusEnum status,
-        string? validationMessage,
-        CancellationToken ct = default)
-    {
-        var entity = await _context.CustomerThirdParties
-            .Include(t => t.Customer)
-            .Include(t => t.DestinationInstitution)
-            .FirstOrDefaultAsync(t => t.Id == id, ct)
-            ?? throw new KeyNotFoundException("Tercero no encontrado.");
-
-        entity.Status = status;
-        entity.ValidationMessage = string.IsNullOrWhiteSpace(validationMessage) ? null : validationMessage.Trim();
-        entity.ValidationReceivedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync(ct);
-
-        return new CustomerThirdPartyListDto
-        {
-            Id = entity.Id,
-            CustomerId = entity.CustomerId,
-            CustomerName = string.IsNullOrWhiteSpace(entity.Customer.CompanyName)
-                ? string.Join(" ", new[] { entity.Customer.FirstName, entity.Customer.LastName, entity.Customer.SecondLastName }.Where(x => !string.IsNullOrWhiteSpace(x)))
-                : entity.Customer.CompanyName!,
-            DestinationInstitutionId = entity.DestinationInstitutionId,
-            DestinationInstitutionName = entity.DestinationInstitution.Name,
-            DestinationAccountNumber = entity.DestinationAccountNumber,
-            RecipientIdNumber = entity.RecipientIdNumber,
-            Status = entity.Status,
-            PrenotificationTransactionId = entity.PrenotificationTransactionId,
-            ValidationCycleId = entity.ValidationCycleId,
-            ValidationReceivedAt = entity.ValidationReceivedAt,
-            ValidationMessage = entity.ValidationMessage
-        };
-    }
 }

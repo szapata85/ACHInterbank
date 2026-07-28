@@ -27,12 +27,15 @@ public class PrenotificationHandlerTests
             DestinationInstitutionId = 2,
             DestinationAccountNumber = "999988887777",
             RecipientIdNumber = "REC-001",
-            Status = definitiveStatus,
-            PrenotificationTransactionId = 41,
-            ValidationCycleId = "CYCLE-VALIDATED",
-            ValidationReceivedAt = new DateTime(2026, 7, 26, 12, 0, 0, DateTimeKind.Utc),
-            ValidationMessage = "Resultado definitivo"
+            PrenotificationTransactionId = 41
         };
+        existing.ApplyAutomaticNachaResult(
+            definitiveStatus,
+            41,
+            "CYCLE-VALIDATED",
+            new DateTime(2026, 7, 26, 12, 0, 0, DateTimeKind.Utc),
+            "Resultado definitivo",
+            "test-evidence");
         var customerRepository = new Mock<Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories.IAchCustomerRepository>();
         customerRepository
             .Setup(repository => repository.FindBySourceAccountNumberAsync("111122223333", It.IsAny<CancellationToken>()))

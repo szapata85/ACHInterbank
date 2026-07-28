@@ -57,11 +57,7 @@ public class PrenotificationHandler : IPrenotificationHandler
                 return;
             }
 
-            existingThirdParty.Status = CustomerThirdPartyStatusEnum.Pending;
-            existingThirdParty.PrenotificationTransaction = transaction;
-            existingThirdParty.ValidationCycleId = null;
-            existingThirdParty.ValidationReceivedAt = null;
-            existingThirdParty.ValidationMessage = null;
+            existingThirdParty.LinkPendingPrenotification(transaction);
         }
         else
         {
@@ -72,7 +68,6 @@ public class PrenotificationHandler : IPrenotificationHandler
                 DestinationInstitutionId = request.DestinationInstitutionId,
                 DestinationAccountNumber = destinationAccountNumber,
                 RecipientIdNumber = recipientIdNumber,
-                Status = CustomerThirdPartyStatusEnum.Pending,
                 PrenotificationTransaction = transaction
             };
             await _customerThirdPartyRepository.AddAsync(thirdParty, ct);

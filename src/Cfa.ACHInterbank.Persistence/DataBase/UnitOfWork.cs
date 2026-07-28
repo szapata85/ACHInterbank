@@ -30,6 +30,11 @@ public sealed class UnitOfWork : IUnitOfWork
             _dbContext.ChangeTracker.Clear();
             throw new IdempotentWriteConflictException(ex);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _dbContext.ChangeTracker.Clear();
+            throw new ConcurrentStateWriteConflictException(ex);
+        }
     }
 
     private static bool IsUniqueViolation(DbUpdateException exception)

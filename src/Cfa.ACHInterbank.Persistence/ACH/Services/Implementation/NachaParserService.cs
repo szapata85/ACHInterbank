@@ -207,10 +207,6 @@ public class NachaParserService : INachaParserService
                             lastEntryAwaitingAddenda = false;
                         }
 
-                        if (PrenoteCodes.Contains(entry.TransactionCode ?? string.Empty))
-                        {
-                            await UpdateThirdPartyStatusAsync(entry, currentHeader?.AchCycleId, isValid, failureReason, ct);
-                        }
                         break;
                     case '7':
                         if (lastEntry is null || !lastEntryAwaitingAddenda)
@@ -1229,36 +1225,6 @@ public class NachaParserService : INachaParserService
         return pseHints.Any(value =>
             !string.IsNullOrWhiteSpace(value) &&
             value.Contains("PSE", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private async Task UpdateThirdPartyStatusAsync(
-        EntryDetail entry,
-        string? validationCycleId,
-        bool isValid,
-        string? failureReason,
-        CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(entry.AccountNumber) || string.IsNullOrWhiteSpace(entry.RecipIdNumber))
-        {
-            return;
-        }
-
-        var thirdParty = await _context.CustomerThirdParties
-            .FirstOrDefaultAsync(t =>
-                t.DestinationAccountNumber == entry.AccountNumber &&
-                t.RecipientIdNumber == entry.RecipIdNumber &&
-                t.Status == CustomerThirdPartyStatusEnum.Pending, ct);
-
-        if (thirdParty is null)
-        {
-            return;
-        }
-
-        thirdParty.Status = isValid ? CustomerThirdPartyStatusEnum.Active : CustomerThirdPartyStatusEnum.Rejected;
-        thirdParty.ValidationCycleId = validationCycleId;
-        thirdParty.ValidationReceivedAt = DateTime.UtcNow;
-        thirdParty.ValidationMessage = isValid ? null : failureReason;
-        _context.Entry(thirdParty).State = EntityState.Modified;
     }
 
     private static List<EntryDetail> EnforceAddendaRequirements(

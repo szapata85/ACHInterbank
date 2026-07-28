@@ -1,45 +1,116 @@
-<app-page-header
-  title="Terceros de prenotificación"
-  subtitle="Gestión y consulta de prenotificaciones por tercero"
-></app-page-header>
+<div class="third-parties-page" data-testid="customer-third-parties-page">
+  <app-page-header
+    title="Terceros y prenotificaciones"
+    description="Consulta el estado y la trazabilidad de las cuentas de terceros"
+  ></app-page-header>
 
-<section class="screen">
-  <form class="form-grid" [formGroup]="filterForm" (ngSubmit)="search()">
-    <label>
-      Búsqueda general
-      <input type="text" formControlName="search" placeholder="Cliente, documento o cuenta" />
-    </label>
-
-    <label>
-      Cuenta destino
-      <input type="text" formControlName="destinationAccountNumber" placeholder="Cuenta destino" />
-    </label>
-
-    <label>
-      Documento receptor
-      <input type="text" formControlName="recipientIdNumber" placeholder="Documento receptor" />
-    </label>
-
-    <label>
-      Estado
-      <select formControlName="status">
-        <option *ngFor="let option of statusOptions" [value]="option.value">{{ option.label }}</option>
-      </select>
-    </label>
-
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary" [disabled]="loading">Buscar</button>
-      <button type="button" class="btn btn-outline" (click)="clear()" [disabled]="loading">Limpiar</button>
+  <aside class="process-help" aria-labelledby="prenotification-help-title" data-testid="prenotification-automatic-help">
+    <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">info</mat-icon>
+    <div>
+      <h2 id="prenotification-help-title">Resolución automática</h2>
+      <p>
+        Las prenotificaciones permanecen pendientes hasta que se procesa una respuesta NACHA-M de ACH Colombia
+        o CENIT, o hasta que vence el plazo normativo sin devolución. Ningún usuario aprueba o rechaza manualmente.
+      </p>
     </div>
-  </form>
+  </aside>
 
-  <div class="error-state" *ngIf="loadError">
-    <p>No fue posible cargar los terceros de prenotificación.</p>
-    <button type="button" class="btn btn-secondary" (click)="search()" [disabled]="loading">Reintentar</button>
-  </div>
+  <section class="filter-panel" aria-labelledby="third-party-filter-title" data-testid="third-party-filter-panel">
+    <header class="filter-panel__header">
+      <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">filter_alt</mat-icon>
+      <div>
+        <h2 id="third-party-filter-title">Filtros de consulta</h2>
+        <p>Busca por cliente, cuenta, documento receptor o estado automático.</p>
+      </div>
+    </header>
+
+    <form #filterFormElement class="filters" [formGroup]="filterForm" (ngSubmit)="search()" novalidate>
+      <mat-form-field appearance="outline">
+        <mat-label>Búsqueda general</mat-label>
+        <input
+          matInput
+          type="search"
+          formControlName="search"
+          placeholder="Cliente, documento o cuenta"
+          autocomplete="off"
+          data-testid="third-party-filter-search"
+        />
+        <mat-hint>Máximo 100 caracteres.</mat-hint>
+        <mat-error *ngIf="shouldShowError('search')">La búsqueda no puede superar 100 caracteres.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Cuenta destino</mat-label>
+        <input
+          matInput
+          inputmode="numeric"
+          formControlName="destinationAccountNumber"
+          autocomplete="off"
+          data-testid="third-party-filter-account"
+        />
+        <mat-error *ngIf="shouldShowError('destinationAccountNumber') && filterForm.controls.destinationAccountNumber.hasError('pattern')">
+          La cuenta destino debe contener solamente números.
+        </mat-error>
+        <mat-error *ngIf="shouldShowError('destinationAccountNumber') && filterForm.controls.destinationAccountNumber.hasError('maxlength')">
+          La cuenta destino no puede superar 50 dígitos.
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Documento receptor</mat-label>
+        <input
+          matInput
+          formControlName="recipientIdNumber"
+          autocomplete="off"
+          data-testid="third-party-filter-recipient"
+        />
+        <mat-error *ngIf="shouldShowError('recipientIdNumber') && filterForm.controls.recipientIdNumber.hasError('pattern')">
+          El documento solo admite letras, números y guion.
+        </mat-error>
+        <mat-error *ngIf="shouldShowError('recipientIdNumber') && filterForm.controls.recipientIdNumber.hasError('maxlength')">
+          El documento no puede superar 50 caracteres.
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Estado</mat-label>
+        <mat-select formControlName="status" data-testid="third-party-filter-status">
+          <mat-option *ngFor="let option of statusOptions" [value]="option.value">{{ option.label }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <div class="filter-actions">
+        <button mat-flat-button type="submit" [disabled]="loading" data-testid="third-party-search">
+          <mat-spinner *ngIf="loading" diameter="18" aria-hidden="true"></mat-spinner>
+          <mat-icon *ngIf="!loading" fontSet="material-symbols-outlined" aria-hidden="true">search</mat-icon>
+          {{ loading ? 'Consultando…' : 'Buscar' }}
+        </button>
+        <button mat-stroked-button type="button" [disabled]="loading" (click)="clear()" data-testid="third-party-clear">
+          <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">filter_alt_off</mat-icon>
+          Limpiar
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <p class="results-summary" role="status" aria-live="polite" data-testid="third-party-results-summary">
+    <ng-container *ngIf="loading">Consultando terceros…</ng-container>
+    <ng-container *ngIf="!loading && !loadError">
+      {{ total }} {{ total === 1 ? 'tercero encontrado' : 'terceros encontrados' }}.
+    </ng-container>
+  </p>
+
+  <ui-estado-error
+    *ngIf="loadError"
+    data-testid="third-party-error"
+    titulo="No fue posible cargar los terceros"
+    mensaje="Verifica la conexión e intenta nuevamente. Los filtros se conservaron."
+    (reintentar)="search(page)"
+  ></ui-estado-error>
 
   <app-table
     *ngIf="!loadError"
+    data-testid="third-party-grid"
     [columns]="columns"
     [data]="rows"
     [loading]="loading"
@@ -52,13 +123,61 @@
 
   <ng-template #rowActionsTpl let-row>
     <div class="row-actions">
-      <button type="button" class="pill pending" (click)="updateStatus(row, 'Pending')">Pendiente</button>
-      <button type="button" class="pill active" (click)="updateStatus(row, 'Active')">Aprobar</button>
-      <button type="button" class="pill rejected" (click)="updateStatus(row, 'Rejected')">Rechazar</button>
+      <mat-chip
+        [class]="statusClass(row.status)"
+        [matTooltip]="row.statusHelp"
+        [attr.aria-label]="'Estado ' + row.statusLabel + '. ' + row.statusHelp"
+      >
+        {{ row.statusLabel }}
+      </mat-chip>
+      <button
+        mat-icon-button
+        type="button"
+        matTooltip="Ver detalle y trazabilidad"
+        [attr.aria-label]="'Ver detalle del tercero ' + row.customerName"
+        (click)="showDetail(row)"
+        data-testid="third-party-view-detail"
+      >
+        <mat-icon fontSet="material-symbols-outlined">visibility</mat-icon>
+      </button>
     </div>
   </ng-template>
 
-  <div class="empty-state" *ngIf="!loading && !hasSearched">
-    Usa los filtros y presiona buscar para cargar resultados.
-  </div>
-</section>
+  <section
+    *ngIf="selectedRow as detail"
+    class="detail-panel"
+    aria-labelledby="third-party-detail-title"
+    data-testid="third-party-detail"
+  >
+    <header>
+      <div>
+        <p class="detail-panel__eyebrow">Consulta de solo lectura</p>
+        <h2 id="third-party-detail-title">Detalle y trazabilidad</h2>
+      </div>
+      <button mat-icon-button type="button" aria-label="Cerrar detalle" (click)="closeDetail()">
+        <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+      </button>
+    </header>
+
+    <dl>
+      <div><dt>Cliente</dt><dd>{{ detail.customerName }}</dd></div>
+      <div><dt>Entidad receptora</dt><dd>{{ detail.destinationInstitutionName }}</dd></div>
+      <div><dt>Cuenta destino</dt><dd>{{ detail.destinationAccountNumber }}</dd></div>
+      <div><dt>Identificación receptor</dt><dd>{{ detail.recipientIdNumber }}</dd></div>
+      <div><dt>Estado</dt><dd>{{ detail.statusLabel }}</dd></div>
+      <div><dt>Cámara compensadora</dt><dd>{{ detail.clearingHouseName || 'Pendiente de asociación' }}</dd></div>
+      <div><dt>Prenotificación</dt><dd>{{ detail.prenotificationTransactionId || 'Sin vínculo registrado' }}</dd></div>
+      <div><dt>Ciclo de envío</dt><dd>{{ detail.sendingCycleId || 'Pendiente de envío' }}</dd></div>
+      <div><dt>Ciclo de validación</dt><dd>{{ detail.validationCycleId || 'Pendiente de respuesta' }}</dd></div>
+      <div><dt>Fecha de respuesta</dt><dd>{{ detail.validationReceivedAtDisplay }}</dd></div>
+      <div><dt>Archivo de respuesta</dt><dd>{{ detail.responseFileName || 'Sin archivo de respuesta' }}</dd></div>
+      <div><dt>Origen del estado</dt><dd>{{ detail.statusSource || 'Procesador automático' }}</dd></div>
+      <div class="detail-panel__wide"><dt>Correlación</dt><dd>{{ detail.responseCorrelationId || 'Sin correlación de respuesta' }}</dd></div>
+      <div class="detail-panel__wide"><dt>Resultado</dt><dd>{{ detail.statusHelp }}</dd></div>
+    </dl>
+
+    <p class="detail-panel__notice" *ngIf="detail.status === 'Pending'">
+      Espera resolución automática. No requiere aprobación ni rechazo por parte del operador.
+    </p>
+  </section>
+</div>

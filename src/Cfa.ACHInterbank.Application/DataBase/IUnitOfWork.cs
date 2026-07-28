@@ -11,3 +11,9 @@ public sealed class IdempotentWriteConflictException : Exception
     public IdempotentWriteConflictException(Exception innerException)
         : base("Una escritura idempotente concurrente ya fue confirmada.", innerException) { }
 }
+
+public sealed class ConcurrentStateWriteConflictException : Exception
+{
+    public ConcurrentStateWriteConflictException(Exception innerException)
+        : base("El estado cambió durante el procesamiento concurrente.", innerException) { }
+}

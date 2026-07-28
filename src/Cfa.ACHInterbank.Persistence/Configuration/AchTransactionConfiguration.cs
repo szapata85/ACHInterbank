@@ -36,6 +36,7 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
             .HasConversion<string>()
             .HasMaxLength(40)
             .HasDefaultValue(AchTransferStateEnum.Pending)
+            .IsConcurrencyToken()
             .IsRequired();
 
         builder.Property(t => t.StateChangedAtUtc)

@@ -124,6 +124,10 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
                 {
                     return await ResolveConcurrentDuplicate(hash, correlationId, now, cancellationToken);
                 }
+                catch (ConcurrentStateWriteConflictException)
+                {
+                    return ConcurrentStateConflict(hash);
+                }
 
                 return new ProcesarRespuestaAchResult(response.Id, true, prenotificationProcessing.Duplicate, true, false, false, response.EstadoProcesamiento, response.MotivoNoHomologacion, hash);
             }
@@ -171,6 +175,10 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         {
             return await ResolveConcurrentDuplicate(hash, correlationId, now, cancellationToken);
         }
+        catch (ConcurrentStateWriteConflictException)
+        {
+            return ConcurrentStateConflict(hash);
+        }
 
         return new ProcesarRespuestaAchResult(response.Id, true, false, hom.ExisteHomologacion, hom.PermiteNotificacion, attempt is not null, response.EstadoProcesamiento, hom.MotivoNoHomologacion, hash);
     }
@@ -190,6 +198,18 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         return new ProcesarRespuestaAchResult(existing.Id, true, true, existing.IdEstadoInterno.HasValue,
             existing.PermiteNotificacion, false, AchResponseProcessingStatus.Duplicada, "Duplicada", hash);
     }
+
+    private static ProcesarRespuestaAchResult ConcurrentStateConflict(string hash)
+        => new(
+            null,
+            false,
+            false,
+            false,
+            false,
+            false,
+            AchResponseProcessingStatus.RequiereRevisionManual,
+            "La prenotificación fue resuelta concurrentemente; no se aplicó un segundo cambio.",
+            hash);
 
     private static bool IsManualReview(string? code)
         => code is "DIFFERENTIAL_RESPONSE_PRENOTIFICATION_NOT_FOUND"

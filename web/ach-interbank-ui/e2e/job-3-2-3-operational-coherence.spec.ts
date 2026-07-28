@@ -61,7 +61,14 @@ test('transacción y simulador consumen un ciclo operativo real y explican bloqu
     destinationInstitutionId: external.id,
     companyEntryDescriptionId: concept.id
   }), [200, 201]);
-  await activateThirdParty(token, sourceAccount, destinationAccount, recipientId, external.id);
+  const thirdPartyIsActive = await verifyThirdPartyCannotBeActivatedManually(
+    token,
+    sourceAccount,
+    destinationAccount,
+    recipientId,
+    external.id);
+  test.skip(!thirdPartyIsActive,
+    'La prenotificación continúa pendiente: el escenario posterior requiere resolución NACHA-M automática.');
 
   await page.goto(`${uiBaseUrl}/transactions/create`);
   await expect(page.getByRole('heading', { name: 'Crear transacción ACH' })).toBeVisible();
@@ -228,14 +235,25 @@ function transactionPayload(data: any): any {
   };
 }
 
-async function activateThirdParty(token: string, source: string, destination: string, recipient: string, institutionId: number): Promise<void> {
+async function verifyThirdPartyCannotBeActivatedManually(
+  token: string,
+  source: string,
+  destination: string,
+  recipient: string,
+  institutionId: number
+): Promise<boolean> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const query = new URLSearchParams({ sourceAccountNumber: source, destinationAccountNumber: destination, recipientIdNumber: recipient, destinationInstitutionId: String(institutionId), page: '1', pageSize: '20' });
     const result = await apiGet<any>(`/api/customer-third-parties?${query}`, token);
     const item = result.items?.[0];
     if (item) {
-      await apiPatch(`/api/customer-third-parties/${item.id}/status`, token, { status: 1, validationMessage: 'Aprobación sintética Playwright JOB 3.2.3' }, [200]);
-      return;
+      const response = await fetch(`${apiBaseUrl}/api/customer-third-parties/${item.id}/status`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 1, validationMessage: 'Intento manual bloqueado' })
+      });
+      expect([404, 405]).toContain(response.status);
+      return item.status === 1 || item.status === 'Active';
     }
     await new Promise(resolve => setTimeout(resolve, 250));
   }

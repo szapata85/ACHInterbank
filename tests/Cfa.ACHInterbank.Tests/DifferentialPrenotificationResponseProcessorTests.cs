@@ -40,6 +40,9 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.Contains(trace.Entries, x => x.SourceField == "differentialResponse.idTransaccion" && x.SourceValueSanitized == fixture.TraceNumber);
         Assert.False(result.MonetaryMovementCreated);
         Assert.False(result.BalancesAffected);
+        var thirdParty = await fixture.Context.CustomerThirdParties.SingleAsync();
+        Assert.Equal(CustomerThirdPartyStatusEnum.Active, thirdParty.Status);
+        Assert.Equal("CYCLE", thirdParty.ValidationCycleId);
     }
 
     [Fact]
@@ -62,6 +65,56 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.Equal("R03", stateEvent.ReasonCode);
         Assert.False(result.MonetaryMovementCreated);
         Assert.False(result.BalancesAffected);
+        var thirdParty = await fixture.Context.CustomerThirdParties.SingleAsync();
+        Assert.Equal(CustomerThirdPartyStatusEnum.Rejected, thirdParty.Status);
+        Assert.Contains("R03", thirdParty.ValidationMessage);
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldNotResolvePrenotification_FromAnotherClearingHouse()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        var response = fixture.BuildResponse("00", null);
+        response.ClearingHouseId = 2;
+
+        var result = await fixture.Processor.ProcessAsync(
+            fixture.SuccessCommand(),
+            response,
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+
+        Assert.False(result.Success);
+        Assert.Equal("DIFFERENTIAL_RESPONSE_CLEARING_HOUSE_MISMATCH", result.ErrorCode);
+        Assert.Equal(AchTransferStateEnum.Pending, fixture.Prenotification.State);
+        Assert.Equal(CustomerThirdPartyStatusEnum.Pending,
+            (await fixture.Context.CustomerThirdParties.SingleAsync()).Status);
+    }
+
+    [Theory]
+    [InlineData("00", null, CustomerThirdPartyStatusEnum.Active)]
+    [InlineData("RJ", "R03", CustomerThirdPartyStatusEnum.Rejected)]
+    public async Task RegistrarRespuestaTransaccion_ShouldResolveCenitPrenotification_WithCenitEvidenceOnly(
+        string externalStatus,
+        string? reason,
+        CustomerThirdPartyStatusEnum expectedStatus)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        await fixture.UseCenitAsync();
+        var command = (expectedStatus == CustomerThirdPartyStatusEnum.Active
+            ? fixture.SuccessCommand()
+            : fixture.RejectedCommand()) with { CodigoCamaraCompensacion = "CENIT" };
+        var response = fixture.BuildResponse(externalStatus, reason);
+        response.CodigoCamaraCompensacion = "CENIT";
+        var homologation = expectedStatus == CustomerThirdPartyStatusEnum.Active
+            ? HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null)
+            : HomologarRespuestaAchResult.Success(true, 2, 2, "Rechazada", "R03", "Cuenta no localizada");
+
+        var result = await fixture.Processor.ProcessAsync(command, response, homologation);
+
+        Assert.True(result.Success);
+        Assert.Equal(expectedStatus, (await fixture.Context.CustomerThirdParties.SingleAsync()).Status);
+        Assert.Equal(1, response.ClearingHouseId);
     }
 
     [Fact]
@@ -296,6 +349,7 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
             => new()
             {
                 Id = Guid.NewGuid(),
+                ClearingHouseId = 1,
                 TipoRespuesta = TipoRespuestaAch.Prenota,
                 IdTransaccion = TraceNumber,
                 CodigoCamaraCompensacion = "ACH",
@@ -344,6 +398,14 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
             await Context.SaveChangesAsync();
         }
 
+        public async Task UseCenitAsync()
+        {
+            var clearingHouse = await Context.ClearingHouses.SingleAsync();
+            clearingHouse.Code = "CENIT";
+            clearingHouse.Name = "CENIT";
+            await Context.SaveChangesAsync();
+        }
+
         private async Task SeedAsync()
         {
             await Catalog.GetMethodsAsync();
@@ -372,6 +434,7 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
                 DestinationInstitutionId = 2,
                 SourceAccountNumber = "0000003101",
                 DestinationAccountNumber = "0000003102",
+                RecipientIdNumber = "900003101",
                 OriginatingDFI = "0001283",
                 ReceivingDFI = "9999000",
                 TraceNumber = TraceNumber,
@@ -382,8 +445,27 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
                 State = AchTransferStateEnum.Pending
             };
             Context.AchTransactions.Add(Prenotification);
+            var customer = new Customer
+            {
+                Id = 1,
+                FirstName = "Cliente",
+                LastName = "UAT",
+                PersonType = "PN",
+                DocumentType = "CC",
+                DocumentNumber = "10000001"
+            };
+            Context.Customers.Add(customer);
+            Context.CustomerThirdParties.Add(new CustomerThirdParty
+            {
+                Id = 1,
+                CustomerId = customer.Id,
+                DestinationInstitutionId = external.Id,
+                DestinationAccountNumber = Prenotification.DestinationAccountNumber,
+                RecipientIdNumber = Prenotification.RecipientIdNumber,
+                PrenotificationTransactionId = Prenotification.Id
+            });
 
-            var ingestion = new IncomingNachaFileIngestion { Id = Guid.NewGuid(), FileName = "0001283.001.1", FileHashSha256 = "HASH", FileSize = 200, ContentType = "text/plain", UploadedBy = "test", CorrelationId = "corr" };
+            var ingestion = new IncomingNachaFileIngestion { Id = Guid.NewGuid(), FileName = "0001283.001.1", FileHashSha256 = "HASH", FileSize = 200, ContentType = "text/plain", UploadedBy = "test", CorrelationId = "corr", ResolvedClearingHouseId = 1, ResolvedAchCycleId = cycle.Id };
             Context.IncomingNachaFileIngestions.Add(ingestion);
             Context.NachaHeaders.Add(new NachaHeader { NachaID = "NACHA-PRENOTE", IncomingNachaFileIngestionId = ingestion.Id, ImmediateOrigin = "0001283", ImmediateDestination = "9999000", FileIdModifier = "A", ReferenceCode = "PRENOTE", ClearingHouseId = 1, AchCycleId = cycle.Id });
             Context.BatchHeaders.Add(new BatchHeader { BatchID = 10, NachaID = "NACHA-PRENOTE", CompanyId = "900003101", CompanyName = "CFA", StandardEntryClassCode = "PPD", CompanyEntryDescription = "PRENOTE", EffectiveEntryDate = "260523", OriginParticipantEntityCode = "0001283", BatchNumber = 1 });

@@ -46,7 +46,7 @@ test.use({
 test.skip(!shouldRun, 'RUN_LOCAL_TRANSACTION_ONBOARDING_E2E=true es requerido para la prueba LIVE no monetaria.');
 test.skip(!hasCredentials, 'ACH_USER y ACH_PASS deben venir del entorno.');
 
-test('onboarding silencioso e idempotente desde la SPA, con aprobación por UI', async ({ page }, testInfo) => {
+test('onboarding silencioso desde la SPA conserva la prenotificación sin decisión manual', async ({ page }, testInfo) => {
   test.setTimeout(300_000);
   const db = new G36SqlServer();
   const diagnostics = installDiagnostics(page);
@@ -105,13 +105,13 @@ test('onboarding silencioso e idempotente desde la SPA, con aprobación por UI',
       stateEvents: expectedTransactionsAfterFirst
     });
 
-    let approved = loadThirdParty(db, data);
-    if (approved.status !== 'Active') {
-      await approveThirdPartyFromUi(page, data.recipientDocument);
-      approved = loadThirdParty(db, data);
-    }
-    expect(approved.status).toBe('Active');
+    const approved = loadThirdParty(db, data);
+    await assertThirdPartyIsReadOnly(page, token, approved.id, data.recipientDocument);
+    expect(['Pending', 'Active']).toContain(approved.status);
     expect(approved.prenotificationTransactionId).toBe(first.transaction.id);
+    if (approved.status === 'Pending') {
+      return;
+    }
 
     const second = initial.transactions < 2
       ? await createPrenotificationFromUi(page, testInfo, data, destination!, true)
@@ -275,24 +275,25 @@ async function createPrenotificationFromUi(
   return { transaction, payload: posts[0], postCount: posts.length };
 }
 
-async function approveThirdPartyFromUi(page: Page, recipientDocument: string): Promise<void> {
+async function assertThirdPartyIsReadOnly(
+  page: Page,
+  token: string,
+  thirdPartyId: number,
+  recipientDocument: string
+): Promise<void> {
   await page.goto(`${ui}/customer-third-parties`);
-  await expect(page.locator('h1').filter({ hasText: 'Terceros de prenotificación' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Terceros y prenotificaciones' })).toBeVisible();
   await page.getByLabel('Documento receptor', { exact: true }).fill(recipientDocument);
   await page.getByRole('button', { name: 'Buscar', exact: true }).click();
   const row = page.locator('.ag-row').filter({ hasText: recipientDocument });
   await expect(row).toHaveCount(1);
-  const approveButton = page.getByRole('button', { name: 'Aprobar', exact: true });
-  await expect(approveButton).toHaveCount(1);
-  const responsePromise = page.waitForResponse(response =>
-    response.request().method() === 'PATCH'
-    && new URL(response.url()).pathname.endsWith('/status'), {
-    timeout: 30_000
+  await expect(page.getByRole('button', { name: 'Aprobar', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Rechazar', exact: true })).toHaveCount(0);
+  const forbidden = await page.request.patch(`${ui}/api/customer-third-parties/${thirdPartyId}/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { status: 1, validationMessage: 'Intento manual bloqueado' }
   });
-  await approveButton.click({ timeout: 15_000 });
-  const response = await responsePromise;
-  expect(response.status(), await response.text()).toBe(200);
-  await expect(page.getByText('Estado actualizado correctamente.')).toBeVisible();
+  expect([404, 405]).toContain(forbidden.status());
 }
 
 function loadOnboardingSnapshot(
@@ -368,7 +369,7 @@ async function fill(page: Page, label: string, value: string): Promise<void> {
 }
 
 async function selectMaterialOption(page: Page, label: string, optionText: string): Promise<void> {
-  const control = page.getByLabel(label, { exact: true });
+  const control = page.getByLabel(label, { exact: true }).first();
   await expect(control).toBeVisible();
   if (await control.getAttribute('aria-autocomplete') === 'list') {
     await control.fill(optionText);
@@ -382,7 +383,7 @@ async function selectMaterialOption(page: Page, label: string, optionText: strin
   await control.click();
   const option = page.getByRole('option').filter({ hasText: optionText });
   await expect(option).toHaveCount(1);
-  await option.click();
+  await option.evaluate((element: HTMLElement) => element.click());
 }
 
 async function assertResponsive(page: Page, testInfo: TestInfo): Promise<void> {

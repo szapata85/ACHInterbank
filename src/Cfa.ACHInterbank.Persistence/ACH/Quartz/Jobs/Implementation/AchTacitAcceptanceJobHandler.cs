@@ -35,7 +35,7 @@ public class AchTacitAcceptanceJobHandler : ITaskHandler
 
         var candidates = await _db.AchTransactions
             .AsNoTracking()
-            .Where(t => t.State == AchTransferStateEnum.Pending)
+            .Where(t => t.IsPrenotification && t.State == AchTransferStateEnum.Pending)
             .Where(t =>
                 (t.SlaDeadlineAtUtc.HasValue && t.SlaDeadlineAtUtc.Value <= utcNow)
                 || (!t.SlaDeadlineAtUtc.HasValue && t.EffectiveEntryDate.Date < utcNow.Date))

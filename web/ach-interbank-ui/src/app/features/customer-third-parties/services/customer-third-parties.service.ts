@@ -5,8 +5,7 @@ import { ApiService } from '../../../core/services/api.service';
 import {
   CustomerThirdPartyFilters,
   CustomerThirdPartyRow,
-  PagedResponse,
-  UpdateCustomerThirdPartyStatusRequest
+  PagedResponse
 } from '../models/customer-third-party.model';
 
 type CustomerThirdPartyStatusCode = 0 | 1 | 2;
@@ -52,15 +51,6 @@ export class CustomerThirdPartiesService {
         ...response,
         items: (response.items ?? []).map(item => this.toUiRow(item))
       })));
-  }
-
-  updateStatus(id: number, request: UpdateCustomerThirdPartyStatusRequest): Observable<CustomerThirdPartyRow> {
-    return this.api
-      .patch<CustomerThirdPartyApiRow>(`${this.basePath}/${id}/status`, {
-        ...request,
-        status: statusCodes[request.status]
-      })
-      .pipe(map(response => this.toUiRow(response)));
   }
 
   private toUiRow(row: CustomerThirdPartyApiRow): CustomerThirdPartyRow {

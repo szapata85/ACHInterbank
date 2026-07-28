@@ -83,6 +83,40 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
                 prenotification.Id);
         }
 
+        var responseClearingHouseId = response.ClearingHouseId;
+        var prenotificationClearingHouseId = prenotification.AchCycle?.ClearingHouseId;
+        if (!responseClearingHouseId.HasValue
+            || !match.NachaHeader.ClearingHouseId.HasValue
+            || !prenotificationClearingHouseId.HasValue
+            || responseClearingHouseId.Value != match.NachaHeader.ClearingHouseId.Value
+            || responseClearingHouseId.Value != prenotificationClearingHouseId.Value)
+        {
+            var mismatchTrace = await WriteTraceAsync(command, response, homologation, match, prenotification, cancellationToken);
+            return DifferentialPrenotificationResponseProcessResult.Failed(
+                "DIFFERENTIAL_RESPONSE_CLEARING_HOUSE_MISMATCH",
+                "La cámara de la respuesta, el archivo NACHA-M y la prenotificación no coinciden.",
+                mismatchTrace.TraceId,
+                prenotification.Id);
+        }
+
+        if (!string.Equals(
+                Normalize(match.EntryDetail.AccountNumber),
+                Normalize(prenotification.DestinationAccountNumber),
+                StringComparison.Ordinal)
+            || (!string.IsNullOrWhiteSpace(match.EntryDetail.RecipIdNumber)
+                && !string.Equals(
+                    Normalize(match.EntryDetail.RecipIdNumber),
+                    Normalize(prenotification.RecipientIdNumber),
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            var inconsistentTrace = await WriteTraceAsync(command, response, homologation, match, prenotification, cancellationToken);
+            return DifferentialPrenotificationResponseProcessResult.Failed(
+                "DIFFERENTIAL_RESPONSE_IDENTITY_MISMATCH",
+                "La cuenta o identificación de la respuesta no coincide con la prenotificación.",
+                inconsistentTrace.TraceId,
+                prenotification.Id);
+        }
+
         var operation = _operationResolver.ResolveDifferentialResponse(command.IdTransaccion, prenotification.Id);
         if (operation.MovesMoney)
         {
@@ -154,6 +188,26 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
                 balancesAffected = false
             })
         });
+
+        var thirdParty = await _context.CustomerThirdParties
+            .FirstOrDefaultAsync(x => x.PrenotificationTransactionId == prenotification.Id, cancellationToken);
+        if (thirdParty is not null)
+        {
+            var thirdPartyStatus = route.TargetState is AchTransferStateEnum.Certified or AchTransferStateEnum.AppliedTacitly
+                ? CustomerThirdPartyStatusEnum.Active
+                : CustomerThirdPartyStatusEnum.Rejected;
+            var validationMessage = thirdPartyStatus == CustomerThirdPartyStatusEnum.Active
+                ? "Prenotificación aprobada automáticamente mediante respuesta NACHA-M."
+                : $"Prenotificación rechazada automáticamente mediante respuesta NACHA-M. Causal: {route.ReasonCode}.";
+
+            thirdParty.ApplyAutomaticNachaResult(
+                thirdPartyStatus,
+                prenotification.Id,
+                match.NachaHeader!.AchCycleId,
+                response.FechaRecepcion,
+                validationMessage,
+                $"ach-response:{response.Id:D}:trace:{trace.TraceId}");
+        }
 
         return new DifferentialPrenotificationResponseProcessResult(
             Processed: true,
@@ -241,6 +295,7 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
     {
         var query = _context.AchTransactions
             .Include(x => x.SourceInstitution)
+            .Include(x => x.AchCycle)
             .Where(x => x.IsPrenotification && x.SourceInstitution.IsDefaultSource);
 
         if (linkedTransactionId.HasValue)
@@ -252,12 +307,15 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
             }
         }
 
-        return await query
+        var candidates = await query
             .Where(x => x.Reference == reference
                 || x.TransactionExternalId == reference
                 || x.TraceNumber == reference)
             .OrderByDescending(x => x.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+            .Take(2)
+            .ToListAsync(cancellationToken);
+
+        return candidates.Count == 1 ? candidates[0] : null;
     }
 
     private static DifferentialResponseMappingPayload BuildTracePayload(

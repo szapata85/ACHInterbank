@@ -13,7 +13,11 @@ internal class CustomerThirdPartyConfiguration : IEntityTypeConfiguration<Custom
 
         builder.Property(t => t.DestinationAccountNumber).HasMaxLength(50).IsRequired();
         builder.Property(t => t.RecipientIdNumber).HasMaxLength(50).IsRequired();
-        builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(t => t.Status)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .IsConcurrencyToken()
+            .IsRequired();
         builder.Property(t => t.ValidationMessage).HasMaxLength(200);
 
         builder.HasOne(t => t.Customer)
