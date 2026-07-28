@@ -49,6 +49,34 @@ interface DeleteDialogData {
   item: NavigationMenuItem;
 }
 
+const FRIENDLY_ROLE_LABELS: Readonly<Record<string, string>> = {
+  Admin: 'Administrador',
+  'ACH.Operator': 'Operador ACH'
+};
+
+const FRIENDLY_PERMISSION_LABELS: Readonly<Record<string, string>> = {
+  CanManageAch: 'Administrar operaciones ACH',
+  CanManageCertificates: 'Administrar certificados digitales',
+  CanManageUsers: 'Administrar usuarios',
+  CanReadAch: 'Consultar información ACH',
+  CanReadAliases: 'Consultar alias',
+  CanReadCatalogs: 'Consultar catálogos',
+  'ClearingHouses.ChangeStatus': 'Activar o desactivar cámaras compensadoras',
+  'ClearingHouses.Create': 'Crear cámaras compensadoras',
+  'ClearingHouses.ManageCycles': 'Administrar ciclos por cámara',
+  'ClearingHouses.ManageSpecialDates': 'Administrar fechas especiales por cámara',
+  'ClearingHouses.Update': 'Editar cámaras compensadoras',
+  'ClearingHouses.View': 'Consultar cámaras compensadoras',
+  'P1.ConfigManage': 'Administrar configuración',
+  'P1.ConfigRead': 'Consultar configuración',
+  'Scheduler.Execute': 'Ejecutar tareas autorizadas',
+  'Scheduler.History.View': 'Consultar historial del programador',
+  'Scheduler.ManageSchedule': 'Editar programaciones',
+  'Scheduler.PauseResume': 'Pausar y reanudar tareas',
+  'Scheduler.View': 'Consultar tareas programadas',
+  'Scheduler.ViewInstances': 'Consultar instancias del clúster'
+};
+
 @Component({
   selector: 'app-navigation-menu-delete-dialog',
   standalone: true,
@@ -167,6 +195,8 @@ export class NavigationMenuComponent implements OnInit, OnDestroy {
 
   private roleLookup = new Map<string, string>();
   private permissionLookup = new Map<string, string>();
+  private roleCodeLookup = new Map<string, string>();
+  private permissionCodeLookup = new Map<string, string>();
   private initialPayload: SaveNavigationMenuItem | null = null;
 
   readonly canManage = this.authService.hasRole('Admin') && this.authService.hasPermission('CanManageUsers');
@@ -363,8 +393,12 @@ export class NavigationMenuComponent implements OnInit, OnDestroy {
         next: ({ items, roles, permissions }) => {
           this.roles = Array.isArray(roles) ? roles : [];
           this.permissions = Array.isArray(permissions) ? permissions : [];
-          this.roleLookup = new Map(this.roles.map((role) => [role.id, role.name]));
-          this.permissionLookup = new Map(this.permissions.map((permission) => [permission.id, permission.name]));
+          this.roleLookup = new Map(this.roles.map((role) => [role.id, this.roleDisplayLabel(role)]));
+          this.permissionLookup = new Map(
+            this.permissions.map((permission) => [permission.id, this.permissionDisplayLabel(permission)])
+          );
+          this.roleCodeLookup = new Map(this.roles.map((role) => [role.id, role.name]));
+          this.permissionCodeLookup = new Map(this.permissions.map((permission) => [permission.id, permission.name]));
           this.applyLoadedItems(items);
         },
         error: (error: unknown) => {
@@ -609,7 +643,7 @@ export class NavigationMenuComponent implements OnInit, OnDestroy {
       return 'Todos los roles';
     }
 
-    return item.roleIds.map((id) => this.roleLookup.get(id) ?? id).join(', ');
+    return this.selectionSummary(item.roleIds, this.roleLookup);
   }
 
   getPermissionsText(item: NavigationMenuItem): string {
@@ -617,7 +651,27 @@ export class NavigationMenuComponent implements OnInit, OnDestroy {
       return 'Sin permiso adicional';
     }
 
-    return item.permissionIds.map((id) => this.permissionLookup.get(id) ?? id).join(', ');
+    return this.selectionSummary(item.permissionIds, this.permissionLookup);
+  }
+
+  roleDisplayLabel(role: RoleSummary): string {
+    return FRIENDLY_ROLE_LABELS[role.name]
+      ?? this.friendlyDescription(role.description, role.name)
+      ?? this.humanizeTechnicalIdentifier(role.name);
+  }
+
+  permissionDisplayLabel(permission: Permission): string {
+    return FRIENDLY_PERMISSION_LABELS[permission.name]
+      ?? this.friendlyDescription(permission.description, permission.name)
+      ?? this.humanizeTechnicalIdentifier(permission.name);
+  }
+
+  roleSelectionText(ids: readonly string[] | null | undefined): string {
+    return ids?.length ? this.selectionSummary(ids, this.roleLookup) : 'Todos los roles';
+  }
+
+  permissionSelectionText(ids: readonly string[] | null | undefined): string {
+    return ids?.length ? this.selectionSummary(ids, this.permissionLookup) : 'Sin permiso adicional';
   }
 
   parentLabel(parentId: number | null | undefined): string {
@@ -694,7 +748,12 @@ export class NavigationMenuComponent implements OnInit, OnDestroy {
       item.route,
       item.icon ?? '',
       this.getRolesText(item),
-      this.getPermissionsText(item)
+      this.getPermissionsText(item),
+      ...item.roleIds.flatMap((id) => [this.roleLookup.get(id) ?? '', this.roleCodeLookup.get(id) ?? id]),
+      ...item.permissionIds.flatMap((id) => [
+        this.permissionLookup.get(id) ?? '',
+        this.permissionCodeLookup.get(id) ?? id
+      ])
     ].join(' ').toLocaleLowerCase('es');
     const matchesSearch = !normalizedSearch || searchable.includes(normalizedSearch);
     const matchesStatus = status === 'all'
@@ -833,6 +892,39 @@ export class NavigationMenuComponent implements OnInit, OnDestroy {
       roleIds: [...(value.roleIds ?? [])],
       permissionIds: [...(value.permissionIds ?? [])]
     };
+  }
+
+  private selectionSummary(ids: readonly string[], lookup: ReadonlyMap<string, string>): string {
+    const labels = ids.map((id) => lookup.get(id) ?? this.humanizeTechnicalIdentifier(id));
+    const visible = labels.slice(0, 2);
+    const remaining = labels.length - visible.length;
+    return remaining > 0 ? `${visible.join(', ')} +${remaining} adicionales` : visible.join(', ');
+  }
+
+  private friendlyDescription(description: string | null | undefined, technicalName: string): string | null {
+    const candidate = description?.trim();
+    if (
+      !candidate
+      || candidate.toLocaleLowerCase('es') === technicalName.trim().toLocaleLowerCase('es')
+      || /^(?:Can[A-Z]|[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)+)$/.test(candidate)
+    ) {
+      return null;
+    }
+
+    return candidate;
+  }
+
+  private humanizeTechnicalIdentifier(value: string): string {
+    const normalized = value
+      .replace(/[._-]+/g, ' ')
+      .replace(/([a-záéíóúñ])([A-Z])/g, '$1 $2')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!normalized) {
+      return 'Sin etiqueta';
+    }
+
+    return normalized.charAt(0).toLocaleUpperCase('es') + normalized.slice(1);
   }
 
   private clonePayload(payload: SaveNavigationMenuItem): SaveNavigationMenuItem {

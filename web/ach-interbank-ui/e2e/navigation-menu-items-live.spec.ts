@@ -25,7 +25,170 @@ interface MenuItemDto {
   children?: MenuItemDto[];
 }
 
+interface CatalogEntry {
+  id: string;
+  name: string;
+  description?: string | null;
+}
+
 test.describe('Administración del menú - runtime real', () => {
+  test('hotfix: formulario sin solapamientos y etiquetas administrativas comprensibles', async ({ page }) => {
+    test.setTimeout(180_000);
+    await mkdir(evidenceDir, { recursive: true });
+
+    const writes: string[] = [];
+    const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
+    const failedRequests: string[] = [];
+    const unexpectedResponses: string[] = [];
+
+    const token = await login(page);
+    page.on('console', (message) => {
+      if (message.type() === 'error') {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    page.on('requestfailed', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path.startsWith('/api/')) {
+        failedRequests.push(`${request.method()} ${path}`);
+      }
+    });
+    page.on('response', (response) => {
+      const path = new URL(response.url()).pathname;
+      if (path.startsWith('/api/') && response.status() >= 400) {
+        unexpectedResponses.push(`${response.status()} ${response.request().method()} ${path}`);
+      }
+    });
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (
+        /^\/api\/navigation\/menu-items(?:\/\d+)?$/.test(path)
+        && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())
+      ) {
+        writes.push(`${request.method()} ${path}`);
+      }
+    });
+
+    const [rolesResponse, permissionsResponse] = await Promise.all([
+      page.request.get(`${apiUrl}/api/roles`, { headers: { Authorization: `Bearer ${token}` } }),
+      page.request.get(`${apiUrl}/api/permissions`, { headers: { Authorization: `Bearer ${token}` } })
+    ]);
+    expect(rolesResponse.ok()).toBeTruthy();
+    expect(permissionsResponse.ok()).toBeTruthy();
+    const roles = await rolesResponse.json() as CatalogEntry[];
+    const permissions = await permissionsResponse.json() as CatalogEntry[];
+    const adminRole = roles.find((role) => role.name === 'Admin');
+    const operatorRole = roles.find((role) => role.name === 'ACH.Operator');
+    const manageUsersPermission = permissions.find((permission) => permission.name === 'CanManageUsers');
+    expect(adminRole).toBeTruthy();
+    expect(operatorRole).toBeTruthy();
+    expect(manageUsersPermission).toBeTruthy();
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${spaUrl}/navigation/menu-items`);
+    await page.waitForLoadState('networkidle');
+
+    const preferredNode = page.locator('[aria-label^="Seleccionar Bloqueo de acceso,"]');
+    const node = await preferredNode.count()
+      ? preferredNode
+      : page.locator('.navigation-admin__node-main').first();
+    await expect(node).toHaveCount(1);
+    await node.click();
+
+    const viewports = [
+      { width: 1440, height: 900, screenshot: 'menu-item-form-desktop-fixed.png' },
+      { width: 768, height: 1024, screenshot: 'menu-item-form-tablet-fixed.png' },
+      { width: 390, height: 844, screenshot: 'menu-item-form-mobile-fixed.png' }
+    ];
+
+    try {
+      for (const viewport of viewports) {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await page.getByRole('button', { name: 'Editar opción', exact: true }).click();
+        await expect(page.locator('.navigation-admin__form')).toBeVisible();
+        await expect(page.locator('.navigation-admin__form mat-hint')).toHaveCount(7);
+        await expect(page.getByText('Roles permitidos', { exact: true })).toBeVisible();
+        await expect(page.getByText('Permisos necesarios', { exact: true })).toBeVisible();
+
+        await assertNoFormFieldOverlap(page);
+        await assertNoHorizontalOverflow(page, viewport.width, viewport.height);
+
+        const roleSelect = page.locator('mat-select[formcontrolname="roleIds"]');
+        await roleSelect.press('Enter');
+        const adminOption = page.locator(`mat-option[data-role-id="${adminRole!.id}"]`);
+        const operatorOption = page.locator(`mat-option[data-role-id="${operatorRole!.id}"]`);
+        await expect(adminOption.locator('.navigation-admin__select-option-label'))
+          .toHaveText('Administrador');
+        await expect(adminOption.locator('small')).toHaveText('Código interno: Admin');
+        await expect(operatorOption.locator('.navigation-admin__select-option-label'))
+          .toHaveText('Operador ACH');
+        await expect(operatorOption.locator('small')).toHaveText('Código interno: ACH.Operator');
+        expect(await operatorOption.getAttribute('data-role-id')).toBe(operatorRole!.id);
+        if (await operatorOption.getAttribute('aria-selected') !== 'true') {
+          await operatorOption.click();
+        }
+        await page.keyboard.press('Escape');
+        await expect(roleSelect).toContainText('Operador ACH');
+
+        const permissionSelect = page.locator('mat-select[formcontrolname="permissionIds"]');
+        await permissionSelect.press('Enter');
+        const manageUsersOption = page.locator(
+          `mat-option[data-permission-id="${manageUsersPermission!.id}"]`
+        );
+        await expect(manageUsersOption.locator('.navigation-admin__select-option-label'))
+          .toHaveText('Administrar usuarios');
+        await expect(manageUsersOption.locator('small')).toHaveText('Código interno: CanManageUsers');
+        expect(await manageUsersOption.getAttribute('data-permission-id')).toBe(manageUsersPermission!.id);
+        if (viewport.width === 1440) {
+          await page.screenshot({
+            path: resolve(evidenceDir, 'menu-item-friendly-permissions.png'),
+            fullPage: true
+          });
+        }
+        if (await manageUsersOption.getAttribute('aria-selected') !== 'true') {
+          await manageUsersOption.click();
+        }
+        await page.keyboard.press('Escape');
+        await expect(permissionSelect).toContainText('Administrar usuarios');
+
+        await page.screenshot({ path: resolve(evidenceDir, viewport.screenshot), fullPage: true });
+
+        await page.getByRole('textbox', { name: 'Etiqueta visible', exact: true }).fill('');
+        await page.getByRole('textbox', { name: 'Ruta', exact: true }).fill('ruta con espacios no permitidos');
+        const orderInput = page.locator('input[formcontrolname="order"]');
+        await orderInput.fill('-1');
+        await orderInput.press('Tab');
+        await expect(page.getByText('La etiqueta es obligatoria.', { exact: true })).toBeVisible();
+        await expect(page.getByText('Usa una ruta interna válida, sin espacios.', { exact: true })).toBeVisible();
+        await expect(page.getByText('El orden no puede ser negativo.', { exact: true })).toBeVisible();
+        await assertNoFormFieldOverlap(page);
+        await assertNoHorizontalOverflow(page, viewport.width, viewport.height);
+
+        if (viewport.width === 1440) {
+          await page.screenshot({
+            path: resolve(evidenceDir, 'menu-item-validation-errors-fixed.png'),
+            fullPage: true
+          });
+        }
+
+        await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+      }
+    } finally {
+      const cancel = page.getByRole('button', { name: 'Cancelar', exact: true });
+      if (await cancel.isVisible()) {
+        await cancel.click();
+      }
+    }
+
+    expect(writes, 'Abrir, seleccionar y cancelar no debe escribir').toEqual([]);
+    expect(consoleErrors, 'No debe haber errores de consola').toEqual([]);
+    expect(pageErrors, 'No debe haber excepciones de página').toEqual([]);
+    expect(failedRequests, 'No debe haber requests API fallidos').toEqual([]);
+    expect(unexpectedResponses, 'No debe haber HTTP 4xx/5xx inesperados').toEqual([]);
+  });
+
   test('maestro-detalle Material, persistencia segura, jerarquía y responsive', async ({ page }) => {
     test.setTimeout(150_000);
     await mkdir(evidenceDir, { recursive: true });
@@ -263,6 +426,63 @@ async function assertResponsiveView(
   const overflow = await page.evaluate(() => document.body.scrollWidth - window.innerWidth);
   expect(overflow, `No debe existir overflow horizontal en ${width}x${height}`).toBeLessThanOrEqual(1);
   await page.screenshot({ path: resolve(evidenceDir, screenshotName), fullPage: true });
+}
+
+async function assertNoFormFieldOverlap(page: Page): Promise<void> {
+  const violations = await page.locator('.navigation-admin__form-grid').evaluate((grid) => {
+    const tolerance = 1;
+    const intersects = (left: DOMRect, right: DOMRect) => (
+      left.left < right.right - tolerance
+      && left.right > right.left + tolerance
+      && left.top < right.bottom - tolerance
+      && left.bottom > right.top + tolerance
+    );
+    const fields = Array.from(grid.querySelectorAll<HTMLElement>('mat-form-field'))
+      .filter((field) => field.getClientRects().length > 0);
+    const issues: string[] = [];
+
+    fields.forEach((field, index) => {
+      const fieldRect = field.getBoundingClientRect();
+      const label = field.querySelector('mat-label')?.textContent?.trim() ?? `campo ${index + 1}`;
+      const messages = Array.from(field.querySelectorAll<HTMLElement>('mat-hint, mat-error'))
+        .filter((message) => {
+          const style = getComputedStyle(message);
+          return style.display !== 'none' && style.visibility !== 'hidden' && message.getClientRects().length > 0;
+        });
+
+      for (const message of messages) {
+        const messageRect = message.getBoundingClientRect();
+        if (messageRect.bottom > fieldRect.bottom + tolerance) {
+          issues.push(`${label}: el texto auxiliar sale del mat-form-field`);
+        }
+
+        for (const nextField of fields.slice(index + 1)) {
+          const nextOutline = nextField.querySelector<HTMLElement>('.mat-mdc-text-field-wrapper');
+          if (nextOutline && intersects(messageRect, nextOutline.getBoundingClientRect())) {
+            issues.push(`${label}: el texto auxiliar intersecta el siguiente control`);
+          }
+        }
+      }
+
+      for (const nextField of fields.slice(index + 1)) {
+        const nextRect = nextField.getBoundingClientRect();
+        const sharesHorizontalSpace = fieldRect.left < nextRect.right - tolerance
+          && fieldRect.right > nextRect.left + tolerance;
+        if (sharesHorizontalSpace && fieldRect.top < nextRect.top && fieldRect.bottom > nextRect.top + tolerance) {
+          issues.push(`${label}: el mat-form-field se superpone con la fila siguiente`);
+        }
+      }
+    });
+
+    return [...new Set(issues)];
+  });
+
+  expect(violations, `Solapamientos detectados:\n${violations.join('\n')}`).toEqual([]);
+}
+
+async function assertNoHorizontalOverflow(page: Page, width: number, height: number): Promise<void> {
+  const overflow = await page.evaluate(() => document.body.scrollWidth - window.innerWidth);
+  expect(overflow, `No debe existir overflow horizontal en ${width}x${height}`).toBeLessThanOrEqual(1);
 }
 
 async function selectNode(page: Page, label: string): Promise<void> {

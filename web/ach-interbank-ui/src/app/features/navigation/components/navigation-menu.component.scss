@@ -448,17 +448,56 @@
 }
 
 .navigation-admin__form-grid {
+  column-gap: 14px;
   display: grid;
-  gap: 4px 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  row-gap: 24px;
 }
 
 .navigation-admin__form-grid mat-form-field {
+  align-self: start;
   min-width: 0;
+}
+
+.navigation-admin__form-grid mat-hint,
+.navigation-admin__form-grid mat-error {
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.navigation-admin__form-grid mat-select-trigger {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .navigation-admin__form-field--wide {
   grid-column: 1 / -1;
+}
+
+.navigation-admin__select-option {
+  height: auto;
+  min-height: 62px;
+}
+
+.navigation-admin__select-option-copy {
+  display: grid;
+  line-height: 1.25;
+  min-width: 0;
+  padding: 7px 0;
+}
+
+.navigation-admin__select-option-label {
+  color: #17213a;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.navigation-admin__select-option-copy > small {
+  color: #66758c;
+  font-size: 0.72rem;
+  margin-top: 3px;
 }
 
 .navigation-admin__icon-option {

@@ -394,7 +394,7 @@
           </div>
 
           <div class="navigation-admin__form-grid">
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
               <mat-label>Etiqueta visible</mat-label>
               <input matInput type="text" formControlName="label" maxlength="200" />
               <mat-hint>Nombre que verá el usuario en el menú.</mat-hint>
@@ -402,7 +402,7 @@
               <mat-error *ngIf="form.controls.label.hasError('maxlength')">Máximo 200 caracteres.</mat-error>
             </mat-form-field>
 
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
               <mat-label>Ruta</mat-label>
               <input matInput type="text" formControlName="route" placeholder="/ruta-interna" maxlength="400" />
               <mat-hint>Ruta interna de la SPA; debe comenzar por /.</mat-hint>
@@ -412,7 +412,7 @@
               <mat-error *ngIf="form.controls.route.hasError('maxlength')">Máximo 400 caracteres.</mat-error>
             </mat-form-field>
 
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
               <mat-label>Icono</mat-label>
               <mat-select formControlName="icon">
                 <mat-select-trigger>
@@ -431,7 +431,7 @@
               <mat-error *ngIf="form.controls.icon.hasError('maxlength')">Máximo 100 caracteres.</mat-error>
             </mat-form-field>
 
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
               <mat-label>Orden</mat-label>
               <input matInput type="number" formControlName="order" min="0" step="1" />
               <mat-hint>Posición entre opciones del mismo nivel.</mat-hint>
@@ -440,7 +440,11 @@
               <mat-error *ngIf="form.controls.order.hasError('integer')">Ingresa un número entero.</mat-error>
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="navigation-admin__form-field--wide">
+            <mat-form-field
+              appearance="outline"
+              subscriptSizing="dynamic"
+              class="navigation-admin__form-field--wide"
+            >
               <mat-label>Elemento padre</mat-label>
               <mat-select formControlName="parentId">
                 <mat-option [value]="null">Sin padre (opción raíz)</mat-option>
@@ -454,19 +458,65 @@
               <mat-error *ngIf="form.controls.parentId.hasError('parentCycle')">Un descendiente no puede convertirse en padre.</mat-error>
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="navigation-admin__form-field--wide">
+            <mat-form-field
+              appearance="outline"
+              subscriptSizing="dynamic"
+              class="navigation-admin__form-field--wide"
+            >
               <mat-label>Roles permitidos</mat-label>
-              <mat-select formControlName="roleIds" multiple>
-                <mat-option *ngFor="let role of roles" [value]="role.id">{{ role.name }}</mat-option>
+              <mat-select
+                formControlName="roleIds"
+                multiple
+                [attr.aria-label]="'Roles permitidos. Selección: ' + roleSelectionText(form.value.roleIds)"
+              >
+                <mat-select-trigger>
+                  {{ roleSelectionText(form.value.roleIds) }}
+                </mat-select-trigger>
+                <mat-option
+                  *ngFor="let role of roles"
+                  [value]="role.id"
+                  [attr.data-role-id]="role.id"
+                  class="navigation-admin__select-option"
+                >
+                  <span class="navigation-admin__select-option-copy">
+                    <strong class="navigation-admin__select-option-label">{{ roleDisplayLabel(role) }}</strong>
+                    <small *ngIf="roleDisplayLabel(role) !== role.name">Código interno: {{ role.name }}</small>
+                  </span>
+                </mat-option>
               </mat-select>
               <mat-hint>Sin selección, aplica a todos los roles autorizados por la ruta.</mat-hint>
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="navigation-admin__form-field--wide">
+            <mat-form-field
+              appearance="outline"
+              subscriptSizing="dynamic"
+              class="navigation-admin__form-field--wide"
+            >
               <mat-label>Permisos necesarios</mat-label>
-              <mat-select formControlName="permissionIds" multiple>
-                <mat-option *ngFor="let permission of permissions" [value]="permission.id">
-                  {{ permission.name }}
+              <mat-select
+                formControlName="permissionIds"
+                multiple
+                [attr.aria-label]="
+                  'Permisos necesarios. Selección: ' + permissionSelectionText(form.value.permissionIds)
+                "
+              >
+                <mat-select-trigger>
+                  {{ permissionSelectionText(form.value.permissionIds) }}
+                </mat-select-trigger>
+                <mat-option
+                  *ngFor="let permission of permissions"
+                  [value]="permission.id"
+                  [attr.data-permission-id]="permission.id"
+                  class="navigation-admin__select-option"
+                >
+                  <span class="navigation-admin__select-option-copy">
+                    <strong class="navigation-admin__select-option-label">
+                      {{ permissionDisplayLabel(permission) }}
+                    </strong>
+                    <small *ngIf="permissionDisplayLabel(permission) !== permission.name">
+                      Código interno: {{ permission.name }}
+                    </small>
+                  </span>
                 </mat-option>
               </mat-select>
               <mat-hint>Sin selección, el menú no exige un permiso adicional.</mat-hint>

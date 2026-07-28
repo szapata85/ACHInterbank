@@ -86,10 +86,16 @@ describe('NavigationMenuComponent', () => {
     auth.hasRole.and.returnValue(true);
     auth.hasPermission.and.returnValue(true);
     const rolesApi = jasmine.createSpyObj<RolesApiService>('RolesApiService', ['getRoles']);
-    rolesApi.getRoles.and.returnValue(of([{ id: 'role-admin', name: 'Admin' }]));
+    rolesApi.getRoles.and.returnValue(of([
+      { id: 'role-admin', name: 'Admin', description: 'Acceso completo al sistema' },
+      { id: 'role-operator', name: 'ACH.Operator', description: 'Operaciones básicas sobre ACH' },
+      { id: 'role-auditor', name: 'Custom.Auditor', description: 'Auditoría operativa' }
+    ]));
     const permissions = jasmine.createSpyObj<PermissionsService>('PermissionsService', ['getPermissions']);
     permissions.getPermissions.and.returnValue(of([
-      { id: 'permission-manage', name: 'CanManageUsers', description: null }
+      { id: 'permission-manage', name: 'CanManageUsers', description: null },
+      { id: 'permission-read', name: 'CanReadAch', description: 'Consulta de operaciones ACH' },
+      { id: 'permission-custom', name: 'Custom.Reconcile', description: 'Conciliar operaciones manuales' }
     ]));
 
     await TestBed.configureTestingModule({
@@ -122,8 +128,70 @@ describe('NavigationMenuComponent', () => {
     expect(component.totalCount).toBe(4);
     expect(component.activeCount).toBe(3);
     expect(component.inactiveCount).toBe(1);
-    expect(component.roles.length).toBe(1);
-    expect(component.permissions.length).toBe(1);
+    expect(component.roles.length).toBe(3);
+    expect(component.permissions.length).toBe(3);
+  });
+
+  it('humanizes known roles and uses a friendly description when no mapping exists', () => {
+    expect(component.roleDisplayLabel(component.roles[0])).toBe('Administrador');
+    expect(component.roleDisplayLabel(component.roles[1])).toBe('Operador ACH');
+    expect(component.roleDisplayLabel(component.roles[2])).toBe('Auditoría operativa');
+  });
+
+  it('humanizes known permissions and uses a friendly description when no mapping exists', () => {
+    expect(component.permissionDisplayLabel(component.permissions[0])).toBe('Administrar usuarios');
+    expect(component.permissionDisplayLabel(component.permissions[1])).toBe('Consultar información ACH');
+    expect(component.permissionDisplayLabel(component.permissions[2])).toBe('Conciliar operaciones manuales');
+  });
+
+  it('keeps technical role and permission ids unchanged in the form and payload', () => {
+    component.editItem(child);
+
+    expect(component.form.value.roleIds).toEqual(['role-admin']);
+    expect(component.form.value.permissionIds).toEqual(['permission-manage']);
+
+    const payload = (
+      component as unknown as {
+        toPayload(): { roleIds: string[]; permissionIds: string[] };
+      }
+    ).toPayload();
+    expect(payload.roleIds).toEqual(['role-admin']);
+    expect(payload.permissionIds).toEqual(['permission-manage']);
+  });
+
+  it('uses friendly labels in details and summarizes multiple selections', () => {
+    expect(component.getRolesText(menuItems[0])).toBe('Administrador');
+    expect(component.getPermissionsText(menuItems[0])).toBe('Administrar usuarios');
+    expect(component.roleSelectionText(['role-admin', 'role-operator', 'role-auditor']))
+      .toBe('Administrador, Operador ACH +1 adicionales');
+    expect(component.permissionSelectionText(['permission-manage', 'permission-read', 'permission-custom']))
+      .toBe('Administrar usuarios, Consultar información ACH +1 adicionales');
+  });
+
+  it('renders friendly labels in the closed multiple-select triggers without changing the form', async () => {
+    component.editItem(child);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const roleTrigger = fixture.nativeElement.querySelector(
+      'mat-select[formcontrolname="roleIds"] .mat-mdc-select-value'
+    ) as HTMLElement;
+    const permissionTrigger = fixture.nativeElement.querySelector(
+      'mat-select[formcontrolname="permissionIds"] .mat-mdc-select-value'
+    ) as HTMLElement;
+    expect(roleTrigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('Administrador');
+    expect(permissionTrigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('Administrar usuarios');
+    expect(component.form.value.roleIds).toEqual(['role-admin']);
+    expect(component.form.value.permissionIds).toEqual(['permission-manage']);
+  });
+
+  it('finds menu items by friendly and technical permission labels', () => {
+    component.filtersForm.controls.search.setValue('administrar usuarios');
+    expect(component.filteredCount).toBe(2);
+
+    component.filtersForm.controls.search.setValue('CanManageUsers');
+    expect(component.filteredCount).toBe(2);
   });
 
   it('exposes loading until the initial request finishes', () => {
