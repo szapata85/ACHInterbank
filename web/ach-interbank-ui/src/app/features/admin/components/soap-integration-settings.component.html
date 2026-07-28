@@ -1,96 +1,143 @@
-<section class="soap-settings-page" data-testid="soap-settings-page">
-  <header class="page-header">
-    <div class="header-row">
-      <p class="page-lead">Administra solo endpoint, SOAP Action y estado activo/inactivo de cada servicio.</p>
-      <button type="button" class="btn-ghost" (click)="openHelp()">Ayuda operativa</button>
+<section class="soap-settings" data-testid="soap-settings-page">
+  <header class="soap-settings__header">
+    <div>
+      <p class="soap-settings__eyebrow">Integraciones · Configuración técnica</p>
+      <h1>Configuración de servicios SOAP</h1>
+      <p>Administra la conexión técnica de cada servicio sin modificar la relación funcional de sus campos.</p>
+    </div>
+    <div class="soap-settings__header-actions">
+      <button mat-stroked-button type="button" (click)="reload()" [disabled]="reloading || saving">
+        {{ reloading ? 'Actualizando…' : 'Actualizar' }}
+      </button>
     </div>
   </header>
 
-  <div class="loading-state" *ngIf="loading">Cargando configuracion SOAP...</div>
+  <mat-progress-bar *ngIf="loading || reloading" mode="indeterminate" aria-label="Cargando configuración SOAP"></mat-progress-bar>
+
+  <mat-expansion-panel class="soap-settings__help">
+    <mat-expansion-panel-header>
+      <mat-panel-title>
+        Ayuda operativa
+      </mat-panel-title>
+      <mat-panel-description>Qué se administra en esta pantalla</mat-panel-description>
+    </mat-expansion-panel-header>
+    <ul>
+      <li>Aquí se administran el endpoint, SOAP Action, modo operativo y estado.</li>
+      <li>La relación entre parámetros SOAP y campos de origen se gestiona en “Matriz de campos SOAP”.</li>
+      <li>Seleccionar, editar, cancelar o navegar nunca guarda cambios ni ejecuta servicios SOAP.</li>
+    </ul>
+  </mat-expansion-panel>
 
   <ng-container *ngIf="!loading">
-    <section class="service-selector" aria-label="Servicios SOAP">
-      <button
-        type="button"
-        class="service-tab"
-        data-testid="soap-service-card"
-        *ngFor="let method of allMethods"
-        [class.active]="isSelected(method)"
-        (click)="selectMethod(method)"
-      >
-        <span class="service-tab-title">{{ methodNameFor(method.group) }}</span>
-        <span class="service-tab-meta">{{ statusFor(method.group) }} · {{ operatingModeFor(method.group) }} · {{ method.clientName }}</span>
-      </button>
-    </section>
-
-    <form
-      *ngIf="selectedMethod as method"
-      [formGroup]="method.group"
-      class="settings-workbench"
-      aria-label="Configuracion tecnica SOAP"
-      (ngSubmit)="save()"
+    <mat-tab-group
+      class="soap-settings__tabs"
+      [selectedIndex]="selectedIndex"
+      (selectedIndexChange)="onSelectedIndexChange($event)"
+      animationDuration="150ms"
+      aria-label="Servicios SOAP configurados"
     >
-      <section class="service-overview">
-        <div class="service-heading">
-          <span class="service-code">{{ methodCodeFor(method) }}</span>
-          <h2>{{ methodNameFor(method.group) }}</h2>
-          <p>{{ selectedCopy.title }}. {{ selectedCopy.description }}</p>
+      <mat-tab *ngFor="let method of allMethods; trackBy: trackMethod">
+        <ng-template mat-tab-label>
+          <span data-testid="soap-service-card" class="soap-settings__tab-label">
+            <strong>{{ methodNameFor(method.group) }}</strong>
+            <small>{{ operatingModeFor(method.group) }}</small>
+          </span>
+        </ng-template>
+      </mat-tab>
+    </mat-tab-group>
+
+    <mat-card *ngIf="selectedMethod as method" class="soap-settings__workbench" appearance="outlined">
+      <mat-card-header>
+        <div mat-card-avatar class="soap-settings__service-icon" aria-hidden="true">
+          <span>SOAP</span>
         </div>
-        <span class="status-pill" [class.off]="!method.group.get('enabled')?.value">{{ statusFor(method.group) }}</span>
-      </section>
+        <mat-card-title>{{ methodNameFor(method.group) }}</mat-card-title>
+        <mat-card-subtitle>{{ selectedCopy.title }} · {{ selectedCopy.nature }}</mat-card-subtitle>
+        <mat-chip-set class="soap-settings__status">
+          <mat-chip [class.soap-settings__chip--inactive]="!method.group.get('enabled')?.value">
+            {{ statusFor(method.group) }}
+          </mat-chip>
+          <mat-chip [class.soap-settings__chip--live]="method.group.get('operatingMode')?.value === 'Live'">
+            {{ operatingModeFor(method.group) }}
+          </mat-chip>
+        </mat-chip-set>
+      </mat-card-header>
 
-      <section class="endpoint-editor">
-        <label class="endpoint-field">
-          Endpoint / URL
-          <input type="text" formControlName="endpoint" data-testid="soap-endpoint-input" [readOnly]="!isEditingSelected" />
-          <app-error-message [control]="method.group.get('endpoint')"></app-error-message>
-        </label>
+      <mat-card-content>
+        <p class="soap-settings__description">{{ selectedCopy.description }}</p>
 
-        <label>
-          SOAP Action
-          <input type="text" formControlName="soapAction" data-testid="soap-action-input" [readOnly]="!isEditingSelected" />
-          <app-error-message [control]="method.group.get('soapAction')"></app-error-message>
-        </label>
-
-        <label class="inline-check">
-          <input type="checkbox" formControlName="enabled" [attr.disabled]="!isEditingSelected ? true : null" />
-          Servicio activo
-        </label>
-
-        <label>
-          Modo operativo
-          <select formControlName="operatingMode" data-testid="soap-operating-mode" [attr.disabled]="!isEditingSelected ? true : null">
-            <option value="Live">LIVE</option>
-            <option value="DryRun">Simulación sin envío</option>
-            <option value="Disabled">Inactivo</option>
-          </select>
-          <small>LIVE habilita el envío real al endpoint configurado.</small>
-        </label>
-      </section>
-
-      <section class="technical-summary" aria-label="Resumen tecnico">
-        <div>
-          <span>Contrato tecnico</span>
-          <strong>{{ mappingCountFor(method.group) }} parametros soportados</strong>
+        <div class="soap-settings__live-warning" *ngIf="method.group.get('operatingMode')?.value === 'Live'">
+          <strong aria-hidden="true">!</strong>
+          <span><strong>Modo LIVE.</strong> Esta configuración permite envío al endpoint. La pantalla no ejecuta operaciones SOAP.</span>
         </div>
-        <div>
-          <span>Naturaleza funcional</span>
-          <strong>{{ selectedCopy.nature }}</strong>
-        </div>
-      </section>
 
-      <footer class="action-bar">
+        <form
+          [formGroup]="editorForm"
+          class="soap-settings__form"
+          aria-label="Configuración técnica SOAP"
+          (ngSubmit)="save()"
+        >
+          <mat-form-field appearance="outline">
+            <mat-label>Endpoint del servicio</mat-label>
+            <input matInput type="url" formControlName="endpoint" data-testid="soap-endpoint-input" autocomplete="off" />
+            <mat-hint>Dirección HTTP o HTTPS del servicio seleccionado.</mat-hint>
+            <mat-error *ngIf="editorForm.controls.endpoint.hasError('required')">El endpoint es obligatorio.</mat-error>
+            <mat-error *ngIf="editorForm.controls.endpoint.hasError('pattern')">Ingresa una URL HTTP o HTTPS válida.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>SOAP Action</mat-label>
+            <input matInput type="url" formControlName="soapAction" data-testid="soap-action-input" autocomplete="off" />
+            <mat-hint>Acción definida por el contrato técnico.</mat-hint>
+            <mat-error *ngIf="editorForm.controls.soapAction.hasError('required')">La acción SOAP es obligatoria.</mat-error>
+            <mat-error *ngIf="editorForm.controls.soapAction.hasError('pattern')">Ingresa una URL HTTP o HTTPS válida.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Modo operativo</mat-label>
+            <mat-select formControlName="operatingMode" data-testid="soap-operating-mode">
+              <mat-option value="Live">LIVE</mat-option>
+              <mat-option value="DryRun">Simulación sin envío</mat-option>
+              <mat-option value="Disabled">Inactivo</mat-option>
+            </mat-select>
+            <mat-error>Selecciona un modo operativo.</mat-error>
+          </mat-form-field>
+
+          <div class="soap-settings__toggle">
+            <mat-slide-toggle formControlName="enabled">Servicio activo</mat-slide-toggle>
+            <small>Controla la disponibilidad técnica; no ejecuta el servicio.</small>
+          </div>
+        </form>
+
+        <section class="soap-settings__summary" aria-label="Resumen técnico">
+          <div>
+            <span>Cliente</span>
+            <strong>{{ method.clientName }}</strong>
+          </div>
+          <div>
+            <span>Contrato</span>
+            <strong>{{ mappingCountFor(method.group) }} parámetros soportados</strong>
+          </div>
+          <div>
+            <span>Código técnico</span>
+            <strong>{{ methodCodeFor(method) }}</strong>
+          </div>
+        </section>
+      </mat-card-content>
+
+      <mat-card-actions align="end" class="soap-settings__actions">
         <a
-          class="btn-ghost action-link"
+          mat-button
           [routerLink]="['/integraciones/mappings']"
           [queryParams]="{ method: methodCodeFor(method) }"
+          data-testid="soap-view-mappings"
         >
           Ver relación de campos
         </a>
         <button
-          *ngIf="!isEditingSelected"
+          *ngIf="!isEditingSelected && canManage"
+          mat-stroked-button
           type="button"
-          class="btn-secondary"
           data-testid="soap-edit-button"
           (click)="beginEdit()"
         >
@@ -98,52 +145,32 @@
         </button>
         <button
           *ngIf="isEditingSelected"
+          mat-button
           type="button"
-          class="btn-secondary"
           data-testid="soap-cancel-button"
           (click)="cancelEdit()"
           [disabled]="saving"
         >
-          Cancelar edición
-        </button>
-        <button type="button" class="btn-secondary" (click)="reload()" [disabled]="reloading || saving">
-          {{ reloading ? 'Recargando...' : 'Recargar' }}
+          Cancelar
         </button>
         <button
+          *ngIf="isEditingSelected"
+          mat-flat-button
           type="submit"
-          class="btn-primary"
           data-testid="soap-save-button"
-          [disabled]="saving || method.group.invalid || !isEditingSelected"
+          (click)="save()"
+          [disabled]="!canSave"
+          matTooltip="Solo se habilita cuando hay cambios válidos"
         >
-          {{ saving ? 'Guardando...' : 'Guardar cambios' }}
+          {{ saving ? 'Guardando…' : 'Guardar cambios' }}
         </button>
-      </footer>
-    </form>
+      </mat-card-actions>
+    </mat-card>
 
-    <div class="empty-state" *ngIf="allMethods.length === 0">
-      No hay configuraciones SOAP disponibles.
-    </div>
+    <mat-card *ngIf="allMethods.length === 0" class="soap-settings__empty" appearance="outlined">
+      <h2>No hay configuraciones SOAP disponibles</h2>
+      <p>Actualiza la pantalla. Si el problema continúa, solicita revisar la configuración del módulo.</p>
+      <button mat-stroked-button type="button" (click)="reload()">Volver a intentar</button>
+    </mat-card>
   </ng-container>
 </section>
-
-<div class="modal-backdrop" *ngIf="modalMode" (click)="closeModal()"></div>
-
-<aside class="modal-panel compact" *ngIf="modalMode === 'help'" role="dialog" aria-modal="true" aria-label="Ayuda operativa SOAP">
-  <header class="modal-header">
-    <div>
-      <span class="eyebrow">Ayuda operativa</span>
-      <h2>Alcance de esta pantalla</h2>
-    </div>
-    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
-  </header>
-
-  <ul class="help-list">
-    <li>Esta pantalla administra endpoint, SOAP Action y estado activo/inactivo.</li>
-    <li>La matriz campo a campo se gestiona en /integraciones/mappings.</li>
-    <li>No se muestran credenciales, secretos ni certificados privados.</li>
-  </ul>
-
-  <footer class="modal-footer">
-    <button type="button" class="btn-secondary" (click)="closeModal()">Cerrar</button>
-  </footer>
-</aside>

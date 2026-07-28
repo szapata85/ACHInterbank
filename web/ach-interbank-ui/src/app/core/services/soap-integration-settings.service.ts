@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, ReplaySubject, tap } from 'rxjs';
+import { Observable, ReplaySubject, map, tap } from 'rxjs';
 import { ApiService } from './api.service';
 
 export interface SoapInputParameterMapping {
@@ -30,14 +30,30 @@ export class SoapIntegrationSettingsService {
   readonly settings$ = this.settingsSubject.asObservable();
 
   updateSettings(settings: SoapIntegrationSettings): Observable<SoapIntegrationSettings> {
-    return this.api.put<SoapIntegrationSettings>('api/users/soap-integrations', settings).pipe(
-      tap((response) => this.settingsSubject.next(response))
+    return this.api.put<SoapIntegrationSettings>('api/users/soap-integrations', cloneSettings(settings)).pipe(
+      map((response) => cloneSettings(response)),
+      tap((response) => this.settingsSubject.next(cloneSettings(response)))
     );
   }
 
   refreshFromServer(): Observable<SoapIntegrationSettings> {
     return this.api.get<SoapIntegrationSettings>('api/users/soap-integrations').pipe(
-      tap((response) => this.settingsSubject.next(response))
+      map((response) => cloneSettings(response)),
+      tap((response) => this.settingsSubject.next(cloneSettings(response)))
     );
   }
+}
+
+function cloneSettings(settings: SoapIntegrationSettings): SoapIntegrationSettings {
+  return {
+    wscfaachMappings: settings.wscfaachMappings.map(cloneMethod),
+    wsAxonRespuestaTransaccionesMappings: settings.wsAxonRespuestaTransaccionesMappings.map(cloneMethod)
+  };
+}
+
+function cloneMethod(method: SoapEndpointMethodMapping): SoapEndpointMethodMapping {
+  return {
+    ...method,
+    inputParameterMappings: (method.inputParameterMappings ?? []).map((item) => ({ ...item }))
+  };
 }

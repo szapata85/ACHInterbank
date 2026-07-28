@@ -1,8 +1,21 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSortModule, Sort } from '@angular/material/sort';
+import { MatTableModule } from '@angular/material/table';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { finalize } from 'rxjs';
+import { Subject, finalize, switchMap, takeUntil } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import {
   IntegrationMappingAdminService,
@@ -63,11 +76,29 @@ interface SourceVisual {
 @Component({
   selector: 'app-mapping-sets-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    SharedModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatChipsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatMenuModule,
+    MatProgressBarModule,
+    MatSelectModule,
+    MatSortModule,
+    MatTableModule,
+    MatTabsModule,
+    MatTooltipModule
+  ],
   templateUrl: './mapping-sets-page.component.html',
   styleUrls: ['./mapping-sets-page.component.scss']
 })
-export class MappingSetsPageComponent implements OnInit {
+export class MappingSetsPageComponent implements OnInit, OnDestroy {
   private readonly api = inject(IntegrationMappingAdminService);
   private readonly notifications = inject(NotificationService);
   private readonly auth = inject(AuthService);
@@ -75,6 +106,7 @@ export class MappingSetsPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroy$ = new Subject<void>();
 
   loading = false;
   savingRule = false;
@@ -91,8 +123,28 @@ export class MappingSetsPageComponent implements OnInit {
   selectedRow: MappingMatrixRow | null = null;
   selectedMapping: IntegrationMappingSet | null = null;
   selectedFilter: MatrixFilter = 'Todos';
+  private matrixRowsCache: {
+    targetFields: IntegrationMethodParameter[];
+    mappingSets: IntegrationMappingSet[];
+    methodId: number | null;
+    rows: MappingMatrixRow[];
+  } | null = null;
+  private filteredRowsCache: {
+    matrixRows: MappingMatrixRow[];
+    search: string;
+    required: string;
+    selectedFilter: MatrixFilter;
+    sortActive: string;
+    sortDirection: string;
+    rows: MappingMatrixRow[];
+  } | null = null;
+  private filterOptionsCache: {
+    matrixRows: MappingMatrixRow[];
+    options: Array<{ key: MatrixFilter; label: string; count: number }>;
+  } | null = null;
 
   readonly canManage = this.auth.hasPermission('CanManageAch');
+  readonly displayedColumns = ['parameterSoap', 'tableOrigin', 'fieldOrigin', 'conversionRule', 'required', 'status', 'lastUpdated', 'actions'];
 
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/' },
@@ -129,10 +181,23 @@ export class MappingSetsPageComponent implements OnInit {
     requiredOverride: [false],
     enabled: [true]
   });
+  readonly filterForm = this.fb.group({
+    search: [''],
+    required: ['all' as 'all' | 'required' | 'optional']
+  });
+  sort: Sort = { active: '', direction: '' };
 
   ngOnInit(): void {
+    this.editRelationForm.controls.enabled.valueChanges.pipe(takeUntil(this.destroy$)).subscribe((enabled) => {
+      this.updateSourceFieldValidation(Boolean(enabled));
+    });
     this.loadMethods();
     this.loadTransformations();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   get selectedMethodId(): number | null {
@@ -160,6 +225,14 @@ export class MappingSetsPageComponent implements OnInit {
   }
 
   get matrixRows(): MappingMatrixRow[] {
+    const methodId = this.selectedMethodId;
+    if (this.matrixRowsCache
+      && this.matrixRowsCache.targetFields === this.targetFields
+      && this.matrixRowsCache.mappingSets === this.mappingSets
+      && this.matrixRowsCache.methodId === methodId) {
+      return this.matrixRowsCache.rows;
+    }
+
     const mappingSet = this.activeMappingSet;
     const rulesByParameter = new Map<number, IntegrationMappingRule>();
     for (const rule of mappingSet?.rules ?? []) {
@@ -169,14 +242,62 @@ export class MappingSetsPageComponent implements OnInit {
       }
     }
 
-    return [...this.targetFields]
+    const rows = [...this.targetFields]
       .filter((parameter) => this.isActiveFlag(parameter.isActive))
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((parameter) => this.buildMatrixRow(parameter, mappingSet, rulesByParameter.get(parameter.id) ?? null));
+    this.matrixRowsCache = {
+      targetFields: this.targetFields,
+      mappingSets: this.mappingSets,
+      methodId,
+      rows
+    };
+    return rows;
   }
 
   get filteredMatrixRows(): MappingMatrixRow[] {
-    return this.matrixRows.filter((row) => this.matchesSelectedFilter(row));
+    const search = this.normalizeSearch(this.filterForm.controls.search.value);
+    const required = this.filterForm.controls.required.value ?? 'all';
+    const matrixRows = this.matrixRows;
+    if (this.filteredRowsCache
+      && this.filteredRowsCache.matrixRows === matrixRows
+      && this.filteredRowsCache.search === search
+      && this.filteredRowsCache.required === required
+      && this.filteredRowsCache.selectedFilter === this.selectedFilter
+      && this.filteredRowsCache.sortActive === this.sort.active
+      && this.filteredRowsCache.sortDirection === this.sort.direction) {
+      return this.filteredRowsCache.rows;
+    }
+
+    const rows = matrixRows.filter((row) => {
+      const matchesText = !search || this.normalizeSearch([
+        row.parameterSoap,
+        row.parameterDescription,
+        row.tableOrigin,
+        row.fieldOrigin,
+        row.conversionRule
+      ].join(' ')).includes(search);
+      const matchesRequired = required === 'all'
+        || (required === 'required' && row.required)
+        || (required === 'optional' && !row.required);
+      return this.matchesSelectedFilter(row) && matchesText && matchesRequired;
+    });
+    const filteredRows = this.sortRows(rows);
+    this.filteredRowsCache = {
+      matrixRows,
+      search,
+      required,
+      selectedFilter: this.selectedFilter,
+      sortActive: this.sort.active,
+      sortDirection: this.sort.direction,
+      rows: filteredRows
+    };
+    return filteredRows;
+  }
+
+  get selectedMethodIndex(): number {
+    const index = this.methods.findIndex((method) => method.id === this.selectedMethodId);
+    return index < 0 ? 0 : index;
   }
 
   get allowedSourceFields(): IntegrationSourceCatalogField[] {
@@ -201,8 +322,13 @@ export class MappingSetsPageComponent implements OnInit {
   }
 
   get filterOptions(): Array<{ key: MatrixFilter; label: string; count: number }> {
+    const matrixRows = this.matrixRows;
+    if (this.filterOptionsCache?.matrixRows === matrixRows) {
+      return this.filterOptionsCache.options;
+    }
+
     const stats = this.matrixStats;
-    return [
+    const options: Array<{ key: MatrixFilter; label: string; count: number }> = [
       { key: 'Todos', label: 'Todos', count: stats.total },
       { key: 'Pendientes', label: 'Pendientes', count: stats.pending },
       { key: 'Bloqueantes', label: 'Bloqueantes', count: stats.blocking },
@@ -210,6 +336,8 @@ export class MappingSetsPageComponent implements OnInit {
       { key: 'Listos', label: 'Listos', count: stats.ready },
       { key: 'Opcionales', label: 'Opcionales', count: stats.optionalReserved }
     ];
+    this.filterOptionsCache = { matrixRows, options };
+    return options;
   }
 
   loadMethods(): void {
@@ -252,6 +380,32 @@ export class MappingSetsPageComponent implements OnInit {
     this.selectedFilter = 'Todos';
     this.loadCatalogForSelectedMethod();
     this.loadMappingSets();
+  }
+
+  onMethodTabChange(index: number): void {
+    const method = this.methods[index];
+    if (!method || method.id === this.selectedMethodId) {
+      return;
+    }
+    this.createDraftForm.controls.methodId.setValue(method.id, { emitEvent: false });
+    this.onMethodChange();
+  }
+
+  selectMethod(method: IntegrationMethod): void {
+    if (method.id === this.selectedMethodId) {
+      return;
+    }
+    this.createDraftForm.controls.methodId.setValue(method.id, { emitEvent: false });
+    this.onMethodChange();
+  }
+
+  clearFilters(): void {
+    this.filterForm.reset({ search: '', required: 'all' });
+    this.selectedFilter = 'Todos';
+  }
+
+  onSortChange(sort: Sort): void {
+    this.sort = sort;
   }
 
   openDraftModal(): void {
@@ -305,41 +459,66 @@ export class MappingSetsPageComponent implements OnInit {
     }
 
     if (current) {
-      this.savingRule = true;
-      this.api.clone(current.id, `${current.name} - ajuste matriz`, 'ui-admin')
-        .pipe(finalize(() => (this.savingRule = false)))
-        .subscribe({
-          next: (draft) => {
-            this.mappingSets = [draft, ...this.mappingSets];
-            this.notifications.success('Se creó un borrador para editar la relación.');
-            this.openEditForDraft(draft, row.parameterId);
-          },
-          error: () => this.notifications.error('No fue posible crear un borrador editable.')
-        });
+      this.openEditForDraft(current, row.parameterId);
       return;
     }
 
-    this.createDraftAndOpen(row.parameterId);
+    this.selectedMapping = null;
+    this.editRelationForm.reset({
+      sourceCatalogFieldId: row.sourceField?.id ?? null,
+      transformationCode: row.rule?.transformationCode ?? '',
+      requiredOverride: row.required,
+      enabled: row.rule?.enabled ?? true
+    });
+    this.updateSourceFieldValidation(Boolean(this.editRelationForm.controls.enabled.value));
+    this.modalMode = 'edit';
   }
 
   saveRelation(): void {
-    if (!this.canManage || !this.selectedRow || !this.selectedMapping || this.savingRule) {
+    if (!this.canManage || !this.selectedRow || this.savingRule) {
       return;
     }
 
     if (this.editRelationForm.controls.enabled.value && !this.editRelationForm.controls.sourceCatalogFieldId.value) {
+      this.editRelationForm.controls.sourceCatalogFieldId.markAsTouched();
       this.notifications.error('Seleccione una tabla y campo origen para activar la relación.');
       return;
     }
 
-    const payload = this.buildUpsertPayload(this.selectedMapping, this.selectedRow);
+    const current = this.selectedMapping;
+    const method = this.selectedMethod;
+    if (!method) {
+      return;
+    }
     this.savingRule = true;
-    this.api.upsertRules(this.selectedMapping.id, 'ui-admin', payload)
+    const draft$ = current && this.normalizeStatus(current.status) === 'Draft'
+      ? this.api.upsertRules(current.id, 'ui-admin', this.buildUpsertPayload(current, this.selectedRow))
+      : current
+        ? this.api.clone(current.id, `${current.name} - ajuste matriz`, 'ui-admin').pipe(
+          switchMap((draft) => this.api.upsertRules(
+            draft.id,
+            'ui-admin',
+            this.buildUpsertPayload(draft, this.selectedRow!)
+          ))
+        )
+        : this.api.createDraft(
+          method.id,
+          `Matriz ${method.operationKey} - borrador`,
+          'Ajuste controlado desde matriz de campos SOAP.',
+          'ui-admin'
+        ).pipe(
+          switchMap((draft) => this.api.upsertRules(
+            draft.id,
+            'ui-admin',
+            this.buildUpsertPayload(draft, this.selectedRow!)
+          ))
+        );
+    draft$
       .pipe(finalize(() => (this.savingRule = false)))
       .subscribe({
         next: (updated) => {
           this.mappingSets = [updated, ...this.mappingSets.filter((set) => set.id !== updated.id)];
-          this.notifications.success('Relación de campos actualizada.');
+          this.notifications.success('Relación de campos guardada en un borrador.');
           this.closeModal();
         },
         error: () => this.notifications.error('No fue posible guardar la relación de campos.')
@@ -395,6 +574,33 @@ export class MappingSetsPageComponent implements OnInit {
 
   setFilter(filter: MatrixFilter): void {
     this.selectedFilter = filter;
+  }
+
+  private normalizeSearch(value: string | null | undefined): string {
+    return (value ?? '').trim().toLocaleLowerCase('es');
+  }
+
+  private updateSourceFieldValidation(enabled: boolean): void {
+    const sourceControl = this.editRelationForm.controls.sourceCatalogFieldId;
+    if (enabled) {
+      sourceControl.addValidators(Validators.required);
+    } else {
+      sourceControl.removeValidators(Validators.required);
+    }
+    sourceControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private sortRows(rows: MappingMatrixRow[]): MappingMatrixRow[] {
+    const { active, direction } = this.sort;
+    if (!direction) {
+      return rows;
+    }
+    const factor = direction === 'asc' ? 1 : -1;
+    return [...rows].sort((left, right) => {
+      const leftValue = String(left[active as keyof MappingMatrixRow] ?? '');
+      const rightValue = String(right[active as keyof MappingMatrixRow] ?? '');
+      return leftValue.localeCompare(rightValue, 'es', { numeric: true }) * factor;
+    });
   }
 
   getStatusClass(status: MatrixStatus): string {
@@ -824,26 +1030,8 @@ export class MappingSetsPageComponent implements OnInit {
       requiredOverride: row.required,
       enabled: row.rule?.enabled ?? true
     });
+    this.updateSourceFieldValidation(Boolean(this.editRelationForm.controls.enabled.value));
     this.modalMode = 'edit';
-  }
-
-  private createDraftAndOpen(parameterId: number): void {
-    const method = this.selectedMethod;
-    if (!method) {
-      return;
-    }
-
-    this.savingRule = true;
-    this.api.createDraft(method.id, `Matriz ${method.operationKey} - borrador`, 'Ajuste controlado desde matriz de campos SOAP.', 'ui-admin')
-      .pipe(finalize(() => (this.savingRule = false)))
-      .subscribe({
-        next: (draft) => {
-          this.mappingSets = [draft, ...this.mappingSets];
-            this.notifications.success('Se creó un borrador para editar la relación.');
-          this.openEditForDraft(draft, parameterId);
-        },
-        error: () => this.notifications.error('No fue posible crear un borrador editable.')
-      });
   }
 
   private buildUpsertPayload(mappingSet: IntegrationMappingSet, editedRow: MappingMatrixRow): Array<Record<string, unknown>> {
@@ -1131,6 +1319,6 @@ export class MappingSetsPageComponent implements OnInit {
   }
 
   private refreshView(): void {
-    this.cdr.detectChanges();
+    this.cdr.markForCheck();
   }
 }

@@ -1,6 +1,16 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder } from '@angular/forms';
+import { FormBuilder, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
 import { Router } from '@angular/router';
 import { ReactiveFormsModule } from '@angular/forms';
@@ -19,12 +29,27 @@ import {
   MappingSetHistoryItem
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { SharedModule } from '../../../shared/shared.module';
 
 @Component({
   selector: 'app-mapping-editor-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    SharedModule,
+    MatButtonModule,
+    MatCardModule,
+    MatCheckboxModule,
+    MatChipsModule,
+    MatExpansionModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressBarModule,
+    MatSelectModule,
+    MatTooltipModule
+  ],
   templateUrl: './mapping-editor-page.component.html',
   styleUrls: ['./mapping-editor-page.component.scss']
 })
@@ -33,9 +58,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
+  private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
+  readonly canManage = this.auth.hasPermission('CanManageAch');
+  historyLoadFailed = false;
 
   mappingSetId = '';
   methodCode = '';
@@ -76,14 +104,14 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   readonly ruleForm = this.fb.group({
     id: [null as number | null],
-    sourceKind: ['Transaction'],
+    sourceKind: ['Transaction', Validators.required],
     sourceCatalogFieldId: [null as number | null],
     sourceFieldPath: [''],
     fixedValue: [''],
     defaultValue: [''],
     transformationCode: [''],
     formatMask: [''],
-    priority: [1],
+    priority: [1, [Validators.required, Validators.min(1)]],
     requiredOverride: [null as boolean | null],
     enabled: [true],
     conditionExpression: ['']
@@ -176,12 +204,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.debug('[mapping-editor] loadAll:start', { mappingSetId: this.mappingSetId, methodCode: this.methodCode });
     this.loading = true;
     this.viewState = 'loading';
     this.errorMessage = '';
     this.previewResult = undefined;
     this.validationResult = undefined;
+    this.historyLoadFailed = false;
     this.cdr.detectChanges();
 
     this.api
@@ -212,8 +240,8 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
             ),
             historyItems: this.api.getHistory(set.id).pipe(
               timeout(10000),
-              catchError((historyError) => {
-                console.warn('[mapping-editor] history load failed, continuing without history', historyError);
+              catchError(() => {
+                this.historyLoadFailed = true;
                 return of([] as MappingSetHistoryItem[]);
               })
             )
@@ -224,13 +252,6 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: ({ set, parameters, sourceCatalog, transformations, historyItems }) => {
-          console.debug('[mapping-editor] loadAll:success', {
-            mappingSetId: set.id,
-            parameters: parameters?.length ?? 0,
-            sourceCatalog: sourceCatalog?.length ?? 0,
-            transformations: transformations?.length ?? 0,
-            historyItems: historyItems?.length ?? 0
-          });
           try {
             this.mappingSet = set;
             this.parameters = parameters ?? [];
@@ -303,7 +324,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   saveRule(): void {
-    if (!this.mappingSet || !this.selectedParameterId || this.savingRule) return;
+    if (!this.canManage || !this.mappingSet || !this.selectedParameterId || this.savingRule) return;
+    if (this.ruleForm.invalid) {
+      this.ruleForm.markAllAsTouched();
+      this.notifications.error('Corrige los campos inválidos antes de guardar.');
+      return;
+    }
 
     const payload = {
       id: this.ruleForm.value.id,
@@ -323,19 +349,20 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
     };
 
     this.savingRule = true;
-    this.api.upsertRules(this.mappingSet.id, 'ui-admin', [payload]).subscribe({
+    this.api.upsertRules(this.mappingSet.id, 'ui-admin', [payload]).pipe(
+      finalize(() => (this.savingRule = false))
+    ).subscribe({
       next: (updated) => {
         this.mappingSet = updated;
         this.notifications.success('Regla guardada. Ejecuta validación para confirmar consistencia.');
         this.populateFormFromSelectedRule();
       },
-      error: () => this.notifications.error('No fue posible guardar la regla.'),
-      complete: () => (this.savingRule = false)
+      error: () => this.notifications.error('No fue posible guardar la regla.')
     });
   }
 
   runValidation(onDone?: (isValid: boolean) => void): void {
-    if (!this.mappingSet || this.validating) return;
+    if (!this.canManage || !this.mappingSet || this.validating) return;
 
     this.validating = true;
     this.api.validate(this.mappingSet.id).pipe(
@@ -357,7 +384,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   runPreview(): void {
-    if (!this.mappingSet || this.previewing) return;
+    if (!this.canManage || !this.mappingSet || this.previewing) return;
 
     this.previewing = true;
     this.api
@@ -367,18 +394,18 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
         useControlledSample: Boolean(this.previewForm.controls.usarMuestraControlada.value),
         maxItems: 200
       })
+      .pipe(finalize(() => (this.previewing = false)))
       .subscribe({
         next: (result) => {
           this.previewResult = result;
           this.notifications.success(`Simulación generada usando contexto: ${result.contextMode}.`);
         },
-        error: () => this.notifications.error('No fue posible generar la simulación.'),
-        complete: () => (this.previewing = false)
+        error: () => this.notifications.error('No fue posible generar la simulación.')
       });
   }
 
   publish(): void {
-    if (!this.mappingSet || this.publishing) return;
+    if (!this.canManage || !this.mappingSet || this.publishing) return;
 
     this.runValidation((isValid) => {
       if (!isValid) {
@@ -387,29 +414,31 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       }
 
       this.publishing = true;
-      this.api.publish(this.mappingSet!.id, 'ui-admin', 'Publicado desde SPA').subscribe({
+      this.api.publish(this.mappingSet!.id, 'ui-admin', 'Publicado desde SPA').pipe(
+        finalize(() => (this.publishing = false))
+      ).subscribe({
         next: (updated) => {
           this.mappingSet = updated;
           this.notifications.success('Configuración publicada correctamente.');
         },
-        error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.'),
-        complete: () => (this.publishing = false)
+        error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.')
       });
     });
   }
 
   clone(): void {
-    if (!this.mappingSet || this.cloning) return;
+    if (!this.canManage || !this.mappingSet || this.cloning) return;
     this.cloning = true;
-    this.api.clone(this.mappingSet.id, `${this.mappingSet.name} (copia)`, 'ui-admin').subscribe({
+    this.api.clone(this.mappingSet.id, `${this.mappingSet.name} (copia)`, 'ui-admin').pipe(
+      finalize(() => (this.cloning = false))
+    ).subscribe({
       next: (created) => {
         this.notifications.success('Configuración clonada.');
         this.mappingSet = created;
         this.mappingSetId = created.id;
         this.router.navigate(['/integraciones/mappings', created.methodCode, created.id]);
       },
-      error: () => this.notifications.error('No fue posible clonar la configuración.'),
-      complete: () => (this.cloning = false)
+      error: () => this.notifications.error('No fue posible clonar la configuración.')
     });
   }
 
@@ -636,11 +665,6 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   private handleEditorLoadFailure(error: unknown): void {
     const message = this.getEditorLoadErrorMessage(error);
-    console.error('[mapping-editor] loadAll:error', {
-      mappingSetId: this.mappingSetId,
-      methodCode: this.methodCode,
-      message
-    });
     this.loading = false;
     this.mappingSet = undefined;
     this.parameters = [];

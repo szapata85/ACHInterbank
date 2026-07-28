@@ -66,6 +66,38 @@ public class SoapIntegrationSettingsEffectiveModeTests
         Assert.DoesNotContain("token", System.Text.Json.JsonSerializer.Serialize(result), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task GetAsync_WhenNoSettingsExist_ReturnsDefaultsWithoutPersisting()
+    {
+        await using var context = BuildContext();
+        var service = new SoapIntegrationSettingsService(
+            context,
+            Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }));
+
+        var result = await service.GetAsync();
+
+        Assert.NotEmpty(result.WscfaachMappings);
+        Assert.Empty(await context.Set<SoapIntegrationSetting>().ToListAsync());
+    }
+
+    [Fact]
+    public async Task GetAsync_DoesNotRewriteStoredJsonDuringNormalization()
+    {
+        await using var context = BuildContext();
+        await SeedSoapSettingsAsync(context);
+        var original = await context.Set<SoapIntegrationSetting>().AsNoTracking().SingleAsync();
+        var service = new SoapIntegrationSettingsService(
+            context,
+            Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }));
+
+        await service.GetAsync();
+        context.ChangeTracker.Clear();
+
+        var persisted = await context.Set<SoapIntegrationSetting>().AsNoTracking().SingleAsync();
+        Assert.Equal(original.WscfaachMappingsJson, persisted.WscfaachMappingsJson);
+        Assert.Equal(original.WsAxonRespuestaTransaccionesMappingsJson, persisted.WsAxonRespuestaTransaccionesMappingsJson);
+    }
+
     private static AchDbContext BuildContext()
         => new(new DbContextOptionsBuilder<AchDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

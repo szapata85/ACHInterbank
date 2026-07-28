@@ -14,7 +14,7 @@ const routes: Routes = [
       {
         path: 'soap-settings',
         component: SoapIntegrationSettingsComponent,
-        data: { breadcrumb: 'Configuracion de servicios SOAP', title: 'Configuracion de servicios SOAP' }
+        data: { breadcrumb: 'Configuración de servicios SOAP', title: 'Configuración de servicios SOAP' }
       },
       {
         path: 'mappings',
@@ -24,7 +24,7 @@ const routes: Routes = [
       {
         path: 'mappings/:methodCode/:mappingSetId',
         component: MappingEditorPageComponent,
-        data: { breadcrumb: 'Editor avanzado', title: 'Editor avanzado de relacion de campos' }
+        data: { breadcrumb: 'Editor avanzado', title: 'Editor avanzado de relación de campos' }
       }
     ]
   }

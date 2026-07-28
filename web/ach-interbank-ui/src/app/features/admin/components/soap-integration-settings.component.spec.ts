@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of, throwError } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import {
   SoapIntegrationSettings,
@@ -13,6 +14,7 @@ describe('SoapIntegrationSettingsComponent', () => {
   let component: SoapIntegrationSettingsComponent;
   let service: jasmine.SpyObj<SoapIntegrationSettingsService>;
   let notifications: jasmine.SpyObj<NotificationService>;
+  let auth: jasmine.SpyObj<AuthService>;
 
   const settings: SoapIntegrationSettings = {
     wscfaachMappings: [
@@ -48,6 +50,8 @@ describe('SoapIntegrationSettingsComponent', () => {
   beforeEach(async () => {
     service = jasmine.createSpyObj<SoapIntegrationSettingsService>('SoapIntegrationSettingsService', ['refreshFromServer', 'updateSettings']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error']);
+    auth = jasmine.createSpyObj<AuthService>('AuthService', ['hasPermission']);
+    auth.hasPermission.and.returnValue(true);
     service.refreshFromServer.and.returnValue(of(settings));
     service.updateSettings.and.returnValue(of(settings));
 
@@ -56,6 +60,7 @@ describe('SoapIntegrationSettingsComponent', () => {
       providers: [
         { provide: SoapIntegrationSettingsService, useValue: service },
         { provide: NotificationService, useValue: notifications },
+        { provide: AuthService, useValue: auth },
         { provide: ActivatedRoute, useValue: {} }
       ]
     }).compileComponents();
@@ -88,11 +93,12 @@ describe('SoapIntegrationSettingsComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Respuesta diferencial');
   });
 
-  it('guarda usando getRawValue y conserva la seleccion actual', () => {
+  it('guarda únicamente el método seleccionado y conserva la selección actual', () => {
     const procTransacciones = component.allMethods.find((method) => component.methodNameFor(method.group) === 'Proc_Transacciones')!;
     component.selectMethod(procTransacciones);
     component.beginEdit();
-    procTransacciones.group.get('endpoint')?.setValue('http://uat.local/soap/proc-transacciones-editado');
+    component.editorForm.controls.endpoint.setValue('http://uat.local/soap/proc-transacciones-editado');
+    component.editorForm.markAsDirty();
 
     component.save();
 
@@ -107,10 +113,11 @@ describe('SoapIntegrationSettingsComponent', () => {
     const contrapartidas = component.allMethods.find((method) => component.methodNameFor(method.group) === 'Proc_Contrapartidas')!;
     component.selectMethod(contrapartidas);
     component.beginEdit();
-    contrapartidas.group.patchValue({
+    component.editorForm.patchValue({
       endpoint: 'http://localhost:7083/WSCFAACH.svc',
       operatingMode: 'Live'
     });
+    component.editorForm.markAsDirty();
 
     component.save();
 
@@ -125,12 +132,13 @@ describe('SoapIntegrationSettingsComponent', () => {
     const contrapartidas = component.allMethods.find((method) => component.methodNameFor(method.group) === 'Proc_Contrapartidas')!;
     component.selectMethod(contrapartidas);
     component.beginEdit();
-    contrapartidas.group.patchValue({ endpoint: 'http://incorrecto.local', operatingMode: 'Live' });
+    component.editorForm.patchValue({ endpoint: 'http://incorrecto.local', operatingMode: 'Live' });
+    component.editorForm.markAsDirty();
 
     component.cancelEdit();
 
-    expect(contrapartidas.group.get('endpoint')?.value).toBe('http://uat.local/soap/proc-contrapartidas');
-    expect(contrapartidas.group.get('operatingMode')?.value).toBe('DryRun');
+    expect(component.editorForm.controls.endpoint.value).toBe('http://uat.local/soap/proc-contrapartidas');
+    expect(component.editorForm.controls.operatingMode.value).toBe('DryRun');
     expect(service.updateSettings).not.toHaveBeenCalled();
   });
 
@@ -162,12 +170,36 @@ describe('SoapIntegrationSettingsComponent', () => {
     expect(text).not.toContain('Prueba de conexion');
   });
 
+  it('no guarda al abrir, seleccionar, cancelar ni navegar a mappings', () => {
+    const registrar = component.allMethods.find((method) => component.methodNameFor(method.group) === 'RegistrarRespuestaTransaccion')!;
+
+    component.selectMethod(registrar);
+    component.beginEdit();
+    component.cancelEdit(false);
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('[data-testid="soap-view-mappings"]') as HTMLAnchorElement).click();
+
+    expect(service.updateSettings).not.toHaveBeenCalled();
+  });
+
+  it('no guarda sin cambios y evita un segundo envío concurrente', () => {
+    component.beginEdit();
+    component.save();
+    expect(service.updateSettings).not.toHaveBeenCalled();
+
+    component.editorForm.controls.endpoint.setValue('http://uat.local/soap/nuevo');
+    component.editorForm.markAsDirty();
+    component.saving = true;
+    component.save();
+    expect(service.updateSettings).not.toHaveBeenCalled();
+  });
+
   it('muestra error si la carga inicial falla', () => {
     service.refreshFromServer.and.returnValue(throwError(() => new Error('fallo')));
 
     const failedFixture = TestBed.createComponent(SoapIntegrationSettingsComponent);
     failedFixture.detectChanges();
 
-    expect(notifications.error).toHaveBeenCalledWith('No fue posible cargar la configuracion SOAP.');
+    expect(notifications.error).toHaveBeenCalledWith('No fue posible cargar la configuración SOAP.');
   });
 });

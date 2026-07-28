@@ -9,6 +9,7 @@ import {
   IntegrationSourceCatalogField
 } from '../../../core/services/integration-mapping-admin.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { AuthService } from '../../../core/services/auth.service';
 import { MappingEditorPageComponent } from './mapping-editor-page.component';
 
 describe('MappingEditorPageComponent', () => {
@@ -170,6 +171,7 @@ describe('MappingEditorPageComponent', () => {
       providers: [
         { provide: IntegrationMappingAdminService, useValue: apiMock },
         { provide: NotificationService, useValue: { success: jasmine.createSpy(), error: jasmine.createSpy() } },
+        { provide: AuthService, useValue: { hasPermission: jasmine.createSpy().and.returnValue(true) } },
         { provide: Router, useValue: { navigate: jasmine.createSpy() } },
         {
           provide: ActivatedRoute,

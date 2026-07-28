@@ -31,8 +31,8 @@
 }
 
 .workspace-nav a.active {
-  background: #0b4a8b;
-  color: #fff;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
 }
 
 .workspace-bar p {

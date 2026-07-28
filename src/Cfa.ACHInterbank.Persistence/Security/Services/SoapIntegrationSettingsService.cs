@@ -50,30 +50,10 @@ public class SoapIntegrationSettingsService : ISoapIntegrationSettingsService
         if (settings is null)
         {
             var defaults = Normalize(BuildDefaultSettings());
-            settings = new SoapIntegrationSetting
-            {
-                WscfaachMappingsJson = JsonSerializer.Serialize(defaults.WscfaachMappings, JsonOptions),
-                WsAxonRespuestaTransaccionesMappingsJson = JsonSerializer.Serialize(defaults.WsAxonRespuestaTransaccionesMappings, JsonOptions)
-            };
-
-            _dbContext.Set<SoapIntegrationSetting>().Add(settings);
-            await _dbContext.SaveChangesAsync(ct);
-
             return await WithEffectiveProcTransaccionesSettingsAsync(defaults, ct);
         }
 
         var hydrated = MapToDto(settings);
-        var currentWscfaachJson = JsonSerializer.Serialize(hydrated.WscfaachMappings, JsonOptions);
-        var currentWsAxonJson = JsonSerializer.Serialize(hydrated.WsAxonRespuestaTransaccionesMappings, JsonOptions);
-
-        if (settings.WscfaachMappingsJson != currentWscfaachJson
-            || settings.WsAxonRespuestaTransaccionesMappingsJson != currentWsAxonJson)
-        {
-            settings.WscfaachMappingsJson = currentWscfaachJson;
-            settings.WsAxonRespuestaTransaccionesMappingsJson = currentWsAxonJson;
-            await _dbContext.SaveChangesAsync(ct);
-        }
-
         return await WithEffectiveProcTransaccionesSettingsAsync(hydrated, ct);
     }
 

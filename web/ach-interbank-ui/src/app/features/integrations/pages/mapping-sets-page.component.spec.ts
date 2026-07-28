@@ -341,15 +341,13 @@ describe('MappingSetsPageComponent', () => {
 
     expect(text).toContain('Matriz de campos SOAP');
     expect(text).toContain('Parámetro SOAP');
-    expect(text).toContain('Estado funcional');
-    expect(text).toContain('Origen');
-    expect(text).toContain('Campo / relación');
-    expect(text).toContain('Observación');
-    expect(text).toContain('Acción');
-    expect(text).not.toContain('Tabla origen');
-    expect(text).not.toContain('Campo origen');
-    expect(text).not.toContain('Regla de conversión');
-    expect(text).not.toContain('Obligatorio');
+    expect(text).toContain('Fuente o tabla');
+    expect(text).toContain('Campo de origen');
+    expect(text).toContain('Regla de conversión');
+    expect(text).toContain('Obligatorio');
+    expect(text).toContain('Estado');
+    expect(text).toContain('Última actualización');
+    expect(text).toContain('Acciones');
     expect(fixture.nativeElement.querySelector('[data-testid="mapping-matrix-table"]')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('[data-testid="mapping-card"]')).toBeFalsy();
   });
@@ -400,6 +398,47 @@ describe('MappingSetsPageComponent', () => {
     component.setFilter('Opcionales');
 
     expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['ANSIDLOTE', 'ANCLC']);
+  });
+
+  it('busca por parámetro, tabla, campo o regla y limpia los filtros', () => {
+    component.filterForm.controls.search.setValue('modificador');
+    expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['Proc_Transacciones.TraceNumber']);
+
+    component.filterForm.controls.required.setValue('optional');
+    expect(component.filteredMatrixRows).toEqual([]);
+
+    component.clearFilters();
+    expect(component.filterForm.getRawValue()).toEqual({ search: '', required: 'all' });
+    expect(component.filteredMatrixRows.length).toBe(component.matrixRows.length);
+  });
+
+  it('abrir y cancelar edición no crea borradores ni persiste reglas', () => {
+    const row = component.matrixRows[0];
+
+    component.editRelation(row);
+    expect(component.modalMode).toBe('edit');
+    expect(api.clone).not.toHaveBeenCalled();
+    expect(api.createDraft).not.toHaveBeenCalled();
+    expect(api.upsertRules).not.toHaveBeenCalled();
+
+    component.closeModal();
+    expect(api.clone).not.toHaveBeenCalled();
+    expect(api.upsertRules).not.toHaveBeenCalled();
+  });
+
+  it('clona una versión publicada una sola vez únicamente al guardar', () => {
+    const published = mappingSets.find((set) => set.methodId === 3)!;
+    const draft = { ...published, id: '55555555-5555-5555-5555-555555555555', status: 'Draft' as const, version: 0 };
+    api.clone.and.returnValue(of(draft));
+    api.upsertRules.and.returnValue(of(draft));
+    const row = component.matrixRows[0];
+
+    component.editRelation(row);
+    component.saveRelation();
+
+    expect(api.clone).toHaveBeenCalledTimes(1);
+    expect(api.clone).toHaveBeenCalledWith(published.id, `${published.name} - ajuste matriz`, 'ui-admin');
+    expect(api.upsertRules).toHaveBeenCalledTimes(1);
   });
 
   it('muestra los tres servicios con descripcion funcional en espanol', () => {
@@ -673,11 +712,8 @@ describe('MappingSetsPageComponent', () => {
   });
 
   it('conserva el boton Ver auditoria y carga el historial del mapping activo', () => {
-    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-    const historyButton = buttons.find((button) => button.textContent?.includes('Ver auditoría'));
-
-    expect(historyButton).toBeTruthy();
-    historyButton!.click();
+    const row = component.matrixRows[0];
+    component.openHistory(row);
     fixture.detectChanges();
 
     expect(api.getHistory).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');

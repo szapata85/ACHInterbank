@@ -2,10 +2,7 @@ import { expect, Page, test } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-type AuthLoginResponse = {
-  data?: { token?: string };
-};
-
+type AuthLoginResponse = { data?: { token?: string } };
 type SoapMethod = {
   methodName: string;
   endpoint: string;
@@ -15,220 +12,253 @@ type SoapMethod = {
   inputParameterMappings: Array<{
     inputName: string;
     soapParameterName: string;
+    defaultValue?: string | null;
     required: boolean;
   }>;
 };
-
 type SoapSettings = {
   wscfaachMappings: SoapMethod[];
   wsAxonRespuestaTransaccionesMappings: SoapMethod[];
 };
 
-type IntegrationMethod = { id: number; code: string; isActive: boolean };
-type MappingSet = { id: string; status: string | number; isActive: boolean; rules: unknown[] };
-type MappingValidation = { isValid: boolean; issues: Array<{ severity: string; message: string }> };
-
 const ui = (process.env['ACH_UI_URL'] ?? 'http://localhost:743').replace(/\/+$/, '');
 const api = (process.env['ACH_API_URL'] ?? 'http://localhost:843').replace(/\/+$/, '');
 const username = process.env['ACH_USER'] ?? '';
 const password = process.env['ACH_PASS'] ?? '';
-const endpoint = 'http://localhost:7083/WSCFAACH.svc';
-const verifyOnly = process.env['SOAP_SETTINGS_VERIFY_ONLY'] === 'true';
-const evidenceDir = resolve(process.cwd(), '..', '..', 'docs', 'uat', 'evidencias', 'transactions-create');
+const evidenceDir = resolve(process.cwd(), '..', '..', 'docs', 'ux', 'evidencias', 'integraciones-angular-material', 'final');
 mkdirSync(evidenceDir, { recursive: true });
 
 test.describe.configure({ mode: 'serial' });
-test.skip(!username || !password, 'ACH_USER y ACH_PASS son requeridos para la validación LIVE local.');
+test.skip(!username || !password, 'ACH_USER y ACH_PASS deben suministrarse mediante el mecanismo UAT existente.');
 
-test('configura ambos servicios desde la SPA y conserva cada valor al navegar', async ({ page }, testInfo) => {
+test('settings: editar, cancelar y navegar no persiste; guardar es aislado, único y reversible', async ({ page }) => {
   test.setTimeout(180_000);
-  const consoleErrors: string[] = [];
-  const failedRequests: string[] = [];
-  page.on('console', (message) => {
-    if (message.type() === 'error') {
-      consoleErrors.push(message.text());
-    }
-  });
-  page.on('requestfailed', (request) => {
-    failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`);
-  });
-
+  const monitor = monitorPage(page);
   const token = await authenticate(page);
-  await page.waitForLoadState('networkidle');
-  await page.goto(`${ui}/integraciones/soap-settings`);
-  await expect(page.locator('[data-testid="soap-settings-page"]')).toBeVisible();
-  await page.waitForLoadState('networkidle');
+  const headers = { Authorization: `Bearer ${token}` };
+  const originalResponse = await page.request.get(`${api}/api/users/soap-integrations`, { headers });
+  expect(originalResponse.ok()).toBeTruthy();
+  const original = await originalResponse.json() as SoapSettings;
+  let restorationRequired = false;
 
-  if (verifyOnly) {
-    await assertMethod(page, 'Proc_Contrapartidas');
-    await assertMethod(page, 'Proc_Transacciones');
-    const apiResponse = await page.request.get(`${api}/api/users/soap-integrations`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    expect(apiResponse.ok()).toBeTruthy();
-    const persisted = await apiResponse.json() as SoapSettings;
-    assertPersistedMethod(persisted, 'Proc_Contrapartidas');
-    assertPersistedMethod(persisted, 'Proc_Transacciones');
-    assertNoForbiddenMappings(persisted);
-    await assertPublishedMappings(page, token);
-    await page.screenshot({
-      path: resolve(evidenceDir, 'configuracion-soap-live.png'),
-      fullPage: true
-    });
-    expect(failedRequests).toEqual([]);
-    expect(consoleErrors.filter((message) => !/favicon|ResizeObserver/i.test(message))).toEqual([]);
-    return;
+  try {
+    await navigateTo(page, '/integraciones/soap-settings');
+    await expect(page.locator('[data-testid="soap-settings-page"]')).toBeVisible();
+    await expect(page.locator('[data-testid="soap-settings-page"]').getByRole('heading', { name: 'Configuración de servicios SOAP', exact: true })).toBeVisible();
+    await expect(page.locator('[data-testid="soap-service-card"]')).toHaveCount(3);
+
+    const beforePassiveActions = monitor.adminWrites.length;
+    for (const method of allMethods(original)) {
+      await selectMethod(page, method.methodName);
+      await expect(page.locator('[data-testid="soap-endpoint-input"]')).toHaveValue(method.endpoint);
+    }
+
+    await selectMethod(page, 'Proc_Transacciones');
+    await page.locator('[data-testid="soap-edit-button"]').click();
+    await page.locator('[data-testid="soap-endpoint-input"]').fill('');
+    await page.locator('[data-testid="soap-endpoint-input"]').blur();
+    await expect(page.getByText('El endpoint es obligatorio.')).toBeVisible();
+    await page.locator('[data-testid="soap-cancel-button"]').click();
+    await expect(page.locator('[data-testid="soap-endpoint-input"]')).toHaveValue(findMethod(original, 'Proc_Transacciones').endpoint);
+
+    await page.locator('[data-testid="soap-view-mappings"]').click();
+    await expect(page).toHaveURL(/\/integraciones\/mappings/);
+    await page.goBack();
+    await expect(page.locator('[data-testid="soap-settings-page"]')).toBeVisible();
+    expect(monitor.adminWrites.length).toBe(beforePassiveActions);
+
+    const target = findMethod(original, 'RegistrarRespuestaTransaccion');
+    await selectMethod(page, target.methodName);
+    await page.locator('[data-testid="soap-edit-button"]').click();
+    const reversibleSoapAction = `${target.soapAction.replace(/#ux-check$/, '')}#ux-check`;
+    await page.locator('[data-testid="soap-action-input"]').fill(reversibleSoapAction);
+    const putsBeforeSave = monitor.settingsPuts;
+    restorationRequired = true;
+    const saveResponse = page.waitForResponse((response) =>
+      response.request().method() === 'PUT'
+      && new URL(response.url()).pathname.toLowerCase().endsWith('/api/users/soap-integrations')
+    );
+    await page.locator('[data-testid="soap-save-button"]').click({ clickCount: 2 });
+    expect((await saveResponse).ok()).toBeTruthy();
+    await expect.poll(() => monitor.settingsPuts).toBe(putsBeforeSave + 1);
+
+    await page.reload();
+    await selectMethod(page, target.methodName);
+    await expect(page.locator('[data-testid="soap-action-input"]')).toHaveValue(reversibleSoapAction);
+    const persisted = await readSettings(page, headers);
+    expect(findMethod(persisted, target.methodName).soapAction).toBe(reversibleSoapAction);
+    expect(findMethod(persisted, 'Proc_Transacciones')).toEqual(findMethod(original, 'Proc_Transacciones'));
+    expect(findMethod(persisted, 'Proc_Contrapartidas')).toEqual(findMethod(original, 'Proc_Contrapartidas'));
+  } finally {
+    if (restorationRequired) {
+      const restore = await page.request.put(`${api}/api/users/soap-integrations`, { headers, data: original });
+      expect(restore.ok(), 'La configuración SOAP original debe restaurarse incluso si falla la prueba.').toBeTruthy();
+      expect(await readSettings(page, headers)).toEqual(original);
+    }
   }
 
-  await configureMethod(page, 'Proc_Contrapartidas');
-  await configureMethod(page, 'Proc_Transacciones');
-
-  await page.reload();
-  await assertMethod(page, 'Proc_Contrapartidas');
-  await assertMethod(page, 'Proc_Transacciones');
-
-  await selectMethod(page, 'Proc_Contrapartidas');
-  await page.getByRole('link', { name: 'Ver relación de campos', exact: true }).click();
-  await expect(page).toHaveURL(/\/integraciones\/mappings/);
-  await page.waitForLoadState('networkidle');
-  await expect(page.getByText('PLValidarUsuarioBV')).toHaveCount(0);
-
-  await page.goto(`${ui}/integraciones/soap-settings`);
-  await assertMethod(page, 'Proc_Contrapartidas');
-  await page.waitForLoadState('networkidle');
-  await page.locator('[data-testid="soap-edit-button"]').click();
-  await page.locator('[data-testid="soap-endpoint-input"]').fill('http://valor-no-persistido.local');
-  await page.locator('[data-testid="soap-cancel-button"]').click();
-  await expect(page.locator('[data-testid="soap-endpoint-input"]')).toHaveValue(endpoint);
-
-  await page.locator('[data-testid="soap-edit-button"]').click();
-  const unchangedSave = page.waitForResponse((response) =>
-    response.request().method() === 'PUT'
-    && new URL(response.url()).pathname.toLowerCase().endsWith('/api/users/soap-integrations')
-  );
-  await page.locator('[data-testid="soap-save-button"]').click();
-  expect((await unchangedSave).ok()).toBeTruthy();
-  await expect(page.locator('[data-testid="soap-endpoint-input"]')).toHaveValue(endpoint);
-
-  const apiResponse = await page.request.get(`${api}/api/users/soap-integrations`, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-  expect(apiResponse.ok()).toBeTruthy();
-  const persisted = await apiResponse.json() as SoapSettings;
-  assertPersistedMethod(persisted, 'Proc_Contrapartidas');
-  assertPersistedMethod(persisted, 'Proc_Transacciones');
-  assertNoForbiddenMappings(persisted);
-  await assertPublishedMappings(page, token);
-
-  await testInfo.attach('soap-settings-live.png', {
-    body: await page.screenshot({ fullPage: true }),
-    contentType: 'image/png'
-  });
-  await page.screenshot({
-    path: resolve(evidenceDir, 'configuracion-soap-live.png'),
-    fullPage: true
-  });
-  await page.waitForLoadState('networkidle');
-
-  expect(failedRequests, `No deben existir requests fallidos: ${failedRequests.join(' | ')}`).toEqual([]);
-  expect(
-    consoleErrors.filter((message) => !/favicon|ResizeObserver/i.test(message)),
-    `No deben existir errores de consola: ${consoleErrors.join(' | ')}`
-  ).toEqual([]);
+  assertSafeMonitor(monitor);
 });
 
-async function configureMethod(page: Page, methodName: string): Promise<void> {
-  await selectMethod(page, methodName);
-  await page.locator('[data-testid="soap-edit-button"]').click();
-  await page.locator('[data-testid="soap-endpoint-input"]').fill(endpoint);
-  await page.locator('[data-testid="soap-operating-mode"]').selectOption('Live');
-  const enabled = page.locator('input[formcontrolname="enabled"]');
-  if (!(await enabled.isChecked())) {
-    await enabled.check();
+test('mappings: separa servicios, filtra y no persiste al abrir, validar o cancelar', async ({ page }) => {
+  test.setTimeout(240_000);
+  const monitor = monitorPage(page);
+  await authenticate(page);
+  await navigateToMappings(page);
+  await expect(page.locator('[data-testid="integration-mappings-page"]')).toBeVisible();
+  await expect(page.locator('[data-testid="integration-mappings-page"]').getByRole('heading', { name: 'Matriz de campos SOAP', exact: true })).toBeVisible();
+  try {
+    await expect(page.getByRole('tab')).toHaveCount(3, { timeout: 30_000 });
+  } catch {
+    throw new Error(`No se cargaron los servicios SOAP. Red=${JSON.stringify({
+      failedRequests: monitor.failedRequests,
+      unexpectedResponses: monitor.unexpectedResponses,
+      pageErrors: monitor.pageErrors,
+      consoleErrors: monitor.consoleErrors
+    })}`);
   }
 
-  const saveResponse = page.waitForResponse((response) =>
-    response.request().method() === 'PUT'
-    && new URL(response.url()).pathname.toLowerCase().endsWith('/api/users/soap-integrations')
-  );
-  await page.locator('[data-testid="soap-save-button"]').click();
-  const response = await saveResponse;
-  expect(response.ok(), `${methodName} debe guardarse desde la SPA.`).toBeTruthy();
-  await expect(page.locator('[data-testid="soap-endpoint-input"]')).toHaveValue(endpoint);
-  await expect(page.locator('[data-testid="soap-operating-mode"]')).toHaveValue('Live');
-}
+  for (const service of ['Proc_Transacciones', 'Proc_Contrapartidas', 'RegistrarRespuestaTransaccion']) {
+    await page.getByRole('tab', { name: service, exact: true }).click();
+    await expect(page.locator('mat-card-title').filter({ hasText: service })).toBeVisible();
+    await expect(page.locator('[data-testid="mapping-matrix-row"]').first()).toBeVisible({ timeout: 30_000 });
+  }
 
-async function assertMethod(page: Page, methodName: string): Promise<void> {
-  await selectMethod(page, methodName);
-  await expect(page.locator('[data-testid="soap-endpoint-input"]')).toHaveValue(endpoint);
-  await expect(page.locator('[data-testid="soap-operating-mode"]')).toHaveValue('Live');
-  await expect(page.locator('input[formcontrolname="enabled"]')).toBeChecked();
-}
+  await page.getByRole('tab', { name: 'Proc_Transacciones', exact: true }).click();
+  const search = page.getByLabel('Buscar parámetro, tabla, campo o regla');
+  await search.fill('NACHA');
+  await expect(page.getByText(/\d+ de \d+ parámetros/)).toBeVisible();
+  await page.getByRole('button', { name: 'Limpiar' }).click();
 
-async function selectMethod(page: Page, methodName: string): Promise<void> {
-  const method = page.locator('[data-testid="soap-service-card"]').filter({ hasText: methodName });
-  await expect(method).toHaveCount(1);
-  await method.click();
-  await expect(page.getByRole('heading', { name: methodName, exact: true })).toBeVisible();
-}
+  const writesBeforeEdit = monitor.adminWrites.length;
+  await openFirstRowMenu(page);
+  await page.getByRole('menuitem', { name: 'Editar relación' }).click();
+  await expect(page.locator('.integration-mappings__dialog')).toBeVisible();
+  await page.screenshot({
+    path: resolve(evidenceDir, 'mapping-editor-dialog-desktop.png'),
+    fullPage: true
+  });
+  await page.locator('[data-testid="source-field-select"]').click();
+  await page.getByRole('option', { name: 'Sin mapear' }).click();
+  await page.getByRole('button', { name: 'Guardar relación' }).click();
+  await expect(page.getByText('Selecciona un campo de origen para activar la relación.')).toBeVisible();
+  await page.screenshot({
+    path: resolve(evidenceDir, 'mapping-validation-error-desktop.png'),
+    fullPage: true
+  });
+  expect(monitor.adminWrites.length).toBe(writesBeforeEdit);
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+  expect(monitor.adminWrites.length).toBe(writesBeforeEdit);
 
-function assertPersistedMethod(settings: SoapSettings, methodName: string): void {
-  const method = settings.wscfaachMappings.find((item) => item.methodName === methodName);
-  expect(method, `${methodName} debe existir en el API.`).toBeTruthy();
-  expect(method!.endpoint).toBe(endpoint);
-  expect(method!.operatingMode).toBe('Live');
-  expect(method!.enabled).toBeTruthy();
-}
+  await openFirstRowMenu(page);
+  await page.getByRole('menuitem', { name: 'Abrir editor avanzado' }).click();
+  await expect(page).toHaveURL(/\/integraciones\/mappings\/.+\/.+/);
+  await expect(page.getByText('Diseñador de regla')).toBeVisible();
+  await expect(page.locator('[data-testid="source-kind-select"]')).toBeVisible();
+  await page.screenshot({
+    path: resolve(evidenceDir, 'mapping-advanced-editor-desktop.png'),
+    fullPage: true
+  });
+  expect(monitor.adminWrites.length).toBe(writesBeforeEdit);
 
-function assertNoForbiddenMappings(settings: SoapSettings): void {
-  const methods = [...settings.wscfaachMappings, ...settings.wsAxonRespuestaTransaccionesMappings];
-  for (const method of methods) {
-    for (const mapping of method.inputParameterMappings ?? []) {
-      expect(mapping.inputName).not.toMatch(/^METODO$|^PLValidarUsuarioBV$/i);
-      expect(mapping.soapParameterName).not.toMatch(/^METODO$|^PLValidarUsuarioBV$/i);
+  assertSafeMonitor(monitor);
+});
+
+test('desktop, tablet y móvil mantienen controles y scroll dentro del contenido', async ({ page }) => {
+  test.setTimeout(180_000);
+  const monitor = monitorPage(page);
+  await authenticate(page);
+  const viewports = [
+    { name: 'desktop', width: 1440, height: 900 },
+    { name: 'tablet', width: 768, height: 1024 },
+    { name: 'mobile', width: 390, height: 844 }
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    for (const route of ['mappings', 'soap-settings']) {
+      if (route === 'mappings') {
+        await navigateToMappings(page);
+      } else {
+        await navigateTo(page, '/integraciones/soap-settings');
+      }
+      const root = route === 'mappings'
+        ? page.locator('[data-testid="integration-mappings-page"]')
+        : page.locator('[data-testid="soap-settings-page"]');
+      await expect(root).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      await expect(page.locator('mat-progress-bar')).toHaveCount(0);
+      const bodyOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+      expect(bodyOverflow, `${route} no debe desbordar el body en ${viewport.name}.`).toBeFalsy();
+      await page.screenshot({
+        path: resolve(evidenceDir, `${route}-${viewport.name}.png`),
+        fullPage: true
+      });
     }
   }
+
+  assertSafeMonitor(monitor);
+});
+
+function monitorPage(page: Page) {
+  const state = {
+    consoleErrors: [] as string[],
+    pageErrors: [] as string[],
+    failedRequests: [] as string[],
+    navigationAborts: [] as string[],
+    unexpectedResponses: [] as string[],
+    adminWrites: [] as string[],
+    operationalCalls: [] as string[],
+    settingsPuts: 0
+  };
+  page.on('console', (message) => {
+    if (message.type() === 'error') state.consoleErrors.push(message.text());
+  });
+  page.on('pageerror', (error) => state.pageErrors.push(error.message));
+  page.on('requestfailed', (request) => {
+    const path = new URL(request.url()).pathname;
+    const failure = request.failure()?.errorText ?? 'desconocido';
+    const description = `${request.method()} ${path} (${failure})`;
+    if (request.method() === 'POST' && path.toLowerCase().endsWith('/auth/refresh') && /abort/i.test(failure)) {
+      state.navigationAborts.push(description);
+      return;
+    }
+    state.failedRequests.push(description);
+  });
+  page.on('response', (response) => {
+    if (response.status() >= 400) state.unexpectedResponses.push(`${response.status()} ${response.request().method()} ${new URL(response.url()).pathname}`);
+  });
+  page.on('request', (request) => {
+    const method = request.method();
+    const url = new URL(request.url());
+    const path = url.pathname.toLowerCase();
+    if (method === 'PUT' && path.endsWith('/api/users/soap-integrations')) state.settingsPuts += 1;
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
+      && !/\/(auth\/login|auth\/refresh|api\/navigation-logs)$/.test(path)) {
+      state.adminWrites.push(`${method} ${path}`);
+    }
+    if (url.port === '7083'
+      || /dispatch-cycle|post-processing|\/execute$|\/send$/.test(path)) {
+      state.operationalCalls.push(`${method} ${url.origin}${path}`);
+    }
+  });
+  return state;
 }
 
-async function assertPublishedMappings(page: Page, token: string): Promise<void> {
-  const headers = { Authorization: `Bearer ${token}` };
-  const methodsResponse = await page.request.get(`${api}/api/integrations/methods`, { headers });
-  expect(methodsResponse.ok()).toBeTruthy();
-  const methods = await methodsResponse.json() as IntegrationMethod[];
-
-  for (const code of ['WSCFAACH.Proc_Contrapartidas', 'WSCFAACH.Proc_Transacciones']) {
-    const method = methods.find((item) => item.code === code && item.isActive);
-    expect(method, `${code} debe existir activo en el catálogo de integración.`).toBeTruthy();
-    const publishedResponse = await page.request.get(
-      `${api}/api/integrations/mappingsets/published?methodId=${method!.id}`,
-      { headers }
-    );
-    expect(publishedResponse.ok(), `${code} debe tener un mapping publicado.`).toBeTruthy();
-    const published = await publishedResponse.json() as MappingSet;
-    expect([2, 'Published']).toContain(published.status);
-    expect(published.isActive).toBeTruthy();
-    expect(published.rules.length).toBeGreaterThan(0);
-
-    const validationResponse = await page.request.post(
-      `${api}/api/integrations/mappingsets/${published.id}/validate`,
-      { headers, data: { includeWarnings: true } }
-    );
-    expect(validationResponse.ok()).toBeTruthy();
-    const validation = await validationResponse.json() as MappingValidation;
-    expect(
-      validation.isValid,
-      `${code} debe validar sin bloqueos: ${validation.issues.map((item) => `${item.severity}:${item.message}`).join(' | ')}`
-    ).toBeTruthy();
-  }
+function assertSafeMonitor(monitor: ReturnType<typeof monitorPage>): void {
+  expect(monitor.consoleErrors.filter((message) => !/favicon|ResizeObserver/i.test(message))).toEqual([]);
+  expect(monitor.pageErrors).toEqual([]);
+  expect(monitor.failedRequests).toEqual([]);
+  expect(monitor.unexpectedResponses).toEqual([]);
+  expect(monitor.operationalCalls, 'No debe invocarse ningún procedimiento SOAP operativo.').toEqual([]);
 }
 
 async function authenticate(page: Page): Promise<string> {
-  await page.goto(`${ui}/login`);
+  await navigateTo(page, '/login');
   await page.getByLabel('Usuario').fill(username);
   await page.locator('input[formcontrolname="password"]').fill(password);
   const login = page.waitForResponse((response) =>
-    response.request().method() === 'POST'
-    && new URL(response.url()).pathname.toLowerCase().endsWith('/auth/login')
+    response.request().method() === 'POST' && new URL(response.url()).pathname.toLowerCase().endsWith('/auth/login')
   );
   await page.getByRole('button', { name: 'Ingresar', exact: true }).click();
   const response = await login;
@@ -238,5 +268,50 @@ async function authenticate(page: Page): Promise<string> {
     ?? await page.evaluate(() => window.sessionStorage.getItem('ach.interbank.access_token'))
     ?? '';
   expect(token).toBeTruthy();
+  await expect(page).toHaveURL(/\/dashboard(?:[/?#]|$)/);
+  await expect(page.locator('app-main-layout')).toBeVisible();
+  await expect(page.locator('app-loading-overlay .overlay')).toHaveCount(0);
   return token;
+}
+
+async function navigateTo(page: Page, path: string): Promise<void> {
+  await page.goto(`${ui}${path}`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 30_000
+  });
+}
+
+async function navigateToMappings(page: Page): Promise<void> {
+  await navigateTo(page, '/integraciones/soap-settings');
+  await expect(page.locator('[data-testid="soap-settings-page"]')).toBeVisible();
+  await page.locator('[data-testid="soap-view-mappings"]').click();
+  await expect(page).toHaveURL(/\/integraciones\/mappings(?:[/?#]|$)/);
+}
+
+async function selectMethod(page: Page, methodName: string): Promise<void> {
+  const method = page.locator('[data-testid="soap-service-card"]').filter({ hasText: methodName });
+  await expect(method).toHaveCount(1);
+  await method.click();
+  await expect(page.locator('mat-card-title').filter({ hasText: methodName })).toBeVisible();
+}
+
+async function openFirstRowMenu(page: Page): Promise<void> {
+  await page.locator('[data-testid="mapping-detail-button"]').first().click();
+  await expect(page.getByRole('menu')).toBeVisible();
+}
+
+function allMethods(settings: SoapSettings): SoapMethod[] {
+  return [...settings.wscfaachMappings, ...settings.wsAxonRespuestaTransaccionesMappings];
+}
+
+function findMethod(settings: SoapSettings, methodName: string): SoapMethod {
+  const method = allMethods(settings).find((item) => item.methodName === methodName);
+  expect(method, `${methodName} debe existir en la configuración.`).toBeTruthy();
+  return method!;
+}
+
+async function readSettings(page: Page, headers: Record<string, string>): Promise<SoapSettings> {
+  const response = await page.request.get(`${api}/api/users/soap-integrations`, { headers });
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<SoapSettings>;
 }

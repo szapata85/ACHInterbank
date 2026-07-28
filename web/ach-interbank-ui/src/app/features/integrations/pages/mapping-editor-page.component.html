@@ -12,6 +12,7 @@
     [titulo]="'Estado actual: ' + estadoPublicacion"
     mensaje="Primero guarde y valide; después ejecute vista previa y finalmente publique si no existen bloqueos."
   ></ui-alerta>
+  <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Cargando editor de relaciones"></mat-progress-bar>
 
   <section class="card state" *ngIf="viewState === 'loading'">
     <h4>Cargando editor funcional…</h4>
@@ -72,89 +73,96 @@
             <strong>Destino:</strong> {{ sp.displayName }} · {{ sp.descriptionEs || 'Sin descripción funcional' }}
           </p>
 
-          <form [formGroup]="ruleForm" class="rule-form">
+          <form [formGroup]="ruleForm" class="rule-form" (ngSubmit)="saveRule()">
             <section class="rule-group">
               <h5>Origen</h5>
-              <label>
-                Origen funcional
-                <select
+              <mat-form-field appearance="outline">
+                <mat-label>Origen funcional</mat-label>
+                <mat-select
                   formControlName="sourceKind"
                   data-testid="source-kind-select"
-                  (change)="ruleForm.patchValue({ sourceCatalogFieldId: null, sourceFieldPath: '' })"
+                  (selectionChange)="ruleForm.patchValue({ sourceCatalogFieldId: null, sourceFieldPath: '' })"
                 >
-                  <option *ngFor="let option of sourceKindOptions" [value]="option.value">{{ option.label }}</option>
-                </select>
-              </label>
-              <label>
-                Campo de origen controlado
-                <select
+                  <mat-option *ngFor="let option of sourceKindOptions" [value]="option.value">{{ option.label }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-chip-set aria-label="Fuentes funcionales disponibles">
+                <mat-chip *ngFor="let option of sourceKindOptions">{{ option.label }}</mat-chip>
+              </mat-chip-set>
+              <mat-form-field appearance="outline">
+                <mat-label>Campo de origen controlado</mat-label>
+                <mat-select
                   formControlName="sourceCatalogFieldId"
                   data-testid="source-catalog-select"
-                  (change)="onSourceCatalogFieldChange(ruleForm.controls.sourceCatalogFieldId.value)"
+                  (selectionChange)="onSourceCatalogFieldChange($event.value)"
                 >
-                  <option [ngValue]="null">-- seleccionar --</option>
-                  <option *ngFor="let field of getSourceOptionsByKind(ruleForm.value.sourceKind)" [ngValue]="field.id">
+                  <mat-option [value]="null">Seleccionar campo</mat-option>
+                  <mat-option *ngFor="let field of getSourceOptionsByKind(ruleForm.value.sourceKind)" [value]="field.id">
                     {{ field.displayName }} ({{ field.fieldPath }})
-                  </option>
-                </select>
-              </label>
-              <label>
-                Ruta técnica controlada
-                <input
+                  </mat-option>
+                </mat-select>
+                <mat-error *ngIf="!ruleForm.controls.sourceCatalogFieldId.value && !ruleForm.controls.fixedValue.value">
+                  Selecciona un campo o registra un valor fijo.
+                </mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Ruta técnica controlada</mat-label>
+                <input matInput
                   formControlName="sourceFieldPath"
                   type="text"
                   readonly
                   data-testid="source-field-path-readonly"
                   placeholder="Seleccione un campo del catálogo"
                 />
-                <small>Derivada del catálogo controlado. No se permite SQL libre ni tabla física arbitraria.</small>
-              </label>
+                <mat-hint>Derivada del catálogo; no admite SQL libre.</mat-hint>
+              </mat-form-field>
             </section>
 
             <section class="rule-group">
               <h5>Transformación y respaldo</h5>
-              <label>
-                Valor fijo
-                <input formControlName="fixedValue" type="text" placeholder="Ejemplo: PENDIENTE" />
-              </label>
-              <label>
-                Valor por defecto
-                <input formControlName="defaultValue" type="text" placeholder="Se usa si el origen no trae dato" />
-              </label>
-              <label>
-                Transformación
-                <select formControlName="transformationCode">
-                  <option value="">-- sin transformación --</option>
-                  <option *ngFor="let t of transformations" [value]="t.code">{{ t.displayName }}</option>
-                </select>
-              </label>
-              <label>
-                Máscara (si aplica)
-                <input formControlName="formatMask" type="text" placeholder="Ej: yyyyMMdd o 10" />
-              </label>
+              <mat-form-field appearance="outline">
+                <mat-label>Valor fijo</mat-label>
+                <input matInput formControlName="fixedValue" type="text" placeholder="Ejemplo: PENDIENTE" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Valor por defecto</mat-label>
+                <input matInput formControlName="defaultValue" type="text" placeholder="Se usa si el origen no trae dato" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Transformación</mat-label>
+                <mat-select formControlName="transformationCode">
+                  <mat-option value="">Sin transformación</mat-option>
+                  <mat-option *ngFor="let t of transformations" [value]="t.code">{{ t.displayName }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Máscara</mat-label>
+                <input matInput formControlName="formatMask" type="text" placeholder="Ejemplo: yyyyMMdd" />
+              </mat-form-field>
             </section>
 
             <section class="rule-group">
               <h5>Control de ejecución</h5>
-              <label>
-                Prioridad
-                <input formControlName="priority" type="number" min="1" />
-              </label>
-              <label>
-                Forzar obligatoriedad
-                <select formControlName="requiredOverride">
-                  <option [ngValue]="null">Sin override</option>
-                  <option [ngValue]="true">Sí</option>
-                  <option [ngValue]="false">No</option>
-                </select>
-              </label>
-              <label class="inline">
-                <input type="checkbox" formControlName="enabled" /> Regla habilitada
-              </label>
+              <mat-form-field appearance="outline">
+                <mat-label>Prioridad</mat-label>
+                <input matInput formControlName="priority" type="number" min="1" />
+                <mat-error>La prioridad debe ser mayor o igual a 1.</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Forzar obligatoriedad</mat-label>
+                <mat-select formControlName="requiredOverride">
+                  <mat-option [value]="null">Conservar definición del contrato</mat-option>
+                  <mat-option [value]="true">Sí</mat-option>
+                  <mat-option [value]="false">No</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-checkbox formControlName="enabled">Regla habilitada</mat-checkbox>
             </section>
 
             <div class="rule-actions">
-              <ui-boton [texto]="savingRule ? 'Guardando…' : 'Guardar borrador'" [cargando]="savingRule" (accion)="saveRule()"></ui-boton>
+              <button mat-flat-button type="submit" *ngIf="canManage" [disabled]="savingRule">
+                {{ savingRule ? 'Guardando…' : 'Guardar borrador' }}
+              </button>
             </div>
           </form>
 
@@ -168,11 +176,11 @@
 
         <aside class="card right">
           <h4>Centro de control</h4>
-          <div class="acciones-principales">
-            <ui-boton [texto]="validating ? 'Validando…' : 'Validar'" [cargando]="validating" icono="task_alt" (accion)="runValidation()"></ui-boton>
-            <ui-boton [texto]="previewing ? 'Generando vista previa…' : 'Vista previa'" [cargando]="previewing" variante="contorno" icono="visibility" (accion)="runPreview()"></ui-boton>
-            <ui-boton [texto]="publishing ? 'Publicando…' : 'Publicar'" [cargando]="publishing" [deshabilitado]="!isDraftStatus(set.status)" icono="publish" (accion)="publish()"></ui-boton>
-            <ui-boton [texto]="cloning ? 'Clonando…' : 'Clonar'" [cargando]="cloning" variante="contorno" icono="content_copy" (accion)="clone()"></ui-boton>
+          <div class="acciones-principales" *ngIf="canManage">
+            <button mat-flat-button type="button" (click)="runValidation()" [disabled]="validating">{{ validating ? 'Validando…' : 'Validar' }}</button>
+            <button mat-stroked-button type="button" (click)="runPreview()" [disabled]="previewing">{{ previewing ? 'Generando…' : 'Vista previa' }}</button>
+            <button mat-flat-button type="button" (click)="publish()" [disabled]="publishing || !isDraftStatus(set.status)">{{ publishing ? 'Publicando…' : 'Publicar' }}</button>
+            <button mat-stroked-button type="button" (click)="clone()" [disabled]="cloning">{{ cloning ? 'Clonando…' : 'Clonar' }}</button>
           </div>
 
           <div class="panel-block" [class.invalido]="totalErroresValidacion > 0" [class.advertencia]="totalErroresValidacion === 0 && totalAdvertenciasValidacion > 0">
@@ -185,17 +193,17 @@
             </ul>
           </div>
 
-          <div class="panel-block preview-controls" [formGroup]="previewForm">
+          <div class="panel-block preview-controls" [formGroup]="previewForm" *ngIf="canManage">
             <h5>Entrada para vista previa</h5>
-            <label class="inline"><input type="checkbox" formControlName="usarMuestraControlada" /> Usar datos de ejemplo controlados</label>
-            <label>
-              Id de transacción real
-              <input type="number" formControlName="idTransaccionMuestra" [disabled]="usarMuestraControlada" />
-            </label>
-            <label>
-              Id de ciclo real
-              <input type="text" formControlName="idCicloMuestra" [disabled]="usarMuestraControlada" />
-            </label>
+            <mat-checkbox formControlName="usarMuestraControlada">Usar datos de ejemplo controlados</mat-checkbox>
+            <mat-form-field appearance="outline">
+              <mat-label>Id de transacción real</mat-label>
+              <input matInput type="number" formControlName="idTransaccionMuestra" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Id de ciclo real</mat-label>
+              <input matInput type="text" formControlName="idCicloMuestra" />
+            </mat-form-field>
           </div>
 
           <div class="panel-block">
@@ -221,6 +229,7 @@
 
           <div class="panel-block">
             <h5>Historial</h5>
+            <p class="history-error" *ngIf="historyLoadFailed">No fue posible cargar el historial. Puedes volver al listado y reintentar.</p>
             <ul *ngIf="historyItems.length > 0">
               <li *ngFor="let h of historyItems">v{{ h.version || 'Borrador' }} · {{ h.action }} · {{ h.performedBy }} · {{ h.performedAtUtc }}</li>
             </ul>

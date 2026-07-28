@@ -1,345 +1,309 @@
-<section class="mapping-matrix-page" data-testid="integration-mappings-page">
-  <header class="page-header">
-    <div class="page-title">
+<section class="integration-mappings mapping-matrix-page" data-testid="integration-mappings-page">
+  <header class="integration-mappings__header">
+    <div>
+      <p class="integration-mappings__eyebrow">Integraciones · Configuración funcional</p>
       <h1>Matriz de campos SOAP</h1>
-      <p>Revise campos listos, pendientes y bloqueantes por servicio.</p>
+      <p>Define de dónde se obtiene cada parámetro y cómo se transforma antes de construir la solicitud SOAP.</p>
     </div>
-    <button type="button" class="btn btn-primary" *ngIf="canManage" (click)="openDraftModal()">
-      Crear borrador
-    </button>
+    <div class="integration-mappings__header-actions">
+      <button mat-stroked-button type="button" (click)="loadMethods()" [disabled]="loading">
+        Actualizar
+      </button>
+      <button mat-flat-button type="button" *ngIf="canManage" (click)="openDraftModal()">
+        Crear borrador
+      </button>
+    </div>
   </header>
 
-  <section class="service-selector" aria-label="Servicios SOAP">
-    <button
-      type="button"
-      class="service-option"
-      data-testid="soap-service-option"
-      [class.active]="selectedMethodId === method.id"
-      *ngFor="let method of methods"
-      (click)="createDraftForm.patchValue({ methodId: method.id }); onMethodChange()"
-    >
-      <strong>{{ method.operationKey }}</strong>
-    </button>
+  <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Cargando matriz de campos"></mat-progress-bar>
+
+  <mat-tab-group
+    *ngIf="methods.length"
+    class="integration-mappings__tabs"
+    [selectedIndex]="selectedMethodIndex"
+    (selectedIndexChange)="onMethodTabChange($event)"
+    animationDuration="150ms"
+    aria-label="Servicios SOAP"
+  >
+    <mat-tab *ngFor="let method of methods">
+      <ng-template mat-tab-label>
+        <span data-testid="soap-service-option" (click)="selectMethod(method)">{{ method.operationKey }}</span>
+      </ng-template>
+    </mat-tab>
+  </mat-tab-group>
+
+  <mat-card *ngIf="selectedMethod" class="integration-mappings__service" appearance="outlined">
+    <mat-card-header>
+      <div mat-card-avatar class="integration-mappings__service-icon"><span>SOAP</span></div>
+      <mat-card-title>{{ selectedMethod.operationKey }}</mat-card-title>
+      <mat-card-subtitle>{{ selectedServiceDescription }}</mat-card-subtitle>
+      <mat-chip-set>
+        <mat-chip>{{ getMappingSetStatusLabel(activeMappingSet) }}</mat-chip>
+      </mat-chip-set>
+    </mat-card-header>
+  </mat-card>
+
+  <section *ngIf="selectedMethod" class="integration-mappings__summary" data-testid="mapping-functional-summary" aria-label="Resumen de la matriz">
+    <div><span>Total parámetros</span><strong>{{ matrixStats.total }}</strong></div>
+    <div><span>Listos</span><strong>{{ matrixStats.ready }}</strong></div>
+    <div><span>Pendientes</span><strong>{{ matrixStats.pending }}</strong></div>
+    <div class="integration-mappings__summary--critical"><span>Bloqueantes</span><strong>{{ matrixStats.blocking }}</strong></div>
+    <div class="integration-mappings__summary--warning"><span>Alertas</span><strong>{{ matrixStats.warnings }}</strong></div>
+    <div><span>Opcionales/reservados</span><strong>{{ matrixStats.optionalReserved }}</strong></div>
   </section>
 
-  <section class="selected-service" *ngIf="selectedMethod">
-    <div>
-      <strong>{{ selectedMethod.operationKey }}</strong>
-      <p>{{ selectedServiceDescription }}</p>
-      <span class="version-chip">{{ getMappingSetStatusLabel(activeMappingSet) }}</span>
-    </div>
-  </section>
-
-  <section class="summary-strip" *ngIf="selectedMethod" data-testid="mapping-functional-summary">
-    <div>
-      <span>Total parámetros</span>
-      <strong>{{ matrixStats.total }}</strong>
-    </div>
-    <div>
-      <span>Listos</span>
-      <strong>{{ matrixStats.ready }}</strong>
-    </div>
-    <div>
-      <span>Pendientes</span>
-      <strong>{{ matrixStats.pending }}</strong>
-    </div>
-    <div class="critical">
-      <span>Bloqueantes</span>
-      <strong>{{ matrixStats.blocking }}</strong>
-    </div>
-    <div class="warning">
-      <span>Alertas</span>
-      <strong>{{ matrixStats.warnings }}</strong>
-    </div>
-    <div>
-      <span>Opcionales/reservados</span>
-      <strong>{{ matrixStats.optionalReserved }}</strong>
-    </div>
-  </section>
-
-  <section class="filter-bar" *ngIf="selectedMethod" aria-label="Filtros de estado funcional" data-testid="mapping-filter-bar">
-    <button
-      type="button"
-      class="filter-chip"
-      *ngFor="let filter of filterOptions"
-      [class.active]="selectedFilter === filter.key"
-      (click)="setFilter(filter.key)"
-    >
-      <span>{{ filter.label }}</span>
-    </button>
-  </section>
-
-  <section class="matrix-card" *ngIf="matrixRows.length > 0; else emptyMatrix">
-    <div class="table-wrap">
-      <table class="mapping-matrix" data-testid="mapping-matrix-table">
-        <thead>
-          <tr>
-            <th>Parámetro SOAP</th>
-            <th>Estado funcional</th>
-            <th>Origen</th>
-            <th>Campo / relación</th>
-            <th>Observación</th>
-            <th>Acción</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let row of filteredMatrixRows; trackBy: trackRow" data-testid="mapping-matrix-row">
-            <td data-label="Parámetro SOAP">
-              <strong>{{ row.parameterSoap }}</strong>
-              <small>{{ row.parameterDescription }}</small>
-            </td>
-            <td data-label="Estado funcional">
-              <span class="state-pill" [ngClass]="getStatusClass(row.status)">{{ row.status }}</span>
-            </td>
-            <td data-label="Origen">{{ row.tableOrigin }}</td>
-            <td data-label="Campo / relación">{{ row.fieldOrigin }}</td>
-            <td data-label="Observación">
-              {{ getObservationLabel(row) }}
-              <small>{{ row.required ? 'Requerido' : 'No requerido' }} · {{ row.conversionRule }}</small>
-            </td>
-            <td data-label="Acción">
-              <div class="row-actions compact">
-                <button type="button" class="btn btn-ghost" data-testid="mapping-detail-button" (click)="openDetail(row)">
-                  {{ getRowActionLabel(row) }}
-                </button>
-                <details class="row-more-actions">
-                  <summary>Más acciones</summary>
-                  <button type="button" (click)="openHistory(row)">Ver auditoría</button>
-                  <button type="button" *ngIf="canManage" (click)="openAdvancedEditor(row)">Avanzado</button>
-                  <button
-                    type="button"
-                    data-testid="mapping-edit-button"
-                    *ngIf="canManage"
-                    [disabled]="savingRule"
-                    (click)="editRelation(row)"
-                  >
-                    Editar relación
-                  </button>
-                </details>
-              </div>
-            </td>
-          </tr>
-          <tr *ngIf="filteredMatrixRows.length === 0" data-testid="mapping-filter-empty-row">
-            <td colspan="6">
-              <div class="filter-empty">
-                No hay parámetros para el filtro seleccionado.
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <footer class="matrix-footer">
-      <button type="button" class="btn btn-secondary" (click)="loadMethods()" [disabled]="loading">
-        {{ loading ? 'Recargando...' : 'Recargar mapeos' }}
+  <mat-card *ngIf="selectedMethod" class="integration-mappings__filters" appearance="outlined" data-testid="mapping-filter-bar">
+    <form [formGroup]="filterForm" aria-label="Filtros de la matriz">
+      <mat-form-field appearance="outline">
+        <mat-label>Buscar parámetro, tabla, campo o regla</mat-label>
+        <input matInput formControlName="search" autocomplete="off" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Obligatoriedad</mat-label>
+        <mat-select formControlName="required">
+          <mat-option value="all">Todos</mat-option>
+          <mat-option value="required">Obligatorios</mat-option>
+          <mat-option value="optional">Opcionales</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <button mat-button type="button" (click)="clearFilters()" [disabled]="!filterForm.dirty && selectedFilter === 'Todos'">
+        Limpiar
       </button>
-      <details class="advanced-panel" *ngIf="selectedMethod">
-        <summary>Información técnica</summary>
-        <dl>
-          <div>
-            <dt>Versión de mapeo</dt>
-            <dd>{{ activeMappingSet?.id || 'Sin versión publicada' }}</dd>
-          </div>
-          <div>
-            <dt>Versión</dt>
-            <dd>{{ activeMappingSet?.version ?? 'No aplica' }}</dd>
-          </div>
-          <div>
-            <dt>Reglas visibles</dt>
-            <dd>{{ activeMappingSet?.rules?.length ?? 0 }}</dd>
-          </div>
-          <div>
-            <dt>Catálogo</dt>
-            <dd>{{ catalogLoadState === 'loading' ? 'Cargando' : catalogLoadState === 'error' ? 'Error' : 'Listo' }}</dd>
-          </div>
-        </dl>
-      </details>
-    </footer>
-  </section>
+    </form>
+    <mat-chip-listbox aria-label="Estado funcional" [value]="selectedFilter">
+      <mat-chip-option
+        *ngFor="let filter of filterOptions"
+        [value]="filter.key"
+        [selected]="selectedFilter === filter.key"
+        (click)="setFilter(filter.key)"
+      >
+        {{ filter.label }} · {{ filter.count }}
+      </mat-chip-option>
+    </mat-chip-listbox>
+  </mat-card>
+
+  <mat-card class="integration-mappings__table-card" appearance="outlined" *ngIf="matrixRows.length > 0; else emptyMatrix">
+    <div class="integration-mappings__result-count" aria-live="polite">
+      {{ filteredMatrixRows.length }} de {{ matrixRows.length }} parámetros
+    </div>
+    <div class="integration-mappings__table-wrap">
+      <table
+        mat-table
+        matSort
+        [dataSource]="filteredMatrixRows"
+        [matSortActive]="sort.active"
+        [matSortDirection]="sort.direction"
+        (matSortChange)="onSortChange($event)"
+        data-testid="mapping-matrix-table"
+      >
+        <ng-container matColumnDef="parameterSoap">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Parámetro SOAP</th>
+          <td mat-cell *matCellDef="let row">
+            <strong>{{ row.parameterSoap }}</strong>
+            <small matTooltip="{{ row.parameterDescription }}">{{ row.parameterDescription }}</small>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="tableOrigin">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Fuente o tabla</th>
+          <td mat-cell *matCellDef="let row">{{ row.tableOrigin }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="fieldOrigin">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Campo de origen</th>
+          <td mat-cell *matCellDef="let row">{{ row.fieldOrigin }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="conversionRule">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Regla de conversión</th>
+          <td mat-cell *matCellDef="let row">{{ row.conversionRule }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="required">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Obligatorio</th>
+          <td mat-cell *matCellDef="let row">
+            <mat-chip [class.integration-mappings__chip--optional]="!row.required">
+              {{ row.required ? 'Sí' : 'No' }}
+            </mat-chip>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
+          <td mat-cell *matCellDef="let row">
+            <mat-chip [ngClass]="'integration-mappings__status--' + getStatusClass(row.status)" matTooltip="{{ getObservationLabel(row) }}">
+              {{ row.status }}
+            </mat-chip>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="lastUpdated">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Última actualización</th>
+          <td mat-cell *matCellDef="let row">{{ row.lastUpdated }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>Acciones</th>
+          <td mat-cell *matCellDef="let row">
+            <button
+              mat-icon-button
+              type="button"
+              [matMenuTriggerFor]="rowActions"
+              aria-label="Abrir acciones del parámetro"
+              matTooltip="Acciones"
+              data-testid="mapping-detail-button"
+            >
+              <span aria-hidden="true">⋮</span>
+            </button>
+            <mat-menu #rowActions="matMenu">
+              <button mat-menu-item type="button" (click)="openDetail(row)">
+                <span>Ver detalles</span>
+              </button>
+              <button mat-menu-item type="button" (click)="openHistory(row)" [disabled]="!row.mappingSet">
+                <span>Ver auditoría</span>
+              </button>
+              <button mat-menu-item type="button" *ngIf="canManage" (click)="editRelation(row)" data-testid="mapping-edit-button">
+                <span>Editar relación</span>
+              </button>
+              <button mat-menu-item type="button" *ngIf="canManage" (click)="openAdvancedEditor(row)" [disabled]="!row.mappingSet">
+                <span>Abrir editor avanzado</span>
+              </button>
+            </mat-menu>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns" data-testid="mapping-matrix-row"></tr>
+      </table>
+
+      <div class="integration-mappings__filter-empty" *ngIf="filteredMatrixRows.length === 0" data-testid="mapping-filter-empty-row">
+        <strong>No hay coincidencias para los filtros seleccionados.</strong>
+        <button mat-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+      </div>
+    </div>
+  </mat-card>
 
   <ng-template #emptyMatrix>
-    <section class="empty-state" data-testid="empty-mappings-state">
-      <strong>
-        {{ catalogLoadState === 'loading' ? 'Cargando parámetros SOAP para la matriz.' : 'No hay parámetros SOAP disponibles para ' + (selectedMethod?.operationKey || 'el servicio seleccionado') + '.' }}
-      </strong>
-      <span>La vista principal solo muestra la relación funcional entre parámetro SOAP, tabla origen y campo origen.</span>
-    </section>
+    <mat-card class="integration-mappings__empty" appearance="outlined" data-testid="empty-mappings-state">
+      <h2>{{ catalogLoadState === 'loading' ? 'Cargando parámetros SOAP' : 'No hay parámetros disponibles' }}</h2>
+      <p *ngIf="catalogLoadState !== 'loading'">
+        No existen parámetros para {{ selectedMethod?.operationKey || 'el servicio seleccionado' }}.
+      </p>
+      <button mat-stroked-button type="button" *ngIf="catalogLoadState !== 'loading'" (click)="loadMethods()">Volver a intentar</button>
+    </mat-card>
   </ng-template>
 </section>
 
-<div class="modal-backdrop" *ngIf="modalMode" (click)="closeModal()"></div>
+<div class="integration-mappings__backdrop" *ngIf="modalMode" (click)="closeModal()"></div>
 
-<aside class="modal-panel" *ngIf="modalMode === 'detail' && selectedRow" role="dialog" aria-modal="true" aria-label="Detalle de relación">
-  <header class="modal-header">
-    <div>
-      <span class="eyebrow">Detalle técnico secundario</span>
-      <h2>{{ selectedRow.parameterSoap }}</h2>
-    </div>
-    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
+<aside class="integration-mappings__dialog" *ngIf="modalMode === 'detail' && selectedRow" role="dialog" aria-modal="true" aria-labelledby="mapping-detail-title">
+  <header>
+    <div><span>Detalle de relación</span><h2 id="mapping-detail-title">{{ selectedRow.parameterSoap }}</h2></div>
+    <button mat-icon-button type="button" (click)="closeModal()" aria-label="Cerrar detalle"><span aria-hidden="true">×</span></button>
   </header>
-
-  <dl class="detail-list">
-    <div>
-      <dt>Servicio SOAP</dt>
-      <dd>{{ selectedRow.serviceName }}</dd>
-    </div>
-    <div>
-      <dt>Parámetro SOAP</dt>
-      <dd>{{ selectedRow.parameterSoap }}</dd>
-    </div>
-    <div>
-      <dt>Tabla origen</dt>
-      <dd>{{ selectedRow.tableOrigin }}</dd>
-    </div>
-    <div>
-      <dt>Campo origen</dt>
-      <dd>{{ selectedRow.fieldOrigin }}</dd>
-    </div>
-    <div>
-      <dt>Regla de conversión</dt>
-      <dd>{{ selectedRow.conversionRule }}</dd>
-    </div>
-    <div>
-      <dt>Obligatorio</dt>
-      <dd>{{ selectedRow.required ? 'Si' : 'No' }}</dd>
-    </div>
-    <div>
-      <dt>Estado</dt>
-      <dd>{{ selectedRow.status }}</dd>
-    </div>
-    <div>
-      <dt>Última actualización</dt>
-      <dd>{{ selectedRow.lastUpdated }}</dd>
-    </div>
-    <div>
-      <dt>Ruta técnica del campo</dt>
-      <dd>{{ selectedRow.sourceField?.fieldPath || 'No aplica en la matriz funcional' }}</dd>
-    </div>
-    <div>
-      <dt>Nota</dt>
-      <dd>{{ selectedRow.technicalNote }}</dd>
-    </div>
-  </dl>
-
-  <footer class="modal-footer">
-    <button type="button" class="btn btn-secondary" *ngIf="selectedRow.mappingSet" (click)="openHistory(selectedRow)">Ver auditoría</button>
-    <button type="button" class="btn btn-secondary" *ngIf="canManage && selectedRow.mappingSet" (click)="openAdvancedEditor()">Avanzado</button>
-    <button type="button" class="btn btn-primary" *ngIf="canManage" (click)="editRelation(selectedRow)">Editar relación</button>
-    <button type="button" class="btn btn-secondary" (click)="closeModal()">Cerrar</button>
+  <mat-card appearance="outlined">
+    <dl>
+      <div><dt>Servicio SOAP</dt><dd>{{ selectedRow.serviceName }}</dd></div>
+      <div><dt>Fuente o tabla</dt><dd>{{ selectedRow.tableOrigin }}</dd></div>
+      <div><dt>Campo de origen</dt><dd>{{ selectedRow.fieldOrigin }}</dd></div>
+      <div><dt>Regla de conversión</dt><dd>{{ selectedRow.conversionRule }}</dd></div>
+      <div><dt>Obligatorio</dt><dd>{{ selectedRow.required ? 'Sí' : 'No' }}</dd></div>
+      <div><dt>Estado</dt><dd>{{ selectedRow.status }}</dd></div>
+      <div><dt>Última actualización</dt><dd>{{ selectedRow.lastUpdated }}</dd></div>
+      <div><dt>Ruta técnica</dt><dd>{{ selectedRow.sourceField?.fieldPath || 'No aplica' }}</dd></div>
+    </dl>
+  </mat-card>
+  <footer>
+    <button mat-button type="button" (click)="closeModal()">Cerrar</button>
+    <button mat-flat-button type="button" *ngIf="canManage" (click)="editRelation(selectedRow)">Editar relación</button>
   </footer>
 </aside>
 
-  <aside class="modal-panel" *ngIf="modalMode === 'edit' && selectedRow && selectedMapping" role="dialog" aria-modal="true" aria-label="Editar relación de campos">
-  <header class="modal-header">
-    <div>
-      <span class="eyebrow">Editar relación</span>
-      <h2>{{ selectedRow.parameterSoap }}</h2>
-    </div>
-    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
+<aside class="integration-mappings__dialog" *ngIf="modalMode === 'edit' && selectedRow" role="dialog" aria-modal="true" aria-labelledby="mapping-edit-title">
+  <header>
+    <div><span>Editar relación</span><h2 id="mapping-edit-title">{{ selectedRow.parameterSoap }}</h2></div>
+    <button mat-icon-button type="button" (click)="closeModal()" aria-label="Cerrar editor"><span aria-hidden="true">×</span></button>
   </header>
-
-  <form [formGroup]="editRelationForm" class="edit-form" (ngSubmit)="saveRelation()">
-    <div class="edit-context">
-      <strong>{{ selectedRow.serviceName }}</strong>
-      <span>Los cambios se guardan sobre un borrador. No se ejecuta SOAP desde esta acción.</span>
-    </div>
-
-    <label>
-      Campo origen
-      <select formControlName="sourceCatalogFieldId" data-testid="source-field-select">
-        <option [ngValue]="null">Sin mapear</option>
-        <option *ngFor="let field of allowedSourceFields; trackBy: trackField" [ngValue]="field.id">
-          {{ getSourceKindLabel(field.sourceKind) }} - {{ getSourceFieldLabel(field) }}
-        </option>
-      </select>
-    </label>
-
-    <label>
-      Regla de conversión
-      <select formControlName="transformationCode">
-        <option value="">Sin regla</option>
-        <option *ngFor="let transformation of transformations" [value]="transformation.code">
+  <p class="integration-mappings__dialog-note">
+    Los cambios se guardarán en un borrador únicamente al confirmar. Abrir o cancelar no crea versiones.
+  </p>
+  <form [formGroup]="editRelationForm" (ngSubmit)="saveRelation()">
+    <mat-form-field appearance="outline">
+      <mat-label>Campo de origen</mat-label>
+      <mat-select formControlName="sourceCatalogFieldId" data-testid="source-field-select">
+        <mat-option [value]="null">Sin mapear</mat-option>
+        <mat-option *ngFor="let field of allowedSourceFields; trackBy: trackField" [value]="field.id">
+          {{ getSourceKindLabel(field.sourceKind) }} · {{ getSourceFieldLabel(field) }}
+        </mat-option>
+      </mat-select>
+      <mat-error *ngIf="editRelationForm.controls.enabled.value && !editRelationForm.controls.sourceCatalogFieldId.value">
+        Selecciona un campo de origen para activar la relación.
+      </mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Regla de conversión</mat-label>
+      <mat-select formControlName="transformationCode">
+        <mat-option value="">Sin regla</mat-option>
+        <mat-option *ngFor="let transformation of transformations" [value]="transformation.code">
           {{ getTransformationLabel(transformation.code) }}
-        </option>
-      </select>
-    </label>
-
-    <label class="inline-check">
-      <input type="checkbox" formControlName="requiredOverride" />
-      Obligatorio
-    </label>
-
-    <label class="inline-check">
-      <input type="checkbox" formControlName="enabled" />
-      Activo
-    </label>
-
-    <footer class="modal-footer">
-      <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="savingRule">Cancelar</button>
-      <button type="submit" class="btn btn-primary" [disabled]="savingRule">
-        {{ savingRule ? 'Guardando...' : 'Guardar relación' }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-checkbox formControlName="requiredOverride">Parámetro obligatorio</mat-checkbox>
+    <mat-checkbox formControlName="enabled">Relación activa</mat-checkbox>
+    <footer>
+      <button mat-button type="button" (click)="closeModal()" [disabled]="savingRule">Cancelar</button>
+      <button mat-flat-button type="submit" [disabled]="savingRule">
+        {{ savingRule ? 'Guardando…' : 'Guardar relación' }}
       </button>
     </footer>
   </form>
 </aside>
 
-<aside class="modal-panel" *ngIf="modalMode === 'draft'" role="dialog" aria-modal="true" aria-label="Crear borrador de relación">
-  <header class="modal-header">
-    <div>
-      <span class="eyebrow">Nuevo borrador</span>
-      <h2>Crear versión de trabajo</h2>
-    </div>
-    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
+<aside class="integration-mappings__dialog" *ngIf="modalMode === 'draft'" role="dialog" aria-modal="true" aria-labelledby="mapping-draft-title">
+  <header>
+    <div><span>Nueva versión de trabajo</span><h2 id="mapping-draft-title">Crear borrador</h2></div>
+    <button mat-icon-button type="button" (click)="closeModal()" aria-label="Cerrar formulario"><span aria-hidden="true">×</span></button>
   </header>
-
-  <form [formGroup]="createDraftForm" class="edit-form" (ngSubmit)="createDraft()">
-    <label>
-      Servicio SOAP
-      <select formControlName="methodId">
-        <option *ngFor="let method of methods" [ngValue]="method.id">
-          {{ method.operationKey }}
-        </option>
-      </select>
-    </label>
-    <label>
-      Nombre de versión
-      <input type="text" formControlName="name" />
-    </label>
-    <label>
-      Comentario
-      <input type="text" formControlName="notes" />
-    </label>
-
-    <footer class="modal-footer">
-      <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="creatingDraft">Cancelar</button>
-      <button type="submit" class="btn btn-primary" [disabled]="createDraftForm.invalid || creatingDraft">
-        {{ creatingDraft ? 'Creando...' : 'Crear borrador' }}
+  <form [formGroup]="createDraftForm" (ngSubmit)="createDraft()">
+    <mat-form-field appearance="outline">
+      <mat-label>Servicio SOAP</mat-label>
+      <mat-select formControlName="methodId">
+        <mat-option *ngFor="let method of methods" [value]="method.id">{{ method.operationKey }}</mat-option>
+      </mat-select>
+      <mat-error>Selecciona un servicio SOAP.</mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Nombre de la versión</mat-label>
+      <input matInput formControlName="name" maxlength="120" />
+      <mat-error *ngIf="createDraftForm.controls.name.hasError('required')">El nombre es obligatorio.</mat-error>
+      <mat-error *ngIf="createDraftForm.controls.name.hasError('maxlength')">El nombre no puede superar 120 caracteres.</mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Comentario</mat-label>
+      <textarea matInput formControlName="notes" rows="3"></textarea>
+    </mat-form-field>
+    <footer>
+      <button mat-button type="button" (click)="closeModal()" [disabled]="creatingDraft">Cancelar</button>
+      <button mat-flat-button type="submit" [disabled]="createDraftForm.invalid || creatingDraft">
+        {{ creatingDraft ? 'Creando…' : 'Crear borrador' }}
       </button>
     </footer>
   </form>
 </aside>
 
-<aside class="modal-panel" *ngIf="modalMode === 'history' && selectedMapping" role="dialog" aria-modal="true" aria-label="Auditoría de relación">
-  <header class="modal-header">
-    <div>
-      <span class="eyebrow">Auditoría</span>
-      <h2>{{ selectedMapping.name }}</h2>
-    </div>
-    <button type="button" class="icon-button" (click)="closeModal()" aria-label="Cerrar">X</button>
+<aside class="integration-mappings__dialog" *ngIf="modalMode === 'history' && selectedMapping" role="dialog" aria-modal="true" aria-labelledby="mapping-history-title">
+  <header>
+    <div><span>Auditoría</span><h2 id="mapping-history-title">{{ selectedMapping.name }}</h2></div>
+    <button mat-icon-button type="button" (click)="closeModal()" aria-label="Cerrar auditoría"><span aria-hidden="true">×</span></button>
   </header>
-
-  <section class="history-list">
-    <div class="empty-inline" *ngIf="historyLoading">Cargando auditoría...</div>
-    <div class="empty-inline" *ngIf="!historyLoading && historyItems.length === 0">No hay eventos de auditoría para esta versión.</div>
-    <article class="history-item" *ngFor="let item of historyItems">
-      <strong>{{ item.action }}</strong>
-      <span>{{ item.performedBy || 'system' }}</span>
-      <small>{{ item.performedAtUtc | date: 'short' }}</small>
+  <mat-progress-bar *ngIf="historyLoading" mode="indeterminate"></mat-progress-bar>
+  <p *ngIf="!historyLoading && historyItems.length === 0">No hay eventos de auditoría para esta versión.</p>
+  <section class="integration-mappings__history">
+    <article *ngFor="let item of historyItems">
+      <div><strong>{{ item.action }}</strong><span>{{ item.performedBy || 'Sistema' }}</span></div>
+      <time>{{ item.performedAtUtc | date: 'short' }}</time>
     </article>
   </section>
-
-  <footer class="modal-footer">
-    <button type="button" class="btn btn-secondary" (click)="closeModal()">Cerrar</button>
-  </footer>
+  <footer><button mat-button type="button" (click)="closeModal()">Cerrar</button></footer>
 </aside>
