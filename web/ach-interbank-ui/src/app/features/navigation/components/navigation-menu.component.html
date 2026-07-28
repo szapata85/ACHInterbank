@@ -1,150 +1,506 @@
 <section class="navigation-admin">
-  <app-page-header title="Menú de navegación" subtitle="Administra los accesos visibles en la SPA"></app-page-header>
+  <div class="navigation-admin__header">
+    <app-page-header
+      title="Administración del menú"
+      subtitle="Organiza la jerarquía, visibilidad y acceso de las opciones de navegación"
+    ></app-page-header>
+
+    <button
+      mat-flat-button
+      type="button"
+      class="navigation-admin__primary-action"
+      *ngIf="canManage"
+      [disabled]="saving || deletingId !== null || quickActionId !== null"
+      (click)="startCreate()"
+    >
+      <span class="navigation-admin__symbol" aria-hidden="true">+</span>
+      Nueva opción
+    </button>
+  </div>
+
+  <div class="navigation-admin__summary" aria-label="Resumen del menú">
+    <mat-card appearance="outlined" class="navigation-admin__metric">
+      <mat-card-content>
+        <span>Total</span>
+        <strong>{{ totalCount }}</strong>
+      </mat-card-content>
+    </mat-card>
+    <mat-card appearance="outlined" class="navigation-admin__metric navigation-admin__metric--active">
+      <mat-card-content>
+        <span>Activos</span>
+        <strong>{{ activeCount }}</strong>
+      </mat-card-content>
+    </mat-card>
+    <mat-card appearance="outlined" class="navigation-admin__metric navigation-admin__metric--inactive">
+      <mat-card-content>
+        <span>Inactivos</span>
+        <strong>{{ inactiveCount }}</strong>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <div class="navigation-admin__permission-note" *ngIf="!canManage" role="status">
+    <span class="navigation-admin__symbol" aria-hidden="true">!</span>
+    Puedes consultar la jerarquía, pero no tienes permiso para modificarla.
+  </div>
 
   <div class="navigation-admin__layout">
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <h2>{{ formTitle }}</h2>
-          <p>{{ formSubtitle }}</p>
-        </div>
-        <ui-boton
-          texto="Cancelar edición"
-          variante="fantasma"
-          (accion)="startCreate()"
-          [deshabilitado]="saving"
-          *ngIf="isEditing"
-        ></ui-boton>
-      </div>
-
-      <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-        <label class="field">
-          <span>Etiqueta</span>
-          <input type="text" formControlName="label" placeholder="Texto visible" />
-          <app-error-message *ngIf="form.get('label')?.touched" [control]="form.get('label')"></app-error-message>
-        </label>
-
-        <label class="field">
-          <span>Ruta</span>
-          <input type="text" formControlName="route" placeholder="/ruta" />
-          <small class="field-hint">Usa una ruta interna de la SPA, por ejemplo /navigation/menu-items.</small>
-          <app-error-message *ngIf="form.get('route')?.touched" [control]="form.get('route')"></app-error-message>
-        </label>
-
-        <label class="field">
-          <span>Ícono (material symbols)</span>
-          <div class="icon-select" #iconSelectRoot>
-            <div class="icon-select-input">
-              <button type="button" class="icon-select-trigger" (click)="toggleIconMenu($event)" [attr.aria-expanded]="iconMenuOpen">
-                <span *ngIf="form.value.icon" class="material-symbols-outlined inline-icon">{{ form.value.icon }}</span>
-                <span *ngIf="!form.value.icon" class="inline-icon no-icon">–</span>
-                <span class="icon-value">{{ form.value.icon || '(Sin ícono)' }}</span>
-                <span class="chevron" aria-hidden="true">▾</span>
-              </button>
-
-              <div class="icon-options" *ngIf="iconMenuOpen">
-                <button
-                  type="button"
-                  *ngFor="let icon of iconOptions"
-                  class="icon-option"
-                  [class.active]="form.value.icon === icon"
-                  (click)="selectIcon(icon, $event)"
-                >
-                  <span class="inline-icon" [class.no-icon]="!icon">
-                    <span *ngIf="icon" class="material-symbols-outlined">{{ icon }}</span>
-                    <span *ngIf="!icon">–</span>
-                  </span>
-                  <span class="icon-name">{{ icon || '(Sin ícono)' }}</span>
-                </button>
-              </div>
-
-              <select formControlName="icon" class="sr-only">
-                <option *ngFor="let icon of iconOptions" [ngValue]="icon">
-                  {{ icon || '(Sin ícono)' }}
-                </option>
-              </select>
-            </div>
-            <div class="icon-preview" [class.empty]="!form.value.icon">
-              <span *ngIf="form.value.icon" class="material-symbols-outlined">{{ form.value.icon }}</span>
-              <span *ngIf="!form.value.icon" class="no-icon">Sin ícono</span>
-            </div>
+    <mat-card appearance="outlined" class="navigation-admin__tree-panel">
+      <mat-card-header>
+        <div class="navigation-admin__panel-heading">
+          <div>
+            <mat-card-title>Jerarquía del menú</mat-card-title>
+            <mat-card-subtitle>
+              {{ filteredCount }} de {{ totalCount }} opciones
+            </mat-card-subtitle>
           </div>
-        </label>
+          <div class="navigation-admin__tree-actions">
+            <button
+              mat-icon-button
+              type="button"
+              aria-label="Expandir toda la jerarquía"
+              matTooltip="Expandir todo"
+              [disabled]="loading || !filteredMenuItems.length"
+              (click)="expandAll()"
+            >
+              <span class="navigation-admin__symbol" aria-hidden="true">↕</span>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
+              aria-label="Contraer toda la jerarquía"
+              matTooltip="Contraer todo"
+              [disabled]="loading || !filteredMenuItems.length"
+              (click)="collapseAll()"
+            >
+              <span class="navigation-admin__symbol" aria-hidden="true">↥</span>
+            </button>
+            <button
+              mat-icon-button
+              type="button"
+              aria-label="Actualizar jerarquía"
+              matTooltip="Actualizar"
+              [disabled]="loading"
+              (click)="loadMenuItems()"
+            >
+              <span class="navigation-admin__symbol" aria-hidden="true">↻</span>
+            </button>
+          </div>
+        </div>
+      </mat-card-header>
 
-        <label class="field inline">
-          <span>Orden</span>
-          <input type="number" formControlName="order" min="0" />
-        </label>
+      <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Cargando menú"></mat-progress-bar>
 
-        <label class="field inline">
-          <span>Exacto</span>
-          <input type="checkbox" formControlName="exact" />
-          <small class="field-hint">Marca esta opción cuando la ruta deba coincidir exactamente.</small>
-        </label>
+      <mat-card-content>
+        <form
+          [formGroup]="filtersForm"
+          class="navigation-admin__filters"
+          aria-label="Filtros de la jerarquía"
+          autocomplete="off"
+        >
+          <mat-form-field appearance="outline" class="navigation-admin__search">
+            <mat-label>Buscar opciones</mat-label>
+            <span matPrefix class="navigation-admin__symbol navigation-admin__symbol--prefix" aria-hidden="true">⌕</span>
+            <input
+              matInput
+              type="search"
+              formControlName="search"
+              placeholder="Nombre, ruta, rol o permiso"
+            />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Limpiar búsqueda"
+              matTooltip="Limpiar búsqueda"
+              *ngIf="filtersForm.value.search"
+              (click)="filtersForm.controls.search.setValue('')"
+            >
+              <span class="navigation-admin__symbol" aria-hidden="true">×</span>
+            </button>
+          </mat-form-field>
 
-        <label class="field inline">
-          <span>Activo</span>
-          <input type="checkbox" formControlName="isActive" />
-        </label>
+          <div class="navigation-admin__filter-row">
+            <mat-form-field appearance="outline">
+              <mat-label>Estado</mat-label>
+              <mat-select formControlName="status">
+                <mat-option value="all">Todos</mat-option>
+                <mat-option value="active">Activos</mat-option>
+                <mat-option value="inactive">Inactivos</mat-option>
+              </mat-select>
+            </mat-form-field>
 
-        <label class="field">
-          <span>Padre</span>
-          <select formControlName="parentId">
-            <option [ngValue]="null">(Sin padre)</option>
-            <option *ngFor="let option of parentOptions" [ngValue]="option.item.id">
-              {{ option.item.label }}
-            </option>
-          </select>
-          <small class="field-hint">Selecciona un menú padre para ubicar esta opción como submenú.</small>
-        </label>
+            <mat-form-field appearance="outline">
+              <mat-label>Nivel</mat-label>
+              <mat-select formControlName="level">
+                <mat-option value="all">Todos</mat-option>
+                <mat-option value="root">Raíz</mat-option>
+                <mat-option value="child">Hijos</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
 
-        <label class="field">
-          <span>Roles permitidos</span>
-          <select formControlName="roleIds" multiple>
-            <option *ngFor="let role of roles" [ngValue]="role.id">{{ role.name }}</option>
-          </select>
-          <small class="field-hint">Sin selección, la opción queda disponible para todos los roles autorizados por la ruta.</small>
-        </label>
+          <button
+            mat-button
+            type="button"
+            class="navigation-admin__clear-filters"
+            *ngIf="hasActiveFilters"
+            (click)="clearFilters()"
+          >
+            <span class="navigation-admin__symbol" aria-hidden="true">⊘</span>
+            Limpiar filtros
+          </button>
+        </form>
 
-        <label class="field">
-          <span>Permisos necesarios</span>
-          <select formControlName="permissionIds" multiple>
-            <option *ngFor="let perm of permissions" [ngValue]="perm.id">{{ perm.name }}</option>
-          </select>
-          <small class="field-hint">Sin selección, no se exige permiso adicional desde el menú.</small>
-        </label>
+        <div class="navigation-admin__state navigation-admin__state--error" *ngIf="loadError && !loading" role="alert">
+          <span class="navigation-admin__state-symbol" aria-hidden="true">!</span>
+          <div>
+            <strong>No pudimos cargar la jerarquía</strong>
+            <p>{{ loadError }}</p>
+            <button mat-stroked-button type="button" (click)="loadInitialData()">Reintentar</button>
+          </div>
+        </div>
 
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary" [disabled]="form.invalid || saving">{{ submitText }}</button>
-          <button type="button" class="btn btn-outline" (click)="startCreate()" [disabled]="saving">
-            {{ isEditing ? 'Cancelar edición' : 'Limpiar formulario' }}
+        <div
+          class="navigation-admin__state"
+          *ngIf="hasLoaded && !loading && !loadError && totalCount === 0"
+          role="status"
+        >
+          <span class="navigation-admin__state-symbol" aria-hidden="true">⌘</span>
+          <div>
+            <strong>Aún no hay opciones</strong>
+            <p>Crea la primera opción raíz para comenzar.</p>
+          </div>
+        </div>
+
+        <div
+          class="navigation-admin__state"
+          *ngIf="hasLoaded && !loading && !loadError && totalCount > 0 && filteredMenuItems.length === 0"
+          role="status"
+        >
+          <span class="navigation-admin__state-symbol" aria-hidden="true">∅</span>
+          <div>
+            <strong>Sin coincidencias</strong>
+            <p>Prueba otros términos o limpia los filtros.</p>
+            <button mat-stroked-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+          </div>
+        </div>
+
+        <mat-tree
+          *ngIf="!loadError && filteredMenuItems.length"
+          [dataSource]="filteredMenuItems"
+          [childrenAccessor]="childrenAccessor"
+          [expansionKey]="expansionKey"
+          [trackBy]="trackById"
+          class="navigation-admin__tree"
+          aria-label="Árbol de opciones del menú"
+        >
+          <mat-tree-node
+            *matTreeNodeDef="let item"
+            matTreeNodePadding
+            [isExpandable]="hasChildren(item)"
+            [class.navigation-admin__tree-node--selected]="isSelected(item)"
+            [class.navigation-admin__tree-node--inactive]="!item.isActive"
+            [attr.aria-selected]="isSelected(item)"
+          >
+            <button
+              mat-icon-button
+              matTreeNodeToggle
+              type="button"
+              class="navigation-admin__toggle"
+              *ngIf="hasChildren(item)"
+              [attr.aria-label]="(isExpanded(item) ? 'Contraer ' : 'Expandir ') + item.label"
+            >
+              <span class="navigation-admin__symbol" aria-hidden="true">{{ isExpanded(item) ? '⌄' : '›' }}</span>
+            </button>
+            <span class="navigation-admin__toggle-spacer" *ngIf="!hasChildren(item)" aria-hidden="true"></span>
+            <ng-container
+              [ngTemplateOutlet]="menuNode"
+              [ngTemplateOutletContext]="{ $implicit: item }"
+            ></ng-container>
+          </mat-tree-node>
+        </mat-tree>
+
+        <ng-template #menuNode let-item>
+          <button
+            type="button"
+            class="navigation-admin__node-main"
+            [attr.aria-label]="'Seleccionar ' + item.label + ', ' + (item.isActive ? 'activo' : 'inactivo')"
+            [attr.aria-pressed]="isSelected(item)"
+            (click)="selectItem(item)"
+          >
+            <span class="navigation-admin__node-icon" aria-hidden="true">{{ item.label.slice(0, 1) }}</span>
+            <span class="navigation-admin__node-copy">
+              <span class="navigation-admin__node-title">{{ item.label }}</span>
+              <span class="navigation-admin__node-route">{{ item.route }}</span>
+            </span>
+            <span class="navigation-admin__node-meta">
+              <span class="navigation-admin__level-label">Nivel {{ getLevel(item) }}</span>
+              <span
+                class="navigation-admin__status"
+                [class.navigation-admin__status--inactive]="!item.isActive"
+              >
+                {{ item.isActive ? 'Activo' : 'Inactivo' }}
+              </span>
+            </span>
+          </button>
+
+          <button
+            mat-icon-button
+            type="button"
+            class="navigation-admin__node-menu"
+            [matMenuTriggerFor]="itemMenu"
+            [attr.aria-label]="'Acciones para ' + item.label"
+            matTooltip="Acciones"
+            *ngIf="canManage"
+            (click)="selectItem(item)"
+          >
+            <span class="navigation-admin__symbol" aria-hidden="true">⋮</span>
+          </button>
+
+          <mat-menu #itemMenu="matMenu">
+            <button mat-menu-item type="button" (click)="editItem(item)">
+              <span class="navigation-admin__symbol" aria-hidden="true">✎</span>
+              <span>Editar</span>
+            </button>
+            <button mat-menu-item type="button" (click)="startCreate(item)">
+              <span class="navigation-admin__symbol" aria-hidden="true">+</span>
+              <span>Nueva opción hija</span>
+            </button>
+            <button
+              mat-menu-item
+              type="button"
+              [disabled]="quickActionId !== null || saving"
+              (click)="toggleActive(item)"
+            >
+              <span class="navigation-admin__symbol" aria-hidden="true">{{ item.isActive ? '○' : '●' }}</span>
+              <span>{{ item.isActive ? 'Desactivar' : 'Activar' }}</span>
+            </button>
+            <mat-divider></mat-divider>
+            <button
+              mat-menu-item
+              type="button"
+              class="navigation-admin__danger-action"
+              [disabled]="!!item.children?.length || deletingId !== null"
+              [matTooltip]="item.children?.length ? 'Reasigna o elimina primero sus hijos' : 'Eliminar opción'"
+              (click)="confirmDelete(item)"
+            >
+              <span class="navigation-admin__symbol" aria-hidden="true">×</span>
+              <span>Eliminar</span>
+            </button>
+          </mat-menu>
+        </ng-template>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="navigation-admin__form-panel">
+      <mat-card-header>
+        <div class="navigation-admin__panel-heading">
+          <div>
+            <mat-card-title>
+              {{ mode === 'none' ? 'Detalle de la opción' : formTitle }}
+            </mat-card-title>
+            <mat-card-subtitle>
+              {{ mode === 'none' ? 'Selecciona una opción para consultar sus datos.' : formSubtitle }}
+            </mat-card-subtitle>
+          </div>
+          <button
+            mat-icon-button
+            type="button"
+            aria-label="Cancelar y cerrar formulario"
+            matTooltip="Cerrar formulario"
+            *ngIf="mode !== 'none'"
+            [disabled]="saving"
+            (click)="cancelEditing()"
+          >
+            <span class="navigation-admin__symbol" aria-hidden="true">×</span>
           </button>
         </div>
-      </form>
-    </div>
+      </mat-card-header>
 
-    <div class="card">
-      <div class="card-header">
-        <h2>Estructura</h2>
-        <ui-boton texto="Refrescar" variante="contorno" icono="refresh" (accion)="loadMenuItems()" [deshabilitado]="loading"></ui-boton>
-      </div>
+      <mat-progress-bar *ngIf="saving" mode="indeterminate" aria-label="Guardando opción"></mat-progress-bar>
 
-      <div class="ag-grid-wrapper">
-        <div class="empty-state" *ngIf="loadError">{{ loadError }}</div>
-        <ui-grilla-empresarial
-          [columnas]="columnDefs"
-          [datos]="tableData"
-          [cargando]="loading"
-          [error]="!!loadError"
-          [mensajeError]="loadError || 'No fue posible cargar el menú de navegación'"
-          [mensajeVacio]="'No hay elementos de menú'"
-          [mensajeCargando]="'Cargando menú de navegación...'"
-          [placeholderBusqueda]="'Buscar etiqueta, ruta, rol o permiso'"
-          [paginacion]="true"
-          [tamanoPagina]="20"
-          (grillaLista)="onGridReady($event)"
-        ></ui-grilla-empresarial>
-      </div>
-    </div>
+      <mat-card-content>
+        <div class="navigation-admin__selection" *ngIf="selectedItem">
+          <div>
+            <span class="navigation-admin__selection-label">Opción seleccionada</span>
+            <strong>{{ selectedItem.label }}</strong>
+            <small>{{ selectedItem.route }}</small>
+          </div>
+          <span
+            class="navigation-admin__status"
+            [class.navigation-admin__status--inactive]="!selectedItem.isActive"
+          >
+            {{ selectedItem.isActive ? 'Activo' : 'Inactivo' }}
+          </span>
+        </div>
+
+        <div class="navigation-admin__detail" *ngIf="mode === 'none' && selectedItem">
+          <dl>
+            <div>
+              <dt>Padre</dt>
+              <dd>{{ parentLabel(selectedItem.parentId) }}</dd>
+            </div>
+            <div>
+              <dt>Orden</dt>
+              <dd>{{ selectedItem.order }}</dd>
+            </div>
+            <div>
+              <dt>Roles</dt>
+              <dd>{{ getRolesText(selectedItem) }}</dd>
+            </div>
+            <div>
+              <dt>Permisos</dt>
+              <dd>{{ getPermissionsText(selectedItem) }}</dd>
+            </div>
+          </dl>
+
+          <div class="navigation-admin__detail-actions" *ngIf="canManage">
+            <button mat-flat-button type="button" (click)="editItem(selectedItem)">
+              <span class="navigation-admin__symbol" aria-hidden="true">✎</span>
+              Editar opción
+            </button>
+            <button mat-stroked-button type="button" (click)="startCreate(selectedItem)">
+              <span class="navigation-admin__symbol" aria-hidden="true">+</span>
+              Nueva opción hija
+            </button>
+          </div>
+        </div>
+
+        <div class="navigation-admin__state" *ngIf="mode === 'none' && !selectedItem" role="status">
+          <span class="navigation-admin__state-symbol" aria-hidden="true">↙</span>
+          <div>
+            <strong>Ninguna opción seleccionada</strong>
+            <p>Elige un elemento de la jerarquía o crea una opción nueva.</p>
+            <button mat-stroked-button type="button" *ngIf="canManage" (click)="startCreate()">
+              Nueva opción
+            </button>
+          </div>
+        </div>
+
+        <form
+          *ngIf="mode !== 'none'"
+          [formGroup]="form"
+          (ngSubmit)="save()"
+          class="navigation-admin__form"
+          autocomplete="off"
+          novalidate
+        >
+          <div class="navigation-admin__form-context" role="status">
+            <span class="navigation-admin__symbol" aria-hidden="true">{{ isEditing ? '✎' : '+' }}</span>
+            <span>
+              {{ isEditing ? 'Editando una copia. Los cambios solo se aplican al guardar.' : 'La opción no se creará hasta que guardes.' }}
+            </span>
+          </div>
+
+          <div class="navigation-admin__form-grid">
+            <mat-form-field appearance="outline">
+              <mat-label>Etiqueta visible</mat-label>
+              <input matInput type="text" formControlName="label" maxlength="200" />
+              <mat-hint>Nombre que verá el usuario en el menú.</mat-hint>
+              <mat-error *ngIf="form.controls.label.hasError('required')">La etiqueta es obligatoria.</mat-error>
+              <mat-error *ngIf="form.controls.label.hasError('maxlength')">Máximo 200 caracteres.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Ruta</mat-label>
+              <input matInput type="text" formControlName="route" placeholder="/ruta-interna" maxlength="400" />
+              <mat-hint>Ruta interna de la SPA; debe comenzar por /.</mat-hint>
+              <mat-error *ngIf="form.controls.route.hasError('required')">La ruta es obligatoria.</mat-error>
+              <mat-error *ngIf="form.controls.route.hasError('pattern')">Usa una ruta interna válida, sin espacios.</mat-error>
+              <mat-error *ngIf="form.controls.route.hasError('duplicateRoute')">Ya existe una opción con esta ruta.</mat-error>
+              <mat-error *ngIf="form.controls.route.hasError('maxlength')">Máximo 400 caracteres.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Icono</mat-label>
+              <mat-select formControlName="icon">
+                <mat-select-trigger>
+                  <span class="navigation-admin__icon-option">
+                    {{ form.value.icon || 'Sin icono' }}
+                  </span>
+                </mat-select-trigger>
+                <mat-option *ngFor="let icon of iconOptions" [value]="icon">
+                  <span class="navigation-admin__icon-option">
+                    {{ icon || 'Sin icono' }}
+                  </span>
+                </mat-option>
+              </mat-select>
+              <mat-hint>Nombre de Material Symbols usado por la navegación.</mat-hint>
+              <mat-error *ngIf="form.controls.icon.hasError('pattern')">Usa minúsculas, números o guion bajo.</mat-error>
+              <mat-error *ngIf="form.controls.icon.hasError('maxlength')">Máximo 100 caracteres.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Orden</mat-label>
+              <input matInput type="number" formControlName="order" min="0" step="1" />
+              <mat-hint>Posición entre opciones del mismo nivel.</mat-hint>
+              <mat-error *ngIf="form.controls.order.hasError('required')">El orden es obligatorio.</mat-error>
+              <mat-error *ngIf="form.controls.order.hasError('min')">El orden no puede ser negativo.</mat-error>
+              <mat-error *ngIf="form.controls.order.hasError('integer')">Ingresa un número entero.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="navigation-admin__form-field--wide">
+              <mat-label>Elemento padre</mat-label>
+              <mat-select formControlName="parentId">
+                <mat-option [value]="null">Sin padre (opción raíz)</mat-option>
+                <mat-option *ngFor="let option of parentOptions" [value]="option.item.id">
+                  {{ '— '.repeat(option.depth) }}{{ option.item.label }}
+                </mat-option>
+              </mat-select>
+              <mat-hint>No se muestran el propio elemento ni sus descendientes.</mat-hint>
+              <mat-error *ngIf="form.controls.parentId.hasError('parentMissing')">El padre ya no existe.</mat-error>
+              <mat-error *ngIf="form.controls.parentId.hasError('parentSelf')">Una opción no puede ser su propio padre.</mat-error>
+              <mat-error *ngIf="form.controls.parentId.hasError('parentCycle')">Un descendiente no puede convertirse en padre.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="navigation-admin__form-field--wide">
+              <mat-label>Roles permitidos</mat-label>
+              <mat-select formControlName="roleIds" multiple>
+                <mat-option *ngFor="let role of roles" [value]="role.id">{{ role.name }}</mat-option>
+              </mat-select>
+              <mat-hint>Sin selección, aplica a todos los roles autorizados por la ruta.</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="navigation-admin__form-field--wide">
+              <mat-label>Permisos necesarios</mat-label>
+              <mat-select formControlName="permissionIds" multiple>
+                <mat-option *ngFor="let permission of permissions" [value]="permission.id">
+                  {{ permission.name }}
+                </mat-option>
+              </mat-select>
+              <mat-hint>Sin selección, el menú no exige un permiso adicional.</mat-hint>
+            </mat-form-field>
+          </div>
+
+          <div class="navigation-admin__toggles">
+            <mat-slide-toggle formControlName="exact">
+              Coincidencia exacta
+              <small>Actívala si la ruta solo debe marcarse con una coincidencia completa.</small>
+            </mat-slide-toggle>
+            <mat-slide-toggle formControlName="isActive">
+              Opción activa
+              <small>Las opciones inactivas no aparecen en el menú operativo.</small>
+            </mat-slide-toggle>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <div class="navigation-admin__form-actions">
+            <span class="navigation-admin__save-hint" aria-live="polite">
+              <ng-container *ngIf="form.invalid && form.touched">Revisa los campos marcados.</ng-container>
+              <ng-container *ngIf="form.valid && !hasChanges">No hay cambios pendientes.</ng-container>
+            </span>
+            <div>
+              <button mat-button type="button" [disabled]="saving" (click)="cancelEditing()">Cancelar</button>
+              <button mat-flat-button type="submit" [disabled]="!canSave">
+                <span *ngIf="!saving" class="navigation-admin__symbol" aria-hidden="true">✓</span>
+                {{ submitText }}
+              </button>
+            </div>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
   </div>
 </section>

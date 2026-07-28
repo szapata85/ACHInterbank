@@ -31,19 +31,18 @@ test.describe('Navigation menu items UX', () => {
     await mockBackend(page);
   });
 
-  test('NavigationMenuItems_ShouldLoadWithoutGridCollision_OnDesktop', async ({ page }, testInfo) => {
+  test('NavigationMenuItems_ShouldRenderMaterialMasterDetail_OnDesktop', async ({ page }, testInfo) => {
     const consoleErrors = collectCriticalConsoleErrors(page);
 
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/navigation/menu-items');
 
     await expect(page).toHaveURL(/\/navigation\/menu-items$/);
-    await expect(page.getByRole('heading', { name: 'Menú de navegación', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Nueva opción de menú' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Estructura' })).toBeVisible();
-    await expect(page.getByText('Administra los accesos visibles en la SPA')).toBeVisible();
-    await expect(page.getByText('Roles permitidos')).toBeVisible();
-    await expect(page.getByText('Permisos necesarios')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Administración del menú', exact: true })).toBeVisible();
+    await expect(page.getByText('Jerarquía del menú', { exact: true })).toBeVisible();
+    await expect(page.getByText('Detalle de la opción', { exact: true })).toBeVisible();
+    await expect(page.locator('.navigation-admin__primary-action')).toBeVisible();
+    await expect(page.getByRole('searchbox', { name: 'Buscar opciones' })).toBeVisible();
 
     const layout = page.locator('.navigation-admin__layout');
     await expect(layout).toBeVisible();
@@ -52,79 +51,68 @@ test.describe('Navigation menu items UX', () => {
     const styleSnapshot = await layout.evaluate((element) => {
       const style = window.getComputedStyle(element);
       return {
-        borderLeftWidth: style.borderLeftWidth,
-        borderLeftStyle: style.borderLeftStyle,
-        borderLeftColor: style.borderLeftColor,
-        boxShadow: style.boxShadow,
+        display: style.display,
+        gridTemplateColumns: style.gridTemplateColumns,
         className: element.className
       };
     });
 
     expect(styleSnapshot.className).toContain('navigation-admin__layout');
     expect(styleSnapshot.className).not.toMatch(/\bgrid\b/);
-    expect(styleSnapshot.borderLeftWidth).toBe('0px');
-    expect(styleSnapshot.borderLeftStyle).toBe('none');
-    expect(styleSnapshot.boxShadow).toBe('none');
-
-    const formCard = page.locator('.navigation-admin__layout > .card').first();
-    const formCardStyles = await formCard.evaluate((element) => {
-      const style = window.getComputedStyle(element);
-      return {
-        borderLeftWidth: style.borderLeftWidth,
-        borderLeftStyle: style.borderLeftStyle,
-        borderLeftColor: style.borderLeftColor
-      };
-    });
-    expect(formCardStyles.borderLeftWidth).toBe('1px');
-    expect(formCardStyles.borderLeftStyle).toBe('solid');
+    expect(styleSnapshot.display).toBe('grid');
+    expect(styleSnapshot.gridTemplateColumns.split(' ').length).toBeGreaterThan(1);
+    await expect(page.locator('.navigation-admin__tree-panel')).toBeVisible();
+    await expect(page.locator('.navigation-admin__form-panel')).toBeVisible();
 
     await assertNoHorizontalOverflow(page);
     await page.screenshot({ path: testInfo.outputPath('navigation-menu-items-desktop-initial.png'), fullPage: true });
-    await assertNavigationGridLoaded(page);
+    await assertNavigationTreeLoaded(page);
     expect(consoleErrors()).toEqual([]);
   });
 
-  test('NavigationMenuItems_ShouldSupportCreateEditCancelAndIconSelector', async ({ page }, testInfo) => {
+  test('NavigationMenuItems_ShouldSupportCreateEditCancelAndMaterialIconSelector', async ({ page }, testInfo) => {
     const consoleErrors = collectCriticalConsoleErrors(page);
+    const writes: string[] = [];
+    page.on('request', request => {
+      if (/\/navigation\/menu-items(?:\/\d+)?$/.test(new URL(request.url()).pathname)
+        && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) {
+        writes.push(request.method());
+      }
+    });
 
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/navigation/menu-items');
 
-    await expect(page.getByRole('heading', { name: 'Nueva opción de menú' })).toBeVisible();
+    await page.locator('.navigation-admin__primary-action').click();
+    await expect(page.getByText('Nueva opción', { exact: true }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Crear opción' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Cancelar edición' })).toHaveCount(0);
-    await expect(page.getByText('Usa una ruta interna de la SPA')).toBeVisible();
-    await expect(page.getByText('Sin selección, no se exige permiso adicional desde el menú.')).toBeVisible();
+    await expect(page.getByText('La opción no se creará hasta que guardes.')).toBeVisible();
 
-    await page.getByPlaceholder('Texto visible').fill('Reportes QA');
-    await page.getByPlaceholder('/ruta').fill('/qa/reportes');
+    await page.getByRole('textbox', { name: 'Etiqueta visible', exact: true }).fill('Reportes QA');
+    await page.getByRole('textbox', { name: 'Ruta', exact: true }).fill('/qa/reportes');
     await expect(page.getByRole('button', { name: 'Crear opción' })).toBeEnabled();
 
-    const iconTrigger = page.locator('.icon-select-trigger');
+    const iconTrigger = page.getByRole('combobox', { name: 'Icono', exact: true });
     await iconTrigger.click();
-    await expect(page.locator('.icon-options')).toBeVisible();
-    await expect(page.locator('.icon-option').filter({ hasText: 'dashboard' })).toBeVisible();
-    await iconTrigger.click();
-    await expect(page.locator('.icon-options')).toBeHidden();
+    await expect(page.getByRole('option', { name: 'dashboard', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
 
-    await assertNavigationGridLoaded(page);
-    await page.getByRole('button', { name: 'Editar' }).first().click();
-    await expect(page.getByRole('heading', { name: 'Editar opción de menú' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(page.getByText('Detalle de la opción', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: /Seleccionar Panel principal, activo/ }).click();
+    await page.getByRole('button', { name: 'Editar opción', exact: true }).click();
+    await expect(page.getByText('Editar “Panel principal”', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Cancelar edición' }).first()).toBeVisible();
-    await expect(page.getByPlaceholder('Texto visible')).toHaveValue('Panel principal');
-    await expect(page.getByPlaceholder('/ruta')).toHaveValue('/dashboard');
+    await expect(page.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled();
+    await expect(page.getByRole('textbox', { name: 'Etiqueta visible', exact: true })).toHaveValue('Panel principal');
+    await expect(page.getByRole('textbox', { name: 'Ruta', exact: true })).toHaveValue('/dashboard');
 
     await page.screenshot({ path: testInfo.outputPath('navigation-menu-items-edit-mode.png'), fullPage: true });
 
-    await page.getByRole('button', { name: 'Cancelar edición' }).first().click();
-    await expect(page.getByRole('heading', { name: 'Nueva opción de menú' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Crear opción' })).toBeDisabled();
-    await expect(page.getByPlaceholder('Texto visible')).toHaveValue('');
-    await expect(page.getByPlaceholder('/ruta')).toHaveValue('');
-
-    await expect(page.getByText('Panel principal')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(page.getByText('Detalle de la opción', { exact: true })).toBeVisible();
+    expect(writes).toEqual([]);
     expect(consoleErrors()).toEqual([]);
   });
 
@@ -144,8 +132,9 @@ test.describe('Navigation menu items UX', () => {
 
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/navigation/menu-items');
-    await page.getByPlaceholder('Texto visible').fill('Opción QA');
-    await page.getByPlaceholder('/ruta').fill('/qa/menu');
+    await page.locator('.navigation-admin__primary-action').click();
+    await page.getByRole('textbox', { name: 'Etiqueta visible', exact: true }).fill('Opción QA');
+    await page.getByRole('textbox', { name: 'Ruta', exact: true }).fill('/qa/menu');
 
     const submit = page.getByRole('button', { name: 'Crear opción' });
     await expect(submit).toBeEnabled();
@@ -156,7 +145,8 @@ test.describe('Navigation menu items UX', () => {
 
     expect(createRequestCount).toBe(1);
     releaseCreateRequest();
-    await expect(page.getByRole('heading', { name: 'Nueva opción de menú' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Guardando...' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Crear opción' })).toBeEnabled();
     expect(createRequestCount).toBe(1);
     expect(consoleErrors()).toEqual([]);
   });
@@ -167,10 +157,10 @@ test.describe('Navigation menu items UX', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/navigation/menu-items');
 
-    await expect(page.getByRole('heading', { name: 'Menú de navegación', exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Nueva opción de menú' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Estructura' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Crear opción' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Administración del menú', exact: true })).toBeVisible();
+    await expect(page.getByText('Jerarquía del menú', { exact: true })).toBeVisible();
+    await expect(page.getByText('Detalle de la opción', { exact: true })).toBeVisible();
+    await expect(page.locator('.navigation-admin__primary-action')).toBeVisible();
     await expect(page.locator('.navigation-admin__layout')).not.toHaveClass(/\bgrid\b/);
 
     const layoutStyle = await page.locator('.navigation-admin__layout').evaluate((element) => {
@@ -186,6 +176,7 @@ test.describe('Navigation menu items UX', () => {
     expect(layoutStyle.className).not.toMatch(/\bgrid\b/);
     expect(layoutStyle.borderLeftWidth).toBe('0px');
     expect(layoutStyle.borderLeftStyle).toBe('none');
+    expect(layoutStyle.gridTemplateColumns.split(' ').length).toBe(1);
 
     await page.screenshot({ path: testInfo.outputPath('navigation-menu-items-mobile.png'), fullPage: true });
     await assertNoHorizontalOverflow(page);
@@ -219,6 +210,11 @@ async function mockBackend(page: Page): Promise<void> {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method().toUpperCase();
+
+    if (method === 'GET' && path === '/api/navigation/menu') {
+      await route.fallback();
+      return;
+    }
 
     if (method === 'GET' && isNavigationMenuItemsPath(path)) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildNavigationMenuItems()) });
@@ -393,11 +389,11 @@ async function assertNoHorizontalOverflow(page: Page): Promise<void> {
   expect(overflow).toBeLessThanOrEqual(2);
 }
 
-async function assertNavigationGridLoaded(page: Page): Promise<void> {
+async function assertNavigationTreeLoaded(page: Page): Promise<void> {
   const main = page.locator('main');
     await expect(main.getByText('No fue posible cargar el menú de navegación')).toHaveCount(0);
-    await expect(main.getByRole('treegrid')).toBeVisible();
-    await expect(main.getByRole('gridcell', { name: 'Panel principal' })).toBeVisible();
+    await expect(main.getByRole('tree', { name: 'Árbol de opciones del menú' })).toBeVisible();
+    await expect(main.getByRole('button', { name: /Seleccionar Panel principal, activo/ })).toBeVisible();
 }
 
 function createUnsignedJwt(payload: Record<string, unknown>): string {

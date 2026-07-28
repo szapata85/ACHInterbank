@@ -37,7 +37,7 @@ public class MenuItemsController : ControllerBase
         try
         {
             var created = await _service.CreateAsync(request, cancellationToken);
-            return CreatedAtAction(nameof(GetMenuItemsAsync), created);
+            return StatusCode(StatusCodes.Status201Created, created);
         }
         catch (ArgumentException ex)
         {
