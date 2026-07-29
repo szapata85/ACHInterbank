@@ -24,6 +24,7 @@ public class ClearingHouseTransactionRuleConfiguration : IEntityTypeConfiguratio
             .HasConversion<string>()
             .HasMaxLength(30)
             .IsRequired();
+        builder.Property(x => x.PrenotificationLeadBusinessDays);
         builder.Property(x => x.ReceiverIdentificationValidationMode)
             .HasConversion<string>()
             .HasMaxLength(30)

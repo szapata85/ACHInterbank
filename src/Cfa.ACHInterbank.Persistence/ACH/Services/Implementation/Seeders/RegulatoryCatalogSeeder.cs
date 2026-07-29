@@ -208,18 +208,16 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             .ToListAsync();
 
         var cenit = clearingHouses.FirstOrDefault(x =>
-            ContainsToken(x.Code, "CENIT") ||
-            ContainsToken(x.Name, "CENIT"));
+            string.Equals(x.Code, "CENIT", StringComparison.OrdinalIgnoreCase));
         if (cenit is null)
         {
             throw new InvalidOperationException("No existe ClearingHouse CENIT para sembrar catálogos regulatorios de devolución.");
         }
 
         var achColombia = clearingHouses.FirstOrDefault(x =>
-            ContainsToken(x.Code, "ACH") ||
-            ContainsToken(x.Name, "ACH COLOMBIA") ||
-            ContainsToken(x.Name, "ACHCOLOMBIA") ||
-            ContainsToken(x.Name, "ACH"));
+            string.Equals(x.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+            ?? clearingHouses.FirstOrDefault(x =>
+                string.Equals(x.Code, "ACH", StringComparison.OrdinalIgnoreCase));
         if (achColombia is null)
         {
             throw new InvalidOperationException("No existe ClearingHouse ACH Colombia para sembrar catálogos regulatorios de devolución.");
@@ -227,10 +225,6 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
         return (cenit.Id, achColombia.Id);
     }
-
-    private static bool ContainsToken(string? source, string token)
-        => !string.IsNullOrWhiteSpace(source)
-           && source.Contains(token, StringComparison.OrdinalIgnoreCase);
 
     private async Task UpsertPrenotificationPoliciesAsync()
     {
@@ -261,27 +255,6 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         var desired = BuildClearingHouseTransactionRules(clearingHouseIds)
             .ToDictionary(x => $"{x.ClearingHouseId}|{x.TransactionNature}|{x.TransactionType}|{x.EffectiveFrom:yyyyMMdd}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.ClearingHouseTransactionRules.ToListAsync();
-
-        foreach (var row in existing)
-        {
-            var key = $"{row.ClearingHouseId}|{row.TransactionNature}|{row.TransactionType}|{row.EffectiveFrom:yyyyMMdd}";
-            if (!desired.TryGetValue(key, out var model))
-            {
-                continue;
-            }
-
-            row.RequiresPrenotification = model.RequiresPrenotification;
-            row.PrenotificationMode = model.PrenotificationMode;
-            row.RequiresReceiverIdentificationValidation = model.RequiresReceiverIdentificationValidation;
-            row.ReceiverIdentificationValidationMode = model.ReceiverIdentificationValidationMode;
-            row.AppliesToNachaExport = model.AppliesToNachaExport;
-            row.AppliesToMonetaryTransactions = model.AppliesToMonetaryTransactions;
-            row.EffectiveTo = model.EffectiveTo;
-            row.IsActive = model.IsActive;
-            row.NormativeSource = model.NormativeSource;
-            row.NormativeReference = model.NormativeReference;
-            row.Notes = model.Notes;
-        }
 
         foreach (var model in desired.Values.Where(x => existing.All(e =>
                      e.ClearingHouseId != x.ClearingHouseId
@@ -473,6 +446,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Debit,
                 RequiresPrenotification = true,
                 PrenotificationMode = PrenotificationRequirementMode.Mandatory,
+                PrenotificationLeadBusinessDays = 3,
                 RequiresReceiverIdentificationValidation = true,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Mandatory,
                 AppliesToNachaExport = true,
@@ -490,6 +464,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Credit,
                 RequiresPrenotification = false,
                 PrenotificationMode = PrenotificationRequirementMode.Optional,
+                PrenotificationLeadBusinessDays = null,
                 RequiresReceiverIdentificationValidation = false,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Optional,
                 AppliesToNachaExport = true,
@@ -507,6 +482,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Debit,
                 RequiresPrenotification = true,
                 PrenotificationMode = PrenotificationRequirementMode.Mandatory,
+                PrenotificationLeadBusinessDays = null,
                 RequiresReceiverIdentificationValidation = true,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Mandatory,
                 AppliesToNachaExport = true,
@@ -524,6 +500,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Credit,
                 RequiresPrenotification = false,
                 PrenotificationMode = PrenotificationRequirementMode.Optional,
+                PrenotificationLeadBusinessDays = null,
                 RequiresReceiverIdentificationValidation = false,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Optional,
                 AppliesToNachaExport = true,

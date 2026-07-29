@@ -13,6 +13,41 @@ namespace Cfa.ACHInterbank.Tests;
 public sealed class NachaTransactionValidationServiceTests
 {
     [Fact]
+    public void Constructor_RejectsUnavailablePrerequisitePolicy_InsteadOfEnablingFallback()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        using var context = CreateContext(connection);
+        var holidays = Mock.Of<IBankHoliday>();
+
+        Assert.Throws<ArgumentNullException>(
+            () => new NachaTransactionValidationService(context, holidays, null!));
+    }
+
+    [Fact]
+    public async Task ValidateTransactionsForSendAsync_DelegatesMonetaryDecisionToCanonicalPolicy()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        using var context = CreateContext(connection);
+        var policy = new Mock<ITransactionPrerequisitePolicyService>();
+        policy
+            .Setup(x => x.ValidateForNachaExportAsync(
+                It.IsAny<AchTransaction>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionPrerequisiteValidationResult(true, "OK", "Válida", null));
+        var sut = new NachaTransactionValidationService(context, Mock.Of<IBankHoliday>(), policy.Object);
+        var transaction = BuildTransaction(TransactionTypeEnum.Credit, "22");
+
+        await sut.ValidateTransactionsForSendAsync([transaction], CancellationToken.None);
+
+        policy.Verify(
+            x => x.ValidateForNachaExportAsync(transaction, null, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task ValidateTransactionsForSendAsync_UsesTableDrivenPolicy_ForReversalCodeThatLooksLikeDebit()
     {
         using var connection = new SqliteConnection("DataSource=:memory:");

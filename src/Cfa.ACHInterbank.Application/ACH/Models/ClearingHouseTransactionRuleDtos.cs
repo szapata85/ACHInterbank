@@ -11,6 +11,7 @@ public sealed record ClearingHouseTransactionRuleDto(
     TransactionTypeEnum TransactionType,
     bool RequiresPrenotification,
     PrenotificationRequirementMode PrenotificationMode,
+    int? PrenotificationLeadBusinessDays,
     bool RequiresReceiverIdentificationValidation,
     ValidationRequirementMode ReceiverIdentificationValidationMode,
     bool AppliesToNachaExport,
@@ -30,6 +31,7 @@ public sealed record CreateClearingHouseTransactionRuleRequest(
     TransactionTypeEnum TransactionType,
     bool RequiresPrenotification,
     PrenotificationRequirementMode PrenotificationMode,
+    int? PrenotificationLeadBusinessDays,
     bool RequiresReceiverIdentificationValidation,
     ValidationRequirementMode ReceiverIdentificationValidationMode,
     bool AppliesToNachaExport,
@@ -46,6 +48,7 @@ public sealed record UpdateClearingHouseTransactionRuleRequest(
     TransactionTypeEnum TransactionType,
     bool RequiresPrenotification,
     PrenotificationRequirementMode PrenotificationMode,
+    int? PrenotificationLeadBusinessDays,
     bool RequiresReceiverIdentificationValidation,
     ValidationRequirementMode ReceiverIdentificationValidationMode,
     bool AppliesToNachaExport,
@@ -72,3 +75,22 @@ public sealed record TransactionPrerequisitePreviewResponse(
     string? NormativeReference,
     string Decision,
     string Message);
+
+public sealed record CreateClearingHouseTransactionPolicyVersionRequest(
+    TransactionTypeEnum TransactionType,
+    PrenotificationRequirementMode PrenotificationMode,
+    int? PrenotificationLeadBusinessDays,
+    DateTime EffectiveFrom,
+    DateTime? EffectiveTo,
+    bool IsActive,
+    string NormativeSource,
+    string NormativeReference,
+    string? Notes);
+
+public sealed record UpdateClearingHouseTransactionPolicyMetadataRequest(
+    string NormativeSource,
+    string NormativeReference,
+    string? Notes);
+
+public sealed record CloseClearingHouseTransactionPolicyVersionRequest(
+    DateTime EffectiveTo);

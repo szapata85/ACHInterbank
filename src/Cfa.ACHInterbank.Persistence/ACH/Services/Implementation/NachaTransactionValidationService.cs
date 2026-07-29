@@ -11,19 +11,19 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class NachaTransactionValidationService : INachaTransactionValidationService
 {
     private readonly AchDbContext _context;
-    private readonly IBankHoliday _holidayService;
-    private readonly ITransactionPrerequisitePolicyService? _prerequisitePolicyService;
+    private readonly ITransactionPrerequisitePolicyService _prerequisitePolicyService;
 
     private sealed record PrenoteLookupKey(int DestinationInstitutionId, string DestinationAccountNumber, string TransactionCode);
 
     public NachaTransactionValidationService(
         AchDbContext context,
         IBankHoliday holidayService,
-        ITransactionPrerequisitePolicyService? prerequisitePolicyService = null)
+        ITransactionPrerequisitePolicyService prerequisitePolicyService)
     {
         _context = context;
-        _holidayService = holidayService;
-        _prerequisitePolicyService = prerequisitePolicyService;
+        _ = holidayService;
+        _prerequisitePolicyService = prerequisitePolicyService
+            ?? throw new ArgumentNullException(nameof(prerequisitePolicyService));
     }
 
     public async Task ValidateTransactionsForSendAsync(IReadOnlyList<AchTransaction> transactions, CancellationToken ct = default)
@@ -40,38 +40,14 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
             if (!tx.IsPrenotification)
             {
                 var prenoteDate = GetPrenoteDate(tx, prenoteLookup);
-                if (_prerequisitePolicyService is not null)
+                var validation = await _prerequisitePolicyService.ValidateForNachaExportAsync(tx, prenoteDate, ct);
+                if (!validation.IsValid)
                 {
-                    var validation = await _prerequisitePolicyService.ValidateForNachaExportAsync(tx, prenoteDate, ct);
-                    if (!validation.IsValid)
-                    {
-                        throw new NachaGenerationException(validation.Code, validation.Message);
-                    }
-
-                    continue;
-                }
-
-                if (!RequiresLegacyMandatoryPrenote(tx.TransactionCode))
-                {
-                    continue;
-                }
-
-                if (prenoteDate is null)
-                {
-                    throw new InvalidOperationException($"La transacción {tx.Id} no tiene prenotificación previa.");
-                }
-
-                var minDate = AddBusinessDays(prenoteDate.Value.Date, 3);
-                if (tx.EffectiveEntryDate.Date < minDate)
-                {
-                    throw new InvalidOperationException($"La transacción {tx.Id} no cumple los 3 días hábiles desde la prenotificación.");
+                    throw new NachaGenerationException(validation.Code, validation.Message);
                 }
             }
         }
     }
-
-    private static bool RequiresLegacyMandatoryPrenote(string transactionCode)
-        => transactionCode is "27" or "37" or "55";
 
     private static DateTime? GetPrenoteDate(AchTransaction tx, IReadOnlyDictionary<PrenoteLookupKey, DateTime> prenoteLookup)
     {
@@ -162,35 +138,4 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
         };
     }
 
-    private DateTime AddBusinessDays(DateTime start, int days)
-    {
-        var date = start;
-        var remaining = days;
-        var currentYear = date.Year;
-        var holidays = _holidayService.GetHolidays(currentYear)
-            .Select(h => h.Date)
-            .ToHashSet();
-
-        while (remaining > 0)
-        {
-            date = date.AddDays(1);
-
-            if (date.Year != currentYear)
-            {
-                currentYear = date.Year;
-                holidays = _holidayService.GetHolidays(currentYear)
-                    .Select(h => h.Date)
-                    .ToHashSet();
-            }
-
-            var isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-            var isHoliday = holidays.Contains(DateOnly.FromDateTime(date));
-            if (!isWeekend && !isHoliday)
-            {
-                remaining--;
-            }
-        }
-
-        return date;
-    }
 }

@@ -18,7 +18,7 @@ public class TransactionPrerequisitePolicyServiceTests
     {
         using var context = CreateContext();
         var cycle = await SeedCycleAsync(context, clearingHouseId: 1, "ACH Colombia");
-        SeedRule(context, 1, TransactionNature.Debit, TransactionTypeEnum.Debit, PrenotificationRequirementMode.Mandatory, requiresPrenotification: true);
+        SeedRule(context, 1, TransactionNature.Debit, TransactionTypeEnum.Debit, PrenotificationRequirementMode.Mandatory, requiresPrenotification: true, leadBusinessDays: 3);
         await context.SaveChangesAsync();
 
         var service = CreateService(context);
@@ -42,6 +42,92 @@ public class TransactionPrerequisitePolicyServiceTests
         var transaction = BuildTransaction(cycle, TransactionTypeEnum.Credit);
 
         var result = await service.ValidateForNachaExportAsync(transaction, prenotificationDate: null, CancellationToken.None);
+
+        Assert.True(result.IsValid);
+        Assert.Equal("OK", result.Code);
+    }
+
+    [Fact]
+    public async Task ValidateForNachaExportAsync_AchColombiaDebitWithLessThanThreeBusinessDays_ReturnsPrerequisiteFailure()
+    {
+        using var context = CreateContext();
+        var cycle = await SeedCycleAsync(context, clearingHouseId: 1, "ACH Colombia");
+        SeedRule(context, 1, TransactionNature.Debit, TransactionTypeEnum.Debit, PrenotificationRequirementMode.Mandatory, true, 3);
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context).ValidateForNachaExportAsync(
+            BuildTransaction(cycle, TransactionTypeEnum.Debit),
+            new DateTime(2026, 1, 13),
+            CancellationToken.None);
+
+        Assert.False(result.IsValid);
+        Assert.Equal("NACHA_EXPORT_PREREQUISITE_FAILED", result.Code);
+    }
+
+    [Fact]
+    public async Task ValidateForNachaExportAsync_AchColombiaDebitWithThreeBusinessDays_ReturnsValid()
+    {
+        using var context = CreateContext();
+        var cycle = await SeedCycleAsync(context, clearingHouseId: 1, "ACH Colombia");
+        SeedRule(context, 1, TransactionNature.Debit, TransactionTypeEnum.Debit, PrenotificationRequirementMode.Mandatory, true, 3);
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context).ValidateForNachaExportAsync(
+            BuildTransaction(cycle, TransactionTypeEnum.Debit),
+            new DateTime(2026, 1, 12),
+            CancellationToken.None);
+
+        Assert.True(result.IsValid);
+        Assert.Equal("OK", result.Code);
+    }
+
+    [Fact]
+    public async Task ValidateForNachaExportAsync_CenitDebitWithPrenote_DoesNotInventLeadDays()
+    {
+        using var context = CreateContext();
+        var cycle = await SeedCycleAsync(context, clearingHouseId: 2, "CENIT");
+        SeedRule(context, 2, TransactionNature.Debit, TransactionTypeEnum.Debit, PrenotificationRequirementMode.Mandatory, true);
+        await context.SaveChangesAsync();
+
+        var transaction = BuildTransaction(cycle, TransactionTypeEnum.Debit);
+        var result = await CreateService(context).ValidateForNachaExportAsync(
+            transaction,
+            transaction.EffectiveEntryDate.Date,
+            CancellationToken.None);
+
+        Assert.True(result.IsValid);
+        Assert.Equal("OK", result.Code);
+    }
+
+    [Fact]
+    public async Task ValidateForNachaExportAsync_CenitDebitWithoutPrenote_ReturnsPrerequisiteFailure()
+    {
+        using var context = CreateContext();
+        var cycle = await SeedCycleAsync(context, clearingHouseId: 2, "CENIT");
+        SeedRule(context, 2, TransactionNature.Debit, TransactionTypeEnum.Debit, PrenotificationRequirementMode.Mandatory, true);
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context).ValidateForNachaExportAsync(
+            BuildTransaction(cycle, TransactionTypeEnum.Debit),
+            null,
+            CancellationToken.None);
+
+        Assert.False(result.IsValid);
+        Assert.Equal("NACHA_EXPORT_PREREQUISITE_FAILED", result.Code);
+    }
+
+    [Fact]
+    public async Task ValidateForNachaExportAsync_CenitCreditWithoutPrenote_ReturnsValid()
+    {
+        using var context = CreateContext();
+        var cycle = await SeedCycleAsync(context, clearingHouseId: 2, "CENIT");
+        SeedRule(context, 2, TransactionNature.Credit, TransactionTypeEnum.Credit, PrenotificationRequirementMode.Optional, false);
+        await context.SaveChangesAsync();
+
+        var result = await CreateService(context).ValidateForNachaExportAsync(
+            BuildTransaction(cycle, TransactionTypeEnum.Credit),
+            null,
+            CancellationToken.None);
 
         Assert.True(result.IsValid);
         Assert.Equal("OK", result.Code);
@@ -138,7 +224,8 @@ public class TransactionPrerequisitePolicyServiceTests
         TransactionNature nature,
         TransactionTypeEnum transactionType,
         PrenotificationRequirementMode mode,
-        bool requiresPrenotification)
+        bool requiresPrenotification,
+        int? leadBusinessDays = null)
     {
         context.ClearingHouseTransactionRules.Add(new ClearingHouseTransactionRule
         {
@@ -147,6 +234,7 @@ public class TransactionPrerequisitePolicyServiceTests
             TransactionType = transactionType,
             RequiresPrenotification = requiresPrenotification,
             PrenotificationMode = mode,
+            PrenotificationLeadBusinessDays = leadBusinessDays,
             RequiresReceiverIdentificationValidation = requiresPrenotification,
             ReceiverIdentificationValidationMode = requiresPrenotification
                 ? ValidationRequirementMode.Mandatory

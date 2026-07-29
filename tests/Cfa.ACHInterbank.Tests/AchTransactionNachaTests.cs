@@ -332,7 +332,7 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
         var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
+        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
@@ -622,7 +622,7 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
         var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
+        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
@@ -749,7 +749,7 @@ public class AchTransactionNachaTests
             .Setup(h => h.GetHolidays(It.IsAny<int>()))
             .Returns([]);
         var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
+        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new NachaSemanticValidator();
@@ -844,7 +844,7 @@ public class AchTransactionNachaTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns([]);
         var loader = new NachaDataLoader(executionContext);
-        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object);
+        var validation = new NachaTransactionValidationService(executionContext, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(executionContext);
         var semanticValidator = new Mock<INachaSemanticValidator>();
@@ -1233,6 +1233,18 @@ public class AchTransactionNachaTests
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
         return context;
+    }
+
+    private static ITransactionPrerequisitePolicyService CreatePermissivePrerequisitePolicy()
+    {
+        var policy = new Mock<ITransactionPrerequisitePolicyService>();
+        policy
+            .Setup(x => x.ValidateForNachaExportAsync(
+                It.IsAny<AchTransaction>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionPrerequisiteValidationResult(true, "OK", "Política satisfecha.", null));
+        return policy.Object;
     }
 
     private static void SeedCoreEntities(AchDbContext context)

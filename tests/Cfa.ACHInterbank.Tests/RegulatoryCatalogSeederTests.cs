@@ -24,6 +24,7 @@ public class RegulatoryCatalogSeederTests
             x.TransactionNature == TransactionNature.Debit
             && x.RequiresPrenotification
             && x.PrenotificationMode == PrenotificationRequirementMode.Mandatory
+            && x.PrenotificationLeadBusinessDays == 3
             && x.NormativeSource.Contains("MAN-004")));
         Assert.True(await context.ClearingHouseTransactionRules.AnyAsync(x =>
             x.TransactionNature == TransactionNature.Credit
@@ -32,6 +33,43 @@ public class RegulatoryCatalogSeederTests
             && x.NormativeSource.Contains("CENIT")));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "ITIMEOUT" && x.IsRetryable));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "IFUNC" && !x.IsRetryable));
+    }
+
+    [Fact]
+    public async Task SeedAsync_IsInsertOnlyAndPreservesAdministrativeChanges()
+    {
+        await using var context = await CreateContextAsync();
+        var sut = new RegulatoryCatalogSeeder(context);
+        await sut.SeedAsync();
+
+        Assert.Equal(4, await context.ClearingHouseTransactionRules.CountAsync());
+        var policy = await context.ClearingHouseTransactionRules
+            .Include(x => x.ClearingHouse)
+            .SingleAsync(x => x.ClearingHouse.Code == "ACHCOL" && x.TransactionNature == TransactionNature.Debit);
+
+        policy.IsActive = false;
+        policy.PrenotificationMode = PrenotificationRequirementMode.Optional;
+        policy.RequiresPrenotification = false;
+        policy.PrenotificationLeadBusinessDays = null;
+        policy.EffectiveTo = new DateTime(2028, 12, 31);
+        policy.NormativeReference = "CAMBIO-ADMINISTRATIVO";
+        policy.Notes = "No debe ser sobrescrito por bootstrap.";
+        await context.SaveChangesAsync();
+
+        await sut.SeedAsync();
+        context.ChangeTracker.Clear();
+
+        var persisted = await context.ClearingHouseTransactionRules
+            .Include(x => x.ClearingHouse)
+            .SingleAsync(x => x.ClearingHouse.Code == "ACHCOL" && x.TransactionNature == TransactionNature.Debit);
+        Assert.Equal(4, await context.ClearingHouseTransactionRules.CountAsync());
+        Assert.False(persisted.IsActive);
+        Assert.Equal(PrenotificationRequirementMode.Optional, persisted.PrenotificationMode);
+        Assert.False(persisted.RequiresPrenotification);
+        Assert.Null(persisted.PrenotificationLeadBusinessDays);
+        Assert.Equal(new DateTime(2028, 12, 31), persisted.EffectiveTo);
+        Assert.Equal("CAMBIO-ADMINISTRATIVO", persisted.NormativeReference);
+        Assert.Equal("No debe ser sobrescrito por bootstrap.", persisted.Notes);
     }
 
     [Fact]
@@ -118,7 +156,7 @@ public class RegulatoryCatalogSeederTests
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();
         await EnsureClearingHouseAsync(context, "CENIT", "CENIT");
-        await EnsureClearingHouseAsync(context, "ACH", "ACH Colombia");
+        await EnsureClearingHouseAsync(context, "ACHCOL", "ACH Colombia");
         return context;
     }
 

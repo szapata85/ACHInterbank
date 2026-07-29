@@ -177,3 +177,43 @@ La ruta actual debe mantenerse temporalmente en modo compatible o de solo lectur
 ## Evidencia de runtime
 
 El 28 de julio de 2026, SPA y API locales respondieron HTTP 200. La pantalla cargó cuatro filas mediante `GET /api/clearing-house-transaction-rules`, sin errores de consola ni respuestas HTTP fallidas. Se abrió y canceló el formulario de creación: no se generaron POST, PUT, PATCH ni DELETE. No se modificaron datos.
+
+## 11. Consolidación backend — JOB 1
+
+### Modelo y fuente de verdad
+
+La fuente de verdad productiva continúa siendo `ClearingHouseTransactionRules`, resuelta exclusivamente por `ITransactionPrerequisitePolicyService` para la fecha efectiva, cámara y tipo de transacción. `TransactionNature` y `RequiresPrenotification` se conservan por compatibilidad, pero se derivan respectivamente de `TransactionType` y `PrenotificationMode`; los contratos antiguos rechazan combinaciones incoherentes. Los alcances técnicos se fijan en `true`.
+
+Se agregó `PrenotificationLeadBusinessDays` nullable. ACH Colombia débito usa `Mandatory` y `3`; ACH Colombia crédito usa `Optional` y `null`; CENIT débito usa `Mandatory` y `null`; CENIT crédito usa `Optional` y `null`. Un valor configurado se calcula con `IBankHoliday`; `Mandatory` sin plazo exige prenotificación sin inventar antigüedad.
+
+### Versionado y API
+
+Una decisión funcional nueva crea una versión y cierra la anterior el día previo. El servicio rechaza fechas inválidas, fechas iniciales duplicadas y solapamientos activos; permite versiones futuras y resuelve como máximo una versión por fecha. La edición in-place queda limitada a fuente, referencia y notas. No existe eliminación física.
+
+La API canónica es `api/clearing-houses/{clearingHouseId}/transaction-policies` y ofrece listado de versiones, vigente, detalle, creación de versión, metadatos, cierre, activación y preview. Lecturas usan `P1.ConfigRead`; escrituras usan `P1.ConfigManage`, que conservan compatibilidad con `CanReadAch` y `CanManageAch`. El endpoint anterior permanece como adaptador sobre el mismo servicio.
+
+### Seed, duplicidades y consumidor
+
+`RegulatoryCatalogSeeder` identifica `CENIT` y los códigos estables de ACH Colombia (`ACHCOL`, con compatibilidad para `ACH`) sin depender de IDs ni nombres, y solo inserta políticas faltantes. Una segunda ejecución, el bootstrap o `/seed` no reactivan ni sobrescriben decisiones administrativas existentes.
+
+- `RequiresPrenotification`: derivado y conservado por compatibilidad.
+- `TransactionNature`: derivada/validada y conservada por compatibilidad.
+- `AchPrenotificationPolicies`: catálogo de lectura administrativa, sin consumidor productivo; pendiente de retiro.
+- `AchTransactionTypePolicies.RequiresPrenotification`: catálogo de lectura administrativa, sin consumidor productivo; pendiente de retiro.
+- Campos de validación de identificación: informativos/compatibles, pendientes de consumidor real.
+- Fallback en `NachaTransactionValidationService` y duplicado privado en `NachaFileBuilder`: eliminados.
+
+`NachaFileBuilder` delega la validación en `INachaTransactionValidationService`; este exige `ITransactionPrerequisitePolicyService`. La falta de política produce error funcional controlado y la falta de la dependencia impide construir el servicio, sin activar reglas genéricas.
+
+### Persistencia, migraciones y pruebas
+
+Las migraciones `CanonicalClearingHouseTransactionPolicies` de PostgreSQL y SQL Server agregan la columna nullable, asignan `3` solo a versiones ACHCOL débito obligatorias y dejan CENIT en `null`. No eliminan columnas ni tablas compatibles. Se validaron scripts forward y rollback de ambos proveedores.
+
+Las pruebas focalizadas cubren resolución por cámara/tipo/fecha, los siete casos ACH/CENIT, plazo nullable, versionado, cierre, solapamiento, coherencia de compatibilidad, seed insert-only, ausencia de fallback, API anidada y permisos.
+
+### Riesgos residuales
+
+- Los dos catálogos globales duplicados continúan disponibles para clientes administrativos hasta que se verifique y ejecute su retiro.
+- La validación de identificación sigue siendo metadato sin decisión productiva.
+- La auditoría conserva sellos de creación/actualización; una bitácora de aprobación normativa con identidad y motivo requiere un trabajo posterior.
+- La ruta Angular antigua permanece hasta el JOB 2 y debe migrarse antes de retirar el adaptador HTTP.

@@ -43,7 +43,7 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
 
         return new(
             true,
-            rule.RequiresPrenotification,
+            rule.PrenotificationMode == PrenotificationRequirementMode.Mandatory,
             rule.PrenotificationMode,
             rule.RequiresReceiverIdentificationValidation,
             rule.ReceiverIdentificationValidationMode,
@@ -95,7 +95,7 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
             return new(false, "NACHA_EXPORT_RULE_NOT_CONFIGURED", $"No existe regla vigente de exportación NACHA para la transacción {transaction.Id}, cámara {clearingHouseId}, naturaleza {nature.Value}.", null);
         }
 
-        if (rule.PrenotificationMode != PrenotificationRequirementMode.Mandatory || !rule.RequiresPrenotification)
+        if (rule.PrenotificationMode != PrenotificationRequirementMode.Mandatory)
         {
             return new(true, "OK", "La regla vigente no bloquea por prenotificación.", rule);
         }
@@ -105,10 +105,18 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
             return new(false, "NACHA_EXPORT_PREREQUISITE_FAILED", $"La transacción {transaction.Id} no tiene prenotificación previa.", rule);
         }
 
-        var minDate = AddBusinessDays(prenotificationDate.Value.Date, 3);
-        if (transaction.EffectiveEntryDate.Date < minDate)
+        if (rule.PrenotificationLeadBusinessDays.HasValue)
         {
-            return new(false, "NACHA_EXPORT_PREREQUISITE_FAILED", $"La transacción {transaction.Id} no cumple los 3 días hábiles desde la prenotificación.", rule);
+            var leadDays = rule.PrenotificationLeadBusinessDays.Value;
+            var minDate = AddBusinessDays(prenotificationDate.Value.Date, leadDays);
+            if (transaction.EffectiveEntryDate.Date < minDate)
+            {
+                return new(
+                    false,
+                    "NACHA_EXPORT_PREREQUISITE_FAILED",
+                    $"La transacción {transaction.Id} no cumple los {leadDays} días hábiles requeridos desde la prenotificación.",
+                    rule);
+            }
         }
 
         return new(true, "OK", "La transacción cumple prerequisitos de prenotificación.", rule);
@@ -122,7 +130,7 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
         bool appliesToNachaExport,
         CancellationToken ct)
     {
-        return await _context.ClearingHouseTransactionRules
+        var candidates = await _context.ClearingHouseTransactionRules
             .AsNoTracking()
             .Where(x => x.ClearingHouseId == clearingHouseId
                         && x.TransactionNature == nature
@@ -133,7 +141,16 @@ public class TransactionPrerequisitePolicyService : ITransactionPrerequisitePoli
                         && x.EffectiveFrom.Date <= effectiveDate.Date
                         && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= effectiveDate.Date))
             .OrderByDescending(x => x.EffectiveFrom)
-            .FirstOrDefaultAsync(ct);
+            .Take(2)
+            .ToListAsync(ct);
+
+        if (candidates.Count > 1)
+        {
+            throw new InvalidOperationException(
+                $"Existe más de una política vigente para la cámara {clearingHouseId}, tipo {type} y fecha {effectiveDate:yyyy-MM-dd}.");
+        }
+
+        return candidates.Count == 0 ? null : candidates[0];
     }
 
     public static TransactionNature? ResolveNature(TransactionTypeEnum type)

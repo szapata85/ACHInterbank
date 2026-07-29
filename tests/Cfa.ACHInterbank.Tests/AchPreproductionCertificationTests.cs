@@ -93,7 +93,7 @@ public class AchPreproductionCertificationTests
         var holidayService = new Mock<IBankHoliday>();
         holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
         var loader = new NachaDataLoader(context);
-        var validation = new NachaTransactionValidationService(context, holidayService.Object);
+        var validation = new NachaTransactionValidationService(context, holidayService.Object, CreatePermissivePrerequisitePolicy());
         var renderer = new NachaFixedWidthRecordRenderer();
         var recordDataProvider = new NachaRecordDataProvider(context);
         var builder = new NachaFileBuilder(
@@ -871,6 +871,18 @@ public class AchPreproductionCertificationTests
         var connection = new SqliteConnection("DataSource=:memory:");
         connection.Open();
         return connection;
+    }
+
+    private static ITransactionPrerequisitePolicyService CreatePermissivePrerequisitePolicy()
+    {
+        var policy = new Mock<ITransactionPrerequisitePolicyService>();
+        policy
+            .Setup(x => x.ValidateForNachaExportAsync(
+                It.IsAny<AchTransaction>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TransactionPrerequisiteValidationResult(true, "OK", "Política satisfecha.", null));
+        return policy.Object;
     }
 
     private static AchDbContext CreateContext(SqliteConnection connection)

@@ -13,6 +13,7 @@ public class ClearingHouseTransactionRule : AuditableEntity
     public TransactionTypeEnum TransactionType { get; set; }
     public bool RequiresPrenotification { get; set; }
     public PrenotificationRequirementMode PrenotificationMode { get; set; }
+    public int? PrenotificationLeadBusinessDays { get; set; }
     public bool RequiresReceiverIdentificationValidation { get; set; }
     public ValidationRequirementMode ReceiverIdentificationValidationMode { get; set; }
     public bool AppliesToNachaExport { get; set; } = true;
