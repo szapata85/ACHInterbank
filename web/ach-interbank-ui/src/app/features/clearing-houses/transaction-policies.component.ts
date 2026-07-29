@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@
 import { CommonModule, DatePipe } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { finalize, forkJoin, switchMap } from 'rxjs';
+import { EMPTY, finalize, forkJoin, switchMap } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -72,9 +72,23 @@ export class TransactionPoliciesComponent {
       else { lead.enable({ emitEvent: false }); }
     });
     this.route.paramMap.pipe(switchMap(params => {
-      const id = Number(params.get('id')); if (!Number.isInteger(id) || id <= 0) { this.error = 'La cámara indicada no es válida.'; this.loading = false; return []; }
-      return forkJoin({ house: this.houses.get(id), policies: this.policiesApi.list(id) });
-    }), finalize(() => { this.loading = false; this.cdr.markForCheck(); })).subscribe({
+      const id = Number(params.get('id'));
+      if (!Number.isInteger(id) || id <= 0) {
+        this.error = 'La cámara indicada no es válida.';
+        this.loading = false;
+        this.cdr.markForCheck();
+        return EMPTY;
+      }
+
+      this.loading = true;
+      this.error = '';
+      return forkJoin({ house: this.houses.get(id), policies: this.policiesApi.list(id) }).pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      );
+    })).subscribe({
       next: result => { this.clearingHouse = result.house; this.policies = result.policies; },
       error: err => this.error = err?.status === 404 ? 'La cámara solicitada no existe o ya no está disponible.' : 'No fue posible cargar las políticas transaccionales.'
     });
