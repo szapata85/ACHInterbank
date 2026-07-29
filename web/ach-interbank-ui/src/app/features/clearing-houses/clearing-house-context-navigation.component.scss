@@ -29,6 +29,8 @@
 }
 .context-card__inactive { background: #fff1f2; color: #9f1239; }
 nav mat-icon { margin-right: .4rem; }
+nav { max-width: 100%; }
+nav a { min-width: max-content; }
 
 @media (max-width: 680px) {
   .context-card__identity {
@@ -37,6 +39,5 @@ nav mat-icon { margin-right: .4rem; }
   }
   .context-card__identity > a { grid-column: 1 / -1; justify-self: start; }
   .context-card__identity > div { min-width: 0; }
-  nav { overflow-x: auto; }
-  nav a { min-width: max-content; }
+  nav { overflow-x: auto; scrollbar-width: thin; }
 }

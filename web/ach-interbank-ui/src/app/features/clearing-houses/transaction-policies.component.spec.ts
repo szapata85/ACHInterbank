@@ -126,7 +126,34 @@ describe('TransactionPoliciesComponent', () => {
     createFor(7);
     completeLoad(7, 'ACHCOL', [policy(7, 3)]);
     expect(fixture.nativeElement.querySelectorAll('h1').length).toBe(0);
-    expect(fixture.nativeElement.textContent).toContain('Configuración transaccional');
+    expect(fixture.nativeElement.textContent).toContain('Reglas de prenotificación');
+  });
+
+  it('prioritizes operational decisions and keeps normative references out of summaries and the main table', () => {
+    createFor(7);
+    completeLoad(7, 'ACHCOL', [
+      policy(7, 3),
+      { ...policy(7, null), id: 8, transactionType: TransactionTypeEnum.Credit, prenotificationMode: 'Optional' }
+    ]);
+    const summary = fixture.nativeElement.querySelector('.policy-page__summary') as HTMLElement;
+    const table = fixture.nativeElement.querySelector('.policy-page__table-wrap') as HTMLElement;
+    expect(summary.textContent).toContain('Bloquea la exportación');
+    expect(summary.textContent).toContain('No bloquea por ausencia');
+    expect(summary.textContent).not.toContain('4.7');
+    expect(table.textContent).not.toContain('Referencia');
+    expect(table.textContent).not.toContain('4.7');
+  });
+
+  it('keeps normative detail available and names metadata editing as traceability', () => {
+    createFor(7);
+    completeLoad(7, 'CENIT', [policy(7, null)]);
+    component.viewNormativeDetail(component.policies[0]);
+    fixture.detectChanges();
+    expect(document.body.textContent).toContain('Detalle normativo');
+    expect(document.body.textContent).toContain('4.7');
+    component.createVersion();
+    fixture.detectChanges();
+    expect(document.body.textContent).toContain('Trazabilidad normativa');
   });
 
   it('validates integer, non-negative and maximum lead days', () => {

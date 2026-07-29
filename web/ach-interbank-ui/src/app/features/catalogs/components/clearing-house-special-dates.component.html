@@ -1,64 +1,171 @@
-<section class="card">
-  <div class="header">
-    <div>
-      <p class="eyebrow">Catálogos</p>
-      <h2>Fechas especiales por cámara</h2>
-      <p class="lede">Define fechas no operativas específicas por cámara de compensación.</p>
-    </div>
-    <div class="actions">
-      <button type="button" class="btn btn-secondary" (click)="load()" [disabled]="loading || saving">Recargar</button>
-      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Nueva fecha</button>
-    </div>
-  </div>
+<section class="dates-page" aria-labelledby="dates-content-title">
+  <mat-card *ngIf="loading" class="state-card" role="status" aria-live="polite">
+    <mat-spinner diameter="36"></mat-spinner>
+    <div><strong>Cargando fechas especiales…</strong><span>Consultando la cámara y el calendario seleccionado.</span></div>
+  </mat-card>
 
-  <div class="grid" *ngIf="specialDates.length; else empty">
-    <ui-grilla-empresarial
-      [datos]="rows"
-      [columnas]="columnDefs"
-      [cargando]="loading"
-      [error]="false"
-      [tamanoPagina]="pageSize"
-      [mensajeVacio]="'No hay fechas especiales configuradas.'"
-      [mensajeCargando]="'Cargando información...'"
-      (grillaLista)="onGridReady($event)"
-    ></ui-grilla-empresarial>
-  </div>
+  <mat-card *ngIf="!loading && error" class="state-card state-card--error" role="alert">
+    <mat-icon>error_outline</mat-icon>
+    <div><h2 id="dates-content-title">No fue posible mostrar las fechas especiales</h2><p>{{ error }}</p></div>
+    <a mat-stroked-button routerLink="/clearing-houses"><mat-icon>arrow_back</mat-icon>Volver a cámaras</a>
+  </mat-card>
 
-  <ng-template #empty>
-    <div class="empty">
-      <p>No hay fechas especiales registradas.</p>
-      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Agregar fecha</button>
-    </div>
+  <ng-container *ngIf="!loading && clearingHouse as house">
+    <app-clearing-house-context-navigation
+      [clearingHouse]="house"
+      [canReadPolicies]="canReadPolicies"
+      [canReadCycles]="canReadCycles"
+      [canReadSpecialDates]="canReadSpecialDates"
+    ></app-clearing-house-context-navigation>
+
+    <header class="dates-hero">
+      <div>
+        <p class="eyebrow">Calendario por cámara</p>
+        <h2 id="dates-content-title">Fechas especiales</h2>
+        <p>Fechas no operativas adicionales al calendario bancario general.</p>
+      </div>
+      <button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="startCreate()">
+        <mat-icon>add</mat-icon>Nueva fecha especial
+      </button>
+    </header>
+
+    <section class="metrics" aria-label="Resumen de fechas especiales">
+      <mat-card><mat-icon>calendar_month</mat-icon><div><strong>{{ totalCount }}</strong><span>Total</span></div></mat-card>
+      <mat-card><mat-icon>check_circle</mat-icon><div><strong>{{ activeCount }}</strong><span>Activas</span></div></mat-card>
+      <mat-card><mat-icon>event_upcoming</mat-icon><div><strong>{{ upcomingCount }}</strong><span>Próximas</span></div></mat-card>
+      <mat-card><mat-icon>date_range</mat-icon><div><strong>{{ filterForm.controls.year.value }}</strong><span>Año consultado</span></div></mat-card>
+    </section>
+
+    <mat-card class="filters-card">
+      <mat-card-header><mat-card-title>Filtros</mat-card-title><mat-card-subtitle>La cámara permanece fija durante toda la gestión.</mat-card-subtitle></mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="filterForm" class="filters" (ngSubmit)="reload()">
+          <mat-form-field appearance="outline">
+            <mat-label>Año</mat-label>
+            <mat-select formControlName="year" (selectionChange)="reload()">
+              <mat-option *ngFor="let year of years" [value]="year">{{ year }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select formControlName="status">
+              <mat-option value="all">Todas</mat-option>
+              <mat-option value="active">Activas</mat-option>
+              <mat-option value="inactive">Inactivas</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Descripción</mat-label>
+            <input matInput formControlName="description" placeholder="Buscar descripción" />
+            <mat-icon matPrefix>search</mat-icon>
+          </mat-form-field>
+          <div class="filters__actions">
+            <button mat-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+            <button mat-stroked-button type="submit"><mat-icon>refresh</mat-icon>Actualizar</button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="results-card">
+      <mat-card-header><mat-card-title>Calendario especial</mat-card-title><mat-card-subtitle>{{ dataSource.data.length }} resultados para {{ house.name }}</mat-card-subtitle></mat-card-header>
+      <mat-card-content>
+        <div *ngIf="!dataSource.data.length" class="empty-state" role="status">
+          <mat-icon>event_available</mat-icon><strong>Sin fechas especiales para los filtros seleccionados</strong><span>El calendario bancario general continúa aplicando.</span>
+        </div>
+
+        <div class="desktop-table" *ngIf="dataSource.data.length">
+          <table mat-table [dataSource]="dataSource" matSort>
+            <ng-container matColumnDef="date">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header="date">Fecha</th>
+              <td mat-cell *matCellDef="let row"><strong>{{ dateText(row.date) }}</strong></td>
+            </ng-container>
+            <ng-container matColumnDef="weekday">
+              <th mat-header-cell *matHeaderCellDef>Día de la semana</th>
+              <td mat-cell *matCellDef="let row">{{ weekday(row.date) | titlecase }}</td>
+            </ng-container>
+            <ng-container matColumnDef="description">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header="description">Descripción</th>
+              <td mat-cell *matCellDef="let row">{{ row.description }}</td>
+            </ng-container>
+            <ng-container matColumnDef="state">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let row"><mat-chip>{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip></td>
+            </ng-container>
+            <ng-container matColumnDef="updated">
+              <th mat-header-cell *matHeaderCellDef>Última modificación</th>
+              <td mat-cell *matCellDef="let row">{{ row.updatedAt ? (row.updatedAt | date:'short') : 'No disponible' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Acciones</th>
+              <td mat-cell *matCellDef="let row">
+                <button *ngIf="canManage" mat-icon-button [matMenuTriggerFor]="actions" type="button"
+                  [attr.aria-label]="'Acciones de fecha ' + dateText(row.date)" matTooltip="Administrar fecha especial">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <span *ngIf="!canManage" class="read-only">Solo lectura</span>
+                <mat-menu #actions="matMenu">
+                  <button mat-menu-item type="button" (click)="startEdit(row)"><mat-icon>edit</mat-icon><span>Editar</span></button>
+                  <button mat-menu-item type="button" (click)="askStatusChange(row)">
+                    <mat-icon>{{ row.isActive ? 'pause_circle' : 'play_circle' }}</mat-icon>
+                    <span>{{ row.isActive ? 'Desactivar' : 'Activar' }}</span>
+                  </button>
+                </mat-menu>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          </table>
+        </div>
+
+        <div class="mobile-cards" *ngIf="dataSource.data.length">
+          <article *ngFor="let row of dataSource.filteredData; trackBy: track">
+            <header><div><strong>{{ dateText(row.date) }}</strong><span>{{ weekday(row.date) | titlecase }}</span></div><mat-chip>{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip></header>
+            <p>{{ row.description }}</p>
+            <span class="mobile-cards__updated">Última modificación: {{ row.updatedAt ? (row.updatedAt | date:'short') : 'No disponible' }}</span>
+            <button *ngIf="canManage" mat-stroked-button type="button" [matMenuTriggerFor]="mobileActions">Acciones<mat-icon>expand_more</mat-icon></button>
+            <mat-menu #mobileActions="matMenu">
+              <button mat-menu-item type="button" (click)="startEdit(row)"><mat-icon>edit</mat-icon><span>Editar</span></button>
+              <button mat-menu-item type="button" (click)="askStatusChange(row)"><mat-icon>{{ row.isActive ? 'pause_circle' : 'play_circle' }}</mat-icon><span>{{ row.isActive ? 'Desactivar' : 'Activar' }}</span></button>
+            </mat-menu>
+          </article>
+        </div>
+      </mat-card-content>
+      <mat-paginator *ngIf="dataSource.data.length" [pageSize]="10" [pageSizeOptions]="[5, 10, 20]" showFirstLastButtons aria-label="Paginación de fechas especiales"></mat-paginator>
+    </mat-card>
+  </ng-container>
+
+  <ng-template #specialDateEditorDialog>
+    <h2 mat-dialog-title>{{ editing ? 'Editar fecha especial' : 'Nueva fecha especial' }}</h2>
+    <mat-dialog-content>
+      <p class="dialog-intro">La fecha se asociará únicamente a la cámara de la ruta y no reemplaza los festivos bancarios generales.</p>
+      <form [formGroup]="form" id="special-date-editor-form" class="editor-form" (ngSubmit)="save()">
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha</mat-label>
+          <input matInput [matDatepicker]="datePicker" formControlName="date" />
+          <mat-datepicker-toggle matIconSuffix [for]="datePicker"></mat-datepicker-toggle>
+          <mat-datepicker #datePicker></mat-datepicker>
+          <mat-error *ngIf="form.controls.date.hasError('required')">La fecha es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.date.hasError('weekendDate')">No se permiten fechas en fin de semana.</mat-error>
+          <mat-error *ngIf="form.controls.date.hasError('bankHoliday')">La fecha ya es un festivo bancario general.</mat-error>
+          <mat-error *ngIf="form.controls.date.hasError('duplicateDate')">La fecha ya está configurada para esta cámara.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Descripción</mat-label>
+          <textarea matInput rows="3" formControlName="description" maxlength="200"></textarea>
+          <mat-hint align="end">{{ form.controls.description.value.length }}/200</mat-hint>
+          <mat-error *ngIf="form.controls.description.hasError('required')">La descripción es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.description.hasError('maxlength')">La descripción supera 200 caracteres.</mat-error>
+        </mat-form-field>
+        <p *ngIf="form.hasError('backend')" class="form-error" role="alert">{{ form.getError('backend') }}</p>
+      </form>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+      <button mat-flat-button color="primary" type="submit" form="special-date-editor-form" [disabled]="saving || form.invalid">
+        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner><mat-icon *ngIf="!saving">save</mat-icon>
+        {{ saving ? 'Guardando…' : editing ? 'Actualizar' : 'Guardar' }}
+      </button>
+    </mat-dialog-actions>
   </ng-template>
-</section>
-
-<section class="card" *ngIf="showForm">
-  <h3>{{ editing ? 'Editar fecha especial' : 'Nueva fecha especial' }}</h3>
-  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-    <label>
-      Cámara de compensación
-      <select formControlName="clearingHouseId">
-        <option [ngValue]="0" disabled>Selecciona una cámara</option>
-        <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
-      </select>
-      <app-error-message [control]="form.get('clearingHouseId')"></app-error-message>
-    </label>
-
-    <label>
-      Fecha
-      <input type="date" formControlName="date" />
-      <app-error-message [control]="form.get('date')" [text]="dateErrorText"></app-error-message>
-    </label>
-
-    <label>
-      Descripción
-      <input type="text" formControlName="description" maxlength="200" />
-      <app-error-message [control]="form.get('description')"></app-error-message>
-    </label>
-
-    <div class="form-actions">
-      <button type="button" class="btn btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-      <button type="submit" class="btn btn-primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
-    </div>
-  </form>
 </section>

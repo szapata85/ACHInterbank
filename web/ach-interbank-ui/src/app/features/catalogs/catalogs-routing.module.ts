@@ -45,12 +45,14 @@ const routes: Routes = [
   {
     path: 'clearing-house-special-dates',
     loadComponent: () =>
-      import('./components/clearing-house-special-dates.component').then((m) => m.ClearingHouseSpecialDatesComponent),
+      import('./components/clearing-house-special-dates.component').then(
+        (m) => m.ClearingHouseSpecialDatesLegacyRedirectComponent
+      ),
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanManageAch'],
-      breadcrumb: 'Fechas especiales cámaras',
-      title: 'Fechas especiales cámaras'
+      permissions: ['ClearingHouses.View', 'ClearingHouses.ManageSpecialDates'],
+      breadcrumb: 'Fechas especiales',
+      title: 'Fechas especiales'
     }
   },
   {

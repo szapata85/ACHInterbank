@@ -1,5 +1,5 @@
-:host { display: block; }
-.clearing-page { max-width: 1440px; margin: 0 auto; padding: 1.5rem; color: #172033; }
+:host { display: block; min-width: 0; }
+.clearing-page { width: 100%; max-width: 1440px; margin: 0 auto; padding: 1.5rem; color: #172033; }
 .clearing-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 1.5rem; margin-bottom: 1.25rem; }
 .clearing-hero h2 { margin: .2rem 0 .45rem; font-size: clamp(1.35rem, 2vw, 1.8rem); }
 .clearing-hero p { max-width: 760px; margin: 0; color: #526174; line-height: 1.55; }
@@ -48,7 +48,7 @@ td small { margin-top: .25rem; color: #64748b; }
 .detail-grid span:not(strong) { color: #475569; }
 .detail-card ul { margin-bottom: 0; color: #9a3412; }
 
-@media (max-width: 960px) {
+@media (max-width: 1100px) {
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .filters { grid-template-columns: 1fr 1fr; }
   .filters__actions { grid-column: 1 / -1; justify-content: flex-end; }

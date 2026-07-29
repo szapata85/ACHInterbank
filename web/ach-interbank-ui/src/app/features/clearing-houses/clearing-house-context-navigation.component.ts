@@ -54,26 +54,31 @@ import { ClearingHouse } from './clearing-houses.models';
           routerLinkActive
           #policiesActive="routerLinkActive"
           [active]="policiesActive.isActive"
+          ariaCurrentWhenActive="page"
         >
           <mat-icon>policy</mat-icon>
-          Políticas
+          Políticas transaccionales
         </a>
         <a
-          *ngIf="canManageCycles"
+          *ngIf="canReadCycles"
           mat-tab-link
           [routerLink]="['/clearing-houses', clearingHouse.id, 'cycles']"
           routerLinkActive
           #cyclesActive="routerLinkActive"
           [active]="cyclesActive.isActive"
+          ariaCurrentWhenActive="page"
         >
           <mat-icon>schedule</mat-icon>
           Ciclos
         </a>
         <a
-          *ngIf="canManageSpecialDates"
+          *ngIf="canReadSpecialDates"
           mat-tab-link
-          routerLink="/catalogs/clearing-house-special-dates"
-          [queryParams]="{ clearingHouseId: clearingHouse.id }"
+          [routerLink]="['/clearing-houses', clearingHouse.id, 'special-dates']"
+          routerLinkActive
+          #specialDatesActive="routerLinkActive"
+          [active]="specialDatesActive.isActive"
+          ariaCurrentWhenActive="page"
         >
           <mat-icon>event</mat-icon>
           Fechas especiales
@@ -87,6 +92,6 @@ import { ClearingHouse } from './clearing-houses.models';
 export class ClearingHouseContextNavigationComponent {
   @Input({ required: true }) clearingHouse!: ClearingHouse;
   @Input() canReadPolicies = false;
-  @Input() canManageCycles = false;
-  @Input() canManageSpecialDates = false;
+  @Input() canReadCycles = false;
+  @Input() canReadSpecialDates = false;
 }

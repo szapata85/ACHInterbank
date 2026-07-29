@@ -269,3 +269,47 @@ El runtime aislado y su volumen PostgreSQL fueron eliminados al terminar. El run
 - Una primera ejecución final de la suite Angular completa presentó ocho fallos transitorios; la repetición inmediata con el mismo código cerró 579/579. La suite tiene inestabilidad intermitente comprobada fuera de los specs focalizados.
 - La validación autenticada se realizó en el runtime desechable permitido porque no había contraseña del administrador persistente expuesta. El Docker principal usa los mismos bundles finales y se verificó por health, rutas, hashes y literales, pero no se modificó la credencial local para repetir allí el login.
 - Los catálogos globales duplicados y la validación de identificación sin consumidor, ya documentados en el cierre backend, permanecen como compatibilidad y no se alteraron en este trabajo de UX.
+
+## 14. Cierre real del workspace de cámara
+
+### Brechas iniciales y resultado
+
+La inspección inicial confirmó que Ciclos mezclaba selectores y grilla empresariales, clases `panel`/`btn`, inputs nativos, confirmación legacy y una cámara editable pese a estar en la ruta. Fechas especiales mantenía select nativo, grilla legacy, `document.createElement`, `confirm()` y textos con codificación incorrecta. Políticas daba protagonismo a fuente y referencia normativa. El listado de cámaras excedía visualmente el área útil a 1024×768 por conservar la tabla de escritorio en un layout con sidebar.
+
+Ciclos y Fechas especiales quedaron reconstruidos como pantallas Angular Material declarativas. La cámara procede exclusivamente de `:id`, se recarga ante cambios del parámetro y los estados de ID inválido, inexistencia, carga, error y permisos se presentan dentro de la pantalla. No quedan selectores de cámara ni componentes legacy visibles.
+
+### Ciclos y Fechas especiales
+
+`/clearing-houses/:id/cycles` usa cards, formularios reactivos tipados, form-fields, selects, datepicker, tabla ordenable y paginada, chips, menú, diálogos, snackbars, spinner, iconos, tooltips y botones Material. El resumen distingue total, vigentes, futuras, inactivas y próxima ventana. El formulario valida nombre, horas, orden de ventana, cutoff, vigencia, duplicidad y solapamiento; las operaciones conservan creación, nueva versión, historial e inactivación sin eliminación física.
+
+`/clearing-houses/:id/special-dates` usa el mismo lenguaje Material, filtros por año/estado/descripción, tabla y tarjetas móviles. El formulario tipado valida fecha obligatoria, fin de semana, festivo bancario, duplicidad, descripción y longitud máxima sin convertir el día por UTC. Crear, editar, activar y desactivar usan diálogos y snackbars. El contrato corregido es `/api/clearing-house-special-dates`; la ruta anterior omitía `/api` y Docker devolvía el `index.html` de la SPA.
+
+La ruta `/catalogs/clearing-house-special-dates?clearingHouseId=:id` redirige al contexto de la cámara; sin ID redirige a `/clearing-houses`. `/transactions/clearing-house-rules` continúa redirigiendo al listado. No existen dos interfaces administrativas ni nuevas opciones principales en el menú lateral.
+
+### Políticas y trazabilidad normativa
+
+Políticas responde primero a la decisión previa a exportación NACHA-M bajo el título funcional **Reglas de prenotificación**. Las tarjetas vigentes muestran obligatoriedad, plazo, vigencia, estado y consecuencia operativa. ACH Colombia muestra débito obligatorio con 3 días hábiles y crédito opcional. CENIT muestra débito obligatorio con **Sin plazo mínimo documentado** y crédito opcional; no se le atribuyen tres días.
+
+Fuente, referencia y notas se conservaron en entidad, DTO, API, auditoría y formulario, pero se retiraron de las tarjetas principales y de las columnas por defecto del historial. Se consultan mediante **Ver detalle normativo** y se editan dentro de **Trazabilidad normativa**. El preview se presenta como **Comprobar regla para una fecha** sin JSON técnico.
+
+### Navegación, permisos y responsive
+
+`ClearingHouseContextNavigationComponent` concentra regreso, nombre, código, estado y tabs Material para Políticas transaccionales, Ciclos y Fechas especiales. Conserva indicador activo, foco de teclado y desplazamiento interno de tabs en móvil. Las lecturas de políticas aceptan `Config.Read`, `Config.Manage`, `CanReadAch` o `CanManageAch`; sus escrituras, `Config.Manage` o `CanManageAch`. Ciclos conserva `ClearingHouses.View`/`ClearingHouses.ManageCycles`; Fechas especiales, `ClearingHouses.View`/`ClearingHouses.ManageSpecialDates`.
+
+Playwright midió Cámaras, Políticas ACHCOL/CENIT, Ciclos ACHCOL/CENIT y Fechas ACHCOL/CENIT en 1440×900, 1024×768, 768×1024 y 390×844. En las 28 combinaciones `documentElement.scrollWidth` fue exactamente igual a `window.innerWidth`: 1440, 1024, 768 y 390 respectivamente. Las tablas anchas quedan contenidas en desktop/tablet y son sustituidas por tarjetas en móvil; no se aplicó `overflow-x: hidden` global.
+
+### Pruebas, Playwright y Docker
+
+- Specs focalizados: Ciclos/Fechas/Políticas 27/27 y navegación contextual 3/3.
+- Build Angular final: exitoso en 136,5 s.
+- Suite Angular completa: 593/593, 0 fallidas y 0 omitidas en dos ejecuciones completas consecutivas; la final tomó 85,7 s.
+- Build .NET Release: exitoso. El build de API dentro de Docker confirmó 0 warnings y 0 errores.
+- Suite backend: 2003 aprobadas y 5 omisiones históricas; dos pruebas `ClearingHouseMultiDbTests` no se habilitaron porque exigen crear y eliminar bases temporales, incompatible con la prohibición de eliminar bases de esta sesión.
+- Playwright autenticado: 1/1 escenario integral, 50,4 s, sobre PostgreSQL aislado en 1743/1843; administrador y lector real con `CanReadAch`/`ClearingHouses.View` fueron efímeros. No hubo `pageerror`, `console.error`, HTTP inesperados, loops, spinner permanente, mojibake ni overflow.
+- Evidencia visual y mediciones: `artifacts/clearing-house-workspace-final/`.
+- Docker principal: API y SPA reconstruidas y recreadas; live, ready y SPA respondieron 200. Se sirvieron `main.59bc00ca6d6db8f5.js`, `798.f87f86caf4dbc311.js`, `737.809d65d916ccb423.js` y `242.f8cdfeb0f166e4d3.js`. SQL Server conservó el mismo contenedor y el volumen `achinterbank_ach_sqlserver_data`.
+
+### Riesgos residuales comprobados
+
+- Las dos pruebas multi-base señaladas requieren un job que autorice crear y eliminar bases temporales; no es posible ejecutarlas bajo la restricción de esta sesión.
+- La autenticación funcional completa se validó en el runtime aislado. El Docker principal usa las mismas fuentes e imágenes finales y fue validado por health, rutas, bundles y logs, sin modificar credenciales persistentes.

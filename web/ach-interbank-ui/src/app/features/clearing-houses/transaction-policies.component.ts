@@ -19,6 +19,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -77,6 +78,7 @@ interface PolicyLoadResult {
     MatNativeDateModule,
     MatDialogModule,
     MatDividerModule,
+    MatExpansionModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
@@ -92,6 +94,7 @@ interface PolicyLoadResult {
 })
 export class TransactionPoliciesComponent {
   @ViewChild('policyEditorDialog') policyEditorDialog!: TemplateRef<unknown>;
+  @ViewChild('normativeDetailDialog') normativeDetailDialog!: TemplateRef<unknown>;
 
   private readonly route = inject(ActivatedRoute);
   readonly router = inject(Router);
@@ -105,11 +108,11 @@ export class TransactionPoliciesComponent {
   private editorRef?: MatDialogRef<unknown>;
 
   readonly transactionTypes = TransactionTypeEnum;
-  readonly displayedColumns = ['transactionType', 'mode', 'lead', 'from', 'to', 'state', 'reference', 'updated', 'actions'];
+  readonly displayedColumns = ['transactionType', 'mode', 'lead', 'from', 'to', 'state', 'actions'];
   readonly canManage = this.auth.hasPermission(['Config.Manage', 'CanManageAch']);
   readonly canRead = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
-  readonly canManageCycles = this.auth.hasPermission('ClearingHouses.ManageCycles');
-  readonly canManageSpecialDates = this.auth.hasPermission('ClearingHouses.ManageSpecialDates');
+  readonly canReadCycles = this.auth.hasPermission(['ClearingHouses.View', 'ClearingHouses.ManageCycles']);
+  readonly canReadSpecialDates = this.auth.hasPermission(['ClearingHouses.View', 'ClearingHouses.ManageSpecialDates']);
 
   clearingHouse: ClearingHouse | null = null;
   policies: TransactionPolicy[] = [];
@@ -117,6 +120,7 @@ export class TransactionPoliciesComponent {
   error = '';
   saving = false;
   metadataPolicy: TransactionPolicy | null = null;
+  normativeDetailPolicy: TransactionPolicy | null = null;
   previewResult: TransactionPolicyPreview | null = null;
 
   readonly form: PolicyForm = new FormGroup({
@@ -195,6 +199,39 @@ export class TransactionPoliciesComponent {
 
   get currentCredit(): TransactionPolicy | undefined {
     return this.current(TransactionTypeEnum.Credit);
+  }
+
+  get lastUpdated(): string | null {
+    return this.policies
+      .map(policy => policy.updatedAt)
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
+  }
+
+  get nextPolicy(): TransactionPolicy | undefined {
+    const todayValue = new Date().toISOString().slice(0, 10);
+    return this.policies
+      .filter(policy => policy.isActive && policy.effectiveFrom.slice(0, 10) > todayValue)
+      .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))[0];
+  }
+
+  consequence(policy?: TransactionPolicy): string {
+    if (!policy) return 'La exportación puede quedar bloqueada por falta de configuración.';
+    return policy.prenotificationMode === 'Mandatory'
+      ? 'Bloquea la exportación cuando no existe una prenotificación válida.'
+      : 'No bloquea por ausencia de prenotificación.';
+  }
+
+  viewNormativeDetail(policy: TransactionPolicy): void {
+    this.normativeDetailPolicy = policy;
+    this.dialog.open(this.normativeDetailDialog, {
+      width: 'min(640px, calc(100vw - 1.5rem))',
+      autoFocus: 'dialog'
+    }).afterClosed().subscribe(() => {
+      this.normativeDetailPolicy = null;
+      this.cdr.markForCheck();
+    });
   }
 
   createVersion(): void {

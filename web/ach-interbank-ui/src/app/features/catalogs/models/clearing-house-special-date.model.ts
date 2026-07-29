@@ -5,4 +5,5 @@ export interface ClearingHouseSpecialDate {
   date: string;
   description: string;
   isActive: boolean;
+  updatedAt?: string | null;
 }

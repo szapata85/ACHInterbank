@@ -138,8 +138,42 @@ export const APP_ROUTES: Routes = [
         data: { permissions: ['ClearingHouses.View'], breadcrumb: 'Cámaras compensadoras', title: 'Cámaras compensadoras' },
         children: [
           { path: '', loadComponent: () => import('./features/clearing-houses/clearing-houses.component').then((m) => m.ClearingHousesComponent) },
-          { path: ':id/cycles', canActivate: [permissionGuard], data: { permissions: ['ClearingHouses.ManageCycles'] }, loadComponent: () => import('./features/transactions/components/cycle-config-management/cycle-config-management.component').then((m) => m.CycleConfigManagementComponent) },
-          { path: ':id/transaction-policies', canActivate: [permissionGuard], data: { permissions: ['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch'], breadcrumb: 'Políticas transaccionales', title: 'Políticas transaccionales' }, loadComponent: () => import('./features/clearing-houses/transaction-policies.component').then((m) => m.TransactionPoliciesComponent) }
+          {
+            path: ':id/cycles',
+            canActivate: [permissionGuard],
+            data: {
+              permissions: ['ClearingHouses.View', 'ClearingHouses.ManageCycles'],
+              breadcrumb: 'Ciclos',
+              title: 'Configuración de ciclos'
+            },
+            loadComponent: () =>
+              import('./features/transactions/components/cycle-config-management/cycle-config-management.component')
+                .then((m) => m.CycleConfigManagementComponent)
+          },
+          {
+            path: ':id/transaction-policies',
+            canActivate: [permissionGuard],
+            data: {
+              permissions: ['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch'],
+              breadcrumb: 'Políticas transaccionales',
+              title: 'Políticas transaccionales'
+            },
+            loadComponent: () =>
+              import('./features/clearing-houses/transaction-policies.component')
+                .then((m) => m.TransactionPoliciesComponent)
+          },
+          {
+            path: ':id/special-dates',
+            canActivate: [permissionGuard],
+            data: {
+              permissions: ['ClearingHouses.View', 'ClearingHouses.ManageSpecialDates'],
+              breadcrumb: 'Fechas especiales',
+              title: 'Fechas especiales'
+            },
+            loadComponent: () =>
+              import('./features/catalogs/components/clearing-house-special-dates.component')
+                .then((m) => m.ClearingHouseSpecialDatesComponent)
+          }
         ]
       },
       {

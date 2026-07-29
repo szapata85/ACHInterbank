@@ -1,35 +1,37 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
-import { NotificationService } from '../../../../core/services/notification.service';
-import { ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject, of, throwError } from 'rxjs';
+import { AuthService } from '../../../../core/services/auth.service';
+import { ClearingHousesService } from '../../../clearing-houses/clearing-houses.service';
 import { ClearingHouseCycleConfigsApiService } from '../../services/clearing-house-cycle-configs-api.service';
 import { CycleConfigManagementComponent } from './cycle-config-management.component';
 
 describe('CycleConfigManagementComponent', () => {
   let fixture: ComponentFixture<CycleConfigManagementComponent>;
   let component: CycleConfigManagementComponent;
+  let params$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let api: jasmine.SpyObj<ClearingHouseCycleConfigsApiService>;
-  let housesApi: jasmine.SpyObj<ClearingHousesApiService>;
-  let notifications: jasmine.SpyObj<NotificationService>;
+  let houses: jasmine.SpyObj<ClearingHousesService>;
 
   beforeEach(async () => {
-    api = jasmine.createSpyObj<ClearingHouseCycleConfigsApiService>('ClearingHouseCycleConfigsApiService', ['getByClearingHouse', 'createVersion', 'inactivate']);
-    housesApi = jasmine.createSpyObj<ClearingHousesApiService>('ClearingHousesApiService', ['listAdministrative']);
-    notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'warning', 'error']);
-
-    housesApi.listAdministrative.and.returnValue(of([{ id: 1, name: 'ACH Colombia', code: 'ACHCOL' } as any]));
-    api.getByClearingHouse.and.returnValue(of([]));
-    api.createVersion.and.returnValue(of({} as any));
-    api.inactivate.and.returnValue(of({} as any));
+    params$ = new BehaviorSubject(convertToParamMap({ id: '7' }));
+    api = jasmine.createSpyObj('ClearingHouseCycleConfigsApiService', ['getByClearingHouse', 'createVersion', 'inactivate']);
+    houses = jasmine.createSpyObj('ClearingHousesService', ['get']);
+    houses.get.and.returnValue(of(house(7, 'ACHCOL')));
+    api.getByClearingHouse.and.returnValue(of([cycle()]));
+    api.createVersion.and.returnValue(of(cycle()));
+    api.inactivate.and.returnValue(of({ ...cycle(), isActive: false }));
 
     await TestBed.configureTestingModule({
       imports: [CycleConfigManagementComponent],
       providers: [
-        { provide: ClearingHouseCycleConfigsApiService, useValue: api },
-        { provide: ClearingHousesApiService, useValue: housesApi },
-        { provide: NotificationService, useValue: notifications },
-        provideRouter([])
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ActivatedRoute, useValue: { paramMap: params$.asObservable() } },
+        { provide: AuthService, useValue: { hasPermission: () => true } },
+        { provide: ClearingHousesService, useValue: houses },
+        { provide: ClearingHouseCycleConfigsApiService, useValue: api }
       ]
     }).compileComponents();
 
@@ -38,139 +40,108 @@ describe('CycleConfigManagementComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renders form when openCreateForm is called', () => {
-    component.openCreateForm();
+  it('loads the fixed camera and cycles from the route id', () => {
+    expect(houses.get).toHaveBeenCalledWith(7);
+    expect(api.getByClearingHouse).toHaveBeenCalledWith(jasmine.objectContaining({ clearingHouseId: 7 }));
+    expect(component.clearingHouse?.code).toBe('ACHCOL');
+    expect(component.dataSource.data.length).toBe(1);
+  });
+
+  it('does not render a camera selector or legacy controls', () => {
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.querySelector('[formControlName="clearingHouseId"]')).toBeNull();
+    expect(element.querySelector('ui-selector-buscable')).toBeNull();
+    expect(element.querySelector('ui-grilla-empresarial')).toBeNull();
+    expect(element.querySelector('app-confirm-dialog')).toBeNull();
+    expect(element.querySelector('table[mat-table]')).not.toBeNull();
+  });
+
+  it('handles invalid ids without requesting data', () => {
+    params$.next(convertToParamMap({ id: 'invalid' }));
     fixture.detectChanges();
-
-    expect(component.showForm).toBeTrue();
-    expect(component.editingSource).toBeNull();
+    expect(component.error).toBe('La cámara indicada no es válida.');
+    expect(component.loading).toBeFalse();
   });
 
-  it('renders action buttons and opens the versioning form when clicking the inner edit icon', () => {
-    const item = buildItem();
-    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
-    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
-    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
-
-    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
-    const editIcon = rendered.querySelector('[data-testid="cycle-config-action-edit"] .material-symbols-outlined') as HTMLElement;
-
-    expect(editIcon).toBeTruthy();
-    editIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-
-    expect(component.showForm).toBeTrue();
-    expect(component.editingSource).toBe(item);
-    expect(component.form.controls.cycleName.value).toBe('Ciclo-Original');
-    expect(markForCheckSpy).toHaveBeenCalled();
+  it('reloads when the route id changes', () => {
+    houses.get.and.returnValue(of(house(8, 'CENIT')));
+    params$.next(convertToParamMap({ id: '8' }));
+    fixture.detectChanges();
+    expect(houses.get).toHaveBeenCalledWith(8);
+    expect(api.getByClearingHouse).toHaveBeenCalledWith(jasmine.objectContaining({ clearingHouseId: 8 }));
+    expect(component.clearingHouse?.code).toBe('CENIT');
   });
 
-  it('clones using the inner icon and appends -V2', () => {
-    const item = buildItem();
-    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
-    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
-    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
-
-    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
-    const cloneIcon = rendered.querySelector('[data-testid="cycle-config-action-clone"] .material-symbols-outlined') as HTMLElement;
-
-    expect(cloneIcon).toBeTruthy();
-    cloneIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-
-    expect(component.showForm).toBeTrue();
-    expect(component.editingSource).toBe(item);
-    expect(component.form.controls.cycleName.value).toBe('Ciclo-Original-V2');
-    expect(markForCheckSpy).toHaveBeenCalled();
+  it('shows an HTTP error state', () => {
+    houses.get.and.returnValue(throwError(() => ({ status: 404 })));
+    params$.next(convertToParamMap({ id: '9' }));
+    fixture.detectChanges();
+    expect(component.loading).toBeFalse();
+    expect(component.error).toContain('no existe');
   });
 
-  it('marks the item for inactivation when clicking the inner icon', () => {
-    const item = buildItem();
-    const cdr = (component as any).cdr as { markForCheck: jasmine.Spy };
-    const markForCheckSpy = spyOn(cdr, 'markForCheck').and.callThrough();
-    const actionColumn = component.columnDefs.find((column) => column.headerName === 'Acciones');
-
-    const rendered = actionColumn?.cellRenderer?.({ data: item } as any) as HTMLElement;
-    const inactivateIcon = rendered.querySelector('[data-testid="cycle-config-action-inactivate"] .material-symbols-outlined') as HTMLElement;
-
-    expect(inactivateIcon).toBeTruthy();
-    inactivateIcon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-
-    expect(component.selectedForInactivation).toBe(item);
-    expect(markForCheckSpy).toHaveBeenCalled();
+  it('filters by name, state and validity', () => {
+    component.allItems = [cycle(), { ...cycle(), id: 2, cycleName: 'Nocturno', isActive: false }];
+    component.filterForm.patchValue({ cycleName: 'ciclo', status: 'active', validity: 'all' });
+    expect(component.dataSource.data.map(item => item.id)).toEqual([1]);
   });
 
-  it('loads grid results after search', () => {
-    api.getByClearingHouse.and.returnValue(of([
-      {
-        id: 10,
-        clearingHouseId: 1,
-        clearingHouseName: 'ACH Colombia',
-        cycleName: 'Ciclo 1',
-        startTime: '08:00:00',
-        endTime: '10:00:00',
-        cutoffTime: '10:00:00',
-        isActive: true,
-        effectiveFrom: '2026-01-01T00:00:00Z',
-        effectiveTo: null,
-        isCurrent: true
-      }
-    ] as any));
-
-    component.filterForm.patchValue({ clearingHouseId: 1 });
-    component.search();
-
-    expect(component.visibleItems.length).toBe(1);
-  });
-
-  it('shows warning and blocks save when schedule validation fails', () => {
+  it('validates time order, cutoff and duplicate versions', () => {
     component.openCreateForm();
     component.form.patchValue({
-      clearingHouseId: 1,
-      cycleName: 'Ciclo-X',
+      cycleName: 'Ciclo 1',
       startTime: '10:00',
       endTime: '09:00',
-      cutoffTime: '09:00',
-      effectiveFrom: '2026-01-01'
+      cutoffTime: '11:00',
+      effectiveFrom: new Date(2026, 0, 1)
     });
-
+    expect(component.form.hasError('timeOrder')).toBeTrue();
+    component.form.patchValue({ startTime: '08:00', endTime: '10:00', cutoffTime: '11:00' });
+    expect(component.form.hasError('cutoffOutside')).toBeTrue();
+    component.form.patchValue({ cutoffTime: '09:00' });
     component.save();
-
-    expect(notifications.warning).toHaveBeenCalled();
+    expect(component.form.hasError('duplicate')).toBeTrue();
     expect(api.createVersion).not.toHaveBeenCalled();
   });
 
-  it('supports clone and inactivate actions', () => {
-    const item = buildItem();
-
-    component.clone(item);
-    expect(component.form.controls.cycleName.value).toContain('-V2');
-
-    component.askInactivate(item);
-    expect(component.selectedForInactivation).toBe(item);
-  });
-
-  it('reports API errors in search', () => {
-    api.getByClearingHouse.and.returnValue(throwError(() => new Error('boom')));
-    component.filterForm.patchValue({ clearingHouseId: 1 });
-
-    component.search();
-
-    expect(notifications.error).toHaveBeenCalled();
-    expect(component.loadError).toContain('No fue posible consultar configuraciones de ciclos');
-  });
-
-  function buildItem(): any {
-    return {
-      id: 99,
-      clearingHouseId: 1,
-      clearingHouseName: 'ACH Colombia',
-      cycleName: 'Ciclo-Original',
+  it('creates a version using the route camera id', () => {
+    component.openCreateForm();
+    component.form.setValue({
+      cycleName: 'Ciclo nuevo',
+      startTime: '08:00',
+      endTime: '10:00',
+      cutoffTime: '09:30',
+      effectiveFrom: new Date(2027, 0, 1)
+    });
+    component.save();
+    expect(api.createVersion).toHaveBeenCalledWith(jasmine.objectContaining({
+      clearingHouseId: 7,
+      cycleName: 'Ciclo nuevo',
       startTime: '08:00:00',
-      endTime: '09:00:00',
-      cutoffTime: '09:00:00',
-      isActive: true,
-      effectiveFrom: '2026-01-01T00:00:00Z',
-      effectiveTo: null,
-      isCurrent: true
+      endTime: '10:00:00',
+      cutoffTime: '09:30:00'
+    }));
+  });
+
+  it('preserves versioning, history and inactivation operations', () => {
+    component.createVersion(cycle());
+    expect(component.editingSource?.id).toBe(1);
+    component.allItems = [cycle(), { ...cycle(), id: 2, effectiveFrom: '2025-01-01T00:00:00Z' }];
+    component.historyCycleName = 'Ciclo 1';
+    expect(component.historyItems.length).toBe(2);
+    (component as any).inactivate(cycle());
+    expect(api.inactivate).toHaveBeenCalledWith(1, jasmine.objectContaining({ effectiveTo: jasmine.any(String) }));
+  });
+
+  function house(id: number, code: string): any {
+    return { id, code, name: code, isActive: true, isReady: true };
+  }
+
+  function cycle(): any {
+    return {
+      id: 1, clearingHouseId: 7, clearingHouseName: 'ACH Colombia', cycleName: 'Ciclo 1',
+      startTime: '08:00:00', endTime: '10:00:00', cutoffTime: '09:30:00', isActive: true,
+      effectiveFrom: '2026-01-01T00:00:00Z', effectiveTo: null, isCurrent: true
     };
   }
 });

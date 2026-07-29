@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Route("clearing-house-special-dates")]
+[Route("api/clearing-house-special-dates")]
 [Authorize]
 public class ClearingHouseSpecialDatesController : ControllerBase
 {

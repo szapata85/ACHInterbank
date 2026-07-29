@@ -1,362 +1,477 @@
-﻿import { NgFor, NgIf } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  NgZone,
-  OnDestroy,
+  DestroyRef,
   OnInit,
+  TemplateRef,
+  ViewChild,
   inject
 } from '@angular/core';
-import { FormBuilder, Validators } from '@angular/forms';
-import { ColDef, GridApi } from 'ag-grid-community';
-import { Subject, of } from 'rxjs';
-import { finalize, tap } from 'rxjs/operators';
-import { SharedModule } from '../../../shared/shared.module';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatSort, MatSortModule } from '@angular/material/sort';
+import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { catchError, finalize, forkJoin, of, switchMap, take } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
+import {
+  ConfirmationDialogComponent,
+  ConfirmationDialogData
+} from '../../clearing-houses/clearing-house-dialogs.component';
+import { ClearingHouseContextNavigationComponent } from '../../clearing-houses/clearing-house-context-navigation.component';
+import { ClearingHouse } from '../../clearing-houses/clearing-houses.models';
+import { ClearingHousesService } from '../../clearing-houses/clearing-houses.service';
 import { BankHoliday } from '../models/bank-holiday.model';
 import { ClearingHouseSpecialDate } from '../models/clearing-house-special-date.model';
 import { BankHolidaysAdminService } from '../services/bank-holidays-admin.service';
 import { ClearingHouseSpecialDatesService } from '../services/clearing-house-special-dates.service';
-import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
-import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
+
+type SpecialDateStatusFilter = 'all' | 'active' | 'inactive';
 
 @Component({
   selector: 'app-clearing-house-special-dates',
-  templateUrl: './clearing-house-special-dates.component.html',
-  styleUrls: ['./clearing-house-special-dates.component.scss'],
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterLink,
+    ClearingHouseContextNavigationComponent,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatMenuModule,
+    MatPaginatorModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
+    MatSnackBarModule,
+    MatSortModule,
+    MatTableModule,
+    MatTooltipModule
+  ],
+  templateUrl: './clearing-house-special-dates.component.html',
+  styleUrl: './clearing-house-special-dates.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ClearingHouseSpecialDatesComponent implements OnInit, OnDestroy {
+export class ClearingHouseSpecialDatesComponent {
+  @ViewChild('specialDateEditorDialog') editorDialog!: TemplateRef<unknown>;
+  @ViewChild(MatSort) set tableSort(sort: MatSort | undefined) {
+    if (sort) this.dataSource.sort = sort;
+  }
+  @ViewChild(MatPaginator) set tablePaginator(paginator: MatPaginator | undefined) {
+    if (paginator) this.dataSource.paginator = paginator;
+  }
+
+  private readonly route = inject(ActivatedRoute);
   private readonly service = inject(ClearingHouseSpecialDatesService);
-  private readonly clearingHouseApi = inject(ClearingHousesApiService);
-  private readonly bankHolidaysService = inject(BankHolidaysAdminService);
-  private readonly fb = inject(FormBuilder);
+  private readonly houses = inject(ClearingHousesService);
+  private readonly bankHolidays = inject(BankHolidaysAdminService);
+  private readonly auth = inject(AuthService);
+  private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
-  private readonly zone = inject(NgZone);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly holidayCache = new Map<number, BankHoliday[]>();
+  private editorRef?: MatDialogRef<unknown>;
+  private clearingHouseId = 0;
 
-  specialDates: ClearingHouseSpecialDate[] = [];
-  clearingHouses: ClearingHouseOption[] = [];
-  private readonly bankHolidaysByYear = new Map<number, BankHoliday[]>();
-  loading = false;
-  saving = false;
-  showForm = false;
-  editing: ClearingHouseSpecialDate | null = null;
-  gridApi?: GridApi<ClearingHouseSpecialDate>;
-  private readonly destroy$ = new Subject<void>();
+  readonly displayedColumns = ['date', 'weekday', 'description', 'state', 'updated', 'actions'];
+  readonly dataSource = new MatTableDataSource<ClearingHouseSpecialDate>([]);
+  readonly canManage = this.auth.hasPermission('ClearingHouses.ManageSpecialDates');
+  readonly canReadPolicies = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
+  readonly canReadCycles = this.auth.hasPermission(['ClearingHouses.View', 'ClearingHouses.ManageCycles']);
+  readonly canReadSpecialDates = this.auth.hasPermission(['ClearingHouses.View', 'ClearingHouses.ManageSpecialDates']);
+  readonly years = buildYears();
 
-  readonly columnDefs: ColDef<ClearingHouseSpecialDate>[] = [
-    {
-      field: 'date',
-      headerName: 'Fecha',
-      maxWidth: 160,
-      valueFormatter: (params) => this.formatDate(params.value)
-    },
-    { field: 'clearingHouseName', headerName: 'CÃ¡mara', flex: 1, filter: 'agTextColumnFilter' },
-    { field: 'description', headerName: 'DescripciÃ³n', flex: 1, filter: 'agTextColumnFilter' },
-    {
-      headerName: 'Acciones',
-      colId: 'actions',
-      maxWidth: 200,
-      cellRenderer: (params) => {
-        const container = document.createElement('div');
-        container.classList.add('row-actions');
-
-        const edit = document.createElement('button');
-        edit.type = 'button';
-        edit.classList.add('link');
-        edit.innerText = 'Editar';
-        edit.addEventListener('click', () => {
-          this.zone.run(() => {
-            params.context?.componentParent?.startEdit(params.data);
-          });
-        });
-
-        const status = document.createElement('button');
-        status.type = 'button';
-        status.classList.add('link');
-        status.classList.add('danger');
-        status.innerText = params.data.isActive ? 'Desactivar' : 'Activar';
-        status.addEventListener('click', () => {
-          this.zone.run(() => {
-            params.context?.componentParent?.remove(params.data);
-          });
-        });
-
-        container.append(edit, status);
-        return container;
-      }
-    }
-  ];
-
-  readonly defaultColDef: ColDef<ClearingHouseSpecialDate> = {
-    resizable: true,
-    sortable: true,
-    suppressHeaderKeyboardEvent: () => true,
-    filterParams: { suppressAndOrCondition: true }
-  };
-
-  readonly noRowsTemplate = 'No hay fechas especiales registradas.';
-  readonly loadingTemplate = 'Cargando fechas especiales...';
-
-  form = this.fb.nonNullable.group({
-    clearingHouseId: [0, Validators.min(1)],
-    date: ['', Validators.required],
-    description: ['', [Validators.required, Validators.maxLength(200)]]
+  readonly filterForm = new FormGroup({
+    year: new FormControl(new Date().getFullYear(), { nonNullable: true }),
+    status: new FormControl<SpecialDateStatusFilter>('all', { nonNullable: true }),
+    description: new FormControl('', { nonNullable: true })
   });
 
-  get dateErrorText(): string | null {
-    const control = this.form.get('date');
-    if (!control || !control.touched) {
-      return null;
-    }
-    if (control.hasError('duplicateDate')) {
-      return 'Ya existe una fecha especial para esta cÃ¡mara.';
-    }
-    if (control.hasError('weekendDate')) {
-      return 'No se permiten fechas en fin de semana.';
-    }
-    if (control.hasError('bankHoliday')) {
-      return 'La fecha coincide con un festivo bancario.';
-    }
-    return null;
-  }
+  readonly form = new FormGroup({
+    date: new FormControl<Date | null>(null, Validators.required),
+    description: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.maxLength(200)]
+    })
+  });
 
-  ngOnInit(): void {
-    this.load();
-    this.loadClearingHouses();
-  }
+  clearingHouse: ClearingHouse | null = null;
+  allItems: ClearingHouseSpecialDate[] = [];
+  loading = true;
+  saving = false;
+  error = '';
+  editing: ClearingHouseSpecialDate | null = null;
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
+  constructor() {
+    this.filterForm.controls.status.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.applyLocalFilters());
+    this.filterForm.controls.description.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.applyLocalFilters());
 
-  onGridReady(api: GridApi<ClearingHouseSpecialDate>): void {
-    this.gridApi = api;
-    this.updateGridOverlays();
-  }
-
-  load(): void {
-    this.loading = true;
-    this.updateGridOverlays();
-    this.service
-      .list()
-      .pipe(
-        finalize(() => {
+    this.route.paramMap.pipe(
+      switchMap(params => {
+        this.closeEditor();
+        this.clearingHouse = null;
+        this.allItems = [];
+        this.dataSource.data = [];
+        this.error = '';
+        const id = Number(params.get('id'));
+        if (!Number.isInteger(id) || id <= 0) {
           this.loading = false;
+          this.error = 'La cámara indicada no es válida.';
           this.cdr.markForCheck();
-        })
-      )
-      .subscribe((data) => {
-        this.specialDates = data;
-        this.updateGridOverlays();
-      });
-  }
+          return of(null);
+        }
 
-  loadClearingHouses(): void {
-    this.clearingHouseApi.listAdministrative().subscribe((data) => {
-      this.clearingHouses = data ?? [];
+        this.clearingHouseId = id;
+        this.loading = true;
+        this.cdr.markForCheck();
+        return forkJoin({
+          house: this.houses.get(id),
+          dates: this.service.list(this.filterForm.controls.year.value, id)
+        }).pipe(
+          catchError(error => {
+            this.error = this.loadError(error);
+            return of(null);
+          }),
+          finalize(() => {
+            this.loading = false;
+            this.cdr.markForCheck();
+          })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(result => {
+      if (!result) return;
+      this.clearingHouse = result.house;
+      this.allItems = result.dates;
+      this.applyLocalFilters();
       this.cdr.markForCheck();
     });
   }
 
-  startCreate(): void {
-    this.editing = null;
-    this.showForm = true;
-    this.form.reset({
-      clearingHouseId: this.clearingHouses[0]?.id ?? 0,
-      date: '',
-      description: ''
-    });
-    this.cdr.markForCheck();
+  get totalCount(): number {
+    return this.allItems.length;
   }
 
-  startEdit(item: ClearingHouseSpecialDate): void {
-    this.editing = item;
-    this.showForm = true;
-    this.form.reset({
-      clearingHouseId: item.clearingHouseId,
-      date: item.date,
-      description: item.description
-    });
-    this.cdr.markForCheck();
+  get activeCount(): number {
+    return this.allItems.filter(item => item.isActive).length;
   }
 
-  cancelEdit(): void {
-    this.showForm = false;
-    this.editing = null;
-    this.form.reset({
-      clearingHouseId: this.clearingHouses[0]?.id ?? 0,
-      date: '',
-      description: ''
-    });
-    this.cdr.markForCheck();
+  get upcomingCount(): number {
+    const reference = this.apiDate(today());
+    return this.allItems.filter(item => item.isActive && normalizeDate(item.date) >= reference).length;
   }
 
-  save(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    const dateValue = this.form.value.date ?? '';
-    const clearingHouseId = this.form.value.clearingHouseId ?? 0;
-    const year = this.getYear(dateValue);
-
-    if (!year) {
-      this.setDateValidationError('required');
-      return;
-    }
-
-    this.ensureBankHolidays(year).subscribe((holidays) => {
-      if (!this.validateDate(dateValue, clearingHouseId, holidays)) {
+  reload(): void {
+    if (!this.clearingHouseId) return;
+    this.loading = true;
+    this.error = '';
+    this.service.list(this.filterForm.controls.year.value, this.clearingHouseId)
+      .pipe(finalize(() => {
+        this.loading = false;
         this.cdr.markForCheck();
-        return;
-      }
-
-      const payload: ClearingHouseSpecialDate = {
-        id: this.editing?.id ?? 0,
-        clearingHouseId,
-        date: dateValue,
-        description: this.form.value.description ?? '',
-        isActive: this.editing?.isActive ?? true
-      };
-
-      this.saving = true;
-      const request = this.editing ? this.service.update(payload) : this.service.create(payload);
-
-      request
-        .pipe(
-          finalize(() => {
-            this.saving = false;
-            this.cdr.markForCheck();
-          })
-        )
-        .subscribe(() => {
-          this.cancelEdit();
-          this.load();
-        });
-    });
-  }
-
-  remove(item: ClearingHouseSpecialDate): void {
-    if (item.isActive && !confirm(`¿Desactivar la fecha especial del ${this.formatDate(item.date)}?`)) {
-      return;
-    }
-
-    this.saving = true;
-    this.service
-      .changeStatus(item.id, !item.isActive)
-      .pipe(
-        finalize(() => {
-          this.saving = false;
-          this.cdr.markForCheck();
-        })
-      )
-      .subscribe(() => {
-        this.load();
+      }))
+      .subscribe({
+        next: items => {
+          this.allItems = items;
+          this.applyLocalFilters();
+        },
+        error: error => {
+          this.error = this.errorMessage(error, 'No fue posible consultar las fechas especiales.');
+          this.snack(this.error, true);
+        }
       });
   }
 
-  private updateGridOverlays(): void {
-    if (!this.gridApi) return;
-
-    if (this.loading) {
-      this.gridApi.showLoadingOverlay();
-    } else if (!this.specialDates.length) {
-      this.gridApi.showNoRowsOverlay();
-    } else {
-      this.gridApi.hideOverlay();
-    }
+  applyLocalFilters(): void {
+    const state = this.filterForm.controls.status.value;
+    const description = this.filterForm.controls.description.value.trim().toLocaleLowerCase('es');
+    this.dataSource.data = this.allItems.filter(item => {
+      const matchesState = state === 'all' || (state === 'active' ? item.isActive : !item.isActive);
+      const matchesDescription = !description || item.description.toLocaleLowerCase('es').includes(description);
+      return matchesState && matchesDescription;
+    });
+    this.dataSource.paginator?.firstPage();
+    this.cdr.markForCheck();
   }
 
-  private formatDate(value?: string | null): string {
-    if (!value) return '';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('es-CO');
+  clearFilters(): void {
+    this.filterForm.reset({
+      year: new Date().getFullYear(),
+      status: 'all',
+      description: ''
+    });
+    this.reload();
   }
 
-  private ensureBankHolidays(year: number) {
-    const cached = this.bankHolidaysByYear.get(year);
-    if (cached) {
-      return of(cached);
-    }
-
-    return this.bankHolidaysService.list(year).pipe(
-      tap((holidays) => {
-        this.bankHolidaysByYear.set(year, holidays ?? []);
-      }),
-      finalize(() => this.cdr.markForCheck())
-    );
+  startCreate(): void {
+    if (!this.canManage) return;
+    this.editing = null;
+    this.form.reset({ date: null, description: '' });
+    this.openEditor();
   }
 
-  private validateDate(dateValue: string, clearingHouseId: number, holidays: BankHoliday[]): boolean {
-    const control = this.form.get('date');
-    if (!control) {
+  startEdit(item: ClearingHouseSpecialDate): void {
+    if (!this.canManage) return;
+    this.editing = item;
+    this.form.reset({
+      date: parseLocalDate(item.date),
+      description: item.description
+    });
+    this.openEditor();
+  }
+
+  cancelEdit(): void {
+    this.closeEditor();
+  }
+
+  save(): void {
+    if (this.saving || !this.canManage) return;
+    this.form.markAllAsTouched();
+    this.clearFunctionalDateErrors();
+    if (this.form.invalid) return;
+    const selectedDate = this.form.controls.date.value!;
+    const year = selectedDate.getFullYear();
+
+    this.loadHolidays(year).subscribe({
+      next: holidays => {
+        if (!this.validateDate(selectedDate, holidays)) {
+          this.cdr.markForCheck();
+          return;
+        }
+        this.persist();
+      },
+      error: error => this.snack(this.errorMessage(error, 'No fue posible validar el calendario bancario.'), true)
+    });
+  }
+
+  askStatusChange(item: ClearingHouseSpecialDate): void {
+    if (!this.canManage) return;
+    const activating = !item.isActive;
+    const data: ConfirmationDialogData = {
+      title: activating ? 'Activar fecha especial' : 'Desactivar fecha especial',
+      message: `${activating ? 'Se activará' : 'Se desactivará'} la fecha especial del ${this.dateText(item.date)}. El registro se conservará.`,
+      confirmText: activating ? 'Sí, activar' : 'Sí, desactivar',
+      icon: activating ? 'play_circle' : 'pause_circle',
+      destructive: !activating
+    };
+    this.dialog.open(ConfirmationDialogComponent, { data, width: 'min(520px, calc(100vw - 2rem))' })
+      .afterClosed().subscribe(confirmed => {
+        if (confirmed) this.changeStatus(item);
+      });
+  }
+
+  weekday(value: string): string {
+    const date = parseLocalDate(value);
+    return new Intl.DateTimeFormat('es-CO', { weekday: 'long' }).format(date);
+  }
+
+  dateText(value: string): string {
+    return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(parseLocalDate(value));
+  }
+
+  track(_: number, item: ClearingHouseSpecialDate): number {
+    return item.id;
+  }
+
+  private openEditor(): void {
+    this.editorRef = this.dialog.open(this.editorDialog, {
+      width: 'min(620px, calc(100vw - 1.5rem))',
+      maxHeight: '92vh',
+      autoFocus: 'first-tabbable'
+    });
+    this.editorRef.afterClosed().subscribe(() => {
+      this.editing = null;
+      this.editorRef = undefined;
+      this.cdr.markForCheck();
+    });
+  }
+
+  private closeEditor(): void {
+    this.editorRef?.close();
+    this.editorRef = undefined;
+    this.editing = null;
+  }
+
+  private persist(): void {
+    const payload: ClearingHouseSpecialDate = {
+      id: this.editing?.id ?? 0,
+      clearingHouseId: this.clearingHouseId,
+      clearingHouseName: this.clearingHouse?.name,
+      date: this.apiDate(this.form.controls.date.value),
+      description: this.form.controls.description.value.trim(),
+      isActive: this.editing?.isActive ?? true
+    };
+    this.saving = true;
+    const request = this.editing ? this.service.update(payload) : this.service.create(payload);
+    request.pipe(finalize(() => {
+      this.saving = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: () => {
+        this.snack(this.editing ? 'Fecha especial actualizada correctamente.' : 'Fecha especial creada correctamente.');
+        this.closeEditor();
+        const year = this.form.controls.date.value?.getFullYear();
+        if (year && year !== this.filterForm.controls.year.value) {
+          this.filterForm.controls.year.setValue(year);
+        }
+        this.reload();
+      },
+      error: error => {
+        const message = this.errorMessage(error, 'No fue posible guardar la fecha especial.');
+        if (message.toLocaleLowerCase('es').includes('existe') || message.toLocaleLowerCase('es').includes('duplic')) {
+          this.setDateError('duplicateDate');
+        } else {
+          this.form.setErrors({ backend: message });
+        }
+        this.snack(message, true);
+      }
+    });
+  }
+
+  private changeStatus(item: ClearingHouseSpecialDate): void {
+    this.saving = true;
+    this.service.changeStatus(item.id, !item.isActive).pipe(finalize(() => {
+      this.saving = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: () => {
+        this.snack(item.isActive ? 'Fecha especial desactivada.' : 'Fecha especial activada.');
+        this.reload();
+      },
+      error: error => this.snack(this.errorMessage(error, 'No fue posible cambiar el estado.'), true)
+    });
+  }
+
+  private loadHolidays(year: number) {
+    const cached = this.holidayCache.get(year);
+    if (cached) return of(cached);
+    return this.bankHolidays.list(year).pipe(switchMap(items => {
+      const holidays = items ?? [];
+      this.holidayCache.set(year, holidays);
+      return of(holidays);
+    }));
+  }
+
+  private validateDate(value: Date, holidays: BankHoliday[]): boolean {
+    const day = value.getDay();
+    if (day === 0 || day === 6) {
+      this.setDateError('weekendDate');
       return false;
     }
-
-    const currentErrors = control.errors ?? {};
-    delete currentErrors.duplicateDate;
-    delete currentErrors.weekendDate;
-    delete currentErrors.bankHoliday;
-    control.setErrors(Object.keys(currentErrors).length ? currentErrors : null);
-
-    const normalized = this.normalizeDate(dateValue);
-    if (!normalized) {
-      this.setDateValidationError('required');
+    const normalized = this.apiDate(value);
+    if (holidays.some(holiday => normalizeDate(holiday.date) === normalized)) {
+      this.setDateError('bankHoliday');
       return false;
     }
-
-    if (this.isWeekend(normalized)) {
-      this.setDateValidationError('weekendDate');
+    if (this.allItems.some(item => item.id !== (this.editing?.id ?? 0) && normalizeDate(item.date) === normalized)) {
+      this.setDateError('duplicateDate');
       return false;
     }
-
-    const isHoliday = holidays.some((holiday) => this.normalizeDate(holiday.date) === normalized);
-    if (isHoliday) {
-      this.setDateValidationError('bankHoliday');
-      return false;
-    }
-
-    const isDuplicate = this.specialDates.some(
-      (item) =>
-        item.clearingHouseId === clearingHouseId &&
-        this.normalizeDate(item.date) === normalized &&
-        item.id !== (this.editing?.id ?? 0)
-    );
-    if (isDuplicate) {
-      this.setDateValidationError('duplicateDate');
-      return false;
-    }
-
     return true;
   }
 
-  private setDateValidationError(key: string): void {
-    const control = this.form.get('date');
-    if (!control) return;
-    const errors = control.errors ?? {};
-    control.setErrors({ ...errors, [key]: true });
-    control.markAsTouched();
+  private clearFunctionalDateErrors(): void {
+    const errors = { ...(this.form.controls.date.errors ?? {}) };
+    delete errors['weekendDate'];
+    delete errors['bankHoliday'];
+    delete errors['duplicateDate'];
+    this.form.controls.date.setErrors(Object.keys(errors).length ? errors : null);
   }
 
-  private normalizeDate(value: string | null | undefined): string {
-    if (!value) return '';
-    return value.split('T')[0];
+  private setDateError(key: string): void {
+    this.form.controls.date.setErrors({ ...(this.form.controls.date.errors ?? {}), [key]: true });
+    this.form.controls.date.markAsTouched();
   }
 
-  private getYear(value: string): number | null {
-    const normalized = this.normalizeDate(value);
-    const year = Number(normalized.split('-')[0]);
-    return Number.isFinite(year) ? year : null;
+  private apiDate(value: Date | null): string {
+    if (!value || Number.isNaN(value.getTime())) return '';
+    return `${value.getFullYear()}-${`${value.getMonth() + 1}`.padStart(2, '0')}-${`${value.getDate()}`.padStart(2, '0')}`;
   }
 
-  private isWeekend(value: string): boolean {
-    const date = new Date(`${value}T00:00:00`);
-    const day = date.getDay();
-    return day === 0 || day === 6;
+  private loadError(error: { status?: number }): string {
+    if (error?.status === 403) return 'No tiene permisos para consultar las fechas especiales de esta cámara.';
+    if (error?.status === 404) return 'La cámara solicitada no existe o ya no está disponible.';
+    return 'No fue posible cargar la cámara y sus fechas especiales.';
   }
+
+  private errorMessage(error: any, fallback: string): string {
+    const message = error?.error?.message ?? error?.error?.title ?? error?.message;
+    return typeof message === 'string' && message.trim() ? message : fallback;
+  }
+
+  private snack(message: string, error = false): void {
+    this.snackBar.open(message, 'Cerrar', {
+      duration: error ? 7000 : 4500,
+      panelClass: error ? ['snackbar-error'] : undefined
+    });
+  }
+}
+
+@Component({
+  selector: 'app-clearing-house-special-dates-legacy-redirect',
+  standalone: true,
+  imports: [MatProgressSpinnerModule],
+  template: '<div class="legacy-redirect" role="status"><mat-spinner diameter="32"></mat-spinner><span>Abriendo fechas especiales…</span></div>',
+  styles: ['.legacy-redirect { display:flex; justify-content:center; align-items:center; gap:1rem; min-height:12rem; }']
+})
+export class ClearingHouseSpecialDatesLegacyRedirectComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  ngOnInit(): void {
+    this.route.queryParamMap.pipe(take(1)).subscribe(params => {
+      const id = Number(params.get('clearingHouseId'));
+      const commands = Number.isInteger(id) && id > 0
+        ? ['/clearing-houses', id, 'special-dates']
+        : ['/clearing-houses'];
+      void this.router.navigate(commands, { replaceUrl: true });
+    });
+  }
+}
+
+function today(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function normalizeDate(value: string): string {
+  return value?.split('T')[0] ?? '';
+}
+
+function parseLocalDate(value: string): Date {
+  const [year, month, day] = normalizeDate(value).split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function buildYears(): number[] {
+  const current = new Date().getFullYear();
+  return [current - 1, current, current + 1, current + 2];
 }

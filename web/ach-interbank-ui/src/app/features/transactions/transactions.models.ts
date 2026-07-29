@@ -431,6 +431,7 @@ export interface ClearingHouseCycleConfigItem {
   effectiveFrom: string;
   effectiveTo?: string | null;
   isCurrent: boolean;
+  updatedAt?: string | null;
 }
 
 export interface ClearingHouseCycleConfigFilters {

@@ -1,5 +1,5 @@
-:host { display: block; }
-.policy-page { max-width: 1440px; margin: 0 auto; padding: 1.5rem; color: #172033; }
+:host { display: block; min-width: 0; }
+.policy-page { width: 100%; max-width: 1440px; margin: 0 auto; padding: 1.5rem; color: #172033; }
 .policy-page__state { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 1rem; padding: 1.5rem; }
 .policy-page__state > div { display: grid; gap: .2rem; }
 .policy-page__state span, .policy-page__state p { color: #64748b; }
@@ -11,6 +11,9 @@
 .policy-page__hero h2 { margin: .2rem 0 .4rem; font-size: clamp(1.35rem, 2vw, 1.8rem); }
 .policy-page__hero p { max-width: 780px; margin: 0; color: #526174; line-height: 1.55; }
 .policy-page__eyebrow { color: #276749 !important; font-size: .75rem; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+.policy-page__metadata { display: flex; flex-wrap: wrap; gap: .55rem 1rem; margin-top: .8rem; }
+.policy-page__metadata span { display: flex; gap: .35rem; color: #475569; font-size: .85rem; }
+.policy-page__metadata strong { color: #172033; }
 .impact-card { display: flex; flex-direction: row; gap: .8rem; align-items: center; margin-bottom: 1rem; padding: .9rem 1rem; border-left: 4px solid #d97706; background: #fffbeb; }
 .impact-card mat-icon { color: #b45309; }
 .impact-card div { display: grid; gap: .15rem; }
@@ -19,6 +22,7 @@
 .policy-summary mat-card-content { display: grid; gap: .8rem; padding-top: 1rem; }
 .policy-summary__mode { color: #475569; }
 .policy-summary mat-card-content > strong { font-size: 1.25rem; }
+.policy-summary__consequence { min-height: 2.7rem; padding: .7rem; border-radius: .5rem; background: #f4f7fa; color: #334155 !important; }
 .policy-summary dl, .policy-mobile-history dl { display: grid; gap: .6rem; margin: 0; }
 .policy-summary dl div { display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid #edf0f4; padding-top: .6rem; }
 dt { color: #64748b; font-size: .8rem; font-weight: 700; text-transform: uppercase; }
@@ -27,7 +31,7 @@ dd { margin: 0; text-align: right; }
 .policy-page__history { margin-bottom: 1rem; }
 .policy-page__history mat-card-content { padding-top: 1rem; }
 .policy-page__table-wrap { overflow-x: auto; }
-.policy-table { min-width: 1050px; width: 100%; }
+.policy-table { min-width: 800px; width: 100%; }
 .policy-table td strong, .policy-table td small { display: block; }
 .policy-table td small { margin-top: .2rem; color: #64748b; }
 .read-only { color: #64748b; font-size: .85rem; }
@@ -36,18 +40,23 @@ dd { margin: 0; text-align: right; }
 .policy-mobile-history { display: none; }
 .dialog-intro { color: #526174; line-height: 1.55; }
 .policy-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem 1rem; padding-top: .5rem; }
-.policy-form__notes, .policy-form__error { grid-column: 1 / -1; }
+.policy-form__notes, .policy-form__error, .policy-form__trace { grid-column: 1 / -1; }
+.policy-form__trace-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem 1rem; padding-top: .5rem; }
 .policy-form__error { margin: 0; padding: .75rem; border-radius: .5rem; background: #fef3f2; color: #b42318; }
 .policy-preview { display: flex; gap: .75rem; align-items: flex-start; margin-top: 1rem; padding: 1rem; border-radius: .6rem; background: #eef6ff; }
 .policy-preview p { margin: .25rem 0; }
 .dialog-spacer { flex: 1; }
 mat-dialog-actions button mat-spinner { display: inline-block; margin-right: .45rem; }
+.normative-detail { display: grid; gap: .75rem; margin: 0; }
+.normative-detail div { display: grid; grid-template-columns: minmax(100px, .35fr) 1fr; gap: .75rem; padding-bottom: .75rem; border-bottom: 1px solid #edf0f4; }
+.normative-detail dd { text-align: left; overflow-wrap: anywhere; }
 
 @media (max-width: 800px) {
   .policy-page { padding: .9rem; }
   .policy-page__hero { flex-direction: column; }
   .policy-page__hero > button { width: 100%; }
-  .policy-page__summary, .policy-form { grid-template-columns: 1fr; }
+  .policy-page__summary, .policy-form, .policy-form__trace-fields { grid-template-columns: 1fr; }
+  .policy-page__metadata { display: grid; gap: .35rem; }
   .policy-page__table-wrap { display: none; }
   .policy-mobile-history { display: grid; gap: .75rem; }
   .policy-mobile-history article { display: grid; gap: .8rem; padding: 1rem; border: 1px solid #dfe5ec; border-radius: .75rem; }

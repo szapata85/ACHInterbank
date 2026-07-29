@@ -1,476 +1,526 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, NgZone, OnInit, inject } from '@angular/core';
-import { FormBuilder, Validators } from '@angular/forms';
-import { ColDef } from 'ag-grid-community';
-import { finalize } from 'rxjs';
-import { NotificationService } from '../../../../core/services/notification.service';
-import { SharedModule } from '../../../../shared/shared.module';
-import { ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
+import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  TemplateRef,
+  ViewChild,
+  inject
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators
+} from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatSort, MatSortModule } from '@angular/material/sort';
+import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { catchError, finalize, forkJoin, of, switchMap } from 'rxjs';
+import { AuthService } from '../../../../core/services/auth.service';
+import {
+  ConfirmationDialogComponent,
+  ConfirmationDialogData
+} from '../../../clearing-houses/clearing-house-dialogs.component';
+import { ClearingHouseContextNavigationComponent } from '../../../clearing-houses/clearing-house-context-navigation.component';
+import { ClearingHouse } from '../../../clearing-houses/clearing-houses.models';
+import { ClearingHousesService } from '../../../clearing-houses/clearing-houses.service';
+import { ClearingHouseCycleConfigsApiService } from '../../services/clearing-house-cycle-configs-api.service';
 import {
   ClearingHouseCycleConfigItem,
   CycleStatusFilter,
   CycleValidityFilter,
   UpsertCycleConfigRequest
 } from '../../transactions.models';
-import { ClearingHouseCycleConfigsApiService } from '../../services/clearing-house-cycle-configs-api.service';
-import { OpcionSelectorBuscable } from '../../../../shared/components/ui/ui-selector-buscable.component';
-import { ActivatedRoute, RouterModule } from '@angular/router';
-import { AuthService } from '../../../../core/services/auth.service';
-import { ClearingHouse } from '../../../clearing-houses/clearing-houses.models';
-import { ClearingHousesService } from '../../../clearing-houses/clearing-houses.service';
-import { ClearingHouseContextNavigationComponent } from '../../../clearing-houses/clearing-house-context-navigation.component';
+
+type CycleFilterForm = FormGroup<{
+  cycleName: FormControl<string>;
+  status: FormControl<CycleStatusFilter>;
+  validity: FormControl<CycleValidityFilter>;
+  effectiveAt: FormControl<Date | null>;
+}>;
+
+type CycleEditorForm = FormGroup<{
+  cycleName: FormControl<string>;
+  startTime: FormControl<string>;
+  endTime: FormControl<string>;
+  cutoffTime: FormControl<string>;
+  effectiveFrom: FormControl<Date | null>;
+}>;
 
 @Component({
   selector: 'app-cycle-config-management',
   standalone: true,
-  imports: [SharedModule, RouterModule, ClearingHouseContextNavigationComponent],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterLink,
+    ClearingHouseContextNavigationComponent,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatMenuModule,
+    MatPaginatorModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
+    MatSnackBarModule,
+    MatSortModule,
+    MatTableModule,
+    MatTooltipModule
+  ],
   templateUrl: './cycle-config-management.component.html',
-  styleUrls: ['./cycle-config-management.component.scss'],
+  styleUrl: './cycle-config-management.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class CycleConfigManagementComponent implements OnInit {
-  private readonly fb = inject(FormBuilder);
-  private readonly cycleConfigApi = inject(ClearingHouseCycleConfigsApiService);
-  private readonly clearingHouseApi = inject(ClearingHousesApiService);
-  private readonly notifications = inject(NotificationService);
-  private readonly cdr = inject(ChangeDetectorRef);
-  private readonly zone = inject(NgZone);
+export class CycleConfigManagementComponent {
+  @ViewChild('cycleEditorDialog') cycleEditorDialog!: TemplateRef<unknown>;
+  @ViewChild('cycleHistoryDialog') cycleHistoryDialog!: TemplateRef<unknown>;
+  @ViewChild(MatSort) set tableSort(sort: MatSort | undefined) {
+    if (sort) this.dataSource.sort = sort;
+  }
+  @ViewChild(MatPaginator) set tablePaginator(paginator: MatPaginator | undefined) {
+    if (paginator) this.dataSource.paginator = paginator;
+  }
+
   private readonly route = inject(ActivatedRoute);
-  private readonly clearingHouseContextApi = inject(ClearingHousesService);
+  private readonly cycleApi = inject(ClearingHouseCycleConfigsApiService);
+  private readonly housesApi = inject(ClearingHousesService);
   private readonly auth = inject(AuthService);
+  private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  editorRef?: MatDialogRef<unknown>;
 
-  loading = false;
-  saving = false;
-  showForm = false;
-  hasSearched = false;
-  loadError: string | null = null;
-  editingSource: ClearingHouseCycleConfigItem | null = null;
-  selectedForInactivation: ClearingHouseCycleConfigItem | null = null;
-  contextClearingHouse: ClearingHouse | null = null;
+  readonly displayedColumns = ['cycle', 'window', 'cutoff', 'validity', 'state', 'updated', 'actions'];
+  readonly dataSource = new MatTableDataSource<ClearingHouseCycleConfigItem>([]);
+  readonly canManage = this.auth.hasPermission('ClearingHouses.ManageCycles');
   readonly canReadPolicies = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
-  readonly canManageSpecialDates = this.auth.hasPermission('ClearingHouses.ManageSpecialDates');
+  readonly canReadCycles = this.auth.hasPermission(['ClearingHouses.View', 'ClearingHouses.ManageCycles']);
+  readonly canReadSpecialDates = this.auth.hasPermission(['ClearingHouses.View', 'ClearingHouses.ManageSpecialDates']);
 
+  readonly filterForm: CycleFilterForm = new FormGroup({
+    cycleName: new FormControl('', { nonNullable: true }),
+    status: new FormControl<CycleStatusFilter>('all', { nonNullable: true }),
+    validity: new FormControl<CycleValidityFilter>('all', { nonNullable: true }),
+    effectiveAt: new FormControl<Date | null>(today())
+  });
+
+  readonly form: CycleEditorForm = new FormGroup({
+    cycleName: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.maxLength(60)]
+    }),
+    startTime: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, timeValidator]
+    }),
+    endTime: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, timeValidator]
+    }),
+    cutoffTime: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, timeValidator]
+    }),
+    effectiveFrom: new FormControl<Date | null>(today(), Validators.required)
+  }, { validators: cycleWindowValidator });
+
+  clearingHouse: ClearingHouse | null = null;
   allItems: ClearingHouseCycleConfigItem[] = [];
-  visibleItems: ClearingHouseCycleConfigItem[] = [];
-  clearingHouses: Array<{ id: number; name: string }> = [];
-  readonly columnDefs: ColDef<ClearingHouseCycleConfigItem>[] = [
-    { headerName: 'Cámara', minWidth: 180, valueGetter: (params) => params.data?.clearingHouseName || params.data?.clearingHouseId },
-    { field: 'cycleName', headerName: 'Ciclo', minWidth: 160 },
-    { headerName: 'Ventana operativa', minWidth: 170, valueGetter: (params) => `${params.data?.startTime?.slice(0, 5)} - ${params.data?.endTime?.slice(0, 5)}` },
-    { headerName: 'Cutoff', width: 110, valueGetter: (params) => params.data?.cutoffTime?.slice(0, 5) },
-    {
-      headerName: 'Vigencia',
-      minWidth: 220,
-      valueGetter: (params) => {
-        const from = this.toDateText(params.data?.effectiveFrom);
-        const to = params.data?.effectiveTo ? this.toDateText(params.data.effectiveTo) : 'abierto';
-        return `${from} a ${to}`;
-      }
-    },
-    { headerName: 'Estado', width: 120, valueGetter: (params) => this.statusBadge(params.data!).text },
-    {
-      headerName: 'Acciones',
-      minWidth: 260,
-      sortable: false,
-      filter: false,
-      cellRenderer: (params) => this.renderActionButtons(params.data)
-    }
-  ];
+  loading = true;
+  saving = false;
+  error = '';
+  editingSource: ClearingHouseCycleConfigItem | null = null;
+  historyCycleName = '';
+  private clearingHouseId = 0;
 
-  readonly statusOptions: Array<{ value: CycleStatusFilter; label: string }> = [
-    { value: 'all', label: 'Todos' },
-    { value: 'active', label: 'Activas' },
-    { value: 'inactive', label: 'Inactivas' }
-  ];
+  constructor() {
+    this.filterForm.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.applyLocalFilters());
 
-  readonly validityOptions: Array<{ value: CycleValidityFilter; label: string }> = [
-    { value: 'all', label: 'Todas' },
-    { value: 'current', label: 'Vigentes' },
-    { value: 'future', label: 'Futuras' },
-    { value: 'expired', label: 'Vencidas' }
-  ];
-
-  get clearingHouseOptions(): OpcionSelectorBuscable[] {
-    return this.clearingHouses.map((house) => ({ valor: house.id, etiqueta: house.name }));
-  }
-
-  get statusSelectorOptions(): OpcionSelectorBuscable[] {
-    return this.statusOptions.map((option) => ({ valor: option.value, etiqueta: option.label }));
-  }
-
-  get validitySelectorOptions(): OpcionSelectorBuscable[] {
-    return this.validityOptions.map((option) => ({ valor: option.value, etiqueta: option.label }));
-  }
-
-  readonly filterForm = this.fb.group({
-    clearingHouseId: [null as number | null, Validators.required],
-    cycleName: [''],
-    status: ['all' as CycleStatusFilter],
-    validity: ['all' as CycleValidityFilter],
-    effectiveAt: [this.todayInputValue()]
-  });
-
-  readonly form = this.fb.group({
-    clearingHouseId: [null as number | null, Validators.required],
-    cycleName: ['', [Validators.required, Validators.maxLength(60)]],
-    startTime: ['', Validators.required],
-    endTime: ['', Validators.required],
-    cutoffTime: ['', Validators.required],
-    effectiveFrom: [this.todayInputValue(), Validators.required]
-  });
-
-  ngOnInit(): void {
-    const routeClearingHouseId = Number(this.route.snapshot.paramMap.get('id'));
-    if (Number.isInteger(routeClearingHouseId) && routeClearingHouseId > 0) {
-      this.clearingHouseContextApi.get(routeClearingHouseId).subscribe({
-        next: house => {
-          this.contextClearingHouse = house;
+    this.route.paramMap.pipe(
+      switchMap(params => {
+        this.closeEditor();
+        this.clearingHouse = null;
+        this.allItems = [];
+        this.dataSource.data = [];
+        this.error = '';
+        const id = Number(params.get('id'));
+        if (!Number.isInteger(id) || id <= 0) {
+          this.loading = false;
+          this.error = 'La cámara indicada no es válida.';
           this.cdr.markForCheck();
+          return of(null);
         }
-      });
-    }
-    this.loadClearingHouses();
-    this.filterForm.controls.status.valueChanges.subscribe(() => this.applyLocalFilters());
-    this.filterForm.controls.validity.valueChanges.subscribe(() => this.applyLocalFilters());
+
+        this.clearingHouseId = id;
+        this.loading = true;
+        this.cdr.markForCheck();
+        return forkJoin({
+          house: this.housesApi.get(id),
+          cycles: this.cycleApi.getByClearingHouse({
+            clearingHouseId: id,
+            effectiveAt: this.apiDate(this.filterForm.controls.effectiveAt.value)
+          })
+        }).pipe(
+          catchError(error => {
+            this.error = this.loadError(error);
+            return of(null);
+          }),
+          finalize(() => {
+            this.loading = false;
+            this.cdr.markForCheck();
+          })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(result => {
+      if (!result) return;
+      this.clearingHouse = result.house;
+      this.allItems = result.cycles;
+      this.applyLocalFilters();
+      this.cdr.markForCheck();
+    });
   }
 
-  get validationWarnings(): string[] {
-    const warnings: string[] = [];
-    const startTime = this.form.controls.startTime.value;
-    const endTime = this.form.controls.endTime.value;
-    const cutoffTime = this.form.controls.cutoffTime.value;
+  get totalCount(): number {
+    return this.allItems.length;
+  }
 
-    if (startTime && endTime && startTime >= endTime) {
-      warnings.push('La hora de inicio debe ser menor a la hora de fin.');
-    }
+  get currentCount(): number {
+    return this.allItems.filter(item => item.isActive && this.resolveValidity(item) === 'current').length;
+  }
 
-    if (cutoffTime && endTime && cutoffTime > endTime) {
-      warnings.push('La hora de cutoff no debe superar la hora de fin de la ventana operativa.');
-    }
+  get futureCount(): number {
+    return this.allItems.filter(item => item.isActive && this.resolveValidity(item) === 'future').length;
+  }
 
-    if (!this.form.controls.effectiveFrom.value) {
-      warnings.push('La vigencia desde es obligatoria.');
-    }
+  get inactiveCount(): number {
+    return this.allItems.filter(item => !item.isActive).length;
+  }
 
-    if (this.editingSource) {
-      warnings.push('Guardar creará una nueva versión y mantendrá el histórico de configuraciones.');
-    }
+  get nextWindow(): string {
+    const next = this.allItems
+      .filter(item => item.isActive && this.resolveValidity(item) !== 'expired')
+      .sort((a, b) => `${a.effectiveFrom}${a.startTime}`.localeCompare(`${b.effectiveFrom}${b.startTime}`))[0];
+    return next ? `${next.cycleName} · ${this.time(next.startTime)}–${this.time(next.endTime)}` : 'Sin ventana programada';
+  }
 
-    return warnings;
+  get historyItems(): ClearingHouseCycleConfigItem[] {
+    return this.allItems
+      .filter(item => item.cycleName === this.historyCycleName)
+      .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
+  }
+
+  applyLocalFilters(): void {
+    const name = this.filterForm.controls.cycleName.value.trim().toLocaleLowerCase('es');
+    const status = this.filterForm.controls.status.value;
+    const validity = this.filterForm.controls.validity.value;
+    this.dataSource.data = this.allItems.filter(item => {
+      const matchesName = !name || item.cycleName.toLocaleLowerCase('es').includes(name);
+      const matchesStatus = status === 'all' || (status === 'active' ? item.isActive : !item.isActive);
+      const matchesValidity = validity === 'all' || this.resolveValidity(item) === validity;
+      return matchesName && matchesStatus && matchesValidity;
+    });
+    this.dataSource.paginator?.firstPage();
+    this.cdr.markForCheck();
+  }
+
+  clearFilters(): void {
+    this.filterForm.reset({
+      cycleName: '',
+      status: 'all',
+      validity: 'all',
+      effectiveAt: today()
+    });
+  }
+
+  reload(): void {
+    if (!this.clearingHouseId) return;
+    this.loading = true;
+    this.error = '';
+    this.cycleApi.getByClearingHouse({
+      clearingHouseId: this.clearingHouseId,
+      effectiveAt: this.apiDate(this.filterForm.controls.effectiveAt.value)
+    }).pipe(finalize(() => {
+      this.loading = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: items => {
+        this.allItems = items;
+        this.applyLocalFilters();
+      },
+      error: error => {
+        this.error = this.errorMessage(error, 'No fue posible consultar las configuraciones de ciclos.');
+        this.snack(this.error, true);
+      }
+    });
   }
 
   openCreateForm(): void {
-    this.showForm = true;
+    if (!this.canManage) return;
     this.editingSource = null;
-
     this.form.reset({
-      clearingHouseId: this.filterForm.controls.clearingHouseId.value,
       cycleName: '',
       startTime: '',
       endTime: '',
       cutoffTime: '',
-      effectiveFrom: this.todayInputValue()
+      effectiveFrom: today()
     });
+    this.openEditor();
   }
 
-  edit(item: ClearingHouseCycleConfigItem): void {
-    this.showForm = true;
+  createVersion(item: ClearingHouseCycleConfigItem): void {
+    if (!this.canManage) return;
     this.editingSource = item;
-
     this.form.reset({
-      clearingHouseId: item.clearingHouseId,
       cycleName: item.cycleName,
-      startTime: this.toTimeInput(item.startTime),
-      endTime: this.toTimeInput(item.endTime),
-      cutoffTime: this.toTimeInput(item.cutoffTime),
-      effectiveFrom: this.todayInputValue()
+      startTime: this.time(item.startTime),
+      endTime: this.time(item.endTime),
+      cutoffTime: this.time(item.cutoffTime),
+      effectiveFrom: today()
     });
-
-    this.cdr.markForCheck();
+    this.openEditor();
   }
 
-  clone(item: ClearingHouseCycleConfigItem): void {
-    this.edit(item);
-    this.form.patchValue({
-      cycleName: `${item.cycleName}-V2`
-    });
-
-    this.cdr.markForCheck();
-  }
-
-  closeForm(): void {
-    this.showForm = false;
-    this.editingSource = null;
-  }
-
-  search(): void {
-    this.filterForm.markAllAsTouched();
-    if (this.filterForm.invalid) {
-      return;
-    }
-
-    const clearingHouseId = Number(this.filterForm.controls.clearingHouseId.value);
-    if (!clearingHouseId) {
-      return;
-    }
-
-    this.loading = true;
-    this.hasSearched = true;
-    this.loadError = null;
-    this.cdr.markForCheck();
-
-    this.cycleConfigApi
-      .getByClearingHouse({
-        clearingHouseId,
-        effectiveAt: this.filterForm.controls.effectiveAt.value || null
-      })
-      .pipe(
-        finalize(() => {
-          this.loading = false;
-          this.cdr.markForCheck();
-        })
-      )
-      .subscribe({
-        next: (items) => {
-          this.allItems = items;
-          this.applyLocalFilters();
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.loadError = 'No fue posible consultar configuraciones de ciclos.';
-          this.notifications.error(this.loadError);
-          this.allItems = [];
-          this.visibleItems = [];
-          this.cdr.markForCheck();
-        }
-      });
-  }
-
-  applyLocalFilters(): void {
-    const cycleName = (this.filterForm.controls.cycleName.value ?? '').trim().toLowerCase();
-    const status = this.filterForm.controls.status.value ?? 'all';
-    const validity = this.filterForm.controls.validity.value ?? 'all';
-    const effectiveAt = this.referenceDate();
-
-    this.visibleItems = this.allItems.filter((item) => {
-      const matchesName = !cycleName || item.cycleName.toLowerCase().includes(cycleName);
-      const matchesStatus = status === 'all' || (status === 'active' ? item.isActive : !item.isActive);
-      const itemState = this.resolveValidity(item, effectiveAt);
-      const matchesValidity = validity === 'all' || itemState === validity;
-
-      return matchesName && matchesStatus && matchesValidity;
-    });
+  viewHistory(item: ClearingHouseCycleConfigItem): void {
+    this.historyCycleName = item.cycleName;
+    this.dialog.open(this.cycleHistoryDialog, { width: 'min(720px, calc(100vw - 2rem))', autoFocus: 'dialog' });
   }
 
   save(): void {
-    if (this.saving) {
-      return;
-    }
+    if (this.saving || !this.canManage) return;
     this.form.markAllAsTouched();
-    if (this.form.invalid || this.validationWarnings.some((x) => x.includes('debe') || x.includes('obligatoria'))) {
-      this.notifications.warning('Revise las validaciones antes de guardar.');
-      return;
-    }
+    this.validateVersionConflicts();
+    if (this.form.invalid) return;
 
+    const value = this.form.getRawValue();
     const payload: UpsertCycleConfigRequest = {
-      clearingHouseId: Number(this.form.controls.clearingHouseId.value),
-      cycleName: (this.form.controls.cycleName.value ?? '').trim(),
-      startTime: this.toApiTime(this.form.controls.startTime.value ?? ''),
-      endTime: this.toApiTime(this.form.controls.endTime.value ?? ''),
-      cutoffTime: this.toApiTime(this.form.controls.cutoffTime.value ?? ''),
-      effectiveFrom: `${this.form.controls.effectiveFrom.value}T00:00:00Z`
+      clearingHouseId: this.clearingHouseId,
+      cycleName: value.cycleName.trim(),
+      startTime: this.apiTime(value.startTime),
+      endTime: this.apiTime(value.endTime),
+      cutoffTime: this.apiTime(value.cutoffTime),
+      effectiveFrom: `${this.apiDate(value.effectiveFrom)}T00:00:00Z`
     };
 
     this.saving = true;
-    this.cycleConfigApi
-      .createVersion(payload)
-      .pipe(
-        finalize(() => {
-          this.saving = false;
-          this.cdr.markForCheck();
-        })
-      )
-      .subscribe({
-        next: () => {
-          this.notifications.success('Configuración versionada correctamente.');
-          this.closeForm();
-          this.search();
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.notifications.error('No fue posible guardar la configuración de ciclo.');
-          this.cdr.markForCheck();
-        }
-      });
-  }
-
-  askInactivate(item: ClearingHouseCycleConfigItem): void {
-    this.selectedForInactivation = item;
-    this.cdr.markForCheck();
-  }
-
-  cancelInactivate(): void {
-    this.selectedForInactivation = null;
-  }
-
-  confirmInactivate(): void {
-    if (!this.selectedForInactivation) {
-      return;
-    }
-
-    const effectiveTo = `${this.todayInputValue()}T00:00:00Z`;
-    const id = this.selectedForInactivation.id;
-    this.saving = true;
-
-    this.cycleConfigApi
-      .inactivate(id, { effectiveTo })
-      .pipe(
-        finalize(() => {
-          this.saving = false;
-          this.cdr.markForCheck();
-        })
-      )
-      .subscribe({
-        next: () => {
-          this.notifications.success('Configuración inactivada correctamente.');
-          this.selectedForInactivation = null;
-          this.search();
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.notifications.error('No fue posible inactivar la configuración.');
-          this.selectedForInactivation = null;
-          this.cdr.markForCheck();
-        }
-      });
-  }
-
-  statusBadge(item: ClearingHouseCycleConfigItem): { text: string; css: string } {
-    const validity = this.resolveValidity(item, this.referenceDate());
-
-    if (!item.isActive) {
-      return { text: 'Inactiva', css: 'inactive' };
-    }
-
-    if (validity === 'current') {
-      return { text: 'Vigente', css: 'current' };
-    }
-
-    if (validity === 'future') {
-      return { text: 'Futura', css: 'future' };
-    }
-
-    return { text: 'Vencida', css: 'expired' };
-  }
-
-  private loadClearingHouses(): void {
-    this.clearingHouseApi.listAdministrative().subscribe({
-      next: (items) => {
-        this.clearingHouses = items.map((x) => ({ id: x.id, name: x.name }));
-        const routeClearingHouseId = Number(this.route.snapshot.paramMap.get('id'));
-        if (Number.isInteger(routeClearingHouseId) && items.some((x) => x.id === routeClearingHouseId)) {
-          this.filterForm.controls.clearingHouseId.setValue(routeClearingHouseId);
-          this.search();
-        }
-        this.cdr.markForCheck();
+    this.cycleApi.createVersion(payload).pipe(finalize(() => {
+      this.saving = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: () => {
+        this.snack(this.editingSource ? 'Nueva versión creada correctamente.' : 'Configuración creada correctamente.');
+        this.closeEditor();
+        this.reload();
       },
-      error: () => {
-        this.notifications.error('No fue posible cargar cámaras de compensación.');
-        this.cdr.markForCheck();
+      error: error => {
+        const message = this.errorMessage(error, 'No fue posible guardar la configuración de ciclo.');
+        this.applyBackendError(message);
+        this.snack(message, true);
       }
     });
   }
 
-  private resolveValidity(item: ClearingHouseCycleConfigItem, referenceDate: Date): CycleValidityFilter {
-    const from = new Date(item.effectiveFrom);
-    const to = item.effectiveTo ? new Date(item.effectiveTo) : null;
-
-    if (from > referenceDate) {
-      return 'future';
-    }
-
-    if (to && to < referenceDate) {
-      return 'expired';
-    }
-
-    return 'current';
+  askInactivate(item: ClearingHouseCycleConfigItem): void {
+    if (!this.canManage) return;
+    const data: ConfirmationDialogData = {
+      title: 'Inactivar configuración',
+      message: `Se cerrará la vigencia de ${item.cycleName} con la fecha de hoy. El historial se conservará.`,
+      confirmText: 'Sí, inactivar',
+      icon: 'event_busy',
+      destructive: true
+    };
+    this.dialog.open(ConfirmationDialogComponent, { data, width: 'min(520px, calc(100vw - 2rem))' })
+      .afterClosed().subscribe(confirmed => {
+        if (confirmed) this.inactivate(item);
+      });
   }
 
-  private referenceDate(): Date {
-    const effectiveAt = this.filterForm.controls.effectiveAt.value;
-    return effectiveAt ? new Date(`${effectiveAt}T00:00:00Z`) : new Date();
+  status(item: ClearingHouseCycleConfigItem): string {
+    if (!item.isActive) return 'Inactiva';
+    const validity = this.resolveValidity(item);
+    if (validity === 'future') return 'Futura';
+    if (validity === 'expired') return 'Histórica';
+    return 'Vigente';
   }
 
-  private toTimeInput(value: string): string {
+  validityText(item: ClearingHouseCycleConfigItem): string {
+    return `${this.dateText(item.effectiveFrom)} – ${item.effectiveTo ? this.dateText(item.effectiveTo) : 'sin cierre'}`;
+  }
+
+  time(value: string): string {
     return value?.slice(0, 5) ?? '';
   }
 
-  private toDateText(value?: string): string {
-    if (!value) {
-      return '-';
-    }
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '-' : date.toISOString().slice(0, 10);
+  track(_: number, item: ClearingHouseCycleConfigItem): number {
+    return item.id;
   }
 
-  private toApiTime(value: string): string {
+  private openEditor(): void {
+    this.editorRef = this.dialog.open(this.cycleEditorDialog, {
+      width: 'min(760px, calc(100vw - 1.5rem))',
+      maxHeight: '92vh',
+      autoFocus: 'first-tabbable'
+    });
+    this.editorRef.afterClosed().subscribe(() => {
+      this.editingSource = null;
+      this.editorRef = undefined;
+      this.cdr.markForCheck();
+    });
+  }
+
+  private closeEditor(): void {
+    this.editorRef?.close();
+    this.editorRef = undefined;
+    this.editingSource = null;
+  }
+
+  private inactivate(item: ClearingHouseCycleConfigItem): void {
+    this.saving = true;
+    this.cycleApi.inactivate(item.id, { effectiveTo: `${this.apiDate(today())}T00:00:00Z` })
+      .pipe(finalize(() => {
+        this.saving = false;
+        this.cdr.markForCheck();
+      }))
+      .subscribe({
+        next: () => {
+          this.snack('Configuración inactivada correctamente.');
+          this.reload();
+        },
+        error: error => this.snack(this.errorMessage(error, 'No fue posible inactivar la configuración.'), true)
+      });
+  }
+
+  private validateVersionConflicts(): void {
+    const current = { ...(this.form.errors ?? {}) };
+    delete current['duplicate'];
+    delete current['overlap'];
+    const name = this.form.controls.cycleName.value.trim().toLocaleLowerCase('es');
+    const effectiveFrom = this.apiDate(this.form.controls.effectiveFrom.value);
+    if (name && effectiveFrom) {
+      const duplicate = this.allItems.some(item =>
+        item.cycleName.trim().toLocaleLowerCase('es') === name &&
+        item.effectiveFrom.split('T')[0] === effectiveFrom
+      );
+      if (duplicate) current['duplicate'] = true;
+
+      const overlap = this.allItems.some(item =>
+        !item.isActive &&
+        item.cycleName.trim().toLocaleLowerCase('es') === name &&
+        effectiveFrom >= item.effectiveFrom.split('T')[0] &&
+        !!item.effectiveTo &&
+        effectiveFrom <= item.effectiveTo.split('T')[0]
+      );
+      if (overlap) current['overlap'] = true;
+    }
+    this.form.setErrors(Object.keys(current).length ? current : null);
+  }
+
+  private applyBackendError(message: string): void {
+    const lower = message.toLocaleLowerCase('es');
+    if (lower.includes('traslape') || lower.includes('solap')) {
+      this.form.setErrors({ ...(this.form.errors ?? {}), overlap: true });
+    } else if (lower.includes('existe') || lower.includes('duplic')) {
+      this.form.setErrors({ ...(this.form.errors ?? {}), duplicate: true });
+    } else {
+      this.form.setErrors({ ...(this.form.errors ?? {}), backend: message });
+    }
+    this.cdr.markForCheck();
+  }
+
+  private resolveValidity(item: ClearingHouseCycleConfigItem): CycleValidityFilter {
+    const reference = this.apiDate(this.filterForm.controls.effectiveAt.value ?? today());
+    const from = item.effectiveFrom.split('T')[0];
+    const to = item.effectiveTo ? item.effectiveTo.split('T')[0] : null;
+    if (from > reference) return 'future';
+    if (to && to < reference) return 'expired';
+    return 'current';
+  }
+
+  private dateText(value: string): string {
+    const normalized = value.split('T')[0];
+    const [year, month, day] = normalized.split('-').map(Number);
+    return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeZone: 'UTC' })
+      .format(new Date(Date.UTC(year, month - 1, day)));
+  }
+
+  private apiTime(value: string): string {
     return value.length === 5 ? `${value}:00` : value;
   }
 
-  private todayInputValue(): string {
-    return new Date().toISOString().slice(0, 10);
+  private apiDate(value: Date | null): string {
+    if (!value || Number.isNaN(value.getTime())) return '';
+    const year = value.getFullYear();
+    const month = `${value.getMonth() + 1}`.padStart(2, '0');
+    const day = `${value.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
-  private renderActionButtons(item?: ClearingHouseCycleConfigItem | null): HTMLElement {
-    const container = document.createElement('div');
-    container.classList.add('cycle-config-actions');
-
-    if (!item) {
-      return container;
-    }
-
-    container.append(
-      this.createActionButton('edit', 'Editar configuración', 'edit', () => this.edit(item)),
-      this.createActionButton('clone', 'Clonar configuración', 'content_copy', () => this.clone(item))
-    );
-
-    if (item.isActive) {
-      container.append(
-        this.createActionButton('inactivate', 'Inactivar configuración', 'block', () => this.askInactivate(item))
-      );
-    }
-
-    return container;
+  private loadError(error: { status?: number }): string {
+    if (error?.status === 403) return 'No tiene permisos para consultar los ciclos de esta cámara.';
+    if (error?.status === 404) return 'La cámara solicitada no existe o ya no está disponible.';
+    return 'No fue posible cargar la cámara y sus configuraciones de ciclos.';
   }
 
-  private createActionButton(
-    action: string,
-    label: string,
-    icon: string,
-    handler: () => void
-  ): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.classList.add('btn', 'btn-grid');
-    button.classList.add(action === 'inactivate' ? 'btn-danger' : 'btn-outline');
-    button.setAttribute('data-testid', `cycle-config-action-${action}`);
-    button.setAttribute('data-action', action);
-    button.setAttribute('aria-label', label);
-    button.setAttribute('title', label);
+  private errorMessage(error: any, fallback: string): string {
+    const message = error?.error?.message ?? error?.error?.title ?? error?.message;
+    return typeof message === 'string' && message.trim() ? message : fallback;
+  }
 
-    const iconSpan = document.createElement('span');
-    iconSpan.classList.add('material-symbols-outlined');
-    iconSpan.textContent = icon;
-    button.append(iconSpan);
-
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.zone.run(() => {
-        handler();
-        this.cdr.markForCheck();
-      });
+  private snack(message: string, error = false): void {
+    this.snackBar.open(message, 'Cerrar', {
+      duration: error ? 7000 : 4500,
+      panelClass: error ? ['snackbar-error'] : undefined
     });
-
-    return button;
   }
+}
+
+function today(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function timeValidator(control: AbstractControl<string>): ValidationErrors | null {
+  return !control.value || /^([01]\d|2[0-3]):[0-5]\d$/.test(control.value) ? null : { timeFormat: true };
+}
+
+function cycleWindowValidator(control: AbstractControl): ValidationErrors | null {
+  const start = control.get('startTime')?.value as string;
+  const end = control.get('endTime')?.value as string;
+  const cutoff = control.get('cutoffTime')?.value as string;
+  if (!start || !end || !cutoff || !/^([01]\d|2[0-3]):[0-5]\d$/.test(start + '') ||
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(end + '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(cutoff + '')) {
+    return null;
+  }
+  if (start >= end) return { timeOrder: true };
+  if (cutoff < start || cutoff > end) return { cutoffOutside: true };
+  return null;
 }

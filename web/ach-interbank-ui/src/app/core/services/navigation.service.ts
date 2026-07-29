@@ -8,7 +8,8 @@ const LEGACY_NACHA_ROUTES = new Set([
   '/ach-cycles/nacha/definitions',
   '/nacha-layouts',
   '/nacha-record-definitions',
-  '/transactions/clearing-house-rules'
+  '/transactions/clearing-house-rules',
+  '/catalogs/clearing-house-special-dates'
 ]);
 
 @Injectable({ providedIn: 'root' })

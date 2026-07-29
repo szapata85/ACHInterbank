@@ -137,7 +137,7 @@
               <a *ngIf="canCycles" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'cycles']">
                 <mat-icon>schedule</mat-icon><span>Ciclos</span>
               </a>
-              <a *ngIf="canSpecialDates" mat-menu-item routerLink="/catalogs/clearing-house-special-dates" [queryParams]="{ clearingHouseId: row.id }">
+              <a *ngIf="canSpecialDates" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'special-dates']">
                 <mat-icon>event</mat-icon><span>Fechas especiales</span>
               </a>
               <mat-divider *ngIf="canStatus"></mat-divider>
@@ -169,7 +169,7 @@
           <button *ngIf="canUpdate" mat-menu-item type="button" (click)="edit(row)"><mat-icon>edit</mat-icon><span>Editar cámara</span></button>
           <a *ngIf="canReadPolicies" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'transaction-policies']"><mat-icon>policy</mat-icon><span>Políticas transaccionales</span></a>
           <a *ngIf="canCycles" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'cycles']"><mat-icon>schedule</mat-icon><span>Ciclos</span></a>
-          <a *ngIf="canSpecialDates" mat-menu-item routerLink="/catalogs/clearing-house-special-dates" [queryParams]="{ clearingHouseId: row.id }"><mat-icon>event</mat-icon><span>Fechas especiales</span></a>
+          <a *ngIf="canSpecialDates" mat-menu-item [routerLink]="['/clearing-houses', row.id, 'special-dates']"><mat-icon>event</mat-icon><span>Fechas especiales</span></a>
           <button *ngIf="canStatus" mat-menu-item type="button" (click)="changeStatus(row)"><mat-icon>{{ row.isActive ? 'pause_circle' : 'play_circle' }}</mat-icon><span>{{ row.isActive ? 'Desactivar' : 'Activar' }}</span></button>
         </mat-menu>
       </article>

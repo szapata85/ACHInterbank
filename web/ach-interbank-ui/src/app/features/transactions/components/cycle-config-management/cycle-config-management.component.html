@@ -1,147 +1,236 @@
-<app-page-header title="Configuración de ciclos" subtitle="Administración ACH"></app-page-header>
+<section class="cycle-page" aria-labelledby="cycle-content-title">
+  <mat-card *ngIf="loading" class="state-card" role="status" aria-live="polite">
+    <mat-spinner diameter="36"></mat-spinner>
+    <div><strong>Cargando configuración de ciclos…</strong><span>Consultando la cámara y su historial operativo.</span></div>
+  </mat-card>
 
-<app-clearing-house-context-navigation
-  *ngIf="contextClearingHouse as house"
-  [clearingHouse]="house"
-  [canReadPolicies]="canReadPolicies"
-  [canManageCycles]="true"
-  [canManageSpecialDates]="canManageSpecialDates"
-></app-clearing-house-context-navigation>
-
-<nav class="cycle-tabs" aria-label="Secciones de configuración de ciclos">
-  <a routerLink="/ach-cycles" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Ciclos</a>
-  <a routerLink="/transactions/cycle-configs" routerLinkActive="active">Reglas de procesamiento</a>
-</nav>
-
-<section class="panel filters">
-  <h3>Filtros</h3>
-  <form [formGroup]="filterForm" (ngSubmit)="search()" class="filter-grid">
-    <label>
-      Cámara
-      <ui-selector-buscable
-        [opciones]="clearingHouseOptions"
-        [formControl]="filterForm.controls.clearingHouseId"
-        placeholderBusqueda="Buscar cámara"
-      ></ui-selector-buscable>
-    </label>
-
-    <label>
-      Nombre de ciclo
-      <input type="text" formControlName="cycleName" placeholder="Ej. CICLO-1" (input)="applyLocalFilters()" />
-    </label>
-
-    <label>
-      Estado
-      <ui-selector-buscable
-        [opciones]="statusSelectorOptions"
-        [formControl]="filterForm.controls.status"
-        placeholderBusqueda="Buscar estado"
-      ></ui-selector-buscable>
-    </label>
-
-    <label>
-      Vigencia
-      <ui-selector-buscable
-        [opciones]="validitySelectorOptions"
-        [formControl]="filterForm.controls.validity"
-        placeholderBusqueda="Buscar vigencia"
-      ></ui-selector-buscable>
-    </label>
-
-    <label>
-      Fecha referencia
-      <input type="date" formControlName="effectiveAt" (change)="applyLocalFilters()" />
-    </label>
-
-    <div class="actions">
-      <button type="submit" class="btn btn-primary" [disabled]="loading">{{ loading ? 'Consultando...' : 'Consultar' }}</button>
-      <button type="button" class="btn btn-outline" (click)="openCreateForm()">Nueva configuración</button>
+  <mat-card *ngIf="!loading && error" class="state-card state-card--error" role="alert">
+    <mat-icon>error_outline</mat-icon>
+    <div>
+      <h2 id="cycle-content-title">No fue posible mostrar los ciclos</h2>
+      <p>{{ error }}</p>
     </div>
-  </form>
+    <a mat-stroked-button routerLink="/clearing-houses"><mat-icon>arrow_back</mat-icon>Volver a cámaras</a>
+  </mat-card>
+
+  <ng-container *ngIf="!loading && clearingHouse as house">
+    <app-clearing-house-context-navigation
+      [clearingHouse]="house"
+      [canReadPolicies]="canReadPolicies"
+      [canReadCycles]="canReadCycles"
+      [canReadSpecialDates]="canReadSpecialDates"
+    ></app-clearing-house-context-navigation>
+
+    <header class="cycle-hero">
+      <div>
+        <p class="eyebrow">Ventanas operativas</p>
+        <h2 id="cycle-content-title">Configuración de ciclos</h2>
+        <p>Define cuándo puede procesar, cerrar y enviar operaciones esta cámara compensadora.</p>
+      </div>
+      <button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="openCreateForm()">
+        <mat-icon>add</mat-icon>Nueva configuración
+      </button>
+    </header>
+
+    <section class="metrics" aria-label="Resumen de configuraciones">
+      <mat-card><mat-icon>format_list_numbered</mat-icon><div><strong>{{ totalCount }}</strong><span>Total</span></div></mat-card>
+      <mat-card><mat-icon>verified</mat-icon><div><strong>{{ currentCount }}</strong><span>Vigentes</span></div></mat-card>
+      <mat-card><mat-icon>event_upcoming</mat-icon><div><strong>{{ futureCount }}</strong><span>Futuras</span></div></mat-card>
+      <mat-card><mat-icon>pause_circle</mat-icon><div><strong>{{ inactiveCount }}</strong><span>Inactivas</span></div></mat-card>
+      <mat-card class="metrics__next"><mat-icon>schedule</mat-icon><div><strong>{{ nextWindow }}</strong><span>Próxima ventana</span></div></mat-card>
+    </section>
+
+    <mat-card class="filters-card">
+      <mat-card-header>
+        <mat-card-title>Filtros</mat-card-title>
+        <mat-card-subtitle>Refina el historial sin cambiar la cámara seleccionada.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="filterForm" class="filters" (ngSubmit)="reload()">
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre del ciclo</mat-label>
+            <input matInput formControlName="cycleName" placeholder="Ej. Ciclo 1" />
+            <mat-icon matPrefix>search</mat-icon>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select formControlName="status">
+              <mat-option value="all">Todos</mat-option>
+              <mat-option value="active">Activas</mat-option>
+              <mat-option value="inactive">Inactivas</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Vigencia</mat-label>
+            <mat-select formControlName="validity">
+              <mat-option value="all">Todas</mat-option>
+              <mat-option value="current">Vigentes</mat-option>
+              <mat-option value="future">Futuras</mat-option>
+              <mat-option value="expired">Históricas</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Fecha de referencia</mat-label>
+            <input matInput [matDatepicker]="referencePicker" formControlName="effectiveAt" />
+            <mat-datepicker-toggle matIconSuffix [for]="referencePicker"></mat-datepicker-toggle>
+            <mat-datepicker #referencePicker></mat-datepicker>
+          </mat-form-field>
+          <div class="filters__actions">
+            <button mat-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+            <button mat-stroked-button type="submit"><mat-icon>refresh</mat-icon>Actualizar</button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="results-card">
+      <mat-card-header>
+        <mat-card-title>Configuraciones</mat-card-title>
+        <mat-card-subtitle>{{ dataSource.data.length }} resultados para {{ house.name }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="!dataSource.data.length" class="empty-state" role="status">
+          <mat-icon>schedule</mat-icon>
+          <strong>Sin configuraciones para los filtros seleccionados</strong>
+          <span>Prueba limpiando los filtros o crea una nueva configuración.</span>
+        </div>
+
+        <div class="desktop-table" *ngIf="dataSource.data.length">
+          <table mat-table [dataSource]="dataSource" matSort>
+            <ng-container matColumnDef="cycle">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header="cycleName">Ciclo</th>
+              <td mat-cell *matCellDef="let row"><strong>{{ row.cycleName }}</strong></td>
+            </ng-container>
+            <ng-container matColumnDef="window">
+              <th mat-header-cell *matHeaderCellDef>Ventana operativa</th>
+              <td mat-cell *matCellDef="let row">{{ time(row.startTime) }} – {{ time(row.endTime) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="cutoff">
+              <th mat-header-cell *matHeaderCellDef>Cutoff</th>
+              <td mat-cell *matCellDef="let row">{{ time(row.cutoffTime) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="validity">
+              <th mat-header-cell *matHeaderCellDef>Vigencia</th>
+              <td mat-cell *matCellDef="let row">{{ validityText(row) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="state">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let row"><mat-chip>{{ status(row) }}</mat-chip></td>
+            </ng-container>
+            <ng-container matColumnDef="updated">
+              <th mat-header-cell *matHeaderCellDef>Última modificación</th>
+              <td mat-cell *matCellDef="let row">{{ row.updatedAt ? (row.updatedAt | date:'short') : 'No disponible' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Acciones</th>
+              <td mat-cell *matCellDef="let row">
+                <button mat-icon-button [matMenuTriggerFor]="actions" type="button"
+                  [attr.aria-label]="'Acciones de ' + row.cycleName" matTooltip="Acciones de configuración">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #actions="matMenu">
+                  <button *ngIf="canManage" mat-menu-item type="button" (click)="createVersion(row)">
+                    <mat-icon>add_circle</mat-icon><span>Crear nueva versión</span>
+                  </button>
+                  <button mat-menu-item type="button" (click)="viewHistory(row)">
+                    <mat-icon>history</mat-icon><span>Consultar historial</span>
+                  </button>
+                  <button *ngIf="canManage && row.isActive" mat-menu-item type="button" (click)="askInactivate(row)">
+                    <mat-icon>event_busy</mat-icon><span>Inactivar</span>
+                  </button>
+                </mat-menu>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          </table>
+        </div>
+
+        <div class="mobile-cards" *ngIf="dataSource.data.length">
+          <article *ngFor="let row of dataSource.filteredData; trackBy: track">
+            <header><div><strong>{{ row.cycleName }}</strong><span>{{ time(row.startTime) }} – {{ time(row.endTime) }}</span></div><mat-chip>{{ status(row) }}</mat-chip></header>
+            <dl>
+              <div><dt>Cutoff</dt><dd>{{ time(row.cutoffTime) }}</dd></div>
+              <div><dt>Vigencia</dt><dd>{{ validityText(row) }}</dd></div>
+              <div><dt>Última modificación</dt><dd>{{ row.updatedAt ? (row.updatedAt | date:'short') : 'No disponible' }}</dd></div>
+            </dl>
+            <button mat-stroked-button type="button" [matMenuTriggerFor]="mobileActions">Acciones<mat-icon>expand_more</mat-icon></button>
+            <mat-menu #mobileActions="matMenu">
+              <button *ngIf="canManage" mat-menu-item type="button" (click)="createVersion(row)"><mat-icon>add_circle</mat-icon><span>Crear nueva versión</span></button>
+              <button mat-menu-item type="button" (click)="viewHistory(row)"><mat-icon>history</mat-icon><span>Consultar historial</span></button>
+              <button *ngIf="canManage && row.isActive" mat-menu-item type="button" (click)="askInactivate(row)"><mat-icon>event_busy</mat-icon><span>Inactivar</span></button>
+            </mat-menu>
+          </article>
+        </div>
+      </mat-card-content>
+      <mat-paginator *ngIf="dataSource.data.length" [pageSize]="10" [pageSizeOptions]="[5, 10, 20]" showFirstLastButtons
+        aria-label="Paginación de configuraciones de ciclos"></mat-paginator>
+    </mat-card>
+  </ng-container>
+
+  <ng-template #cycleEditorDialog>
+    <h2 mat-dialog-title>{{ editingSource ? 'Crear nueva versión' : 'Nueva configuración' }}</h2>
+    <mat-dialog-content>
+      <p class="dialog-intro">La cámara se toma de la ruta. Define una ventana coherente y la fecha desde la que entrará en vigor.</p>
+      <form [formGroup]="form" id="cycle-editor-form" class="editor-form" (ngSubmit)="save()">
+        <mat-form-field appearance="outline" class="editor-form__wide">
+          <mat-label>Nombre del ciclo</mat-label>
+          <input matInput formControlName="cycleName" maxlength="60" autocomplete="off" />
+          <mat-error *ngIf="form.controls.cycleName.hasError('required')">El nombre del ciclo es obligatorio.</mat-error>
+          <mat-error *ngIf="form.controls.cycleName.hasError('maxlength')">El nombre supera 60 caracteres.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Inicio de ventana</mat-label>
+          <input matInput type="time" formControlName="startTime" />
+          <mat-error *ngIf="form.controls.startTime.hasError('required')">La hora inicial es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.startTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Fin de ventana</mat-label>
+          <input matInput type="time" formControlName="endTime" />
+          <mat-error *ngIf="form.controls.endTime.hasError('required')">La hora final es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.endTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Cutoff</mat-label>
+          <input matInput type="time" formControlName="cutoffTime" />
+          <mat-error *ngIf="form.controls.cutoffTime.hasError('required')">La hora de cutoff es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.cutoffTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Vigente desde</mat-label>
+          <input matInput [matDatepicker]="fromPicker" formControlName="effectiveFrom" />
+          <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+          <mat-error *ngIf="form.controls.effectiveFrom.hasError('required')">La fecha de vigencia es obligatoria.</mat-error>
+        </mat-form-field>
+        <p *ngIf="form.hasError('timeOrder')" class="form-error" role="alert">La hora inicial debe ser anterior a la hora final.</p>
+        <p *ngIf="form.hasError('cutoffOutside')" class="form-error" role="alert">El cutoff debe estar dentro de la ventana operativa.</p>
+        <p *ngIf="form.hasError('duplicate')" class="form-error" role="alert">Ya existe una versión de este ciclo con la misma fecha de inicio.</p>
+        <p *ngIf="form.hasError('overlap')" class="form-error" role="alert">La vigencia se solapa con una versión histórica cerrada.</p>
+        <p *ngIf="form.hasError('backend')" class="form-error" role="alert">{{ form.getError('backend') }}</p>
+      </form>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" (click)="editorRef?.close()" [disabled]="saving">Cancelar</button>
+      <button mat-flat-button color="primary" type="submit" form="cycle-editor-form" [disabled]="saving || form.invalid">
+        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        <mat-icon *ngIf="!saving">save</mat-icon>{{ saving ? 'Guardando…' : editingSource ? 'Crear versión' : 'Guardar configuración' }}
+      </button>
+    </mat-dialog-actions>
+  </ng-template>
+
+  <ng-template #cycleHistoryDialog>
+    <h2 mat-dialog-title>Historial de {{ historyCycleName }}</h2>
+    <mat-dialog-content>
+      <div class="history-list">
+        <article *ngFor="let item of historyItems; trackBy: track">
+          <mat-chip>{{ status(item) }}</mat-chip>
+          <strong>{{ validityText(item) }}</strong>
+          <span>{{ time(item.startTime) }} – {{ time(item.endTime) }} · cutoff {{ time(item.cutoffTime) }}</span>
+        </article>
+      </div>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end"><button mat-button mat-dialog-close type="button">Cerrar</button></mat-dialog-actions>
+  </ng-template>
 </section>
-
-<section class="panel" *ngIf="showForm">
-  <h3>{{ editingSource ? 'Versionar configuración' : 'Crear configuración' }}</h3>
-
-  <div class="warnings" *ngIf="validationWarnings.length">
-    <p *ngFor="let warning of validationWarnings">⚠ {{ warning }}</p>
-  </div>
-
-  <form [formGroup]="form" class="form-grid">
-    <label>
-      Cámara
-      <ui-selector-buscable
-        [opciones]="clearingHouseOptions"
-        [formControl]="form.controls.clearingHouseId"
-        placeholderBusqueda="Buscar cámara"
-      ></ui-selector-buscable>
-    </label>
-
-    <label>
-      Nombre del ciclo
-      <input type="text" formControlName="cycleName" placeholder="Nombre del ciclo" />
-    </label>
-
-    <label>
-      Inicio ventana operativa
-      <input type="time" formControlName="startTime" />
-    </label>
-
-    <label>
-      Fin ventana operativa
-      <input type="time" formControlName="endTime" />
-    </label>
-
-    <label>
-      Cutoff
-      <input type="time" formControlName="cutoffTime" />
-    </label>
-
-    <label>
-      Vigente desde
-      <input type="date" formControlName="effectiveFrom" />
-    </label>
-
-    <div class="actions form-actions">
-      <button type="button" class="btn btn-outline" (click)="closeForm()">Cancelar</button>
-      <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">{{ saving ? 'Guardando...' : 'Guardar versión' }}</button>
-    </div>
-  </form>
-</section>
-
-<section class="panel">
-  <div class="grid-header">
-    <h3>Resultados</h3>
-    <span class="result-count" *ngIf="hasSearched">{{ visibleItems.length }} registros</span>
-  </div>
-
-  <div class="loading" *ngIf="loading">Cargando configuraciones de ciclos...</div>
-  <div class="empty-state" *ngIf="!loading && loadError">{{ loadError }}</div>
-
-  <div class="empty-state" *ngIf="!loading && !loadError && !hasSearched">
-    Seleccione una cámara y consulte para visualizar configuraciones.
-  </div>
-
-  <div class="empty-state" *ngIf="!loading && !loadError && hasSearched && visibleItems.length === 0">
-    No existen configuraciones para los filtros seleccionados.
-  </div>
-
-  <ui-grilla-empresarial
-    *ngIf="!loading && !loadError && visibleItems.length > 0"
-    [columnas]="columnDefs"
-    [datos]="visibleItems"
-    [paginacion]="true"
-    [tamanoPagina]="15"
-    [seleccionFilas]="{ mode: 'singleRow' }"
-  ></ui-grilla-empresarial>
-</section>
-
-<app-confirm-dialog
-  [open]="!!selectedForInactivation"
-  title="Inactivar configuración"
-  [message]="selectedForInactivation ? 'Se inactivará la configuración del ciclo ' + selectedForInactivation.cycleName + ' con fecha efectiva de hoy. ¿Desea continuar?' : ''"
-  confirmText="Sí, inactivar"
-  cancelText="Cancelar"
-  (confirm)="confirmInactivate()"
-  (cancel)="cancelInactivate()"
-></app-confirm-dialog>
