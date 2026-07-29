@@ -217,3 +217,13 @@ Las pruebas focalizadas cubren resolución por cámara/tipo/fecha, los siete cas
 - La validación de identificación sigue siendo metadato sin decisión productiva.
 - La auditoría conserva sellos de creación/actualización; una bitácora de aprobación normativa con identidad y motivo requiere un trabajo posterior.
 - La ruta Angular antigua permanece hasta el JOB 2 y debe migrarse antes de retirar el adaptador HTTP.
+
+## 12. Migración frontend — JOB 2
+
+La administración se trasladó a `/clearing-houses/:id/transaction-policies`, como pantalla hija de Cámaras compensadoras. El listado agrega el acceso contextual **Políticas transaccionales**; la cámara se obtiene exclusivamente de la ruta y no forma parte del formulario.
+
+La pantalla `TransactionPoliciesComponent` usa Angular Material, Reactive Forms tipados y el servicio `TransactionPoliciesService` sobre `api/clearing-houses/{clearingHouseId}/transaction-policies`. Muestra contexto de cámara, resumen de débito/crédito, historial versionado y acciones de crear versión, metadatos, cierre, activación y preview. El plazo nullable se presenta como **Sin plazo mínimo documentado** cuando corresponde a CENIT.
+
+La ruta histórica `/transactions/clearing-house-rules` redirige a `/clearing-houses`. Se retiró su registro del seed actual y el cliente filtra la ruta persistida heredada para impedir que aparezca durante la transición. Lectura usa `Config.Read`/`CanReadAch`; escritura usa `Config.Manage`/`CanManageAch`.
+
+Se validaron build Angular y pruebas focalizadas. El spec Playwright de runtime real queda preparado en `e2e/clearing-house-transaction-policies-live.spec.ts`; su ejecución se omitió en esta sesión porque no había una credencial E2E local expuesta.

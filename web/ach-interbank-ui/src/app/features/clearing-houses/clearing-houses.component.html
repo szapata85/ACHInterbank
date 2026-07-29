@@ -22,6 +22,7 @@
         <td class="actions"><button type="button" (click)="view(row)">Ver detalle</button><button *ngIf="canUpdate" type="button" (click)="edit(row)">Editar</button>
           <button *ngIf="canStatus" type="button" (click)="changeStatus(row)">{{ row.isActive ? 'Desactivar' : 'Activar' }}</button>
           <a *ngIf="canCycles" [routerLink]="['/clearing-houses', row.id, 'cycles']">Administrar ciclos</a>
+          <a *ngIf="canRead" [routerLink]="['/clearing-houses', row.id, 'transaction-policies']">Políticas transaccionales</a>
           <a *ngIf="canSpecialDates" [routerLink]="['/catalogs/clearing-house-special-dates']" [queryParams]="{clearingHouseId: row.id}">Fechas especiales</a></td>
       </tr></tbody></table>
   </div>

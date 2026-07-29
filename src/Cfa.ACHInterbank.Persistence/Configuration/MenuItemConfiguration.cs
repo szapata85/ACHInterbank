@@ -37,7 +37,6 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
     public const int IntegrationsId = 29;
     public const int SoapIntegrationSettingsId = 30;
     public const int TransactionsReturnsId = 31;
-    public const int ClearingHouseTransactionRulesId = 32;
     public const int UatSimulatorsId = 33;
     public const int NachaInboundSimulatorId = 34;
     public const int NachaConfigRecordsId = 2802;
@@ -457,18 +456,6 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
                 Route = "/transactions/returns",
                 Icon = "assignment_return",
                 Order = 5,
-                Exact = true,
-                IsActive = true
-            },
-            new MenuItem
-            {
-                Id = ClearingHouseTransactionRulesId,
-                MenuId = MenuConfiguration.MainMenuId,
-                ParentId = TransactionsId,
-                Label = "Reglas por cámara",
-                Route = "/transactions/clearing-house-rules",
-                Icon = "rule",
-                Order = 6,
                 Exact = true,
                 IsActive = true
             },

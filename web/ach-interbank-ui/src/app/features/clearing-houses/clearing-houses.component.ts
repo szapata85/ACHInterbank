@@ -33,6 +33,7 @@ export class ClearingHousesComponent implements OnInit {
   totalPages = 1;
   editing = false;
   readonly canCreate = this.auth.hasPermission('ClearingHouses.Create');
+  readonly canRead = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
   readonly canUpdate = this.auth.hasPermission('ClearingHouses.Update');
   readonly canStatus = this.auth.hasPermission('ClearingHouses.ChangeStatus');
   readonly canCycles = this.auth.hasPermission('ClearingHouses.ManageCycles');

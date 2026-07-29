@@ -76,13 +76,15 @@ describe('NavigationService', () => {
   it('LegacyLayoutsRoute_ShouldBeRemovedFromMenu', (done) => {
     const { service } = createService([
       { id: 1, label: 'Layouts NACHA', route: '/ach-cycles/nacha/layouts' },
-      { id: 2, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles' }
+      { id: 2, label: 'Reglas por cámara', route: '/transactions/clearing-house-rules' },
+      { id: 3, label: 'Perfiles oficiales', route: '/nacha-config-admin/perfiles' }
     ]);
 
     service.getMenu().subscribe((menu) => {
       const routes = flattenRoutes(menu);
 
       expect(routes).not.toContain('/ach-cycles/nacha/layouts');
+      expect(routes).not.toContain('/transactions/clearing-house-rules');
       expect(routes).toEqual(['/nacha-config-admin/perfiles']);
       done();
     });

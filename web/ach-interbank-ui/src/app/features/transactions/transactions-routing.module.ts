@@ -9,7 +9,6 @@ import { BulkIngestionUploadComponent } from './components/bulk-ingestion-upload
 import { BulkIngestionTrackingComponent } from './components/bulk-ingestion-tracking/bulk-ingestion-tracking.component';
 import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail/bulk-ingestion-detail.component';
 import { CycleConfigManagementComponent } from './components/cycle-config-management/cycle-config-management.component';
-import { ClearingHouseTransactionRulesComponent } from './components/clearing-house-transaction-rules/clearing-house-transaction-rules.component';
 import { AchReturnOfReturnManagementComponent } from './components/ach-return-of-return-management/ach-return-of-return-management.component';
 import { permissionGuard } from '../../core/guards/permission.guard';
 
@@ -65,12 +64,7 @@ export const TRANSACTIONS_ROUTES: Routes = [
     canActivate: [permissionGuard],
     data: { permissions: ['CanManageAch'], title: 'Configuración de ciclos', breadcrumb: 'Configuración de ciclos' }
   },
-  {
-    path: 'clearing-house-rules',
-    component: ClearingHouseTransactionRulesComponent,
-    canActivate: [permissionGuard],
-    data: { permissions: ['CanManageAch'], title: 'Reglas por cámara', breadcrumb: 'Reglas por cámara' }
-  },
+  { path: 'clearing-house-rules', pathMatch: 'full', redirectTo: '/clearing-houses' },
   {
     path: 'returns',
     component: AchReturnsManagementComponent,

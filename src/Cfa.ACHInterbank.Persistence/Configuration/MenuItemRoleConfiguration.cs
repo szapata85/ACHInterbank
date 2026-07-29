@@ -68,16 +68,6 @@ public class MenuItemRoleConfiguration : IEntityTypeConfiguration<MenuItemRole>
             },
             new MenuItemRole
             {
-                MenuItemId = MenuItemConfiguration.ClearingHouseTransactionRulesId,
-                RoleId = RoleConfiguration.AdminRoleId
-            },
-            new MenuItemRole
-            {
-                MenuItemId = MenuItemConfiguration.ClearingHouseTransactionRulesId,
-                RoleId = RoleConfiguration.OperatorRoleId
-            },
-            new MenuItemRole
-            {
                 MenuItemId = MenuItemConfiguration.UatSimulatorsId,
                 RoleId = RoleConfiguration.AdminRoleId
             },

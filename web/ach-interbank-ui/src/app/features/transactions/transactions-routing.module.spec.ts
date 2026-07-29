@@ -19,10 +19,15 @@ describe('TransactionsRoutingModule', () => {
       'bulk-ingestion/:batchId',
       'nacha-upload',
       'cycle-configs',
-      'clearing-house-rules',
       'returns',
       'returns-ror'
     ].forEach((path) => expectRoutePermission(path, 'CanManageAch'));
+  });
+
+  it('redirige la ruta histórica de reglas al listado de cámaras', () => {
+    const route = TRANSACTIONS_ROUTES.find((candidate) => candidate.path === 'clearing-house-rules');
+    expect(route?.redirectTo).toBe('/clearing-houses');
+    expect(route?.component).toBeUndefined();
   });
 
   function expectRoutePermission(path: string, permission: string): void {
