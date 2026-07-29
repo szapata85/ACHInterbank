@@ -8,30 +8,20 @@ namespace Cfa.ACHInterbank.Tests;
 public class NavigationMenuSeedTests
 {
     [Fact]
-    public async Task MainMenuSeed_ShouldExposeClearingHouseRulesUnderTransactions()
+    public async Task MainMenuSeed_ShouldNotExposeLegacyClearingHouseRulesRoute()
     {
+        const int LegacyClearingHouseTransactionRulesId = 32;
         await using var context = CreateContext();
 
-        var menuItem = await context.MenuItems
+        Assert.False(await context.MenuItems
             .AsNoTracking()
-            .SingleAsync(x => x.Route == "/transactions/clearing-house-rules");
-
-        Assert.Equal(MenuItemConfiguration.ClearingHouseTransactionRulesId, menuItem.Id);
-        Assert.Equal(MenuItemConfiguration.TransactionsId, menuItem.ParentId);
-        Assert.True(menuItem.IsActive);
-
-        Assert.True(await context.MenuItemRoles.AnyAsync(x =>
-            x.MenuItemId == MenuItemConfiguration.ClearingHouseTransactionRulesId
-            && x.RoleId == RoleConfiguration.AdminRoleId));
-        Assert.True(await context.MenuItemRoles.AnyAsync(x =>
-            x.MenuItemId == MenuItemConfiguration.ClearingHouseTransactionRulesId
-            && x.RoleId == RoleConfiguration.OperatorRoleId));
-        Assert.True(await context.MenuItemPermissions.AnyAsync(x =>
-            x.MenuItemId == MenuItemConfiguration.ClearingHouseTransactionRulesId
-            && x.PermissionId == PermissionConfiguration.ManageAchPermissionId));
-        Assert.True(await context.MenuItemPermissions.AnyAsync(x =>
-            x.MenuItemId == MenuItemConfiguration.ClearingHouseTransactionRulesId
-            && x.PermissionId == PermissionConfiguration.ReadAchPermissionId));
+            .AnyAsync(x => x.Route == "/transactions/clearing-house-rules"));
+        Assert.False(await context.MenuItemRoles
+            .AsNoTracking()
+            .AnyAsync(x => x.MenuItemId == LegacyClearingHouseTransactionRulesId));
+        Assert.False(await context.MenuItemPermissions
+            .AsNoTracking()
+            .AnyAsync(x => x.MenuItemId == LegacyClearingHouseTransactionRulesId));
     }
 
     [Fact]
