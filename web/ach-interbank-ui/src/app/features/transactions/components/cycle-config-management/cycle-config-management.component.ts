@@ -14,11 +14,15 @@ import {
 import { ClearingHouseCycleConfigsApiService } from '../../services/clearing-house-cycle-configs-api.service';
 import { OpcionSelectorBuscable } from '../../../../shared/components/ui/ui-selector-buscable.component';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { AuthService } from '../../../../core/services/auth.service';
+import { ClearingHouse } from '../../../clearing-houses/clearing-houses.models';
+import { ClearingHousesService } from '../../../clearing-houses/clearing-houses.service';
+import { ClearingHouseContextNavigationComponent } from '../../../clearing-houses/clearing-house-context-navigation.component';
 
 @Component({
   selector: 'app-cycle-config-management',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, ClearingHouseContextNavigationComponent],
   templateUrl: './cycle-config-management.component.html',
   styleUrls: ['./cycle-config-management.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -31,6 +35,8 @@ export class CycleConfigManagementComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly zone = inject(NgZone);
   private readonly route = inject(ActivatedRoute);
+  private readonly clearingHouseContextApi = inject(ClearingHousesService);
+  private readonly auth = inject(AuthService);
 
   loading = false;
   saving = false;
@@ -39,6 +45,9 @@ export class CycleConfigManagementComponent implements OnInit {
   loadError: string | null = null;
   editingSource: ClearingHouseCycleConfigItem | null = null;
   selectedForInactivation: ClearingHouseCycleConfigItem | null = null;
+  contextClearingHouse: ClearingHouse | null = null;
+  readonly canReadPolicies = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
+  readonly canManageSpecialDates = this.auth.hasPermission('ClearingHouses.ManageSpecialDates');
 
   allItems: ClearingHouseCycleConfigItem[] = [];
   visibleItems: ClearingHouseCycleConfigItem[] = [];
@@ -110,6 +119,15 @@ export class CycleConfigManagementComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    const routeClearingHouseId = Number(this.route.snapshot.paramMap.get('id'));
+    if (Number.isInteger(routeClearingHouseId) && routeClearingHouseId > 0) {
+      this.clearingHouseContextApi.get(routeClearingHouseId).subscribe({
+        next: house => {
+          this.contextClearingHouse = house;
+          this.cdr.markForCheck();
+        }
+      });
+    }
     this.loadClearingHouses();
     this.filterForm.controls.status.valueChanges.subscribe(() => this.applyLocalFilters());
     this.filterForm.controls.validity.valueChanges.subscribe(() => this.applyLocalFilters());

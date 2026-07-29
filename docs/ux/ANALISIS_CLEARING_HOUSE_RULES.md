@@ -227,3 +227,45 @@ La pantalla `TransactionPoliciesComponent` usa Angular Material, Reactive Forms 
 La ruta histórica `/transactions/clearing-house-rules` redirige a `/clearing-houses`. Se retiró su registro del seed actual y el cliente filtra la ruta persistida heredada para impedir que aparezca durante la transición. Lectura usa `Config.Read`/`CanReadAch`; escritura usa `Config.Manage`/`CanManageAch`.
 
 Se validaron build Angular y pruebas focalizadas. El spec Playwright de runtime real queda preparado en `e2e/clearing-house-transaction-policies-live.spec.ts`; su ejecución se omitió en esta sesión porque no había una credencial E2E local expuesta.
+
+## 13. Cierre de UX y runtime
+
+### Causa de la carga y Docker detectado
+
+El spinner local no provenía de una petición pendiente: el contenedor SPA conservaba el chunk lazy anterior `902.5b79a6ffecef1a55.js`, mientras el código fuente ya tenía `finalize` dentro del `forkJoin` por identificador. El runtime activo era el proyecto Compose `achinterbank`, levantado únicamente con `docker-compose.yml`, API y SPA en 843/743 y SQL Server en el contenedor `achinterbank-sqlserver-1`. La reconstrucción y recreación real sustituyó los contenedores; no se reinició sobre la misma imagen ni se eliminó `achinterbank_ach_sqlserver_data`.
+
+El diagnóstico autenticado encontró además dos defectos independientes: la API serializa `PrenotificationRequirementMode` como enum numérico y el cliente lo trataba como texto, por lo que mostraba `No aplica`; y los nuevos `mat-icon` usaban el font-set legacy aunque la aplicación empaqueta Material Symbols. El adaptador HTTP ahora normaliza 1/2/3 a `Mandatory`/`Optional`/`NotApplicable`, envía el enum numérico al API y la fuente local de símbolos queda registrada globalmente.
+
+### Arquitectura frontend y rediseño
+
+`/clearing-houses` quedó como centro administrativo Material con métricas, filtros tipados por nombre/código y estado, tabla ordenable y paginada, tarjetas móviles, chips textuales, menú contextual, estados de carga/vacío/sin resultados/error y editor Material con validaciones específicas. Crear, editar y cambiar estado respetan los permisos existentes y usan snackbars y diálogos; no existen `window.prompt`, `window.confirm` ni `window.alert`.
+
+`ClearingHouseContextNavigationComponent` concentra nombre, código, estado, regreso al listado y subnavegación a rutas comprobadas: políticas, ciclos y fechas especiales. Los enlaces se filtran con permisos reales y se reutilizan en políticas y ciclos. En móvil el tab-nav es desplazable y mantiene las acciones dentro del viewport. No se creó una opción principal para políticas ni se restauró `Reglas por cámara`.
+
+La pantalla de políticas mantiene un único `h1` en el shell y usa un `h2` funcional en el contenido. Incluye resumen vigente de débitos/créditos, impacto NACHA-M, historial Material con estados vigentes/futuros/históricos/inactivos, vista móvil por tarjetas, formulario reactivo tipado, preview funcional y diálogos para crear, editar metadatos, cerrar y activar. El plazo opcional se limpia, deshabilita y envía como `null`; el obligatorio admite entero no negativo o vacío. Las fechas normativas se muestran en UTC para conservar el día efectivo.
+
+ACH Colombia presenta débito obligatorio con 3 días hábiles y crédito opcional sin plazo. CENIT presenta débito obligatorio con `Sin plazo mínimo documentado` y crédito opcional; no se le atribuyen tres días.
+
+### Permisos, responsive y accesibilidad
+
+Las lecturas aceptan `Config.Read`, `Config.Manage`, `CanReadAch` o `CanManageAch`; las escrituras requieren `Config.Manage` o `CanManageAch`. Ciclos y fechas especiales mantienen sus permisos dedicados. El Administrador ACH del runtime aislado visualizó la acción contextual de políticas y las operaciones administrativas.
+
+Se validaron 1440×900, tablet y 390×844. La tabla cambia a tarjetas, los filtros se apilan, la navegación secundaria permanece utilizable y no existe overflow horizontal. El flujo conserva un solo encabezado principal, jerarquía semántica, foco Material, etiquetas ARIA, tooltips, regiones `status`/`alert`, texto además de color y foco gestionado por los diálogos.
+
+### Pruebas y evidencia
+
+- Pruebas focalizadas Angular: 23/23 exitosas, incluidas normalización del enum API, carga, error, ID inválido/cambiante, nullable, permisos, formularios y navegación.
+- Build Angular: exitoso; chunk final de políticas `798.8f45db0dbde9e6ac.js`, cámaras `264.4026509d7222130f.js` y contexto compartido `911.a46e968941784aaf.js`.
+- Suite Angular completa: 579/579 exitosa en la repetición final, sin omitidas.
+- Build .NET Release: exitoso, 0 warnings y 0 errores. Suite backend multi-base: 2005 aprobadas, 0 fallidas y 5 omisiones históricas de 2010; TRX en `artifacts/clearing-house-ux-final/clearing-houses-final-multidb.trx`.
+- Playwright autenticado: 1/1 escenario integral exitoso sobre PostgreSQL aislado en 1743/1843, con credenciales efímeras, navegación por teclado en filtros/formulario y sin errores de página/consola, 4xx/5xx inesperados, spinner permanente, loop ni overflow.
+- Capturas: `artifacts/clearing-house-ux-final/clearing-houses-desktop.png`, `clearing-houses-mobile.png`, `transaction-policies-achcol-desktop.png`, `transaction-policies-cenit-desktop.png`, `transaction-policies-tablet.png` y `transaction-policies-mobile.png`.
+- Logs del runtime aislado: `artifacts/clearing-house-ux-final/isolated-compose.log` y `isolated-compose-ps.log`.
+
+El runtime aislado y su volumen PostgreSQL fueron eliminados al terminar. El runtime principal quedó nuevamente construido y recreado con SQL Server, API y SPA saludables; sus rutas directas devuelven 200 y los endpoints canónicos rechazan sin credencial en tiempo finito con 401.
+
+### Riesgos residuales
+
+- Una primera ejecución final de la suite Angular completa presentó ocho fallos transitorios; la repetición inmediata con el mismo código cerró 579/579. La suite tiene inestabilidad intermitente comprobada fuera de los specs focalizados.
+- La validación autenticada se realizó en el runtime desechable permitido porque no había contraseña del administrador persistente expuesta. El Docker principal usa los mismos bundles finales y se verificó por health, rutas, hashes y literales, pero no se modificó la credencial local para repetir allí el login.
+- Los catálogos globales duplicados y la validación de identificación sin consumidor, ya documentados en el cierre backend, permanecen como compatibilidad y no se alteraron en este trabajo de UX.

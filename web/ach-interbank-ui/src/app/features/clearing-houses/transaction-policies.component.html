@@ -1,51 +1,288 @@
-<section class="policy-page" aria-labelledby="policy-title">
-  <a mat-button routerLink="/clearing-houses" class="policy-page__back"><mat-icon>arrow_back</mat-icon> Volver a cámaras</a>
+<section class="policy-page" aria-labelledby="policy-content-title">
+  <mat-card *ngIf="loading" class="policy-page__state" role="status" aria-live="polite">
+    <mat-spinner diameter="36"></mat-spinner>
+    <div><strong>Cargando cámara y políticas…</strong><span>Consultando las versiones vigentes y el historial.</span></div>
+  </mat-card>
 
-  <mat-card *ngIf="loading" class="policy-page__loading" role="status"><mat-spinner diameter="32"></mat-spinner><span>Cargando cámara y políticas…</span></mat-card>
-  <mat-card *ngIf="!loading && error" class="policy-page__error" role="alert"><mat-icon>error_outline</mat-icon><div><h1 id="policy-title">Políticas transaccionales</h1><p>{{ error }}</p><button mat-stroked-button type="button" (click)="router.navigateByUrl('/clearing-houses')">Regresar al listado</button></div></mat-card>
+  <mat-card *ngIf="!loading && error" class="policy-page__state policy-page__state--error" role="alert">
+    <mat-icon>error_outline</mat-icon>
+    <div>
+      <h2 id="policy-content-title">No fue posible mostrar las políticas</h2>
+      <p>{{ error }}</p>
+    </div>
+    <button mat-stroked-button type="button" (click)="router.navigateByUrl('/clearing-houses')">
+      <mat-icon>arrow_back</mat-icon>
+      Volver a cámaras
+    </button>
+  </mat-card>
 
   <ng-container *ngIf="!loading && clearingHouse as house">
-    <header class="policy-page__header">
-      <div><p class="policy-page__eyebrow">Cámaras compensadoras · {{ house.code }}</p><h1 id="policy-title">Políticas transaccionales</h1><p>Estas políticas se evalúan antes de exportar NACHA-M. Definen si cada transacción exige prenotificación, tienen vigencia y deben sustentarse en normativa. Una configuración inexistente puede bloquear la exportación.</p></div>
-      <div class="policy-page__header-actions"><mat-chip [class.policy-page__chip--inactive]="!house.isActive">{{ house.isActive ? 'Cámara activa' : 'Cámara inactiva' }}</mat-chip><button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="createVersion()"><mat-icon>add</mat-icon> Crear nueva versión</button></div>
+    <app-clearing-house-context-navigation
+      [clearingHouse]="house"
+      [canReadPolicies]="canRead"
+      [canManageCycles]="canManageCycles"
+      [canManageSpecialDates]="canManageSpecialDates"
+    ></app-clearing-house-context-navigation>
+
+    <header class="policy-page__hero">
+      <div>
+        <p class="policy-page__eyebrow">Gobierno de prerrequisitos NACHA-M</p>
+        <h2 id="policy-content-title">Configuración transaccional</h2>
+        <p>Defina si los débitos y créditos requieren prenotificación, su anticipación y la vigencia normativa aplicable.</p>
+      </div>
+      <button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="createVersion()">
+        <mat-icon>add</mat-icon>
+        Crear nueva versión
+      </button>
     </header>
 
-    <mat-card class="policy-page__context"><strong>{{ house.name }}</strong><span>Código: {{ house.code }}</span><span>{{ house.isReady ? 'Configuración operativa disponible' : 'Configuración operativa incompleta' }}</span></mat-card>
+    <mat-card class="impact-card">
+      <mat-icon aria-hidden="true">warning_amber</mat-icon>
+      <div>
+        <strong>Impacto en exportación NACHA-M</strong>
+        <span>Una política inexistente o una prenotificación obligatoria incumplida puede bloquear la exportación.</span>
+      </div>
+    </mat-card>
 
     <section class="policy-page__summary" aria-label="Resumen de políticas vigentes">
-      <mat-card class="policy-summary"><mat-card-header><mat-icon mat-card-avatar>south</mat-icon><mat-card-title>Débitos</mat-card-title><mat-card-subtitle>Política vigente</mat-card-subtitle></mat-card-header><mat-card-content *ngIf="currentDebit as policy; else missingDebit"><p>{{ modeLabel(policy.prenotificationMode) }}</p><strong>{{ lead(policy) }}</strong><small>Vigente desde {{ policy.effectiveFrom | date:'mediumDate' }}</small></mat-card-content><ng-template #missingDebit><mat-card-content><p>Sin política vigente.</p><small>La exportación NACHA-M de este tipo de transacción puede quedar bloqueada.</small></mat-card-content></ng-template></mat-card>
-      <mat-card class="policy-summary"><mat-card-header><mat-icon mat-card-avatar>north</mat-icon><mat-card-title>Créditos</mat-card-title><mat-card-subtitle>Política vigente</mat-card-subtitle></mat-card-header><mat-card-content *ngIf="currentCredit as policy; else missingCredit"><p>{{ modeLabel(policy.prenotificationMode) }}</p><strong>{{ lead(policy) }}</strong><small>Vigente desde {{ policy.effectiveFrom | date:'mediumDate' }}</small></mat-card-content><ng-template #missingCredit><mat-card-content><p>Sin política vigente.</p><small>La exportación NACHA-M de este tipo de transacción puede quedar bloqueada.</small></mat-card-content></ng-template></mat-card>
+      <mat-card class="policy-summary">
+        <mat-card-header>
+          <mat-icon mat-card-avatar>south</mat-icon>
+          <mat-card-title>Débitos</mat-card-title>
+          <mat-card-subtitle>Política vigente</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content *ngIf="currentDebit as policy; else missingDebit">
+          <span class="policy-summary__mode">{{ modeLabel(policy.prenotificationMode) }}</span>
+          <strong>{{ lead(policy) }}</strong>
+          <dl>
+            <div><dt>Vigencia</dt><dd>Desde {{ policy.effectiveFrom | date:'mediumDate':'UTC' }}</dd></div>
+            <div><dt>Estado</dt><dd><mat-chip>{{ status(policy) }}</mat-chip></dd></div>
+            <div><dt>Referencia</dt><dd>{{ policy.normativeReference }}</dd></div>
+          </dl>
+        </mat-card-content>
+        <ng-template #missingDebit>
+          <mat-card-content class="policy-summary__missing">
+            <mat-icon>report_problem</mat-icon><strong>Sin política vigente</strong>
+            <span>La exportación de débitos puede quedar bloqueada.</span>
+          </mat-card-content>
+        </ng-template>
+      </mat-card>
+
+      <mat-card class="policy-summary">
+        <mat-card-header>
+          <mat-icon mat-card-avatar>north</mat-icon>
+          <mat-card-title>Créditos</mat-card-title>
+          <mat-card-subtitle>Política vigente</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content *ngIf="currentCredit as policy; else missingCredit">
+          <span class="policy-summary__mode">{{ modeLabel(policy.prenotificationMode) }}</span>
+          <strong>{{ lead(policy) }}</strong>
+          <dl>
+            <div><dt>Vigencia</dt><dd>Desde {{ policy.effectiveFrom | date:'mediumDate':'UTC' }}</dd></div>
+            <div><dt>Estado</dt><dd><mat-chip>{{ status(policy) }}</mat-chip></dd></div>
+            <div><dt>Referencia</dt><dd>{{ policy.normativeReference }}</dd></div>
+          </dl>
+        </mat-card-content>
+        <ng-template #missingCredit>
+          <mat-card-content class="policy-summary__missing">
+            <mat-icon>report_problem</mat-icon><strong>Sin política vigente</strong>
+            <span>La exportación de créditos puede quedar bloqueada.</span>
+          </mat-card-content>
+        </ng-template>
+      </mat-card>
     </section>
 
-    <mat-card *ngIf="showForm" class="policy-page__form-card"><mat-card-header><mat-card-title>{{ metadataPolicy ? 'Editar referencia normativa' : 'Crear nueva versión' }}</mat-card-title><mat-card-subtitle>{{ metadataPolicy ? 'Los campos funcionales históricos se conservan.' : 'La nueva vigencia puede cerrar una política anterior. Revise el impacto antes de guardar.' }}</mat-card-subtitle></mat-card-header><mat-card-content>
-      <form [formGroup]="form" (ngSubmit)="save()" class="policy-form">
-        <mat-form-field appearance="outline"><mat-label>Tipo de transacción</mat-label><mat-select formControlName="transactionType"><mat-option [value]="transactionTypes.Debit">Débito</mat-option><mat-option [value]="transactionTypes.Credit">Crédito</mat-option></mat-select><mat-error *ngIf="form.controls.transactionType.hasError('required')">Seleccione el tipo de transacción.</mat-error></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Modo de prenotificación</mat-label><mat-select formControlName="prenotificationMode"><mat-option value="Mandatory">Obligatoria</mat-option><mat-option value="Optional">Opcional</mat-option></mat-select><mat-error *ngIf="form.controls.prenotificationMode.hasError('required')">Indique el modo de prenotificación.</mat-error></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Días hábiles previos</mat-label><input matInput type="number" formControlName="prenotificationLeadBusinessDays" min="0" max="365"><mat-hint>Déjelo vacío cuando la norma exija prenotificación, pero no establezca una anticipación mínima.</mat-hint><mat-error *ngIf="form.controls.prenotificationLeadBusinessDays.hasError('min')">Los días previos no pueden ser negativos.</mat-error><mat-error *ngIf="form.controls.prenotificationLeadBusinessDays.hasError('max')">El plazo supera el máximo permitido.</mat-error></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Vigente desde</mat-label><input matInput [matDatepicker]="fromPicker" formControlName="effectiveFrom"><mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle><mat-datepicker #fromPicker></mat-datepicker><mat-error>Indique la fecha inicial.</mat-error></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Vigente hasta</mat-label><input matInput [matDatepicker]="toPicker" formControlName="effectiveTo"><mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle><mat-datepicker #toPicker></mat-datepicker><mat-error *ngIf="form.hasError('dateRange')">La fecha final debe ser posterior o igual a la fecha inicial.</mat-error></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Fuente normativa</mat-label><input matInput formControlName="normativeSource" maxlength="250"><mat-error>Indique la fuente normativa.</mat-error></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Referencia normativa</mat-label><input matInput formControlName="normativeReference" maxlength="250"><mat-error>Indique la referencia normativa.</mat-error></mat-form-field>
-        <mat-form-field appearance="outline" class="policy-form__notes"><mat-label>Notas</mat-label><textarea matInput rows="3" formControlName="notes" maxlength="2000"></textarea></mat-form-field>
-        <section class="policy-form__actions"><button mat-stroked-button type="button" (click)="preview()" [disabled]="saving"><mat-icon>visibility</mat-icon> Previsualizar</button><button mat-button type="button" (click)="cancel()" [disabled]="saving">Cancelar</button><button mat-flat-button color="primary" type="submit" [disabled]="form.invalid || saving || !canManage"><mat-icon>save</mat-icon> {{ saving ? 'Guardando…' : metadataPolicy ? 'Guardar referencia' : 'Crear nueva versión' }}</button></section>
-      </form>
-      <div *ngIf="previewResult" class="policy-page__preview" role="status"><mat-icon>{{ previewResult.ruleConfigured ? 'verified' : 'warning' }}</mat-icon><div><strong>{{ previewResult.ruleConfigured ? 'Política encontrada' : 'Configuración faltante' }}</strong><p>{{ previewResult.message }}</p><small>{{ previewResult.normativeSource }} {{ previewResult.normativeReference }}</small></div></div>
-    </mat-card-content></mat-card>
+    <mat-card class="policy-page__history">
+      <mat-card-header>
+        <mat-card-title>Versiones e historial</mat-card-title>
+        <mat-card-subtitle>Las versiones vigentes, futuras, históricas e inactivas se identifican con texto.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="!policies.length" class="policy-page__empty">
+          <mat-icon>inventory_2</mat-icon>
+          <strong>Sin políticas configuradas</strong>
+          <span>La exportación NACHA-M puede quedar bloqueada.</span>
+        </div>
 
-    <mat-card class="policy-page__table-card"><mat-card-header><mat-card-title>Versiones e historial</mat-card-title><mat-card-subtitle>Las versiones vigentes, futuras, históricas e inactivas se distinguen por texto y estado.</mat-card-subtitle></mat-card-header><mat-card-content>
-      <p *ngIf="!policies.length" class="policy-page__empty">No hay políticas para esta cámara. La exportación NACHA-M puede quedar bloqueada.</p>
-      <div class="policy-page__table-wrap" *ngIf="policies.length"><table mat-table [dataSource]="policies" class="policy-table">
-        <ng-container matColumnDef="transactionType"><th mat-header-cell *matHeaderCellDef>Tipo</th><td mat-cell *matCellDef="let row">{{ typeLabel(row.transactionType) }}</td></ng-container>
-        <ng-container matColumnDef="mode"><th mat-header-cell *matHeaderCellDef>Modo</th><td mat-cell *matCellDef="let row">{{ modeLabel(row.prenotificationMode) }}</td></ng-container>
-        <ng-container matColumnDef="lead"><th mat-header-cell *matHeaderCellDef>Plazo</th><td mat-cell *matCellDef="let row">{{ lead(row) }}</td></ng-container>
-        <ng-container matColumnDef="from"><th mat-header-cell *matHeaderCellDef>Desde</th><td mat-cell *matCellDef="let row">{{ row.effectiveFrom | date:'mediumDate' }}</td></ng-container>
-        <ng-container matColumnDef="to"><th mat-header-cell *matHeaderCellDef>Hasta</th><td mat-cell *matCellDef="let row">{{ row.effectiveTo ? (row.effectiveTo | date:'mediumDate') : 'Sin cierre' }}</td></ng-container>
-        <ng-container matColumnDef="state"><th mat-header-cell *matHeaderCellDef>Estado</th><td mat-cell *matCellDef="let row"><mat-chip>{{ status(row) }}</mat-chip></td></ng-container>
-        <ng-container matColumnDef="reference"><th mat-header-cell *matHeaderCellDef>Referencia normativa</th><td mat-cell *matCellDef="let row">{{ row.normativeReference }}</td></ng-container>
-        <ng-container matColumnDef="updated"><th mat-header-cell *matHeaderCellDef>Última modificación</th><td mat-cell *matCellDef="let row">{{ row.updatedAt | date:'short' }}</td></ng-container>
-        <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef>Acciones</th><td mat-cell *matCellDef="let row"><button mat-icon-button [matMenuTriggerFor]="actions" aria-label="Acciones de política" matTooltip="Acciones"><mat-icon>more_vert</mat-icon></button><mat-menu #actions="matMenu"><button mat-menu-item (click)="editMetadata(row)" [disabled]="!canManage"><mat-icon>edit_note</mat-icon><span>Editar referencia normativa</span></button><button mat-menu-item (click)="close(row)" [disabled]="!canManage || status(row) === 'Histórica'"><mat-icon>event_busy</mat-icon><span>Cerrar vigencia</span></button><button mat-menu-item (click)="activate(row)" [disabled]="!canManage || status(row) !== 'Futura'"><mat-icon>play_circle</mat-icon><span>Activar versión futura</span></button></mat-menu></td></ng-container>
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr><tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-      </table></div>
-    </mat-card-content></mat-card>
+        <div class="policy-page__table-wrap" *ngIf="policies.length">
+          <table mat-table [dataSource]="policies" class="policy-table">
+            <ng-container matColumnDef="transactionType">
+              <th mat-header-cell *matHeaderCellDef>Tipo</th>
+              <td mat-cell *matCellDef="let row">{{ typeLabel(row.transactionType) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="mode">
+              <th mat-header-cell *matHeaderCellDef>Modo</th>
+              <td mat-cell *matCellDef="let row">{{ modeLabel(row.prenotificationMode) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="lead">
+              <th mat-header-cell *matHeaderCellDef>Plazo</th>
+              <td mat-cell *matCellDef="let row">{{ lead(row) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="from">
+              <th mat-header-cell *matHeaderCellDef>Inicio</th>
+              <td mat-cell *matCellDef="let row">{{ row.effectiveFrom | date:'mediumDate':'UTC' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="to">
+              <th mat-header-cell *matHeaderCellDef>Fin</th>
+              <td mat-cell *matCellDef="let row">{{ row.effectiveTo ? (row.effectiveTo | date:'mediumDate':'UTC') : 'Sin cierre' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="state">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let row"><mat-chip>{{ status(row) }}</mat-chip></td>
+            </ng-container>
+            <ng-container matColumnDef="reference">
+              <th mat-header-cell *matHeaderCellDef>Referencia</th>
+              <td mat-cell *matCellDef="let row"><strong>{{ row.normativeSource }}</strong><small>{{ row.normativeReference }}</small></td>
+            </ng-container>
+            <ng-container matColumnDef="updated">
+              <th mat-header-cell *matHeaderCellDef>Última modificación</th>
+              <td mat-cell *matCellDef="let row">{{ row.updatedAt | date:'short' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Acciones</th>
+              <td mat-cell *matCellDef="let row">
+                <button
+                  *ngIf="canManage"
+                  mat-icon-button
+                  [matMenuTriggerFor]="actions"
+                  [attr.aria-label]="'Acciones de política de ' + typeLabel(row.transactionType)"
+                  matTooltip="Administrar versión"
+                >
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <span *ngIf="!canManage" class="read-only">Solo lectura</span>
+                <mat-menu #actions="matMenu">
+                  <button mat-menu-item type="button" (click)="editMetadata(row)">
+                    <mat-icon>edit_note</mat-icon><span>Editar metadatos</span>
+                  </button>
+                  <button mat-menu-item type="button" (click)="close(row)" [disabled]="status(row) === 'Histórica'">
+                    <mat-icon>event_busy</mat-icon><span>Cerrar vigencia</span>
+                  </button>
+                  <button mat-menu-item type="button" (click)="activate(row)" [disabled]="status(row) !== 'Futura'">
+                    <mat-icon>play_circle</mat-icon><span>Activar versión futura</span>
+                  </button>
+                </mat-menu>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          </table>
+        </div>
+
+        <div class="policy-mobile-history" *ngIf="policies.length">
+          <article *ngFor="let row of policies; trackBy: track">
+            <header>
+              <div><strong>{{ typeLabel(row.transactionType) }}</strong><span>{{ modeLabel(row.prenotificationMode) }}</span></div>
+              <mat-chip>{{ status(row) }}</mat-chip>
+            </header>
+            <dl>
+              <div><dt>Plazo</dt><dd>{{ lead(row) }}</dd></div>
+              <div><dt>Vigencia</dt><dd>{{ row.effectiveFrom | date:'mediumDate':'UTC' }} — {{ row.effectiveTo ? (row.effectiveTo | date:'mediumDate':'UTC') : 'Sin cierre' }}</dd></div>
+              <div><dt>Referencia</dt><dd>{{ row.normativeSource }} · {{ row.normativeReference }}</dd></div>
+            </dl>
+            <button *ngIf="canManage" mat-stroked-button type="button" [matMenuTriggerFor]="mobileActions">
+              Administrar <mat-icon>expand_more</mat-icon>
+            </button>
+            <mat-menu #mobileActions="matMenu">
+              <button mat-menu-item type="button" (click)="editMetadata(row)"><mat-icon>edit_note</mat-icon><span>Editar metadatos</span></button>
+              <button mat-menu-item type="button" (click)="close(row)" [disabled]="status(row) === 'Histórica'"><mat-icon>event_busy</mat-icon><span>Cerrar vigencia</span></button>
+              <button mat-menu-item type="button" (click)="activate(row)" [disabled]="status(row) !== 'Futura'"><mat-icon>play_circle</mat-icon><span>Activar versión futura</span></button>
+            </mat-menu>
+          </article>
+        </div>
+      </mat-card-content>
+    </mat-card>
   </ng-container>
+
+  <ng-template #policyEditorDialog>
+    <h2 mat-dialog-title>{{ metadataPolicy ? 'Editar metadatos normativos' : 'Crear nueva versión' }}</h2>
+    <mat-dialog-content>
+      <p class="dialog-intro">
+        {{ metadataPolicy
+          ? 'La definición funcional e histórica permanece bloqueada; solo puede actualizar la trazabilidad normativa.'
+          : 'Revise la vigencia y el impacto NACHA-M antes de guardar.' }}
+      </p>
+      <form [formGroup]="form" id="policy-editor-form" class="policy-form" (ngSubmit)="save()">
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de transacción</mat-label>
+          <mat-select formControlName="transactionType">
+            <mat-option [value]="transactionTypes.Debit">Débito</mat-option>
+            <mat-option [value]="transactionTypes.Credit">Crédito</mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.controls.transactionType.hasError('required')">Seleccione el tipo de transacción.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Modo</mat-label>
+          <mat-select formControlName="prenotificationMode">
+            <mat-option value="Mandatory">Prenotificación obligatoria</mat-option>
+            <mat-option value="Optional">Prenotificación opcional</mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.controls.prenotificationMode.hasError('required')">Seleccione el modo de prenotificación.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Días hábiles previos</mat-label>
+          <input matInput type="number" formControlName="prenotificationLeadBusinessDays" min="0" max="365" step="1" />
+          <mat-hint>Déjelo vacío cuando la norma exija prenotificación, pero no establezca una anticipación mínima.</mat-hint>
+          <mat-error *ngIf="form.controls.prenotificationLeadBusinessDays.hasError('integer')">El plazo debe ser un número entero.</mat-error>
+          <mat-error *ngIf="form.controls.prenotificationLeadBusinessDays.hasError('min')">El plazo no puede ser negativo.</mat-error>
+          <mat-error *ngIf="form.controls.prenotificationLeadBusinessDays.hasError('max')">El plazo supera el máximo de 365 días.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Vigente desde</mat-label>
+          <input matInput [matDatepicker]="fromPicker" formControlName="effectiveFrom" />
+          <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+          <mat-error *ngIf="form.controls.effectiveFrom.hasError('required')">La fecha inicial es obligatoria.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Vigente hasta</mat-label>
+          <input matInput [matDatepicker]="toPicker" formControlName="effectiveTo" />
+          <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
+          <mat-error *ngIf="form.hasError('dateRange')">La fecha final debe ser posterior o igual a la inicial.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Fuente normativa</mat-label>
+          <input matInput formControlName="normativeSource" maxlength="250" />
+          <mat-error *ngIf="form.controls.normativeSource.hasError('required')">La fuente normativa es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.normativeSource.hasError('maxlength')">La fuente supera 250 caracteres.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Referencia normativa</mat-label>
+          <input matInput formControlName="normativeReference" maxlength="250" />
+          <mat-error *ngIf="form.controls.normativeReference.hasError('required')">La referencia normativa es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.normativeReference.hasError('maxlength')">La referencia supera 250 caracteres.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="policy-form__notes">
+          <mat-label>Notas</mat-label>
+          <textarea matInput rows="3" formControlName="notes" maxlength="2000"></textarea>
+          <mat-error *ngIf="form.controls.notes.hasError('maxlength')">Las notas superan 2.000 caracteres.</mat-error>
+        </mat-form-field>
+        <p *ngIf="form.hasError('overlap')" class="policy-form__error" role="alert">
+          La vigencia se solapa con otra versión activa. Ajuste las fechas antes de guardar.
+        </p>
+      </form>
+      <div *ngIf="previewResult" class="policy-preview" role="status">
+        <mat-icon>{{ previewResult.ruleConfigured ? 'verified' : 'warning' }}</mat-icon>
+        <div>
+          <strong>{{ previewResult.ruleConfigured ? 'Política encontrada' : 'Configuración faltante' }}</strong>
+          <p>{{ previewResult.message }}</p>
+          <small *ngIf="previewResult.normativeSource">{{ previewResult.normativeSource }} · {{ previewResult.normativeReference }}</small>
+        </div>
+      </div>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-stroked-button type="button" (click)="preview()" [disabled]="saving">
+        <mat-icon>visibility</mat-icon>
+        Vista previa
+      </button>
+      <span class="dialog-spacer"></span>
+      <button mat-button type="button" (click)="cancel()" [disabled]="saving">Cancelar</button>
+      <button mat-flat-button color="primary" type="submit" form="policy-editor-form" [disabled]="form.invalid || saving || !canManage">
+        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        <mat-icon *ngIf="!saving">save</mat-icon>
+        {{ saving ? 'Guardando…' : metadataPolicy ? 'Guardar metadatos' : 'Crear versión' }}
+      </button>
+    </mat-dialog-actions>
+  </ng-template>
 </section>

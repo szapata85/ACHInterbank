@@ -1,0 +1,42 @@
+:host { display: block; }
+.context-card { margin-bottom: 1.25rem; overflow: hidden; }
+.context-card__identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.25rem .5rem;
+}
+.context-card__identity > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: .625rem;
+  align-items: baseline;
+}
+.context-card__eyebrow {
+  grid-column: 1 / -1;
+  color: #64748b;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.context-card__identity strong { font-size: 1.05rem; }
+.context-card__code {
+  color: #475569;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .82rem;
+}
+.context-card__inactive { background: #fff1f2; color: #9f1239; }
+nav mat-icon { margin-right: .4rem; }
+
+@media (max-width: 680px) {
+  .context-card__identity {
+    grid-template-columns: 1fr auto;
+    padding: 1rem;
+  }
+  .context-card__identity > a { grid-column: 1 / -1; justify-self: start; }
+  .context-card__identity > div { min-width: 0; }
+  nav { overflow-x: auto; }
+  nav a { min-width: max-content; }
+}

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject, Subject } from 'rxjs';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { AuthService } from '../../core/services/auth.service';
 import { ClearingHousesService } from './clearing-houses.service';
 import { TransactionPoliciesService } from './transaction-policies.service';
@@ -26,6 +27,8 @@ describe('TransactionPoliciesComponent', () => {
     await TestBed.configureTestingModule({
       imports: [TransactionPoliciesComponent],
       providers: [
+        provideRouter([]),
+        provideNoopAnimations(),
         { provide: ActivatedRoute, useValue: { paramMap: routeParams$.asObservable() } },
         { provide: AuthService, useValue: { hasPermission: () => true } },
         { provide: ClearingHousesService, useValue: { get: getHouse } },
@@ -35,7 +38,9 @@ describe('TransactionPoliciesComponent', () => {
             list: listPolicies,
             create: () => new Subject(),
             updateMetadata: () => new Subject(),
-            preview: () => new Subject()
+            preview: () => new Subject(),
+            close: () => new Subject(),
+            activate: () => new Subject()
           }
         }
       ]
@@ -100,6 +105,41 @@ describe('TransactionPoliciesComponent', () => {
 
     expect(component.form.controls.prenotificationLeadBusinessDays.disabled).toBeTrue();
     expect(component.form.controls.prenotificationLeadBusinessDays.value).toBeNull();
+  });
+
+  it('keeps listening for route changes after an HTTP error', () => {
+    createFor(7);
+    houseRequests.get(7)!.error({ status: 403 });
+    expect(component.loading).toBeFalse();
+    expect(component.error).toContain('permisos');
+
+    houseRequests.set(8, new Subject());
+    policyRequests.set(8, new Subject());
+    routeParams$.next(convertToParamMap({ id: '8' }));
+    completeLoad(8, 'ACHCOL', [policy(8, 3)]);
+
+    expect(component.clearingHouse?.code).toBe('ACHCOL');
+    expect(component.error).toBe('');
+  });
+
+  it('renders no local h1 because the application shell owns the page heading', () => {
+    createFor(7);
+    completeLoad(7, 'ACHCOL', [policy(7, 3)]);
+    expect(fixture.nativeElement.querySelectorAll('h1').length).toBe(0);
+    expect(fixture.nativeElement.textContent).toContain('Configuración transaccional');
+  });
+
+  it('validates integer, non-negative and maximum lead days', () => {
+    createFor(7);
+    completeLoad(7, 'ACHCOL', [policy(7, 3)]);
+    component.createVersion();
+    const lead = component.form.controls.prenotificationLeadBusinessDays;
+    lead.setValue(1.5);
+    expect(lead.hasError('integer')).toBeTrue();
+    lead.setValue(-1);
+    expect(lead.hasError('min')).toBeTrue();
+    lead.setValue(366);
+    expect(lead.hasError('max')).toBeTrue();
   });
 
   function createFor(id: number): void {

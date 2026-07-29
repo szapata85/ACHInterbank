@@ -14,3 +14,11 @@ html {
     density: -1
   ));
 }
+
+// Angular Material defaults to the legacy "Material Icons" font set. The SPA
+// packages Material Symbols locally, so font icons must resolve to that bundled
+// family even when a component uses the default mat-icon font set.
+mat-icon.mat-icon {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-feature-settings: 'liga';
+}

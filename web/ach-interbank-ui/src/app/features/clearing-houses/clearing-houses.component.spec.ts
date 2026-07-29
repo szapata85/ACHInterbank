@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { AuthService } from '../../core/services/auth.service';
 import { ClearingHousesComponent } from './clearing-houses.component';
 import { ClearingHousesService } from './clearing-houses.service';
@@ -8,6 +10,8 @@ import { ClearingHousesService } from './clearing-houses.service';
 describe('ClearingHousesComponent', () => {
   let fixture: ComponentFixture<ClearingHousesComponent>;
   let api: jasmine.SpyObj<ClearingHousesService>;
+  let dialog: MatDialog;
+  let openDialog: jasmine.Spy;
   const row = { id: 3, code: 'NUEVARED', name: 'Nueva Red', originCode: '900', isActive: false,
     timeZoneId: 'America/Bogota', holidayStrategy: 'Colombian', requiresNachaProfile: false,
     paymentRailCode: null,
@@ -24,23 +28,26 @@ describe('ClearingHousesComponent', () => {
     ]));
     await TestBed.configureTestingModule({
       imports: [ClearingHousesComponent],
-      providers: [provideRouter([]), { provide: ClearingHousesService, useValue: api },
+      providers: [provideRouter([]), provideNoopAnimations(), { provide: ClearingHousesService, useValue: api },
         { provide: AuthService, useValue: { hasPermission: () => true } }]
     }).compileComponents();
     fixture = TestBed.createComponent(ClearingHousesComponent);
+    dialog = (fixture.componentInstance as any).dialog as MatDialog;
+    openDialog = spyOn(dialog, 'open').and.returnValue({ afterClosed: () => of(true) } as any);
     fixture.detectChanges();
   });
 
   it('renderiza lista, estado y configuración incompleta en español', () => {
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Cámaras compensadoras'); expect(text).toContain('NUEVARED'); expect(text).toContain('Inactiva');
+    expect(text).toContain('Centro administrativo de cámaras'); expect(text).toContain('NUEVARED'); expect(text).toContain('Inactiva');
     fixture.componentInstance.view(row); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Configuración incompleta');
     expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
   });
 
   it('busca y filtra activas desde el DOM', () => {
-    fixture.componentInstance.search = 'nueva'; fixture.componentInstance.state = 'active'; fixture.componentInstance.applyFilters();
+    fixture.componentInstance.filterForm.setValue({ search: 'nueva', state: 'active' });
+    fixture.componentInstance.applyFilters();
     expect(api.list).toHaveBeenCalledWith('nueva', true, 1);
   });
 
@@ -62,7 +69,7 @@ describe('ClearingHousesComponent', () => {
     api.changeStatus.and.returnValue(of({ ...row, isActive: true, isReady: true, activeCycleCount: 1, missingRequirements: [] }));
     fixture.componentInstance.changeStatus(row); fixture.detectChanges();
     expect(api.changeStatus).toHaveBeenCalledWith(3, true);
-    expect(fixture.nativeElement.textContent).toContain('Administrar ciclos');
+    expect(fixture.componentInstance.canCycles).toBeTrue();
   });
 
   it('carga estrategias registradas, excluye Unknown y muestra Sin configurar', () => {
@@ -88,7 +95,7 @@ describe('ClearingHousesComponent', () => {
 
     expect(fixture.componentInstance.form.controls.paymentRailCode.disabled).toBeTrue();
     expect(fixture.componentInstance.form.controls.paymentRailCode.value).toBe('ACH_COLOMBIA');
-    expect(fixture.nativeElement.textContent).toContain('Para cambiar la estrategia operativa, primero desactive la cámara.');
+    expect(fixture.nativeElement.textContent).toContain('Para cambiarla, primero desactive la cámara.');
   });
 
   it('recalcula el selector al crear o alternar entre cámaras activas e inactivas', () => {
@@ -118,5 +125,21 @@ describe('ClearingHousesComponent', () => {
     fixture.componentInstance.changeStatus(row); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Estrategia operativa registrada');
     expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
+  });
+
+  it('usa controles Material, filtros tipados y no duplica el h1 del shell', () => {
+    expect(fixture.nativeElement.querySelector('mat-card')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('table[mat-table]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('h1').length).toBe(0);
+    fixture.componentInstance.filterForm.setValue({ search: 'CENIT', state: 'inactive' });
+    fixture.componentInstance.clearFilters();
+    expect(fixture.componentInstance.filterForm.getRawValue()).toEqual({ search: '', state: 'all' });
+  });
+
+  it('confirma el cambio de estado con MatDialog sin usar confirm del navegador', () => {
+    api.changeStatus.and.returnValue(of({ ...row, isActive: true, isReady: true, activeCycleCount: 1, missingRequirements: [] }));
+    fixture.componentInstance.changeStatus(row);
+    expect(openDialog).toHaveBeenCalled();
+    expect(api.changeStatus).toHaveBeenCalledWith(row.id, true);
   });
 });

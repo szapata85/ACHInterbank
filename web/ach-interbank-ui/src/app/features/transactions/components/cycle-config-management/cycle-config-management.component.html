@@ -1,5 +1,13 @@
 <app-page-header title="Configuración de ciclos" subtitle="Administración ACH"></app-page-header>
 
+<app-clearing-house-context-navigation
+  *ngIf="contextClearingHouse as house"
+  [clearingHouse]="house"
+  [canReadPolicies]="canReadPolicies"
+  [canManageCycles]="true"
+  [canManageSpecialDates]="canManageSpecialDates"
+></app-clearing-house-context-navigation>
+
 <nav class="cycle-tabs" aria-label="Secciones de configuración de ciclos">
   <a routerLink="/ach-cycles" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Ciclos</a>
   <a routerLink="/transactions/cycle-configs" routerLinkActive="active">Reglas de procesamiento</a>
