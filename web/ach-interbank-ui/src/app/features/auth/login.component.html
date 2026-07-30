@@ -1,50 +1,74 @@
 <section class="login-card" aria-labelledby="login-title">
-  <header>
+  <header class="login-header">
     <h1 id="login-title">Ingreso al portal ACH Interbank</h1>
     <p>Autentícate para gestionar transacciones y catálogos.</p>
   </header>
 
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-    <label class="field">
-      <span>Usuario</span>
-      <input type="text" formControlName="username" autocomplete="username" />
-      <small *ngIf="form.get('username')?.touched && form.get('username')?.invalid">
-        Ingresa un usuario válido.
-      </small>
-    </label>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate [attr.aria-busy]="isSubmitting">
+    <mat-form-field appearance="outline">
+      <mat-label>Usuario</mat-label>
+      <input
+        matInput
+        type="text"
+        formControlName="username"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+      />
+      <mat-icon matPrefix aria-hidden="true">person</mat-icon>
+      <mat-error *ngIf="form.controls.username.hasError('required')">
+        El usuario es obligatorio.
+      </mat-error>
+      <mat-error *ngIf="form.controls.username.hasError('minlength')">
+        El usuario debe tener al menos 3 caracteres.
+      </mat-error>
+    </mat-form-field>
 
-    <label class="field">
-      <span>Contraseña</span>
-      <div class="password-field">
-        <input
-          [type]="passwordVisible ? 'text' : 'password'"
-          formControlName="password"
-          autocomplete="current-password"
-        />
-        <button
-          type="button"
-          class="password-toggle"
-          (click)="togglePasswordVisibility()"
-          [attr.aria-pressed]="passwordVisible"
-          [attr.aria-label]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-          [attr.title]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
-        >
-          <app-ui-icon
-            class="password-icon"
-            [name]="passwordVisible ? 'visibility_off' : 'visibility'"
-          ></app-ui-icon>
-        </button>
-      </div>
-      <small *ngIf="form.get('password')?.touched && form.get('password')?.invalid">
+    <mat-form-field appearance="outline">
+      <mat-label>Contraseña</mat-label>
+      <input
+        matInput
+        [type]="passwordVisible ? 'text' : 'password'"
+        formControlName="password"
+        autocomplete="current-password"
+      />
+      <mat-icon matPrefix aria-hidden="true">lock</mat-icon>
+      <button
+        mat-icon-button
+        matSuffix
+        type="button"
+        class="password-toggle"
+        (click)="togglePasswordVisibility()"
+        [attr.aria-pressed]="passwordVisible"
+        [attr.aria-label]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+        [matTooltip]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+      >
+        <mat-icon aria-hidden="true">{{ passwordVisible ? 'visibility_off' : 'visibility' }}</mat-icon>
+      </button>
+      <mat-error *ngIf="form.controls.password.hasError('required')">
+        La contraseña es obligatoria.
+      </mat-error>
+      <mat-error *ngIf="form.controls.password.hasError('minlength')">
         La contraseña debe tener al menos 6 caracteres.
-      </small>
-    </label>
+      </mat-error>
+    </mat-form-field>
 
-    <app-error-message [text]="errorMessage"></app-error-message>
+    <div class="login-error" *ngIf="errorMessage" role="alert" aria-live="assertive">
+      <mat-icon aria-hidden="true">error</mat-icon>
+      <span>{{ errorMessage }}</span>
+    </div>
 
-    <button type="submit" [disabled]="isSubmitting">
-      {{ isSubmitting ? 'Ingresando...' : 'Ingresar' }}
+    <button
+      mat-flat-button
+      color="primary"
+      class="submit-button"
+      type="submit"
+      [disabled]="form.invalid || isSubmitting"
+    >
+      <mat-spinner *ngIf="isSubmitting" diameter="20" aria-hidden="true"></mat-spinner>
+      <span>{{ isSubmitting ? 'Ingresando…' : 'Ingresar' }}</span>
     </button>
+    <span class="sr-only" aria-live="polite">{{ isSubmitting ? 'Autenticación en curso' : '' }}</span>
 
     <div class="helper-links">
       <a routerLink="/forgot-password">¿Olvidaste tu clave?</a>

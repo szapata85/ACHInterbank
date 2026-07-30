@@ -1,129 +1,178 @@
-<div class="layout" [class.menu-open]="isMenuOpen" [class.sidebar-collapsed]="isSidebarCollapsed">
-  <div class="backdrop" *ngIf="isMenuOpen" (click)="closeMenu()" aria-hidden="true"></div>
-
-  <aside
-    class="sidebar"
-    [class.open]="isMenuOpen"
-    [class.collapsed]="isSidebarCollapsed"
+<mat-sidenav-container
+  class="shell-container"
+  [class.mobile-shell]="isMobile"
+  [class.sidebar-collapsed]="isSidebarCollapsed && !isMobile"
+  [hasBackdrop]="isMobile"
+  autosize
+>
+  <mat-sidenav
+    id="primary-navigation"
+    class="primary-sidenav"
+    [class.collapsed]="isSidebarCollapsed && !isMobile"
+    [mode]="isMobile ? 'over' : 'side'"
+    [opened]="drawerOpened"
+    [autoFocus]="isMobile"
+    (openedChange)="onDrawerOpenedChange($event)"
+    (closedStart)="onDrawerClosed()"
     role="navigation"
     aria-label="Menú principal"
   >
-    <div class="brand" *ngIf="branding$ | async as branding">
-      <div class="logo" [class.with-image]="branding.privateLogo">
-        <ng-container *ngIf="branding.privateLogo; else defaultPrivateLogo">
-          <img [src]="branding.privateLogo" alt="Logo de la aplicación" />
-        </ng-container>
-        <ng-template #defaultPrivateLogo>ACH</ng-template>
+    <div class="sidenav-panel">
+      <div class="brand" *ngIf="branding$ | async as branding">
+        <div class="logo" [class.with-image]="branding.privateLogo">
+          <ng-container *ngIf="branding.privateLogo; else defaultPrivateLogo">
+            <img [src]="branding.privateLogo" alt="" />
+          </ng-container>
+          <ng-template #defaultPrivateLogo>ACH</ng-template>
+        </div>
+        <div class="brand-copy">
+          <p class="brand-title">ACH Interbank</p>
+          <small data-ui-text="functional">Portal administrativo</small>
+        </div>
       </div>
-      <div class="brand-copy">
-        <p class="title">ACH Interbank</p>
-        <small data-ui-text="functional">Portal administrativo</small>
+
+      <div class="navigation">
+        <mat-nav-list aria-label="Opciones de navegación">
+          <ng-container
+            *ngTemplateOutlet="menuTree; context: { $implicit: menuItems }"
+          ></ng-container>
+        </mat-nav-list>
+
+        <div class="navigation-status" *ngIf="menuLoadError" role="status" aria-live="polite">
+          <mat-icon aria-hidden="true">warning</mat-icon>
+          <span>{{ menuLoadError }}</span>
+        </div>
       </div>
     </div>
+  </mat-sidenav>
 
-    <nav class="menu">
-      <ng-container *ngFor="let item of menuItems">
-        <div class="menu-group" [class.has-children]="item.children?.length" [class.expanded]="isItemExpanded(item)">
-          <div class="menu-header">
-            <ng-container *ngIf="item.children?.length; else navigableMenuItem">
-              <button
-                type="button"
-                class="menu-item menu-parent-row"
-                [attr.data-menu-item-id]="item.id"
-                [attr.aria-expanded]="isItemExpanded(item)"
-                [attr.aria-controls]="'submenu-' + item.id"
-                [attr.title]="isSidebarCollapsed ? item.label : null"
-                (click)="toggleSubmenu(item)"
-              >
-                <ng-container *ngTemplateOutlet="menuItemContent"></ng-container>
-              </button>
-            </ng-container>
-
-            <ng-template #navigableMenuItem>
-              <a
-                [routerLink]="item.route"
-                routerLinkActive="active"
-                [routerLinkActiveOptions]="item.exact ? { exact: true } : {}"
-                class="menu-item"
-                [attr.data-menu-item-id]="item.id"
-                [attr.title]="isSidebarCollapsed ? item.label : null"
-                (click)="onNavItemSelected()"
-              >
-                <ng-container *ngTemplateOutlet="menuItemContent"></ng-container>
-              </a>
-            </ng-template>
-
-            <ng-template #menuItemContent>
-              <app-ui-icon *ngIf="item.icon" [name]="item.icon" class="nav-icon"></app-ui-icon>
-              <span class="label">{{ item.label }}</span>
-              <span *ngIf="item.children?.length" class="chevron" aria-hidden="true"></span>
-            </ng-template>
-          </div>
-
-          <div
-            *ngIf="item.children?.length"
-            class="submenu"
-            [class.open]="isItemExpanded(item)"
-            [id]="'submenu-' + item.id"
-            role="group"
-            [attr.aria-label]="'Submenú de ' + item.label"
-          >
-            <a
-              *ngFor="let child of item.children"
-              [routerLink]="child.route"
-              routerLinkActive="active"
-              [routerLinkActiveOptions]="child.exact ? { exact: true } : {}"
-              class="submenu-item"
-              [attr.data-menu-item-id]="child.id"
-              [attr.title]="isSidebarCollapsed ? child.label : null"
-              (click)="onNavItemSelected()"
-            >
-              <app-ui-icon *ngIf="child.icon" [name]="child.icon" class="nav-icon"></app-ui-icon>
-              <span class="label">{{ child.label }}</span>
-            </a>
-          </div>
-        </div>
-      </ng-container>
-    </nav>
-  </aside>
-
-  <div class="main">
-    <header class="topbar" role="banner">
-      <div class="topbar-left">
+  <mat-sidenav-content class="shell-main">
+    <mat-toolbar class="shell-toolbar" role="banner">
+      <div class="toolbar-leading">
         <button
+          mat-icon-button
           class="menu-toggle"
           type="button"
           [attr.aria-label]="menuToggleLabel"
-          [attr.title]="menuToggleLabel"
+          [attr.aria-controls]="'primary-navigation'"
           [attr.aria-expanded]="isMenuExpanded"
+          [matTooltip]="menuToggleLabel"
           (click)="toggleMenu()"
         >
-          <span class="hamburger" [class.open]="isMenuOpen"></span>
+          <mat-icon aria-hidden="true">{{ isMenuExpanded ? 'menu_open' : 'menu' }}</mat-icon>
         </button>
 
         <div class="page-meta">
           <h1 class="page-title">{{ pageTitle }}</h1>
-          <nav class="breadcrumbs" aria-label="Breadcrumbs">
+          <nav class="breadcrumbs" aria-label="Ruta de navegación" *ngIf="breadcrumbs.length">
             <ng-container *ngFor="let crumb of breadcrumbs; let last = last">
               <a *ngIf="!last" [routerLink]="crumb.url">{{ crumb.label }}</a>
               <span *ngIf="last" aria-current="page">{{ crumb.label }}</span>
-              <span *ngIf="!last" class="divider">/</span>
+              <span *ngIf="!last" class="divider" aria-hidden="true">/</span>
             </ng-container>
           </nav>
         </div>
       </div>
+
+      <span class="toolbar-spacer"></span>
 
       <div class="user" *ngIf="user$ | async as user">
         <div class="user-info">
           <span class="name">{{ user.fullName }}</span>
           <small>{{ user.roles?.join(', ') || 'Usuario' }}</small>
         </div>
-        <button type="button" (click)="logout()">Salir</button>
+        <button
+          mat-stroked-button
+          class="logout-button"
+          type="button"
+          aria-label="Cerrar sesión"
+          matTooltip="Cerrar sesión"
+          (click)="logout()"
+        >
+          <mat-icon aria-hidden="true">logout</mat-icon>
+          <span class="logout-label">Salir</span>
+        </button>
       </div>
-    </header>
+    </mat-toolbar>
 
-    <main class="content" role="main">
+    <main class="content" id="main-content">
       <router-outlet></router-outlet>
     </main>
-  </div>
-</div>
+  </mat-sidenav-content>
+</mat-sidenav-container>
+
+<ng-template #menuTree let-items>
+  <ng-container *ngFor="let item of items; trackBy: trackByMenuItem">
+    <div
+      class="nav-node"
+      [class.branch-active]="activeItemIds.has(item.id)"
+      [attr.data-menu-node-id]="item.id"
+    >
+      <ng-container *ngIf="item.children?.length; else navigableMenuItem">
+        <button
+          mat-list-item
+          type="button"
+          class="nav-item nav-parent"
+          [class.active]="activeItemIds.has(item.id)"
+          [attr.data-menu-item-id]="item.id"
+          [attr.aria-expanded]="isItemExpanded(item)"
+          [attr.aria-controls]="'submenu-' + item.id"
+          [matTooltip]="item.label"
+          [matTooltipDisabled]="!isSidebarCollapsed || isMobile"
+          matTooltipPosition="after"
+          (click)="toggleSubmenu(item)"
+        >
+          <app-ui-icon
+            *ngIf="item.icon"
+            matListItemIcon
+            class="nav-icon"
+            [name]="item.icon"
+          ></app-ui-icon>
+          <span matListItemTitle class="nav-label">{{ item.label }}</span>
+          <span
+            matListItemMeta
+            class="expand-icon"
+            [class.expanded]="isItemExpanded(item)"
+            aria-hidden="true"
+          ></span>
+        </button>
+
+        <div
+          *ngIf="isItemExpanded(item) && (!isSidebarCollapsed || isMobile)"
+          class="nav-children"
+          [id]="'submenu-' + item.id"
+          role="group"
+          [attr.aria-label]="'Submenú de ' + item.label"
+        >
+          <ng-container
+            *ngTemplateOutlet="menuTree; context: { $implicit: item.children }"
+          ></ng-container>
+        </div>
+      </ng-container>
+
+      <ng-template #navigableMenuItem>
+        <a
+          mat-list-item
+          class="nav-item"
+          [routerLink]="item.route"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="item.exact ? exactRouteMatch : subsetRouteMatch"
+          ariaCurrentWhenActive="page"
+          [attr.data-menu-item-id]="item.id"
+          [matTooltip]="item.label"
+          [matTooltipDisabled]="!isSidebarCollapsed || isMobile"
+          matTooltipPosition="after"
+          (click)="onNavItemSelected()"
+        >
+          <app-ui-icon
+            *ngIf="item.icon"
+            matListItemIcon
+            class="nav-icon"
+            [name]="item.icon"
+          ></app-ui-icon>
+          <span matListItemTitle class="nav-label">{{ item.label }}</span>
+        </a>
+      </ng-template>
+    </div>
+  </ng-container>
+</ng-template>

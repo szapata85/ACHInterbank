@@ -1,26 +1,54 @@
+import { BreakpointObserver } from '@angular/cdk/layout';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  DestroyRef,
   HostBinding,
-  HostListener,
-  OnDestroy,
   OnInit,
   inject
 } from '@angular/core';
-import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
-import { Subscription, filter } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatListModule } from '@angular/material/list';
+import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import {
+  ActivatedRoute,
+  IsActiveMatchOptions,
+  NavigationEnd,
+  Router,
+  RouterModule
+} from '@angular/router';
+import { catchError, filter, of } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
+import { BrandingService } from '../core/services/branding.service';
 import { NavigationService } from '../core/services/navigation.service';
 import { MenuItem } from '../core/models/menu.model';
 import { SharedModule } from '../shared/shared.module';
-import { RouterModule } from '@angular/router';
-import { BrandingService } from '../core/services/branding.service';
 
 interface Breadcrumb {
   label: string;
   url: string;
 }
+
+const MOBILE_NAVIGATION_QUERY = '(max-width: 959.98px)';
+
+const EXACT_ROUTE_MATCH: IsActiveMatchOptions = {
+  paths: 'exact',
+  queryParams: 'ignored',
+  matrixParams: 'ignored',
+  fragment: 'ignored'
+};
+
+const SUBSET_ROUTE_MATCH: IsActiveMatchOptions = {
+  paths: 'subset',
+  queryParams: 'ignored',
+  matrixParams: 'ignored',
+  fragment: 'ignored'
+};
 
 @Component({
   selector: 'app-main-layout',
@@ -28,38 +56,87 @@ interface Breadcrumb {
   styleUrls: ['./main-layout.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [SharedModule, RouterModule]
+  imports: [
+    SharedModule,
+    RouterModule,
+    MatButtonModule,
+    MatIconModule,
+    MatListModule,
+    MatSidenavModule,
+    MatToolbarModule,
+    MatTooltipModule
+  ]
 })
-export class MainLayoutComponent implements OnInit, OnDestroy {
+export class MainLayoutComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly authService = inject(AuthService);
   private readonly navigationService = inject(NavigationService);
   private readonly brandingService = inject(BrandingService);
 
   @HostBinding('style.--private-bg')
-  public privateBackground: string | null = this.brandingService.getBrandingSnapshot().privateBackground ?? null;
+  public privateBackground: string | null =
+    this.brandingService.getBrandingSnapshot().privateBackground ?? null;
+
   @HostBinding('style.--sidebar-bg')
-  public sidebarBackground: string | null = this.brandingService.getBrandingSnapshot().sidebarBackground ?? null;
+  public sidebarBackground: string | null =
+    this.brandingService.getBrandingSnapshot().sidebarBackground ?? null;
 
   readonly user$ = this.authService.user$;
   readonly branding$ = this.brandingService.branding$;
+  readonly exactRouteMatch = EXACT_ROUTE_MATCH;
+  readonly subsetRouteMatch = SUBSET_ROUTE_MATCH;
+
   menuItems: MenuItem[] = [];
   expandedItems = new Set<number>();
+  activeItemIds = new Set<number>();
+  menuLoadError: string | null = null;
 
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
+  isMobile = false;
   isMenuOpen = false;
   isSidebarCollapsed = false;
 
-  private subscription?: Subscription;
-  private menuSubscription?: Subscription;
-  private brandingSubscription?: Subscription;
+  get drawerOpened(): boolean {
+    return this.isMobile ? this.isMenuOpen : true;
+  }
+
+  get menuToggleLabel(): string {
+    if (this.isMobile) {
+      return this.isMenuOpen ? 'Cerrar menú principal' : 'Abrir menú principal';
+    }
+
+    return this.isSidebarCollapsed ? 'Expandir menú principal' : 'Contraer menú principal';
+  }
+
+  get isMenuExpanded(): boolean {
+    return this.isMobile ? this.isMenuOpen : !this.isSidebarCollapsed;
+  }
 
   ngOnInit(): void {
-    this.subscription = this.router.events
-      .pipe(filter((event) => event instanceof NavigationEnd))
+    this.breakpointObserver
+      .observe(MOBILE_NAVIGATION_QUERY)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(({ matches }) => {
+        this.isMobile = matches;
+        this.isMenuOpen = false;
+
+        if (matches) {
+          this.isSidebarCollapsed = false;
+        }
+
+        this.cdr.markForCheck();
+      });
+
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe(() => {
         this.buildBreadcrumbs();
         this.handleNavigation();
@@ -68,23 +145,29 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
     this.buildBreadcrumbs();
 
-    this.menuSubscription = this.navigationService.getMenu().subscribe((items) => {
-      this.menuItems = items;
-      this.syncExpandedItems();
-      this.cdr.markForCheck();
-    });
+    this.navigationService
+      .getMenu()
+      .pipe(
+        catchError(() => {
+          this.menuLoadError = 'No fue posible cargar el menú principal.';
+          this.cdr.markForCheck();
+          return of([] as MenuItem[]);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((items) => {
+        this.menuItems = items;
+        this.syncActiveNavigation();
+        this.cdr.markForCheck();
+      });
 
-    this.brandingSubscription = this.brandingService.branding$.subscribe((branding) => {
-      this.privateBackground = branding.privateBackground ?? null;
-      this.sidebarBackground = branding.sidebarBackground ?? null;
-      this.cdr.markForCheck();
-    });
-  }
-
-  ngOnDestroy(): void {
-    this.subscription?.unsubscribe();
-    this.menuSubscription?.unsubscribe();
-    this.brandingSubscription?.unsubscribe();
+    this.brandingService.branding$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((branding) => {
+        this.privateBackground = branding.privateBackground ?? null;
+        this.sidebarBackground = branding.sidebarBackground ?? null;
+        this.cdr.markForCheck();
+      });
   }
 
   logout(): void {
@@ -92,40 +175,47 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   }
 
   toggleMenu(): void {
-    if (this.isMobileView()) {
+    if (this.isMobile) {
       this.isMenuOpen = !this.isMenuOpen;
     } else {
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
     }
+
     this.cdr.markForCheck();
   }
 
-  get menuToggleLabel(): string {
-    if (this.isMobileView()) {
-      return this.isMenuOpen ? 'Cerrar menú principal' : 'Abrir menú principal';
+  closeMenu(): void {
+    if (!this.isMobile || !this.isMenuOpen) {
+      return;
     }
 
-    return this.isSidebarCollapsed ? 'Expandir menú principal' : 'Contraer menú principal';
+    this.isMenuOpen = false;
+    this.cdr.markForCheck();
   }
 
-  get isMenuExpanded(): boolean {
-    return this.isMobileView() ? this.isMenuOpen : !this.isSidebarCollapsed;
+  onDrawerOpenedChange(opened: boolean): void {
+    if (this.isMobile && this.isMenuOpen !== opened) {
+      this.isMenuOpen = opened;
+      this.cdr.markForCheck();
+    }
   }
 
-  closeMenu(): void {
-    if (this.isMenuOpen) {
+  onDrawerClosed(): void {
+    if (this.isMobile && this.isMenuOpen) {
       this.isMenuOpen = false;
       this.cdr.markForCheck();
     }
   }
 
   toggleSubmenu(item: MenuItem): void {
-    const key = item.id;
+    if (!this.isMobile && this.isSidebarCollapsed) {
+      this.isSidebarCollapsed = false;
+    }
 
-    if (this.expandedItems.has(key)) {
-      this.expandedItems.delete(key);
+    if (this.expandedItems.has(item.id)) {
+      this.expandedItems.delete(item.id);
     } else {
-      this.expandedItems.add(key);
+      this.expandedItems.add(item.id);
     }
 
     this.cdr.markForCheck();
@@ -136,41 +226,27 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   }
 
   onNavItemSelected(): void {
-    if (this.isMobileView()) {
+    if (this.isMobile) {
       this.closeMenu();
     }
   }
 
-  @HostListener('window:resize')
-  onResize(): void {
-    if (this.isMobileView() && this.isSidebarCollapsed) {
-      this.isSidebarCollapsed = false;
-    }
-
-    if (!this.isMobileView() && this.isMenuOpen) {
-      this.closeMenu();
-    }
-  }
-
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
-    if (this.isMenuOpen) {
-      this.closeMenu();
-    }
+  trackByMenuItem(_index: number, item: MenuItem): number {
+    return item.id;
   }
 
   private buildBreadcrumbs(): void {
     const breadcrumbs: Breadcrumb[] = [];
     let currentRoute: ActivatedRoute | null = this.route.root;
     let url = '';
+    this.pageTitle = 'Inicio';
 
     while (currentRoute) {
       const routeSnapshot = currentRoute.snapshot;
       const routeConfig = routeSnapshot.routeConfig;
 
-      if (routeConfig && routeConfig.path) {
-        const path = routeConfig.path.startsWith('/') ? routeConfig.path : `${url}/${routeConfig.path}`;
-        url = path;
+      if (routeConfig?.path) {
+        url = routeConfig.path.startsWith('/') ? routeConfig.path : `${url}/${routeConfig.path}`;
       }
 
       const label = routeSnapshot.data['breadcrumb'] as string | undefined;
@@ -191,55 +267,69 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   }
 
   private handleNavigation(): void {
-    if (this.isMobileView()) {
+    if (this.isMobile) {
       this.closeMenu();
     }
 
-    this.syncExpandedItems();
+    this.syncActiveNavigation();
   }
 
-  private isMobileView(): boolean {
-    return typeof window !== 'undefined' && window.innerWidth < 960;
-  }
+  private syncActiveNavigation(): void {
+    const validExpandedIds = new Set<number>();
 
-  private syncExpandedItems(): void {
-    const currentUrl = this.router.url;
-    const expandedItems = new Set(this.expandedItems);
-
-    const markExpanded = (items: MenuItem[]): boolean => {
-      return items.some((item) => {
-        const hasActiveChild = item.children?.length ? markExpanded(item.children) : false;
-        const isActive = this.isRouteActive(currentUrl, item.route, item.exact);
-
-        if (hasActiveChild) {
-          expandedItems.add(item.id);
+    const retainValidExpandedItems = (items: MenuItem[]): void => {
+      for (const item of items) {
+        if (this.expandedItems.has(item.id)) {
+          validExpandedIds.add(item.id);
         }
 
-        if (isActive && item.children?.length && hasActiveChild) {
-          expandedItems.add(item.id);
+        if (item.children?.length) {
+          retainValidExpandedItems(item.children);
         }
-
-        if (!isActive && !hasActiveChild) {
-          expandedItems.delete(item.id);
-        }
-
-        return isActive || hasActiveChild;
-      });
+      }
     };
 
-    markExpanded(this.menuItems);
-    this.expandedItems = expandedItems;
+    retainValidExpandedItems(this.menuItems);
+
+    const activeIds = new Set<number>();
+
+    const markActiveItems = (items: MenuItem[]): boolean => {
+      let branchIsActive = false;
+
+      for (const item of items) {
+        const hasActiveChild = item.children?.length ? markActiveItems(item.children) : false;
+        const isActive = this.isRouteActive(item);
+
+        if (isActive || hasActiveChild) {
+          activeIds.add(item.id);
+          branchIsActive = true;
+        }
+
+        if (item.children?.length && (isActive || hasActiveChild)) {
+          validExpandedIds.add(item.id);
+        }
+      }
+
+      return branchIsActive;
+    };
+
+    markActiveItems(this.menuItems);
+    this.activeItemIds = activeIds;
+    this.expandedItems = validExpandedIds;
   }
 
-  private isRouteActive(currentUrl: string, route: string, exact?: boolean): boolean {
-    if (!route) {
+  private isRouteActive(item: MenuItem): boolean {
+    if (!item.route) {
       return false;
     }
 
-    if (exact) {
-      return currentUrl === route;
+    try {
+      return this.router.isActive(
+        this.router.parseUrl(item.route),
+        item.exact ? EXACT_ROUTE_MATCH : SUBSET_ROUTE_MATCH
+      );
+    } catch {
+      return false;
     }
-
-    return currentUrl === route || currentUrl.startsWith(`${route}/`);
   }
 }
