@@ -1,46 +1,255 @@
-<app-page-header title="Audit log" subtitle="Consulta y monitoreo de auditoría"></app-page-header>
+<app-page-header
+  title="Registro de auditoría"
+  subtitle="Consulta trazable de cambios realizados en la plataforma"
+></app-page-header>
 
-<section class="audit-log">
-  <form class="form-grid" [formGroup]="filterForm" (ngSubmit)="search()">
-    <label>
-      Fecha inicio
-      <input type="date" formControlName="startDate" />
-    </label>
+<section class="audit-log" aria-label="Consulta del registro de auditoría">
+  <mat-card appearance="outlined" class="filters-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true">filter_alt</mat-icon>
+      <mat-card-title>Filtros de consulta</mat-card-title>
+      <mat-card-subtitle>Acota los resultados por fecha, usuario o acción</mat-card-subtitle>
+    </mat-card-header>
 
-    <label>
-      Fecha fin
-      <input type="date" formControlName="endDate" />
-    </label>
+    <mat-card-content>
+      <form
+        class="form-grid"
+        [formGroup]="filterForm"
+        (ngSubmit)="search()"
+        aria-label="Filtros del registro de auditoría"
+      >
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha inicial</mat-label>
+          <input
+            matInput
+            [matDatepicker]="auditStartDatePicker"
+            formControlName="startDate"
+            [attr.aria-describedby]="showDateRangeError ? 'audit-date-range-error' : null"
+          />
+          <mat-datepicker-toggle
+            matIconSuffix
+            [for]="auditStartDatePicker"
+            aria-label="Abrir calendario de fecha inicial"
+          ></mat-datepicker-toggle>
+          <mat-datepicker #auditStartDatePicker></mat-datepicker>
+        </mat-form-field>
 
-    <label>
-      Usuario
-      <input type="text" formControlName="changedBy" placeholder="Buscar por usuario" />
-    </label>
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha final</mat-label>
+          <input
+            matInput
+            [matDatepicker]="auditEndDatePicker"
+            formControlName="endDate"
+            [attr.aria-describedby]="showDateRangeError ? 'audit-date-range-error' : null"
+          />
+          <mat-datepicker-toggle
+            matIconSuffix
+            [for]="auditEndDatePicker"
+            aria-label="Abrir calendario de fecha final"
+          ></mat-datepicker-toggle>
+          <mat-datepicker #auditEndDatePicker></mat-datepicker>
+        </mat-form-field>
 
-    <label>
-      Acción
-      <select formControlName="action">
-        <option *ngFor="let option of actions" [value]="option.value">{{ option.label }}</option>
-      </select>
-    </label>
+        <mat-form-field appearance="outline">
+          <mat-label>Usuario</mat-label>
+          <input
+            matInput
+            type="text"
+            formControlName="changedBy"
+            autocomplete="off"
+            placeholder="Nombre de usuario"
+          />
+        </mat-form-field>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary" [disabled]="loading">Buscar</button>
-      <button type="button" class="btn btn-outline" (click)="clear()" [disabled]="loading">Limpiar</button>
-    </div>
-  </form>
+        <mat-form-field appearance="outline">
+          <mat-label>Acción</mat-label>
+          <mat-select formControlName="action">
+            <mat-option *ngFor="let option of actions" [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
 
-  <app-table
-    [columns]="columns"
-    [data]="rows"
-    [loading]="loading"
-    [page]="page"
-    [pageSize]="pageSize"
-    [total]="total"
-    (pageChange)="onPageChange($event)"
-  ></app-table>
+        <div class="form-actions">
+          <button
+            mat-flat-button
+            color="primary"
+            type="submit"
+            [disabled]="filterForm.invalid || loading"
+          >
+            <mat-icon aria-hidden="true">search</mat-icon>
+            {{ loading ? 'Consultando…' : 'Buscar' }}
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="clear()"
+            [disabled]="loading"
+          >
+            <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+            Limpiar
+          </button>
+        </div>
 
-  <div class="empty-state" *ngIf="!loading && !hasSearched">
-    Usa los filtros y presiona buscar para cargar resultados.
+        <p
+          *ngIf="showDateRangeError"
+          id="audit-date-range-error"
+          class="validation-message"
+          role="alert"
+        >
+          La fecha inicial no puede ser posterior a la fecha final.
+        </p>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <div
+    class="status-region"
+    aria-live="polite"
+    [attr.aria-busy]="loading"
+  >
+    <mat-progress-bar
+      *ngIf="loading"
+      mode="indeterminate"
+      aria-label="Cargando registros de auditoría"
+    ></mat-progress-bar>
+    <span *ngIf="loading" class="sr-only">Cargando registros de auditoría.</span>
+
+    <mat-card
+      *ngIf="errorMessage && !loading"
+      appearance="outlined"
+      class="state-card state-card--error"
+      role="alert"
+    >
+      <mat-icon aria-hidden="true">error</mat-icon>
+      <div>
+        <strong>No se pudo completar la consulta</strong>
+        <p>{{ errorMessage }}</p>
+      </div>
+      <button mat-stroked-button type="button" (click)="retry()">
+        <mat-icon aria-hidden="true">refresh</mat-icon>
+        Reintentar
+      </button>
+    </mat-card>
+
+    <mat-card
+      *ngIf="!loading && !errorMessage && !hasSearched"
+      appearance="outlined"
+      class="state-card"
+      role="status"
+    >
+      <mat-icon aria-hidden="true">manage_search</mat-icon>
+      <div>
+        <strong>Prepara tu consulta</strong>
+        <p>Usa los filtros y selecciona Buscar para cargar resultados.</p>
+      </div>
+    </mat-card>
+
+    <mat-card
+      *ngIf="!loading && !errorMessage && hasSearched && rows.length === 0"
+      appearance="outlined"
+      class="state-card"
+      role="status"
+    >
+      <mat-icon aria-hidden="true">search_off</mat-icon>
+      <div>
+        <strong>Sin resultados</strong>
+        <p>No se encontraron registros con los filtros seleccionados.</p>
+      </div>
+    </mat-card>
   </div>
+
+  <mat-card
+    *ngIf="hasSearched && !errorMessage && (loading || rows.length > 0)"
+    appearance="outlined"
+    class="table-card"
+    [attr.aria-busy]="loading"
+  >
+    <div
+      class="table-scroll"
+      tabindex="0"
+      aria-label="Resultados de auditoría. La tabla admite desplazamiento horizontal."
+    >
+      <table
+        mat-table
+        [dataSource]="rows"
+        matSort
+        [matSortActive]="sort.active"
+        [matSortDirection]="sort.direction"
+        matSortDisableClear
+        (matSortChange)="onSortChange($event)"
+        aria-label="Registros de auditoría"
+      >
+        <ng-container matColumnDef="changedAt">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Fecha</th>
+          <td mat-cell *matCellDef="let row">{{ row.changedAtDisplay }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="changedBy">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Usuario</th>
+          <td mat-cell *matCellDef="let row">{{ row.changedByDisplay }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="action">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Acción</th>
+          <td mat-cell *matCellDef="let row">
+            <mat-chip-set [attr.aria-label]="'Acción: ' + row.actionDisplay">
+              <mat-chip [ngClass]="row.actionClass">
+                <mat-icon aria-hidden="true">{{ row.actionIcon }}</mat-icon>
+                {{ row.actionDisplay }}
+              </mat-chip>
+            </mat-chip-set>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="entityName">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Entidad</th>
+          <td mat-cell *matCellDef="let row">{{ row.entityNameDisplay }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="entityId">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>ID entidad</th>
+          <td mat-cell *matCellDef="let row">
+            <span
+              class="detail-cell detail-cell--compact"
+              tabindex="0"
+              [matTooltip]="row.entityIdDisplay"
+              [attr.aria-label]="'Identificador de entidad: ' + row.entityIdDisplay"
+            >
+              {{ row.entityIdDisplay }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="changedFields">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Campos modificados</th>
+          <td mat-cell *matCellDef="let row">
+            <span
+              class="detail-cell"
+              tabindex="0"
+              [matTooltip]="row.changedFieldsDisplay"
+              [attr.aria-label]="'Campos modificados: ' + row.changedFieldsDisplay"
+            >
+              {{ row.changedFieldsDisplay }}
+            </span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+      </table>
+    </div>
+
+    <mat-paginator
+      *ngIf="total > 0"
+      [length]="total"
+      [pageIndex]="page - 1"
+      [pageSize]="pageSize"
+      [pageSizeOptions]="pageSizeOptions"
+      [disabled]="loading"
+      showFirstLastButtons
+      aria-label="Paginación del registro de auditoría"
+      (page)="onPageChange($event)"
+    ></mat-paginator>
+  </mat-card>
 </section>

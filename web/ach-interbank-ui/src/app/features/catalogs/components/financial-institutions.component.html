@@ -1,78 +1,189 @@
-<section class="card">
-  <div class="header">
-    <div>
-      <p class="eyebrow">Catálogos</p>
-      <h2>Instituciones financieras</h2>
-      <p class="lede">Administra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.</p>
-    </div>
-    <div class="actions">
-      <ui-boton texto="Recargar" variante="contorno" icono="refresh" (accion)="loadInstitutions()" [deshabilitado]="loading || saving"></ui-boton>
-      <ui-boton texto="Nueva institución" icono="add" (accion)="startCreate()" [deshabilitado]="saving"></ui-boton>
-    </div>
-  </div>
+<section class="catalog-page" aria-labelledby="financial-institutions-title">
+  <mat-card appearance="outlined" class="catalog-card">
+    <mat-card-header class="catalog-header">
+      <div class="catalog-heading">
+        <p class="eyebrow">Catálogos</p>
+        <h1 mat-card-title id="financial-institutions-title">Instituciones financieras</h1>
+        <mat-card-subtitle>
+          Administra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.
+        </mat-card-subtitle>
+      </div>
 
-  <ui-grilla-empresarial
-    [columnas]="columnDefs"
-    [datos]="institutions"
-    [cargando]="loading"
-    [error]="loadError"
-    [mensajeError]="'No fue posible cargar las instituciones financieras.'"
-    (reintentar)="loadInstitutions()"
-    [tamanoPagina]="pageSize"
-    [mensajeVacio]="'No hay instituciones registradas.'"
-    [mensajeCargando]="'Cargando instituciones...'"
-    [placeholderBusqueda]="'Buscar institución por nombre, ruta o estado'"
-  ></ui-grilla-empresarial>
+      <div class="header-actions">
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="loading || saving"
+          (click)="loadInstitutions()"
+        >
+          Recargar
+        </button>
+        <button mat-flat-button type="button" [disabled]="saving" (click)="startCreate()">
+          Nueva institución
+        </button>
+      </div>
+    </mat-card-header>
 
-  <div class="empty" *ngIf="!loading && institutions.length === 0">
-    <p>No hay instituciones registradas.</p>
-    <ui-boton texto="Agregar primera institución" icono="add_circle" (accion)="startCreate()" [deshabilitado]="saving"></ui-boton>
-  </div>
-</section>
+    <mat-card-content>
+      <p class="operation-status operation-status--success" *ngIf="successMessage" role="status">
+        {{ successMessage }}
+      </p>
+      <p class="operation-status operation-status--error" *ngIf="operationError" role="alert">
+        {{ operationError }}
+      </p>
 
-<section class="card" *ngIf="showForm">
-  <h3>{{ editing ? 'Editar institución' : 'Nueva institución' }}</h3>
-  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-    <label>
-      Nombre
-      <input type="text" formControlName="name" maxlength="100" />
-      <app-error-message [control]="form.get('name')"></app-error-message>
-    </label>
+      <ui-grilla-empresarial
+        [columnas]="columnDefs"
+        [datos]="institutions"
+        [cargando]="loading"
+        [error]="loadError"
+        [mensajeError]="loadErrorMessage"
+        (reintentar)="loadInstitutions()"
+        [tamanoPagina]="pageSize"
+        [mensajeVacio]="'No hay instituciones registradas.'"
+        [mensajeCargando]="'Cargando instituciones...'"
+        [placeholderBusqueda]="'Buscar institución por nombre, ruta o estado'"
+      ></ui-grilla-empresarial>
+    </mat-card-content>
+  </mat-card>
 
-    <label>
-      Código de ruta
-      <input type="text" formControlName="routingNumber" maxlength="9" />
-      <app-error-message [control]="form.get('routingNumber')"></app-error-message>
-    </label>
+  <mat-card appearance="outlined" class="catalog-card editor-card" *ngIf="showForm">
+    <mat-progress-bar
+      *ngIf="saving"
+      mode="indeterminate"
+      aria-label="Guardando institución"
+    ></mat-progress-bar>
 
-    <label>
-      Código de tránsito
-      <input type="text" formControlName="transitCode" maxlength="4" />
-      <app-error-message [control]="form.get('transitCode')"></app-error-message>
-    </label>
+    <mat-card-header>
+      <h2 mat-card-title>{{ editing ? 'Editar institución' : 'Nueva institución' }}</h2>
+      <mat-card-subtitle>
+        {{ editing
+          ? 'Actualiza los datos sin cambiar el identificador de la institución.'
+          : 'Registra una institución disponible para los flujos ACH autorizados.' }}
+      </mat-card-subtitle>
+    </mat-card-header>
 
-    <label>
-      Dígito de control
-      <input type="text" formControlName="checkDigit" maxlength="1" readonly />
-      <app-error-message [control]="form.get('checkDigit')"></app-error-message>
-    </label>
+    <mat-card-content>
+      <form
+        [formGroup]="form"
+        (ngSubmit)="save()"
+        class="institution-form"
+        autocomplete="off"
+        novalidate
+        [attr.aria-busy]="saving"
+      >
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre</mat-label>
+            <input matInput type="text" formControlName="name" maxlength="100" />
+            <mat-hint align="end">{{ form.controls.name.value.length }}/100</mat-hint>
+            <mat-error *ngIf="form.controls.name.hasError('required')">
+              El nombre es obligatorio.
+            </mat-error>
+            <mat-error
+              *ngIf="
+                !form.controls.name.hasError('required')
+                && form.controls.name.hasError('pattern')
+              "
+            >
+              El nombre debe contener al menos un carácter visible.
+            </mat-error>
+            <mat-error *ngIf="form.controls.name.hasError('maxlength')">
+              El nombre no puede superar 100 caracteres.
+            </mat-error>
+          </mat-form-field>
 
-    <label class="checkbox">
-      <input type="checkbox" formControlName="isDefaultSource" />
-      <span>Usar como origen por defecto</span>
-    </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Código de ruta</mat-label>
+            <input
+              matInput
+              type="text"
+              inputmode="numeric"
+              formControlName="routingNumber"
+              maxlength="9"
+            />
+            <mat-hint>Solo dígitos, máximo 9.</mat-hint>
+            <mat-error *ngIf="form.controls.routingNumber.hasError('required')">
+              El código de ruta es obligatorio.
+            </mat-error>
+            <mat-error *ngIf="form.controls.routingNumber.hasError('pattern')">
+              Usa únicamente dígitos.
+            </mat-error>
+            <mat-error *ngIf="form.controls.routingNumber.hasError('maxlength')">
+              El código no puede superar 9 dígitos.
+            </mat-error>
+          </mat-form-field>
 
-    <label>
-      Estado
-      <select formControlName="status">
-        <option [ngValue]="statusEnum.Active">Activa</option>
-        <option [ngValue]="statusEnum.Inactive">Inactiva</option>
-      </select>
-    </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Código de tránsito</mat-label>
+            <input
+              matInput
+              type="text"
+              inputmode="numeric"
+              formControlName="transitCode"
+              maxlength="4"
+            />
+            <mat-hint>Solo dígitos, máximo 4.</mat-hint>
+            <mat-error *ngIf="form.controls.transitCode.hasError('required')">
+              El código de tránsito es obligatorio.
+            </mat-error>
+            <mat-error *ngIf="form.controls.transitCode.hasError('pattern')">
+              Usa únicamente dígitos.
+            </mat-error>
+            <mat-error *ngIf="form.controls.transitCode.hasError('maxlength')">
+              El código no puede superar 4 dígitos.
+            </mat-error>
+          </mat-form-field>
 
-    <div class="form-actions">
-      <ui-boton texto="Cancelar" variante="contorno" (accion)="cancelEdit()" [deshabilitado]="saving"></ui-boton>
-      <button type="submit" class="btn btn-primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
-    </div>
-  </form>
+          <mat-form-field appearance="outline">
+            <mat-label>Dígito de control</mat-label>
+            <input
+              matInput
+              type="text"
+              inputmode="numeric"
+              formControlName="checkDigit"
+              maxlength="1"
+              readonly
+            />
+            <mat-hint>Se calcula cuando ruta y tránsito forman 8 dígitos.</mat-hint>
+            <mat-error *ngIf="form.controls.checkDigit.hasError('required')">
+              Completa una combinación de ruta y tránsito que permita calcular el dígito.
+            </mat-error>
+            <mat-error *ngIf="form.controls.checkDigit.hasError('pattern')">
+              El dígito de control debe ser numérico.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select formControlName="status">
+              <mat-option [value]="statusEnum.Active">Activa</mat-option>
+              <mat-option [value]="statusEnum.Inactive">Inactiva</mat-option>
+            </mat-select>
+            <mat-error *ngIf="form.controls.status.hasError('required')">
+              Selecciona el estado.
+            </mat-error>
+          </mat-form-field>
+
+          <div class="default-source-field">
+            <mat-checkbox formControlName="isDefaultSource">
+              Usar como origen por defecto
+            </mat-checkbox>
+            <small>
+              Esta marca se conserva con la institución seleccionada, sin depender de un identificador fijo.
+            </small>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button mat-button type="button" [disabled]="saving" (click)="cancelEdit()">
+            Cancelar
+          </button>
+          <button mat-flat-button type="submit" [disabled]="saving || form.invalid">
+            {{ saving ? 'Guardando…' : (editing ? 'Actualizar' : 'Guardar') }}
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
 </section>

@@ -8,9 +8,8 @@ export class BankHolidaysAdminService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'bank-holidays';
 
-  list(year?: number): Observable<BankHoliday[]> {
-    const params = year ? { year } : undefined;
-    return this.api.get<BankHoliday[]>(this.basePath, { params });
+  list(year: number): Observable<BankHoliday[]> {
+    return this.api.get<BankHoliday[]>(this.basePath, { params: { year } });
   }
 
   create(payload: BankHoliday): Observable<BankHoliday> {

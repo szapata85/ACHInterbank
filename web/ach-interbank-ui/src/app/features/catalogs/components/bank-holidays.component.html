@@ -1,93 +1,246 @@
-<section class="card">
-  <div class="header">
-    <div>
-      <p class="eyebrow">Catálogos</p>
-      <h2>Festivos bancarios</h2>
-      <p class="lede">Administra los días festivos que no deben ejecutarse ciclos.</p>
-    </div>
-    <div class="actions">
-      <button type="button" class="btn btn-secondary" (click)="search()" [disabled]="loading || saving || filterForm.invalid">
-        Buscar
-      </button>
-      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Nuevo festivo</button>
-    </div>
-  </div>
-
-  <form [formGroup]="filterForm" (ngSubmit)="search()" class="filters">
-    <label>
-      Año
-      <input type="number" formControlName="year" min="1900" max="2100" />
-      <app-error-message [control]="filterForm.get('year')"></app-error-message>
-    </label>
-  </form>
-
-  <ng-container *ngIf="hasSearched; else initial">
-    <div class="grid" *ngIf="holidays.length; else empty">
-      <ui-grilla-empresarial
-        [datos]="holidays"
-        [columnas]="columnDefs"
-        [cargando]="loading"
-        [error]="loadError"
-        [mensajeError]="'No fue posible cargar los festivos bancarios.'"
-        [tamanoPagina]="pageSize"
-        [mensajeVacio]="'No hay festivos registrados.'"
-        [mensajeCargando]="'Cargando información...'"
-        (grillaLista)="onGridReady($event)"
-        (reintentar)="search()"
-      ></ui-grilla-empresarial>
-    </div>
-
-    <ng-template #empty>
-      <ui-grilla-empresarial
-        *ngIf="loading || loadError"
-        [datos]="holidays"
-        [columnas]="columnDefs"
-        [cargando]="loading"
-        [error]="loadError"
-        [mensajeError]="'No fue posible cargar los festivos bancarios.'"
-        [tamanoPagina]="pageSize"
-        [mensajeVacio]="'No hay festivos registrados.'"
-        [mensajeCargando]="'Cargando información...'"
-        (reintentar)="search()"
-      ></ui-grilla-empresarial>
-      <div class="empty" *ngIf="!loading && !loadError">
-        <p>No hay festivos registrados.</p>
-        <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Agregar festivo</button>
+<section class="bank-holidays-page" aria-labelledby="bank-holidays-title" [attr.aria-busy]="loading">
+  <mat-card appearance="outlined" class="catalog-card">
+    <mat-card-header class="page-header">
+      <div>
+        <p class="eyebrow">Catálogos</p>
+        <h1 id="bank-holidays-title">Festivos bancarios</h1>
+        <p class="lede">Administra las fechas no laborables utilizadas por la operación bancaria.</p>
       </div>
-    </ng-template>
-  </ng-container>
 
-  <ng-template #initial>
-    <div class="empty">
-      <p>Selecciona un año y presiona Buscar para ver los festivos.</p>
-    </div>
-  </ng-template>
+      <button mat-flat-button type="button" (click)="startCreate()" [disabled]="loading || saving">
+        <mat-icon aria-hidden="true">add</mat-icon>
+        Nuevo festivo
+      </button>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form
+        class="filters"
+        [formGroup]="filterForm"
+        (ngSubmit)="search()"
+        aria-label="Filtrar festivos bancarios"
+      >
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Año</mat-label>
+          <input
+            matInput
+            type="number"
+            inputmode="numeric"
+            formControlName="year"
+            [min]="minYear"
+            [max]="maxYear"
+          />
+          @if (filterForm.controls.year.hasError('required')) {
+            <mat-error>El año es obligatorio.</mat-error>
+          } @else if (filterForm.controls.year.hasError('min') || filterForm.controls.year.hasError('max')) {
+            <mat-error>Ingresa un año entre {{ minYear }} y {{ maxYear }}.</mat-error>
+          }
+        </mat-form-field>
+
+        <button mat-stroked-button type="submit" [disabled]="loading || saving || filterForm.invalid">
+          <mat-icon aria-hidden="true">search</mat-icon>
+          Buscar
+        </button>
+      </form>
+
+      @if (successMessage) {
+        <div class="feedback feedback--success" role="status">{{ successMessage }}</div>
+      }
+
+      @if (operationError) {
+        <div class="feedback feedback--error" role="alert">{{ operationError }}</div>
+      }
+
+      @if (loading) {
+        <div class="state-panel" role="status" aria-live="polite">
+          <mat-spinner diameter="40"></mat-spinner>
+          <p>Cargando festivos de {{ lastLoadedYear }}…</p>
+        </div>
+      } @else if (loadError) {
+        <div class="state-panel state-panel--error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon>
+          <h2>No fue posible cargar los festivos</h2>
+          <p>Verifica la conexión e intenta nuevamente.</p>
+          <button mat-stroked-button type="button" (click)="search()">Reintentar</button>
+        </div>
+      } @else if (hasSearched && holidays.length === 0) {
+        <div class="state-panel">
+          <mat-icon aria-hidden="true">event_busy</mat-icon>
+          <h2>Sin festivos para {{ lastLoadedYear }}</h2>
+          <p>No hay fechas registradas para el año seleccionado.</p>
+          <button mat-flat-button type="button" (click)="startCreate()" [disabled]="saving">
+            Agregar festivo
+          </button>
+        </div>
+      } @else if (holidays.length > 0) {
+        <div class="table-region" role="region" aria-label="Festivos bancarios" tabindex="0">
+          <table mat-table [dataSource]="holidays">
+            <ng-container matColumnDef="date">
+              <th mat-header-cell *matHeaderCellDef>Fecha</th>
+              <td mat-cell *matCellDef="let holiday">{{ formatHolidayDate(holiday.date) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="description">
+              <th mat-header-cell *matHeaderCellDef>Descripción</th>
+              <td mat-cell *matCellDef="let holiday">{{ holiday.description }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="countryCode">
+              <th mat-header-cell *matHeaderCellDef>País</th>
+              <td mat-cell *matCellDef="let holiday">{{ holiday.countryCode }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Acciones</th>
+              <td mat-cell *matCellDef="let holiday">
+                <div class="row-actions">
+                  <button mat-button type="button" (click)="startEdit(holiday)" [disabled]="saving">
+                    <mat-icon aria-hidden="true">edit</mat-icon>
+                    Editar
+                  </button>
+                  <button
+                    mat-button
+                    type="button"
+                    class="delete-action"
+                    (click)="remove(holiday)"
+                    [disabled]="saving"
+                    [attr.aria-label]="'Eliminar festivo ' + holiday.description"
+                  >
+                    <mat-icon aria-hidden="true">delete</mat-icon>
+                    Eliminar
+                  </button>
+                </div>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          </table>
+        </div>
+
+        <div class="holiday-cards" aria-label="Festivos bancarios">
+          @for (holiday of holidays; track holiday.id) {
+            <article class="holiday-card">
+              <div>
+                <p class="holiday-card__date">{{ formatHolidayDate(holiday.date) }}</p>
+                <h2>{{ holiday.description }}</h2>
+                <p>País: {{ holiday.countryCode }}</p>
+              </div>
+              <div class="row-actions">
+                <button mat-button type="button" (click)="startEdit(holiday)" [disabled]="saving">
+                  <mat-icon aria-hidden="true">edit</mat-icon>
+                  Editar
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  class="delete-action"
+                  (click)="remove(holiday)"
+                  [disabled]="saving"
+                  [attr.aria-label]="'Eliminar festivo ' + holiday.description"
+                >
+                  <mat-icon aria-hidden="true">delete</mat-icon>
+                  Eliminar
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  @if (showForm) {
+    <mat-card appearance="outlined" class="editor-card">
+      <mat-card-header>
+        <mat-card-title id="holiday-editor-title">
+          {{ editing ? 'Editar festivo' : 'Nuevo festivo' }}
+        </mat-card-title>
+      </mat-card-header>
+
+      <mat-card-content>
+        <form
+          class="editor-form"
+          [formGroup]="form"
+          (ngSubmit)="save()"
+          aria-labelledby="holiday-editor-title"
+        >
+          <mat-form-field appearance="outline">
+            <mat-label>Fecha</mat-label>
+            <input matInput [matDatepicker]="holidayPicker" formControlName="date" />
+            <mat-datepicker-toggle
+              matIconSuffix
+              [for]="holidayPicker"
+              aria-label="Abrir calendario"
+            ></mat-datepicker-toggle>
+            <mat-datepicker #holidayPicker></mat-datepicker>
+            @if (form.controls.date.hasError('required')) {
+              <mat-error>La fecha es obligatoria.</mat-error>
+            } @else if (form.controls.date.hasError('matDatepickerParse')) {
+              <mat-error>Ingresa una fecha válida.</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Descripción</mat-label>
+            <input matInput type="text" formControlName="description" maxlength="200" />
+            <mat-hint align="end">{{ form.controls.description.value.length }}/200</mat-hint>
+            @if (form.controls.description.hasError('required') || form.controls.description.hasError('pattern')) {
+              <mat-error>La descripción es obligatoria.</mat-error>
+            } @else if (form.controls.description.hasError('maxlength')) {
+              <mat-error>La descripción no puede superar 200 caracteres.</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>País</mat-label>
+            <input
+              matInput
+              type="text"
+              formControlName="countryCode"
+              maxlength="5"
+              autocomplete="country"
+            />
+            @if (form.controls.countryCode.hasError('required') || form.controls.countryCode.hasError('pattern')) {
+              <mat-error>El país es obligatorio.</mat-error>
+            } @else if (form.controls.countryCode.hasError('maxlength')) {
+              <mat-error>El código de país no puede superar 5 caracteres.</mat-error>
+            }
+          </mat-form-field>
+
+          <div class="form-actions">
+            <button mat-button type="button" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
+            <button mat-flat-button type="submit" [disabled]="saving || form.invalid">
+              @if (saving) {
+                <mat-spinner diameter="20"></mat-spinner>
+                Guardando…
+              } @else {
+                <mat-icon aria-hidden="true">save</mat-icon>
+                {{ editing ? 'Actualizar' : 'Guardar' }}
+              }
+            </button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+  }
 </section>
 
-<section class="card" *ngIf="showForm">
-  <h3>{{ editing ? 'Editar festivo' : 'Nuevo festivo' }}</h3>
-  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-    <label>
-      Fecha
-      <input type="date" formControlName="date" />
-      <app-error-message [control]="form.get('date')"></app-error-message>
-    </label>
-
-    <label>
-      Descripción
-      <input type="text" formControlName="description" maxlength="200" />
-      <app-error-message [control]="form.get('description')"></app-error-message>
-    </label>
-
-    <label>
-      País
-      <input type="text" formControlName="countryCode" maxlength="5" />
-      <app-error-message [control]="form.get('countryCode')"></app-error-message>
-    </label>
-
-    <div class="form-actions">
-      <button type="button" class="btn btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-      <button type="submit" class="btn btn-primary" [disabled]="saving">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
-    </div>
-  </form>
-</section>
+<ng-template #deleteDialog>
+  <h2 mat-dialog-title>Eliminar festivo</h2>
+  <mat-dialog-content>
+    @if (pendingDelete) {
+      <p>
+        ¿Deseas eliminar <strong>{{ pendingDelete.description }}</strong> del
+        {{ formatHolidayDate(pendingDelete.date) }}?
+      </p>
+      <p>Esta acción no se puede deshacer.</p>
+    }
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" [mat-dialog-close]="false">Cancelar</button>
+    <button mat-flat-button type="button" class="delete-confirm" [mat-dialog-close]="true">
+      Eliminar
+    </button>
+  </mat-dialog-actions>
+</ng-template>

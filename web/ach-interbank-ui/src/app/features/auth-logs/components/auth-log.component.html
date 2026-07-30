@@ -1,46 +1,263 @@
-<app-page-header title="Log de autenticaciones" subtitle="Registros de inicio de sesión exitosos y fallidos"></app-page-header>
+<app-page-header
+  title="Registro de autenticaciones"
+  subtitle="Seguimiento de accesos exitosos y fallidos a la plataforma"
+></app-page-header>
 
-<section class="auth-log">
-  <form class="form-grid" [formGroup]="filterForm" (ngSubmit)="search()">
-    <label>
-      Fecha inicio
-      <input type="date" formControlName="startDate" />
-    </label>
+<section class="auth-log" aria-label="Consulta del registro de autenticaciones">
+  <mat-card appearance="outlined" class="filters-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true">filter_alt</mat-icon>
+      <mat-card-title>Filtros de consulta</mat-card-title>
+      <mat-card-subtitle>Acota los resultados por fecha, usuario o resultado</mat-card-subtitle>
+    </mat-card-header>
 
-    <label>
-      Fecha fin
-      <input type="date" formControlName="endDate" />
-    </label>
+    <mat-card-content>
+      <form
+        class="form-grid"
+        [formGroup]="filterForm"
+        (ngSubmit)="search()"
+        aria-label="Filtros del registro de autenticaciones"
+      >
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha inicial</mat-label>
+          <input
+            matInput
+            [matDatepicker]="authStartDatePicker"
+            formControlName="startDate"
+            [attr.aria-describedby]="showDateRangeError ? 'auth-date-range-error' : null"
+          />
+          <mat-datepicker-toggle
+            matIconSuffix
+            [for]="authStartDatePicker"
+            aria-label="Abrir calendario de fecha inicial"
+          ></mat-datepicker-toggle>
+          <mat-datepicker #authStartDatePicker></mat-datepicker>
+        </mat-form-field>
 
-    <label>
-      Usuario
-      <input type="text" formControlName="username" placeholder="Buscar por usuario" />
-    </label>
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha final</mat-label>
+          <input
+            matInput
+            [matDatepicker]="authEndDatePicker"
+            formControlName="endDate"
+            [attr.aria-describedby]="showDateRangeError ? 'auth-date-range-error' : null"
+          />
+          <mat-datepicker-toggle
+            matIconSuffix
+            [for]="authEndDatePicker"
+            aria-label="Abrir calendario de fecha final"
+          ></mat-datepicker-toggle>
+          <mat-datepicker #authEndDatePicker></mat-datepicker>
+        </mat-form-field>
 
-    <label>
-      Resultado
-      <select formControlName="success">
-        <option *ngFor="let option of statusOptions" [value]="option.value">{{ option.label }}</option>
-      </select>
-    </label>
+        <mat-form-field appearance="outline">
+          <mat-label>Usuario</mat-label>
+          <input
+            matInput
+            type="text"
+            formControlName="username"
+            autocomplete="off"
+            placeholder="Nombre de usuario"
+          />
+        </mat-form-field>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary" [disabled]="loading">Buscar</button>
-      <button type="button" class="btn btn-outline" (click)="clear()" [disabled]="loading">Limpiar</button>
-    </div>
-  </form>
+        <mat-form-field appearance="outline">
+          <mat-label>Resultado</mat-label>
+          <mat-select formControlName="success">
+            <mat-option *ngFor="let option of statusOptions" [value]="option.value">
+              {{ option.label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
 
-  <app-table
-    [columns]="columns"
-    [data]="rows"
-    [loading]="loading"
-    [page]="page"
-    [pageSize]="pageSize"
-    [total]="total"
-    (pageChange)="onPageChange($event)"
-  ></app-table>
+        <div class="form-actions">
+          <button
+            mat-flat-button
+            color="primary"
+            type="submit"
+            [disabled]="filterForm.invalid || loading"
+          >
+            <mat-icon aria-hidden="true">search</mat-icon>
+            {{ loading ? 'Consultando…' : 'Buscar' }}
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="clear()"
+            [disabled]="loading"
+          >
+            <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+            Limpiar
+          </button>
+        </div>
 
-  <div class="empty-state" *ngIf="!loading && !hasSearched">
-    Usa los filtros y presiona buscar para cargar resultados.
+        <p
+          *ngIf="showDateRangeError"
+          id="auth-date-range-error"
+          class="validation-message"
+          role="alert"
+        >
+          La fecha inicial no puede ser posterior a la fecha final.
+        </p>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <div
+    class="status-region"
+    aria-live="polite"
+    [attr.aria-busy]="loading"
+  >
+    <mat-progress-bar
+      *ngIf="loading"
+      mode="indeterminate"
+      aria-label="Cargando registros de autenticación"
+    ></mat-progress-bar>
+    <span *ngIf="loading" class="sr-only">Cargando registros de autenticación.</span>
+
+    <mat-card
+      *ngIf="errorMessage && !loading"
+      appearance="outlined"
+      class="state-card state-card--error"
+      role="alert"
+    >
+      <mat-icon aria-hidden="true">error</mat-icon>
+      <div>
+        <strong>No se pudo completar la consulta</strong>
+        <p>{{ errorMessage }}</p>
+      </div>
+      <button mat-stroked-button type="button" (click)="retry()">
+        <mat-icon aria-hidden="true">refresh</mat-icon>
+        Reintentar
+      </button>
+    </mat-card>
+
+    <mat-card
+      *ngIf="!loading && !errorMessage && !hasSearched"
+      appearance="outlined"
+      class="state-card"
+      role="status"
+    >
+      <mat-icon aria-hidden="true">manage_search</mat-icon>
+      <div>
+        <strong>Prepara tu consulta</strong>
+        <p>Usa los filtros y selecciona Buscar para cargar resultados.</p>
+      </div>
+    </mat-card>
+
+    <mat-card
+      *ngIf="!loading && !errorMessage && hasSearched && rows.length === 0"
+      appearance="outlined"
+      class="state-card"
+      role="status"
+    >
+      <mat-icon aria-hidden="true">search_off</mat-icon>
+      <div>
+        <strong>Sin resultados</strong>
+        <p>No se encontraron registros con los filtros seleccionados.</p>
+      </div>
+    </mat-card>
   </div>
+
+  <mat-card
+    *ngIf="hasSearched && !errorMessage && (loading || rows.length > 0)"
+    appearance="outlined"
+    class="table-card"
+    [attr.aria-busy]="loading"
+  >
+    <div
+      class="table-scroll"
+      tabindex="0"
+      aria-label="Resultados de autenticación. La tabla admite desplazamiento horizontal."
+    >
+      <table
+        mat-table
+        [dataSource]="rows"
+        matSort
+        [matSortActive]="sort.active"
+        [matSortDirection]="sort.direction"
+        matSortDisableClear
+        (matSortChange)="onSortChange($event)"
+        aria-label="Registros de autenticación"
+      >
+        <ng-container matColumnDef="loggedAt">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Fecha</th>
+          <td mat-cell *matCellDef="let row">{{ row.loggedDateDisplay }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="loggedTime">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Hora</th>
+          <td mat-cell *matCellDef="let row">{{ row.loggedTimeDisplay }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="username">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Usuario</th>
+          <td mat-cell *matCellDef="let row">{{ row.usernameDisplay }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="success">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Resultado</th>
+          <td mat-cell *matCellDef="let row">
+            <mat-chip-set [attr.aria-label]="'Resultado: ' + row.resultDisplay">
+              <mat-chip
+                [class.status-chip--success]="row.success"
+                [class.status-chip--failure]="!row.success"
+              >
+                <mat-icon aria-hidden="true">{{ row.resultIcon }}</mat-icon>
+                {{ row.resultDisplay }}
+              </mat-chip>
+            </mat-chip-set>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="failureReason">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Detalle</th>
+          <td mat-cell *matCellDef="let row">
+            <span
+              class="detail-cell"
+              tabindex="0"
+              [matTooltip]="row.failureReasonDisplay"
+              [attr.aria-label]="'Detalle del resultado: ' + row.failureReasonDisplay"
+            >
+              {{ row.failureReasonDisplay }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="ipAddress">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Dirección IP</th>
+          <td mat-cell *matCellDef="let row">{{ row.ipAddressDisplay }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="userAgent">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Navegador</th>
+          <td mat-cell *matCellDef="let row">
+            <span
+              class="detail-cell"
+              tabindex="0"
+              [matTooltip]="row.userAgentDisplay"
+              [attr.aria-label]="'Navegador: ' + row.userAgentDisplay"
+            >
+              {{ row.userAgentDisplay }}
+            </span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+      </table>
+    </div>
+
+    <mat-paginator
+      *ngIf="total > 0"
+      [length]="total"
+      [pageIndex]="page - 1"
+      [pageSize]="pageSize"
+      [pageSizeOptions]="pageSizeOptions"
+      [disabled]="loading"
+      showFirstLastButtons
+      aria-label="Paginación del registro de autenticaciones"
+      (page)="onPageChange($event)"
+    ></mat-paginator>
+  </mat-card>
 </section>

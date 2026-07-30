@@ -1,125 +1,241 @@
-<section class="card">
-  <div class="header">
-    <div>
-      <p class="eyebrow">Catálogos</p>
-      <h2>Prioridades por cámara compensadora</h2>
-      <p class="lede">
-        Ajusta la prioridad y la marca predeterminada de cada cámara compensadora por institución financiera.
+<section class="catalog-page" aria-labelledby="clearing-house-preferences-title">
+  <mat-card appearance="outlined" class="catalog-card">
+    <mat-card-header class="catalog-header">
+      <div class="catalog-heading">
+        <p class="eyebrow">Catálogos</p>
+        <h1 mat-card-title id="clearing-house-preferences-title">
+          Prioridades por cámara compensadora
+        </h1>
+        <mat-card-subtitle>
+          Ajusta la prioridad y la relación predeterminada de cada cámara por institución financiera.
+        </mat-card-subtitle>
+      </div>
+
+      <div class="header-actions">
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="loading || saving"
+          (click)="loadPreferences()"
+        >
+          Recargar
+        </button>
+        <button
+          mat-flat-button
+          type="button"
+          [disabled]="saving || catalogsLoading || !!catalogsError"
+          (click)="startCreate()"
+        >
+          Nueva relación
+        </button>
+      </div>
+    </mat-card-header>
+
+    <mat-card-content>
+      <mat-progress-bar
+        *ngIf="catalogsLoading"
+        mode="indeterminate"
+        aria-label="Cargando instituciones y cámaras"
+        class="catalog-progress"
+      ></mat-progress-bar>
+      <div class="catalog-error" *ngIf="catalogsError" role="alert">
+        <span>{{ catalogsError }}</span>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="catalogsLoading"
+          (click)="loadCatalogs()"
+        >
+          Reintentar catálogos
+        </button>
+      </div>
+      <p class="operation-status operation-status--success" *ngIf="successMessage" role="status">
+        {{ successMessage }}
       </p>
-    </div>
-    <div class="actions">
-      <button type="button" class="btn btn-secondary" (click)="loadPreferences()" [disabled]="loading || saving">Recargar</button>
-      <button type="button" class="btn btn-primary" (click)="startCreate()" [disabled]="saving">Nueva relación</button>
-    </div>
-  </div>
+      <p class="operation-status operation-status--error" *ngIf="operationError" role="alert">
+        {{ operationError }}
+      </p>
 
-  <div class="grid" *ngIf="preferences.length; else empty">
-    <ui-grilla-empresarial
-      [datos]="preferences"
-      [columnas]="columnDefs"
-      [cargando]="loading"
-      [error]="false"
-      [tamanoPagina]="pageSize"
-      [mensajeVacio]="'No hay configuraciones de cámara.'"
-      [mensajeCargando]="'Cargando información...'"
-      (grillaLista)="onGridReady($event)"
-    ></ui-grilla-empresarial>
-  </div>
+      <ui-grilla-empresarial
+        [datos]="preferences"
+        [columnas]="columnDefs"
+        [cargando]="loading"
+        [error]="loadError"
+        [mensajeError]="loadErrorMessage"
+        [tamanoPagina]="pageSize"
+        [mensajeVacio]="'No hay preferencias registradas.'"
+        [mensajeCargando]="'Cargando preferencias...'"
+        [placeholderBusqueda]="'Buscar por institución, cámara, prioridad o estado'"
+        (reintentar)="loadPreferences()"
+      ></ui-grilla-empresarial>
+    </mat-card-content>
+  </mat-card>
 
-  <ng-template #empty>
-    <div class="empty">
-      <p>No hay preferencias registradas.</p>
-      <button type="button" class="btn btn-primary" (click)="loadPreferences()" [disabled]="loading">Recargar</button>
-    </div>
-  </ng-template>
-</section>
+  <mat-card
+    appearance="outlined"
+    class="catalog-card editor-card"
+    *ngIf="showCreateForm || editing"
+  >
+    <mat-progress-bar
+      *ngIf="saving || catalogsLoading"
+      mode="indeterminate"
+      [attr.aria-label]="saving ? 'Guardando preferencia' : 'Cargando catálogos'"
+    ></mat-progress-bar>
 
-<section class="card forms" *ngIf="showCreateForm || editing">
-  <div *ngIf="showCreateForm">
-    <h3>Nueva relación</h3>
-    <p class="hint">Crea vínculos entre instituciones y cámaras compensadoras.</p>
+    <mat-card-header>
+      <h2 mat-card-title>{{ showCreateForm ? 'Nueva relación' : 'Editar relación' }}</h2>
+      <mat-card-subtitle>
+        {{ showCreateForm
+          ? 'Vincula una institución con cualquiera de las cámaras configuradas.'
+          : 'Actualiza la prioridad y el estado de la relación seleccionada.' }}
+      </mat-card-subtitle>
+    </mat-card-header>
 
-    <form [formGroup]="createForm" (ngSubmit)="create()" class="form-grid">
-      <label>
-        Institución
-        <select formControlName="financialInstitutionId">
-          <option [ngValue]="null" disabled>Selecciona una institución</option>
-          <option *ngFor="let institution of institutions$ | async" [ngValue]="institution.id">
-            {{ institution.name }}
-          </option>
-        </select>
-        <small class="hint">Usa la misma lista de instituciones activas disponible al crear transacciones.</small>
-        <app-error-message [control]="createForm.get('financialInstitutionId')"></app-error-message>
-      </label>
+    <mat-card-content>
+      <form
+        *ngIf="showCreateForm"
+        [formGroup]="createForm"
+        (ngSubmit)="create()"
+        class="preference-form"
+        autocomplete="off"
+        novalidate
+        [attr.aria-busy]="saving"
+      >
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Institución</mat-label>
+            <mat-select formControlName="financialInstitutionId">
+              <mat-option [value]="null" disabled>Selecciona una institución</mat-option>
+              <mat-option
+                *ngFor="let institution of institutions; trackBy: trackInstitution"
+                [value]="institution.id"
+              >
+                {{ institution.name }}
+                <span *ngIf="institution.isDefaultSource"> · Origen por defecto</span>
+              </mat-option>
+            </mat-select>
+            <mat-hint>Se muestran las instituciones activas, incluida la marcada como origen.</mat-hint>
+            <mat-error *ngIf="createForm.controls.financialInstitutionId.hasError('required')">
+              Selecciona una institución.
+            </mat-error>
+            <mat-error *ngIf="createForm.controls.financialInstitutionId.hasError('min')">
+              La institución seleccionada no es válida.
+            </mat-error>
+          </mat-form-field>
 
-      <label>
-        Cámara compensadora
-        <select formControlName="clearingHouseId">
-          <option [ngValue]="null">Selecciona cámara</option>
-          <option *ngFor="let house of clearingHouses" [ngValue]="house.id">{{ house.name }}</option>
-        </select>
-        <app-error-message [control]="createForm.get('clearingHouseId')"></app-error-message>
-      </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Cámara compensadora</mat-label>
+            <mat-select formControlName="clearingHouseId">
+              <mat-option [value]="null" disabled>Selecciona una cámara</mat-option>
+              <mat-option
+                *ngFor="let house of clearingHouses; trackBy: trackClearingHouse"
+                [value]="house.id"
+              >
+                {{ house.name }}
+              </mat-option>
+            </mat-select>
+            <mat-hint>La lista proviene del catálogo administrativo de cámaras.</mat-hint>
+            <mat-error *ngIf="createForm.controls.clearingHouseId.hasError('required')">
+              Selecciona una cámara compensadora.
+            </mat-error>
+            <mat-error *ngIf="createForm.controls.clearingHouseId.hasError('min')">
+              La cámara seleccionada no es válida.
+            </mat-error>
+          </mat-form-field>
 
-      <label>
-        Prioridad
-        <select formControlName="priority">
-          <option *ngFor="let option of priorityOptions" [ngValue]="option.value">{{ option.label }}</option>
-        </select>
-        <small class="hint">Solo disponible: Alta, Normal y Baja.</small>
-        <app-error-message [control]="createForm.get('priority')"></app-error-message>
-      </label>
+          <mat-form-field appearance="outline">
+            <mat-label>Prioridad</mat-label>
+            <mat-select formControlName="priority">
+              <mat-option *ngFor="let option of priorityOptions" [value]="option.value">
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+            <mat-hint>Alta, normal o baja.</mat-hint>
+            <mat-error
+              *ngIf="
+                createForm.controls.priority.hasError('required')
+                || createForm.controls.priority.hasError('min')
+                || createForm.controls.priority.hasError('max')
+              "
+            >
+              Selecciona una prioridad válida.
+            </mat-error>
+          </mat-form-field>
 
-      <label class="checkbox">
-        <input type="checkbox" formControlName="isDefault" />
-        <span>Marcar como predeterminada</span>
-      </label>
+          <div class="checkbox-group">
+            <mat-checkbox formControlName="isDefault">Marcar como predeterminada</mat-checkbox>
+            <mat-checkbox formControlName="isActive">Relación activa</mat-checkbox>
+          </div>
+        </div>
 
-      <label class="checkbox">
-        <input type="checkbox" formControlName="isActive" />
-        <span>Relación activa</span>
-      </label>
+        <div class="form-actions">
+          <button mat-button type="button" [disabled]="saving" (click)="cancelEdit()">
+            Cancelar
+          </button>
+          <button
+            mat-flat-button
+            type="submit"
+            [disabled]="saving || catalogsLoading || createForm.invalid"
+          >
+            {{ saving ? 'Creando…' : 'Crear relación' }}
+          </button>
+        </div>
+      </form>
 
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary" [disabled]="saving">Crear relación</button>
-      </div>
-    </form>
-  </div>
+      <form
+        *ngIf="editing && !showCreateForm"
+        [formGroup]="form"
+        (ngSubmit)="save()"
+        class="preference-form"
+        autocomplete="off"
+        novalidate
+        [attr.aria-busy]="saving"
+      >
+        <dl class="relation-summary">
+          <div>
+            <dt>Institución</dt>
+            <dd>{{ editing.financialInstitutionName }}</dd>
+          </div>
+          <div>
+            <dt>Cámara compensadora</dt>
+            <dd>{{ editing.clearingHouseName }}</dd>
+          </div>
+        </dl>
 
-  <div *ngIf="editing && !showCreateForm">
-    <h3>Editar relación</h3>
+        <div class="form-grid form-grid--edit">
+          <mat-form-field appearance="outline">
+            <mat-label>Prioridad</mat-label>
+            <mat-select formControlName="priority">
+              <mat-option *ngFor="let option of priorityOptions" [value]="option.value">
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+            <mat-error
+              *ngIf="
+                form.controls.priority.hasError('required')
+                || form.controls.priority.hasError('min')
+                || form.controls.priority.hasError('max')
+              "
+            >
+              Selecciona una prioridad válida.
+            </mat-error>
+          </mat-form-field>
 
-    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-      <div class="summary">
-        <p class="label">Institución</p>
-        <p class="value">{{ editing.financialInstitutionName }}</p>
-        <p class="label">Cámara compensadora</p>
-        <p class="value">{{ editing.clearingHouseName }}</p>
-      </div>
+          <div class="checkbox-group">
+            <mat-checkbox formControlName="isDefault">Marcar como predeterminada</mat-checkbox>
+            <mat-checkbox formControlName="isActive">Relación activa</mat-checkbox>
+          </div>
+        </div>
 
-      <label>
-        Prioridad
-        <select formControlName="priority">
-          <option *ngFor="let option of priorityOptions" [ngValue]="option.value">{{ option.label }}</option>
-        </select>
-        <small class="hint">Solo disponible: Alta, Normal y Baja.</small>
-        <app-error-message [control]="form.get('priority')"></app-error-message>
-      </label>
-
-      <label class="checkbox">
-        <input type="checkbox" formControlName="isDefault" />
-        <span>Marcar como predeterminada</span>
-      </label>
-
-      <label class="checkbox">
-        <input type="checkbox" formControlName="isActive" />
-        <span>Relación activa</span>
-      </label>
-
-      <div class="form-actions">
-        <button type="button" class="btn btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancelar</button>
-        <button type="submit" class="btn btn-primary" [disabled]="saving">Guardar cambios</button>
-      </div>
-    </form>
-  </div>
+        <div class="form-actions">
+          <button mat-button type="button" [disabled]="saving" (click)="cancelEdit()">
+            Cancelar
+          </button>
+          <button mat-flat-button type="submit" [disabled]="saving || form.invalid">
+            {{ saving ? 'Guardando…' : 'Guardar cambios' }}
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
 </section>

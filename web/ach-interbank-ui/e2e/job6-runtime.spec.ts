@@ -69,12 +69,14 @@ test.describe.serial('JOB 6 - runtime integrado real', () => {
     test.setTimeout(120_000);
     try {
       const token = await login(page);
-      await expect(page.getByRole('navigation', { name: /menú principal/i })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Menú principal', exact: true })).toBeVisible();
 
       const clearingHouseDeepLink = await page.goto(`${spa}/clearing-houses`);
       expect(clearingHouseDeepLink?.status()).toBe(200);
       expect(clearingHouseDeepLink?.headers()['content-type']).toContain('text/html');
-      await expect(page.locator('app-clearing-houses')).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Cámaras compensadoras', exact: true })
+      ).toBeVisible();
 
       const invalid = await page.request.post(`${api}/nacha-config/perfiles`, {
         headers: authorization(token),
@@ -93,18 +95,19 @@ test.describe.serial('JOB 6 - runtime integrado real', () => {
       const createPanel = profilesPage.getByTestId('create-profile-panel');
       await expect(createPanel).toBeVisible();
       await createPanel.locator('summary').click();
-      const createForm = page.locator('form.crear-grid');
-      await expect(createForm).toBeVisible();
-      const clearingHouseSelect = createForm.getByLabel('Cámara');
+      const clearingHouseSelect = createPanel.getByRole('combobox', { name: 'Cámara', exact: true });
+      const profileCodeInput = createPanel.locator('input[placeholder="UAT-NACHA-CONFIG-..."]');
+      const profileNameInput = createPanel.locator('input[placeholder="Nombre descriptivo"]');
+      const profileDescriptionInput = createPanel.locator('textarea[placeholder="Descripción opcional"]');
       await expect(clearingHouseSelect).toBeEnabled();
       await expect(clearingHouseSelect.locator(`option[value="${thirdCameraCode}"]`)).toHaveCount(1);
-      await createForm.getByLabel('Código del perfil').fill('');
-      await createForm.getByLabel('Nombre').fill('');
+      await profileCodeInput.fill('');
+      await profileNameInput.fill('');
       await expect(page.getByRole('button', { name: 'Crear borrador' })).toBeDisabled();
 
-      await createForm.getByLabel('Código del perfil').fill(profileCode);
-      await createForm.getByLabel('Nombre').fill('Perfil autónomo tercera cámara');
-      await createForm.getByLabel('Descripción').fill('Fixture controlado y eliminado por Playwright.');
+      await profileCodeInput.fill(profileCode);
+      await profileNameInput.fill('Perfil autónomo tercera cámara');
+      await profileDescriptionInput.fill('Fixture controlado y eliminado por Playwright.');
       await clearingHouseSelect.selectOption(thirdCameraCode);
 
       let createRequests = 0;
@@ -123,9 +126,7 @@ test.describe.serial('JOB 6 - runtime integrado real', () => {
       expect(await page.locator('body').innerText()).not.toContain('[object Object]');
 
       await page.getByRole('button', { name: 'Volver' }).first().click();
-      const cameraFilter = page.locator('.filtros-grid label')
-        .filter({ hasText: /^Cámara/ })
-        .locator('select');
+      const cameraFilter = profilesPage.getByRole('combobox', { name: 'Cámara', exact: true });
       await cameraFilter.selectOption(thirdCameraCode);
       await expect(page.getByText(profileCode, { exact: true })).toBeVisible();
       await expect(
@@ -159,16 +160,12 @@ test.describe.serial('JOB 6 - runtime integrado real', () => {
 
     for (const viewport of viewports.filter(item => item.width <= 768)) {
       await page.setViewportSize(viewport);
-      const menuButton = page.getByRole('button', { name: /Abrir menú principal/i });
-      await menuButton.click();
-      await expect(page.locator('aside.sidebar')).toHaveClass(/open/);
-      await page.keyboard.press('Escape');
-      await expect(page.locator('aside.sidebar')).not.toHaveClass(/open/);
+      await assertMobileNavigationCycle(page);
     }
 
     for (const route of criticalRoutes) {
       await navigateClientSide(page, route);
-      await expect(page.locator('main.content')).toBeVisible();
+      await expect(page.getByRole('main')).toBeVisible();
       await expect(page).not.toHaveURL(/\/login$/);
 
       for (const viewport of viewports) {
@@ -180,6 +177,26 @@ test.describe.serial('JOB 6 - runtime integrado real', () => {
 
   });
 });
+
+async function assertMobileNavigationCycle(page: Page): Promise<void> {
+  const navigationToggle = page.locator('button[aria-controls="primary-navigation"]');
+  const primaryNavigation = page.getByRole('navigation', { name: 'Menú principal', exact: true });
+  const navigationBackdrop = page.locator('mat-sidenav-container .mat-drawer-backdrop');
+
+  await expect(navigationToggle).toBeVisible();
+  await expect(navigationToggle).toHaveAttribute('aria-label', 'Abrir navegación');
+  await navigationToggle.click();
+
+  await expect(primaryNavigation).toBeVisible();
+  await expect(navigationToggle).toHaveAttribute('aria-label', 'Cerrar navegación');
+  await primaryNavigation.focus();
+  await expect(primaryNavigation).toBeFocused();
+  await page.keyboard.press('Escape');
+
+  await expect(primaryNavigation).toBeHidden();
+  await expect(navigationToggle).toHaveAttribute('aria-label', 'Abrir navegación');
+  await expect(navigationBackdrop).toBeHidden();
+}
 
 async function login(page: Page): Promise<string> {
   const loginResponse = await page.request.post(`${api}/auth/login`, {
