@@ -97,24 +97,24 @@ export class MainLayoutComponent implements OnInit {
 
   breadcrumbs: Breadcrumb[] = [];
   pageTitle = 'Inicio';
-  isMobile = false;
-  isMenuOpen = false;
-  isSidebarCollapsed = false;
+  isMobileViewport = false;
+  isMobileDrawerOpen = false;
+  isDesktopCompact = false;
 
   get drawerOpened(): boolean {
-    return this.isMobile ? this.isMenuOpen : true;
+    return this.isMobileViewport ? this.isMobileDrawerOpen : true;
   }
 
-  get menuToggleLabel(): string {
-    if (this.isMobile) {
-      return this.isMenuOpen ? 'Cerrar menú principal' : 'Abrir menú principal';
+  get navigationToggleLabel(): string {
+    if (this.isMobileViewport) {
+      return this.isMobileDrawerOpen ? 'Cerrar navegación' : 'Abrir navegación';
     }
 
-    return this.isSidebarCollapsed ? 'Expandir menú principal' : 'Contraer menú principal';
+    return this.isDesktopCompact ? 'Expandir navegación' : 'Contraer navegación';
   }
 
-  get isMenuExpanded(): boolean {
-    return this.isMobile ? this.isMenuOpen : !this.isSidebarCollapsed;
+  get isNavigationExpanded(): boolean {
+    return this.isMobileViewport ? this.isMobileDrawerOpen : !this.isDesktopCompact;
   }
 
   ngOnInit(): void {
@@ -122,13 +122,11 @@ export class MainLayoutComponent implements OnInit {
       .observe(MOBILE_NAVIGATION_QUERY)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(({ matches }) => {
-        this.isMobile = matches;
-        this.isMenuOpen = false;
-
-        if (matches) {
-          this.isSidebarCollapsed = false;
+        if (this.isMobileViewport !== matches) {
+          this.isMobileDrawerOpen = false;
         }
 
+        this.isMobileViewport = matches;
         this.cdr.markForCheck();
       });
 
@@ -174,42 +172,45 @@ export class MainLayoutComponent implements OnInit {
     this.authService.logout();
   }
 
-  toggleMenu(): void {
-    if (this.isMobile) {
-      this.isMenuOpen = !this.isMenuOpen;
+  toggleNavigation(): void {
+    if (this.isMobileViewport) {
+      this.isMobileDrawerOpen = !this.isMobileDrawerOpen;
     } else {
-      this.isSidebarCollapsed = !this.isSidebarCollapsed;
+      this.isDesktopCompact = !this.isDesktopCompact;
     }
 
     this.cdr.markForCheck();
   }
 
-  closeMenu(): void {
-    if (!this.isMobile || !this.isMenuOpen) {
+  closeMobileNavigation(): void {
+    if (!this.isMobileViewport || !this.isMobileDrawerOpen) {
       return;
     }
 
-    this.isMenuOpen = false;
+    this.isMobileDrawerOpen = false;
     this.cdr.markForCheck();
   }
 
   onDrawerOpenedChange(opened: boolean): void {
-    if (this.isMobile && this.isMenuOpen !== opened) {
-      this.isMenuOpen = opened;
+    if (this.isMobileViewport && this.isMobileDrawerOpen !== opened) {
+      this.isMobileDrawerOpen = opened;
       this.cdr.markForCheck();
     }
   }
 
   onDrawerClosed(): void {
-    if (this.isMobile && this.isMenuOpen) {
-      this.isMenuOpen = false;
+    if (this.isMobileViewport && this.isMobileDrawerOpen) {
+      this.isMobileDrawerOpen = false;
       this.cdr.markForCheck();
     }
   }
 
   toggleSubmenu(item: MenuItem): void {
-    if (!this.isMobile && this.isSidebarCollapsed) {
-      this.isSidebarCollapsed = false;
+    if (!this.isMobileViewport && this.isDesktopCompact) {
+      this.isDesktopCompact = false;
+      this.expandedItems.add(item.id);
+      this.cdr.markForCheck();
+      return;
     }
 
     if (this.expandedItems.has(item.id)) {
@@ -226,8 +227,8 @@ export class MainLayoutComponent implements OnInit {
   }
 
   onNavItemSelected(): void {
-    if (this.isMobile) {
-      this.closeMenu();
+    if (this.isMobileViewport) {
+      this.closeMobileNavigation();
     }
   }
 
@@ -267,8 +268,8 @@ export class MainLayoutComponent implements OnInit {
   }
 
   private handleNavigation(): void {
-    if (this.isMobile) {
-      this.closeMenu();
+    if (this.isMobileViewport) {
+      this.closeMobileNavigation();
     }
 
     this.syncActiveNavigation();

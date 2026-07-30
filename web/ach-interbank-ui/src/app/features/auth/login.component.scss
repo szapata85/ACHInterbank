@@ -10,32 +10,76 @@
 }
 
 .login-header {
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.login-eyebrow {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--color-primary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 h1 {
-  margin: 0 0 0.5rem;
-  font-size: clamp(1.35rem, 4vw, 1.65rem);
-  line-height: 1.25;
+  margin: 0 0 0.55rem;
   color: var(--color-text);
+  font-size: clamp(1.45rem, 4vw, 1.7rem);
+  font-weight: 750;
+  line-height: 1.2;
 }
 
 p {
   margin: 0;
   color: var(--color-text-muted);
+  font-size: 0.94rem;
+  line-height: 1.5;
 }
 
 form {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
 mat-form-field {
   width: 100%;
 }
 
+.field-icon,
+.visibility-icon,
+.error-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.field-icon {
+  width: 20px;
+  height: 20px;
+  margin-inline: 0.15rem 0.25rem;
+  color: var(--color-text-muted);
+}
+
 .password-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  --mdc-icon-button-state-layer-size: 44px;
+}
+
+.password-toggle:hover {
+  background: var(--color-surface-muted);
   color: var(--color-text);
+}
+
+.visibility-icon {
+  width: 22px;
+  height: 22px;
 }
 
 .password-toggle:focus-visible {
@@ -62,23 +106,28 @@ mat-form-field {
   margin: 0.15rem 0 0.65rem;
   padding: 0.75rem;
   border: 1px solid color-mix(in srgb, var(--color-danger) 35%, transparent);
-  border-radius: var(--radius-lg);
+  border-radius: 10px;
   background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
   color: var(--color-danger);
-  font-size: 0.875rem;
+  font-size: 0.84rem;
   line-height: 1.4;
 }
 
-.login-error mat-icon {
+.error-icon {
   flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
   margin-top: 0.05rem;
 }
 
 .submit-button {
   width: 100%;
-  min-height: 46px;
-  margin-top: 0.15rem;
-  font-size: 1rem;
+  min-height: 48px;
+  margin-top: 0.2rem;
+  border-radius: 10px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .submit-button mat-spinner {
@@ -87,12 +136,13 @@ mat-form-field {
 }
 
 .helper-links {
-  margin-top: 0.65rem;
+  margin-top: 0.75rem;
   text-align: center;
 }
 
 .helper-links a {
   color: #0f766e;
+  font-size: 0.9rem;
   text-decoration: none;
   font-weight: 600;
 }
@@ -109,6 +159,10 @@ mat-form-field {
 
 @media (max-width: 420px) {
   .login-header {
-    margin-bottom: 1.35rem;
+    margin-bottom: 1.2rem;
+  }
+
+  h1 {
+    font-size: 1.45rem;
   }
 }

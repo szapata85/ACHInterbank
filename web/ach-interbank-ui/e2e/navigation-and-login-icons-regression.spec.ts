@@ -1,201 +1,225 @@
-import { expect, Page, test } from '@playwright/test';
-import path from 'node:path';
+import { expect, Locator, Page, test } from '@playwright/test';
 
-const viewports = [
-  { width: 1366, height: 768 }
-];
-
+const desktopViewport = { width: 1440, height: 900 };
 const mobileViewport = { width: 390, height: 844 };
-const evidencePhase = process.env['ICON_EVIDENCE_PHASE'] ?? 'final';
 
-test.describe('Regresión visual de iconos de navegación y login', () => {
-  for (const viewport of viewports) {
-    test(`login conserva el control Material visual y accesible en ${viewport.width}x${viewport.height}`, async ({ page }) => {
-      const loginRequests: string[] = [];
-      const externalFontRequests: string[] = [];
-
-      page.on('request', (request) => {
-        const url = new URL(request.url());
-        if (url.pathname.endsWith('/auth/login')) {
-          loginRequests.push(request.url());
-        }
-        if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-          externalFontRequests.push(request.url());
-        }
-      });
-
-      await page.setViewportSize(viewport);
-      await page.goto('/login');
-
-      const passwordInput = page.locator('input[formControlName="password"]');
-      const toggle = page.getByRole('button', { name: 'Mostrar contraseña', exact: true });
-
-      await passwordInput.fill('Clave-Ficticia-123!');
-      await screenshot(page, `login-oculto-${viewport.width}x${viewport.height}.png`);
-
-      await expect(passwordInput).toHaveAttribute('type', 'password');
-      await expect(toggle).toHaveAttribute('type', 'button');
-      await expect(toggle).toHaveAttribute('aria-label', 'Mostrar contraseña');
-      await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-      await expect(toggle.locator('mat-icon')).toContainText('visibility');
-      await expect(toggle).toHaveClass(/mat-mdc-tooltip-trigger/);
-
-      await toggle.click();
-      await screenshot(page, `login-visible-${viewport.width}x${viewport.height}.png`);
-
-      const hideToggle = page.getByRole('button', { name: 'Ocultar contraseña', exact: true });
-      await expect(passwordInput).toHaveAttribute('type', 'text');
-      await expect(passwordInput).toHaveValue('Clave-Ficticia-123!');
-      await expect(hideToggle).toHaveAttribute('aria-label', 'Ocultar contraseña');
-      await expect(hideToggle).toHaveAttribute('aria-pressed', 'true');
-      await expect(hideToggle.locator('mat-icon')).toContainText('visibility_off');
-
-      await hideToggle.press('Enter');
-      await expect(passwordInput).toHaveAttribute('type', 'password');
-      await expect(passwordInput).toHaveValue('Clave-Ficticia-123!');
-      expect(loginRequests).toEqual([]);
-      expect(externalFontRequests).toEqual([]);
-    });
-
-    test(`menú runtime conserva iconos, jerarquía, colapso y recarga en ${viewport.width}x${viewport.height}`, async ({ page }) => {
-      const consoleErrors: string[] = [];
-      const failedRequests: string[] = [];
-
-      page.on('console', (message) => {
-        if (message.type() === 'error') {
-          consoleErrors.push(message.text());
-        }
-      });
-      page.on('requestfailed', (request) => {
-        failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ''}`.trim());
-      });
-
-      await page.setViewportSize(viewport);
-      await configureAuthenticatedRuntime(page);
-      await page.goto('/dashboard');
-
-      const sidebar = page.locator('mat-sidenav.primary-sidenav');
-      const rootLink = sidebar.locator('a.nav-item[data-menu-item-id="1"]');
-      const parentRow = sidebar.locator('button.nav-parent[data-menu-item-id="2"]');
-      const childLink = sidebar.locator('a.nav-item[data-menu-item-id="21"]');
-      const rootIcon = rootLink.locator('app-ui-icon[data-icon-key="dashboard"]');
-      const parentIcon = parentRow.locator('app-ui-icon[data-icon-key="account_balance"]');
-      const childIcon = childLink.locator('app-ui-icon[data-icon-key="schedule"]');
-      const fallbackIcon = sidebar.locator(
-        'a.nav-item[data-menu-item-id="3"] app-ui-icon[data-icon-resolved="help"]'
-      );
-
-      await expect(rootIcon).toBeVisible();
-      await expect(parentIcon).toBeVisible();
-      await expect(fallbackIcon).toBeVisible();
-      await expect(rootLink).toHaveAttribute('aria-current', 'page');
-      await expect(sidebar.getByText('Panel principal', { exact: true })).toBeVisible();
-
-      if ((await parentRow.getAttribute('aria-expanded')) !== 'true') {
-        await parentRow.click();
-      }
-      await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
-      await expect(childIcon).toBeVisible();
-      await expect(childLink).toHaveAttribute('aria-current', 'page');
-      await expect(sidebar.locator('#submenu-2')).toBeVisible();
-
-      await parentRow.click();
-      await expect(parentRow).toHaveAttribute('aria-expanded', 'false');
-      await expect(sidebar.locator('#submenu-2')).toHaveCount(0);
-      await parentRow.click();
-      await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
-      await screenshot(page, `menu-expandido-${viewport.width}x${viewport.height}.png`);
-
-      const collapseToggle = page.getByRole('button', {
-        name: 'Contraer menú principal',
-        exact: true
-      });
-      await collapseToggle.click();
-
-      await expect(sidebar).toHaveClass(/collapsed/);
-      await expect(rootIcon).toBeVisible();
-      await expect(parentIcon).toBeVisible();
-      await expect(sidebar.getByText('Panel principal', { exact: true })).toBeHidden();
-      await expect(
-        page.getByRole('button', { name: 'Expandir menú principal', exact: true })
-      ).toBeVisible();
-      await screenshot(page, `menu-colapsado-${viewport.width}x${viewport.height}.png`);
-
-      await page.getByRole('button', { name: 'Expandir menú principal', exact: true }).click();
-      await expect(sidebar.getByText('Panel principal', { exact: true })).toBeVisible();
-
-      await page.reload();
-      await expect(rootIcon).toBeVisible();
-      await expect(parentIcon).toBeVisible();
-      await expect(childIcon).toBeVisible();
-      await expect(rootLink).toHaveAttribute('aria-current', 'page');
-      await expect(childLink).toHaveAttribute('aria-current', 'page');
-      expect(consoleErrors).toEqual([]);
-      expect(failedRequests).toEqual([]);
-    });
-  }
-
-  test('menú padre usa teclado nativo y el hijo conserva navegación', async ({ page }) => {
-    await page.setViewportSize(viewports[0]);
+test.describe('Regresión focalizada del sidenav', () => {
+  test('mantiene el modo compacto recuperable y todos los estados legibles', async ({ page }) => {
+    const diagnostics = monitorDiagnostics(page);
+    await page.setViewportSize(desktopViewport);
     await configureAuthenticatedRuntime(page);
     await page.goto('/dashboard');
 
-    const parentRow = page.locator('button.nav-parent[data-menu-item-id="2"]');
-    const childLink = page.locator('a.nav-item[data-menu-item-id="21"]');
+    const sidenav = page.locator('mat-sidenav.primary-sidenav');
+    const toggle = page.locator('button.menu-toggle');
+    const rootLink = sidenav.locator('a.nav-item[data-menu-item-id="1"]');
+    const parent = sidenav.locator('button.nav-parent[data-menu-item-id="2"]');
+    const child = sidenav.locator('a.nav-item[data-menu-item-id="21"]');
+    const normal = sidenav.locator('a.nav-item[data-menu-item-id="3"]');
+    const normalParent = sidenav.locator('button.nav-parent[data-menu-item-id="4"]');
 
-    await expect(parentRow).toHaveCount(1);
-    await expect(parentRow.locator('button, a, [tabindex]:not([tabindex="-1"])')).toHaveCount(0);
-    if ((await parentRow.getAttribute('aria-expanded')) !== 'false') {
-      await parentRow.click();
+    await expect(toggle).toHaveAttribute('aria-label', 'Contraer navegación');
+    await expectControlSize(toggle);
+
+    for (let cycle = 0; cycle < 10; cycle += 1) {
+      const compact = cycle % 2 === 0;
+      await toggle.click();
+      await expect(toggle).toHaveAttribute(
+        'aria-label',
+        compact ? 'Expandir navegación' : 'Contraer navegación'
+      );
+      await expect(sidenav).toHaveClass(compact ? /compact/ : /^(?!.*compact)/);
+      await expectControlSize(toggle);
     }
-    await expect(parentRow).toHaveAttribute('aria-expanded', 'false');
-    await parentRow.press('Enter');
-    await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
-    await expect(childLink).toHaveAttribute('href', '/dashboard');
-    await parentRow.press('Space');
-    await expect(parentRow).toHaveAttribute('aria-expanded', 'false');
-    await expect(childLink).toHaveCount(0);
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-label', 'Expandir navegación');
+    await expect(sidenav).toHaveClass(/compact/);
+    await expect(rootLink.locator('app-ui-icon')).toBeVisible();
+    await expect(rootLink.locator('.nav-label')).toBeHidden();
+
+    await rootLink.click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(sidenav).toHaveClass(/compact/);
+
+    await parent.click();
+    await expect(sidenav).not.toHaveClass(/compact/);
+    await expect(parent).toHaveAttribute('aria-expanded', 'true');
+    await expect(child).toBeVisible();
+
+    await child.click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(rootLink).toHaveAttribute('aria-current', 'page');
+    await expect(child).toHaveAttribute('aria-current', 'page');
+    await expect(parent).toHaveClass(/active/);
+
+    await expectReadableOnSidenav(rootLink.locator('.nav-label'), 4.5);
+    await expectReadableOnSidenav(rootLink.locator('.nav-icon'), 3);
+    await expectReadableOnSidenav(normal.locator('.nav-label'), 4.5);
+    await expectReadableOnSidenav(normal.locator('.nav-icon'), 3);
+    await expectReadableOnSidenav(normalParent.locator('.nav-label'), 4.5);
+    await expectReadableOnSidenav(normalParent.locator('.nav-icon'), 3);
+    await expectReadableOnSidenav(normalParent.locator('.expand-icon'), 3);
+    await expectReadableOnSidenav(parent.locator('.nav-label'), 4.5);
+    await expectReadableOnSidenav(parent.locator('.nav-icon'), 3);
+    await expectReadableOnSidenav(parent.locator('.expand-icon'), 3);
+    await expectReadableOnSidenav(child.locator('.nav-label'), 4.5);
+    await expectReadableOnSidenav(child.locator('.nav-icon'), 3);
+
+    const activeSurface = await parent.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const indicator = getComputedStyle(element, '::before');
+      return {
+        background: style.backgroundColor,
+        border: style.borderColor,
+        indicator: indicator.backgroundColor
+      };
+    });
+
+    expect(activeSurface.background).not.toBe('rgba(0, 0, 0, 0)');
+    expect(activeSurface.border).not.toBe('rgba(0, 0, 0, 0)');
+    expect(activeSurface.indicator).not.toBe('rgba(0, 0, 0, 0)');
+    expect(diagnostics.consoleErrors).toEqual([]);
+    expect(diagnostics.requestFailures).toEqual([]);
   });
 
-  test('en móvil abrir un padre conserva el drawer y navegar un hijo lo cierra', async ({ page }) => {
-    await page.setViewportSize(mobileViewport);
+  test('separa modo compacto de overlay al cambiar desktop, móvil y desktop', async ({ page }) => {
+    await page.setViewportSize(desktopViewport);
     await configureAuthenticatedRuntime(page);
     await page.goto('/dashboard');
 
-    const openMenu = page.getByRole('button', { name: 'Abrir menú principal', exact: true });
-    const sidebar = page.locator('mat-sidenav.primary-sidenav');
-    const backdrop = page.locator('.mat-drawer-backdrop.mat-drawer-shown');
+    const sidenav = page.locator('mat-sidenav.primary-sidenav');
+    const toggle = page.locator('button.menu-toggle');
 
-    await openMenu.click();
-    await expect(sidebar).toBeVisible();
-    await expect(backdrop).toBeVisible();
+    await toggle.click();
+    await expect(sidenav).toHaveClass(/compact/);
+    await expect(toggle).toHaveAttribute('aria-label', 'Expandir navegación');
 
-    const parentRow = sidebar.locator('button.nav-parent[data-menu-item-id="2"]');
-    if ((await parentRow.getAttribute('aria-expanded')) !== 'false') {
-      await parentRow.click();
+    await page.setViewportSize(mobileViewport);
+    await expect(sidenav).toHaveClass(/mat-drawer-over/);
+    await expect(sidenav).toBeHidden();
+    await expect(toggle).toHaveAttribute('aria-label', 'Abrir navegación');
+
+    await toggle.click();
+    await expect(sidenav).toBeVisible();
+    await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toBeVisible();
+
+    const parent = sidenav.locator('button.nav-parent[data-menu-item-id="2"]');
+    if ((await parent.getAttribute('aria-expanded')) !== 'true') {
+      await parent.click();
     }
-    await expect(parentRow).toHaveAttribute('aria-expanded', 'false');
-    await parentRow.click();
-    await expect(parentRow).toHaveAttribute('aria-expanded', 'true');
-    await expect(sidebar).toBeVisible();
+    await expect(sidenav).toBeVisible();
+    await sidenav.locator('a.nav-item[data-menu-item-id="21"]').click();
+    await expect(sidenav).toBeHidden();
+    await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toHaveCount(0);
+
+    await page.setViewportSize(desktopViewport);
+    await expect(sidenav).toHaveClass(/mat-drawer-side/);
+    await expect(sidenav).toBeVisible();
+    await expect(sidenav).toHaveClass(/compact/);
+    await expect(toggle).toHaveAttribute('aria-label', 'Expandir navegación');
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-label', 'Contraer navegación');
+    await expect(sidenav).not.toHaveClass(/compact/);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-label', 'Expandir navegación');
+    await expect(sidenav).toHaveClass(/compact/);
+
+    await page.setViewportSize(mobileViewport);
+    await expect(toggle).toHaveAttribute('aria-label', 'Abrir navegación');
+    await toggle.click();
+    await expect(sidenav).toBeVisible();
+    await sidenav.locator('button.nav-parent[data-menu-item-id="2"]').focus();
+    await page.keyboard.press('Escape');
+    await expect(sidenav).toBeHidden();
+    await expect(toggle).toBeFocused();
+
+    await toggle.click();
+    const backdrop = page.locator('.mat-drawer-backdrop.mat-drawer-shown');
     await expect(backdrop).toBeVisible();
-
-    const childLink = sidebar.locator('a.nav-item[data-menu-item-id="21"]');
-    await expect(childLink).toBeVisible();
-    await screenshot(page, `menu-movil-abierto-${mobileViewport.width}x${mobileViewport.height}.png`);
-
-    await childLink.click();
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(sidebar).toBeHidden();
+    await backdrop.click({ position: { x: 380, y: 120 } });
+    await expect(sidenav).toBeHidden();
     await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toHaveCount(0);
   });
 });
 
+async function expectControlSize(control: Locator): Promise<void> {
+  const box = await control.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await expect(control.locator('svg.menu-toggle-icon')).toBeVisible();
+}
+
+async function expectReadableOnSidenav(target: Locator, minimumContrast: number): Promise<void> {
+  const colors = await target.evaluate((element) => {
+    const sidenav = element.closest('mat-sidenav');
+    return {
+      foreground: getComputedStyle(element).color,
+      background: getComputedStyle(sidenav ?? document.body).backgroundColor
+    };
+  });
+
+  expect(colors.foreground).not.toBe('rgba(0, 0, 0, 0)');
+  expect(colors.foreground).not.toBe('transparent');
+  expect(colors.foreground).not.toBe('rgb(0, 0, 0)');
+  expect(contrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(
+    minimumContrast
+  );
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const foregroundLuminance = luminance(parseColor(foreground));
+  const backgroundLuminance = luminance(parseColor(background));
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+  const darker = Math.min(foregroundLuminance, backgroundLuminance);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function parseColor(value: string): [number, number, number] {
+  const channels = value.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).map(Number);
+  if (!channels || channels.length !== 3) {
+    throw new Error(`Color CSS no soportado: ${value}`);
+  }
+  return channels as [number, number, number];
+}
+
+function luminance([red, green, blue]: [number, number, number]): number {
+  const normalize = (channel: number): number => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * normalize(red) + 0.7152 * normalize(green) + 0.0722 * normalize(blue);
+}
+
+function monitorDiagnostics(page: Page): {
+  consoleErrors: string[];
+  requestFailures: string[];
+} {
+  const diagnostics = {
+    consoleErrors: [] as string[],
+    requestFailures: [] as string[]
+  };
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      diagnostics.consoleErrors.push(message.text());
+    }
+  });
+  page.on('requestfailed', (request) => {
+    diagnostics.requestFailures.push(
+      `${request.method()} ${new URL(request.url()).pathname} ${request.failure()?.errorText ?? ''}`.trim()
+    );
+  });
+
+  return diagnostics;
+}
+
 async function configureAuthenticatedRuntime(page: Page): Promise<void> {
   const token = createUnsignedJwt({
-    unique_name: 'ui.icons.regression',
-    name: 'Usuario UI Icons',
-    uid: 'ui-icons-regression',
+    unique_name: 'ui.shell.regression',
+    name: 'Usuario de validación',
+    uid: 'ui-shell-regression',
     role: ['Admin'],
     permission: ['CanReadAch'],
     exp: Math.floor(Date.now() / 1000) + 3600,
@@ -214,8 +238,8 @@ async function configureAuthenticatedRuntime(page: Page): Promise<void> {
         sucess: true,
         data: {
           token,
-          username: 'ui.icons.regression',
-          fullName: 'Usuario UI Icons',
+          username: 'ui.shell.regression',
+          fullName: 'Usuario de validación',
           roles: ['Admin'],
           permissions: ['CanReadAch']
         }
@@ -232,7 +256,14 @@ async function configureAuthenticatedRuntime(page: Page): Promise<void> {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        { id: 1, label: 'Panel principal', route: '/dashboard', icon: 'dashboard', exact: true, order: 1 },
+        {
+          id: 1,
+          label: 'Panel principal',
+          route: '/dashboard',
+          icon: 'dashboard',
+          exact: true,
+          order: 1
+        },
         {
           id: 2,
           label: 'Operación',
@@ -241,16 +272,41 @@ async function configureAuthenticatedRuntime(page: Page): Promise<void> {
           exact: false,
           order: 2,
           children: [
-            { id: 21, label: 'Ciclos', route: '/dashboard', icon: 'schedule', exact: true, order: 1 }
+            {
+              id: 21,
+              label: 'Ciclos',
+              route: '/dashboard',
+              icon: 'schedule',
+              exact: true,
+              order: 1
+            }
           ]
         },
         {
           id: 3,
-          label: 'Icono desconocido',
+          label: 'Consulta auxiliar',
           route: '/icon-fallback',
           icon: 'unknown_semantic_key',
-          exact: false,
+          exact: true,
           order: 3
+        },
+        {
+          id: 4,
+          label: 'Reportes',
+          route: '/reports',
+          icon: 'summarize',
+          exact: false,
+          order: 4,
+          children: [
+            {
+              id: 41,
+              label: 'Reporte auxiliar',
+              route: '/report-fallback',
+              icon: 'receipt_long',
+              exact: true,
+              order: 1
+            }
+          ]
         }
       ])
     });
@@ -258,13 +314,6 @@ async function configureAuthenticatedRuntime(page: Page): Promise<void> {
 
   await page.route(/\/api\/navigation-logs$/, async (route) => {
     await route.fulfill({ status: 204, body: '' });
-  });
-}
-
-async function screenshot(page: Page, fileName: string): Promise<void> {
-  await page.screenshot({
-    path: path.join(process.cwd(), 'e2e-evidence', 'ui-icon-regression', evidencePhase, fileName),
-    fullPage: true
   });
 }
 

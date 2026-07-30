@@ -1,17 +1,17 @@
 <mat-sidenav-container
   class="shell-container"
-  [class.mobile-shell]="isMobile"
-  [class.sidebar-collapsed]="isSidebarCollapsed && !isMobile"
-  [hasBackdrop]="isMobile"
+  [class.mobile-shell]="isMobileViewport"
+  [class.sidebar-compact]="isDesktopCompact && !isMobileViewport"
+  [hasBackdrop]="isMobileViewport"
   autosize
 >
   <mat-sidenav
     id="primary-navigation"
     class="primary-sidenav"
-    [class.collapsed]="isSidebarCollapsed && !isMobile"
-    [mode]="isMobile ? 'over' : 'side'"
+    [class.compact]="isDesktopCompact && !isMobileViewport"
+    [mode]="isMobileViewport ? 'over' : 'side'"
     [opened]="drawerOpened"
-    [autoFocus]="isMobile"
+    [autoFocus]="isMobileViewport"
     (openedChange)="onDrawerOpenedChange($event)"
     (closedStart)="onDrawerClosed()"
     role="navigation"
@@ -53,13 +53,20 @@
           mat-icon-button
           class="menu-toggle"
           type="button"
-          [attr.aria-label]="menuToggleLabel"
+          [attr.aria-label]="navigationToggleLabel"
           [attr.aria-controls]="'primary-navigation'"
-          [attr.aria-expanded]="isMenuExpanded"
-          [matTooltip]="menuToggleLabel"
-          (click)="toggleMenu()"
+          [attr.aria-expanded]="isNavigationExpanded"
+          [matTooltip]="navigationToggleLabel"
+          (click)="toggleNavigation()"
         >
-          <mat-icon aria-hidden="true">{{ isMenuExpanded ? 'menu_open' : 'menu' }}</mat-icon>
+          <svg
+            class="menu-toggle-icon"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4 6.5h16M4 12h16M4 17.5h16"></path>
+          </svg>
         </button>
 
         <div class="page-meta">
@@ -118,7 +125,7 @@
           [attr.aria-expanded]="isItemExpanded(item)"
           [attr.aria-controls]="'submenu-' + item.id"
           [matTooltip]="item.label"
-          [matTooltipDisabled]="!isSidebarCollapsed || isMobile"
+          [matTooltipDisabled]="!isDesktopCompact || isMobileViewport"
           matTooltipPosition="after"
           (click)="toggleSubmenu(item)"
         >
@@ -138,7 +145,7 @@
         </button>
 
         <div
-          *ngIf="isItemExpanded(item) && (!isSidebarCollapsed || isMobile)"
+          *ngIf="isItemExpanded(item) && (!isDesktopCompact || isMobileViewport)"
           class="nav-children"
           [id]="'submenu-' + item.id"
           role="group"
@@ -160,7 +167,7 @@
           ariaCurrentWhenActive="page"
           [attr.data-menu-item-id]="item.id"
           [matTooltip]="item.label"
-          [matTooltipDisabled]="!isSidebarCollapsed || isMobile"
+          [matTooltipDisabled]="!isDesktopCompact || isMobileViewport"
           matTooltipPosition="after"
           (click)="onNavItemSelected()"
         >

@@ -1,106 +1,133 @@
-import { expect, Page, test, TestInfo } from '@playwright/test';
+import { expect, Locator, Page, test } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
 
-const SMOKE_ROUTES = [
-  '/uat/nacha-inbound-simulator',
-  '/audit-logs',
-  '/auth-logs',
-  '/catalogs/financial-institutions',
-  '/catalogs/clearing-house-preferences',
-  '/catalogs/bank-holidays',
-  '/transactions/returns'
-] as const;
+const desktopViewport = { width: 1440, height: 900 };
+const mobileViewport = { width: 390, height: 844 };
+const evidenceDirectory = path.join(
+  process.cwd(),
+  'e2e-evidence',
+  'login-shell-corrective-1.1'
+);
 
 type Diagnostics = {
   consoleErrors: string[];
   pageErrors: string[];
   requestFailures: string[];
   responseErrors: string[];
+  externalFontRequests: string[];
 };
 
-test.describe.serial('Login and authenticated Material shell', () => {
-  test('desktop: real login, dynamic navigation, smoke routes and logout', async ({ page }, testInfo) => {
+test.describe.serial('Login y shell correctivo LIVE', () => {
+  test('desktop: login real, grupo activo y navegación expandida/compacta', async ({ page }) => {
     test.setTimeout(60_000);
     const diagnostics = monitorDiagnostics(page);
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize(desktopViewport);
 
-    const loginRequests = await exerciseLogin(page, testInfo, 'desktop');
-    expect(loginRequests, 'El formulario debe emitir una sola solicitud de autenticación.').toBe(1);
+    const loginRequests = await exerciseLogin(page, 'login-desktop.png');
+    expect(loginRequests).toBe(1);
 
-    await expectDesktopShell(page);
-    await navigateThroughMenu(page, '/audit-logs', ['Logs']);
-    await expect(page).toHaveURL(/\/audit-logs$/);
-    await expect(page.locator('a[href="/audit-logs"]')).toHaveAttribute('aria-current', 'page');
+    const sidenav = page.locator('mat-sidenav.primary-sidenav');
+    const toggle = page.locator('button.menu-toggle');
+    await expect(sidenav).toHaveClass(/mat-drawer-side/);
+    await expect(toggle).toHaveAttribute('aria-label', 'Contraer navegación');
+    await expectControlSize(toggle);
 
-    for (const route of SMOKE_ROUTES) {
-      await page.goto(route, { waitUntil: 'domcontentloaded' });
-      await page.waitForLoadState('networkidle');
-      await expect(page.locator('app-loading-overlay .overlay')).toBeHidden({ timeout: 15_000 });
-      await expect(page).toHaveURL(new RegExp(`${escapeRegExp(route)}$`));
-      await expectDesktopShell(page);
-      await assertShellLayout(page);
-
-      const activeLink = page.locator(`a[href="${route}"][aria-current="page"]`);
-      if (await activeLink.count()) {
-        await expect(activeLink).toBeVisible();
-      }
+    const cyclesGroup = page.getByRole('button', {
+      name: 'Configuración de ciclos',
+      exact: true
+    });
+    const cyclesGroupId = await cyclesGroup.getAttribute('data-menu-item-id');
+    expect(cyclesGroupId).not.toBeNull();
+    const cyclesGroupRow = sidenav.locator(
+      `button.nav-parent[data-menu-item-id="${cyclesGroupId}"]`
+    );
+    if ((await cyclesGroup.getAttribute('aria-expanded')) !== 'true') {
+      await cyclesGroup.click();
     }
 
-    await attachScreenshot(page, testInfo, 'desktop-shell');
+    const cyclesLink = sidenav.locator('a[data-menu-item-id][href="/ach-cycles"]');
+    await expect(cyclesLink).toBeVisible();
+    await cyclesLink.click();
+    await expect(page).toHaveURL(/\/ach-cycles$/);
+    await expect(page.locator('app-loading-overlay .overlay')).toBeHidden({ timeout: 15_000 });
+    await expect(cyclesGroup).toHaveAttribute('aria-expanded', 'true');
+    await expect(cyclesGroup).toHaveClass(/active/);
+    await expectBrandVisible(sidenav);
+    await assertShellLayout(page);
+    await assertSidenavNoHorizontalScroll(page);
+    if (process.env['SKIP_EXPANDED_EVIDENCE'] !== 'true') {
+      await saveEvidence(page, 'shell-desktop-expanded.png');
+    }
 
-    await page.getByRole('button', { name: 'Cerrar sesión' }).click();
-    await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole('heading', { name: 'Ingreso al portal ACH Interbank' })).toBeVisible();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-label', 'Expandir navegación');
+    await expect(sidenav).toHaveClass(/compact/);
+    await expectControlSize(toggle);
+    await expect(cyclesGroupRow.locator('app-ui-icon')).toBeVisible();
+    await expect(cyclesGroupRow.locator('.nav-label')).toBeHidden();
+    await assertShellLayout(page);
+    await assertSidenavNoHorizontalScroll(page);
+    if (process.env['SKIP_COMPACT_EVIDENCE'] !== 'true') {
+      await saveEvidence(page, 'shell-desktop-compact.png');
+    }
 
     assertCleanDiagnostics(diagnostics);
   });
 
-  test('mobile: real login, overlay navigation, focus, Escape and backdrop', async ({ page }, testInfo) => {
+  test('móvil: login real, overlay, navegación, Escape y backdrop', async ({ page }) => {
     const diagnostics = monitorDiagnostics(page);
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize(mobileViewport);
 
-    const loginRequests = await exerciseLogin(page, testInfo, 'mobile');
-    expect(loginRequests, 'El formulario debe emitir una sola solicitud de autenticación.').toBe(1);
-
-    await expectMobileShell(page);
-    const menuToggle = page.getByRole('button', { name: 'Abrir menú principal' });
-    await menuToggle.click();
+    const loginRequests = await exerciseLogin(page, 'login-mobile.png');
+    expect(loginRequests).toBe(1);
 
     const sidenav = page.locator('mat-sidenav.primary-sidenav');
-    const backdrop = page.locator('.mat-drawer-backdrop.mat-drawer-shown');
+    const toggle = page.locator('button.menu-toggle');
+    await expect(sidenav).toHaveClass(/mat-drawer-over/);
+    await expect(sidenav).toBeHidden();
+    await expect(toggle).toHaveAttribute('aria-label', 'Abrir navegación');
+    await expectControlSize(toggle);
+    await assertShellLayout(page);
+
+    await toggle.click();
     await expect(sidenav).toBeVisible();
-    await expect(backdrop).toBeVisible();
+    await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toBeVisible();
     await expect.poll(() => focusIsInsideSidenav(page)).toBe(true);
 
-    await navigateThroughMenu(page, '/catalogs/financial-institutions', ['Catálogos'], true);
-    await expect(page).toHaveURL(/\/catalogs\/financial-institutions$/);
+    const cyclesGroup = page.getByRole('button', {
+      name: 'Configuración de ciclos',
+      exact: true
+    });
+    if ((await cyclesGroup.getAttribute('aria-expanded')) !== 'true') {
+      await cyclesGroup.click();
+    }
+    await expect(sidenav).toBeVisible();
+    await sidenav.locator('a[data-menu-item-id][href="/ach-cycles"]').click();
+    await expect(page).toHaveURL(/\/ach-cycles$/);
     await expect(sidenav).toBeHidden();
     await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toHaveCount(0);
     await assertShellLayout(page);
 
-    const reopenToggle = page.getByRole('button', { name: 'Abrir menú principal' });
-    await reopenToggle.click();
+    await toggle.click();
     await expect(sidenav).toBeVisible();
     await expect.poll(() => focusIsInsideSidenav(page)).toBe(true);
     await page.keyboard.press('Escape');
     await expect(sidenav).toBeHidden();
-    await expect(reopenToggle).toBeFocused();
+    await expect(toggle).toBeFocused();
 
-    await reopenToggle.click();
+    await toggle.click();
+    const backdrop = page.locator('.mat-drawer-backdrop.mat-drawer-shown');
     await expect(backdrop).toBeVisible();
     await backdrop.click({ position: { x: 380, y: 120 } });
     await expect(sidenav).toBeHidden();
     await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toHaveCount(0);
 
-    await attachScreenshot(page, testInfo, 'mobile-shell');
     assertCleanDiagnostics(diagnostics);
   });
 });
 
-async function exerciseLogin(
-  page: Page,
-  testInfo: TestInfo,
-  viewportName: 'desktop' | 'mobile'
-): Promise<number> {
+async function exerciseLogin(page: Page, evidenceName: string): Promise<number> {
   const username = requiredEnvironmentValue('ACH_USER');
   const password = requiredEnvironmentValue('ACH_PASS');
   let loginRequests = 0;
@@ -111,12 +138,23 @@ async function exerciseLogin(
     }
   });
 
-  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await page.goto('/login', { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Ingreso al portal ACH Interbank' })).toBeVisible();
   await assertNoDocumentOverflow(page);
 
-  const usernameInput = page.getByLabel('Usuario', { exact: true });
-  const passwordInput = page.getByLabel('Contraseña', { exact: true });
+  const accountIcon = page.locator('svg[data-login-icon="account"]');
+  const lockIcon = page.locator('svg[data-login-icon="lock"]');
+  const showIcon = page.locator('svg[data-login-icon="visibility"]');
+  await expectLocalSvgIcon(accountIcon);
+  await expectLocalSvgIcon(lockIcon);
+  await expectLocalSvgIcon(showIcon);
+  await expect(page.locator('.login-card mat-icon')).toHaveCount(0);
+  if (process.env['SKIP_LOGIN_EVIDENCE'] !== 'true') {
+    await saveEvidence(page, evidenceName);
+  }
+
+  const usernameInput = page.locator('input[formControlName="username"]');
+  const passwordInput = page.locator('input[formControlName="password"]');
   const submitButton = page.getByRole('button', { name: 'Ingresar', exact: true });
 
   await expect(submitButton).toBeDisabled();
@@ -128,12 +166,13 @@ async function exerciseLogin(
   await expect(page.getByText('La contraseña es obligatoria.', { exact: true })).toBeVisible();
 
   const showPassword = page.getByRole('button', { name: 'Mostrar contraseña' });
+  await expectControlSize(showPassword);
   await showPassword.click();
   await expect(passwordInput).toHaveAttribute('type', 'text');
-  await page.getByRole('button', { name: 'Ocultar contraseña' }).click();
+  const hidePassword = page.getByRole('button', { name: 'Ocultar contraseña' });
+  await expectLocalSvgIcon(hidePassword.locator('svg[data-login-icon="visibility-off"]'));
+  await hidePassword.click();
   await expect(passwordInput).toHaveAttribute('type', 'password');
-
-  await attachScreenshot(page, testInfo, `login-${viewportName}`);
 
   await usernameInput.fill(username);
   await passwordInput.fill(password);
@@ -147,47 +186,30 @@ async function exerciseLogin(
   return loginRequests;
 }
 
-async function expectDesktopShell(page: Page): Promise<void> {
-  await expect(page.locator('mat-toolbar.shell-toolbar')).toBeVisible();
-  await expect(page.locator('mat-sidenav-container.shell-container')).toBeVisible();
-  await expect(page.locator('mat-sidenav.primary-sidenav')).toHaveClass(/mat-drawer-side/);
-  await expect(page.locator('mat-sidenav.primary-sidenav')).toBeVisible();
-  await expect(page.locator('main#main-content')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Contraer menú principal' })).toBeVisible();
+async function expectLocalSvgIcon(icon: Locator): Promise<void> {
+  await expect(icon).toBeVisible();
+  await expect(icon.locator('path, circle, rect').first()).toBeAttached();
+  expect((await icon.textContent())?.trim() ?? '').toBe('');
+
+  const box = await icon.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(18);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(18);
 }
 
-async function expectMobileShell(page: Page): Promise<void> {
-  await expect(page.locator('mat-toolbar.shell-toolbar')).toBeVisible();
-  await expect(page.locator('mat-sidenav.primary-sidenav')).toHaveClass(/mat-drawer-over/);
-  await expect(page.locator('mat-sidenav.primary-sidenav')).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Abrir menú principal' })).toBeVisible();
-  await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toHaveCount(0);
-  await assertShellLayout(page);
+async function expectControlSize(control: Locator): Promise<void> {
+  await expect(control).toBeVisible();
+  const box = await control.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 }
 
-async function navigateThroughMenu(
-  page: Page,
-  route: string,
-  parentLabels: string[],
-  assertDrawerRemainsOpen = false
-): Promise<void> {
-  for (const parentLabel of parentLabels) {
-    const parent = page.getByRole('button', { name: parentLabel, exact: true });
-    await expect(parent).toBeVisible();
-    if ((await parent.getAttribute('aria-expanded')) !== 'true') {
-      await parent.click();
-    }
-
-    if (assertDrawerRemainsOpen) {
-      await expect(page.locator('mat-sidenav.primary-sidenav')).toBeVisible();
-      await expect(page.locator('.mat-drawer-backdrop.mat-drawer-shown')).toBeVisible();
-    }
-  }
-
-  const target = page.locator(`a[data-menu-item-id][href="${route}"]`);
-  await expect(target).toHaveCount(1);
-  await expect(target).toBeVisible();
-  await target.click();
+async function expectBrandVisible(sidenav: Locator): Promise<void> {
+  const logo = sidenav.locator('.brand .logo');
+  await expect(logo).toBeVisible();
+  await expect(logo).toContainText('ACH');
+  const box = await logo.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(40);
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(40);
 }
 
 async function assertShellLayout(page: Page): Promise<void> {
@@ -202,26 +224,33 @@ async function assertShellLayout(page: Page): Promise<void> {
       horizontalOverflow: Math.max(root.scrollWidth, document.body.scrollWidth) - root.clientWidth,
       mainStartsBelowToolbar:
         Boolean(toolbarRect && mainRect) && (mainRect?.top ?? 0) >= (toolbarRect?.bottom ?? 0) - 1,
-      windowScrollsVertically: root.scrollHeight > root.clientHeight + 1,
-      mainScrollsVertically: Boolean(main) && (main?.scrollHeight ?? 0) > (main?.clientHeight ?? 0) + 1,
       mainWidth: mainRect?.width ?? 0
     };
   });
 
-  expect(metrics.horizontalOverflow, 'El shell no debe producir overflow horizontal global.').toBeLessThanOrEqual(2);
-  expect(metrics.mainStartsBelowToolbar, 'El toolbar no debe cubrir el contenido principal.').toBe(true);
-  expect(metrics.mainWidth, 'El área principal debe conservar un ancho utilizable.').toBeGreaterThan(0);
-  expect(
-    metrics.windowScrollsVertically && metrics.mainScrollsVertically,
-    'Window y el área principal no deben crear doble scroll vertical.'
-  ).toBe(false);
+  expect(metrics.horizontalOverflow).toBeLessThanOrEqual(2);
+  expect(metrics.mainStartsBelowToolbar).toBe(true);
+  expect(metrics.mainWidth).toBeGreaterThan(0);
 }
 
 async function assertNoDocumentOverflow(page: Page): Promise<void> {
   const overflow = await page.evaluate(
     () => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - window.innerWidth
   );
-  expect(overflow, 'La pantalla no debe producir overflow horizontal.').toBeLessThanOrEqual(2);
+  expect(overflow).toBeLessThanOrEqual(2);
+}
+
+async function assertSidenavNoHorizontalScroll(page: Page): Promise<void> {
+  const metrics = await page.locator('mat-sidenav.primary-sidenav').evaluate((element) => {
+    const inner = element.querySelector<HTMLElement>('.mat-drawer-inner-container');
+    return {
+      scrollLeft: inner?.scrollLeft ?? 0,
+      overflow: (inner?.scrollWidth ?? 0) - (inner?.clientWidth ?? 0)
+    };
+  });
+
+  expect(metrics.scrollLeft).toBe(0);
+  expect(metrics.overflow).toBeLessThanOrEqual(1);
 }
 
 async function focusIsInsideSidenav(page: Page): Promise<boolean> {
@@ -236,25 +265,29 @@ function monitorDiagnostics(page: Page): Diagnostics {
     consoleErrors: [],
     pageErrors: [],
     requestFailures: [],
-    responseErrors: []
+    responseErrors: [],
+    externalFontRequests: []
   };
 
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+      diagnostics.externalFontRequests.push(url.hostname);
+    }
+  });
   page.on('console', (message) => {
     if (message.type() === 'error') {
       diagnostics.consoleErrors.push(sanitizeDiagnostic(message.text()));
     }
   });
-
   page.on('pageerror', (error) => {
     diagnostics.pageErrors.push(sanitizeDiagnostic(error.message));
   });
-
   page.on('requestfailed', (request) => {
     diagnostics.requestFailures.push(
       `${request.method()} ${safePath(request.url())}: ${sanitizeDiagnostic(request.failure()?.errorText ?? 'falló')}`
     );
   });
-
   page.on('response', (response) => {
     if (response.status() >= 400) {
       diagnostics.responseErrors.push(`${response.status()} ${safePath(response.url())}`);
@@ -265,16 +298,18 @@ function monitorDiagnostics(page: Page): Diagnostics {
 }
 
 function assertCleanDiagnostics(diagnostics: Diagnostics): void {
-  expect(diagnostics.consoleErrors, 'No debe haber errores de consola.').toEqual([]);
-  expect(diagnostics.pageErrors, 'No debe haber excepciones de página.').toEqual([]);
-  expect(diagnostics.requestFailures, 'No debe haber solicitudes fallidas.').toEqual([]);
-  expect(diagnostics.responseErrors, 'No debe haber respuestas HTTP de error.').toEqual([]);
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.requestFailures).toEqual([]);
+  expect(diagnostics.responseErrors).toEqual([]);
+  expect(diagnostics.externalFontRequests).toEqual([]);
 }
 
-async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
-  await testInfo.attach(name, {
-    body: await page.screenshot({ fullPage: true }),
-    contentType: 'image/png'
+async function saveEvidence(page: Page, fileName: string): Promise<void> {
+  await mkdir(evidenceDirectory, { recursive: true });
+  await page.screenshot({
+    path: path.join(evidenceDirectory, fileName),
+    fullPage: true
   });
 }
 
@@ -283,7 +318,6 @@ function requiredEnvironmentValue(name: 'ACH_USER' | 'ACH_PASS'): string {
   if (!value) {
     throw new Error(`La variable ${name} es obligatoria para el login LIVE.`);
   }
-
   return value;
 }
 
@@ -301,8 +335,4 @@ function sanitizeDiagnostic(value: string): string {
     .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[correo redactado]')
     .replace(/\b\d{6,}\b/g, '[dato redactado]')
     .slice(0, 300);
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

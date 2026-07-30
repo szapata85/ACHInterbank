@@ -1,7 +1,8 @@
 <section class="login-card" aria-labelledby="login-title">
   <header class="login-header">
+    <span class="login-eyebrow">Portal transaccional</span>
     <h1 id="login-title">Ingreso al portal ACH Interbank</h1>
-    <p>Autentícate para gestionar transacciones y catálogos.</p>
+    <p>Accede de forma segura para gestionar la operación interbancaria.</p>
   </header>
 
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate [attr.aria-busy]="isSubmitting">
@@ -15,7 +16,17 @@
         autocapitalize="none"
         spellcheck="false"
       />
-      <mat-icon matPrefix aria-hidden="true">person</mat-icon>
+      <svg
+        matPrefix
+        class="field-icon"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        focusable="false"
+        data-login-icon="account"
+      >
+        <circle cx="12" cy="8" r="3.5"></circle>
+        <path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6"></path>
+      </svg>
       <mat-error *ngIf="form.controls.username.hasError('required')">
         El usuario es obligatorio.
       </mat-error>
@@ -32,7 +43,17 @@
         formControlName="password"
         autocomplete="current-password"
       />
-      <mat-icon matPrefix aria-hidden="true">lock</mat-icon>
+      <svg
+        matPrefix
+        class="field-icon"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        focusable="false"
+        data-login-icon="lock"
+      >
+        <rect x="5" y="10" width="14" height="10" rx="2"></rect>
+        <path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10"></path>
+      </svg>
       <button
         mat-icon-button
         matSuffix
@@ -43,7 +64,28 @@
         [attr.aria-label]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
         [matTooltip]="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
       >
-        <mat-icon aria-hidden="true">{{ passwordVisible ? 'visibility_off' : 'visibility' }}</mat-icon>
+        <svg
+          *ngIf="!passwordVisible"
+          class="visibility-icon"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          focusable="false"
+          data-login-icon="visibility"
+        >
+          <path d="M2.8 12s3.3-5.5 9.2-5.5 9.2 5.5 9.2 5.5-3.3 5.5-9.2 5.5S2.8 12 2.8 12Z"></path>
+          <circle cx="12" cy="12" r="2.7"></circle>
+        </svg>
+        <svg
+          *ngIf="passwordVisible"
+          class="visibility-icon"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          focusable="false"
+          data-login-icon="visibility-off"
+        >
+          <path d="M4 4l16 16"></path>
+          <path d="M9.8 6.8A10.8 10.8 0 0 1 12 6.5c5.9 0 9.2 5.5 9.2 5.5a14.7 14.7 0 0 1-2.4 3.1M14.2 17.2a10.8 10.8 0 0 1-2.2.3C6.1 17.5 2.8 12 2.8 12a14.3 14.3 0 0 1 2.4-3.1"></path>
+        </svg>
       </button>
       <mat-error *ngIf="form.controls.password.hasError('required')">
         La contraseña es obligatoria.
@@ -54,7 +96,10 @@
     </mat-form-field>
 
     <div class="login-error" *ngIf="errorMessage" role="alert" aria-live="assertive">
-      <mat-icon aria-hidden="true">error</mat-icon>
+      <svg class="error-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 7.5v6M12 17h.01"></path>
+      </svg>
       <span>{{ errorMessage }}</span>
     </div>
 

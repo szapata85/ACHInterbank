@@ -1,4 +1,15 @@
 :host {
+  --shell-sidenav-bg: var(--sidebar-bg, #0f172a);
+  --shell-nav-text: #e2e8f0;
+  --shell-nav-text-secondary: #cbd5e1;
+  --shell-nav-icon: #dbeafe;
+  --shell-nav-hover-bg: rgba(148, 163, 184, 0.12);
+  --shell-nav-focus-ring: #7dd3fc;
+  --shell-nav-active-bg: rgba(14, 165, 233, 0.2);
+  --shell-nav-active-border: rgba(125, 211, 252, 0.58);
+  --shell-nav-active-indicator: #38bdf8;
+  --shell-nav-expanded-bg: rgba(51, 65, 85, 0.56);
+  --shell-nav-child-bg: rgba(15, 23, 42, 0.18);
   display: block;
   width: 100%;
   height: 100dvh;
@@ -14,17 +25,16 @@
 }
 
 .primary-sidenav {
-  width: 288px;
+  width: 280px;
   border-radius: 0;
   border-right: 0;
-  background: var(--sidebar-bg, var(--color-text));
-  color: #e2e8f0;
-  box-shadow: 2px 0 14px rgba(15, 23, 42, 0.2);
-  transition: width 180ms ease;
+  background: var(--shell-sidenav-bg);
+  color: var(--shell-nav-text);
+  box-shadow: 1px 0 0 rgba(148, 163, 184, 0.16);
 }
 
-.primary-sidenav.collapsed {
-  width: 84px;
+.primary-sidenav.compact {
+  width: 76px;
 }
 
 .sidenav-panel {
@@ -32,16 +42,17 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  padding: 1.25rem 0.85rem;
+  padding: 1.1rem 0.75rem;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  min-height: 52px;
-  padding: 0 0.35rem;
+  gap: 0.75rem;
+  min-height: 48px;
+  padding: 0 0.25rem;
 }
 
 .brand-copy {
@@ -52,25 +63,25 @@
 .brand-copy small {
   display: block;
   margin-top: 0.2rem;
-  color: #cbd5e1;
+  color: var(--shell-nav-text-secondary);
   white-space: nowrap;
 }
 
 .brand-title {
   margin: 0;
-  color: #f8fafc;
+  color: var(--shell-nav-text);
   font-weight: 700;
   white-space: nowrap;
 }
 
 .logo {
   display: grid;
-  flex: 0 0 48px;
-  width: 48px;
-  height: 48px;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   overflow: hidden;
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   background: var(--color-primary);
   color: var(--color-surface);
   font-weight: 800;
@@ -93,7 +104,8 @@
 .navigation {
   flex: 1 1 auto;
   min-height: 0;
-  margin-top: 1.25rem;
+  margin-top: 1rem;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -106,26 +118,26 @@
 
 .nav-node {
   position: relative;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.25rem;
 }
 
 .nav-item {
   position: relative;
   width: 100%;
-  min-height: 46px;
+  min-height: 44px;
   border: 1px solid transparent;
-  border-radius: var(--radius-lg);
-  color: #cbd5e1;
+  border-radius: 10px;
+  color: var(--shell-nav-text-secondary);
   text-decoration: none;
-  --mdc-list-list-item-label-text-color: #cbd5e1;
-  --mdc-list-list-item-leading-icon-color: #cbd5e1;
-  --mdc-list-list-item-trailing-icon-color: #cbd5e1;
-  --mdc-list-list-item-hover-label-text-color: #f8fafc;
-  --mdc-list-list-item-hover-leading-icon-color: #f8fafc;
-  --mdc-list-list-item-hover-trailing-icon-color: #f8fafc;
-  --mdc-list-list-item-focus-label-text-color: #f8fafc;
-  --mdc-list-list-item-focus-leading-icon-color: #f8fafc;
-  --mdc-list-list-item-focus-trailing-icon-color: #f8fafc;
+  --mdc-list-list-item-label-text-color: var(--shell-nav-text-secondary);
+  --mdc-list-list-item-leading-icon-color: var(--shell-nav-icon);
+  --mdc-list-list-item-trailing-icon-color: var(--shell-nav-text-secondary);
+  --mdc-list-list-item-hover-label-text-color: var(--shell-nav-text);
+  --mdc-list-list-item-hover-leading-icon-color: var(--shell-nav-text);
+  --mdc-list-list-item-hover-trailing-icon-color: var(--shell-nav-text);
+  --mdc-list-list-item-focus-label-text-color: var(--shell-nav-text);
+  --mdc-list-list-item-focus-leading-icon-color: var(--shell-nav-text);
+  --mdc-list-list-item-focus-trailing-icon-color: var(--shell-nav-text);
 }
 
 button.nav-item {
@@ -135,22 +147,26 @@ button.nav-item {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--shell-nav-hover-bg);
 }
 
 .nav-item:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--color-primary) 65%, white);
+  outline: 3px solid var(--shell-nav-focus-ring);
   outline-offset: 2px;
+}
+
+.nav-parent[aria-expanded='true'] {
+  background: var(--shell-nav-expanded-bg);
 }
 
 .nav-item.active,
 .nav-parent.active {
-  border-color: rgba(125, 211, 252, 0.55);
-  background: rgba(14, 165, 233, 0.18);
-  color: #ffffff;
-  --mdc-list-list-item-label-text-color: #ffffff;
-  --mdc-list-list-item-leading-icon-color: #ffffff;
-  --mdc-list-list-item-trailing-icon-color: #ffffff;
+  border-color: var(--shell-nav-active-border);
+  background: var(--shell-nav-active-bg);
+  color: var(--shell-nav-text);
+  --mdc-list-list-item-label-text-color: var(--shell-nav-text);
+  --mdc-list-list-item-leading-icon-color: var(--shell-nav-text);
+  --mdc-list-list-item-trailing-icon-color: var(--shell-nav-text);
 }
 
 .nav-item.active::before,
@@ -161,28 +177,28 @@ button.nav-item {
   inset-inline-start: 0;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: #7dd3fc;
+  background: var(--shell-nav-active-indicator);
 }
 
 .nav-label {
   overflow: hidden;
-  color: #cbd5e1;
+  color: var(--shell-nav-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nav-icon {
-  color: #cbd5e1;
-  font-size: 1.25rem;
+.nav-item .nav-icon {
+  color: var(--shell-nav-icon);
+  font-size: 1.2rem;
 }
 
-.expand-icon {
+.nav-item .expand-icon {
   width: 0.55rem;
   height: 0.55rem;
   margin-inline-end: 0.35rem;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
-  color: #cbd5e1;
+  color: var(--shell-nav-text-secondary);
   transform: rotate(45deg);
   transition: transform 180ms ease;
 }
@@ -203,17 +219,19 @@ button.nav-item {
 .nav-parent.active .nav-label,
 .nav-parent.active .nav-icon,
 .nav-parent.active .expand-icon {
-  color: #ffffff;
+  color: var(--shell-nav-text);
 }
 
 .nav-children {
-  margin: 0.25rem 0 0.35rem 1rem;
-  padding-left: 0.55rem;
-  border-left: 1px solid rgba(226, 232, 240, 0.22);
+  margin: 0.3rem 0 0.45rem 0.9rem;
+  padding: 0.2rem 0 0.2rem 0.55rem;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
+  background: var(--shell-nav-child-bg);
+  border-radius: 0 8px 8px 0;
 }
 
 .nav-children .nav-item {
-  min-height: 42px;
+  min-height: 40px;
 }
 
 .navigation-status {
@@ -229,31 +247,36 @@ button.nav-item {
   line-height: 1.35;
 }
 
-.primary-sidenav.collapsed .sidenav-panel {
-  padding-inline: 0.65rem;
+.primary-sidenav.compact .sidenav-panel {
+  padding-inline: 0.55rem;
 }
 
-.primary-sidenav.collapsed .brand {
+.primary-sidenav.compact .brand {
   justify-content: center;
   padding-inline: 0;
 }
 
-.primary-sidenav.collapsed .brand-copy,
-.primary-sidenav.collapsed .nav-label,
-.primary-sidenav.collapsed .expand-icon,
-.primary-sidenav.collapsed .navigation-status span {
+.primary-sidenav.compact .brand-copy,
+.primary-sidenav.compact .nav-label,
+.primary-sidenav.compact .expand-icon,
+.primary-sidenav.compact .navigation-status span {
   display: none;
 }
 
-.primary-sidenav.collapsed .nav-item {
+.primary-sidenav.compact .nav-item {
   display: flex;
   justify-content: center;
   padding-inline: 0;
 }
 
-.primary-sidenav.collapsed .navigation-status {
+.primary-sidenav.compact .navigation-status {
   justify-content: center;
   padding-inline: 0.25rem;
+}
+
+.primary-sidenav.compact .nav-item.active::before,
+.primary-sidenav.compact .nav-parent.active::before {
+  inset-block: 7px;
 }
 
 .shell-main {
@@ -266,8 +289,8 @@ button.nav-item {
 
 .shell-toolbar {
   flex: 0 0 auto;
-  min-height: 72px;
-  padding: 0.65rem 1.25rem;
+  min-height: 68px;
+  padding: 0.55rem 1.15rem;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
@@ -285,7 +308,24 @@ button.nav-item {
 
 .menu-toggle {
   flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   color: var(--color-text);
+  --mdc-icon-button-state-layer-size: 44px;
+}
+
+.menu-toggle:hover {
+  background: var(--color-surface-muted);
+}
+
+.menu-toggle-icon {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .menu-toggle:focus-visible,
@@ -451,7 +491,6 @@ button.nav-item {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .primary-sidenav,
   .expand-icon {
     transition: none;
   }

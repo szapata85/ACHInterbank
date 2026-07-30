@@ -54,6 +54,25 @@ describe('LoginComponent', () => {
     expect(component.form.valid).toBeTrue();
   });
 
+  it('renders local SVG account, lock and password visibility icons', () => {
+    const account = fixture.nativeElement.querySelector(
+      'svg[data-login-icon="account"]'
+    ) as SVGElement;
+    const lock = fixture.nativeElement.querySelector(
+      'svg[data-login-icon="lock"]'
+    ) as SVGElement;
+    const visibility = fixture.nativeElement.querySelector(
+      'svg[data-login-icon="visibility"]'
+    ) as SVGElement;
+
+    expect(account).not.toBeNull();
+    expect(lock).not.toBeNull();
+    expect(visibility).not.toBeNull();
+    expect(account.getAttribute('viewBox')).toBe('0 0 24 24');
+    expect(lock.getAttribute('viewBox')).toBe('0 0 24 24');
+    expect(fixture.nativeElement.querySelector('mat-icon')).toBeNull();
+  });
+
   it('does not submit an invalid form and exposes validation feedback after the attempt', () => {
     component.submit();
     fixture.detectChanges();
@@ -75,6 +94,19 @@ describe('LoginComponent', () => {
     expect(authService.login).toHaveBeenCalledOnceWith(validCredentials());
     expect(navigateSpy).toHaveBeenCalledOnceWith(['/']);
     expect(component.isSubmitting).toBeFalse();
+  });
+
+  it('submits the valid reactive form with Enter through the native form event', () => {
+    const navigateSpy = spyOn(router, 'navigate').and.resolveTo(true);
+    authService.login.and.returnValue(of(session));
+    component.form.setValue(validCredentials());
+    fixture.detectChanges();
+
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+
+    expect(authService.login).toHaveBeenCalledOnceWith(validCredentials());
+    expect(navigateSpy).toHaveBeenCalledOnceWith(['/']);
   });
 
   it('shows loading and prevents a duplicate submission while authentication is pending', () => {
@@ -146,6 +178,9 @@ describe('LoginComponent', () => {
     expect(toggleButton().type).toBe('button');
     expect(toggleButton().getAttribute('aria-label')).toBe('Mostrar contraseña');
     expect(toggleButton().getAttribute('aria-pressed')).toBe('false');
+    expect(
+      toggleButton().querySelector('svg[data-login-icon="visibility"]')
+    ).not.toBeNull();
 
     toggleButton().click();
     fixture.detectChanges();
@@ -154,6 +189,9 @@ describe('LoginComponent', () => {
     expect(component.form.controls.password.value).toBe('Clave-Ficticia-123!');
     expect(toggleButton().getAttribute('aria-label')).toBe('Ocultar contraseña');
     expect(toggleButton().getAttribute('aria-pressed')).toBe('true');
+    expect(
+      toggleButton().querySelector('svg[data-login-icon="visibility-off"]')
+    ).not.toBeNull();
     expect(authService.login).not.toHaveBeenCalled();
 
     toggleButton().click();

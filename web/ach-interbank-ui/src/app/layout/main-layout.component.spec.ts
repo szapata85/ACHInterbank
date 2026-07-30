@@ -160,20 +160,34 @@ describe('MainLayoutComponent', () => {
     expect(component.activeItemIds.has(211)).toBeTrue();
   }));
 
-  it('collapses and expands the desktop sidenav while keeping root icons available', () => {
+  it('keeps the desktop navigation recoverable through repeated compact transitions', () => {
     fixture.detectChanges();
     const toggle = menuToggle();
 
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const sidenav = fixture.nativeElement.querySelector('.primary-sidenav') as HTMLElement;
+
+    for (let cycle = 0; cycle < 10; cycle += 1) {
+      toggle.click();
+      fixture.detectChanges();
+
+      const compact = cycle % 2 === 0;
+      expect(component.isDesktopCompact).withContext(`ciclo ${cycle + 1}`).toBe(compact);
+      expect(sidenav.classList.contains('compact')).withContext(`ciclo ${cycle + 1}`).toBe(compact);
+      expect(toggle.getAttribute('aria-expanded'))
+        .withContext(`ciclo ${cycle + 1}`)
+        .toBe(compact ? 'false' : 'true');
+      expect(toggle.getAttribute('aria-label'))
+        .withContext(`ciclo ${cycle + 1}`)
+        .toBe(compact ? 'Expandir navegación' : 'Contraer navegación');
+    }
+
     toggle.click();
     fixture.detectChanges();
 
-    const sidenav = fixture.nativeElement.querySelector('.primary-sidenav') as HTMLElement;
-    expect(component.isSidebarCollapsed).toBeTrue();
-    expect(sidenav.classList.contains('collapsed')).toBeTrue();
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(component.isDesktopCompact).toBeTrue();
     expect(toggle.getAttribute('aria-controls')).toBe('primary-navigation');
-    expect(component.menuToggleLabel).toBe('Expandir menú principal');
+    expect(component.navigationToggleLabel).toBe('Expandir navegación');
     expect(
       sidenav
         .querySelector('a[data-menu-item-id="1"] app-ui-icon')
@@ -183,8 +197,38 @@ describe('MainLayoutComponent', () => {
     toggle.click();
     fixture.detectChanges();
 
-    expect(component.isSidebarCollapsed).toBeFalse();
+    expect(component.isDesktopCompact).toBeFalse();
   });
+
+  it('keeps desktop compact navigation functional and expands it before opening a group', fakeAsync(() => {
+    fixture.detectChanges();
+    component.toggleNavigation();
+    fixture.detectChanges();
+
+    const dashboard = fixture.nativeElement.querySelector(
+      'a[data-menu-item-id="1"]'
+    ) as HTMLAnchorElement;
+    dashboard.click();
+    tick();
+    fixture.detectChanges();
+
+    expect(router.url).toBe('/dashboard');
+    expect(component.isDesktopCompact).toBeTrue();
+
+    void router.navigateByUrl('/transactions/cycles/detail');
+    tick();
+    fixture.detectChanges();
+    expect(component.expandedItems.has(2)).toBeTrue();
+
+    const operation = fixture.nativeElement.querySelector(
+      'button[data-menu-item-id="2"]'
+    ) as HTMLButtonElement;
+    operation.click();
+    fixture.detectChanges();
+
+    expect(component.isDesktopCompact).toBeFalse();
+    expect(component.expandedItems.has(2)).toBeTrue();
+  }));
 
   it('keeps a mobile submenu open for touch and closes the drawer after navigation', fakeAsync(() => {
     setMobile(true);
@@ -194,7 +238,7 @@ describe('MainLayoutComponent', () => {
     fixture.detectChanges();
     tick();
 
-    expect(component.isMenuOpen).toBeTrue();
+    expect(component.isMobileDrawerOpen).toBeTrue();
 
     const operation = fixture.nativeElement.querySelector(
       'button[data-menu-item-id="2"]'
@@ -202,7 +246,7 @@ describe('MainLayoutComponent', () => {
     operation.click();
     fixture.detectChanges();
 
-    expect(component.isMenuOpen).toBeTrue();
+    expect(component.isMobileDrawerOpen).toBeTrue();
     expect(operation.getAttribute('aria-expanded')).toBe('true');
 
     const audit = fixture.nativeElement.querySelector(
@@ -213,7 +257,7 @@ describe('MainLayoutComponent', () => {
     fixture.detectChanges();
 
     expect(router.url).toBe('/audit-logs');
-    expect(component.isMenuOpen).toBeFalse();
+    expect(component.isMobileDrawerOpen).toBeFalse();
   }));
 
   it('lets Material close the mobile sidenav with Escape and with its backdrop', fakeAsync(() => {
@@ -231,7 +275,7 @@ describe('MainLayoutComponent', () => {
     tick();
     fixture.detectChanges();
 
-    expect(component.isMenuOpen).toBeFalse();
+    expect(component.isMobileDrawerOpen).toBeFalse();
 
     menuToggle().click();
     fixture.detectChanges();
@@ -245,23 +289,43 @@ describe('MainLayoutComponent', () => {
     tick();
     fixture.detectChanges();
 
-    expect(component.isMenuOpen).toBeFalse();
+    expect(component.isMobileDrawerOpen).toBeFalse();
   }));
 
-  it('switches deterministically between side and overlay behavior at the shared breakpoint', () => {
+  it('keeps desktop compact state independent across desktop, mobile and desktop', () => {
     fixture.detectChanges();
     const sidenav = fixture.nativeElement.querySelector('mat-sidenav') as HTMLElement;
 
-    expect(component.isMobile).toBeFalse();
+    component.toggleNavigation();
+    fixture.detectChanges();
+
+    expect(component.isMobileViewport).toBeFalse();
+    expect(component.isDesktopCompact).toBeTrue();
     expect(sidenav.classList.contains('mat-drawer-side')).toBeTrue();
 
     setMobile(true);
     fixture.detectChanges();
 
-    expect(component.isMobile).toBeTrue();
-    expect(component.isSidebarCollapsed).toBeFalse();
-    expect(component.isMenuOpen).toBeFalse();
+    expect(component.isMobileViewport).toBeTrue();
+    expect(component.isDesktopCompact).toBeTrue();
+    expect(component.isMobileDrawerOpen).toBeFalse();
     expect(sidenav.classList.contains('mat-drawer-over')).toBeTrue();
+
+    component.toggleNavigation();
+    fixture.detectChanges();
+    expect(component.isMobileDrawerOpen).toBeTrue();
+
+    setMobile(false);
+    fixture.detectChanges();
+
+    expect(component.isMobileViewport).toBeFalse();
+    expect(component.isMobileDrawerOpen).toBeFalse();
+    expect(component.isDesktopCompact).toBeTrue();
+    expect(sidenav.classList.contains('mat-drawer-side')).toBeTrue();
+
+    component.toggleNavigation();
+    fixture.detectChanges();
+    expect(component.isDesktopCompact).toBeFalse();
   });
 
   it('delegates logout to the existing authentication service', () => {

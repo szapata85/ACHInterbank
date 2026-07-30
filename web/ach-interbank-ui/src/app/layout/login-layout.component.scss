@@ -3,36 +3,37 @@
   min-height: 100dvh;
   width: 100%;
   box-sizing: border-box;
-  background: var(--public-bg, var(--color-surface-muted));
+  background: var(--public-bg, #f4f7fb);
   color: var(--color-text);
   place-items: center;
-  padding: clamp(1rem, 4vw, 2.5rem);
+  padding: clamp(1rem, 4vw, 2.25rem);
 }
 
 .login-layout {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: clamp(1.25rem, 4vw, 2rem);
-  width: min(100%, 480px);
+  border-radius: 16px;
+  padding: clamp(1.4rem, 4vw, 2rem);
+  width: min(100%, 460px);
   box-sizing: border-box;
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.11);
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  gap: 1.6rem;
   min-width: 0;
 }
 
 .hero {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.8rem;
 }
 
 .logo {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   background: var(--color-primary);
   display: grid;
   place-items: center;
@@ -56,8 +57,20 @@
 
 .title {
   margin: 0;
-  font-weight: 800;
-  font-size: 1.2rem;
+  color: var(--color-text);
+  font-weight: 750;
+  font-size: 1.15rem;
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
+.brand-copy small {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
 }
 
 .panel {
@@ -67,9 +80,12 @@
 @media (max-width: 420px) {
   :host {
     align-items: start;
+    padding: 1rem;
   }
 
   .login-layout {
-    gap: 1.35rem;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    border-radius: 14px;
   }
 }
