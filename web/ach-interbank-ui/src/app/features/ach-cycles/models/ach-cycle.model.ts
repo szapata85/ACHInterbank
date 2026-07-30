@@ -2,6 +2,10 @@ export interface ClearingHouseOption {
   id: number;
   name: string;
   code?: string;
+  isActive?: boolean;
+  requiresNachaProfile?: boolean;
+  isReady?: boolean;
+  missingRequirements?: string[];
 }
 
 export interface AchCycleSummary {

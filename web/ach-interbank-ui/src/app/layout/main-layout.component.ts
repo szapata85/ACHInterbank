@@ -4,8 +4,11 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
+  ElementRef,
   HostBinding,
   OnInit,
+  Renderer2,
+  ViewChild,
   inject
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -72,10 +75,14 @@ export class MainLayoutComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly renderer = inject(Renderer2);
   private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly authService = inject(AuthService);
   private readonly navigationService = inject(NavigationService);
   private readonly brandingService = inject(BrandingService);
+
+  @ViewChild('navigationToggle', { read: ElementRef })
+  private navigationToggle?: ElementRef<HTMLButtonElement>;
 
   @HostBinding('style.--private-bg')
   public privateBackground: string | null =
@@ -118,6 +125,18 @@ export class MainLayoutComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    const removeEscapeListener = this.renderer.listen(
+      'document',
+      'keydown',
+      (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          this.onEscapeKey(event);
+        }
+      },
+      { capture: true }
+    );
+    this.destroyRef.onDestroy(removeEscapeListener);
+
     this.breakpointObserver
       .observe(MOBILE_NAVIGATION_QUERY)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -189,6 +208,21 @@ export class MainLayoutComponent implements OnInit {
 
     this.isMobileDrawerOpen = false;
     this.cdr.markForCheck();
+  }
+
+  onEscapeKey(event: KeyboardEvent): void {
+    if (!this.isMobileViewport || !this.isMobileDrawerOpen) {
+      return;
+    }
+
+    this.isMobileDrawerOpen = false;
+    this.cdr.markForCheck();
+    queueMicrotask(() => {
+      const toggle = this.navigationToggle?.nativeElement;
+      if (toggle) {
+        toggle.focus();
+      }
+    });
   }
 
   onDrawerOpenedChange(opened: boolean): void {

@@ -1,284 +1,712 @@
 <app-page-header
-  title="Simulador NACHA-M"
-  subtitle="UAT / Simuladores / NACHA-M">
+  title="Simulador NACHA-M de entrada"
+  subtitle="UAT local · Generación controlada de archivos inbound">
 </app-page-header>
 
-<div class="badges" aria-label="Clasificación del ambiente">
-  <span class="badge badge-simulation">SIMULACIÓN</span>
-  <span class="badge badge-uat">UAT LOCAL</span>
-</div>
-
-<section class="notice" [class.notice-warning]="isDifferentialMode()">
-  <strong>{{ isDifferentialMode() ? 'Respuestas diferenciales' : 'Transacciones entrantes' }}</strong>
-  <span *ngIf="!isDifferentialMode()">
-    Genera operaciones nuevas originadas por una entidad externa y recibidas por CFA. El archivo debe validarse y cargarse mediante NachaUpload.
-  </span>
-  <span *ngIf="isDifferentialMode()">
-    Simula la respuesta de un banco destino a una operación originada por CFA. No crea una operación monetaria ni autoriza Proc_Contrapartidas o Proc_Transacciones.
-  </span>
-</section>
-
-<section class="mode-selector" aria-labelledby="simulation-mode-title">
-  <h2 id="simulation-mode-title">Modo de simulación</h2>
-  <div class="mode-options">
-    <button
-      type="button"
-      class="mode-card"
-      [class.active]="!isDifferentialMode()"
-      [attr.aria-pressed]="!isDifferentialMode()"
-      (click)="changeMode('IncomingTransactions')">
-      <span>
-        <strong>Transacciones entrantes</strong>
-        <small>Nueva operación: banco externo → CFA.</small>
-      </span>
-    </button>
-    <button
-      type="button"
-      class="mode-card"
-      [class.active]="isDifferentialMode()"
-      [attr.aria-pressed]="isDifferentialMode()"
-      (click)="changeMode('DifferentialResponses')">
-      <span>
-        <strong>Respuestas diferenciales</strong>
-        <small>Respuesta correlacionada: banco destino → CFA.</small>
-      </span>
-    </button>
-  </div>
-</section>
-
-<section class="panel">
-  <form [formGroup]="form" class="form-grid" novalidate>
-    <label>
-      Cámara
-      <select formControlName="clearingHouseCode" (change)="availabilityContextChanged()">
-        <option value="">Seleccione una cámara</option>
-        <option *ngFor="let item of clearingHouses" [value]="item.value">{{ item.label }}</option>
-      </select>
-    </label>
-
-    <label>
-      Tipo de operación
-      <select formControlName="scenarioType" (change)="availabilityContextChanged()">
-        <option *ngFor="let item of scenarios" [value]="item.value">{{ item.label }}</option>
-      </select>
-    </label>
-
-    <label *ngIf="isDifferentialMode()">
-      Resultado simulado
-      <select formControlName="responseMode">
-        <option [ngValue]="null">Seleccione un resultado</option>
-        <option *ngFor="let item of responseModes" [value]="item.value">{{ item.label }}</option>
-      </select>
-    </label>
-
-    <label *ngIf="isDifferentialMode()">
-      Causal
-      <input type="text" formControlName="reasonCode" placeholder="Ejemplo: R01" maxlength="20" />
-      <small *ngIf="reasonRequiredMissing()" class="error-text">La causal es obligatoria para rechazo o devolución.</small>
-    </label>
-
-    <label>
-      {{ isDifferentialMode() ? 'Banco destino que responde' : 'Entidad originadora externa' }}
-      <select formControlName="originFinancialInstitutionId" (change)="isDifferentialMode() && loadEligibleTransactions()">
-        <option [ngValue]="null">Seleccione una entidad externa</option>
-        <option *ngFor="let item of originFinancialInstitutions" [ngValue]="item.id">
-          {{ item.name }} · {{ item.routingNumber }}{{ item.transitCode }}
-        </option>
-      </select>
-      <small>Solo entidades activas diferentes de CFA.</small>
-    </label>
-
-    <div class="readonly-field">
-      <span class="field-label">Entidad receptora</span>
-      <strong>{{ defaultDestination?.name || 'No configurada' }}</strong>
-      <small *ngIf="defaultDestination">
-        CFA, resuelta desde la entidad marcada como fuente predeterminada.
-      </small>
-      <small *ngIf="!defaultDestination" class="error-text">Debe existir una única entidad CFA activa.</small>
-    </div>
-
-    <label *ngIf="!isDifferentialMode()">
-      Cantidad de registros
-      <input type="number" formControlName="entriesCount" min="1" max="10" />
-    </label>
-
-    <label *ngIf="!isDifferentialMode()">
-      Valor por operación
-      <input type="number" formControlName="amount" min="0" step="0.01" />
-    </label>
-
-    <label>
-      Fecha de operación
-      <input type="date" formControlName="businessDate" (change)="availabilityContextChanged()" />
-    </label>
-
-    <label class="wide cycle-selector">
-      Ciclo
-      <ui-selector-buscable
-        [opciones]="availableCycleOptions"
-        formControlName="cycleCode"
-        [cargando]="loadingCycles"
-        placeholderBusqueda="Buscar ciclo disponible"
-      ></ui-selector-buscable>
-      <small id="cycle-help">Solo se muestran ciclos activos, vigentes y con transacciones elegibles.</small>
-      <small id="cycle-availability-message" *ngIf="cycleAvailabilityMessage" class="error-text" role="alert">
-        {{ cycleAvailabilityMessage }}
-      </small>
-      <div class="cycle-actions">
-        <button type="button" class="btn btn-outline" (click)="loadAvailableCycles()" [disabled]="loadingCycles">
-          {{ loadingCycles ? 'Actualizando ciclos…' : 'Actualizar ciclos' }}
-        </button>
-        <a routerLink="/transactions">Ver transacciones</a>
-      </div>
-      <span class="empty-state" *ngIf="!loadingCycles && availableCycles.length === 0">
-        No hay ciclos con transacciones disponibles para generar la simulación inbound.
-      </span>
-    </label>
-
-    <label *ngIf="!isDifferentialMode()">
-      Prefijo de referencia
-      <input type="text" formControlName="referencePrefix" maxlength="24" />
-    </label>
-
-    <label class="wide">
-      Observación
-      <textarea formControlName="notes" rows="2" maxlength="500"></textarea>
-    </label>
-  </form>
-</section>
-
-<section class="panel" *ngIf="isDifferentialMode()">
-  <div class="section-title">
-    <div>
-      <h3>Operaciones CFA elegibles</h3>
-      <p class="muted">Consulta paginada en servidor. Seleccionadas: {{ selectedCount() }}.</p>
-    </div>
-    <button type="button" class="btn btn-outline" (click)="loadEligibleTransactions()" [disabled]="loadingEligible">
-      {{ loadingEligible ? 'Consultando…' : 'Actualizar' }}
-    </button>
+<section class="simulator-page" aria-label="Simulador NACHA-M de entrada">
+  <div class="environment-strip" role="status">
+    <mat-chip-set aria-label="Clasificación del ambiente">
+      <mat-chip class="uat-chip">
+        <mat-icon aria-hidden="true">science</mat-icon>
+        UAT LOCAL
+      </mat-chip>
+      <mat-chip>
+        <mat-icon aria-hidden="true">draft</mat-icon>
+        Generación sin transmisión automática
+      </mat-chip>
+    </mat-chip-set>
+    <p>El backend conserva la autoridad sobre reglas normativas, nomenclatura, consecutivos y estructura NACHA-M.</p>
   </div>
 
-  <div class="table-scroll" *ngIf="eligibleTransactions.length; else noEligibleTransactions" tabindex="0">
-    <table class="sim-table">
-      <thead>
-        <tr>
-          <th scope="col">Seleccionar</th>
-          <th scope="col">Identificador</th>
-          <th scope="col">Trace number</th>
-          <th scope="col">Banco destino</th>
-          <th scope="col">Tipo</th>
-          <th scope="col">Fecha</th>
-          <th scope="col">Ciclo</th>
-          <th scope="col">Valor</th>
-          <th scope="col">Estado</th>
-          <th scope="col">Elegibilidad</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let item of eligibleTransactions">
-          <td>
-            <input
-              type="checkbox"
-              [checked]="selectedTransactionIds.has(item.id)"
-              [disabled]="!item.eligible"
-              [attr.aria-label]="'Seleccionar operación ' + item.identifier"
-              (change)="toggleTransaction(item)" />
-          </td>
-          <td>{{ item.identifier }}</td>
-          <td class="mono">{{ item.traceNumber }}</td>
-          <td>{{ item.destinationFinancialInstitution }}</td>
-          <td>{{ item.transactionType }}</td>
-          <td>{{ item.effectiveDate | date:'yyyy-MM-dd' }}</td>
-          <td>{{ item.cycle }}</td>
-          <td>{{ item.amount | number:'1.2-2' }}</td>
-          <td>{{ item.state }}</td>
-          <td>
-            <span class="eligibility" [class.blocked]="!item.eligible">
-              {{ item.eligible ? 'Elegible' : (item.ineligibilityReason || 'No elegible') }}
+  <mat-card appearance="outlined" class="mode-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true">swap_horiz</mat-icon>
+      <mat-card-title>Tipo de simulación</mat-card-title>
+      <mat-card-subtitle>Selecciona el flujo que deseas representar en UAT</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <mat-button-toggle-group
+        [value]="form.controls.simulationMode.value"
+        aria-label="Modo de simulación NACHA-M"
+        class="mode-toggle">
+        <mat-button-toggle
+          value="IncomingTransactions"
+          (click)="requestModeChange('IncomingTransactions')">
+          <mat-icon aria-hidden="true">south_west</mat-icon>
+          <span>
+            <strong>Transacciones entrantes</strong>
+            <small>Entidad externa origina · CFA recibe</small>
+          </span>
+        </mat-button-toggle>
+        <mat-button-toggle
+          value="DifferentialResponses"
+          (click)="requestModeChange('DifferentialResponses')">
+          <mat-icon aria-hidden="true">assignment_return</mat-icon>
+          <span>
+            <strong>Respuestas diferenciales</strong>
+            <small>Respuesta correlacionada · sin movimiento directo</small>
+          </span>
+        </mat-button-toggle>
+      </mat-button-toggle-group>
+    </mat-card-content>
+  </mat-card>
+
+  <form [formGroup]="form" (ngSubmit)="confirmGeneration()" novalidate>
+    <mat-card appearance="outlined" class="configuration-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">tune</mat-icon>
+        <mat-card-title>Configuración operativa</mat-card-title>
+        <mat-card-subtitle>Cámara, perfil oficial e instituciones participantes</mat-card-subtitle>
+      </mat-card-header>
+
+      <mat-progress-bar
+        *ngIf="loadingClearingHouses || loadingInstitutions"
+        mode="indeterminate"
+        aria-label="Cargando catálogos operativos">
+      </mat-progress-bar>
+
+      <mat-card-content>
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Cámara</mat-label>
+            <mat-select
+              formControlName="clearingHouseCode"
+              (selectionChange)="clearingHouseChanged()"
+              [attr.aria-busy]="loadingClearingHouses">
+              <mat-option value="">Seleccione una cámara</mat-option>
+              <mat-option *ngFor="let item of clearingHouses" [value]="item.code">
+                {{ item.name }}
+              </mat-option>
+            </mat-select>
+            <mat-icon matSuffix aria-hidden="true">account_balance</mat-icon>
+            <mat-hint>Solo cámaras operativas autorizadas para el usuario.</mat-hint>
+            <mat-error *ngIf="form.controls.clearingHouseCode.hasError('required')">
+              Selecciona una cámara.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de operación</mat-label>
+            <mat-select formControlName="scenarioType" (selectionChange)="simulationContextChanged()">
+              <mat-option *ngFor="let item of scenarios" [value]="item.value">
+                {{ item.label }}
+              </mat-option>
+            </mat-select>
+            <mat-icon matSuffix aria-hidden="true">compare_arrows</mat-icon>
+            <mat-error *ngIf="form.controls.scenarioType.hasError('required')">
+              Selecciona el tipo de operación.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="isDifferentialMode()">
+            <mat-label>Resultado simulado</mat-label>
+            <mat-select formControlName="responseMode">
+              <mat-option *ngFor="let item of responseModes" [value]="item.value">
+                {{ item.label }}
+              </mat-option>
+            </mat-select>
+            <mat-error *ngIf="form.controls.responseMode.hasError('required')">
+              Selecciona el resultado de la respuesta.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>{{ isDifferentialMode() ? 'Institución que responde' : 'Institución originadora externa' }}</mat-label>
+            <mat-select
+              formControlName="originFinancialInstitutionId"
+              (selectionChange)="isDifferentialMode() && loadEligibleTransactions()"
+              [attr.aria-busy]="loadingInstitutions">
+              <mat-option [value]="null">Seleccione una institución externa</mat-option>
+              <mat-option *ngFor="let item of originFinancialInstitutions" [value]="item.id">
+                {{ item.name }} · {{ item.routingNumber }}{{ item.transitCode }}
+              </mat-option>
+            </mat-select>
+            <mat-icon matSuffix aria-hidden="true">outbound</mat-icon>
+            <mat-hint>CFA se excluye mediante IsDefaultSource.</mat-hint>
+            <mat-error *ngIf="form.controls.originFinancialInstitutionId.hasError('required')">
+              Selecciona una institución externa activa.
+            </mat-error>
+          </mat-form-field>
+
+          <div class="destination-field" [class.destination-field--error]="!defaultDestination">
+            <span class="field-label">
+              <mat-icon aria-hidden="true">home_work</mat-icon>
+              Institución receptora
             </span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <ng-template #noEligibleTransactions>
-    <p class="empty-state">No hay operaciones que coincidan con la cámara, banco, fecha y estado seleccionados.</p>
-  </ng-template>
+            <strong>{{ defaultDestination?.name || 'No disponible' }}</strong>
+            <small *ngIf="defaultDestination">Resuelta desde IsDefaultSource = true; no es editable.</small>
+            <small *ngIf="institutionCatalogError" role="alert">{{ institutionCatalogError }}</small>
+          </div>
+        </div>
 
-  <div class="pagination" *ngIf="eligibleTotal > eligiblePageSize">
-    <button type="button" class="btn btn-outline" (click)="loadEligibleTransactions(eligiblePage - 1)" [disabled]="eligiblePage <= 1 || loadingEligible">Anterior</button>
-    <span>Página {{ eligiblePage }} · {{ eligibleTotal }} resultados</span>
-    <button type="button" class="btn btn-outline" (click)="loadEligibleTransactions(eligiblePage + 1)" [disabled]="eligiblePage * eligiblePageSize >= eligibleTotal || loadingEligible">Siguiente</button>
-  </div>
-</section>
+        <div
+          *ngIf="clearingHouseError || institutionCatalogError"
+          class="inline-state inline-state--error"
+          role="alert">
+          <mat-icon aria-hidden="true">error</mat-icon>
+          <div>
+            <strong>Catálogo operativo inconsistente</strong>
+            <p>{{ clearingHouseError || institutionCatalogError }}</p>
+          </div>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="clearingHouseError ? loadClearingHouses() : loadFinancialInstitutions()">
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            Reintentar
+          </button>
+        </div>
 
-<section class="panel summary" aria-live="polite">
-  <h3>Resumen antes de generar</h3>
-  <dl>
-    <dt>Modo</dt><dd>{{ isDifferentialMode() ? 'Respuestas diferenciales' : 'Transacciones entrantes' }}</dd>
-    <dt>Ambiente</dt><dd>UAT local · simulación</dd>
-    <dt>Cámara</dt><dd>{{ form.controls.clearingHouseCode.value }}</dd>
-    <dt>Operaciones</dt><dd>{{ isDifferentialMode() ? selectedCount() : form.controls.entriesCount.value }}</dd>
-    <dt>Impacto monetario directo</dt><dd>{{ isDifferentialMode() ? 'No crea movimientos' : 'Nueva operación al cargar por el flujo formal' }}</dd>
-  </dl>
-  <div class="actions">
-    <button type="button" class="btn btn-outline" (click)="preview()" [disabled]="previewing || generating || !defaultDestination">
-      {{ previewing ? 'Validando…' : 'Validar configuración' }}
-    </button>
-    <button type="button" class="btn btn-primary" (click)="generate()" [disabled]="generating || previewing || !defaultDestination">
-      {{ generating ? 'Generando…' : 'Generar archivo' }}
-    </button>
-  </div>
-</section>
+        <mat-divider></mat-divider>
 
-<section class="panel result" *ngIf="result" aria-live="polite">
-  <h3>Archivo generado y pendiente de carga</h3>
-  <p>{{ result.message }}</p>
-  <dl>
-    <dt>Archivo</dt><dd>{{ result.fileName }}</dd>
-    <dt>SHA-256</dt><dd class="hash">{{ result.sha256 }}</dd>
-    <dt>Importación automática</dt><dd>{{ result.autoImported ? 'Sí' : 'No' }}</dd>
-    <dt>Carga formal requerida</dt><dd>{{ result.uploadRequired ? 'Sí' : 'No' }}</dd>
-    <dt>Transmisión externa</dt><dd>{{ result.externalTransmission ? 'Sí' : 'No' }}</dd>
-  </dl>
-  <button type="button" class="btn btn-primary" (click)="download(result.id)">
-    Descargar archivo
-  </button>
-</section>
+        <div class="profile-section" [attr.aria-busy]="loadingProfiles">
+          <div class="section-heading">
+            <div>
+              <h3>Perfil NACHA-M vigente</h3>
+              <p>Modelo oficial Opción C, resuelto por la cámara seleccionada.</p>
+            </div>
+            <mat-spinner *ngIf="loadingProfiles" diameter="24" aria-label="Resolviendo perfil NACHA-M"></mat-spinner>
+          </div>
 
-<section class="panel">
-  <div class="section-title">
-    <h3>Simulaciones recientes</h3>
-    <button type="button" class="btn btn-outline" (click)="load()" [disabled]="loading">
-      Actualizar
-    </button>
-  </div>
+          <mat-chip-set *ngIf="activeProfiles.length" aria-label="Perfiles oficiales vigentes">
+            <mat-chip *ngFor="let profile of activeProfiles">
+              <mat-icon aria-hidden="true">verified</mat-icon>
+              {{ profile.profileName }} · {{ profile.version }}
+            </mat-chip>
+          </mat-chip-set>
 
-  <div class="table-scroll" *ngIf="simulations.length; else empty" tabindex="0">
-    <table class="sim-table">
-      <thead>
-        <tr>
-          <th scope="col">ID</th>
-          <th scope="col">Cámara</th>
-          <th scope="col">Escenario</th>
-          <th scope="col">Archivo</th>
-          <th scope="col">SHA-256</th>
-          <th scope="col">Acción</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let item of simulations">
-          <td>{{ item.id }}</td>
-          <td>{{ item.clearingHouseName }}</td>
-          <td>{{ item.scenarioType }}</td>
-          <td>{{ item.fileName }}</td>
-          <td class="hash">{{ item.sha256 }}</td>
-          <td><button type="button" class="btn btn-outline" (click)="download(item.id)">Descargar</button></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <ng-template #empty>
-    <p class="empty-state">No hay simulaciones recientes.</p>
-  </ng-template>
+          <div
+            *ngIf="profileError && !loadingProfiles"
+            class="inline-state inline-state--error"
+            role="alert">
+            <mat-icon aria-hidden="true">rule</mat-icon>
+            <div>
+              <strong>No se pudo confirmar el perfil oficial</strong>
+              <p>{{ profileError }}</p>
+            </div>
+          </div>
+
+          <p *ngIf="!form.controls.clearingHouseCode.value && !loadingProfiles" class="muted">
+            Selecciona una cámara para consultar el perfil publicado y vigente.
+          </p>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="data-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">edit_document</mat-icon>
+        <mat-card-title>Datos de simulación</mat-card-title>
+        <mat-card-subtitle>Información enviada al generador NACHA-M</mat-card-subtitle>
+      </mat-card-header>
+
+      <mat-card-content>
+        <div class="form-grid">
+          <mat-form-field appearance="outline" *ngIf="!isDifferentialMode()">
+            <mat-label>Cantidad de operaciones</mat-label>
+            <input matInput type="number" formControlName="entriesCount" min="1" max="10" />
+            <mat-icon matSuffix aria-hidden="true">format_list_numbered</mat-icon>
+            <mat-error *ngIf="form.controls.entriesCount.hasError('required')">
+              Indica la cantidad de operaciones.
+            </mat-error>
+            <mat-error *ngIf="form.controls.entriesCount.hasError('min') || form.controls.entriesCount.hasError('max')">
+              La cantidad permitida está entre 1 y 10.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" *ngIf="!isDifferentialMode()">
+            <mat-label>Valor por operación</mat-label>
+            <span matTextPrefix>COP&nbsp;</span>
+            <input
+              matInput
+              type="text"
+              inputmode="decimal"
+              formControlName="amount"
+              autocomplete="off"
+              placeholder="0.00" />
+            <mat-hint>Máximo dos decimales; el valor se conserva sin redondeo silencioso.</mat-hint>
+            <mat-error *ngIf="form.controls.amount.hasError('required')">Ingresa el valor.</mat-error>
+            <mat-error *ngIf="form.controls.amount.hasError('money')">
+              Usa un valor positivo con máximo dos decimales.
+            </mat-error>
+            <mat-error *ngIf="form.controls.amount.hasError('moneyRange')">
+              El valor excede la precisión segura admitida.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Fecha de operación</mat-label>
+            <input
+              matInput
+              [matDatepicker]="businessDatePicker"
+              formControlName="businessDate"
+              (dateChange)="simulationContextChanged()" />
+            <mat-datepicker-toggle
+              matIconSuffix
+              [for]="businessDatePicker"
+              aria-label="Abrir calendario de fecha de operación">
+            </mat-datepicker-toggle>
+            <mat-datepicker #businessDatePicker></mat-datepicker>
+            <mat-hint>Fecha local; no se convierte a UTC.</mat-hint>
+            <mat-error *ngIf="form.controls.businessDate.hasError('required')">
+              Selecciona la fecha de operación.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Ciclo operativo</mat-label>
+            <mat-select formControlName="cycleCode" [attr.aria-busy]="loadingCycles">
+              <mat-option *ngFor="let cycle of availableCycles" [value]="cycle.cycleCode">
+                {{ cycle.cycleName }} · {{ formatProcessingDate(cycle.processingDate) }}
+                · {{ cycle.transactionCount }} transacciones
+              </mat-option>
+            </mat-select>
+            <mat-icon matSuffix aria-hidden="true">schedule</mat-icon>
+            <mat-hint>Solo ciclos elegibles según cámara, fecha y operación.</mat-hint>
+            <mat-error *ngIf="form.controls.cycleCode.hasError('required')">
+              Selecciona un ciclo disponible.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="!isDifferentialMode()">
+            <mat-label>Prefijo de referencia</mat-label>
+            <input matInput type="text" formControlName="referencePrefix" maxlength="24" />
+            <mat-icon matSuffix aria-hidden="true">tag</mat-icon>
+            <mat-error *ngIf="form.controls.referencePrefix.hasError('required')">
+              Ingresa el prefijo de referencia.
+            </mat-error>
+            <mat-error *ngIf="form.controls.referencePrefix.hasError('maxlength')">
+              Usa máximo 24 caracteres.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="isDifferentialMode()">
+            <mat-label>Causal</mat-label>
+            <input matInput type="text" formControlName="reasonCode" maxlength="20" placeholder="Ejemplo: R01" />
+            <mat-hint>Obligatoria para rechazos y devoluciones.</mat-hint>
+            <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
+              Ingresa la causal para este escenario.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="wide" *ngIf="requiresPrenotificationReferences()">
+            <mat-label>Referencias de prenotificación pendientes</mat-label>
+            <textarea
+              matInput
+              formControlName="pendingPrenotificationReferencesText"
+              rows="3"
+              placeholder="Una referencia por línea">
+            </textarea>
+            <mat-hint>Separa varias referencias con salto de línea o coma.</mat-hint>
+            <mat-error *ngIf="form.controls.pendingPrenotificationReferencesText.hasError('required')">
+              Ingresa al menos una referencia pendiente.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="wide">
+            <mat-label>Observación UAT</mat-label>
+            <textarea matInput formControlName="notes" rows="3" maxlength="500"></textarea>
+            <mat-hint align="end">{{ form.controls.notes.value.length }}/500</mat-hint>
+          </mat-form-field>
+        </div>
+
+        <div *ngIf="loadingCycles" class="inline-loading" role="status">
+          <mat-spinner diameter="22"></mat-spinner>
+          Consultando ciclos disponibles…
+        </div>
+
+        <div *ngIf="cycleError && !loadingCycles" class="inline-state inline-state--error" role="alert">
+          <mat-icon aria-hidden="true">event_busy</mat-icon>
+          <div>
+            <strong>No se pudieron cargar los ciclos</strong>
+            <p>{{ cycleError }}</p>
+          </div>
+          <button mat-stroked-button type="button" (click)="loadAvailableCycles()">Reintentar</button>
+        </div>
+
+        <div
+          *ngIf="form.controls.clearingHouseCode.value && !loadingCycles && !cycleError && availableCycles.length === 0"
+          class="inline-state"
+          role="status">
+          <mat-icon aria-hidden="true">event_busy</mat-icon>
+          <div>
+            <strong>Sin ciclos elegibles</strong>
+            <p>No hay ciclos disponibles para la cámara, fecha y operación seleccionadas.</p>
+          </div>
+          <button mat-stroked-button type="button" (click)="loadAvailableCycles()">
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            Actualizar
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" *ngIf="isDifferentialMode()" class="eligible-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">checklist</mat-icon>
+        <mat-card-title>Operaciones CFA elegibles</mat-card-title>
+        <mat-card-subtitle>
+          Consulta paginada en servidor · {{ selectedTransactionIds.size }} seleccionada(s)
+        </mat-card-subtitle>
+        <span class="header-spacer"></span>
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="loadEligibleTransactions()"
+          [disabled]="loadingEligible">
+          <mat-icon aria-hidden="true">refresh</mat-icon>
+          Actualizar
+        </button>
+      </mat-card-header>
+
+      <mat-progress-bar
+        *ngIf="loadingEligible"
+        mode="indeterminate"
+        aria-label="Cargando operaciones elegibles">
+      </mat-progress-bar>
+
+      <mat-card-content>
+        <div *ngIf="eligibleError && !loadingEligible" class="inline-state inline-state--error" role="alert">
+          <mat-icon aria-hidden="true">error</mat-icon>
+          <div>
+            <strong>No se completó la consulta</strong>
+            <p>{{ eligibleError }}</p>
+          </div>
+          <button mat-stroked-button type="button" (click)="loadEligibleTransactions()">Reintentar</button>
+        </div>
+
+        <div
+          *ngIf="!loadingEligible && !eligibleError && eligibleTransactions.length === 0"
+          class="inline-state"
+          role="status">
+          <mat-icon aria-hidden="true">search_off</mat-icon>
+          <div>
+            <strong>Sin operaciones elegibles</strong>
+            <p>No hay coincidencias para la cámara, institución, fecha y estado seleccionados.</p>
+          </div>
+        </div>
+
+        <div
+          *ngIf="eligibleTransactions.length"
+          class="table-scroll"
+          tabindex="0"
+          aria-label="Operaciones elegibles. La tabla admite desplazamiento horizontal.">
+          <table mat-table [dataSource]="eligibleTransactions" aria-label="Operaciones CFA elegibles">
+            <ng-container matColumnDef="select">
+              <th mat-header-cell *matHeaderCellDef>Seleccionar</th>
+              <td mat-cell *matCellDef="let item">
+                <mat-checkbox
+                  [checked]="selectedTransactionIds.has(item.id)"
+                  [disabled]="!item.eligible || generating"
+                  [attr.aria-label]="'Seleccionar operación ' + item.identifier"
+                  (change)="toggleTransaction(item)">
+                </mat-checkbox>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="identifier">
+              <th mat-header-cell *matHeaderCellDef>Transacción</th>
+              <td mat-cell *matCellDef="let item">{{ item.identifier }}</td>
+            </ng-container>
+            <ng-container matColumnDef="traceNumber">
+              <th mat-header-cell *matHeaderCellDef>Traza</th>
+              <td mat-cell *matCellDef="let item"><span class="mono">{{ item.traceNumber }}</span></td>
+            </ng-container>
+            <ng-container matColumnDef="institution">
+              <th mat-header-cell *matHeaderCellDef>Institución</th>
+              <td mat-cell *matCellDef="let item">{{ item.destinationFinancialInstitution }}</td>
+            </ng-container>
+            <ng-container matColumnDef="transactionType">
+              <th mat-header-cell *matHeaderCellDef>Tipo</th>
+              <td mat-cell *matCellDef="let item">{{ item.transactionType }}</td>
+            </ng-container>
+            <ng-container matColumnDef="effectiveDate">
+              <th mat-header-cell *matHeaderCellDef>Fecha</th>
+              <td mat-cell *matCellDef="let item">{{ formatProcessingDate(item.effectiveDate) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="cycle">
+              <th mat-header-cell *matHeaderCellDef>Ciclo</th>
+              <td mat-cell *matCellDef="let item">{{ item.cycle }}</td>
+            </ng-container>
+            <ng-container matColumnDef="amount">
+              <th mat-header-cell *matHeaderCellDef class="amount-cell">Monto</th>
+              <td mat-cell *matCellDef="let item" class="amount-cell">
+                {{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="state">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let item">{{ item.state }}</td>
+            </ng-container>
+            <ng-container matColumnDef="eligibility">
+              <th mat-header-cell *matHeaderCellDef>Elegibilidad</th>
+              <td mat-cell *matCellDef="let item">
+                <span class="status-label" [class.status-label--blocked]="!item.eligible">
+                  <mat-icon aria-hidden="true">{{ item.eligible ? 'check_circle' : 'block' }}</mat-icon>
+                  {{ item.eligible ? 'Elegible' : (item.ineligibilityReason || 'No elegible') }}
+                </span>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="eligibleColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: eligibleColumns"></tr>
+          </table>
+        </div>
+
+        <div class="server-pagination" *ngIf="eligibleTotal > eligiblePageSize">
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="loadEligibleTransactions(eligiblePage - 1)"
+            [disabled]="eligiblePage <= 1 || loadingEligible">
+            <mat-icon aria-hidden="true">chevron_left</mat-icon>
+            Anterior
+          </button>
+          <span>Página {{ eligiblePage }} · {{ eligibleTotal }} resultados</span>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="loadEligibleTransactions(eligiblePage + 1)"
+            [disabled]="eligiblePage * eligiblePageSize >= eligibleTotal || loadingEligible">
+            Siguiente
+            <mat-icon aria-hidden="true">chevron_right</mat-icon>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="summary-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">fact_check</mat-icon>
+        <mat-card-title>Resumen antes de generar</mat-card-title>
+        <mat-card-subtitle>Verifica la información que se enviará</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <dl class="summary-grid">
+          <div>
+            <dt>Cámara</dt>
+            <dd>{{ selectedClearingHouse?.name || 'Pendiente' }}</dd>
+          </div>
+          <div>
+            <dt>Operación</dt>
+            <dd>{{ operationLabel }}</dd>
+          </div>
+          <div>
+            <dt>Origen externo</dt>
+            <dd>{{ selectedOrigin?.name || 'Pendiente' }}</dd>
+          </div>
+          <div>
+            <dt>Destino</dt>
+            <dd>{{ defaultDestination?.name || 'No disponible' }}</dd>
+          </div>
+          <div>
+            <dt>Operaciones</dt>
+            <dd>{{ simulationCount }}</dd>
+          </div>
+          <div>
+            <dt>Valor por operación</dt>
+            <dd>{{ isDifferentialMode() ? 'No aplica' : 'COP ' + form.controls.amount.value }}</dd>
+          </div>
+          <div>
+            <dt>Ciclo</dt>
+            <dd class="mono">{{ form.controls.cycleCode.value || 'Pendiente' }}</dd>
+          </div>
+          <div>
+            <dt>Impacto directo</dt>
+            <dd>{{ isDifferentialMode() ? 'Sin movimiento monetario' : 'Genera archivo UAT; requiere flujo formal posterior' }}</dd>
+          </div>
+        </dl>
+      </mat-card-content>
+      <mat-card-actions align="end">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="preview()"
+          [disabled]="!canExecute">
+          <mat-spinner *ngIf="previewing" diameter="18"></mat-spinner>
+          <mat-icon *ngIf="!previewing" aria-hidden="true">rule</mat-icon>
+          {{ previewing ? 'Validando…' : 'Validar configuración' }}
+        </button>
+        <button
+          mat-flat-button
+          color="primary"
+          type="submit"
+          [disabled]="!canExecute">
+          <mat-spinner *ngIf="generating" diameter="18"></mat-spinner>
+          <mat-icon *ngIf="!generating" aria-hidden="true">play_arrow</mat-icon>
+          {{ generating ? 'Generando…' : 'Generar archivo' }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </form>
+
+  <mat-card *ngIf="result" appearance="outlined" class="result-card" aria-live="polite">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true">task_alt</mat-icon>
+      <mat-card-title>Simulación generada</mat-card-title>
+      <mat-card-subtitle>Archivo pendiente del flujo de carga formal</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <p class="result-message">{{ result.message }}</p>
+      <dl class="result-grid">
+        <div>
+          <dt>ID de simulación</dt>
+          <dd>
+            <span class="mono">{{ result.simulationId }}</span>
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Copiar ID de simulación"
+              aria-label="Copiar ID de simulación"
+              (click)="copyIdentifier(result.simulationId, 'ID de simulación')">
+              <mat-icon aria-hidden="true">content_copy</mat-icon>
+            </button>
+          </dd>
+        </div>
+        <div>
+          <dt>ID interno</dt>
+          <dd>
+            {{ result.id }}
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Copiar ID interno"
+              aria-label="Copiar ID interno"
+              (click)="copyIdentifier(result.id, 'ID interno')">
+              <mat-icon aria-hidden="true">content_copy</mat-icon>
+            </button>
+          </dd>
+        </div>
+        <div>
+          <dt>Archivo</dt>
+          <dd>{{ result.fileName }}</dd>
+        </div>
+        <div>
+          <dt>Tamaño</dt>
+          <dd>{{ result.fileSizeBytes | number:'1.0-0' }} bytes</dd>
+        </div>
+        <div class="wide">
+          <dt>SHA-256</dt>
+          <dd>
+            <span class="mono hash">{{ result.sha256 }}</span>
+            <button
+              mat-icon-button
+              type="button"
+              matTooltip="Copiar SHA-256"
+              aria-label="Copiar SHA-256"
+              (click)="copyIdentifier(result.sha256, 'SHA-256')">
+              <mat-icon aria-hidden="true">content_copy</mat-icon>
+            </button>
+          </dd>
+        </div>
+        <div>
+          <dt>Importación automática</dt>
+          <dd>{{ result.autoImported ? 'Sí' : 'No' }}</dd>
+        </div>
+        <div>
+          <dt>Transmisión externa</dt>
+          <dd>{{ result.externalTransmission ? 'Sí' : 'No' }}</dd>
+        </div>
+      </dl>
+    </mat-card-content>
+    <mat-card-actions align="end">
+      <button mat-stroked-button type="button" (click)="resetSimulation()">
+        <mat-icon aria-hidden="true">restart_alt</mat-icon>
+        Nueva simulación
+      </button>
+      <button mat-flat-button color="primary" type="button" (click)="download(result.id)">
+        <mat-icon aria-hidden="true">download</mat-icon>
+        Descargar archivo
+      </button>
+    </mat-card-actions>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="history-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true">history</mat-icon>
+      <mat-card-title>Simulaciones recientes</mat-card-title>
+      <mat-card-subtitle>Trazabilidad disponible en el entorno UAT</mat-card-subtitle>
+      <span class="header-spacer"></span>
+      <button
+        mat-stroked-button
+        type="button"
+        (click)="loadHistory()"
+        [disabled]="loadingHistory">
+        <mat-icon aria-hidden="true">refresh</mat-icon>
+        Actualizar
+      </button>
+    </mat-card-header>
+
+    <mat-progress-bar
+      *ngIf="loadingHistory"
+      mode="indeterminate"
+      aria-label="Cargando simulaciones recientes">
+    </mat-progress-bar>
+
+    <mat-card-content>
+      <div *ngIf="historyError && !loadingHistory" class="inline-state inline-state--error" role="alert">
+        <mat-icon aria-hidden="true">error</mat-icon>
+        <div>
+          <strong>No se pudo cargar el historial</strong>
+          <p>{{ historyError }}</p>
+        </div>
+        <button mat-stroked-button type="button" (click)="loadHistory()">Reintentar</button>
+      </div>
+
+      <div
+        *ngIf="hasLoadedHistory && !loadingHistory && !historyError && simulations.length === 0"
+        class="inline-state"
+        role="status">
+        <mat-icon aria-hidden="true">inventory_2</mat-icon>
+        <div>
+          <strong>Aún no hay simulaciones</strong>
+          <p>El resultado de la primera simulación aparecerá en esta sección.</p>
+        </div>
+      </div>
+
+      <div
+        *ngIf="simulations.length"
+        class="table-scroll"
+        tabindex="0"
+        aria-label="Simulaciones recientes. La tabla admite desplazamiento horizontal.">
+        <table mat-table [dataSource]="simulations" aria-label="Simulaciones recientes">
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>ID</th>
+            <td mat-cell *matCellDef="let item">{{ item.id }}</td>
+          </ng-container>
+          <ng-container matColumnDef="clearingHouse">
+            <th mat-header-cell *matHeaderCellDef>Cámara</th>
+            <td mat-cell *matCellDef="let item">{{ item.clearingHouseName }}</td>
+          </ng-container>
+          <ng-container matColumnDef="scenario">
+            <th mat-header-cell *matHeaderCellDef>Escenario</th>
+            <td mat-cell *matCellDef="let item">{{ item.scenarioType }}</td>
+          </ng-container>
+          <ng-container matColumnDef="file">
+            <th mat-header-cell *matHeaderCellDef>Archivo</th>
+            <td mat-cell *matCellDef="let item">{{ item.fileName }}</td>
+          </ng-container>
+          <ng-container matColumnDef="sha256">
+            <th mat-header-cell *matHeaderCellDef>SHA-256</th>
+            <td mat-cell *matCellDef="let item">
+              <span class="mono hash" [matTooltip]="item.sha256">{{ item.sha256 }}</span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="action">
+            <th mat-header-cell *matHeaderCellDef>Acción</th>
+            <td mat-cell *matCellDef="let item">
+              <button
+                mat-icon-button
+                type="button"
+                matTooltip="Descargar archivo"
+                [attr.aria-label]="'Descargar simulación ' + item.id"
+                (click)="download(item.id)">
+                <mat-icon aria-hidden="true">download</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="historyColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: historyColumns"></tr>
+        </table>
+      </div>
+    </mat-card-content>
+  </mat-card>
 </section>

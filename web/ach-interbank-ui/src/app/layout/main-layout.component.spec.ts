@@ -1,6 +1,6 @@
 import { BreakpointObserver, BreakpointState } from '@angular/cdk/layout';
 import { Component } from '@angular/core';
-import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, flushMicrotasks, TestBed, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideRouter, Router } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
@@ -290,6 +290,24 @@ describe('MainLayoutComponent', () => {
     fixture.detectChanges();
 
     expect(component.isMobileDrawerOpen).toBeFalse();
+  }));
+
+  it('closes the mobile overlay with Escape after a desktop-to-mobile transition', fakeAsync(() => {
+    fixture.detectChanges();
+    setMobile(true);
+    fixture.detectChanges();
+
+    menuToggle().click();
+    fixture.detectChanges();
+    tick();
+    expect(component.isMobileDrawerOpen).toBeTrue();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flushMicrotasks();
+    fixture.detectChanges();
+
+    expect(component.isMobileDrawerOpen).toBeFalse();
+    expect(document.activeElement).toBe(menuToggle());
   }));
 
   it('keeps desktop compact state independent across desktop, mobile and desktop', () => {

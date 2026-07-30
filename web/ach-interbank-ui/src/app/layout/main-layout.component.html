@@ -14,6 +14,7 @@
     [autoFocus]="isMobileViewport"
     (openedChange)="onDrawerOpenedChange($event)"
     (closedStart)="onDrawerClosed()"
+    (keydown.escape)="onEscapeKey($event)"
     role="navigation"
     aria-label="Menú principal"
   >
@@ -50,6 +51,7 @@
     <mat-toolbar class="shell-toolbar" role="banner">
       <div class="toolbar-leading">
         <button
+          #navigationToggle
           mat-icon-button
           class="menu-toggle"
           type="button"

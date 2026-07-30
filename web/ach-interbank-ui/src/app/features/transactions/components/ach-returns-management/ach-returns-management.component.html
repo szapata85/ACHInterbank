@@ -1,51 +1,227 @@
-<app-page-header title="Gestión de Devoluciones ACH" description="Seleccione un ciclo, marque transacciones y genere el archivo .RET"></app-page-header>
+<app-page-header
+  title="Devoluciones ACH"
+  subtitle="Consulta operativa y generación controlada de archivos .RET">
+</app-page-header>
 
-<div class="toolbar">
-  <label>
-    Ciclo operativo
-    <ui-selector-buscable
-      [opciones]="cycleOptions"
-      [formControl]="filtrosForm.controls.cycleId"
-      placeholderBusqueda="Buscar ciclo operativo"
-    ></ui-selector-buscable>
-  </label>
-
-  <ui-boton texto="Consultar" variante="primario" [deshabilitado]="loading" (accion)="loadTransactions()"></ui-boton>
-  <ui-boton texto="Asignar causal / Generar" variante="contorno" [deshabilitado]="loading || rows.length === 0" (accion)="openReasonModal()"></ui-boton>
-</div>
-
-<ui-grilla-empresarial
-  [columnas]="columnDefs"
-  [datos]="rows"
-  [cargando]="loading"
-  [error]="!!loadError"
-  [mensajeError]="loadError"
-  [paginacion]="true"
-  [tamanoPagina]="20"
-  [tituloVacio]="'No hay devoluciones registradas'"
-  [mensajeVacio]="'No hay devoluciones registradas para el ciclo seleccionado.'"
-  [seleccionFilas]="rowSelection"
-  (reintentar)="loadTransactions()"
-  (seleccionCambio)="onSelectionChanged($event)"
-></ui-grilla-empresarial>
-
-<div class="modal-backdrop" *ngIf="showReasonModal">
-  <div class="modal">
-    <h3>Asignar causal de devolución</h3>
-    <label>
-      Causal (Rxx)
-      <ui-selector-buscable
-        [opciones]="reasonOptions"
-        [formControl]="devolucionForm.controls.reasonCode"
-        placeholderBusqueda="Buscar causal de devolución"
-      ></ui-selector-buscable>
-    </label>
-
-    <p>Transacciones seleccionadas: {{ selectedRows.size }}</p>
-
-    <div class="actions">
-      <ui-boton texto="Cancelar" variante="contorno" [deshabilitado]="loading" (accion)="closeReasonModal()"></ui-boton>
-      <ui-boton texto="Generar archivo NACHA-M (.RET)" variante="primario" [deshabilitado]="loading" (accion)="generateFile()"></ui-boton>
+<section class="returns-page" aria-label="Gestión de devoluciones ACH">
+  <div class="purpose-strip" role="status">
+    <mat-icon aria-hidden="true">assignment_return</mat-icon>
+    <div>
+      <strong>Flujo de devolución existente</strong>
+      <p>
+        Consulta transacciones retornables por ciclo y genera el archivo .RET con una causal vigente.
+        Esta pantalla no administra ROR, respuestas diferenciales ni estados manuales.
+      </p>
     </div>
   </div>
-</div>
+
+  <mat-card appearance="outlined" class="filters-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true">filter_alt</mat-icon>
+      <mat-card-title>Filtros de consulta</mat-card-title>
+      <mat-card-subtitle>El endpoint limita la consulta al ciclo seleccionado</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-progress-bar
+      *ngIf="loadingCatalogs"
+      mode="indeterminate"
+      aria-label="Cargando ciclos y causales">
+    </mat-progress-bar>
+
+    <mat-card-content>
+      <form
+        [formGroup]="filterForm"
+        (ngSubmit)="loadTransactions()"
+        class="filter-grid"
+        aria-label="Filtros de devoluciones ACH">
+        <mat-form-field appearance="outline" class="cycle-field">
+          <mat-label>Ciclo operativo</mat-label>
+          <mat-select formControlName="cycleId" [attr.aria-busy]="loadingCatalogs">
+            <mat-option *ngFor="let cycle of cycles" [value]="cycle.id">
+              {{ cycleLabel(cycle) }}
+            </mat-option>
+          </mat-select>
+          <mat-icon matSuffix aria-hidden="true">schedule</mat-icon>
+          <mat-hint>Incluye cámara y fecha para distinguir ciclos con el mismo nombre.</mat-hint>
+          <mat-error *ngIf="filterForm.controls.cycleId.hasError('required')">
+            Selecciona un ciclo operativo.
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Elegibilidad</mat-label>
+          <mat-select formControlName="eligibility">
+            <mat-option value="all">Todas</mat-option>
+            <mat-option value="eligible">Elegibles</mat-option>
+            <mat-option value="blocked">No elegibles</mat-option>
+          </mat-select>
+          <mat-icon matSuffix aria-hidden="true">rule</mat-icon>
+          <mat-hint>Filtro local sobre el ciclo cargado.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Traza, referencia o código</mat-label>
+          <input matInput type="search" formControlName="query" autocomplete="off" />
+          <mat-icon matSuffix aria-hidden="true">search</mat-icon>
+          <mat-hint>Filtro local; no carga datos fuera del ciclo.</mat-hint>
+        </mat-form-field>
+
+        <div class="filter-actions">
+          <button
+            mat-flat-button
+            color="primary"
+            type="submit"
+            [disabled]="loading || loadingCatalogs || generating">
+            <mat-icon aria-hidden="true">search</mat-icon>
+            {{ loading ? 'Consultando…' : 'Aplicar filtros' }}
+          </button>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="clearFilters()"
+            [disabled]="loading || generating">
+            <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
+            Limpiar
+          </button>
+        </div>
+      </form>
+
+      <div *ngIf="catalogError && !loadingCatalogs" class="state-panel state-panel--error" role="alert">
+        <mat-icon aria-hidden="true">error</mat-icon>
+        <div>
+          <strong>No se completó la carga de catálogos</strong>
+          <p>{{ catalogError }}</p>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="results-card" [attr.aria-busy]="loading || generating">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true">table_view</mat-icon>
+      <mat-card-title>Transacciones del ciclo</mat-card-title>
+      <mat-card-subtitle *ngIf="!hasLoaded">Selecciona filtros para iniciar la consulta</mat-card-subtitle>
+      <mat-card-subtitle *ngIf="hasLoaded">
+        {{ allRows.length }} resultado(s) · {{ selectedRows.size }} seleccionado(s)
+      </mat-card-subtitle>
+      <span class="header-spacer"></span>
+      <mat-chip-set *ngIf="hasLoaded && !loading" aria-label="Resumen de elegibilidad">
+        <mat-chip class="eligible-chip">
+          <mat-icon aria-hidden="true">check_circle</mat-icon>
+          {{ eligibleCount }} elegibles
+        </mat-chip>
+        <mat-chip class="blocked-chip">
+          <mat-icon aria-hidden="true">block</mat-icon>
+          {{ blockedCount }} no elegibles
+        </mat-chip>
+      </mat-chip-set>
+    </mat-card-header>
+
+    <mat-progress-bar
+      *ngIf="loading || generating"
+      mode="indeterminate"
+      [attr.aria-label]="generating ? 'Generando archivo de devoluciones' : 'Cargando transacciones del ciclo'">
+    </mat-progress-bar>
+
+    <mat-card-content>
+      <div *ngIf="!hasLoaded && !loading" class="state-panel" role="status">
+        <mat-icon aria-hidden="true">manage_search</mat-icon>
+        <div>
+          <strong>Prepara la consulta</strong>
+          <p>Selecciona un ciclo y aplica los filtros para cargar las transacciones retornables.</p>
+        </div>
+      </div>
+
+      <div *ngIf="loadError && !loading" class="state-panel state-panel--error" role="alert">
+        <mat-icon aria-hidden="true">error</mat-icon>
+        <div>
+          <strong>No fue posible completar la consulta</strong>
+          <p>{{ loadError }}</p>
+        </div>
+        <button mat-stroked-button type="button" (click)="retry()">
+          <mat-icon aria-hidden="true">refresh</mat-icon>
+          Reintentar
+        </button>
+      </div>
+
+      <div
+        *ngIf="hasLoaded && !loading && !loadError && allRows.length === 0"
+        class="state-panel"
+        role="status">
+        <mat-icon aria-hidden="true">inventory_2</mat-icon>
+        <div>
+          <strong>El ciclo no tiene transacciones retornables</strong>
+          <p>No existen datos para el ciclo seleccionado. Prueba con otro ciclo operativo.</p>
+        </div>
+      </div>
+
+      <div
+        *ngIf="hasLoaded && !loadError && (loading || allRows.length > 0)"
+        class="grid-region">
+        <div class="result-actions">
+          <p>
+            La paginación, el ordenamiento y los filtros de columna se aplican sobre el ciclo cargado.
+          </p>
+          <div>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="openDetail()"
+              [disabled]="selectedRows.size !== 1 || loading || generating"
+              matTooltip="Disponible cuando hay una sola transacción seleccionada">
+              <mat-icon aria-hidden="true">visibility</mat-icon>
+              Ver detalle
+            </button>
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="openReasonDialog()"
+              [disabled]="selectedRows.size === 0 || loading || generating || reasons.length === 0">
+              <mat-icon aria-hidden="true">download</mat-icon>
+              {{ generating ? 'Generando…' : 'Asignar causal y generar .RET' }}
+            </button>
+          </div>
+        </div>
+
+        <div *ngIf="actionError && !generating" class="state-panel state-panel--error" role="alert">
+          <mat-icon aria-hidden="true">error</mat-icon>
+          <div>
+            <strong>No se generó el archivo .RET</strong>
+            <p>{{ actionError }}</p>
+          </div>
+        </div>
+
+        <ui-grilla-empresarial
+          [columnas]="columnDefs"
+          [datos]="rows"
+          [cargando]="loading"
+          [error]="false"
+          [paginacion]="true"
+          [tamanoPagina]="20"
+          tituloVacio="Sin coincidencias"
+          mensajeVacio="No hay transacciones que coincidan con los filtros aplicados dentro del ciclo."
+          placeholderBusqueda="Buscar en las columnas visibles"
+          [seleccionFilas]="rowSelection"
+          (seleccionCambio)="onSelectionChanged($event)">
+        </ui-grilla-empresarial>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card *ngIf="lastGenerated" appearance="outlined" class="success-card" aria-live="polite">
+    <mat-card-header>
+      <mat-icon mat-card-avatar aria-hidden="true">task_alt</mat-icon>
+      <mat-card-title>Archivo .RET generado</mat-card-title>
+      <mat-card-subtitle>La descarga fue preparada con la causal seleccionada</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <dl>
+        <div><dt>Archivo</dt><dd class="mono">{{ lastGenerated.fileName }}</dd></div>
+        <div><dt>Ciclo</dt><dd>{{ lastGenerated.cycleLabel }}</dd></div>
+        <div><dt>Causal</dt><dd>{{ lastGenerated.reasonCode }}</dd></div>
+        <div><dt>Transacciones</dt><dd>{{ lastGenerated.transactionCount }}</dd></div>
+      </dl>
+    </mat-card-content>
+  </mat-card>
+</section>

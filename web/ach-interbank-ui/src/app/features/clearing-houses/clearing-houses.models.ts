@@ -38,5 +38,12 @@ export interface ClearingHouseInput {
   expectedUpdatedAt?: string | null;
 }
 
-export interface NachaProfileOption { id: number; code: string; name: string; }
+export interface NachaProfileOption {
+  id: number;
+  code: string;
+  name: string;
+  clearingHouseCode?: string;
+  isPublished?: boolean;
+  isCurrent?: boolean;
+}
 export interface PaymentRailOption { code: string; name: string; }
