@@ -16,6 +16,7 @@ public class DigitalCertificateVersionConfiguration : IEntityTypeConfiguration<D
         builder.Property(x => x.Issuer).HasMaxLength(500).IsRequired();
         builder.Property(x => x.SerialNumber).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Thumbprint).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.NormalizedThumbprint).HasMaxLength(200).IsRequired();
         builder.Property(x => x.FingerprintSha256).HasMaxLength(200).IsRequired();
         builder.Property(x => x.KeyAlgorithm).HasMaxLength(120).IsRequired();
         builder.Property(x => x.SignatureAlgorithm).HasMaxLength(120).IsRequired();
@@ -23,6 +24,16 @@ public class DigitalCertificateVersionConfiguration : IEntityTypeConfiguration<D
         builder.Property(x => x.FileRef).HasMaxLength(500);
         builder.Property(x => x.UploadedBy).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ValidationSummaryJson).HasMaxLength(4000);
+        builder.Property(x => x.RevocationReason).HasMaxLength(500);
+        builder.Property(x => x.RevokedBy).HasMaxLength(120);
+        builder.Property(x => x.NotBefore)
+            .HasConversion(
+                value => value,
+                value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+        builder.Property(x => x.NotAfter)
+            .HasConversion(
+                value => value,
+                value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
         builder.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();
 
         builder.HasOne(x => x.DigitalCertificate)
@@ -35,10 +46,36 @@ public class DigitalCertificateVersionConfiguration : IEntityTypeConfiguration<D
             .HasForeignKey(x => x.ReplacedByVersionId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.FinancialInstitution)
+            .WithMany()
+            .HasForeignKey(x => x.FinancialInstitutionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ClearingHouse)
+            .WithMany()
+            .HasForeignKey(x => x.ClearingHouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(x => x.Thumbprint);
-        builder.HasIndex(x => new { x.FingerprintSha256, x.ClearingHouseId, x.Environment, x.Purpose, x.HolderType }).IsUnique();
+        builder.HasIndex(x => x.NormalizedThumbprint);
+        builder.HasIndex(x => new
+        {
+            x.FingerprintSha256,
+            x.FinancialInstitutionId,
+            x.ClearingHouseId,
+            x.Environment,
+            x.Purpose,
+            x.HolderType
+        });
         builder.HasIndex(x => x.SerialNumber);
         builder.HasIndex(x => x.NotAfter);
-        builder.HasIndex(x => new { x.ClearingHouseId, x.Environment, x.Purpose, x.HolderType });
+        builder.HasIndex(x => new
+        {
+            x.FinancialInstitutionId,
+            x.ClearingHouseId,
+            x.Environment,
+            x.Purpose,
+            x.HolderType
+        });
     }
 }

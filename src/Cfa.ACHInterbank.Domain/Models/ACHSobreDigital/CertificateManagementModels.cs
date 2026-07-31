@@ -5,7 +5,9 @@ public enum CertificatePurpose
     OutboundEncryption = 1,
     InboundDecryption = 2,
     OutboundSigning = 3,
-    InboundSignatureValidation = 4
+    InboundSignatureValidation = 4,
+    CfaSigningAndDecryption = 5,
+    ClearingHouseValidation = 6
 }
 
 public enum CertificateEnvironment
@@ -24,6 +26,17 @@ public enum CertificateStatus
     Replaced = 6,
     PendingSecretBinding = 7,
     Invalid = 8
+}
+
+public enum CertificateFunctionalStatus
+{
+    PendingValidity = 1,
+    Valid = 2,
+    ExpiringSoon = 3,
+    Expired = 4,
+    Revoked = 5,
+    Replaced = 6,
+    Inactive = 7
 }
 
 public enum CertificateHolderType
@@ -69,7 +82,10 @@ public class DigitalCertificateVersion
     public int Id { get; set; }
     public int DigitalCertificateId { get; set; }
     public DigitalCertificate DigitalCertificate { get; set; } = null!;
-    public int ClearingHouseId { get; set; }
+    public int? FinancialInstitutionId { get; set; }
+    public Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution? FinancialInstitution { get; set; }
+    public int? ClearingHouseId { get; set; }
+    public Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse? ClearingHouse { get; set; }
     public CertificateEnvironment Environment { get; set; }
     public CertificatePurpose Purpose { get; set; }
     public CertificateHolderType HolderType { get; set; }
@@ -81,6 +97,7 @@ public class DigitalCertificateVersion
     public string Issuer { get; set; } = string.Empty;
     public string SerialNumber { get; set; } = string.Empty;
     public string Thumbprint { get; set; } = string.Empty;
+    public string NormalizedThumbprint { get; set; } = string.Empty;
     public string FingerprintSha256 { get; set; } = string.Empty;
     public DateTime NotBefore { get; set; }
     public DateTime NotAfter { get; set; }
@@ -97,6 +114,8 @@ public class DigitalCertificateVersion
     public string UploadedBy { get; set; } = "system";
     public DateTime? ActivatedAtUtc { get; set; }
     public DateTime? RevokedAtUtc { get; set; }
+    public string? RevocationReason { get; set; }
+    public string? RevokedBy { get; set; }
     public int? ReplacedByVersionId { get; set; }
     public DigitalCertificateVersion? ReplacedByVersion { get; set; }
     public string? ValidationSummaryJson { get; set; }
@@ -133,8 +152,11 @@ public class CertificateRotationHistory
 public class CertificateLoadAudit
 {
     public long Id { get; set; }
-    public int CertificateVersionId { get; set; }
-    public DigitalCertificateVersion CertificateVersion { get; set; } = null!;
+    public int? CertificateVersionId { get; set; }
+    public DigitalCertificateVersion? CertificateVersion { get; set; }
+    public string Action { get; set; } = "upload";
+    public string? CertificateThumbprint { get; set; }
+    public string? CertificateDisplayName { get; set; }
     public string LoadSource { get; set; } = string.Empty;
     public string ValidationResult { get; set; } = string.Empty;
     public string? ValidationErrorsJson { get; set; }
@@ -146,6 +168,7 @@ public class DigitalEnvelopeOperationLog
 {
     public long Id { get; set; }
     public string Direction { get; set; } = string.Empty;
+    public string OperationMode { get; set; } = "LIVE";
     public int ClearingHouseId { get; set; }
     public CertificateEnvironment Environment { get; set; }
     public CertificatePurpose Purpose { get; set; }

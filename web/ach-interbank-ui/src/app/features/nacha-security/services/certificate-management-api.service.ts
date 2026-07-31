@@ -1,15 +1,20 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
-import { CertificateListItem, CertificateValidationResult, CertificateVersion } from '../models/certificate-management.model';
+import {
+  CertificateListItem,
+  CertificatePreview,
+  CertificateValidationResult,
+  CertificateVersion,
+  DeleteCertificateResult,
+  ManagedCertificatePurpose
+} from '../models/certificate-management.model';
 
-export interface CertificateUploadContext {
-  code: string;
-  displayName: string;
-  clearingHouseId: number;
-  environment: 'Test' | 'Production';
-  purpose: 'OutboundEncryption' | 'InboundDecryption' | 'OutboundSigning' | 'InboundSignatureValidation';
-  holderType: 'Participant' | 'ClearingHouse' | 'ThirdPartyProvider';
+export interface ManagedCertificateUpload {
+  purpose: ManagedCertificatePurpose;
+  clearingHouseId?: number | null;
+  file: File;
+  password?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -17,11 +22,16 @@ export class CertificateManagementApiService {
   private readonly api = inject(ApiService);
   private readonly basePath = 'api/nacha-security/certificates/management';
 
-  list(filters?: { clearingHouseId?: number; environment?: string; purpose?: string; status?: string }): Observable<CertificateListItem[]> {
-    const params = Object.fromEntries(
-      Object.entries(filters ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== '')
-    ) as Record<string, string | number>;
-    return this.api.get<CertificateListItem[]>(this.basePath, { params });
+  list(): Observable<CertificateListItem[]> {
+    return this.api.get<CertificateListItem[]>(this.basePath);
+  }
+
+  preview(request: ManagedCertificateUpload): Observable<CertificatePreview> {
+    return this.api.post<CertificatePreview>(`${this.basePath}/managed/preview`, this.buildForm(request));
+  }
+
+  save(request: ManagedCertificateUpload): Observable<CertificateVersion> {
+    return this.api.post<CertificateVersion>(`${this.basePath}/managed`, this.buildForm(request));
   }
 
   getVersions(id: number): Observable<CertificateVersion[]> {
@@ -36,6 +46,10 @@ export class CertificateManagementApiService {
     return this.api.post<CertificateVersion>(`${this.basePath}/versions/${versionId}/revoke`, { reason });
   }
 
+  delete(versionId: number): Observable<DeleteCertificateResult> {
+    return this.api.delete<DeleteCertificateResult>(`${this.basePath}/versions/${versionId}`);
+  }
+
   validate(versionId: number): Observable<CertificateValidationResult> {
     return this.api.post<CertificateValidationResult>(`${this.basePath}/versions/${versionId}/validate`, {});
   }
@@ -44,27 +58,16 @@ export class CertificateManagementApiService {
     return this.api.get<unknown[]>(`${this.basePath}/audit`);
   }
 
-  uploadPublic(context: CertificateUploadContext, file: File): Observable<CertificateVersion> {
-    const form = this.buildForm(context, file);
-    return this.api.post<CertificateVersion>(`${this.basePath}/public`, form);
-  }
-
-  uploadPrivate(context: CertificateUploadContext, file: File, password: string): Observable<CertificateVersion> {
-    const form = this.buildForm(context, file);
-    form.append('password', password);
-    form.append('storageMode', 'DatabaseEncrypted');
-    return this.api.post<CertificateVersion>(`${this.basePath}/private`, form);
-  }
-
-  private buildForm(context: CertificateUploadContext, file: File): FormData {
+  private buildForm(request: ManagedCertificateUpload): FormData {
     const form = new FormData();
-    form.append('code', context.code);
-    form.append('displayName', context.displayName);
-    form.append('clearingHouseId', String(context.clearingHouseId));
-    form.append('environment', context.environment);
-    form.append('purpose', context.purpose);
-    form.append('holderType', context.holderType);
-    form.append('file', file, file.name);
+    form.append('purpose', request.purpose);
+    if (request.clearingHouseId) {
+      form.append('clearingHouseId', String(request.clearingHouseId));
+    }
+    if (request.password) {
+      form.append('password', request.password);
+    }
+    form.append('file', request.file, request.file.name);
     return form;
   }
 }

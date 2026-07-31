@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Globalization;
+using System.Numerics;
+using System.Text;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Implementation;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
@@ -47,6 +50,57 @@ public sealed class ManagedDigitalEnvelopeServiceTests
         decrypted.FileName.Should().Be("archivo.OUT");
         decrypted.Content.Should().Equal(original);
         SHA256.HashData(decrypted.Content).Should().Equal(SHA256.HashData(original));
+    }
+
+    [Fact]
+    public async Task Decrypt_IgnoresLegacyDoctypeWithoutResolvingExternalResources()
+    {
+        using var certificate = CreateCertificate("CN=Managed Envelope DTD, S=Estado, C=CO");
+        await using var context = CreateContext();
+        AddCertificateVersions(context, certificate, CertificateStatus.Active);
+        await context.SaveChangesAsync();
+        var service = CreateService(context, certificate);
+        var original = "contenido estructurado"u8.ToArray();
+        var encrypted = await service.EncryptAsync(
+            new ManagedDigitalEnvelopeRequest(2, "archivo.OUT", original, "test"));
+        var xml = Encoding.UTF8.GetString(encrypted.Content);
+        var serialDecimal = BigInteger.Parse(
+                $"0{certificate.SerialNumber}",
+                NumberStyles.AllowHexSpecifier,
+                CultureInfo.InvariantCulture)
+            .ToString(CultureInfo.InvariantCulture);
+        var withDoctype = xml.Replace(
+            "?>",
+            "?><!DOCTYPE envelope SYSTEM \"recurso-no-resoluble.dtd\">",
+            StringComparison.Ordinal)
+            .Replace(
+                $"<serial>{certificate.SerialNumber}</serial>",
+                $"<serial>{serialDecimal}</serial>",
+                StringComparison.Ordinal)
+            .Replace(
+                "S=Estado",
+                "ST=Estado",
+                StringComparison.Ordinal)
+            .Replace(
+                ">RSA/NONE/PKCS1Padding<",
+                ">\r\nRSA/NONE/PKCS1Padding\r\n<",
+                StringComparison.Ordinal)
+            .Replace(
+                ">AES/CBC/PKCS5padding<",
+                ">\r\nAES/CBC/PKCS5padding\r\n<",
+                StringComparison.Ordinal)
+            .Replace(
+                ">signedData<",
+                ">\r\nsignedData\r\n<",
+                StringComparison.Ordinal);
+
+        var decrypted = await service.DecryptAsync(new ManagedDigitalEnvelopeRequest(
+            2,
+            encrypted.FileName,
+            Encoding.UTF8.GetBytes(withDoctype),
+            "test"));
+
+        decrypted.Content.Should().Equal(original);
     }
 
     [Theory]
@@ -132,7 +186,7 @@ public sealed class ManagedDigitalEnvelopeServiceTests
 
         var result = await service.ListUsableCertificatesAsync();
 
-        result.Should().ContainSingle(x => x.Id == 2 && x.CanEncrypt && x.CanDecrypt);
+        result.Should().ContainSingle(x => x.Id == 2 && !x.CanEncrypt && x.CanDecrypt);
         result.Should().NotContain(x => x.Id == 3);
     }
 

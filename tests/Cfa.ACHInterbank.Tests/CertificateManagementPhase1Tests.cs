@@ -13,6 +13,8 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -33,6 +35,16 @@ public class CertificateManagementPhase1Tests
             OriginCode = "1",
             ClearingHouseId = 1
         });
+        var defaultInstitution = new FinancialInstitution
+        {
+            Id = 7,
+            Name = "CFA",
+            IsDefaultSource = true,
+            RoutingNumber = "00000",
+            TransitCode = "000"
+        };
+        defaultInstitution.CalculateCheckDigit();
+        context.FinancialInstitutions.Add(defaultInstitution);
         context.SaveChanges();
         return context;
     }
@@ -45,6 +57,176 @@ public class CertificateManagementPhase1Tests
         var pfx = cert.Export(X509ContentType.Pkcs12, "test-pass");
         var cer = cert.Export(X509ContentType.Cert);
         return (cer, pfx);
+    }
+
+    [Fact]
+    public async Task ManagedCfaCertificate_ShouldUseOfficialDatesAndDefaultSourceOwner()
+    {
+        using var context = CreateContext(nameof(ManagedCfaCertificate_ShouldUseOfficialDatesAndDefaultSourceOwner));
+        var protector = new DataProtectionCertificatePrivateMaterialProtector(new EphemeralDataProtectionProvider());
+        var service = new CertificateLoadService(
+            context,
+            new CertificateSecretProtectorService(),
+            protector,
+            Options.Create(new CertificateManagementOptions { ExpirationWarningDays = 30 }));
+        var startsAt = new DateTimeOffset(2026, 1, 15, 5, 30, 0, TimeSpan.Zero);
+        var expiresAt = new DateTimeOffset(2027, 1, 15, 5, 30, 0, TimeSpan.Zero);
+        var (_, pfx) = CreateTestCertificateWithDates(startsAt, expiresAt);
+
+        var result = await service.SaveManagedCertificateAsync(new SaveManagedCertificateRequest(
+            CertificatePurpose.CfaSigningAndDecryption,
+            null,
+            pfx,
+            "test-pass",
+            "CFA.pfx",
+            "tester"));
+
+        var stored = await context.DigitalCertificateVersions.SingleAsync();
+        result.FinancialInstitutionId.Should().Be(7);
+        result.ClearingHouseId.Should().BeNull();
+        result.HasPrivateKey.Should().BeTrue();
+        stored.NotBefore.Should().Be(startsAt.UtcDateTime);
+        stored.NotAfter.Should().Be(expiresAt.UtcDateTime);
+        stored.EncryptedPrivateMaterial.Should().NotBeNullOrEmpty();
+        stored.EncryptedPrivateMaterial.Should().NotEqual(pfx);
+    }
+
+    [Fact]
+    public async Task ManagedClearingHouseCertificate_ShouldAssociatePublicCertificateOnly()
+    {
+        using var context = CreateContext(nameof(ManagedClearingHouseCertificate_ShouldAssociatePublicCertificateOnly));
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var (cer, _) = CreateTestCertificate();
+
+        var result = await service.SaveManagedCertificateAsync(new SaveManagedCertificateRequest(
+            CertificatePurpose.ClearingHouseValidation,
+            1,
+            cer,
+            null,
+            "ACHcolombia.cer",
+            "tester"));
+
+        result.ClearingHouseId.Should().Be(1);
+        result.FinancialInstitutionId.Should().BeNull();
+        result.HasPrivateKey.Should().BeFalse();
+        result.Purpose.Should().Be(CertificatePurpose.ClearingHouseValidation);
+    }
+
+    [Fact]
+    public async Task ManagedCertificate_ShouldAllowLegacyPurposeMigrationButRejectManagedDuplicate()
+    {
+        using var context = CreateContext(nameof(ManagedCertificate_ShouldAllowLegacyPurposeMigrationButRejectManagedDuplicate));
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var (cer, _) = CreateTestCertificate();
+
+        await service.LoadPublicCertificateAsync(new LoadPublicCertificateRequest(
+            "LEGACY-ACH",
+            "Certificado histÃ³rico",
+            1,
+            CertificateEnvironment.Production,
+            CertificatePurpose.OutboundEncryption,
+            CertificateHolderType.ClearingHouse,
+            cer,
+            "tester",
+            "ACHcolombia.cer"));
+
+        var managedRequest = new SaveManagedCertificateRequest(
+            CertificatePurpose.ClearingHouseValidation,
+            1,
+            cer,
+            null,
+            "ACHcolombia.cer",
+            "tester");
+
+        var managed = await service.SaveManagedCertificateAsync(managedRequest);
+        managed.Purpose.Should().Be(CertificatePurpose.ClearingHouseValidation);
+
+        var duplicate = () => service.SaveManagedCertificateAsync(managedRequest);
+        await duplicate.Should().ThrowAsync<CertificateConflictException>()
+            .WithMessage("*ya se encuentra registrado*");
+        context.CertificateLoadAudits.Should().Contain(x => x.Action == "duplicate-rejected");
+    }
+
+    [Fact]
+    public async Task ManagedCfaCertificate_ShouldRejectMissingOrAmbiguousDefaultSource()
+    {
+        using var context = CreateContext(nameof(ManagedCfaCertificate_ShouldRejectMissingOrAmbiguousDefaultSource));
+        var (_, pfx) = CreateTestCertificate();
+        var protector = new DataProtectionCertificatePrivateMaterialProtector(new EphemeralDataProtectionProvider());
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService(), protector);
+
+        context.FinancialInstitutions.Single().IsDefaultSource = false;
+        await context.SaveChangesAsync();
+        var missing = () => service.SaveManagedCertificateAsync(new SaveManagedCertificateRequest(
+            CertificatePurpose.CfaSigningAndDecryption, null, pfx, "test-pass", "CFA.pfx", "tester"));
+        await missing.Should().ThrowAsync<CertificateValidationException>()
+            .WithMessage("*configurada como origen*");
+
+        context.FinancialInstitutions.Single().IsDefaultSource = true;
+        var alternate = new FinancialInstitution
+        {
+            Name = "Origen alterno",
+            IsDefaultSource = true,
+            RoutingNumber = "11111",
+            TransitCode = "111"
+        };
+        alternate.CalculateCheckDigit();
+        context.FinancialInstitutions.Add(alternate);
+        await context.SaveChangesAsync();
+        var ambiguous = () => service.SaveManagedCertificateAsync(new SaveManagedCertificateRequest(
+            CertificatePurpose.CfaSigningAndDecryption, null, pfx, "test-pass", "CFA.pfx", "tester"));
+        await ambiguous.Should().ThrowAsync<CertificateValidationException>()
+            .WithMessage("*más de una*");
+    }
+
+    [Fact]
+    public async Task RevokedUnusedCertificate_ShouldBeDeletableAndUploadableAgain()
+    {
+        using var context = CreateContext(nameof(RevokedUnusedCertificate_ShouldBeDeletableAndUploadableAgain));
+        var service = new CertificateLoadService(context, new CertificateSecretProtectorService());
+        var (cer, _) = CreateTestCertificate();
+        var request = new SaveManagedCertificateRequest(
+            CertificatePurpose.ClearingHouseValidation, 1, cer, null, "ACHcolombia.cer", "tester");
+        var saved = await service.SaveManagedCertificateAsync(request);
+        var activation = new CertificateActivationService(context, new CertificateValidationService(context));
+
+        var emptyReason = () => activation.RevokeVersionAsync(
+            new RevokeCertificateVersionRequest(saved.Id, "tester", " "));
+        await emptyReason.Should().ThrowAsync<CertificateValidationException>();
+
+        var revoked = await activation.RevokeVersionAsync(
+            new RevokeCertificateVersionRequest(saved.Id, "tester", "Rotación controlada"));
+        revoked.NotBefore.Should().Be(saved.NotBefore);
+        revoked.NotAfter.Should().Be(saved.NotAfter);
+        revoked.RevocationReason.Should().Be("Rotación controlada");
+
+        var deletion = new CertificateDeletionService(context);
+        var deleted = await deletion.DeleteVersionAsync(
+            new DeleteCertificateVersionRequest(saved.Id, "tester"));
+        deleted.Deleted.Should().BeTrue();
+
+        var reuploaded = await service.SaveManagedCertificateAsync(request);
+        reuploaded.Id.Should().NotBe(saved.Id);
+        context.CertificateLoadAudits.Should().Contain(x => x.Action == "deletion");
+    }
+
+    private static (byte[] Cer, byte[] Pfx) CreateTestCertificateWithDates(
+        DateTimeOffset notBefore,
+        DateTimeOffset notAfter)
+    {
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest(
+            "CN=Known Dates",
+            rsa,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(
+            X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment,
+            critical: true));
+        using var certificate = request.CreateSelfSigned(notBefore, notAfter);
+        return (
+            certificate.Export(X509ContentType.Cert),
+            certificate.Export(X509ContentType.Pkcs12, "test-pass"));
     }
 
     [Fact]

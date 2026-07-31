@@ -104,6 +104,7 @@ public sealed class SobreDigitalControllerTests
         return new SobreDigitalController.DigitalEnvelopeFileRequest
         {
             CertificateVersionId = 10,
+            OperationMode = "LIVE",
             File = new FormFile(stream, 0, content.Length, "file", fileName)
         };
     }

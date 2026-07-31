@@ -80,6 +80,26 @@ export const NACHA_ERROR_CATALOG: Readonly<Record<string, ErrorDefinition>> = {
     retryable: true,
     ...certificateCorrection
   },
+  CFA_CERTIFICATE_NOT_FOUND: {
+    title: 'CFA no tiene un certificado vigente',
+    message: 'No existe un certificado vigente de CFA disponible para descifrar el archivo.',
+    action: 'Carga un certificado PFX o P12 de CFA con llave privada y vuelve a intentar.',
+    retryable: true,
+    ...certificateCorrection
+  },
+  CLEARING_HOUSE_CERTIFICATE_NOT_FOUND: {
+    title: 'La cámara no tiene un certificado vigente',
+    message: 'No existe un certificado vigente para validar la información recibida de la cámara compensadora.',
+    action: 'Carga el certificado público de la cámara seleccionada y vuelve a intentar.',
+    retryable: true,
+    ...certificateCorrection
+  },
+  LIVE_MODE_REQUIRED: {
+    title: 'Selecciona el Modo LIVE',
+    message: 'Debes seleccionar expresamente el Modo LIVE antes de procesar el archivo.',
+    action: 'Selecciona el Modo LIVE y vuelve a intentar.',
+    retryable: true
+  },
   CERTIFICATE_INACTIVE: {
     title: 'El certificado no está activo',
     message: 'El certificado requerido está registrado, pero no está habilitado para uso operativo.',
@@ -158,6 +178,20 @@ export const NACHA_ERROR_CATALOG: Readonly<Record<string, ErrorDefinition>> = {
     title: 'El contenido firmado no es válido',
     message: 'No fue posible validar o recuperar el contenido firmado del sobre digital.',
     action: 'Verifica el origen del archivo y el certificado de firma configurado.',
+    retryable: false,
+    ...certificateCorrection
+  },
+  SIGNATURE_VALIDATION_FAILED: {
+    title: 'No fue posible validar la firma',
+    message: 'La firma del archivo no pudo validarse con el certificado configurado para la cámara compensadora.',
+    action: 'Verifica el origen del archivo y el certificado público de la cámara.',
+    retryable: false,
+    ...certificateCorrection
+  },
+  CERTIFICATE_MISMATCH: {
+    title: 'El archivo no corresponde al certificado de CFA',
+    message: 'El archivo no pudo abrirse con el certificado vigente de CFA.',
+    action: 'Verifica que el archivo haya sido cifrado para CFA.',
     retryable: false,
     ...certificateCorrection
   }

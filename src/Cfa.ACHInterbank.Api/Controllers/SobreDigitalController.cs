@@ -49,7 +49,9 @@ public sealed class SobreDigitalController : ControllerBase
                     request.CertificateVersionId,
                     request.File!.FileName,
                     content,
-                    ResolveActor()),
+                    ResolveActor(),
+                    request.ClearingHouseId,
+                    request.OperationMode),
                 cancellationToken);
             Response.Headers["X-Cryptographic-Profile"] = result.CryptographicProfile;
             return File(result.Content, result.ContentType, result.FileName);
@@ -84,7 +86,9 @@ public sealed class SobreDigitalController : ControllerBase
                     request.CertificateVersionId,
                     request.File!.FileName,
                     content,
-                    ResolveActor()),
+                    ResolveActor(),
+                    request.ClearingHouseId,
+                    request.OperationMode),
                 cancellationToken);
             Response.Headers["X-Cryptographic-Profile"] = result.CryptographicProfile;
             return File(result.Content, result.ContentType, result.FileName);
@@ -109,13 +113,22 @@ public sealed class SobreDigitalController : ControllerBase
 
     private ActionResult? ValidateRequest(DigitalEnvelopeFileRequest request, bool requireEnvelopeExtension)
     {
-        if (request.CertificateVersionId <= 0)
+        if (request.CertificateVersionId <= 0
+            && (!requireEnvelopeExtension || request.ClearingHouseId is not > 0))
         {
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Certificado requerido",
                 detail: "Selecciona una versión de certificado válida.",
                 extensions: ErrorExtensions("CERTIFICATE_REQUIRED"));
+        }
+        if (!string.Equals(request.OperationMode, "LIVE", StringComparison.OrdinalIgnoreCase))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Modo LIVE requerido",
+                detail: "Selecciona el Modo LIVE antes de procesar el archivo.",
+                extensions: ErrorExtensions("LIVE_MODE_REQUIRED"));
         }
         if (request.File is null || request.File.Length == 0)
         {
@@ -148,7 +161,8 @@ public sealed class SobreDigitalController : ControllerBase
     {
         var status = exception.ErrorCode switch
         {
-            "CERTIFICATE_NOT_FOUND" => StatusCodes.Status404NotFound,
+            "CERTIFICATE_NOT_FOUND" or "CFA_CERTIFICATE_NOT_FOUND" or "CLEARING_HOUSE_CERTIFICATE_NOT_FOUND"
+                => StatusCodes.Status404NotFound,
             "CERTIFICATE_INACTIVE" or "CERTIFICATE_EXPIRED" or "CERTIFICATE_NOT_YET_VALID"
                 or "CERTIFICATE_PURPOSE_INVALID" or "CERTIFICATE_PRIVATE_KEY_REQUIRED"
                 or "CERTIFICATE_PRIVATE_KEY_UNAVAILABLE" or "CERTIFICATE_MISMATCH"
@@ -171,8 +185,7 @@ public sealed class SobreDigitalController : ControllerBase
         => new()
         {
             ["code"] = errorCode,
-            ["errorCode"] = errorCode,
-            ["traceId"] = HttpContext.TraceIdentifier
+            ["errorCode"] = errorCode
         };
 
     private static async Task<byte[]> ReadFileAsync(IFormFile file, CancellationToken cancellationToken)
@@ -188,6 +201,8 @@ public sealed class SobreDigitalController : ControllerBase
     public sealed class DigitalEnvelopeFileRequest
     {
         public int CertificateVersionId { get; set; }
+        public int? ClearingHouseId { get; set; }
+        public string OperationMode { get; set; } = string.Empty;
         public IFormFile? File { get; set; }
     }
 }

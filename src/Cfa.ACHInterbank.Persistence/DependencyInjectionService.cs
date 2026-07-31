@@ -37,6 +37,7 @@ public static class DependencyInjectionService
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         services.Configure<NachaInboundSimulatorOptions>(configuration.GetSection(NachaInboundSimulatorOptions.SectionName));
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
+        services.Configure<CertificateManagementOptions>(configuration.GetSection(CertificateManagementOptions.SectionName));
         services.Configure<DigitalEnvelopeCertificateBootstrapOptions>(configuration.GetSection(DigitalEnvelopeCertificateBootstrapOptions.SectionName));
         services.Configure<NachaExportDigitalEnvelopeOptions>(configuration.GetSection(NachaExportDigitalEnvelopeOptions.SectionName));
         services.Configure<IncomingNachaDispatchResilienceOptions>(configuration.GetSection(IncomingNachaDispatchResilienceOptions.SectionName));
@@ -123,6 +124,7 @@ public static class DependencyInjectionService
         services.AddScoped<ICertificateLoadService, ACH.Services.Implementation.CertificateManagement.CertificateLoadService>();
         services.AddScoped<ICertificateSelectionService, ACH.Services.Implementation.CertificateManagement.CertificateSelectionService>();
         services.AddScoped<ICertificateActivationService, ACH.Services.Implementation.CertificateManagement.CertificateActivationService>();
+        services.AddScoped<ICertificateDeletionService, ACH.Services.Implementation.CertificateManagement.CertificateDeletionService>();
         services.AddScoped<ICertificateRotationService, ACH.Services.Implementation.CertificateManagement.CertificateRotationService>();
         services.AddScoped<ICertificateValidationService, ACH.Services.Implementation.CertificateManagement.CertificateValidationService>();
         services.AddScoped<ICertificateSecretProtector, ACH.Services.Implementation.CertificateManagement.CertificateSecretProtectorService>();

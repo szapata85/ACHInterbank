@@ -49,11 +49,13 @@ describe('DigitalEnvelopeToolComponent', () => {
     fixture = TestBed.createComponent(DigitalEnvelopeToolComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+    component.encryptForm.controls['operationMode'].setValue('LIVE');
+    component.decryptForm.controls['operationMode'].setValue('LIVE');
   });
 
   it('presenta pestañas y lenguaje operativo completamente en español', () => {
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Sobre digital NACHA-M');
+    expect(text).toContain('Sobre digital');
     expect(text).toContain('Cifrar archivo');
     expect(text).toContain('Descifrar archivo');
     expect(text).not.toContain('Encrypt');
@@ -86,7 +88,9 @@ describe('DigitalEnvelopeToolComponent', () => {
 
     expect(service.encrypt).toHaveBeenCalledOnceWith(
       jasmine.any(File),
-      11
+      11,
+      1,
+      'LIVE'
     );
     expect(downloads.save).toHaveBeenCalledTimes(1);
     expect(component.result?.mode).toBe('encrypt');
@@ -106,7 +110,7 @@ describe('DigitalEnvelopeToolComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(service.decrypt).toHaveBeenCalledOnceWith(jasmine.any(File), 20);
+    expect(service.decrypt).toHaveBeenCalledOnceWith(jasmine.any(File), 1, 'LIVE');
     expect(fixture.nativeElement.textContent).toContain('Firma digital válida');
     expect(fixture.nativeElement.textContent).toContain('Integridad confirmada');
   });
@@ -178,6 +182,7 @@ const certificates: SobreDigitalCertificate[] = [
     displayName: 'Cifrado anterior',
     fileName: 'anterior.cer',
     clearingHouseId: 1,
+    financialInstitutionId: null,
     environment: 1,
     purpose: 1,
     versionNumber: 1,
@@ -194,6 +199,7 @@ const certificates: SobreDigitalCertificate[] = [
     displayName: 'Cifrado vigente',
     fileName: 'vigente.cer',
     clearingHouseId: 1,
+    financialInstitutionId: null,
     environment: 1,
     purpose: 1,
     versionNumber: 2,
@@ -209,9 +215,10 @@ const certificates: SobreDigitalCertificate[] = [
     code: 'CFA-DEC',
     displayName: 'Identidad privada CFA',
     fileName: 'identidad.pfx',
-    clearingHouseId: 1,
+    clearingHouseId: null,
+    financialInstitutionId: 7,
     environment: 1,
-    purpose: 2,
+    purpose: 5,
     versionNumber: 1,
     hasPrivateKey: true,
     thumbprintMasked: 'C954AA...D3D703',

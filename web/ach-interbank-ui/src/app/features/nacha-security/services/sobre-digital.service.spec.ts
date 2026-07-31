@@ -23,7 +23,7 @@ describe('SobreDigitalService', () => {
 
   it('envia cifrado multipart y espera Blob con respuesta completa', () => {
     const file = new File([new Uint8Array([1, 2, 3])], 'archivo.OUT');
-    service.encrypt(file, 41).subscribe((response) => {
+    service.encrypt(file, 41, 1, 'LIVE').subscribe((response) => {
       expect(response.body).toEqual(jasmine.any(Blob));
     });
 
@@ -32,6 +32,8 @@ describe('SobreDigitalService', () => {
     expect(request.request.responseType).toBe('blob');
     expect(request.request.body).toEqual(jasmine.any(FormData));
     expect((request.request.body as FormData).get('certificateVersionId')).toBe('41');
+    expect((request.request.body as FormData).get('clearingHouseId')).toBe('1');
+    expect((request.request.body as FormData).get('operationMode')).toBe('LIVE');
     expect((request.request.body as FormData).get('file')).toBe(file);
     request.flush(new Blob([new Uint8Array([9, 8, 7])]), {
       headers: { 'Content-Disposition': "attachment; filename*=UTF-8''archivo.OUT.ENV" }
@@ -40,12 +42,14 @@ describe('SobreDigitalService', () => {
 
   it('envia descifrado multipart al mismo contrato relativo', () => {
     const file = new File([new Uint8Array([9, 8, 7])], 'archivo.OUT.ENV');
-    service.decrypt(file, 42).subscribe();
+    service.decrypt(file, 1, 'LIVE').subscribe();
 
     const request = http.expectOne((candidate) => candidate.url.endsWith('/api/nacha-security/digital-envelope/decrypt'));
     expect(request.request.method).toBe('POST');
     expect(request.request.responseType).toBe('blob');
-    expect((request.request.body as FormData).get('certificateVersionId')).toBe('42');
+    expect((request.request.body as FormData).get('certificateVersionId')).toBeNull();
+    expect((request.request.body as FormData).get('clearingHouseId')).toBe('1');
+    expect((request.request.body as FormData).get('operationMode')).toBe('LIVE');
     expect((request.request.body as FormData).get('file')).toBe(file);
     request.flush(new Blob([new Uint8Array([1, 2, 3])]));
   });

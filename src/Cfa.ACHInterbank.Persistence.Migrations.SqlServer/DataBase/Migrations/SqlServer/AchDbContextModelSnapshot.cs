@@ -1250,18 +1250,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         },
                         new
                         {
-                            Id = 32,
-                            Exact = true,
-                            Icon = "rule",
-                            IsActive = true,
-                            Label = "Reglas por cámara",
-                            MenuId = 1,
-                            Order = 6,
-                            ParentId = 6,
-                            Route = "/transactions/clearing-house-rules"
-                        },
-                        new
-                        {
                             Id = 21,
                             Exact = true,
                             Icon = "lock",
@@ -1413,16 +1401,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         },
                         new
                         {
-                            MenuItemId = 32,
-                            PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
-                        },
-                        new
-                        {
-                            MenuItemId = 32,
-                            PermissionId = new Guid("4f0cbde9-1b2e-4ad8-b8e6-62f0a1cd6cf7")
-                        },
-                        new
-                        {
                             MenuItemId = 33,
                             PermissionId = new Guid("a6c3bd53-111a-48a3-8d4a-2d1a37c4b86a")
                         },
@@ -1551,16 +1529,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         new
                         {
                             MenuItemId = 28,
-                            RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
-                        },
-                        new
-                        {
-                            MenuItemId = 32,
-                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1")
-                        },
-                        new
-                        {
-                            MenuItemId = 32,
                             RoleId = new Guid("a51746c2-0710-4d79-97b1-5b4368326f56")
                         },
                         new
@@ -10505,7 +10473,20 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<int>("CertificateVersionId")
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("CertificateDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CertificateThumbprint")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("CertificateVersionId")
                         .HasColumnType("int");
 
                     b.Property<string>("LoadSource")
@@ -10698,7 +10679,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<DateTime?>("ActivatedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("ClearingHouseId")
+                    b.Property<int?>("ClearingHouseId")
                         .HasColumnType("int");
 
                     b.Property<int>("DigitalCertificateId")
@@ -10718,6 +10699,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<string>("FileRef")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("FinancialInstitutionId")
+                        .HasColumnType("int");
 
                     b.Property<string>("FingerprintSha256")
                         .IsRequired()
@@ -10746,6 +10730,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int>("MaterialType")
                         .HasColumnType("int");
 
+                    b.Property<string>("NormalizedThumbprint")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<DateTime>("NotAfter")
                         .HasColumnType("datetime2");
 
@@ -10764,8 +10753,16 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int?>("ReplacedByVersionId")
                         .HasColumnType("int");
 
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime?>("RevokedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("RevokedBy")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -10817,7 +10814,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClearingHouseId");
+
                     b.HasIndex("DigitalCertificateId");
+
+                    b.HasIndex("NormalizedThumbprint");
 
                     b.HasIndex("NotAfter");
 
@@ -10827,13 +10828,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasIndex("Thumbprint");
 
-                    b.HasIndex("ClearingHouseId", "Environment", "Purpose", "HolderType")
+                    b.HasIndex("FinancialInstitutionId", "ClearingHouseId", "Environment", "Purpose", "HolderType")
                         .IsUnique()
                         .HasDatabaseName("UX_DCV_Active_Context")
                         .HasFilter("[Status] = 2");
 
-                    b.HasIndex("FingerprintSha256", "ClearingHouseId", "Environment", "Purpose", "HolderType")
-                        .IsUnique();
+                    b.HasIndex("FingerprintSha256", "FinancialInstitutionId", "ClearingHouseId", "Environment", "Purpose", "HolderType");
 
                     b.ToTable("DigitalCertificateVersions", (string)null);
                 });
@@ -10942,6 +10942,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("OperationMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<int>("Purpose")
                         .HasColumnType("int");
@@ -12567,8 +12572,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", "CertificateVersion")
                         .WithMany()
                         .HasForeignKey("CertificateVersionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("CertificateVersion");
                 });
@@ -12605,18 +12609,32 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", b =>
                 {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificate", "DigitalCertificate")
                         .WithMany("Versions")
                         .HasForeignKey("DigitalCertificateId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.FinancialInstitution", "FinancialInstitution")
+                        .WithMany()
+                        .HasForeignKey("FinancialInstitutionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACHSobreDigital.DigitalCertificateVersion", "ReplacedByVersion")
                         .WithMany()
                         .HasForeignKey("ReplacedByVersionId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("ClearingHouse");
+
                     b.Navigation("DigitalCertificate");
+
+                    b.Navigation("FinancialInstitution");
 
                     b.Navigation("ReplacedByVersion");
                 });

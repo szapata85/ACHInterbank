@@ -7,70 +7,100 @@ import {
   OnInit,
   inject
 } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
-import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatDividerModule } from '@angular/material/divider';
+import {
+  MAT_DIALOG_DATA,
+  MatDialog,
+  MatDialogModule,
+  MatDialogRef
+} from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatRadioModule } from '@angular/material/radio';
 import { MatSelectModule } from '@angular/material/select';
-import { MatTableModule } from '@angular/material/table';
+import { MatStepper, MatStepperModule } from '@angular/material/stepper';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { RouterModule } from '@angular/router';
-import { finalize, switchMap } from 'rxjs';
-import { OperationalErrorView } from '../../../core/models/operational-error.model';
-import { AuthService } from '../../../core/services/auth.service';
+import { forkJoin, finalize } from 'rxjs';
 import { BlobDownloadService } from '../../../core/services/blob-download.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { presentNachaError } from '../../../core/utils/nacha-error-presentation.util';
 import { SharedModule } from '../../../shared/shared.module';
 import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
 import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
-import { CertificateListItem } from '../models/certificate-management.model';
-import { DigitalEnvelopeCertificateType } from '../models/digital-envelope-certificate.model';
-import { NACHA_SECURITY_PERMISSIONS } from '../nacha-security-permissions';
+import { DestinationInstitution } from '../../transactions/transactions.models';
+import { FinancialInstitutionsApiService } from '../../transactions/services/financial-institutions-api.service';
 import {
-  certificateDaysRemaining,
-  certificateEnvironmentCode,
-  certificateEnvironmentLabel,
-  certificateHolderCode,
-  certificateHolderLabel,
-  certificatePurposeCode,
-  certificatePurposeLabel,
-  certificateStatusClass,
-  certificateStatusLabel,
-  certificateValidityMessage,
-  effectiveCertificateStatus,
-  maskCertificateThumbprint,
-  normalizedCertificateStatus
-} from '../presentation/certificate-presentation';
+  CertificateFunctionalStatus,
+  CertificateListItem,
+  CertificatePreview,
+  ManagedCertificatePurpose
+} from '../models/certificate-management.model';
 import {
   CertificateManagementApiService,
-  CertificateUploadContext
+  ManagedCertificateUpload
 } from '../services/certificate-management-api.service';
 
 const MAX_CERTIFICATE_SIZE = 10 * 1024 * 1024;
 
-interface CertificateSlot extends CertificateUploadContext {
-  type: DigitalEnvelopeCertificateType;
-  title: string;
-  description: string;
-  requiresPassword: boolean;
-  accept: string;
-  allowedExtensions: readonly string[];
-  certificate?: CertificateListItem;
+const STATUS_TEXT: Readonly<Record<string, { label: string; description: string }>> = {
+  PendingValidity: {
+    label: 'Pendiente de vigencia',
+    description: 'Este certificado todavía no ha llegado a su fecha de inicio.'
+  },
+  Valid: {
+    label: 'Vigente',
+    description: 'Este certificado puede utilizarse normalmente.'
+  },
+  ExpiringSoon: {
+    label: 'Próximo a vencer',
+    description: 'Este certificado requiere renovación próximamente.'
+  },
+  Expired: {
+    label: 'Vencido',
+    description: 'Este certificado ya no puede utilizarse.'
+  },
+  Revoked: {
+    label: 'Revocado',
+    description: 'Este certificado fue deshabilitado manualmente y no puede utilizarse.'
+  },
+  Replaced: {
+    label: 'Reemplazado',
+    description: 'Este certificado fue sustituido por uno más reciente.'
+  },
+  Inactive: {
+    label: 'No operativo',
+    description: 'Este certificado no está habilitado para uso operativo.'
+  }
+};
+
+const NUMERIC_FUNCTIONAL_STATUS: Readonly<Record<string, string>> = {
+  '1': 'PendingValidity',
+  '2': 'Valid',
+  '3': 'ExpiringSoon',
+  '4': 'Expired',
+  '5': 'Revoked',
+  '6': 'Replaced',
+  '7': 'Inactive'
+};
+
+interface UploadDialogData {
+  initialPurpose: ManagedCertificatePurpose;
+  clearingHouses: ClearingHouseOption[];
+  defaultInstitution: DestinationInstitution | null;
+  initialClearingHouseId?: number | null;
 }
 
 interface CertificateActionDialogData {
-  mode: 'activate' | 'revoke';
+  action: 'revoke' | 'delete';
   certificate: CertificateListItem;
+  hasReplacement: boolean;
 }
 
 @Component({
@@ -81,214 +111,122 @@ interface CertificateActionDialogData {
   standalone: true,
   imports: [
     CommonModule,
-    ReactiveFormsModule,
-    RouterModule,
     SharedModule,
     MatButtonModule,
     MatCardModule,
     MatChipsModule,
     MatDialogModule,
-    MatDividerModule,
     MatExpansionModule,
-    MatFormFieldModule,
     MatIconModule,
-    MatInputModule,
     MatMenuModule,
-    MatProgressBarModule,
     MatProgressSpinnerModule,
-    MatSelectModule,
-    MatTableModule,
+    MatTabsModule,
     MatTooltipModule
   ]
 })
 export class NachaCertificateManagerComponent implements OnInit {
-  private readonly certificatesService = inject(CertificateManagementApiService);
-  private readonly fb = inject(FormBuilder);
-  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly api = inject(CertificateManagementApiService);
   private readonly clearingHousesApi = inject(ClearingHousesApiService);
-  private readonly downloads = inject(BlobDownloadService);
+  private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
   private readonly notifications = inject(NotificationService);
+  private readonly downloads = inject(BlobDownloadService);
   private readonly dialog = inject(MatDialog);
-  private readonly auth = inject(AuthService);
-  readonly fileInputs: Partial<Record<DigitalEnvelopeCertificateType, HTMLInputElement>> = {};
+  private readonly cdr = inject(ChangeDetectorRef);
 
-  readonly displayedColumns = ['name', 'context', 'purpose', 'validity', 'status', 'privateKey', 'actions'];
-  readonly purposeOptions = [
-    { value: '', label: 'Todos los propósitos' },
-    { value: 'OutboundEncryption', label: 'Cifrado de salida' },
-    { value: 'InboundDecryption', label: 'Descifrado de entrada' },
-    { value: 'OutboundSigning', label: 'Firma de salida' },
-    { value: 'InboundSignatureValidation', label: 'Validación de firma de entrada' }
-  ];
-  readonly holderOptions = [
-    { value: '', label: 'Todos los titulares' },
-    { value: 'ClearingHouse', label: 'Cámara compensadora' },
-    { value: 'Participant', label: 'Entidad participante' },
-    { value: 'ThirdPartyProvider', label: 'Proveedor de servicios' }
-  ];
-  readonly statusOptions = [
-    { value: '', label: 'Todos los estados' },
-    { value: 'Draft', label: 'Borrador' },
-    { value: 'Active', label: 'Activo' },
-    { value: 'Inactive', label: 'Inactivo' },
-    { value: 'Expired', label: 'Vencido' },
-    { value: 'Replaced', label: 'Reemplazado' },
-    { value: 'Revoked', label: 'Revocado' }
-  ];
-
-  uploadingType?: DigitalEnvelopeCertificateType;
+  loading = true;
   actionCertificateId?: number;
-  loading = false;
-  loadingClearingHouses = false;
-  showUploadPanel = false;
-  operationError: OperationalErrorView | null = null;
   certificates: CertificateListItem[] = [];
   clearingHouses: ClearingHouseOption[] = [];
-  lastUpdatedAt: Date | null = null;
-
-  readonly contextForm = this.fb.group({
-    clearingHouseId: [null as number | null, Validators.required],
-    environment: ['Test' as 'Test' | 'Production', Validators.required],
-    purpose: [''],
-    holderType: [''],
-    status: [''],
-    search: ['']
-  });
-
-  readonly slots: CertificateSlot[] = [
-    {
-      type: 'EncryptionPublic',
-      title: 'Certificado para cifrado de salida',
-      description: 'Certificado público de la cámara utilizado para proteger los sobres digitales.',
-      requiresPassword: false,
-      accept: '.cer,.crt,.pem',
-      allowedExtensions: ['.cer', '.crt', '.pem'],
-      code: 'CAMARA-OUTBOUND-ENCRYPTION',
-      displayName: 'Cámara - cifrado de salida',
-      clearingHouseId: 0,
-      environment: 'Test',
-      purpose: 'OutboundEncryption',
-      holderType: 'ClearingHouse'
-    },
-    {
-      type: 'SigningKeyPair',
-      title: 'Certificado para firma de salida',
-      description: 'Identidad privada protegida de CFA utilizada para firmar archivos NACHA-M.',
-      requiresPassword: true,
-      accept: '.pfx,.p12',
-      allowedExtensions: ['.pfx', '.p12'],
-      code: 'CFA-CAMARA-OUTBOUND-SIGNING',
-      displayName: 'CFA - firma de salida por cámara',
-      clearingHouseId: 0,
-      environment: 'Test',
-      purpose: 'OutboundSigning',
-      holderType: 'Participant'
-    }
-  ];
-
-  readonly forms: Record<DigitalEnvelopeCertificateType, FormGroup> = {
-    EncryptionPublic: this.fb.group({ file: [null, Validators.required] }),
-    SigningKeyPair: this.fb.group({
-      file: [null, Validators.required],
-      password: ['', Validators.required]
-    })
-  } as Record<DigitalEnvelopeCertificateType, FormGroup>;
-
-  get canManage(): boolean {
-    return this.auth.hasPermission([
-      NACHA_SECURITY_PERMISSIONS.canManageCertificates,
-      NACHA_SECURITY_PERMISSIONS.canManageAch
-    ]);
-  }
-
-  get visibleCertificates(): CertificateListItem[] {
-    const { purpose, holderType, status, search } = this.contextForm.getRawValue();
-    const normalizedSearch = search?.trim().toLocaleLowerCase('es-CO') ?? '';
-    return this.certificates.filter(certificate => {
-      const purposeMatches = !purpose || certificatePurposeCode(certificate.purpose) === purpose;
-      const holderMatches = !holderType || certificateHolderCode(certificate.holderType) === holderType;
-      const statusMatches = !status || effectiveCertificateStatus(certificate) === status;
-      const textMatches = !normalizedSearch || [
-        certificate.displayName,
-        certificate.fileName,
-        certificate.thumbprint,
-        certificate.fingerprintSha256
-      ].some(value => value?.toLocaleLowerCase('es-CO').includes(normalizedSearch));
-      return purposeMatches && holderMatches && statusMatches && textMatches;
-    });
-  }
-
-  get summary(): { active: number; expiring: number; expired: number; draft: number; retired: number } {
-    const statuses = this.certificates.map(certificate => effectiveCertificateStatus(certificate));
-    return {
-      active: statuses.filter(status => status === 'Active').length,
-      expiring: this.expiringCertificates.length,
-      expired: statuses.filter(status => status === 'Expired').length,
-      draft: statuses.filter(status => status === 'Draft').length,
-      retired: statuses.filter(status => status === 'Revoked' || status === 'Replaced').length
-    };
-  }
-
-  get expiringCertificates(): CertificateListItem[] {
-    return this.certificates.filter(certificate => {
-      const days = certificateDaysRemaining(certificate);
-      return effectiveCertificateStatus(certificate) === 'Active'
-        && days !== null
-        && days >= 0
-        && days <= 30;
-    });
-  }
+  defaultInstitution: DestinationInstitution | null = null;
+  errorMessage = '';
 
   ngOnInit(): void {
-    this.loadClearingHouses();
+    this.load();
   }
 
-  applyFilters(): void {
-    this.contextForm.markAllAsTouched();
-    if (this.contextForm.invalid || this.loading) {
-      return;
-    }
-    this.syncSlotContext();
-    this.loadCertificates();
+  get cfaCertificates(): CertificateListItem[] {
+    return this.certificates.filter(certificate =>
+      certificate.financialInstitutionId != null
+      || certificate.hasPrivateKey
+      || this.purposeCode(certificate.purpose) === 'CfaSigningAndDecryption');
   }
 
-  clearFilters(): void {
-    this.contextForm.patchValue({
-      purpose: '',
-      holderType: '',
-      status: '',
-      search: ''
+  get clearingHouseCertificates(): CertificateListItem[] {
+    return this.certificates.filter(certificate => !this.cfaCertificates.includes(certificate));
+  }
+
+  get operationalCfaCertificate(): CertificateListItem | undefined {
+    return this.cfaCertificates.find(certificate => this.isOperational(certificate));
+  }
+
+  get operationalClearingHouseCount(): number {
+    return new Set(
+      this.clearingHouseCertificates
+        .filter(certificate => this.isOperational(certificate))
+        .map(certificate => certificate.clearingHouseId)
+        .filter((id): id is number => id != null)
+    ).size;
+  }
+
+  get expiringCount(): number {
+    return this.certificates.filter(certificate =>
+      this.functionalStatusCode(certificate.functionalStatus) === 'ExpiringSoon'
+    ).length;
+  }
+
+  get unavailableCount(): number {
+    return this.certificates.filter(certificate =>
+      ['Expired', 'Revoked'].includes(this.functionalStatusCode(certificate.functionalStatus))
+    ).length;
+  }
+
+  hasOperationalCertificateForHouse(clearingHouseId: number): boolean {
+    return this.clearingHouseCertificates.some(certificate =>
+      certificate.clearingHouseId === clearingHouseId && this.isOperational(certificate));
+  }
+
+  load(): void {
+    this.loading = true;
+    this.errorMessage = '';
+    forkJoin({
+      certificates: this.api.list(),
+      clearingHouses: this.clearingHousesApi.list(),
+      institutions: this.financialInstitutionsApi.getAll()
+    }).pipe(finalize(() => {
+      this.loading = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: result => {
+        this.certificates = result.certificates;
+        this.clearingHouses = result.clearingHouses.filter(item => item.isActive !== false);
+        this.defaultInstitution = result.institutions.find(item => item.isDefaultSource) ?? null;
+      },
+      error: error => void this.presentError(error, 'No fue posible consultar los certificados.')
     });
   }
 
-  refresh(): void {
-    if (!this.loading) {
-      this.loadCertificates();
-    }
-  }
-
-  clearingHouseName(id: number): string {
-    return this.clearingHouses.find(item => item.id === id)?.name ?? 'Cámara no disponible';
-  }
-
-  purposeLabel = certificatePurposeLabel;
-  holderLabel = certificateHolderLabel;
-  environmentLabel = certificateEnvironmentLabel;
-  statusClass = certificateStatusClass;
-  validityMessage = certificateValidityMessage;
-  thumbprintSummary = maskCertificateThumbprint;
-
-  statusLabel(certificate: CertificateListItem): string {
-    return certificateStatusLabel(effectiveCertificateStatus(certificate));
-  }
-
-  canActivate(certificate: CertificateListItem): boolean {
-    return this.canManage
-      && !['Active', 'Revoked', 'Replaced', 'Expired'].includes(effectiveCertificateStatus(certificate));
-  }
-
-  canRevoke(certificate: CertificateListItem): boolean {
-    return this.canManage && normalizedCertificateStatus(certificate.status) === 'Active';
+  openUpload(
+    purpose: ManagedCertificatePurpose,
+    clearingHouseId?: number | null
+  ): void {
+    const ref = this.dialog.open(CertificateUploadDialogComponent, {
+      width: 'min(860px, calc(100vw - 2rem))',
+      maxHeight: 'calc(100dvh - 2rem)',
+      autoFocus: 'dialog',
+      restoreFocus: true,
+      data: {
+        initialPurpose: purpose,
+        clearingHouses: this.clearingHouses,
+        defaultInstitution: this.defaultInstitution,
+        initialClearingHouseId: clearingHouseId
+      } satisfies UploadDialogData
+    });
+    ref.afterClosed().subscribe(saved => {
+      if (saved === true) {
+        this.notifications.success('El certificado se guardó correctamente.');
+        this.load();
+      }
+    });
   }
 
   openDetails(certificate: CertificateListItem): void {
@@ -297,39 +235,20 @@ export class NachaCertificateManagerComponent implements OnInit {
       maxHeight: 'calc(100dvh - 2rem)',
       autoFocus: 'dialog',
       restoreFocus: true,
-      data: {
-        certificate,
-        clearingHouseName: this.clearingHouseName(certificate.clearingHouseId)
-      }
-    });
-  }
-
-  requestActivate(certificate: CertificateListItem): void {
-    if (!this.canActivate(certificate) || this.actionCertificateId) {
-      return;
-    }
-    const ref = this.dialog.open(CertificateActionDialogComponent, {
-      width: 'min(520px, calc(100vw - 2rem))',
-      autoFocus: 'dialog',
-      restoreFocus: true,
-      data: { mode: 'activate', certificate } satisfies CertificateActionDialogData
-    });
-    ref.afterClosed().subscribe(confirmed => {
-      if (confirmed === true) {
-        this.activate(certificate);
-      }
+      data: certificate
     });
   }
 
   requestRevoke(certificate: CertificateListItem): void {
-    if (!this.canRevoke(certificate) || this.actionCertificateId) {
-      return;
-    }
     const ref = this.dialog.open(CertificateActionDialogComponent, {
-      width: 'min(520px, calc(100vw - 2rem))',
+      width: 'min(560px, calc(100vw - 2rem))',
       autoFocus: 'dialog',
       restoreFocus: true,
-      data: { mode: 'revoke', certificate } satisfies CertificateActionDialogData
+      data: {
+        action: 'revoke',
+        certificate,
+        hasReplacement: this.hasOperationalReplacement(certificate)
+      } satisfies CertificateActionDialogData
     });
     ref.afterClosed().subscribe(reason => {
       if (typeof reason === 'string' && reason.trim()) {
@@ -338,244 +257,554 @@ export class NachaCertificateManagerComponent implements OnInit {
     });
   }
 
-  async copyThumbprint(certificate: CertificateListItem): Promise<void> {
-    if (!certificate.thumbprint) {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(certificate.thumbprint);
-      this.notifications.success('Huella digital copiada.');
-    } catch {
-      this.notifications.error('No fue posible copiar la huella digital.');
-    }
-  }
-
-  onFileSelected(type: DigitalEnvelopeCertificateType, event: Event): void {
-    this.operationError = null;
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    const control = this.forms[type].get('file');
-    this.fileInputs[type] = input;
-    control?.setValue(file);
-    control?.markAsTouched();
-
-    if (!file) {
-      control?.setErrors({ required: true });
-      return;
-    }
-
-    const slot = this.getSlot(type);
-    const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-    if (!slot.allowedExtensions.includes(extension)) {
-      control?.setErrors({ extension: true });
-    } else if (file.size === 0) {
-      control?.setErrors({ empty: true });
-    } else if (file.size > MAX_CERTIFICATE_SIZE) {
-      control?.setErrors({ maxSize: true });
-    } else {
-      control?.setErrors(null);
-    }
-    this.cdr.markForCheck();
-  }
-
-  removeSelectedFile(type: DigitalEnvelopeCertificateType): void {
-    this.forms[type].get('file')?.reset();
-    const input = this.fileInputs[type];
-    if (input) {
-      input.value = '';
-    }
-  }
-
-  selectedFileName(type: DigitalEnvelopeCertificateType): string | null {
-    return (this.forms[type].get('file')?.value as File | null)?.name ?? null;
-  }
-
-  upload(type: DigitalEnvelopeCertificateType): void {
-    if (this.uploadingType || this.actionCertificateId) {
-      return;
-    }
-    this.operationError = null;
-    const form = this.forms[type];
-    if (form.invalid || this.contextForm.invalid) {
-      form.markAllAsTouched();
-      this.contextForm.markAllAsTouched();
-      return;
-    }
-
-    const file = form.get('file')?.value as File | null;
-    if (!file) {
-      return;
-    }
-
-    const slot = this.getSlot(type);
-    const password = String(form.get('password')?.value ?? '');
-    this.uploadingType = type;
-    this.cdr.markForCheck();
-
-    const request = type === 'EncryptionPublic'
-      ? this.certificatesService.uploadPublic(slot, file)
-      : this.certificatesService.uploadPrivate(slot, file, password);
-
-    request.pipe(finalize(() => {
-      this.uploadingType = undefined;
-      form.get('password')?.reset('');
-      this.cdr.markForCheck();
-    })).subscribe({
-      next: () => {
-        this.notifications.success(`${file.name} se cargó correctamente como nueva versión en borrador.`);
-        form.reset();
-        this.removeSelectedFile(type);
-        this.loadCertificates();
-      },
-      error: error => void this.handleError(error, 'No se pudo cargar el certificado.')
+  requestDelete(certificate: CertificateListItem): void {
+    const ref = this.dialog.open(CertificateActionDialogComponent, {
+      width: 'min(560px, calc(100vw - 2rem))',
+      autoFocus: 'dialog',
+      restoreFocus: true,
+      data: {
+        action: 'delete',
+        certificate,
+        hasReplacement: this.hasOperationalReplacement(certificate)
+      } satisfies CertificateActionDialogData
+    });
+    ref.afterClosed().subscribe(confirmed => {
+      if (confirmed === true) {
+        this.delete(certificate);
+      }
     });
   }
 
-  fileError(type: DigitalEnvelopeCertificateType): string | undefined {
-    const control = this.forms[type].get('file');
-    if (!control?.touched || !control.errors) {
-      return undefined;
-    }
-    if (control.errors['extension']) return `Formato no permitido. Usa ${this.getSlot(type).accept}.`;
-    if (control.errors['empty']) return 'El archivo está vacío.';
-    if (control.errors['maxSize']) return 'El archivo supera el máximo de 10 MB.';
-    if (control.errors['required']) return 'Selecciona un archivo.';
-    return 'El archivo no es válido.';
+  canRevoke(certificate: CertificateListItem): boolean {
+    return this.isOperational(certificate);
   }
 
-  passwordError(type: DigitalEnvelopeCertificateType): string | undefined {
-    const control = this.forms[type].get('password');
-    return control?.touched && control.hasError('required')
-      ? 'Ingresa la contraseña del archivo privado.'
-      : undefined;
+  actionLabel(certificate: CertificateListItem): string {
+    return this.functionalStatusCode(certificate.functionalStatus) === 'ExpiringSoon'
+      ? 'Renovar o reemplazar'
+      : ['Expired', 'Revoked', 'Replaced'].includes(this.functionalStatusCode(certificate.functionalStatus))
+        ? 'Cargar reemplazo'
+        : 'Reemplazar certificado';
+  }
+
+  ownerName(certificate: CertificateListItem): string {
+    return certificate.financialInstitutionName
+      ?? certificate.clearingHouseName
+      ?? this.clearingHouses.find(item => item.id === certificate.clearingHouseId)?.name
+      ?? 'Propietario no disponible';
+  }
+
+  useLabel(certificate: CertificateListItem): string {
+    return this.cfaCertificates.includes(certificate)
+      ? 'Firmar y descifrar información de CFA'
+      : 'Validar información recibida';
+  }
+
+  statusLabel(certificate: CertificateListItem): string {
+    return STATUS_TEXT[this.functionalStatusCode(certificate.functionalStatus)]?.label ?? 'No operativo';
+  }
+
+  statusDescription(certificate: CertificateListItem): string {
+    return STATUS_TEXT[this.functionalStatusCode(certificate.functionalStatus)]?.description
+      ?? 'Este certificado no está habilitado para uso operativo.';
+  }
+
+  statusClass(certificate: CertificateListItem): string {
+    return `status-${this.functionalStatusCode(certificate.functionalStatus)
+      .replace(/([a-z])([A-Z])/g, '$1-$2')
+      .toLowerCase()}`;
+  }
+
+  timeRemaining(certificate: CertificateListItem): string {
+    const status = this.functionalStatusCode(certificate.functionalStatus);
+    if (status === 'Expired') return 'Vigencia finalizada';
+    if (certificate.daysRemaining == null) return 'No disponible';
+    if (certificate.daysRemaining === 0) return 'Vence hoy';
+    if (certificate.daysRemaining === 1) return '1 día';
+    return `${certificate.daysRemaining} días`;
+  }
+
+  technicalPanelLabel(certificate: CertificateListItem): string {
+    return `Información técnica de ${certificate.displayName}`;
   }
 
   trackCertificate(_: number, certificate: CertificateListItem): number {
     return certificate.id;
   }
 
-  private activate(certificate: CertificateListItem): void {
-    this.actionCertificateId = certificate.id;
-    this.operationError = null;
-    this.certificatesService.validate(certificate.id).pipe(
-      switchMap(validation => {
-        const isValid = validation.isValid ?? validation.canActivate ?? validation.errors.length === 0;
-        if (!isValid) {
-          throw new Error(validation.errors.join(' '));
-        }
-        return this.certificatesService.activate(certificate.id);
-      }),
-      finalize(() => {
-        this.actionCertificateId = undefined;
-        this.cdr.markForCheck();
-      })
-    ).subscribe({
-      next: () => {
-        this.notifications.success('La versión del certificado quedó activa.');
-        this.loadCertificates();
-      },
-      error: error => void this.handleError(error, 'No fue posible activar el certificado.')
-    });
+  private isOperational(certificate: CertificateListItem): boolean {
+    return ['Valid', 'ExpiringSoon'].includes(
+      this.functionalStatusCode(certificate.functionalStatus)
+    );
+  }
+
+  private hasOperationalReplacement(certificate: CertificateListItem): boolean {
+    return this.certificates.some(candidate =>
+      candidate.id !== certificate.id
+      && this.isOperational(candidate)
+      && candidate.financialInstitutionId === certificate.financialInstitutionId
+      && candidate.clearingHouseId === certificate.clearingHouseId);
+  }
+
+  private purposeCode(value: string | number): string {
+    const numeric: Readonly<Record<string, string>> = {
+      '1': 'OutboundEncryption',
+      '2': 'InboundDecryption',
+      '3': 'OutboundSigning',
+      '4': 'InboundSignatureValidation',
+      '5': 'CfaSigningAndDecryption',
+      '6': 'ClearingHouseValidation'
+    };
+    return numeric[String(value)] ?? String(value);
+  }
+
+  private functionalStatusCode(value: CertificateFunctionalStatus): string {
+    return NUMERIC_FUNCTIONAL_STATUS[String(value)] ?? String(value);
   }
 
   private revoke(certificate: CertificateListItem, reason: string): void {
     this.actionCertificateId = certificate.id;
-    this.operationError = null;
-    this.certificatesService.revoke(certificate.id, reason).pipe(finalize(() => {
+    this.api.revoke(certificate.id, reason).pipe(finalize(() => {
       this.actionCertificateId = undefined;
       this.cdr.markForCheck();
     })).subscribe({
       next: () => {
-        this.notifications.success('El certificado fue revocado y el motivo quedó registrado.');
-        this.loadCertificates();
+        this.notifications.success('El certificado fue revocado y su historial se conservó.');
+        this.load();
       },
-      error: error => void this.handleError(error, 'No fue posible revocar el certificado.')
+      error: error => void this.presentError(error, 'No fue posible revocar el certificado.')
     });
   }
 
-  private getSlot(type: DigitalEnvelopeCertificateType): CertificateSlot {
-    return this.slots.find(slot => slot.type === type)!;
-  }
-
-  private loadClearingHouses(): void {
-    this.loadingClearingHouses = true;
-    this.clearingHousesApi.list().pipe(finalize(() => {
-      this.loadingClearingHouses = false;
+  private delete(certificate: CertificateListItem): void {
+    this.actionCertificateId = certificate.id;
+    this.api.delete(certificate.id).pipe(finalize(() => {
+      this.actionCertificateId = undefined;
       this.cdr.markForCheck();
     })).subscribe({
-      next: items => {
-        this.clearingHouses = items;
-        this.contextForm.controls.clearingHouseId.setValue(items[0]?.id ?? null, { emitEvent: false });
-        this.syncSlotContext();
-        this.loadCertificates();
+      next: () => {
+        this.notifications.success('El certificado se eliminó de forma segura.');
+        this.load();
       },
-      error: error => void this.handleError(error, 'No se pudieron consultar las cámaras compensadoras.')
+      error: error => void this.presentError(error, 'No fue posible eliminar el certificado.')
     });
   }
 
-  private syncSlotContext(): void {
-    const clearingHouseId = Number(this.contextForm.controls.clearingHouseId.value ?? 0);
-    const selectedHouse = this.clearingHouses.find(item => item.id === clearingHouseId);
-    const chamberCode = this.normalizeClearingHouseCode(selectedHouse, clearingHouseId);
-    const chamberName = selectedHouse?.name ?? 'Cámara sin seleccionar';
-    const environment = this.contextForm.controls.environment.value ?? 'Test';
+  private async presentError(error: unknown, fallback: string): Promise<void> {
+    const parsed = await this.downloads.fromHttpError(error, fallback);
+    this.errorMessage = parsed.message || fallback;
+    this.notifications.error(this.errorMessage);
+    this.cdr.markForCheck();
+  }
+}
 
-    for (const slot of this.slots) {
-      slot.clearingHouseId = clearingHouseId;
-      slot.environment = environment;
-      if (slot.type === 'EncryptionPublic') {
-        slot.code = `${chamberCode}-OUTBOUND-ENCRYPTION`;
-        slot.displayName = `${chamberName} - cifrado de salida`;
-        slot.description = `Certificado público de ${chamberName} utilizado para cifrar sobres digitales.`;
-      } else {
-        slot.code = `CFA-${chamberCode}-OUTBOUND-SIGNING`;
-        slot.displayName = `CFA - firma de salida ${chamberName}`;
-        slot.description = `Identidad privada protegida de CFA para firmar archivos dirigidos a ${chamberName}.`;
-      }
+@Component({
+  selector: 'app-certificate-upload-dialog',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatProgressSpinnerModule,
+    MatRadioModule,
+    MatSelectModule,
+    MatStepperModule,
+    MatTooltipModule
+  ],
+  template: `
+    <div class="upload-dialog">
+      <div class="dialog-heading">
+        <div>
+          <span class="eyebrow">Carga guiada</span>
+          <h2 mat-dialog-title>Agregar certificado de seguridad</h2>
+        </div>
+        <button mat-icon-button type="button" mat-dialog-close aria-label="Cerrar diálogo">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <mat-dialog-content>
+        <mat-stepper linear #stepper>
+          <mat-step [stepControl]="purposeForm" label="¿Para qué se utilizará?">
+            <form [formGroup]="purposeForm" class="step-content">
+              <mat-radio-group formControlName="purpose" aria-label="Uso del certificado">
+                <mat-radio-button value="CfaSigningAndDecryption">
+                  <strong>Firmar y descifrar información de CFA</strong>
+                  <span>Identifica a CFA, permite firmar información enviada y descifrar archivos dirigidos a la entidad.</span>
+                </mat-radio-button>
+                <mat-radio-button value="ClearingHouseValidation">
+                  <strong>Validar información recibida de una cámara compensadora</strong>
+                  <span>Comprueba que la información fue emitida por la cámara compensadora seleccionada.</span>
+                </mat-radio-button>
+              </mat-radio-group>
+              @if (purposeForm.controls.purpose.touched && purposeForm.controls.purpose.hasError('required')) {
+                <mat-error>Selecciona el uso del certificado.</mat-error>
+              }
+              <div class="step-actions">
+                <button mat-button type="button" mat-dialog-close>Cancelar</button>
+                <button mat-flat-button type="button" matStepperNext (click)="syncOwner()">Continuar</button>
+              </div>
+            </form>
+          </mat-step>
+
+          <mat-step [stepControl]="ownerForm" label="¿A quién pertenece?">
+            <form [formGroup]="ownerForm" class="step-content">
+              @if (isCfaPurpose) {
+                <div class="owner-summary">
+                  <mat-icon>account_balance</mat-icon>
+                  <div>
+                    <span>Entidad propietaria</span>
+                    <strong>{{ data.defaultInstitution?.name || 'Entidad de origen no configurada' }}</strong>
+                    <p>La entidad financiera configurada actualmente como origen es CFA.</p>
+                  </div>
+                </div>
+                @if (!data.defaultInstitution) {
+                  <mat-error>No se encontró una entidad financiera configurada como origen.</mat-error>
+                }
+              } @else {
+                <mat-form-field appearance="outline">
+                  <mat-label>Cámara compensadora</mat-label>
+                  <mat-select formControlName="clearingHouseId">
+                    @for (house of data.clearingHouses; track house.id) {
+                      <mat-option [value]="house.id">{{ house.name }}</mat-option>
+                    }
+                  </mat-select>
+                  @if (ownerForm.controls.clearingHouseId.hasError('required')) {
+                    <mat-error>Selecciona la cámara compensadora propietaria del certificado.</mat-error>
+                  }
+                </mat-form-field>
+              }
+              <div class="step-actions">
+                <button mat-button type="button" matStepperPrevious>Anterior</button>
+                <button
+                  mat-flat-button
+                  type="button"
+                  matStepperNext
+                  [disabled]="ownerForm.invalid || (isCfaPurpose && !data.defaultInstitution)">
+                  Continuar
+                </button>
+              </div>
+            </form>
+          </mat-step>
+
+          <mat-step [stepControl]="fileForm" label="Seleccionar archivo">
+            <form [formGroup]="fileForm" class="step-content" novalidate>
+              <label class="file-picker" for="managed-certificate-file">
+                <input
+                  #fileInput
+                  id="managed-certificate-file"
+                  type="file"
+                  [accept]="acceptedFormats"
+                  (change)="onFileSelected($event)">
+                <mat-icon>upload_file</mat-icon>
+                <span>
+                  <strong>{{ selectedFile?.name || 'Archivo del certificado' }}</strong>
+                  <small>Formatos permitidos: {{ acceptedFormats }} · máximo 10 MB</small>
+                </span>
+              </label>
+              @if (fileError) {
+                <mat-error>{{ fileError }}</mat-error>
+              }
+
+              @if (isCfaPurpose) {
+                <mat-form-field appearance="outline">
+                  <mat-label>Contraseña del certificado</mat-label>
+                  <input
+                    matInput
+                    [type]="showPassword ? 'text' : 'password'"
+                    formControlName="password"
+                    autocomplete="new-password">
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    (click)="showPassword = !showPassword"
+                    [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                    [matTooltip]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                    <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+                  </button>
+                  @if (fileForm.controls.password.hasError('required')) {
+                    <mat-error>Ingresa la contraseña del certificado.</mat-error>
+                  }
+                </mat-form-field>
+                <p class="password-help">
+                  La contraseña se utilizará únicamente para abrir y validar el certificado. No se almacenará ni se mostrará posteriormente.
+                </p>
+              }
+
+              @if (errorMessage) {
+                <div class="dialog-error" role="alert">{{ errorMessage }}</div>
+              }
+              <div class="step-actions">
+                <button mat-button type="button" matStepperPrevious>Anterior</button>
+                <button
+                  mat-flat-button
+                  type="button"
+                  [disabled]="fileForm.invalid || verifying"
+                  (click)="verify(stepper)">
+                  @if (verifying) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                    Verificando…
+                  } @else {
+                    Verificar información
+                  }
+                </button>
+              </div>
+            </form>
+          </mat-step>
+
+          <mat-step label="Verificar información">
+            <section class="step-content verification">
+              @if (preview) {
+                <div class="validation-result" [class.validation-result--warning]="preview.warnings.length">
+                  <mat-icon>{{ preview.isValid ? 'verified' : 'warning' }}</mat-icon>
+                  <div>
+                    <strong>{{ preview.isValid ? 'El certificado cumple las validaciones requeridas.' : 'Revisa las advertencias antes de continuar.' }}</strong>
+                    @for (warning of preview.warnings; track warning) {
+                      <p>{{ warning }}</p>
+                    }
+                  </div>
+                </div>
+                <dl class="verification-grid">
+                  <div><dt>Propietario</dt><dd>{{ ownerName }}</dd></div>
+                  <div><dt>Uso del certificado</dt><dd>{{ useLabel }}</dd></div>
+                  <div><dt>Titular del certificado</dt><dd>{{ preview.subject }}</dd></div>
+                  <div><dt>Emitido por</dt><dd>{{ preview.issuer }}</dd></div>
+                  <div><dt>Válido desde</dt><dd>{{ preview.notBefore | date:'dd/MM/yyyy':'UTC' }}</dd></div>
+                  <div><dt>Válido hasta</dt><dd>{{ preview.notAfter | date:'dd/MM/yyyy':'UTC' }}</dd></div>
+                  <div><dt>Estado detectado</dt><dd>{{ previewStatusLabel }}</dd></div>
+                  <div><dt>Permite firmar y descifrar</dt><dd>{{ preview.canSignAndDecrypt ? 'Sí' : 'No aplica' }}</dd></div>
+                  <div><dt>Identificador digital</dt><dd class="technical-value">{{ preview.thumbprint }}</dd></div>
+                </dl>
+              }
+              @if (errorMessage) {
+                <div class="dialog-error" role="alert">{{ errorMessage }}</div>
+              }
+              <div class="step-actions">
+                <button mat-button type="button" matStepperPrevious [disabled]="saving">Anterior</button>
+                <button mat-button type="button" mat-dialog-close [disabled]="saving">Cancelar</button>
+                <button mat-flat-button type="button" (click)="save()" [disabled]="!preview?.isValid || saving">
+                  @if (saving) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                    Guardando…
+                  } @else {
+                    Guardar certificado
+                  }
+                </button>
+              </div>
+            </section>
+          </mat-step>
+        </mat-stepper>
+      </mat-dialog-content>
+    </div>
+  `,
+  styles: [`
+    .upload-dialog { min-width: 0; }
+    .dialog-heading { display:flex; align-items:flex-start; justify-content:space-between; padding:1.25rem 1.5rem 0; }
+    .dialog-heading h2 { margin:.2rem 0 0; }
+    .eyebrow { color:#6a1b9a; font-size:.75rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .step-content { display:grid; gap:1rem; padding:1.25rem .25rem .25rem; min-height:260px; }
+    mat-radio-group { display:grid; gap:.75rem; }
+    mat-radio-button { border:1px solid #d7dce5; border-radius:14px; padding:1rem; }
+    mat-radio-button strong, mat-radio-button span { display:block; white-space:normal; }
+    mat-radio-button span { color:#52606d; margin-top:.35rem; }
+    .owner-summary, .validation-result { display:flex; gap:1rem; border-radius:14px; background:#f4f7fb; padding:1rem; }
+    .owner-summary span, .owner-summary strong { display:block; }
+    .owner-summary p { margin:.35rem 0 0; color:#52606d; }
+    .file-picker { display:flex; align-items:center; gap:1rem; border:2px dashed #aab4c3; border-radius:14px; padding:1.25rem; cursor:pointer; }
+    .file-picker input { position:absolute; opacity:0; pointer-events:none; }
+    .file-picker span, .file-picker strong, .file-picker small { display:block; }
+    .file-picker small, .password-help { color:#52606d; }
+    .password-help { margin:-.5rem 0 0; font-size:.85rem; }
+    .step-actions { display:flex; justify-content:flex-end; gap:.5rem; margin-top:auto; flex-wrap:wrap; }
+    .step-actions button mat-spinner { display:inline-block; margin-right:.5rem; }
+    .verification-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; margin:0; }
+    .verification-grid div { background:#f7f8fa; border-radius:10px; padding:.75rem; }
+    .verification-grid dt { color:#52606d; font-size:.8rem; }
+    .verification-grid dd { margin:.25rem 0 0; overflow-wrap:anywhere; }
+    .technical-value { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.78rem; }
+    .validation-result { background:#eef8f2; }
+    .validation-result--warning { background:#fff6df; }
+    .validation-result p { margin:.35rem 0 0; }
+    .dialog-error { background:#fff0f0; color:#9b1c1c; border-radius:10px; padding:.75rem; }
+    @media (max-width:640px) {
+      .dialog-heading { padding:1rem 1rem 0; }
+      .verification-grid { grid-template-columns:1fr; }
+      .step-content { min-height:0; }
     }
+  `]
+})
+export class CertificateUploadDialogComponent {
+  readonly data = inject<UploadDialogData>(MAT_DIALOG_DATA);
+  private readonly fb = inject(FormBuilder);
+  private readonly api = inject(CertificateManagementApiService);
+  private readonly downloads = inject(BlobDownloadService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly dialogRef = inject(MatDialogRef<CertificateUploadDialogComponent>);
+
+  selectedFile: File | null = null;
+  preview: CertificatePreview | null = null;
+  verifying = false;
+  saving = false;
+  showPassword = false;
+  fileError = '';
+  errorMessage = '';
+
+  readonly purposeForm = this.fb.nonNullable.group({
+    purpose: [this.data.initialPurpose, Validators.required]
+  });
+  readonly ownerForm = this.fb.group({
+    clearingHouseId: [this.data.initialClearingHouseId ?? null as number | null]
+  });
+  readonly fileForm = this.fb.group({
+    file: [null as File | null, Validators.required],
+    password: ['']
+  });
+
+  constructor() {
+    this.syncOwner();
   }
 
-  private normalizeClearingHouseCode(selectedHouse: ClearingHouseOption | undefined, clearingHouseId: number): string {
-    const code = selectedHouse?.code?.trim().toUpperCase().replace(/[^A-Z0-9_-]+/g, '-');
-    return code || `CAMARA-${clearingHouseId || 'SIN-SELECCION'}`;
+  get isCfaPurpose(): boolean {
+    return this.purposeForm.controls.purpose.value === 'CfaSigningAndDecryption';
   }
 
-  private loadCertificates(): void {
-    const clearingHouseId = Number(this.contextForm.controls.clearingHouseId.value ?? 0);
-    if (!clearingHouseId || this.loading) {
+  get acceptedFormats(): string {
+    return this.isCfaPurpose ? '.pfx, .p12' : '.cer, .crt, .pem';
+  }
+
+  get ownerName(): string {
+    return this.isCfaPurpose
+      ? this.data.defaultInstitution?.name ?? 'Entidad de origen no configurada'
+      : this.data.clearingHouses.find(
+          item => item.id === this.ownerForm.controls.clearingHouseId.value
+        )?.name ?? 'Cámara no seleccionada';
+  }
+
+  get useLabel(): string {
+    return this.isCfaPurpose
+      ? 'Firmar y descifrar información de CFA'
+      : 'Validar información recibida de una cámara compensadora';
+  }
+
+  get previewStatusLabel(): string {
+    const code = NUMERIC_FUNCTIONAL_STATUS[String(this.preview?.functionalStatus)]
+      ?? String(this.preview?.functionalStatus ?? 'Inactive');
+    return STATUS_TEXT[code]?.label ?? 'No operativo';
+  }
+
+  syncOwner(): void {
+    if (this.isCfaPurpose) {
+      this.ownerForm.controls.clearingHouseId.clearValidators();
+      this.ownerForm.controls.clearingHouseId.setValue(null);
+      this.fileForm.controls.password.setValidators(Validators.required);
+    } else {
+      this.ownerForm.controls.clearingHouseId.setValidators(Validators.required);
+      this.fileForm.controls.password.clearValidators();
+      this.fileForm.controls.password.setValue('');
+    }
+    this.ownerForm.controls.clearingHouseId.updateValueAndValidity();
+    this.fileForm.controls.password.updateValueAndValidity();
+  }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    this.selectedFile = file;
+    this.fileForm.controls.file.setValue(file);
+    this.fileForm.controls.file.markAsTouched();
+    this.fileError = '';
+    this.preview = null;
+
+    if (!file) {
+      this.fileError = 'Selecciona un archivo para continuar.';
       return;
     }
-    this.loading = true;
-    this.operationError = null;
-    this.cdr.markForCheck();
+    const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    const allowed = this.isCfaPurpose
+      ? ['.pfx', '.p12']
+      : ['.cer', '.crt', '.pem'];
+    if (!allowed.includes(extension)) {
+      this.fileError = 'El certificado no es compatible con el uso seleccionado.';
+      this.fileForm.controls.file.setErrors({ extension: true });
+    } else if (file.size === 0) {
+      this.fileError = 'El archivo seleccionado está vacío.';
+      this.fileForm.controls.file.setErrors({ empty: true });
+    } else if (file.size > MAX_CERTIFICATE_SIZE) {
+      this.fileError = 'El archivo supera el máximo de 10 MB.';
+      this.fileForm.controls.file.setErrors({ maxSize: true });
+    } else {
+      this.fileForm.controls.file.setErrors(null);
+    }
+  }
 
-    this.certificatesService.list({
-      clearingHouseId,
-      environment: this.contextForm.controls.environment.value ?? 'Test'
-    }).pipe(finalize(() => {
-      this.loading = false;
+  verify(stepper: MatStepper): void {
+    this.errorMessage = '';
+    this.fileForm.markAllAsTouched();
+    if (this.fileForm.invalid || !this.selectedFile) {
+      if (!this.selectedFile) this.fileError = 'Selecciona un archivo para continuar.';
+      this.focusFirstInvalid();
+      return;
+    }
+
+    this.verifying = true;
+    this.api.preview(this.request()).pipe(finalize(() => {
+      this.verifying = false;
       this.cdr.markForCheck();
     })).subscribe({
-      next: certificates => {
-        this.certificates = certificates;
-        this.lastUpdatedAt = new Date();
-        this.slots.forEach(slot => {
-          slot.certificate = certificates
-            .filter(certificate =>
-              certificatePurposeCode(certificate.purpose) === slot.purpose
-              && certificateHolderCode(certificate.holderType) === slot.holderType
-              && certificateEnvironmentCode(certificate.environment) === slot.environment)
-            .sort((left, right) => right.versionNumber - left.versionNumber)[0];
-        });
+      next: preview => {
+        this.preview = preview;
+        stepper.next();
       },
-      error: error => void this.handleError(error, 'No se pudieron obtener los certificados.')
+      error: error => void this.presentError(error, 'No fue posible verificar el certificado.')
     });
   }
 
-  private async handleError(error: unknown, fallback: string): Promise<void> {
+  save(): void {
+    if (!this.preview?.isValid || this.saving || !this.selectedFile) return;
+    this.saving = true;
+    this.errorMessage = '';
+    this.api.save(this.request()).pipe(finalize(() => {
+      this.saving = false;
+      this.clearPassword();
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: () => this.dialogRef.close(true),
+      error: error => void this.presentError(error, 'No fue posible guardar el certificado.')
+    });
+  }
+
+  private request(): ManagedCertificateUpload {
+    return {
+      purpose: this.purposeForm.controls.purpose.value,
+      clearingHouseId: this.ownerForm.controls.clearingHouseId.value,
+      file: this.selectedFile!,
+      password: this.isCfaPurpose ? this.fileForm.controls.password.value ?? '' : undefined
+    };
+  }
+
+  private clearPassword(): void {
+    this.fileForm.controls.password.setValue('');
+    this.showPassword = false;
+  }
+
+  private focusFirstInvalid(): void {
+    queueMicrotask(() => {
+      const element = document.querySelector(
+        '.mat-mdc-dialog-container .ng-invalid input, .mat-mdc-dialog-container .ng-invalid button'
+      ) as HTMLElement | null;
+      element?.focus();
+    });
+  }
+
+  private async presentError(error: unknown, fallback: string): Promise<void> {
     const parsed = await this.downloads.fromHttpError(error, fallback);
-    this.operationError = presentNachaError(parsed, fallback);
-    this.notifications.error(`${this.operationError.title}. ${this.operationError.message}`);
+    this.errorMessage = parsed.message || fallback;
     this.cdr.markForCheck();
   }
 }
@@ -586,137 +815,181 @@ export class NachaCertificateManagerComponent implements OnInit {
   imports: [
     CommonModule,
     MatButtonModule,
-    MatChipsModule,
     MatDialogModule,
-    MatDividerModule,
-    MatIconModule,
-    MatTooltipModule
+    MatExpansionModule,
+    MatIconModule
   ],
   template: `
-    <h2 mat-dialog-title>Detalles del certificado</h2>
-    <mat-dialog-content>
-      <section>
-        <h3>Identificación</h3>
-        <dl>
-          <div><dt>Nombre</dt><dd>{{ data.certificate.displayName }}</dd></div>
-          <div><dt>Versión</dt><dd>{{ data.certificate.versionNumber }}</dd></div>
-          <div><dt>Número de serie</dt><dd class="technical">{{ data.certificate.serialNumber }}</dd></div>
-          <div class="wide"><dt>Huella digital</dt><dd class="technical">{{ data.certificate.thumbprint }}</dd></div>
-          <div class="wide"><dt>Huella SHA-256</dt><dd class="technical">{{ data.certificate.fingerprintSha256 }}</dd></div>
+    <div class="details-dialog">
+      <div class="dialog-title-row">
+        <div>
+          <span>Detalle del certificado</span>
+          <h2 mat-dialog-title>{{ certificate.displayName }}</h2>
+        </div>
+        <button mat-icon-button mat-dialog-close aria-label="Cerrar diálogo">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <mat-dialog-content>
+        <dl class="details-grid">
+          <div><dt>Entidad propietaria</dt><dd>{{ owner }}</dd></div>
+          <div><dt>Uso del certificado</dt><dd>{{ use }}</dd></div>
+          <div><dt>Estado</dt><dd>{{ status }}</dd></div>
+          <div><dt>Válido desde</dt><dd>{{ certificate.notBefore | date:'dd/MM/yyyy':'UTC' }}</dd></div>
+          <div><dt>Válido hasta</dt><dd>{{ certificate.notAfter | date:'dd/MM/yyyy':'UTC' }}</dd></div>
+          <div><dt>Fecha de carga</dt><dd>{{ certificate.uploadedAtUtc | date:'dd/MM/yyyy, HH:mm':'UTC' }}</dd></div>
+          @if (certificate.revokedAtUtc) {
+            <div><dt>Fecha de revocación</dt><dd>{{ certificate.revokedAtUtc | date:'dd/MM/yyyy, HH:mm':'UTC' }}</dd></div>
+            <div><dt>Motivo de la revocación</dt><dd>{{ certificate.revocationReason }}</dd></div>
+          }
         </dl>
-      </section>
-      <mat-divider></mat-divider>
-      <section>
-        <h3>Uso</h3>
-        <dl>
-          <div><dt>Cámara compensadora</dt><dd>{{ data.clearingHouseName }}</dd></div>
-          <div><dt>Ambiente</dt><dd>{{ environmentLabel(data.certificate.environment) }}</dd></div>
-          <div><dt>Propósito</dt><dd>{{ purposeLabel(data.certificate.purpose) }}</dd></div>
-          <div><dt>Tipo de titular</dt><dd>{{ holderLabel(data.certificate.holderType) }}</dd></div>
-        </dl>
-      </section>
-      <mat-divider></mat-divider>
-      <section>
-        <h3>Vigencia y seguridad</h3>
-        <dl>
-          <div><dt>Vigente desde</dt><dd>{{ data.certificate.notBefore | date:'dd/MM/yyyy HH:mm':'UTC' }}</dd></div>
-          <div><dt>Vigente hasta</dt><dd>{{ data.certificate.notAfter | date:'dd/MM/yyyy HH:mm':'UTC' }}</dd></div>
-          <div><dt>Estado</dt><dd>{{ statusLabel(data.certificate) }}</dd></div>
-          <div><dt>Material privado</dt><dd>{{ data.certificate.hasPrivateKey ? 'Disponible en almacenamiento seguro' : 'Solo contiene clave pública' }}</dd></div>
-          <div><dt>Algoritmo</dt><dd>{{ data.certificate.keyAlgorithm }} · {{ data.certificate.keySize }} bits</dd></div>
-          <div><dt>Algoritmo de firma</dt><dd>{{ data.certificate.signatureAlgorithm }}</dd></div>
-          <div class="wide"><dt>Emisor</dt><dd>{{ data.certificate.issuer }}</dd></div>
-          <div class="wide"><dt>Sujeto</dt><dd>{{ data.certificate.subject }}</dd></div>
-        </dl>
-      </section>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-flat-button mat-dialog-close type="button">Cerrar</button>
-    </mat-dialog-actions>
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
+            <mat-panel-title>Información técnica</mat-panel-title>
+          </mat-expansion-panel-header>
+          <dl class="technical-grid">
+            <div><dt>Titular del certificado</dt><dd>{{ certificate.subject }}</dd></div>
+            <div><dt>Emitido por</dt><dd>{{ certificate.issuer }}</dd></div>
+            <div><dt>Identificador digital (Thumbprint)</dt><dd>{{ certificate.thumbprint }}</dd></div>
+            <div><dt>Número de identificación</dt><dd>{{ certificate.serialNumber }}</dd></div>
+            <div><dt>Algoritmo</dt><dd>{{ certificate.keyAlgorithm }}</dd></div>
+            <div><dt>Tamaño de llave</dt><dd>{{ certificate.keySize }} bits</dd></div>
+            <div><dt>Tiene llave privada</dt><dd>{{ certificate.hasPrivateKey ? 'Sí, protegida' : 'No' }}</dd></div>
+            <div><dt>Formato del archivo</dt><dd>{{ certificate.fileName }}</dd></div>
+            <div><dt>Identificador interno</dt><dd>{{ certificate.id }}</dd></div>
+          </dl>
+        </mat-expansion-panel>
+      </mat-dialog-content>
+      <mat-dialog-actions align="end">
+        <button mat-flat-button mat-dialog-close>Cerrar</button>
+      </mat-dialog-actions>
+    </div>
   `,
   styles: [`
-    mat-dialog-content{min-width:0}section{padding:.25rem 0 1rem}section+section{padding-top:1rem}h3{margin:.25rem 0 .75rem;font-size:1rem}
-    dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem 1.25rem;margin:0}.wide{grid-column:1/-1}dt{color:var(--color-text-muted);font-size:.78rem}dd{margin:.2rem 0 0;overflow-wrap:anywhere}
-    .technical{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.82rem}
-    @media(max-width:600px){dl{grid-template-columns:1fr}.wide{grid-column:auto}}
-  `],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    .details-dialog { padding-top:1rem; }
+    .dialog-title-row { display:flex; justify-content:space-between; align-items:flex-start; padding:0 1.5rem; }
+    .dialog-title-row span { color:#6b7280; }
+    .dialog-title-row h2 { margin:.2rem 0 0; }
+    .details-grid, .technical-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; margin:0 0 1rem; }
+    .details-grid div, .technical-grid div { background:#f7f8fa; border-radius:10px; padding:.75rem; }
+    dt { color:#52606d; font-size:.8rem; } dd { margin:.25rem 0 0; overflow-wrap:anywhere; }
+    @media (max-width:640px) { .details-grid, .technical-grid { grid-template-columns:1fr; } }
+  `]
 })
 export class CertificateDetailsDialogComponent {
-  constructor(@Inject(MAT_DIALOG_DATA) readonly data: {
-    certificate: CertificateListItem;
-    clearingHouseName: string;
-  }) {}
+  constructor(
+    @Inject(MAT_DIALOG_DATA) readonly certificate: CertificateListItem
+  ) {}
 
-  purposeLabel = certificatePurposeLabel;
-  holderLabel = certificateHolderLabel;
-  environmentLabel = certificateEnvironmentLabel;
+  get owner(): string {
+    return this.certificate.financialInstitutionName
+      ?? this.certificate.clearingHouseName
+      ?? 'Propietario no disponible';
+  }
 
-  statusLabel(certificate: CertificateListItem): string {
-    return certificateStatusLabel(effectiveCertificateStatus(certificate));
+  get use(): string {
+    return this.certificate.hasPrivateKey
+      ? 'Firmar y descifrar información de CFA'
+      : 'Validar información recibida';
+  }
+
+  get status(): string {
+    const code = NUMERIC_FUNCTIONAL_STATUS[String(this.certificate.functionalStatus)]
+      ?? String(this.certificate.functionalStatus);
+    return STATUS_TEXT[code]?.label ?? 'No operativo';
   }
 }
 
 @Component({
   selector: 'app-certificate-action-dialog',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MatButtonModule, MatDialogModule, MatFormFieldModule, MatInputModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule
+  ],
   template: `
-    <h2 mat-dialog-title>{{ data.mode === 'activate' ? 'Activar certificado' : 'Revocar certificado' }}</h2>
-    <mat-dialog-content>
-      <p *ngIf="data.mode === 'activate'">
-        ¿Deseas activar esta versión del certificado?
-      </p>
-      <p *ngIf="data.mode === 'activate'" class="help">
-        Si existe otra versión activa con el mismo propósito, quedará marcada como reemplazada.
-      </p>
-      <form *ngIf="data.mode === 'revoke'" [formGroup]="form">
-        <p>La revocación impide que esta versión vuelva a utilizarse en operaciones criptográficas.</p>
-        <mat-form-field appearance="outline">
-          <mat-label>Motivo de la revocación</mat-label>
-          <textarea matInput formControlName="reason" rows="3" maxlength="500"></textarea>
-          <mat-hint align="end">{{ form.controls.reason.value.length }}/500</mat-hint>
-          <mat-error *ngIf="form.controls.reason.hasError('required')">El motivo es obligatorio.</mat-error>
-          <mat-error *ngIf="form.controls.reason.hasError('minlength')">Describe el motivo con al menos 10 caracteres.</mat-error>
-        </mat-form-field>
-      </form>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button type="button" (click)="dialogRef.close()">Cancelar</button>
-      <button
-        [attr.color]="data.mode === 'revoke' ? 'warn' : null"
-        mat-flat-button
-        type="button"
-        [disabled]="data.mode === 'revoke' && form.invalid"
-        (click)="confirm()">
-        {{ data.mode === 'activate' ? 'Activar versión' : 'Revocar certificado' }}
-      </button>
-    </mat-dialog-actions>
+    <div class="action-dialog">
+      <h2 mat-dialog-title>
+        {{ data.action === 'revoke' ? 'Revocar certificado' : 'Eliminar certificado' }}
+      </h2>
+      <mat-dialog-content>
+        <div class="affected-certificate">
+          <mat-icon>{{ data.action === 'revoke' ? 'block' : 'delete' }}</mat-icon>
+          <div>
+            <strong>{{ data.certificate.displayName }}</strong>
+            <span>{{ owner }}</span>
+          </div>
+        </div>
+        @if (data.action === 'revoke') {
+          <p>Al revocar este certificado dejará de utilizarse para firmar, validar o descifrar información. Su historial se conservará.</p>
+          @if (!data.hasReplacement) {
+            <p class="impact">{{ operationalImpact }}</p>
+          }
+          <mat-form-field appearance="outline">
+            <mat-label>Motivo de la revocación</mat-label>
+            <textarea matInput [formControl]="reason" rows="3"></textarea>
+            @if (reason.hasError('required')) {
+              <mat-error>Ingresa el motivo de la revocación.</mat-error>
+            }
+          </mat-form-field>
+        } @else {
+          <p>Este certificado nunca ha sido utilizado y puede eliminarse de forma segura. Esta acción retirará el registro del sistema.</p>
+        }
+      </mat-dialog-content>
+      <mat-dialog-actions align="end">
+        <button mat-button mat-dialog-close>Cancelar</button>
+        @if (data.action === 'revoke') {
+          <button mat-flat-button class="danger" (click)="confirmRevoke()" [disabled]="reason.invalid">
+            Revocar
+          </button>
+        } @else {
+          <button mat-flat-button class="danger" [mat-dialog-close]="true">
+            Eliminar certificado
+          </button>
+        }
+      </mat-dialog-actions>
+    </div>
   `,
   styles: [`
-    mat-form-field{width:100%;margin-top:.5rem}.help{color:var(--color-text-muted)}p{line-height:1.5}
-  `],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    .action-dialog { padding-top:1rem; }
+    .affected-certificate { display:flex; gap:.75rem; align-items:center; background:#f7f8fa; border-radius:12px; padding:.9rem; }
+    .affected-certificate strong, .affected-certificate span { display:block; }
+    .affected-certificate span { color:#52606d; margin-top:.2rem; }
+    .impact { background:#fff4df; border-left:4px solid #d97706; padding:.75rem; }
+    mat-form-field { width:100%; }
+    .danger { background:#b42318 !important; color:white !important; }
+  `]
 })
 export class CertificateActionDialogComponent {
-  private readonly fb = inject(FormBuilder);
-  readonly form = this.fb.nonNullable.group({
-    reason: ['', [Validators.required, Validators.minLength(10), Validators.maxLength(500)]]
-  });
+  readonly reason = inject(FormBuilder).nonNullable.control('', [
+    Validators.required,
+    Validators.maxLength(500)
+  ]);
+  private readonly dialogRef = inject(MatDialogRef<CertificateActionDialogComponent>);
 
-  constructor(
-    @Inject(MAT_DIALOG_DATA) readonly data: CertificateActionDialogData,
-    readonly dialogRef: MatDialogRef<CertificateActionDialogComponent>
-  ) {}
+  constructor(@Inject(MAT_DIALOG_DATA) readonly data: CertificateActionDialogData) {}
 
-  confirm(): void {
-    if (this.data.mode === 'activate') {
-      this.dialogRef.close(true);
-      return;
-    }
-    this.form.markAllAsTouched();
-    if (this.form.valid) {
-      this.dialogRef.close(this.form.controls.reason.value.trim());
+  get owner(): string {
+    return this.data.certificate.financialInstitutionName
+      ?? this.data.certificate.clearingHouseName
+      ?? 'Propietario no disponible';
+  }
+
+  get operationalImpact(): string {
+    return this.data.certificate.hasPrivateKey
+      ? 'Si continúas, CFA quedará sin un certificado vigente para firmar o descifrar información.'
+      : 'Si continúas, no habrá un certificado vigente para validar la información recibida de esta cámara compensadora.';
+  }
+
+  confirmRevoke(): void {
+    this.reason.markAsTouched();
+    if (this.reason.valid) {
+      this.dialogRef.close(this.reason.value.trim());
     }
   }
 }

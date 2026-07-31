@@ -10,7 +10,11 @@ const PURPOSE_LABELS: Readonly<Record<string, string>> = {
   '3': 'Firma de salida',
   OutboundSigning: 'Firma de salida',
   '4': 'Validación de firma de entrada',
-  InboundSignatureValidation: 'Validación de firma de entrada'
+  InboundSignatureValidation: 'Validación de firma de entrada',
+  '5': 'Firmar y descifrar información de CFA',
+  CfaSigningAndDecryption: 'Firmar y descifrar información de CFA',
+  '6': 'Validar información recibida',
+  ClearingHouseValidation: 'Validar información recibida'
 };
 
 const HOLDER_LABELS: Readonly<Record<string, string>> = {
@@ -139,7 +143,9 @@ export function certificatePurposeCode(value: CertificateEnumValue): string {
     '1': 'OutboundEncryption',
     '2': 'InboundDecryption',
     '3': 'OutboundSigning',
-    '4': 'InboundSignatureValidation'
+    '4': 'InboundSignatureValidation',
+    '5': 'CfaSigningAndDecryption',
+    '6': 'ClearingHouseValidation'
   };
   return numeric[raw] ?? raw;
 }

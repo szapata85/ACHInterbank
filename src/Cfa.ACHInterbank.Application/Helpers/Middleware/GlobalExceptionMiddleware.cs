@@ -58,6 +58,8 @@ public class GlobalExceptionMiddleware
                 .AppendLine($"RuleId: {ruleId}")
                 .AppendLine($"Method: {context.Request.Method}")
                 .AppendLine($"Path: {context.Request.Path}")
+                .AppendLine("StackTrace:")
+                .AppendLine(exception.StackTrace ?? "(not available)")
                 .AppendLine(new string('-', 80))
                 .ToString();
 

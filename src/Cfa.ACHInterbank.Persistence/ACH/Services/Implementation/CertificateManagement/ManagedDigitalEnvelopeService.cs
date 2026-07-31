@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Globalization;
+using System.Numerics;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
@@ -50,7 +52,8 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
                         && x.NotAfter > now
                         && x.RawPublicCertificate != null
                         && (x.Purpose == CertificatePurpose.OutboundEncryption
-                            || x.Purpose == CertificatePurpose.InboundDecryption))
+                            || x.Purpose == CertificatePurpose.InboundDecryption
+                            || x.Purpose == CertificatePurpose.CfaSigningAndDecryption))
             .OrderBy(x => x.DigitalCertificate.DisplayName)
             .ThenByDescending(x => x.VersionNumber)
             .ToListAsync(cancellationToken);
@@ -63,6 +66,7 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
                 x.DigitalCertificate.DisplayName,
                 x.FileName,
                 x.ClearingHouseId,
+                x.FinancialInstitutionId,
                 x.Environment,
                 x.Purpose,
                 x.VersionNumber,
@@ -70,8 +74,8 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
                 MaskThumbprint(x.Thumbprint),
                 x.NotBefore,
                 x.NotAfter,
-                CanEncrypt: true,
-                CanDecrypt: x.Purpose == CertificatePurpose.InboundDecryption
+                CanEncrypt: x.Purpose == CertificatePurpose.OutboundEncryption,
+                CanDecrypt: x.Purpose is CertificatePurpose.InboundDecryption or CertificatePurpose.CfaSigningAndDecryption
                             && x.HasPrivateKey
                             && !string.IsNullOrWhiteSpace(x.SecretRef)))
             .ToList();
@@ -87,6 +91,7 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
 
         try
         {
+            ValidateLiveMode(request.OperationMode);
             ValidateContent(request.Content);
             recipient = await GetActiveVersionAsync(request.CertificateVersionId, cancellationToken);
             if (recipient.Purpose is not (CertificatePurpose.OutboundEncryption or CertificatePurpose.InboundDecryption))
@@ -119,8 +124,7 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
 
             var signedData = CreateSignedData(request.Content, safeInputName, signerCertificate);
             var signedXml = SerializeXml(signedData);
-            var identifier = $"{signerCertificate.SerialNumber}{Guid.NewGuid():N}".ToUpperInvariant();
-            var iv = DeriveIv(identifier);
+            var identifier = CreateIdentifier(signerCertificate.SerialNumber);
 
             byte[] encryptedContent;
             byte[] encryptedKey;
@@ -128,6 +132,7 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
             {
                 aes.KeySize = 256;
                 aes.GenerateKey();
+                var iv = DeriveIv(identifier, aes.Key);
                 encryptedContent = TransformAes(Encoding.UTF8.GetBytes(signedXml), aes.Key, iv, encrypt: true);
                 using var rsa = recipientCertificate.GetRSAPublicKey()
                     ?? throw Error("CERTIFICATE_PUBLIC_KEY_UNUSABLE", "El certificado seleccionado no contiene una clave pública RSA utilizable.");
@@ -159,7 +164,7 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
             };
 
             var output = Encoding.UTF8.GetBytes(SerializeXml(envelope));
-            await AuditAsync("Encrypt", recipient, safeInputName, outputName, request.Content, output, "SUCCESS", null, request.Actor, cancellationToken);
+            await AuditAsync("Encrypt", recipient, request.ClearingHouseId ?? recipient.ClearingHouseId, request.OperationMode, safeInputName, outputName, request.Content, output, "SUCCESS", null, request.Actor, cancellationToken);
             _logger.LogInformation(
                 "Digital envelope encryption succeeded. CertificateVersionId={CertificateVersionId} Thumbprint={Thumbprint} FileName={FileName} SizeBefore={SizeBefore} SizeAfter={SizeAfter}",
                 recipient.Id,
@@ -179,7 +184,7 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
         catch (Exception ex)
         {
             var managed = NormalizeException(ex, "ENVELOPE_ENCRYPT_FAILED", "No fue posible cifrar el archivo.");
-            await AuditFailureBestEffortAsync("Encrypt", recipient, safeInputName, outputName, request.Content, managed.ErrorCode, request.Actor, cancellationToken);
+            await AuditFailureBestEffortAsync("Encrypt", recipient, request.ClearingHouseId ?? recipient?.ClearingHouseId, request.OperationMode, safeInputName, outputName, request.Content, managed.ErrorCode, request.Actor, cancellationToken);
             _logger.LogWarning(
                 "Digital envelope encryption failed. CertificateVersionId={CertificateVersionId} FileName={FileName} ErrorCode={ErrorCode}",
                 recipient?.Id,
@@ -199,9 +204,13 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
 
         try
         {
+            ValidateLiveMode(request.OperationMode);
             ValidateContent(request.Content);
-            recipient = await GetActiveVersionAsync(request.CertificateVersionId, cancellationToken);
-            if (recipient.Purpose != CertificatePurpose.InboundDecryption || !recipient.HasPrivateKey)
+            recipient = request.ClearingHouseId.HasValue
+                ? await GetOperationalCfaCertificateAsync(cancellationToken)
+                : await GetActiveVersionAsync(request.CertificateVersionId, cancellationToken);
+            if (recipient.Purpose is not (CertificatePurpose.InboundDecryption or CertificatePurpose.CfaSigningAndDecryption)
+                || !recipient.HasPrivateKey)
             {
                 throw Error("CERTIFICATE_PRIVATE_KEY_REQUIRED", "El certificado seleccionado no está habilitado para descifrado o no contiene clave privada.");
             }
@@ -240,7 +249,11 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
             byte[] signedXmlBytes;
             try
             {
-                signedXmlBytes = TransformAes(encryptedContent, aesKey, DeriveIv(envelope.Identifier), encrypt: false);
+                signedXmlBytes = TransformAes(
+                    encryptedContent,
+                    aesKey,
+                    DeriveIv(envelope.Identifier, aesKey),
+                    encrypt: false);
             }
             catch (CryptographicException)
             {
@@ -254,33 +267,55 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
             SignedData signedData;
             try
             {
-                signedData = DeserializeXml<SignedData>(Encoding.UTF8.GetString(signedXmlBytes));
+                signedData = DeserializeSignedData(signedXmlBytes);
             }
             catch (Exception ex) when (ex is InvalidOperationException or XmlException)
             {
                 throw Error("SIGNED_CONTENT_INVALID", "El contenido firmado del sobre no es válido.");
             }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(signedXmlBytes);
+            }
 
+            byte[] zipped = [];
             byte[] plain;
             try
             {
-                var zipped = Convert.FromBase64String(signedData.ContentInfo.Replace("\r", string.Empty).Replace("\n", string.Empty));
+                zipped = Convert.FromBase64String(RemoveWhitespace(signedData.ContentInfo));
                 (plain, _) = ZipHelper.UnZipContend(zipped);
             }
             catch
             {
+                CryptographicOperations.ZeroMemory(zipped);
                 throw Error("SIGNED_CONTENT_INVALID", "No fue posible recuperar el contenido comprimido del sobre.");
             }
 
             if (plain.Length == 0 || plain.Length > MaximumPlaintextBytes)
             {
+                CryptographicOperations.ZeroMemory(zipped);
                 CryptographicOperations.ZeroMemory(plain);
                 throw Error("PLAINTEXT_SIZE_INVALID", "El contenido recuperado tiene un tamaño no permitido.");
             }
 
-            var signatureValidation = await _signatureValidator.ValidateAsync(
-                new DigitalEnvelopeSignatureValidationRequest(signedData, plain),
-                cancellationToken);
+            var expectedSignerThumbprint = request.ClearingHouseId.HasValue
+                ? await GetOperationalClearingHouseThumbprintAsync(request.ClearingHouseId.Value, cancellationToken)
+                : null;
+            DigitalEnvelopeSignatureValidationResult signatureValidation;
+            try
+            {
+                signatureValidation = await _signatureValidator.ValidateAsync(
+                    new DigitalEnvelopeSignatureValidationRequest(
+                        signedData,
+                        plain,
+                        expectedSignerThumbprint,
+                        zipped),
+                    cancellationToken);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(zipped);
+            }
             if (!signatureValidation.IsValid || !signatureValidation.IsVerified)
             {
                 CryptographicOperations.ZeroMemory(plain);
@@ -289,7 +324,7 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
                     signatureValidation.ErrorMessage ?? "La firma del sobre digital no es válida.");
             }
 
-            await AuditAsync("Decrypt", recipient, safeInputName, outputName, plain, request.Content, "SUCCESS", null, request.Actor, cancellationToken);
+            await AuditAsync("Decrypt", recipient, request.ClearingHouseId ?? recipient.ClearingHouseId, request.OperationMode, safeInputName, outputName, plain, request.Content, "SUCCESS", null, request.Actor, cancellationToken);
             _logger.LogInformation(
                 "Digital envelope decryption succeeded. CertificateVersionId={CertificateVersionId} Thumbprint={Thumbprint} FileName={FileName} SizeBefore={SizeBefore} SizeAfter={SizeAfter}",
                 recipient.Id,
@@ -309,7 +344,7 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
         catch (Exception ex)
         {
             var managed = NormalizeException(ex, "ENVELOPE_DECRYPT_FAILED", "No fue posible descifrar el archivo.");
-            await AuditFailureBestEffortAsync("Decrypt", recipient, safeInputName, outputName, request.Content, managed.ErrorCode, request.Actor, cancellationToken);
+            await AuditFailureBestEffortAsync("Decrypt", recipient, request.ClearingHouseId ?? recipient?.ClearingHouseId, request.OperationMode, safeInputName, outputName, request.Content, managed.ErrorCode, request.Actor, cancellationToken);
             _logger.LogWarning(
                 "Digital envelope decryption failed. CertificateVersionId={CertificateVersionId} FileName={FileName} ErrorCode={ErrorCode}",
                 recipient?.Id,
@@ -370,6 +405,69 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
         return version;
     }
 
+    private async Task<DigitalCertificateVersion> GetOperationalCfaCertificateAsync(
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var version = await _context.DigitalCertificateVersions
+            .AsNoTracking()
+            .Include(x => x.DigitalCertificate)
+            .Include(x => x.FinancialInstitution)
+            .Where(x => x.Status == CertificateStatus.Active
+                        && x.Purpose == CertificatePurpose.CfaSigningAndDecryption
+                        && x.HolderType == CertificateHolderType.Participant
+                        && x.FinancialInstitutionId != null
+                        && x.FinancialInstitution!.IsDefaultSource
+                        && x.ClearingHouseId == null
+                        && x.HasPrivateKey
+                        && x.NotBefore <= now
+                        && x.NotAfter > now)
+            .OrderByDescending(x => x.NotBefore)
+            .ThenByDescending(x => x.VersionNumber)
+            .ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return version
+               ?? throw Error(
+                   "CFA_CERTIFICATE_NOT_FOUND",
+                   "No existe un certificado vigente de CFA disponible para descifrar el archivo.");
+    }
+
+    private async Task<string> GetOperationalClearingHouseThumbprintAsync(
+        int clearingHouseId,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var thumbprint = await _context.DigitalCertificateVersions
+            .AsNoTracking()
+            .Where(x => x.Status == CertificateStatus.Active
+                        && x.ClearingHouseId == clearingHouseId
+                        && x.FinancialInstitutionId == null
+                        && x.HolderType == CertificateHolderType.ClearingHouse
+                        && x.Purpose == CertificatePurpose.ClearingHouseValidation
+                        && x.NotBefore <= now
+                        && x.NotAfter > now)
+            .OrderByDescending(x => x.NotBefore)
+            .ThenByDescending(x => x.VersionNumber)
+            .ThenByDescending(x => x.Id)
+            .Select(x => x.NormalizedThumbprint)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return !string.IsNullOrWhiteSpace(thumbprint)
+            ? thumbprint
+            : throw Error(
+                "CLEARING_HOUSE_CERTIFICATE_NOT_FOUND",
+                "No existe un certificado vigente para validar la información recibida de la cámara compensadora seleccionada.");
+    }
+
+    private static void ValidateLiveMode(string operationMode)
+    {
+        if (!string.Equals(operationMode, "LIVE", StringComparison.OrdinalIgnoreCase))
+        {
+            throw Error("LIVE_MODE_REQUIRED", "Selecciona el Modo LIVE antes de procesar el archivo.");
+        }
+    }
+
     private async Task<X509Certificate2> ResolvePrivateCertificateAsync(
         DigitalCertificateVersion version,
         string actor,
@@ -401,18 +499,30 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
     {
         using var rsa = signer.GetRSAPrivateKey()
             ?? throw Error("SIGNING_PRIVATE_KEY_REQUIRED", "El certificado de firma no contiene clave privada RSA.");
-        var signature = rsa.SignHash(SHA256.HashData(content), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        return new SignedData
+        var zipped = ZipHelper.ZipContend(content, fileName);
+        var signature = rsa.SignHash(
+            SHA256.HashData(zipped),
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        try
         {
-            Version = "1",
-            SignerInfo = new SignerInfo
+            return new SignedData
             {
-                SignatureAlgorithm = "SHA256withRSA",
-                Certificate = Convert.ToBase64String(signer.RawData)
-            },
-            ContentInfo = Convert.ToBase64String(ZipHelper.ZipContend(content, fileName)),
-            EncryptedDigest = Convert.ToBase64String(signature)
-        };
+                Version = "1",
+                SignerInfo = new SignerInfo
+                {
+                    SignatureAlgorithm = "SHA256withRSA",
+                    Certificate = Convert.ToBase64String(signer.RawData)
+                },
+                ContentInfo = Convert.ToBase64String(zipped),
+                EncryptedDigest = Convert.ToBase64String(signature)
+            };
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(zipped);
+            CryptographicOperations.ZeroMemory(signature);
+        }
     }
 
     private static void ValidateEnvelope(DigitalEnvelopeModel envelope, X509Certificate2 recipient)
@@ -427,15 +537,19 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
             throw Error("ENVELOPE_INVALID", "El sobre digital no contiene todos los campos obligatorios.");
         }
 
-        if (!string.Equals(envelope.RecipientInfo.KeyEncryptionAlgorithm, "RSA/NONE/PKCS1Padding", StringComparison.Ordinal)
-            || !string.Equals(envelope.EncryptedContentInfo.ContentEncryptionAlgorithm, "AES/CBC/PKCS5padding", StringComparison.Ordinal)
-            || !string.Equals(envelope.EncryptedContentInfo.ContentType, "signedData", StringComparison.Ordinal))
+        if (!string.Equals(envelope.RecipientInfo.KeyEncryptionAlgorithm?.Trim(), "RSA/NONE/PKCS1Padding", StringComparison.Ordinal)
+            || !string.Equals(envelope.EncryptedContentInfo.ContentEncryptionAlgorithm?.Trim(), "AES/CBC/PKCS5padding", StringComparison.Ordinal)
+            || !string.Equals(envelope.EncryptedContentInfo.ContentType?.Trim(), "signedData", StringComparison.Ordinal))
         {
             throw Error("ENVELOPE_ALGORITHM_UNSUPPORTED", "El sobre digital declara algoritmos no permitidos.");
         }
 
-        if (!string.Equals(NormalizeSerial(envelope.RecipientInfo.CertificateInfo.Serial), NormalizeSerial(recipient.SerialNumber), StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(envelope.RecipientInfo.CertificateInfo.Issuer?.Trim(), recipient.Issuer.Trim(), StringComparison.OrdinalIgnoreCase))
+        if (!SerialMatchesCertificate(
+                envelope.RecipientInfo.CertificateInfo.Serial,
+                recipient.SerialNumber)
+            || !IssuerMatchesCertificate(
+                envelope.RecipientInfo.CertificateInfo.Issuer,
+                recipient.Issuer))
         {
             throw Error("CERTIFICATE_MISMATCH", "El certificado seleccionado no corresponde al destinatario del sobre.");
         }
@@ -495,8 +609,71 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
         return transform.TransformFinalBlock(content, 0, content.Length);
     }
 
-    private static byte[] DeriveIv(string identifier)
-        => SHA256.HashData(Encoding.UTF8.GetBytes(identifier)).AsSpan(0, 16).ToArray();
+    private static string CreateIdentifier(string certificateSerialHex)
+    {
+        var serialHex = RemoveWhitespace(certificateSerialHex).TrimStart('0');
+        if (!BigInteger.TryParse(
+                $"0{serialHex}",
+                NumberStyles.AllowHexSpecifier,
+                CultureInfo.InvariantCulture,
+                out var serial))
+        {
+            throw Error("CERTIFICATE_SERIAL_INVALID", "El certificado no contiene un número de identificación válido.");
+        }
+
+        var randomBytes = RandomNumberGenerator.GetBytes(16);
+        try
+        {
+            var random = new BigInteger(randomBytes, isUnsigned: true, isBigEndian: true);
+            return string.Concat(
+                serial.ToString(CultureInfo.InvariantCulture),
+                random.ToString(CultureInfo.InvariantCulture));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(randomBytes);
+        }
+    }
+
+    private static byte[] DeriveIv(string identifier, byte[] contentKey)
+    {
+        var numericIdentifier = RemoveWhitespace(identifier);
+        if (!BigInteger.TryParse(
+                numericIdentifier,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var identifierNumber)
+            || identifierNumber.Sign < 0)
+        {
+            throw Error("ENVELOPE_IDENTIFIER_INVALID", "El identificador del sobre digital no tiene un formato numérico válido.");
+        }
+
+        var identifierBytes = identifierNumber.ToByteArray(isUnsigned: false, isBigEndian: true);
+        try
+        {
+            using var aes = Aes.Create();
+            aes.Key = contentKey;
+            aes.Mode = CipherMode.ECB;
+            aes.Padding = PaddingMode.PKCS7;
+            using var encryptor = aes.CreateEncryptor();
+            var encryptedIdentifier = encryptor.TransformFinalBlock(
+                identifierBytes,
+                0,
+                identifierBytes.Length);
+            try
+            {
+                return encryptedIdentifier.AsSpan(0, 16).ToArray();
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(encryptedIdentifier);
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(identifierBytes);
+        }
+    }
 
     private static string SerializeXml<T>(T value)
     {
@@ -520,7 +697,9 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
         var serializer = new XmlSerializer(typeof(T));
         var settings = new XmlReaderSettings
         {
-            DtdProcessing = DtdProcessing.Prohibit,
+            // ACH Colombia envelopes include a legacy DOCTYPE declaration.
+            // Ignore it without resolving external resources or entities.
+            DtdProcessing = DtdProcessing.Ignore,
             XmlResolver = null,
             MaxCharactersInDocument = 100 * 1024 * 1024
         };
@@ -528,6 +707,37 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
         using var reader = XmlReader.Create(textReader, settings);
         return (T)(serializer.Deserialize(reader)
                    ?? throw Error("ENVELOPE_INVALID", "El sobre digital no se pudo deserializar."));
+    }
+
+    private static SignedData DeserializeSignedData(byte[] signedXmlBytes)
+    {
+        var xml = Encoding.UTF8.GetString(signedXmlBytes);
+        try
+        {
+            return DeserializeXml<SignedData>(xml);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or XmlException)
+        {
+            // Some ACH Colombia V32 envelopes were produced with a legacy IV
+            // implementation that corrupts only the XML declaration's first
+            // CBC block. Preserve interoperability only when the next line is
+            // unequivocally the expected signed-data document. The signature
+            // is still verified fail-closed before any plaintext is returned.
+            var lineBreak = xml.IndexOf('\n');
+            if (lineBreak < 0 || lineBreak > 256)
+            {
+                throw;
+            }
+
+            var remainder = xml[(lineBreak + 1)..].TrimStart();
+            if (!remainder.StartsWith("<!DOCTYPE signedData", StringComparison.OrdinalIgnoreCase)
+                && !remainder.StartsWith("<signedData", StringComparison.OrdinalIgnoreCase))
+            {
+                throw;
+            }
+
+            return DeserializeXml<SignedData>(remainder);
+        }
     }
 
     private static void ValidateContent(byte[] content)
@@ -541,6 +751,8 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
     private async Task AuditAsync(
         string direction,
         DigitalCertificateVersion version,
+        int? clearingHouseId,
+        string operationMode,
         string inputName,
         string outputName,
         byte[] plain,
@@ -553,7 +765,8 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
         _context.DigitalEnvelopeOperationLogs.Add(new DigitalEnvelopeOperationLog
         {
             Direction = direction,
-            ClearingHouseId = version.ClearingHouseId,
+            OperationMode = operationMode.ToUpperInvariant(),
+            ClearingHouseId = clearingHouseId ?? 0,
             Environment = version.Environment,
             Purpose = version.Purpose,
             CertificateVersionId = version.Id,
@@ -573,6 +786,8 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
     private async Task AuditFailureBestEffortAsync(
         string direction,
         DigitalCertificateVersion? version,
+        int? clearingHouseId,
+        string operationMode,
         string inputName,
         string outputName,
         byte[] input,
@@ -587,7 +802,8 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
             _context.DigitalEnvelopeOperationLogs.Add(new DigitalEnvelopeOperationLog
             {
                 Direction = direction,
-                ClearingHouseId = version.ClearingHouseId,
+                OperationMode = operationMode.ToUpperInvariant(),
+                ClearingHouseId = clearingHouseId ?? 0,
                 Environment = version.Environment,
                 Purpose = version.Purpose,
                 CertificateVersionId = version.Id,
@@ -613,8 +829,59 @@ public sealed class ManagedDigitalEnvelopeService : IManagedDigitalEnvelopeServi
     private static ManagedDigitalEnvelopeException Error(string code, string message)
         => new(code, message);
 
-    private static string NormalizeSerial(string? serial)
-        => (serial ?? string.Empty).Replace(" ", string.Empty).TrimStart('0');
+    private static bool SerialMatchesCertificate(string? envelopeSerial, string? certificateSerialHex)
+    {
+        var received = RemoveWhitespace(envelopeSerial).TrimStart('0');
+        var certificateHex = RemoveWhitespace(certificateSerialHex).TrimStart('0');
+        if (string.Equals(received, certificateHex, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return received.All(char.IsDigit)
+               && BigInteger.TryParse(
+                   received,
+                   NumberStyles.None,
+                   CultureInfo.InvariantCulture,
+                   out var receivedDecimal)
+               && BigInteger.TryParse(
+                   $"0{certificateHex}",
+                   NumberStyles.AllowHexSpecifier,
+                   CultureInfo.InvariantCulture,
+                   out var certificateNumeric)
+               && receivedDecimal == certificateNumeric;
+    }
+
+    private static bool IssuerMatchesCertificate(string? envelopeIssuer, string? certificateIssuer)
+        => string.Equals(
+            NormalizeDistinguishedName(envelopeIssuer),
+            NormalizeDistinguishedName(certificateIssuer),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeDistinguishedName(string? distinguishedName)
+        => string.Join(
+            ",",
+            (distinguishedName ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(component =>
+            {
+                var separator = component.IndexOf('=');
+                if (separator < 1)
+                {
+                    return component.Trim();
+                }
+
+                var key = component[..separator].Trim();
+                if (string.Equals(key, "S", StringComparison.OrdinalIgnoreCase))
+                {
+                    key = "ST";
+                }
+
+                return $"{key}={component[(separator + 1)..].Trim()}";
+            }));
+
+    private static string RemoveWhitespace(string? value)
+        => string.Concat((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)));
 
     private static string MaskThumbprint(string thumbprint)
         => string.IsNullOrWhiteSpace(thumbprint)

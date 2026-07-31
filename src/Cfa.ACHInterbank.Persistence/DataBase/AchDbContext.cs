@@ -199,7 +199,14 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
             .HasDefaultValueSql(isPostgres ? "timezone('utc', now())" : "GETUTCDATE()");
 
         modelBuilder.Entity<DigitalCertificateVersion>()
-            .HasIndex(c => new { c.ClearingHouseId, c.Environment, c.Purpose, c.HolderType })
+            .HasIndex(c => new
+            {
+                c.FinancialInstitutionId,
+                c.ClearingHouseId,
+                c.Environment,
+                c.Purpose,
+                c.HolderType
+            })
             .HasDatabaseName("UX_DCV_Active_Context")
             .IsUnique()
             .HasFilter(isPostgres

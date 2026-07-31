@@ -1,12 +1,12 @@
 <app-page-header
-  title="Sobre digital NACHA-M"
+  title="Sobre digital"
   subtitle="Protege archivos NACHA-M mediante cifrado y firma digital, o procesa archivos recibidos utilizando los certificados configurados para la cámara compensadora.">
 </app-page-header>
 
 <nav class="breadcrumb" aria-label="Ruta de navegación">
   <a routerLink="/nacha-security/certificates">Seguridad NACHA</a>
   <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">chevron_right</mat-icon>
-  <span aria-current="page">Sobre digital NACHA-M</span>
+  <span aria-current="page">Sobre digital</span>
 </nav>
 
 <section class="context-help" aria-label="Ayuda sobre el proceso">
@@ -61,6 +61,16 @@
                   <mat-option value="Production">Producción</mat-option>
                 </mat-select>
               </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Modo de operación</mat-label>
+                <mat-select formControlName="operationMode">
+                  <mat-option value="LIVE">Modo LIVE</mat-option>
+                </mat-select>
+                @if (encryptForm.controls['operationMode'].hasError('required')) {
+                  <mat-error>Selecciona el Modo LIVE para continuar.</mat-error>
+                }
+              </mat-form-field>
             </div>
 
             @if (selectedCertificate('encrypt'); as certificate) {
@@ -74,9 +84,9 @@
                 </div>
                 <dl>
                   <div><dt>Certificado</dt><dd>{{ certificate.displayName }}</dd></div>
-                  <div><dt>Propósito</dt><dd>{{ certificatePurposeLabel(certificate.purpose) }}</dd></div>
+                  <div><dt>Uso del certificado</dt><dd>{{ certificatePurposeLabel(certificate.purpose) }}</dd></div>
                   <div><dt>Vigente hasta</dt><dd>{{ certificate.notAfter | date:'dd/MM/yyyy':'UTC' }}</dd></div>
-                  <div><dt>Huella digital</dt><dd class="technical">{{ certificate.thumbprintMasked }}</dd></div>
+                  <div><dt>Identificador digital</dt><dd class="technical">{{ certificate.thumbprintMasked }}</dd></div>
                 </dl>
                 <p class="signing-note">
                   El certificado de firma de salida también se resuelve automáticamente en el servidor para la misma cámara y ambiente.
@@ -165,6 +175,16 @@
                   <mat-option value="Production">Producción</mat-option>
                 </mat-select>
               </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Modo de operación</mat-label>
+                <mat-select formControlName="operationMode">
+                  <mat-option value="LIVE">Modo LIVE</mat-option>
+                </mat-select>
+                @if (decryptForm.controls['operationMode'].hasError('required')) {
+                  <mat-error>Selecciona el Modo LIVE para continuar.</mat-error>
+                }
+              </mat-form-field>
             </div>
 
             @if (selectedCertificate('decrypt'); as certificate) {
@@ -178,18 +198,18 @@
                 </div>
                 <dl>
                   <div><dt>Certificado</dt><dd>{{ certificate.displayName }}</dd></div>
-                  <div><dt>Propósito</dt><dd>{{ certificatePurposeLabel(certificate.purpose) }}</dd></div>
+                  <div><dt>Uso del certificado</dt><dd>{{ certificatePurposeLabel(certificate.purpose) }}</dd></div>
                   <div><dt>Vigente hasta</dt><dd>{{ certificate.notAfter | date:'dd/MM/yyyy':'UTC' }}</dd></div>
-                  <div><dt>Huella digital</dt><dd class="technical">{{ certificate.thumbprintMasked }}</dd></div>
+                  <div><dt>Identificador digital</dt><dd class="technical">{{ certificate.thumbprintMasked }}</dd></div>
                 </dl>
               </section>
             } @else {
               <section class="missing-configuration" role="alert">
                 <mat-icon fontSet="material-symbols-outlined">gpp_bad</mat-icon>
                 <div>
-                  <strong>No hay una identidad privada disponible</strong>
-                  <p>Activa un certificado de descifrado con material criptográfico privado protegido.</p>
-                  <a mat-button routerLink="/nacha-security/certificates">Ir a Certificados de seguridad NACHA-M</a>
+                  <strong>CFA no tiene un certificado vigente para descifrar</strong>
+                  <p>Carga un certificado PFX o P12 de CFA con llave privada antes de continuar.</p>
+                  <a mat-button routerLink="/nacha-security/certificates">Ir a la administración de certificados</a>
                 </div>
               </section>
             }
@@ -201,10 +221,10 @@
             }
 
             <label class="file-drop" for="decrypt-file" tabindex="0" (keydown.enter)="decryptFile.click()" (keydown.space)="$event.preventDefault(); decryptFile.click()">
-              <input #decryptFile id="decrypt-file" type="file" accept=".ENV,.env" aria-label="Sobre digital para descifrar" (change)="onFileSelected('decrypt', $event)">
+              <input #decryptFile id="decrypt-file" type="file" accept=".ENV,.env" aria-label="Seleccionar archivo cifrado" (change)="onFileSelected('decrypt', $event)">
               <mat-icon fontSet="material-symbols-outlined">upload_file</mat-icon>
               <span>
-                <strong>{{ selectedFile('decrypt')?.name || 'Seleccionar sobre digital' }}</strong>
+                <strong>{{ selectedFile('decrypt')?.name || 'Seleccionar archivo cifrado' }}</strong>
                 <small>El archivo debe terminar en .ENV y no superar 50 MB.</small>
               </span>
             </label>
@@ -251,7 +271,7 @@
       <dl>
         <div><dt>Nombre del archivo</dt><dd>{{ result.fileName }}</dd></div>
         <div><dt>Tamaño</dt><dd>{{ formatSize(result.size) }}</dd></div>
-        <div><dt>Cámara compensadora</dt><dd>{{ clearingHouseName(result.certificate.clearingHouseId) }}</dd></div>
+        <div><dt>Cámara compensadora</dt><dd>{{ clearingHouseName(result.clearingHouseId) }}</dd></div>
         <div><dt>Certificado utilizado</dt><dd>{{ result.certificate.displayName }}</dd></div>
       </dl>
 
@@ -273,7 +293,7 @@
           <dl>
             <div class="wide"><dt>Perfil criptográfico</dt><dd class="technical">{{ result.cryptographicProfile }}</dd></div>
             <div><dt>Versión del certificado</dt><dd>{{ result.certificate.versionNumber }}</dd></div>
-            <div><dt>Huella digital</dt><dd class="technical">{{ result.certificate.thumbprintMasked }}</dd></div>
+            <div><dt>Identificador digital</dt><dd class="technical">{{ result.certificate.thumbprintMasked }}</dd></div>
           </dl>
         </mat-expansion-panel>
       }
@@ -281,7 +301,7 @@
     <mat-card-actions align="end">
       <button mat-stroked-button type="button" (click)="downloadAgain()">
         <mat-icon fontSet="material-symbols-outlined">download</mat-icon>
-        Descargar nuevamente
+        {{ result.mode === 'decrypt' ? 'Descargar archivo descifrado' : 'Descargar sobre digital' }}
       </button>
     </mat-card-actions>
   </mat-card>

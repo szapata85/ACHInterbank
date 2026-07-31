@@ -7,7 +7,8 @@ public sealed record ManagedDigitalEnvelopeCertificateDto(
     string Code,
     string DisplayName,
     string FileName,
-    int ClearingHouseId,
+    int? ClearingHouseId,
+    int? FinancialInstitutionId,
     CertificateEnvironment Environment,
     CertificatePurpose Purpose,
     int VersionNumber,
@@ -22,7 +23,9 @@ public sealed record ManagedDigitalEnvelopeRequest(
     int CertificateVersionId,
     string FileName,
     byte[] Content,
-    string Actor);
+    string Actor,
+    int? ClearingHouseId = null,
+    string OperationMode = "LIVE");
 
 public sealed record ManagedDigitalEnvelopeResult(
     byte[] Content,

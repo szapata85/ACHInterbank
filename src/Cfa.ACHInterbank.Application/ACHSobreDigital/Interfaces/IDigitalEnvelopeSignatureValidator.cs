@@ -5,7 +5,8 @@ namespace Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 public sealed record DigitalEnvelopeSignatureValidationRequest(
     SignedData SignedData,
     byte[] PlainContent,
-    string? ExpectedSignerThumbprint = null);
+    string? ExpectedSignerThumbprint = null,
+    byte[]? SignedContent = null);
 
 public sealed record DigitalEnvelopeSignatureValidationResult(
     bool IsValid,

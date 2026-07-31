@@ -13,6 +13,8 @@ public interface ICertificateLoadService
 {
     Task<CertificateVersionDto> LoadPublicCertificateAsync(LoadPublicCertificateRequest request, CancellationToken cancellationToken = default);
     Task<CertificateVersionDto> RegisterPrivateCertificateAsync(RegisterPrivateCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<CertificatePreviewDto> PreviewManagedCertificateAsync(PreviewManagedCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<CertificateVersionDto> SaveManagedCertificateAsync(SaveManagedCertificateRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface ICertificateSelectionService
@@ -24,6 +26,11 @@ public interface ICertificateActivationService
 {
     Task<CertificateVersionDto> ActivateVersionAsync(ActivateCertificateVersionRequest request, CancellationToken cancellationToken = default);
     Task<CertificateVersionDto> RevokeVersionAsync(RevokeCertificateVersionRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface ICertificateDeletionService
+{
+    Task<DeleteCertificateVersionResultDto> DeleteVersionAsync(DeleteCertificateVersionRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface ICertificateRotationService

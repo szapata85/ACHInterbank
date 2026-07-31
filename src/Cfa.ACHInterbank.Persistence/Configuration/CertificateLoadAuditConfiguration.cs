@@ -11,6 +11,9 @@ public class CertificateLoadAuditConfiguration : IEntityTypeConfiguration<Certif
         builder.ToTable("CertificateLoadAudits");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.LoadSource).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.Action).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.CertificateThumbprint).HasMaxLength(200);
+        builder.Property(x => x.CertificateDisplayName).HasMaxLength(200);
         builder.Property(x => x.ValidationResult).HasMaxLength(60).IsRequired();
         builder.Property(x => x.ValidationErrorsJson).HasMaxLength(4000);
         builder.Property(x => x.LoadedBy).HasMaxLength(120).IsRequired();
@@ -18,7 +21,7 @@ public class CertificateLoadAuditConfiguration : IEntityTypeConfiguration<Certif
         builder.HasOne(x => x.CertificateVersion)
             .WithMany()
             .HasForeignKey(x => x.CertificateVersionId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(x => x.LoadedAtUtc);
     }

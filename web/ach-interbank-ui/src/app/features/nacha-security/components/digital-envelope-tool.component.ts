@@ -40,6 +40,7 @@ interface EnvelopeResult {
   size: number;
   completedAt: Date;
   certificate: SobreDigitalCertificate;
+  clearingHouseId: number;
   cryptographicProfile?: string | null;
 }
 
@@ -109,6 +110,9 @@ export class DigitalEnvelopeToolComponent implements OnInit {
   }
 
   availableHouses(mode: EnvelopeMode): ClearingHouseOption[] {
+    if (mode === 'decrypt') {
+      return this.clearingHouses.filter(house => house.isActive !== false);
+    }
     const ids = new Set(this.certificatesForMode(mode).map(certificate => certificate.clearingHouseId));
     return this.clearingHouses.filter(house => ids.has(house.id));
   }
@@ -124,7 +128,7 @@ export class DigitalEnvelopeToolComponent implements OnInit {
     const environment = form.controls['environment'].value as string | null;
     return this.certificatesForMode(mode)
       .filter(certificate =>
-        certificate.clearingHouseId === clearingHouseId
+        (mode === 'decrypt' || certificate.clearingHouseId === clearingHouseId)
         && certificateEnvironmentCode(certificate.environment) === environment)
       .sort((left, right) => right.versionNumber - left.versionNumber || right.id - left.id);
   }
@@ -220,6 +224,7 @@ export class DigitalEnvelopeToolComponent implements OnInit {
     return this.fb.group({
       clearingHouseId: [null as number | null, Validators.required],
       environment: ['Test', Validators.required],
+      operationMode: [null as 'LIVE' | null, Validators.required],
       certificateVersionId: [null as number | null, Validators.required],
       file: [null as File | null, Validators.required]
     });
@@ -230,7 +235,7 @@ export class DigitalEnvelopeToolComponent implements OnInit {
   }
 
   private certificatesForMode(mode: EnvelopeMode): SobreDigitalCertificate[] {
-    const requiredPurpose = mode === 'encrypt' ? 'OutboundEncryption' : 'InboundDecryption';
+    const requiredPurpose = mode === 'encrypt' ? 'OutboundEncryption' : 'CfaSigningAndDecryption';
     return this.certificates.filter(certificate =>
       certificatePurposeCode(certificate.purpose) === requiredPurpose
       && (mode === 'encrypt' ? certificate.canEncrypt : certificate.canDecrypt));
@@ -242,7 +247,9 @@ export class DigitalEnvelopeToolComponent implements OnInit {
     const first = candidates[0];
     const form = this.formFor(mode);
     form.patchValue({
-      clearingHouseId: first?.clearingHouseId ?? null,
+      clearingHouseId: mode === 'decrypt'
+        ? this.clearingHouses.find(house => house.isActive !== false)?.id ?? null
+        : first?.clearingHouseId ?? null,
       environment: first ? certificateEnvironmentCode(first.environment) : 'Test'
     }, { emitEvent: false });
     this.resolveCertificate(mode);
@@ -272,8 +279,10 @@ export class DigitalEnvelopeToolComponent implements OnInit {
 
     const file = form.controls['file'].value as File | null;
     const certificateVersionId = form.controls['certificateVersionId'].value as number | null;
+    const clearingHouseId = form.controls['clearingHouseId'].value as number | null;
+    const operationMode = form.controls['operationMode'].value as 'LIVE' | null;
     const certificate = this.selectedCertificate(mode);
-    if (!file || !certificateVersionId || !certificate) {
+    if (!file || !certificateVersionId || !clearingHouseId || operationMode !== 'LIVE' || !certificate) {
       return;
     }
 
@@ -285,8 +294,8 @@ export class DigitalEnvelopeToolComponent implements OnInit {
     this.cdr.markForCheck();
 
     const request = mode === 'encrypt'
-      ? this.service.encrypt(file, certificateVersionId)
-      : this.service.decrypt(file, certificateVersionId);
+      ? this.service.encrypt(file, certificateVersionId, clearingHouseId, operationMode)
+      : this.service.decrypt(file, clearingHouseId, operationMode);
 
     request.pipe(finalize(() => {
       this.processingMode = null;
@@ -314,6 +323,7 @@ export class DigitalEnvelopeToolComponent implements OnInit {
         size: saved.size,
         completedAt: new Date(),
         certificate,
+        clearingHouseId: this.formFor(mode).controls['clearingHouseId'].value as number,
         cryptographicProfile: response.headers.get('x-cryptographic-profile')
       };
       this.notifications.success(

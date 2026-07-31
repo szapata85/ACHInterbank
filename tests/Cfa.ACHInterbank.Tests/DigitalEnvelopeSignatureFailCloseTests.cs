@@ -189,7 +189,7 @@ public class DigitalEnvelopeSignatureFailCloseTests
             Version = "1",
             SignerInfo = new SignerInfo
             {
-                SignatureAlgorithm = "SHA256withRSA",
+                SignatureAlgorithm = "\r\nSHA256withRSA\r\n",
                 Certificate = Convert.ToBase64String(signer.RawData)
             },
             ContentInfo = Convert.ToBase64String(Cfa.ACHInterbank.Application.Helpers.ZIP.ZipHelper.ZipContend(plainContent, "test.txt")),

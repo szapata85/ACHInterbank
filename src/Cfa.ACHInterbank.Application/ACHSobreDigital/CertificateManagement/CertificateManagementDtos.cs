@@ -31,6 +31,23 @@ public record ActivateCertificateVersionRequest(int VersionId, string ActivatedB
 
 public record RevokeCertificateVersionRequest(int VersionId, string RevokedBy, string Reason);
 
+public record PreviewManagedCertificateRequest(
+    CertificatePurpose Purpose,
+    int? ClearingHouseId,
+    byte[] Content,
+    string? Password,
+    string FileName);
+
+public record SaveManagedCertificateRequest(
+    CertificatePurpose Purpose,
+    int? ClearingHouseId,
+    byte[] Content,
+    string? Password,
+    string FileName,
+    string UploadedBy);
+
+public record DeleteCertificateVersionRequest(int VersionId, string DeletedBy);
+
 public record CertificateFilterDto(
     int? ClearingHouseId,
     CertificateEnvironment? Environment,
@@ -44,7 +61,7 @@ public record CertificateVersionDto(
     int Id,
     string Code,
     string DisplayName,
-    int ClearingHouseId,
+    int? ClearingHouseId,
     CertificateEnvironment Environment,
     CertificatePurpose Purpose,
     CertificateHolderType HolderType,
@@ -66,11 +83,43 @@ public record CertificateVersionDto(
     string UploadedBy,
     DateTime? ActivatedAtUtc,
     DateTime? RevokedAtUtc,
-    string FileName = "");
+    string FileName = "",
+    int? FinancialInstitutionId = null,
+    string? FinancialInstitutionName = null,
+    string? ClearingHouseName = null,
+    CertificateFunctionalStatus FunctionalStatus = CertificateFunctionalStatus.Inactive,
+    int? DaysRemaining = null,
+    string? RevocationReason = null,
+    string? RevokedBy = null,
+    bool CanDelete = false);
+
+public record CertificatePreviewDto(
+    CertificatePurpose Purpose,
+    int? FinancialInstitutionId,
+    string? FinancialInstitutionName,
+    int? ClearingHouseId,
+    string? ClearingHouseName,
+    string Subject,
+    string Issuer,
+    string SerialNumber,
+    string Thumbprint,
+    DateTime NotBefore,
+    DateTime NotAfter,
+    bool HasPrivateKey,
+    string KeyAlgorithm,
+    int KeySize,
+    string SignatureAlgorithm,
+    CertificateFunctionalStatus FunctionalStatus,
+    int? DaysRemaining,
+    bool CanSignAndDecrypt,
+    bool IsValid,
+    IReadOnlyList<string> Warnings);
+
+public record DeleteCertificateVersionResultDto(int VersionId, bool Deleted);
 
 public record CertificateAuditDto(
     long Id,
-    int CertificateVersionId,
+    int? CertificateVersionId,
     string LoadSource,
     string ValidationResult,
     string? ValidationErrorsJson,
