@@ -26,6 +26,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
     private readonly ILogger<IncomingNachaIngestionAppService> _logger;
     private readonly INachaConfigResolver _profileResolver;
     private readonly IManagedDigitalEnvelopeService? _digitalEnvelopeService;
+    private readonly IIncomingNachaAdmissionValidator _admissionValidator;
+    private readonly TimeProvider _timeProvider;
 
     public IncomingNachaIngestionAppService(
         AchDbContext context,
@@ -35,7 +37,9 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         IExternalFileNamePolicy externalFileNamePolicy,
         ILogger<IncomingNachaIngestionAppService> logger,
         INachaConfigResolver? profileResolver = null,
-        IManagedDigitalEnvelopeService? digitalEnvelopeService = null)
+        IManagedDigitalEnvelopeService? digitalEnvelopeService = null,
+        IIncomingNachaAdmissionValidator? admissionValidator = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _cycleResolver = cycleResolver;
@@ -45,6 +49,10 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         _logger = logger;
         _profileResolver = profileResolver ?? new NachaConfigResolver(context);
         _digitalEnvelopeService = digitalEnvelopeService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        // El runtime DI siempre resuelve la política persistente. El fallback conserva
+        // compatibilidad de constructores usados por pruebas/hosts embebidos legados.
+        _admissionValidator = admissionValidator ?? new LegacyCompatibleAdmissionValidator();
     }
 
     public async Task<IncomingNachaIngestionResponse> IngestAsync(IncomingNachaIngestionRequest request, CancellationToken ct = default)
@@ -139,8 +147,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             {
                 IncomingNachaFileIngestionId = canonicalCandidate.Id,
                 AttemptNumber = nextAttempt + 1,
-                StartedAtUtc = DateTime.UtcNow,
-                FinishedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
                 OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Duplicado,
                 FailureStage = "ValidacionDuplicidad",
                 ErrorCount = 1,
@@ -193,13 +201,15 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             FileHashSha256 = fileHash,
             FileSize = fileBytes.LongLength,
             ContentType = request.ContentType,
+            FileExtension = Path.GetExtension(request.FileName),
             UploadedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "system" : request.RequestedBy,
             ReceivedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "system" : request.RequestedBy,
-            ReceivedAtUtc = DateTime.UtcNow,
+            ReceivedAtUtc = UtcNow,
             CorrelationId = correlationId,
             ParentIngestionId = parentIngestionId,
             IsReprocess = request.ForceReprocess,
             IngestionStatus = IncomingNachaIngestionStatus.Recibido,
+            Stage = IncomingNachaIngestionStage.Received,
             ParsingStatus = IncomingNachaParsingStatus.NoEjecutado,
             CycleResolutionStatus = IncomingNachaCycleResolutionStatus.NoIntentado,
             Notes = request.ForceReprocess
@@ -260,8 +270,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                     {
                         IncomingNachaFileIngestionId = existing.Id,
                         AttemptNumber = nextAttempt + 1,
-                        StartedAtUtc = DateTime.UtcNow,
-                        FinishedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
                         OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Duplicado,
                         FailureStage = "ValidacionDuplicidadDbFirst",
                         ErrorCount = 1,
@@ -300,6 +310,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         {
             if (IsDigitalEnvelopeFile(request.FileName))
             {
+                IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Decrypting);
+                await _context.SaveChangesAsync(ct);
                 if (!request.RequestedClearingHouseId.HasValue || request.RequestedClearingHouseId.Value <= 0)
                 {
                     throw new ManagedDigitalEnvelopeException(
@@ -367,6 +379,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             var records = ChunkFixed106(processingFileBytes);
 
             ingestion.IngestionStatus = IncomingNachaIngestionStatus.EnValidacion;
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.HeaderParsing);
             ingestion.Notes = "Validación de resolución de cámara/ciclo en proceso.";
             await _context.SaveChangesAsync(ct);
 
@@ -394,12 +407,13 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
             ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
             ingestion.Notes = "CLEARING_HOUSE_SELECTION_MISMATCH";
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
             _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
             {
                 IncomingNachaFileIngestionId = ingestion.Id,
                 AttemptNumber = 1,
-                StartedAtUtc = DateTime.UtcNow,
-                FinishedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
                 OutcomeStatus = IncomingNachaProcessingOutcomeStatus.BloqueadoAmbiguo,
                 FailureStage = "ValidacionCamaraSeleccionada",
                 ErrorCount = 1,
@@ -417,13 +431,14 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 : IncomingNachaIngestionStatus.PendienteResolucion;
 
             ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
 
             _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
             {
                 IncomingNachaFileIngestionId = ingestion.Id,
                 AttemptNumber = 1,
-                StartedAtUtc = DateTime.UtcNow,
-                FinishedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
                 OutcomeStatus = resolution.IsAmbiguous ? IncomingNachaProcessingOutcomeStatus.BloqueadoAmbiguo : IncomingNachaProcessingOutcomeStatus.Fallido,
                 FailureStage = "ResolucionCamaraCiclo",
                 WarningCount = resolution.Warnings.Count,
@@ -437,6 +452,42 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             return BuildResponse(ingestion, null, resolution.Errors);
         }
 
+        IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.ValidatingCycle);
+        var admission = await _admissionValidator.ValidateAsync(
+            new IncomingNachaAdmissionRequest(processingFileName, records, resolution, request.ForceReprocess),
+            ct);
+        ingestion.FileNameDate = admission.FileNameDate?.ToDateTime(TimeOnly.MinValue);
+        ingestion.HeaderDate = admission.Header?.FileCreationDate.ToDateTime(TimeOnly.MinValue);
+        ingestion.EffectiveDate = admission.EffectiveDate?.ToDateTime(TimeOnly.MinValue);
+        ingestion.DetectedCycleNumber = admission.CycleNumber;
+
+        if (!admission.IsAccepted)
+        {
+            var issue = admission.Issue!;
+            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
+            ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
+            ingestion.RejectionCode = issue.Code;
+            ingestion.RejectionTitle = issue.Title;
+            ingestion.RejectionDescription = issue.Message;
+            ingestion.SuggestedAction = issue.SuggestedAction;
+            ingestion.Notes = issue.Code;
+            _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                AttemptNumber = 1,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
+                OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Fallido,
+                FailureStage = ingestion.Stage.ToString(),
+                ErrorCount = 1,
+                ParserErrorsJson = JsonSerializer.Serialize(new[] { issue }),
+                IsReprocessable = true
+            });
+            await _context.SaveChangesAsync(ct);
+            return BuildResponse(ingestion, null, [issue.Message]);
+        }
+
         if (IsDifferentialCandidate(records))
         {
             var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct);
@@ -445,7 +496,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 ClearingHouseCode = ToConfigClearingHouseCode(clearingHouseCode),
                 FlowTypeCode = "RETORNO",
                 DirectionCode = "ENTRADA",
-                ProcessDateUtc = ingestion.OperationalDate ?? DateTime.UtcNow.Date,
+                ProcessDateUtc = ingestion.OperationalDate ?? UtcNow.Date,
                 RecordCodes = records
                     .Where(record => record.Length == 106 && !record.All(character => character == '9'))
                     .Select(record => record[0].ToString())
@@ -488,13 +539,14 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
                 ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
                 ingestion.Notes = $"PROFILE_SELECTION_BLOCKED;Status={diagnostic}";
+                IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
 
                 _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
                 {
                     IncomingNachaFileIngestionId = ingestion.Id,
                     AttemptNumber = 1,
-                    StartedAtUtc = DateTime.UtcNow,
-                    FinishedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
                     OutcomeStatus = profileResolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous
                         ? IncomingNachaProcessingOutcomeStatus.BloqueadoAmbiguo
                         : IncomingNachaProcessingOutcomeStatus.Fallido,
@@ -515,12 +567,13 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
             ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
             ingestion.Notes = "DIFFERENTIAL_TABLE_DRIVEN_PARSER_NOT_ENABLED";
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
             _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
             {
                 IncomingNachaFileIngestionId = ingestion.Id,
                 AttemptNumber = 1,
-                StartedAtUtc = DateTime.UtcNow,
-                FinishedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
                 OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Fallido,
                 FailureStage = "ParserDiferencialTableDriven",
                 ErrorCount = 1,
@@ -533,6 +586,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
 
         ingestion.IngestionStatus = IncomingNachaIngestionStatus.ListoParaParseo;
         ingestion.ParsingStatus = IncomingNachaParsingStatus.EnProceso;
+        IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Parsing);
         await _context.SaveChangesAsync(ct);
 
         int? cycleNumber = null;
@@ -549,7 +603,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         {
             ClearingHouseId = ingestion.ResolvedClearingHouseId ?? 0,
             ClearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct),
-            ProcessingDate = ingestion.OperationalDate ?? DateTime.UtcNow.Date,
+            ProcessingDate = ingestion.OperationalDate ?? UtcNow.Date,
             ExternalFileType = ExternalFileType.NachaIn,
             Flow = ExternalFileFlow.Recepcion,
             Direction = ExternalFileDirection.Inbound,
@@ -568,12 +622,13 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         {
             ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
             ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
             _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
             {
                 IncomingNachaFileIngestionId = ingestion.Id,
                 AttemptNumber = 1,
-                StartedAtUtc = DateTime.UtcNow,
-                FinishedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
                 OutcomeStatus = IncomingNachaProcessingOutcomeStatus.BloqueadoAmbiguo,
                 FailureStage = "ExternalFileNamePolicy",
                 ErrorCount = policyResult.Validation.Issues.Count,
@@ -588,15 +643,19 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         {
             IncomingNachaFileIngestionId = ingestion.Id,
             AttemptNumber = 1,
-            StartedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
             OutcomeStatus = IncomingNachaProcessingOutcomeStatus.EnProceso,
             FailureStage = string.Empty
         };
         _context.IncomingNachaFileProcessingResults.Add(processingResult);
         await _context.SaveChangesAsync(ct);
 
+        await using var persistenceTransaction = _context.Database.IsRelational()
+            ? await _context.Database.BeginTransactionAsync(ct)
+            : null;
         try
         {
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.ValidatingContent);
             var parseResult = await _parserService.ParseAndSaveDetailedAsync(
                 new MemoryStream(processingFileBytes),
                 processingFileName,
@@ -623,7 +682,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 ? IncomingNachaProcessingOutcomeStatus.ExitosoConAdvertencias
                 : IncomingNachaProcessingOutcomeStatus.Exitoso;
             processingResult.IsReprocessable = parseResult.ErrorCount > 0;
-            processingResult.FinishedAtUtc = DateTime.UtcNow;
+            processingResult.FinishedAtUtc = UtcNow;
 
             ingestion.IngestionStatus = IncomingNachaIngestionStatus.Completado;
             ingestion.ParsingStatus = parseResult.ErrorCount > 0
@@ -631,15 +690,32 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 : IncomingNachaParsingStatus.Exitoso;
 
             var executedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "sistema" : request.RequestedBy.Trim();
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Persisting);
             await _postParseProcessor.ProcessAsync(ingestion.Id, executedBy, ct);
 
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Persisted);
             await _context.SaveChangesAsync(ct);
+            if (persistenceTransaction is not null)
+            {
+                await persistenceTransaction.CommitAsync(ct);
+            }
             return BuildResponse(ingestion, processingResult, parseResult.Failures.Select(x => x.Reason).ToList());
         }
         catch (Exception ex)
         {
+            if (persistenceTransaction is not null)
+            {
+                await persistenceTransaction.RollbackAsync(CancellationToken.None);
+                _context.ChangeTracker.Clear();
+                ingestion = await _context.IncomingNachaFileIngestions
+                    .SingleAsync(x => x.Id == ingestion.Id, CancellationToken.None);
+                processingResult = await _context.IncomingNachaFileProcessingResults
+                    .SingleAsync(x => x.Id == processingResult.Id, CancellationToken.None);
+            }
+
             _logger.LogError(ex, "Fallo de parseo NACHA-M en la ingesta {IngestionId}", ingestion.Id);
             ingestion.IngestionStatus = IncomingNachaIngestionStatus.Fallido;
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Failed);
             ingestion.ParsingStatus = IncomingNachaParsingStatus.FallidoReprocesable;
 
             processingResult.OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Fallido;
@@ -647,7 +723,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             processingResult.ErrorCount = 1;
             processingResult.ParserErrorsJson = JsonSerializer.Serialize(new[] { ex.Message });
             processingResult.IsReprocessable = true;
-            processingResult.FinishedAtUtc = DateTime.UtcNow;
+            processingResult.FinishedAtUtc = UtcNow;
 
             // El estado terminal de auditoría debe persistirse aun si el cliente canceló la solicitud.
             await _context.SaveChangesAsync(CancellationToken.None);
@@ -659,12 +735,13 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
             ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
             ingestion.Notes = $"DIGITAL_ENVELOPE_DECRYPTION_FAILED;Code={ex.ErrorCode}";
+            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
             _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
             {
                 IncomingNachaFileIngestionId = ingestion.Id,
                 AttemptNumber = 1,
-                StartedAtUtc = DateTime.UtcNow,
-                FinishedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = UtcNow,
+                FinishedAtUtc = UtcNow,
                 OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Fallido,
                 FailureStage = "DigitalEnvelopeDecryption",
                 ErrorCount = 1,
@@ -748,7 +825,16 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             TotalAddendas = processing?.TotalAddendas ?? 0,
             WarningCount = processing?.WarningCount ?? 0,
             ErrorCount = processing?.ErrorCount ?? errors.Count,
-            Errors = errors
+            Errors = errors,
+            OperationalIssue = string.IsNullOrWhiteSpace(ingestion.RejectionCode)
+                ? null
+                : new IncomingNachaAdmissionIssue(
+                    ingestion.RejectionCode,
+                    ingestion.RejectionTitle ?? "No fue posible admitir el archivo",
+                    ingestion.RejectionDescription ?? errors.FirstOrDefault() ?? "El archivo no superó las validaciones operativas.",
+                    ingestion.SuggestedAction ?? "Verifique el archivo y vuelva a intentarlo.",
+                    string.IsNullOrWhiteSpace(ingestion.TechnicalErrorCode) ? "Functional" : "Technical",
+                    "Error")
         };
     }
 
@@ -806,5 +892,17 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             .Where(x => x.Id == clearingHouseId.Value)
             .Select(x => x.Code)
             .FirstOrDefaultAsync(ct) ?? string.Empty;
+    }
+
+    private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
+
+    private sealed class LegacyCompatibleAdmissionValidator : IIncomingNachaAdmissionValidator
+    {
+        public Task<IncomingNachaAdmissionResult> ValidateAsync(IncomingNachaAdmissionRequest request, CancellationToken ct = default)
+        {
+            var date = DateOnly.FromDateTime(request.Resolution.OperationalDate!.Value);
+            var header = new NachaHeaderPreview(string.Empty, string.Empty, date, null, null, null, request.FileName);
+            return Task.FromResult(IncomingNachaAdmissionResult.Accepted(header, null, null, null));
+        }
     }
 }

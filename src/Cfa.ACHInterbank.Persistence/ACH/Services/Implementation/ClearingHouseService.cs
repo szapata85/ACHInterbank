@@ -20,12 +20,17 @@ public class ClearingHouseService : IClearingHouseService
     private const string DefaultHolidayStrategy = "Colombian";
     private static readonly Regex CodePattern = new("^[A-Z0-9][A-Z0-9_-]{1,19}$", RegexOptions.CultureInvariant);
     private readonly AchDbContext _context;
+    private readonly TimeProvider _timeProvider;
     private readonly IReadOnlyList<ClearingHousePaymentRailOptionDto> _paymentRailOptions;
     private readonly HashSet<string> _selectablePaymentRailCodes;
 
-    public ClearingHouseService(AchDbContext context, IEnumerable<IPaymentRailOperationalStrategy> strategies)
+    public ClearingHouseService(
+        AchDbContext context,
+        IEnumerable<IPaymentRailOperationalStrategy> strategies,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _paymentRailOptions = strategies
             .Where(x => x.IsAdministrativelySelectable
                         && !string.Equals(x.RailCode, PaymentRailCodes.Unknown, StringComparison.OrdinalIgnoreCase))
@@ -209,7 +214,7 @@ public class ClearingHouseService : IClearingHouseService
             config.PaymentRailCode = normalized.PaymentRailCode;
             config.RequiresNachaProfile = normalized.RequiresNachaProfile;
             config.NachaProfileId = normalized.NachaProfileId;
-            entity.UpdatedAt = DateTimeOffset.UtcNow;
+            entity.UpdatedAt = _timeProvider.GetUtcNow();
             await _context.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return (await GetByIdAsync(entity.Id, ct))!;
@@ -243,7 +248,7 @@ public class ClearingHouseService : IClearingHouseService
         }
 
         entity.IsActive = isActive;
-        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.UpdatedAt = _timeProvider.GetUtcNow();
         await _context.SaveChangesAsync(ct);
         return (await GetByIdAsync(id, ct))!;
     }
@@ -265,7 +270,7 @@ public class ClearingHouseService : IClearingHouseService
         string? clearingHouseCode,
         CancellationToken ct = default)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var normalizedCode = NormalizeCode(clearingHouseCode);
         var clearingHouseName = string.IsNullOrWhiteSpace(normalizedCode)
             ? null
@@ -308,7 +313,7 @@ public class ClearingHouseService : IClearingHouseService
             .ToListAsync(ct);
 
         var ids = houses.Select(x => x.Id).ToArray();
-        var today = DateTime.UtcNow.Date;
+        var today = _timeProvider.GetUtcNow().UtcDateTime.Date;
         var activeCycles = await _context.ClearingHouseCycleConfigs.AsNoTracking()
             .Where(x => ids.Contains(x.ClearingHouseId)
                         && x.IsActive

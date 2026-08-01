@@ -36,6 +36,7 @@ public sealed class IncomingNachaIngestionResponse
     public int WarningCount { get; init; }
     public int ErrorCount { get; init; }
     public IReadOnlyList<string> Errors { get; init; } = [];
+    public IncomingNachaAdmissionIssue? OperationalIssue { get; init; }
 }
 
 public sealed class IncomingNachaCycleResolutionRequest

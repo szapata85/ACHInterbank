@@ -33,6 +33,34 @@ public class NachaHeaderConfiguration : IEntityTypeConfiguration<NachaHeader>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(n => n.IncomingNachaFileIngestionId);
+        builder.HasIndex(n => new { n.ClearingHouseId, n.FileCreationDate, n.CycleNumber });
+
+        builder.HasMany(x => x.Batches)
+            .WithOne(x => x.NachaHeader)
+            .HasForeignKey(x => x.NachaID)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.EntryDetails)
+            .WithOne(x => x.NachaHeader)
+            .HasForeignKey(x => x.NachaID)
+            // EntryDetail also references BatchHeader. Restrict the direct legacy
+            // link so SQL Server does not create two cascade paths from a header.
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(x => x.AddendaRecords)
+            .WithOne(x => x.NachaHeader)
+            .HasForeignKey(x => x.NachaID)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.BatchControls)
+            .WithOne(x => x.NachaHeader)
+            .HasForeignKey(x => x.NachaID)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.FileControls)
+            .WithOne(x => x.NachaHeader)
+            .HasForeignKey(x => x.NachaID)
+            .OnDelete(DeleteBehavior.Cascade);
 
         //builder.HasMany(x => x.Batches)
         //       .WithOne(x => x.NachaHeader)

@@ -19,6 +19,12 @@ public class AchCycle : AuditableEntity
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
 
+    // La admisión entrante usa este estado persistido; no deduce que un ciclo
+    // está cerrado comparando únicamente su número con el ciclo más reciente.
+    public AchCycleOperationalStatus OperationalStatus { get; set; } = AchCycleOperationalStatus.Open;
+    public int ReceptionToleranceMinutes { get; set; }
+    public bool AllowsExplicitReprocessing { get; set; }
+
     // Indica si debe correrse al siguiente día hábil si cae en festivo
     public bool RescheduleOnHoliday { get; set; }
 
@@ -39,4 +45,12 @@ public class AchCycle : AuditableEntity
     // Transacciones que entraron en este ciclo
     public ICollection<AchTransaction> Transactions { get; set; } = new List<AchTransaction>();
 
+}
+
+public enum AchCycleOperationalStatus
+{
+    Scheduled = 1,
+    Open = 2,
+    Closed = 3,
+    Cancelled = 4
 }

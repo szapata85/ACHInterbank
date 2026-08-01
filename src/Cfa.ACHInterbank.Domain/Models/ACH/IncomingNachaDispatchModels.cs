@@ -55,6 +55,11 @@ public class IncomingNachaIntegrationExecution : AuditableEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid DispatchQueueId { get; set; }
+    // Proc_Transacciones is entry-scoped; other audited SOAP operations such as
+    // Proc_Contrapartidas are not. Keep the link nullable for those operations.
+    public int? EntryDetailId { get; set; }
+    public int AttemptNumber { get; set; }
+    public int ClearingHouseId { get; set; }
     public string MethodName { get; set; } = "Proc_Transacciones";
     public string SoapMethodName { get; set; } = "Proc_Transacciones";
     public string SoapEndpoint { get; set; } = string.Empty;
@@ -71,6 +76,16 @@ public class IncomingNachaIntegrationExecution : AuditableEntity
     public string SoapTechnicalStatus { get; set; } = string.Empty;
     public long? ResponseCatalogId { get; set; }
     public IntegrationResponseCode? ResponseCatalog { get; set; }
+    public int? AchReturnCodeId { get; set; }
+    public AchReturnCode? AchReturnCode { get; set; }
+    public IncomingNachaIndividualProcessingStatus ProcessingStatus { get; set; } = IncomingNachaIndividualProcessingStatus.Processing;
+    public IncomingNachaBusinessOutcome BusinessOutcome { get; set; } = IncomingNachaBusinessOutcome.PendingResponse;
+    public string ResultCode { get; set; } = string.Empty;
+    public string ResultDescription { get; set; } = string.Empty;
+    public string ResultSource { get; set; } = "SOAP";
+    public string ExternalTransactionId { get; set; } = string.Empty;
+    public string TechnicalErrorCode { get; set; } = string.Empty;
+    public string TechnicalErrorMessage { get; set; } = string.Empty;
     public IntegrationTransportStatus TransportStatus { get; set; } = IntegrationTransportStatus.NotExecuted;
     public IntegrationResponseBusinessStatus BusinessStatus { get; set; } = IntegrationResponseBusinessStatus.Unknown;
     public bool RetryAllowed { get; set; }
@@ -96,4 +111,24 @@ public class IncomingNachaIntegrationExecution : AuditableEntity
     public string CorrelationId { get; set; } = string.Empty;
 
     public IncomingNachaDispatchQueue DispatchQueue { get; set; } = null!;
+    public EntryDetail EntryDetail { get; set; } = null!;
+}
+
+public enum IncomingNachaIndividualProcessingStatus
+{
+    Pending = 1,
+    Scheduled = 2,
+    Processing = 3,
+    Completed = 4,
+    RetryPending = 5,
+    TechnicalFailed = 6
+}
+
+public enum IncomingNachaBusinessOutcome
+{
+    PendingResponse = 1,
+    Successful = 2,
+    Rejected = 3,
+    Returned = 4,
+    NotProcessed = 5
 }

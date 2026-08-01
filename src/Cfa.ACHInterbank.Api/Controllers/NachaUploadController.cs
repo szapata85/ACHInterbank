@@ -166,7 +166,8 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     SelectedProfileVersion = result.SelectedProfileVersion,
                     TotalBatches = result.TotalBatches,
                     TotalEntries = result.TotalEntries,
-                    TotalAddendas = result.TotalAddendas
+                    TotalAddendas = result.TotalAddendas,
+                    Error = result.OperationalIssue
                 };
 
                 if (result.IngestionStatus is Domain.Models.ACH.IncomingNachaIngestionStatus.Bloqueado
@@ -334,6 +335,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         public int TotalBatches { get; set; }
         public int TotalEntries { get; set; }
         public int TotalAddendas { get; set; }
+        public IncomingNachaAdmissionIssue? Error { get; set; }
     }
 
     public class NachaUploadRecordResponse

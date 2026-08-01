@@ -18,6 +18,15 @@ public class EntryDetailConfiguration : IEntityTypeConfiguration<EntryDetail>
 
         builder.Property(p => p.Amount).HasPrecision(18, 2);
 
+        builder.HasIndex(x => x.BatchHeaderId);
+        builder.HasIndex(x => new { x.NachaID, x.SequenceNumber }).IsUnique();
+        builder.HasIndex(x => x.SequenceNumber);
+
+        builder.HasMany(x => x.AddendaRecords)
+            .WithOne(x => x.EntryDetail)
+            .HasForeignKey(x => x.EntryDetailId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         //builder.HasOne(x => x.BatchHeader)
         //       .WithMany(x => x.Entries)
         //       .HasForeignKey(x => x.BatchHeaderId);

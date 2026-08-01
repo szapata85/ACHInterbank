@@ -27,6 +27,14 @@ public class IncomingNachaIntegrationExecutionConfiguration : IEntityTypeConfigu
         builder.Property(x => x.ResponseCode).HasMaxLength(80);
         builder.Property(x => x.ResponseMessage).HasMaxLength(4000);
         builder.Property(x => x.CorrelationId).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.ProcessingStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
+        builder.Property(x => x.BusinessOutcome).HasConversion<string>().HasMaxLength(30).IsRequired();
+        builder.Property(x => x.ResultCode).HasMaxLength(20);
+        builder.Property(x => x.ResultDescription).HasMaxLength(500);
+        builder.Property(x => x.ResultSource).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.ExternalTransactionId).HasMaxLength(120);
+        builder.Property(x => x.TechnicalErrorCode).HasMaxLength(100);
+        builder.Property(x => x.TechnicalErrorMessage).HasMaxLength(2000);
 
         builder.HasIndex(x => new { x.DispatchQueueId, x.StartedAtUtc });
         builder.HasIndex(x => x.CorrelationId);
@@ -37,6 +45,9 @@ public class IncomingNachaIntegrationExecutionConfiguration : IEntityTypeConfigu
         builder.HasIndex(x => x.SoapTechnicalStatus);
         builder.HasIndex(x => x.ResponseCatalogId);
         builder.HasIndex(x => new { x.BusinessStatus, x.ProcessedAtUtc });
+        builder.HasIndex(x => new { x.EntryDetailId, x.AttemptNumber }).IsUnique();
+        builder.HasIndex(x => new { x.ClearingHouseId, x.ResultCode });
+        builder.HasIndex(x => x.AchReturnCodeId);
 
         builder.HasOne(x => x.ResponseCatalog)
             .WithMany()
@@ -47,5 +58,15 @@ public class IncomingNachaIntegrationExecutionConfiguration : IEntityTypeConfigu
             .WithMany(x => x.Executions)
             .HasForeignKey(x => x.DispatchQueueId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.EntryDetail)
+            .WithMany(x => x.ProcessingAttempts)
+            .HasForeignKey(x => x.EntryDetailId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.AchReturnCode)
+            .WithMany()
+            .HasForeignKey(x => x.AchReturnCodeId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

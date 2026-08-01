@@ -22,5 +22,7 @@ public class AddendaRecordConfiguration : IEntityTypeConfiguration<AddendaRecord
         builder.Property(x => x.NewTraceNumber).HasMaxLength(15);
         builder.Property(x => x.AddendumSequence).HasMaxLength(4);
         builder.Property(x => x.EntryDetailSequenceNumber).HasMaxLength(7);
+        builder.HasIndex(x => x.EntryDetailId);
+        builder.HasIndex(x => new { x.NachaID, x.EntryDetailSequenceNumber, x.AddendumSequence }).IsUnique();
     }
 }

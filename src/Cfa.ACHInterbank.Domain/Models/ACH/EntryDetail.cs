@@ -1,9 +1,11 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.User;
 using System.ComponentModel.DataAnnotations.Schema;
 
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
-public class EntryDetail
+public class EntryDetail : AuditableEntity
 {
     public int EntryDetailID { get; set; }
     public string? TransactionCode { get; set; }
@@ -18,7 +20,12 @@ public class EntryDetail
     public string? SequenceNumber { get; set; }
     public int BatchNumber { get; set; }
     public string? NachaID { get; set; }
+    public int? BatchHeaderId { get; set; }
 
     [ForeignKey("NachaID")]
     public virtual NachaHeader? NachaHeader { get; set; }
+    public virtual BatchHeader? BatchHeader { get; set; }
+    public virtual ICollection<AddendaRecord> AddendaRecords { get; set; } = new List<AddendaRecord>();
+    public virtual ICollection<IncomingNachaEntryClassification> Classifications { get; set; } = new List<IncomingNachaEntryClassification>();
+    public virtual ICollection<IncomingNachaIntegrationExecution> ProcessingAttempts { get; set; } = new List<IncomingNachaIntegrationExecution>();
 }

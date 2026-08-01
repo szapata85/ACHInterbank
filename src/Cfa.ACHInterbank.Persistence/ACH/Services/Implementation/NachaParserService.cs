@@ -16,6 +16,12 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 using System.Text;
+using NachaHeader = Cfa.ACHInterbank.Application.ACH.Models.ParsedNachaHeader;
+using BatchHeader = Cfa.ACHInterbank.Application.ACH.Models.ParsedBatchHeader;
+using EntryDetail = Cfa.ACHInterbank.Application.ACH.Models.ParsedEntryDetail;
+using AddendaRecord = Cfa.ACHInterbank.Application.ACH.Models.ParsedAddendaRecord;
+using BatchControl = Cfa.ACHInterbank.Application.ACH.Models.ParsedBatchControl;
+using FileControl = Cfa.ACHInterbank.Application.ACH.Models.ParsedFileControl;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -189,6 +195,7 @@ public class NachaParserService : INachaParserService
                         }
 
                         entry.NachaID = currentHeader?.NachaID;
+                        entry.NachaHeader = currentHeader;
                         entry.BatchNumber = currentBatch?.BatchNumber
                             ?? throw new InvalidOperationException("Registro tipo 6 recibido sin BatchHeader tipo 5 asociado.");
                         UpdateBatchMetricsForEntry(currentBatchMetrics, entry);
@@ -283,7 +290,8 @@ public class NachaParserService : INachaParserService
                 currentHeader.FileControls = fileControls;
             }
 
-            _context.NachaHeaders.AddRange(headers);
+            var persistenceGraph = ParsedNachaEntityMapper.Map(headers);
+            _context.NachaHeaders.AddRange(persistenceGraph);
 
             await _context.SaveChangesAsync(ct);
             var validAddendas = currentHeader?.AddendaRecords?.ToList() ?? [];

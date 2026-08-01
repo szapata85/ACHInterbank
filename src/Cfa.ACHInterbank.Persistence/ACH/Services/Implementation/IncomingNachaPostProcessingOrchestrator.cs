@@ -49,6 +49,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly IIncomingNachaLocalLivePreparationService? _localLivePreparationService;
     private readonly IIntegrationResponseCatalogResolver? _responseCatalogResolver;
     private readonly TimeProvider _timeProvider;
+    private readonly IIncomingNachaAchResultResolver? _achResultResolver;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -64,7 +65,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
         IIncomingNachaLocalLivePreparationService? localLivePreparationService = null,
         IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IIncomingNachaAchResultResolver? achResultResolver = null)
     {
         _context = context;
         _mapper = mapper;
@@ -80,6 +82,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _localLivePreparationService = localLivePreparationService;
         _responseCatalogResolver = responseCatalogResolver;
         _timeProvider = timeProvider ?? OperationalTimeProvider.SystemBogota;
+        _achResultResolver = achResultResolver;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -193,6 +196,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             var execution = new IncomingNachaIntegrationExecution
             {
                 DispatchQueueId = queue.Id,
+                EntryDetailId = classifications.TryGetValue(queue.IncomingNachaEntryClassificationId, out var executionClassification)
+                    ? executionClassification.EntryDetailId
+                    : 0,
+                AttemptNumber = queue.AttemptCount,
+                ClearingHouseId = queue.ClearingHouseId,
                 MethodName = SoapMethodName,
                 SoapMethodName = SoapMethodName,
                 ExecutionMode = NormalizeAuditValue(procTransaccionesRuntime.OperatingMode, 20),
@@ -260,6 +268,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     catalogResult,
                     retryAllowed,
                     procTransaccionesRuntime.OperatingMode);
+                await ApplyAchResultAsync(execution, queue, parsed.ResponseCode, finishedAtUtc, transportStatus, ct);
 
                 queue.LastResponseCode = parsed.ResponseCode;
                 queue.LastErrorCode = businessSuccess ? string.Empty : parsed.ResponseCode;
@@ -347,6 +356,22 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.IsSuccessful = false;
                 execution.IsFunctionalRejection = false;
                 execution.IsTechnicalFailure = true;
+                execution.ProcessingStatus = queue.AttemptCount < _resilienceOptions.MaxAttempts
+                    ? IncomingNachaIndividualProcessingStatus.RetryPending
+                    : IncomingNachaIndividualProcessingStatus.TechnicalFailed;
+                execution.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
+                execution.ResultCode = string.Empty;
+                execution.ResultDescription = string.Empty;
+                execution.TechnicalErrorCode = queue.LastErrorCode;
+                execution.TechnicalErrorMessage = ex.Message;
+                execution.ProcessingStatus = queue.AttemptCount < _resilienceOptions.MaxAttempts
+                    ? IncomingNachaIndividualProcessingStatus.RetryPending
+                    : IncomingNachaIndividualProcessingStatus.TechnicalFailed;
+                execution.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
+                execution.ResultCode = string.Empty;
+                execution.ResultDescription = string.Empty;
+                execution.TechnicalErrorCode = queue.LastErrorCode;
+                execution.TechnicalErrorMessage = ex.Message;
                 execution.TransportStatus = IntegrationTransportStatus.Failed;
                 execution.BusinessStatus = IntegrationResponseBusinessStatus.Unknown;
                 execution.RetryAllowed = false;
@@ -749,6 +774,50 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         execution.IsRetryable = retryAllowed;
         execution.FinishedAtUtc = finishedAtUtc;
         execution.DurationMs = CalculateDurationMs(execution.StartedAtUtc, finishedAtUtc);
+    }
+
+    private async Task ApplyAchResultAsync(
+        IncomingNachaIntegrationExecution execution,
+        IncomingNachaDispatchQueue queue,
+        string responseCode,
+        DateTime processedAtUtc,
+        IntegrationTransportStatus transportStatus,
+        CancellationToken ct)
+    {
+        if (transportStatus != IntegrationTransportStatus.Succeeded)
+        {
+            execution.ProcessingStatus = IncomingNachaIndividualProcessingStatus.TechnicalFailed;
+            execution.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
+            execution.ResultCode = string.Empty;
+            execution.ResultDescription = string.Empty;
+            return;
+        }
+
+        var resolution = _achResultResolver is null
+            ? null
+            : await _achResultResolver.ResolveAsync(new IncomingNachaAchResultRequest(
+                queue.ClearingHouseId,
+                responseCode,
+                AchReturnFlowType.Any,
+                IsDebit: false,
+                IsCredit: true,
+                IsPrenotification: false,
+                IsReturn: false,
+                processedAtUtc), ct);
+
+        execution.ProcessingStatus = IncomingNachaIndividualProcessingStatus.Completed;
+        execution.AchReturnCodeId = resolution?.AchReturnCodeId;
+        execution.ResultCode = NormalizeAuditValue(responseCode, 20);
+        execution.ResultDescription = NormalizeAuditValue(
+            resolution is { IsResolved: true }
+                ? resolution.ResultDescription
+                : execution.SoapResponseDescription,
+            500);
+        execution.BusinessOutcome = resolution is { IsResolved: true }
+            ? resolution.BusinessOutcome
+            : execution.IsSuccessful
+                ? IncomingNachaBusinessOutcome.Successful
+                : IncomingNachaBusinessOutcome.Rejected;
     }
 
     private string ResolveSoapTechnicalStatus(

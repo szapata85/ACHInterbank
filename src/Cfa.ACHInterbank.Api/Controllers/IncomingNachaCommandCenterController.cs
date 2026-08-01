@@ -60,6 +60,30 @@ public class IncomingNachaCommandCenterController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [EndpointSummary("Lotes del archivo NACHA-M entrante")]
+    [EndpointDescription("Consulta paginada y ordenada de lotes, conteos y totales monetarios del archivo. Los valores se entregan como números decimales.")]
+    [HttpGet("ingestions/{ingestionId:guid}/batches")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
+    [ProducesResponseType(typeof(IncomingNachaPageResult<IncomingNachaBatchDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetBatches(Guid ingestionId, [FromQuery] IncomingNachaBatchQuery query, CancellationToken ct)
+        => Ok(await _service.GetBatchesAsync(ingestionId, query, ct));
+
+    [EndpointSummary("Transacciones del archivo NACHA-M entrante")]
+    [EndpointDescription("Consulta progresiva server-side de transacciones con clasificación, envío, intentos, resultado funcional y causal ACH humanizada.")]
+    [HttpGet("ingestions/{ingestionId:guid}/transactions")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
+    [ProducesResponseType(typeof(IncomingNachaPageResult<IncomingNachaTransactionDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTransactions(Guid ingestionId, [FromQuery] IncomingNachaTransactionQuery query, CancellationToken ct)
+        => Ok(await _service.GetTransactionsAsync(ingestionId, query, ct));
+
+    [EndpointSummary("Adendas de una transacción NACHA-M entrante")]
+    [EndpointDescription("Consulta las adendas de una transacción sin cargar el árbol completo del archivo.")]
+    [HttpGet("ingestions/{ingestionId:guid}/transactions/{entryDetailId:int}/addendas")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
+    [ProducesResponseType(typeof(IReadOnlyList<IncomingNachaAddendaDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAddendas(Guid ingestionId, int entryDetailId, CancellationToken ct)
+        => Ok(await _service.GetAddendasAsync(ingestionId, entryDetailId, ct));
+
     [EndpointSummary("Vista operativa de dispatch queue inbound NACHA-M")]
     [EndpointDescription("Qué consulta: lista elementos de cola con estado de despacho, prioridad, intentos y errores para control operativo. Quién lo usa: operación ACH, soporte de turnos y tecnología durante incidentes de procesamiento. Permiso requerido: CanReadAch. Tipo: consulta (solo lectura). Impacto operacional: permite decidir si corresponde retry, unblock, requeue o mark-failed-final, sin ejecutar acciones por sí misma. Auditoría/trazabilidad: deja evidencia de consulta previa a intervención manual. Riesgos: interpretar mal la máquina de estados puede gatillar acciones incorrectas en pasos posteriores. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación NACHA-M inbound: refleja el estado del tránsito de mensajes entrantes hacia ejecución operativa ACH/CENIT. Advertencia: no modifica archivos originales ni reglas regulatorias, solo expone lectura de estado.")]
     [HttpGet("queue")]

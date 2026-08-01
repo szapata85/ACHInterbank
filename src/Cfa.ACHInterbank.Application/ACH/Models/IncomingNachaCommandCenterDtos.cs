@@ -99,14 +99,85 @@ public sealed record IncomingNachaEntryClassificationDto(
 public sealed record IncomingNachaIntegrationExecutionDto(
     Guid Id,
     Guid DispatchQueueId,
+    int? EntryDetailId,
+    int AttemptNumber,
     string MethodName,
     string CorrelationId,
-    string ResponseCode,
-    string ResponseMessage,
+    IncomingNachaIndividualProcessingStatus ProcessingStatus,
+    string ProcessingStatusText,
+    IncomingNachaBusinessOutcome BusinessOutcome,
+    string BusinessOutcomeText,
+    int? AchReturnCodeId,
+    string ResultCode,
+    string ResultDescription,
     bool IsSuccess,
     bool IsRetryable,
     DateTime StartedAtUtc,
     DateTime? FinishedAtUtc);
+
+public sealed class IncomingNachaBatchQuery
+{
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+    public string? Search { get; set; }
+    public string SortBy { get; set; } = "batchNumber";
+    public bool SortDescending { get; set; }
+}
+
+public sealed record IncomingNachaBatchDto(
+    int Id,
+    int BatchNumber,
+    string CompanyName,
+    string ServiceClassCode,
+    string StandardEntryClassCode,
+    string? EffectiveEntryDate,
+    int TotalTransactions,
+    decimal TotalAmount,
+    decimal TotalDebit,
+    decimal TotalCredit);
+
+public sealed class IncomingNachaTransactionQuery
+{
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+    public int? BatchId { get; set; }
+    public string? Search { get; set; }
+    public string? ResultCode { get; set; }
+    public IncomingNachaBusinessOutcome? BusinessOutcome { get; set; }
+    public IncomingNachaIndividualProcessingStatus? ProcessingStatus { get; set; }
+    public string SortBy { get; set; } = "traceNumber";
+    public bool SortDescending { get; set; }
+}
+
+public sealed record IncomingNachaTransactionDto(
+    int Id,
+    int BatchId,
+    int BatchNumber,
+    string TraceNumber,
+    string TransactionCode,
+    decimal Amount,
+    int AddendaCount,
+    string ClassificationCode,
+    string ClassificationText,
+    string DispatchStatusCode,
+    string DispatchStatusText,
+    int AttemptCount,
+    IncomingNachaIndividualProcessingStatus? ProcessingStatus,
+    string ProcessingStatusText,
+    IncomingNachaBusinessOutcome? BusinessOutcome,
+    string BusinessOutcomeText,
+    string ResultCode,
+    string ResultDescription,
+    DateTime? ProcessedAtUtc,
+    string CorrelationId);
+
+public sealed record IncomingNachaAddendaDto(
+    int Id,
+    string TypeCode,
+    string Sequence,
+    string ReturnReasonCode,
+    string OriginalTraceNumber,
+    string PaymentInformation);
 
 public sealed record IncomingNachaProcessingEventDto(
     Guid Id,

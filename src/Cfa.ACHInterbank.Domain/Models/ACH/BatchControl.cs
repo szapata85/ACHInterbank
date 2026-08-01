@@ -1,8 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
-public class BatchControl
+public class BatchControl : AuditableEntity
 {
     public int BatchControlID { get; set; }
     public string? BatchTranClassCode { get; set; }
@@ -16,7 +18,9 @@ public class BatchControl
     public string? IdOrigEntity { get; set; }
     public string? BatchNumber { get; set; }
     public string? NachaID { get; set; }
+    public int? BatchHeaderId { get; set; }
 
     [ForeignKey("NachaID")]
     public virtual NachaHeader? NachaHeader { get; set; }
+    public virtual BatchHeader? BatchHeader { get; set; }
 }

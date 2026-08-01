@@ -1,8 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
-public class FileControl
+public class FileControl : AuditableEntity
 {
     public int FileControlID { get; set; }
     public int BatchCount { get; set; }

@@ -9,6 +9,7 @@ public class IncomingNachaFileIngestion : AuditableEntity
     public string FileHashSha256 { get; set; } = string.Empty;
     public long FileSize { get; set; }
     public string ContentType { get; set; } = string.Empty;
+    public string FileExtension { get; set; } = string.Empty;
     public DateTime UploadedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? ReceivedAtUtc { get; set; }
     public string UploadedBy { get; set; } = string.Empty;
@@ -19,6 +20,19 @@ public class IncomingNachaFileIngestion : AuditableEntity
     public int? DetectedClearingHouseId { get; set; }
     public int? ResolvedClearingHouseId { get; set; }
     public DateTime? OperationalDate { get; set; }
+    public DateTime? FileNameDate { get; set; }
+    public DateTime? HeaderDate { get; set; }
+    public DateTime? EffectiveDate { get; set; }
+    public int? DetectedCycleNumber { get; set; }
+    public string? ProfileCode { get; set; }
+    public string? ProfileVersion { get; set; }
+    public IncomingNachaIngestionStage Stage { get; set; } = IncomingNachaIngestionStage.Received;
+    public string? RejectionCode { get; set; }
+    public string? RejectionTitle { get; set; }
+    public string? RejectionDescription { get; set; }
+    public string? SuggestedAction { get; set; }
+    public string? TechnicalErrorCode { get; set; }
+    public string? TechnicalErrorMessage { get; set; }
     public string? ResolvedAchCycleId { get; set; }
     public string? ResolutionMode { get; set; }
     public decimal? ResolutionConfidence { get; set; }
@@ -93,6 +107,22 @@ public enum IncomingNachaIngestionStatus
     Bloqueado = 7,
     Fallido = 8,
     Completado = 9
+}
+
+public enum IncomingNachaIngestionStage
+{
+    Received = 1,
+    PreValidating = 2,
+    Decrypting = 3,
+    HeaderParsing = 4,
+    ValidatingHeader = 5,
+    ValidatingCycle = 6,
+    Parsing = 7,
+    ValidatingContent = 8,
+    Persisting = 9,
+    Persisted = 10,
+    Rejected = 11,
+    Failed = 12
 }
 
 public enum IncomingNachaCycleResolutionStatus

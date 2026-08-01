@@ -26,12 +26,17 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     private static readonly string[] AuditIgnoredProperties = ["CreatedAt", "UpdatedAt"];
     private static readonly TimeSpan ColombiaOffset = TimeSpan.FromHours(-5);
     private readonly IHttpContextAccessor? _httpContextAccessor;
+    private readonly TimeProvider _timeProvider;
 
     public bool AuditEnabled { get; set; } = true;
 
-    public AchDbContext(DbContextOptions<AchDbContext> options, IHttpContextAccessor? httpContextAccessor = null) : base(options)
+    public AchDbContext(
+        DbContextOptions<AchDbContext> options,
+        IHttpContextAccessor? httpContextAccessor = null,
+        TimeProvider? timeProvider = null) : base(options)
     {
         _httpContextAccessor = httpContextAccessor;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
 
@@ -472,7 +477,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         foreach (var entry in ChangeTracker.Entries<AchResponseReprocessAttempt>().Where(x => x.State is EntityState.Added or EntityState.Modified))
             entry.Entity.Version = Guid.NewGuid();
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var changedBy = ResolveChangedBy();
         var auditNow = now.ToOffset(ColombiaOffset).DateTime;
         var auditEntries = AuditEnabled
@@ -492,7 +497,29 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
             }
             else if (entry.State == EntityState.Modified)
             {
-                entry.Entity.UpdatedAt = now;
+                var createdAt = entry.Property(nameof(IAuditableEntity.CreatedAt));
+                if (createdAt.IsModified)
+                {
+                    createdAt.CurrentValue = createdAt.OriginalValue;
+                    createdAt.IsModified = false;
+                }
+
+                var updatedAt = entry.Property(nameof(IAuditableEntity.UpdatedAt));
+                var explicitlyUpdatedForAggregateChange = updatedAt.IsModified
+                    && !Equals(updatedAt.CurrentValue, updatedAt.OriginalValue);
+                var hasRealModification = entry.Properties.Any(property =>
+                    property.IsModified
+                    && property.Metadata.Name is not nameof(IAuditableEntity.CreatedAt)
+                    && property.Metadata.Name is not nameof(IAuditableEntity.UpdatedAt));
+
+                if (hasRealModification || explicitlyUpdatedForAggregateChange)
+                {
+                    entry.Entity.UpdatedAt = now;
+                }
+                else
+                {
+                    updatedAt.IsModified = false;
+                }
             }
         }
 

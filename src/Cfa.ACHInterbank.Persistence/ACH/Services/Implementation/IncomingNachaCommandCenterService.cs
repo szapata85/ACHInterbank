@@ -308,7 +308,21 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             .Where(x => x.DispatchQueueId == queueId)
             .OrderByDescending(x => x.StartedAtUtc)
             .Select(x => new IncomingNachaIntegrationExecutionDto(
-                x.Id, x.DispatchQueueId, x.MethodName, x.CorrelationId, x.ResponseCode, x.ResponseMessage,
+                x.Id, x.DispatchQueueId, x.EntryDetailId, x.AttemptNumber, x.MethodName, x.CorrelationId,
+                x.ProcessingStatus,
+                x.ProcessingStatus == IncomingNachaIndividualProcessingStatus.Completed ? "Procesado"
+                    : x.ProcessingStatus == IncomingNachaIndividualProcessingStatus.RetryPending ? "Pendiente de reintento"
+                    : x.ProcessingStatus == IncomingNachaIndividualProcessingStatus.TechnicalFailed ? "Error técnico"
+                    : x.ProcessingStatus == IncomingNachaIndividualProcessingStatus.Processing ? "Procesando"
+                    : x.ProcessingStatus == IncomingNachaIndividualProcessingStatus.Scheduled ? "Programado"
+                    : "Pendiente",
+                x.BusinessOutcome,
+                x.BusinessOutcome == IncomingNachaBusinessOutcome.Successful ? "Exitoso"
+                    : x.BusinessOutcome == IncomingNachaBusinessOutcome.Rejected ? "Rechazado"
+                    : x.BusinessOutcome == IncomingNachaBusinessOutcome.Returned ? "Devuelto"
+                    : x.BusinessOutcome == IncomingNachaBusinessOutcome.NotProcessed ? "No procesado"
+                    : "Pendiente de respuesta",
+                x.AchReturnCodeId, x.ResultCode, x.ResultDescription,
                 x.IsSuccess, x.IsRetryable, x.StartedAtUtc, x.FinishedAtUtc))
             .ToListAsync(ct);
 
@@ -367,6 +381,202 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
 
         return new IncomingNachaQueueDetailDto(queueDto, ingestionDto, classificationDto, executions, events);
     }
+
+    public async Task<IncomingNachaPageResult<IncomingNachaBatchDto>> GetBatchesAsync(
+        Guid ingestionId,
+        IncomingNachaBatchQuery query,
+        CancellationToken ct = default)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+        var rows = _context.BatchHeaders.AsNoTracking()
+            .Where(x => x.NachaHeader != null && x.NachaHeader.IncomingNachaFileIngestionId == ingestionId);
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            rows = rows.Where(x => (x.CompanyName ?? string.Empty).Contains(search)
+                || x.BatchNumber.ToString().Contains(search));
+        }
+
+        rows = query.SortBy.Trim().ToLowerInvariant() switch
+        {
+            "companyname" => query.SortDescending ? rows.OrderByDescending(x => x.CompanyName) : rows.OrderBy(x => x.CompanyName),
+            _ => query.SortDescending ? rows.OrderByDescending(x => x.BatchNumber) : rows.OrderBy(x => x.BatchNumber)
+        };
+
+        var total = await rows.CountAsync(ct);
+        var items = await rows.Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new IncomingNachaBatchDto(
+                x.BatchID,
+                x.BatchNumber,
+                x.CompanyName ?? string.Empty,
+                x.ServiceClassCode ?? string.Empty,
+                x.StandardEntryClassCode ?? string.Empty,
+                x.EffectiveEntryDate,
+                x.EntryDetails.Count,
+                x.EntryDetails.Sum(e => e.Amount ?? 0m),
+                x.BatchControl == null ? 0m : x.BatchControl.TotalDebitAmount,
+                x.BatchControl == null ? 0m : x.BatchControl.TotalCreditAmount))
+            .ToListAsync(ct);
+
+        return new IncomingNachaPageResult<IncomingNachaBatchDto>(items, page, pageSize, total);
+    }
+
+    public async Task<IncomingNachaPageResult<IncomingNachaTransactionDto>> GetTransactionsAsync(
+        Guid ingestionId,
+        IncomingNachaTransactionQuery query,
+        CancellationToken ct = default)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+        var rows = _context.EntryDetails.AsNoTracking()
+            .Where(x => x.NachaHeader != null && x.NachaHeader.IncomingNachaFileIngestionId == ingestionId);
+
+        if (query.BatchId.HasValue) rows = rows.Where(x => x.BatchHeaderId == query.BatchId.Value);
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            rows = rows.Where(x => (x.SequenceNumber ?? string.Empty).Contains(search)
+                || (x.RecipUserName ?? string.Empty).Contains(search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.ResultCode))
+        {
+            var resultCode = query.ResultCode.Trim();
+            rows = rows.Where(x => _context.IncomingNachaIntegrationExecution
+                .Any(e => e.EntryDetailId == x.EntryDetailID && e.ResultCode == resultCode));
+        }
+        if (query.BusinessOutcome.HasValue)
+            rows = rows.Where(x => _context.IncomingNachaIntegrationExecution.Any(e => e.EntryDetailId == x.EntryDetailID && e.BusinessOutcome == query.BusinessOutcome.Value));
+        if (query.ProcessingStatus.HasValue)
+            rows = rows.Where(x => _context.IncomingNachaIntegrationExecution.Any(e => e.EntryDetailId == x.EntryDetailID && e.ProcessingStatus == query.ProcessingStatus.Value));
+
+        rows = query.SortBy.Trim().ToLowerInvariant() switch
+        {
+            "amount" => query.SortDescending ? rows.OrderByDescending(x => x.Amount) : rows.OrderBy(x => x.Amount),
+            "batchnumber" => query.SortDescending ? rows.OrderByDescending(x => x.BatchNumber) : rows.OrderBy(x => x.BatchNumber),
+            _ => query.SortDescending ? rows.OrderByDescending(x => x.SequenceNumber) : rows.OrderBy(x => x.SequenceNumber)
+        };
+
+        var total = await rows.CountAsync(ct);
+        var entries = await rows.Include(x => x.BatchHeader)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var entryIds = entries.Select(x => x.EntryDetailID).ToArray();
+        var classifications = await _context.IncomingNachaEntryClassifications.AsNoTracking()
+            .Where(x => x.IncomingNachaFileIngestionId == ingestionId && entryIds.Contains(x.EntryDetailId))
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(ct);
+        var classificationByEntry = classifications.GroupBy(x => x.EntryDetailId).ToDictionary(x => x.Key, x => x.First());
+        var classificationIds = classifications.Select(x => x.Id).ToArray();
+        var queues = await _context.IncomingNachaDispatchQueue.AsNoTracking()
+            .Where(x => classificationIds.Contains(x.IncomingNachaEntryClassificationId))
+            .ToListAsync(ct);
+        var queueByClassification = queues.GroupBy(x => x.IncomingNachaEntryClassificationId).ToDictionary(x => x.Key, x => x.OrderByDescending(q => q.CreatedAt).First());
+        var executions = await _context.IncomingNachaIntegrationExecution.AsNoTracking()
+            .Where(x => x.EntryDetailId.HasValue && entryIds.Contains(x.EntryDetailId.Value))
+            .OrderByDescending(x => x.AttemptNumber)
+            .ToListAsync(ct);
+        var executionByEntry = executions.GroupBy(x => x.EntryDetailId!.Value).ToDictionary(x => x.Key, x => x.First());
+        var addendaCounts = await _context.AddendaRecords.AsNoTracking()
+            .Where(x => x.EntryDetailId.HasValue && entryIds.Contains(x.EntryDetailId.Value))
+            .GroupBy(x => x.EntryDetailId!.Value)
+            .Select(x => new { EntryDetailId = x.Key, Count = x.Count() })
+            .ToDictionaryAsync(x => x.EntryDetailId, x => x.Count, ct);
+
+        var items = entries.Select(entry =>
+        {
+            classificationByEntry.TryGetValue(entry.EntryDetailID, out var classification);
+            IncomingNachaDispatchQueue? queue = null;
+            if (classification is not null) queueByClassification.TryGetValue(classification.Id, out queue);
+            executionByEntry.TryGetValue(entry.EntryDetailID, out var execution);
+            return new IncomingNachaTransactionDto(
+                entry.EntryDetailID,
+                entry.BatchHeaderId ?? 0,
+                entry.BatchNumber,
+                entry.SequenceNumber ?? string.Empty,
+                entry.TransactionCode ?? string.Empty,
+                entry.Amount ?? 0m,
+                addendaCounts.GetValueOrDefault(entry.EntryDetailID),
+                classification?.FunctionalClass.ToString() ?? "Pending",
+                ClassificationText(classification?.FunctionalClass),
+                queue?.QueueStatus.ToString() ?? "Pending",
+                DispatchStatusText(queue?.QueueStatus),
+                queue?.AttemptCount ?? 0,
+                execution?.ProcessingStatus,
+                ProcessingStatusText(execution?.ProcessingStatus),
+                execution?.BusinessOutcome,
+                BusinessOutcomeText(execution?.BusinessOutcome),
+                execution?.ResultCode ?? string.Empty,
+                execution?.ResultDescription ?? string.Empty,
+                execution?.ProcessedAtUtc,
+                execution?.CorrelationId ?? ingestionId.ToString("N"));
+        }).ToList();
+
+        return new IncomingNachaPageResult<IncomingNachaTransactionDto>(items, page, pageSize, total);
+    }
+
+    public async Task<IReadOnlyList<IncomingNachaAddendaDto>> GetAddendasAsync(
+        Guid ingestionId,
+        int entryDetailId,
+        CancellationToken ct = default)
+        => await _context.AddendaRecords.AsNoTracking()
+            .Where(x => x.EntryDetailId == entryDetailId
+                && x.NachaHeader != null
+                && x.NachaHeader.IncomingNachaFileIngestionId == ingestionId)
+            .OrderBy(x => x.AddendumSequence)
+            .Select(x => new IncomingNachaAddendaDto(
+                x.AddendaID,
+                x.CodeTypeAddendumRecord ?? string.Empty,
+                x.AddendumSequence ?? string.Empty,
+                x.ReturnReasonCode ?? string.Empty,
+                x.OriginalTraceNumber ?? string.Empty,
+                x.PaymentRelatedInformation ?? string.Empty))
+            .ToListAsync(ct);
+
+    private static string ClassificationText(IncomingNachaFunctionalClass? value) => value switch
+    {
+        IncomingNachaFunctionalClass.CreditoEntrante => "Crédito entrante",
+        IncomingNachaFunctionalClass.DebitoEntrante => "Débito entrante",
+        IncomingNachaFunctionalClass.Prenotificacion => "Prenotificación",
+        IncomingNachaFunctionalClass.Devolucion => "Devolución",
+        IncomingNachaFunctionalClass.NoProcesable => "No procesable",
+        IncomingNachaFunctionalClass.Ambigua => "Requiere revisión",
+        IncomingNachaFunctionalClass.Inconsistente => "Información inconsistente",
+        _ => "Pendiente de clasificación"
+    };
+
+    private static string DispatchStatusText(IncomingNachaDispatchQueueStatus? value) => value switch
+    {
+        IncomingNachaDispatchQueueStatus.Queued => "Pendiente de programación",
+        IncomingNachaDispatchQueueStatus.Dispatching => "Enviando al servicio",
+        IncomingNachaDispatchQueueStatus.Dispatched => "Enviado al servicio",
+        IncomingNachaDispatchQueueStatus.Confirmed => "Procesado",
+        IncomingNachaDispatchQueueStatus.RetryPending => "Pendiente de reintento",
+        IncomingNachaDispatchQueueStatus.FailedFinal => "Falló el procesamiento",
+        IncomingNachaDispatchQueueStatus.Blocked => "Bloqueado",
+        IncomingNachaDispatchQueueStatus.WaitingWindow => "En espera de ventana",
+        _ => "Pendiente de programación"
+    };
+
+    private static string ProcessingStatusText(IncomingNachaIndividualProcessingStatus? value) => value switch
+    {
+        IncomingNachaIndividualProcessingStatus.Scheduled => "Programado",
+        IncomingNachaIndividualProcessingStatus.Processing => "Procesando",
+        IncomingNachaIndividualProcessingStatus.Completed => "Procesado",
+        IncomingNachaIndividualProcessingStatus.RetryPending => "Pendiente de reintento",
+        IncomingNachaIndividualProcessingStatus.TechnicalFailed => "Error técnico",
+        _ => "Pendiente"
+    };
+
+    private static string BusinessOutcomeText(IncomingNachaBusinessOutcome? value) => value switch
+    {
+        IncomingNachaBusinessOutcome.Successful => "Exitoso",
+        IncomingNachaBusinessOutcome.Rejected => "Rechazado",
+        IncomingNachaBusinessOutcome.Returned => "Devuelto",
+        IncomingNachaBusinessOutcome.NotProcessed => "No procesado",
+        _ => "Pendiente de respuesta"
+    };
 
     public Task<IncomingNachaManualActionResultDto> RetryManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
         => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualRetry, (q, req) =>

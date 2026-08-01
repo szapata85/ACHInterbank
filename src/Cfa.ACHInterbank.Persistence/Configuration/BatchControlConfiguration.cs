@@ -20,5 +20,6 @@ public class BatchControlConfiguration : IEntityTypeConfiguration<BatchControl>
 
         builder.Property(p => p.TotalCreditAmount).HasPrecision(18, 2);
         builder.Property(p => p.TotalDebitAmount).HasPrecision(18, 2);
+        builder.HasIndex(x => x.BatchHeaderId).IsUnique();
     }
 }

@@ -51,6 +51,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             }
 
             row.Description = model.Description;
+            row.BusinessOutcome = model.BusinessOutcome;
             row.AppliesToDebit = model.AppliesToDebit;
             row.AppliesToCredit = model.AppliesToCredit;
             row.AppliesToPrenotification = model.AppliesToPrenotification;
@@ -302,7 +303,31 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                     : throw new InvalidOperationException($"RegulatorySource no soportado para seed de devoluciones: {row.RegulatorySource}");
         }
 
-        return rows;
+        return rows.Concat(new[]
+        {
+            new AchReturnCode
+            {
+                ClearingHouseId = clearingHouseIds.CenitId,
+                Code = "R96",
+                Description = "Transacción procesada exitosamente",
+                AppliesToDebit = true,
+                AppliesToCredit = true,
+                IsActive = true,
+                RegulatorySource = "CENIT",
+                BusinessOutcome = IncomingNachaBusinessOutcome.Successful
+            },
+            new AchReturnCode
+            {
+                ClearingHouseId = clearingHouseIds.AchColombiaId,
+                Code = "R96",
+                Description = "Transacción procesada exitosamente",
+                AppliesToDebit = true,
+                AppliesToCredit = true,
+                IsActive = true,
+                RegulatorySource = "ACH",
+                BusinessOutcome = IncomingNachaBusinessOutcome.Successful
+            }
+        });
     }
 
     private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes()

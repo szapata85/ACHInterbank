@@ -14,6 +14,7 @@ public class AchReturnCodeConfiguration : IEntityTypeConfiguration<AchReturnCode
         builder.Property(x => x.Code).HasMaxLength(10).IsRequired();
         builder.Property(x => x.FlowType).HasMaxLength(30).IsRequired();
         builder.Property(x => x.Description).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.BusinessOutcome).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(x => x.RegulatorySource).HasMaxLength(20).IsRequired();
         builder.Property(x => x.EffectiveFrom).IsRequired();
         builder.Property(x => x.EffectiveTo);
@@ -21,6 +22,6 @@ public class AchReturnCodeConfiguration : IEntityTypeConfiguration<AchReturnCode
             .WithMany()
             .HasForeignKey(x => x.ClearingHouseId)
             .OnDelete(DeleteBehavior.Restrict);
-        builder.HasIndex(x => new { x.ClearingHouseId, x.Code, x.FlowType, x.EffectiveFrom });
+        builder.HasIndex(x => new { x.ClearingHouseId, x.Code, x.FlowType, x.EffectiveFrom }).IsUnique();
     }
 }
