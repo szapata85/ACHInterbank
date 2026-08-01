@@ -102,6 +102,93 @@ public class IncomingNachaCommandCenterServiceTests
         Assert.False(detail.Queue.AllowedActions.CanRetry);
         Assert.Contains("unblock", detail.Queue.AllowedActions.AllowedActions);
         Assert.DoesNotContain("retry", detail.Queue.AllowedActions.AllowedActions);
+        Assert.Equal("Requiere atención", detail.Queue.QueueStatusText);
+        Assert.Equal("Proc_Transacciones", detail.Queue.SoapOperation);
+        Assert.True(detail.Queue.ScheduledAtUtc > DateTime.MinValue);
+        Assert.True(detail.Queue.MaxAttempts > 0);
+    }
+
+    [Fact]
+    public async Task GetQueueDetailAsync_ShouldExposeSoapTechnicalAndFunctionalTrace_InSpanish()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.RetryPending);
+        context.IncomingNachaIntegrationExecution.Add(new IncomingNachaIntegrationExecution
+        {
+            DispatchQueueId = queue.Id,
+            EntryDetailId = 1,
+            AttemptNumber = 2,
+            ClearingHouseId = queue.ClearingHouseId,
+            MethodName = "Proc_Transacciones",
+            SoapEndpoint = "WSCFAACH",
+            CorrelationId = "corr-intento-2",
+            ProcessingStatus = IncomingNachaIndividualProcessingStatus.RetryPending,
+            BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed,
+            TransportStatus = Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationTransportStatus.TimedOut,
+            TechnicalErrorCode = "ITIMEOUT",
+            TechnicalErrorMessage = "El servicio no respondió dentro del tiempo permitido.",
+            ResultCode = string.Empty,
+            ResultDescription = string.Empty,
+            ResultSource = "SOAP",
+            DurationMs = 30000,
+            StartedAtUtc = DateTime.UtcNow.AddSeconds(-30),
+            FinishedAtUtc = DateTime.UtcNow,
+            ProcessedAtUtc = DateTime.UtcNow,
+            IsTechnicalFailure = true,
+            IsRetryable = true
+        });
+        await context.SaveChangesAsync();
+
+        var detail = await CreateSut(context).GetQueueDetailAsync(queue.Id);
+
+        var attempt = Assert.Single(detail!.Executions);
+        Assert.Equal("Pendiente de reintento", attempt.ProcessingStatusText);
+        Assert.Equal("No procesado", attempt.BusinessOutcomeText);
+        Assert.Equal("Tiempo de espera agotado", attempt.TransportStatusText);
+        Assert.Equal("ITIMEOUT", attempt.TechnicalErrorCode);
+        Assert.Equal(30000, attempt.DurationMs);
+        Assert.Empty(attempt.ResultCode);
+        Assert.Null(attempt.AchReturnCodeId);
+    }
+
+    [Fact]
+    public async Task GetIngestionValidationsAsync_ShouldReturnPersistedHumanizedIssue_WithExpectedAndFoundValues()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Blocked);
+        var ingestion = await context.IncomingNachaFileIngestions.SingleAsync(x => x.Id == queue.IncomingNachaFileIngestionId);
+        ingestion.Stage = IncomingNachaIngestionStage.Rejected;
+        ingestion.RejectionCode = "HEADER_DATE_MISMATCH";
+        ingestion.RejectionTitle = "La fecha del archivo no corresponde a la fecha operativa";
+        ingestion.RejectionDescription = "El archivo corresponde al 30/07/2026, pero la fecha operativa habilitada es 31/07/2026.";
+        ingestion.SuggestedAction = "Seleccione el archivo correspondiente a la fecha operativa vigente.";
+        context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+        {
+            IncomingNachaFileIngestionId = ingestion.Id,
+            AttemptNumber = 1,
+            ParserErrorsJson = System.Text.Json.JsonSerializer.Serialize(new[]
+            {
+                new IncomingNachaAdmissionIssue(
+                    "HEADER_DATE_MISMATCH",
+                    ingestion.RejectionTitle,
+                    ingestion.RejectionDescription,
+                    ingestion.SuggestedAction,
+                    "Functional",
+                    "Error",
+                    "2026-07-31",
+                    "2026-07-30")
+            })
+        });
+        await context.SaveChangesAsync();
+
+        var validations = await CreateSut(context).GetIngestionValidationsAsync(ingestion.Id);
+
+        var validation = Assert.Single(validations!);
+        Assert.False(validation.IsSuccessful);
+        Assert.Equal("2026-07-31", validation.ExpectedValue);
+        Assert.Equal("2026-07-30", validation.FoundValue);
+        Assert.Equal("Functional", validation.ErrorType);
+        Assert.Contains("Seleccione", validation.SuggestedAction);
     }
 
     [Fact]
@@ -192,6 +279,102 @@ public class IncomingNachaCommandCenterServiceTests
         Assert.NotNull(summary.IngestionsByStatus);
         Assert.NotNull(summary.ByClearingHouseCycle);
         Assert.NotNull(summary.Timeline);
+    }
+
+    [Fact]
+    public async Task GetIngestionsAsync_ShouldPageAndExposeHumanizedStatuses()
+    {
+        await using var context = await CreateContextAsync();
+        _ = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Queued);
+
+        var page = await CreateSut(context).GetIngestionsAsync(new IncomingNachaIngestionQuery
+        {
+            Page = 1,
+            PageSize = 1,
+            FileName = "in.ach"
+        });
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal(1, page.TotalItems);
+        Assert.Equal("Recibido", item.IngestionStatusText);
+        Assert.Equal("Received", item.StageCode);
+        Assert.Equal("Archivo recibido", item.StageText);
+    }
+
+    [Fact]
+    public async Task GetTransactionsAsync_ShouldExposeEntryDispatchAttemptAndAchResultProgressively()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Confirmed);
+        var header = new NachaHeader
+        {
+            NachaID = "FILE-1",
+            IncomingNachaFileIngestionId = queue.IncomingNachaFileIngestionId,
+            ClearingHouseId = queue.ClearingHouseId,
+            AchCycleId = queue.AchCycleId,
+            CycleNumber = 1
+        };
+        var batch = new BatchHeader { BatchID = 1, BatchNumber = 7, NachaID = header.NachaID, NachaHeader = header };
+        var entry = new EntryDetail
+        {
+            EntryDetailID = 1,
+            BatchHeaderId = batch.BatchID,
+            BatchHeader = batch,
+            BatchNumber = batch.BatchNumber,
+            NachaID = header.NachaID,
+            NachaHeader = header,
+            SequenceNumber = "123456789012345",
+            TransactionCode = "22",
+            Amount = 1250000.25m
+        };
+        context.NachaHeaders.Add(header);
+        context.BatchHeaders.Add(batch);
+        context.EntryDetails.Add(entry);
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = 1,
+            EntryDetailId = entry.EntryDetailID,
+            EntryDetail = entry,
+            NachaID = header.NachaID,
+            NachaHeader = header,
+            AddendumSequence = "0001"
+        });
+        context.IncomingNachaIntegrationExecution.Add(new IncomingNachaIntegrationExecution
+        {
+            DispatchQueueId = queue.Id,
+            EntryDetailId = entry.EntryDetailID,
+            AttemptNumber = 1,
+            ClearingHouseId = queue.ClearingHouseId,
+            MethodName = "Proc_Transacciones",
+            CorrelationId = "corr-final",
+            ProcessingStatus = IncomingNachaIndividualProcessingStatus.Completed,
+            BusinessOutcome = IncomingNachaBusinessOutcome.Returned,
+            ResultCode = "R16",
+            ResultDescription = "Cuenta congelada",
+            ResultSource = "SOAP",
+            ExternalTransactionId = "EXT-1",
+            StartedAtUtc = DateTime.UtcNow.AddSeconds(-1),
+            FinishedAtUtc = DateTime.UtcNow,
+            ProcessedAtUtc = DateTime.UtcNow,
+            IsSuccess = false
+        });
+        await context.SaveChangesAsync();
+
+        var page = await CreateSut(context).GetTransactionsAsync(
+            queue.IncomingNachaFileIngestionId,
+            new IncomingNachaTransactionQuery { Page = 1, PageSize = 10, ResultCode = "R16" });
+
+        var transaction = Assert.Single(page.Items);
+        Assert.Equal(1250000.25m, transaction.Amount);
+        Assert.Equal(1, transaction.AddendaCount);
+        Assert.Equal(queue.ClearingHouseId, transaction.ClearingHouseId);
+        Assert.Equal(queue.AchCycleId, transaction.AchCycleId);
+        Assert.Equal("Proc_Transacciones", transaction.SoapOperation);
+        Assert.Equal("EXT-1", transaction.ExternalTransactionId);
+        Assert.Equal("R16", transaction.ResultCode);
+        Assert.Equal("Cuenta congelada", transaction.ResultDescription);
+        Assert.Equal("Devuelto", transaction.BusinessOutcomeText);
+        Assert.NotNull(transaction.ScheduledAtUtc);
     }
 
     private static async Task<IncomingNachaDispatchQueue> SeedQueueAsync(AchDbContext context, IncomingNachaDispatchQueueStatus status)

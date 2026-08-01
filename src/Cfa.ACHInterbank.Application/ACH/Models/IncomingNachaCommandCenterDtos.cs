@@ -31,7 +31,12 @@ public sealed record IncomingNachaIngestionListItemDto(
     bool IsReprocess,
     DateTime UploadedAtUtc,
     int QueueItems,
-    int ProcessingEvents);
+    int ProcessingEvents)
+{
+    public string IngestionStatusText { get; init; } = string.Empty;
+    public string StageCode { get; init; } = string.Empty;
+    public string StageText { get; init; } = string.Empty;
+}
 
 public sealed record IncomingNachaIngestionDetailDto(
     Guid Id,
@@ -48,7 +53,39 @@ public sealed record IncomingNachaIngestionDetailDto(
     bool IsReprocess,
     Guid? ParentIngestionId,
     IReadOnlyList<IncomingNachaQueueListItemDto> Queue,
-    IReadOnlyList<IncomingNachaProcessingEventDto> Events);
+    IReadOnlyList<IncomingNachaProcessingEventDto> Events)
+{
+    public IncomingNachaFileSummaryDto Summary { get; init; } = IncomingNachaFileSummaryDto.Empty;
+    public IncomingNachaAdmissionIssue? AdmissionIssue { get; init; }
+    public string IngestionStatusText { get; init; } = string.Empty;
+    public string StageCode { get; init; } = string.Empty;
+    public string StageText { get; init; } = string.Empty;
+}
+
+public sealed record IncomingNachaFileSummaryDto(
+    int TotalBatches,
+    int TotalTransactions,
+    int TotalAddendas,
+    decimal TotalDebit,
+    decimal TotalCredit,
+    int SuccessfulTransactions,
+    int RejectedTransactions,
+    int ReturnedTransactions,
+    int TechnicalFailures)
+{
+    public static IncomingNachaFileSummaryDto Empty { get; } = new(0, 0, 0, 0m, 0m, 0, 0, 0, 0);
+}
+
+public sealed record IncomingNachaValidationDto(
+    string Code,
+    string Title,
+    string Message,
+    string? ExpectedValue,
+    string? FoundValue,
+    string SuggestedAction,
+    string ErrorType,
+    string Severity,
+    bool IsSuccessful);
 
 public sealed class IncomingNachaQueueQuery
 {
@@ -76,7 +113,14 @@ public sealed record IncomingNachaQueueListItemDto(
     string LastResponseCode,
     DateTime? ConfirmedAtUtc,
     DateTimeOffset CreatedAtUtc,
-    IncomingNachaAllowedActionsDto AllowedActions);
+    IncomingNachaAllowedActionsDto AllowedActions)
+{
+    public int? EntryDetailId { get; init; }
+    public string QueueStatusText { get; init; } = string.Empty;
+    public DateTime ScheduledAtUtc { get; init; }
+    public int MaxAttempts { get; init; }
+    public string SoapOperation { get; init; } = "Proc_Transacciones";
+}
 
 public sealed record IncomingNachaQueueDetailDto(
     IncomingNachaQueueListItemDto Queue,
@@ -113,7 +157,18 @@ public sealed record IncomingNachaIntegrationExecutionDto(
     bool IsSuccess,
     bool IsRetryable,
     DateTime StartedAtUtc,
-    DateTime? FinishedAtUtc);
+    DateTime? FinishedAtUtc)
+{
+    public string LogicalEndpoint { get; init; } = string.Empty;
+    public long DurationMs { get; init; }
+    public string TransportStatusCode { get; init; } = string.Empty;
+    public string TransportStatusText { get; init; } = string.Empty;
+    public string TechnicalErrorCode { get; init; } = string.Empty;
+    public string TechnicalErrorMessage { get; init; } = string.Empty;
+    public string ResultSource { get; init; } = string.Empty;
+    public string ExternalTransactionId { get; init; } = string.Empty;
+    public DateTime? ProcessedAtUtc { get; init; }
+}
 
 public sealed class IncomingNachaBatchQuery
 {
@@ -169,7 +224,22 @@ public sealed record IncomingNachaTransactionDto(
     string ResultCode,
     string ResultDescription,
     DateTime? ProcessedAtUtc,
-    string CorrelationId);
+    string CorrelationId)
+{
+    public int ClearingHouseId { get; init; }
+    public DateTime? OperationalDate { get; init; }
+    public string AchCycleId { get; init; } = string.Empty;
+    public DateTime? ScheduledAtUtc { get; init; }
+    public DateTime? StartedAtUtc { get; init; }
+    public DateTime? FinishedAtUtc { get; init; }
+    public DateTime? NextRetryAtUtc { get; init; }
+    public int MaxAttempts { get; init; }
+    public string SoapOperation { get; init; } = string.Empty;
+    public string ExternalTransactionId { get; init; } = string.Empty;
+    public int? AchReturnCodeId { get; init; }
+    public string TechnicalErrorCode { get; init; } = string.Empty;
+    public string TechnicalErrorMessage { get; init; } = string.Empty;
+}
 
 public sealed record IncomingNachaAddendaDto(
     int Id,
@@ -201,7 +271,10 @@ public sealed record IncomingNachaManualActionResultDto(
     IncomingNachaDispatchQueueStatus PreviousStatus,
     IncomingNachaDispatchQueueStatus CurrentStatus,
     bool IsIdempotentReplay,
-    string Message);
+    string Message)
+{
+    public string ActionText { get; init; } = string.Empty;
+}
 
 public sealed record IncomingNachaObservabilitySummaryDto(
     DateTime GeneratedAtUtc,

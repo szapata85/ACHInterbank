@@ -89,7 +89,7 @@ public class FinancialPersistenceMigrationTests
         var enforcementMigrationId = context.Database.GetMigrations().Single(id => id.EndsWith("_EnforceFinancialIntegrity", StringComparison.Ordinal));
         var migrations = context.Database.GetMigrations().ToList();
         var previousMigrationId = migrations[migrations.IndexOf(enforcementMigrationId) - 1];
-        var targetMigrationId = migrations.Last();
+        var targetMigrationId = enforcementMigrationId;
 
         await migrator.MigrateAsync(previousMigrationId);
         FinancialIntegrityEvidence.Record(provider, "previous-migration");
@@ -100,7 +100,7 @@ public class FinancialPersistenceMigrationTests
         FinancialIntegrityEvidence.Record(provider, "up");
         context.ChangeTracker.Clear();
 
-        await AssertSnapshotAsync(context, expected);
+        await AssertSnapshotAsync(context, provider, expected);
         await AssertUpSchemaAsync(context, provider);
         FinancialIntegrityEvidence.Record(provider, "invariance");
 
@@ -108,7 +108,7 @@ public class FinancialPersistenceMigrationTests
         FinancialIntegrityEvidence.Record(provider, "rollback");
         context.ChangeTracker.Clear();
 
-        await AssertSnapshotAsync(context, expected);
+        await AssertSnapshotAsync(context, provider, expected);
         await AssertRollbackSchemaAsync(context, provider);
     }
 
@@ -132,7 +132,7 @@ public class FinancialPersistenceMigrationTests
         var enforcementMigrationId = context.Database.GetMigrations().Single(id => id.EndsWith("_EnforceFinancialIntegrity", StringComparison.Ordinal));
         var migrations = context.Database.GetMigrations().ToList();
         var previousMigrationId = migrations[migrations.IndexOf(enforcementMigrationId) - 1];
-        var targetMigrationId = migrations.Last();
+        var targetMigrationId = enforcementMigrationId;
 
         await migrator.MigrateAsync(previousMigrationId);
         Assert.False(await ColumnExistsAsync(context, provider, "AuditLog", "CorrelationId"));
@@ -164,6 +164,107 @@ public class FinancialPersistenceMigrationTests
         FinancialIntegrityEvidence.Record(provider, "out-of-scale-rejected");
         Assert.DoesNotContain(enforcementMigrationId, await context.Database.GetAppliedMigrationsAsync());
         Assert.True(await ColumnExistsAsync(context, provider, "IncomingNachaProcessingEvents", "IncomingNachaFileIngestionId1"));
+    }
+
+    [FinancialIntegrityFact(PersistenceProvider.SqlServer)]
+    [Trait("Category", "IncomingNachaTraceabilityMigration")]
+    public Task IncomingNachaTraceabilityMigration_ShouldBackfillAndRollback_SqlServer()
+        => IncomingNachaTraceabilityMigration_ShouldBackfillAndRollback(PersistenceProvider.SqlServer);
+
+    [FinancialIntegrityFact(PersistenceProvider.PostgreSql)]
+    [Trait("Category", "IncomingNachaTraceabilityMigration")]
+    public Task IncomingNachaTraceabilityMigration_ShouldBackfillAndRollback_PostgreSql()
+        => IncomingNachaTraceabilityMigration_ShouldBackfillAndRollback(PersistenceProvider.PostgreSql);
+
+    private static async Task IncomingNachaTraceabilityMigration_ShouldBackfillAndRollback(PersistenceProvider provider)
+    {
+        await using var fixture = await MigrationFixture.CreateAsync(provider);
+        FinancialIntegrityTestConfiguration.EnsureConnectionIsAvailable(provider);
+        await using var context = fixture.CreateContext();
+        var migrator = context.Database.GetService<IMigrator>();
+        var migrations = context.Database.GetMigrations().ToList();
+        var targetMigrationId = migrations.Single(id => id.EndsWith("_IncomingNachaTraceabilityCore", StringComparison.Ordinal));
+        var previousMigrationId = migrations[migrations.IndexOf(targetMigrationId) - 1];
+
+        await migrator.MigrateAsync(previousMigrationId);
+        var historical = new HistoricalFinancialIntegritySeed(context, provider);
+        var receivedAt = new DateTimeOffset(2026, 7, 31, 14, 0, 0, TimeSpan.Zero);
+        var ingestionId = Guid.NewGuid();
+        const string nachaId = "traceability-migration-fixture";
+        const decimal amount = 922_337_203_685_477.58m;
+
+        await historical.InsertAsync("IncomingNachaFileIngestions", new()
+        {
+            ["Id"] = ingestionId, ["FileName"] = "0001283.001.20260731.1.OUT",
+            ["FileHashSha256"] = new string('b', 64), ["FileSize"] = 106L,
+            ["ContentType"] = "text/plain", ["UploadedAtUtc"] = receivedAt.UtcDateTime,
+            ["ReceivedAtUtc"] = receivedAt.UtcDateTime, ["UploadedBy"] = "migration-test",
+            ["ReceivedBy"] = "migration-test", ["IngestionStatus"] = "Completado",
+            ["CycleResolutionStatus"] = "ResueltoConfirmado", ["ParsingStatus"] = "Exitoso",
+            ["ResolutionEvidenceJson"] = "{}", ["CorrelationId"] = "traceability-migration",
+            ["IsReprocess"] = false, ["Notes"] = "fixture controlado", ["WarningsJson"] = "[]",
+            ["CreatedAt"] = receivedAt, ["UpdatedAt"] = receivedAt
+        });
+        await historical.InsertAsync("NachaHeaders", new()
+        {
+            ["NachaID"] = nachaId, ["FileCreationDate"] = "260731", ["CycleNumber"] = 1,
+            ["IncomingNachaFileIngestionId"] = ingestionId
+        });
+        var batchId = await historical.InsertIdentityAsync("BatchHeaders", new()
+        {
+            ["BatchNumber"] = 1, ["NachaID"] = nachaId, ["ServiceClassCode"] = "220"
+        }, "BatchID");
+        var entryId = await historical.InsertIdentityAsync("EntryDetails", new()
+        {
+            ["TransactionCode"] = "22", ["Amount"] = amount,
+            ["SequenceNumber"] = "000000010000001", ["NachaID"] = nachaId, ["BatchNumber"] = 1
+        }, "EntryDetailID");
+        await historical.InsertAsync("AddendaRecords", new()
+        {
+            ["CodeTypeAddendumRecord"] = "05", ["AddendumSequence"] = "0001",
+            ["EntryDetailSequenceNumber"] = "0000001", ["NachaID"] = nachaId
+        });
+        await historical.InsertAsync("BatchControls", new()
+        {
+            ["EntryAddendaCount"] = 1, ["EntryHash"] = 1L, ["TotalDebitAmount"] = 0m,
+            ["TotalCreditAmount"] = amount, ["BatchNumber"] = "1", ["NachaID"] = nachaId
+        });
+        await historical.InsertAsync("FileControls", new()
+        {
+            ["BatchCount"] = 1, ["BlockCount"] = 1, ["EntryAddendaCount"] = 1,
+            ["EntryHash"] = 1L, ["TotalDebitAmount"] = 0m, ["TotalCreditAmount"] = amount,
+            ["NachaID"] = nachaId
+        });
+
+        await migrator.MigrateAsync(targetMigrationId);
+        FinancialIntegrityEvidence.Record(provider, "traceability-up");
+
+        Assert.Equal(batchId, await ReadScalarAsync<int>(context, provider,
+            $"SELECT {Quote(provider, "BatchHeaderId")} FROM {Quote(provider, "EntryDetails")} WHERE {Quote(provider, "EntryDetailID")} = @value", entryId));
+        Assert.Equal(entryId, await ReadScalarAsync<int>(context, provider,
+            $"SELECT {Quote(provider, "EntryDetailId")} FROM {Quote(provider, "AddendaRecords")} WHERE {Quote(provider, "NachaID")} = @value", nachaId));
+        Assert.Equal("Persisted", await ReadScalarAsync<string>(context, provider,
+            $"SELECT {Quote(provider, "Stage")} FROM {Quote(provider, "IncomingNachaFileIngestions")} WHERE {Quote(provider, "Id")} = @value", ingestionId));
+        Assert.Equal(".OUT", await ReadScalarAsync<string>(context, provider,
+            $"SELECT {Quote(provider, "FileExtension")} FROM {Quote(provider, "IncomingNachaFileIngestions")} WHERE {Quote(provider, "Id")} = @value", ingestionId));
+        Assert.Equal(receivedAt, await ReadScalarAsync<DateTimeOffset>(context, provider,
+            $"SELECT {Quote(provider, "CreatedAt")} FROM {Quote(provider, "EntryDetails")} WHERE {Quote(provider, "EntryDetailID")} = @value", entryId));
+        Assert.Equal(provider == PersistenceProvider.SqlServer ? "decimal(18,2)" : "numeric(18,2)",
+            await GetColumnTypeAsync(context, provider, "EntryDetails", "Amount"));
+        Assert.True(await IsColumnNullableAsync(context, provider, "IncomingNachaIntegrationExecution", "EntryDetailId"));
+        var attemptIndexName = provider == PersistenceProvider.SqlServer
+            ? "IX_IncomingNachaIntegrationExecution_EntryDetailId_AttemptNumber"
+            : "IX_IncomingNachaIntegrationExecution_EntryDetailId_AttemptNumb~";
+        Assert.True(await DatabaseObjectExistsAsync(context, provider, "index", attemptIndexName));
+        Assert.True(await DatabaseObjectExistsAsync(context, provider, "foreign-key", "FK_IncomingNachaIntegrationExecution_EntryDetails_EntryDetailId"));
+
+        await migrator.MigrateAsync(previousMigrationId);
+        FinancialIntegrityEvidence.Record(provider, "traceability-rollback");
+        Assert.False(await ColumnExistsAsync(context, provider, "EntryDetails", "BatchHeaderId"));
+        Assert.False(await ColumnExistsAsync(context, provider, "EntryDetails", "CreatedAt"));
+        Assert.False(await ColumnExistsAsync(context, provider, "AddendaRecords", "EntryDetailId"));
+        Assert.Equal(amount, await ReadScalarAsync<decimal>(context, provider,
+            $"SELECT {Quote(provider, "Amount")} FROM {Quote(provider, "EntryDetails")} WHERE {Quote(provider, "EntryDetailID")} = @value", entryId));
     }
 
     private static async Task<FinancialSnapshot> SeedExistingDataAsync(AchDbContext context, PersistenceProvider provider)
@@ -205,31 +306,26 @@ public class FinancialPersistenceMigrationTests
             });
     }
 
-    private static async Task AssertSnapshotAsync(AchDbContext context, FinancialSnapshot expected)
+    private static async Task AssertSnapshotAsync(
+        AchDbContext context,
+        PersistenceProvider provider,
+        FinancialSnapshot expected)
     {
-        var eventIds = await context.IncomingNachaProcessingEvents
-            .Where(@event => @event.IncomingNachaFileIngestionId == expected.IngestionId)
-            .Select(@event => @event.Id)
-            .Order()
-            .ToArrayAsync();
+        var reader = new HistoricalFinancialSnapshotReader(context, provider);
+        var eventIds = await reader.ReadEventIdsAsync(expected.IngestionId);
 
         Assert.True(expected.EventIds.ToHashSet().SetEquals(eventIds));
 
-        var batch = await context.AchBatches.SingleAsync();
-        var transaction = await context.AchTransactions.SingleAsync();
-        var entry = await context.EntryDetails.SingleAsync();
-        var batchControl = await context.BatchControls.SingleAsync();
-        var fileControl = await context.FileControls.SingleAsync();
         var actual = new Dictionary<string, decimal>
         {
-            ["AchBatch.TotalDebitAmount"] = batch.TotalDebitAmount,
-            ["AchBatch.TotalCreditAmount"] = batch.TotalCreditAmount,
-            ["AchTransaction.Amount"] = transaction.Amount,
-            ["EntryDetail.Amount"] = entry.Amount!.Value,
-            ["BatchControl.TotalDebitAmount"] = batchControl.TotalDebitAmount,
-            ["BatchControl.TotalCreditAmount"] = batchControl.TotalCreditAmount,
-            ["FileControl.TotalDebitAmount"] = fileControl.TotalDebitAmount,
-            ["FileControl.TotalCreditAmount"] = fileControl.TotalCreditAmount
+            ["AchBatch.TotalDebitAmount"] = await reader.ReadDecimalAsync("AchBatches", "TotalDebitAmount"),
+            ["AchBatch.TotalCreditAmount"] = await reader.ReadDecimalAsync("AchBatches", "TotalCreditAmount"),
+            ["AchTransaction.Amount"] = await reader.ReadDecimalAsync("AchTransactions", "Amount"),
+            ["EntryDetail.Amount"] = await reader.ReadDecimalAsync("EntryDetails", "Amount"),
+            ["BatchControl.TotalDebitAmount"] = await reader.ReadDecimalAsync("BatchControls", "TotalDebitAmount"),
+            ["BatchControl.TotalCreditAmount"] = await reader.ReadDecimalAsync("BatchControls", "TotalCreditAmount"),
+            ["FileControl.TotalDebitAmount"] = await reader.ReadDecimalAsync("FileControls", "TotalDebitAmount"),
+            ["FileControl.TotalCreditAmount"] = await reader.ReadDecimalAsync("FileControls", "TotalCreditAmount")
         };
 
         Assert.Equal(expected.Amounts.OrderBy(pair => pair.Key), actual.OrderBy(pair => pair.Key));
@@ -318,6 +414,50 @@ public class FinancialPersistenceMigrationTests
         return (T)Convert.ChangeType((await command.ExecuteScalarAsync())!, typeof(T), System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    private static async Task<T> ReadScalarAsync<T>(AchDbContext context, PersistenceProvider provider, string sql, object value)
+    {
+        var connection = context.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open) await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@value";
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+        var result = await command.ExecuteScalarAsync();
+        Assert.NotNull(result);
+        if (typeof(T) == typeof(DateTimeOffset))
+        {
+            var timestamp = result is DateTimeOffset offset
+                ? offset
+                : new DateTimeOffset(DateTime.SpecifyKind((DateTime)result, DateTimeKind.Utc));
+            return (T)(object)timestamp;
+        }
+        return (T)Convert.ChangeType(result, typeof(T), System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<bool> IsColumnNullableAsync(AchDbContext context, PersistenceProvider provider, string table, string column)
+        => (await ExecuteScalarAsync<string>(context, provider,
+            provider == PersistenceProvider.SqlServer
+                ? "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @table AND COLUMN_NAME = @column"
+                : "SELECT is_nullable FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = @table AND column_name = @column",
+            table, column)).Equals("YES", StringComparison.OrdinalIgnoreCase);
+
+    private static async Task<bool> DatabaseObjectExistsAsync(AchDbContext context, PersistenceProvider provider, string objectType, string name)
+    {
+        var sql = (provider, objectType) switch
+        {
+            (PersistenceProvider.SqlServer, "index") => "SELECT COUNT(*) FROM sys.indexes WHERE name = @table",
+            (PersistenceProvider.SqlServer, _) => "SELECT COUNT(*) FROM sys.foreign_keys WHERE name = @table",
+            (PersistenceProvider.PostgreSql, "index") => "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = current_schema() AND indexname = @table",
+            _ => "SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema = current_schema() AND constraint_type = 'FOREIGN KEY' AND constraint_name = @table"
+        };
+        return await ExecuteScalarAsync<int>(context, provider, sql, name, string.Empty) > 0;
+    }
+
+    private static string Quote(PersistenceProvider provider, string identifier)
+        => provider == PersistenceProvider.SqlServer ? $"[{identifier}]" : $"\"{identifier}\"";
+
     private static Dictionary<string, object?> InstitutionValues(string name, string routingNumber, string transitCode, DateTimeOffset now)
         => new()
         {
@@ -346,13 +486,13 @@ public class FinancialPersistenceMigrationTests
         public async Task InsertAsync(string table, Dictionary<string, object?> values)
             => _ = await InsertCoreAsync(table, values, returnIdentity: false);
 
-        public async Task<int> InsertIdentityAsync(string table, Dictionary<string, object?> values)
+        public async Task<int> InsertIdentityAsync(string table, Dictionary<string, object?> values, string identityColumn = "Id")
         {
-            var result = await InsertCoreAsync(table, values, returnIdentity: true);
+            var result = await InsertCoreAsync(table, values, returnIdentity: true, identityColumn);
             return Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        private async Task<object?> InsertCoreAsync(string table, Dictionary<string, object?> values, bool returnIdentity)
+        private async Task<object?> InsertCoreAsync(string table, Dictionary<string, object?> values, bool returnIdentity, string identityColumn = "Id")
         {
             var availableColumns = await GetColumnsAsync(table);
             var selected = values.Where(pair => availableColumns.Contains(pair.Key)).ToArray();
@@ -374,7 +514,7 @@ public class FinancialPersistenceMigrationTests
             command.CommandText = returnIdentity
                 ? _provider == PersistenceProvider.SqlServer
                     ? $"INSERT INTO {tableName} ({columns}) VALUES ({parameters}); SELECT CAST(SCOPE_IDENTITY() AS int);"
-                    : $"INSERT INTO {tableName} ({columns}) VALUES ({parameters}) RETURNING {Quote("Id")};"
+                    : $"INSERT INTO {tableName} ({columns}) VALUES ({parameters}) RETURNING {Quote(identityColumn)};"
                 : $"INSERT INTO {tableName} ({columns}) VALUES ({parameters});";
 
             for (var index = 0; index < selected.Length; index++)
@@ -421,6 +561,63 @@ public class FinancialPersistenceMigrationTests
 
             _columns.Add(table, columns);
             return columns;
+        }
+
+        private string Quote(string identifier)
+            => _provider == PersistenceProvider.SqlServer ? $"[{identifier}]" : $"\"{identifier}\"";
+    }
+
+    private sealed class HistoricalFinancialSnapshotReader
+    {
+        private readonly AchDbContext _context;
+        private readonly PersistenceProvider _provider;
+
+        public HistoricalFinancialSnapshotReader(AchDbContext context, PersistenceProvider provider)
+        {
+            _context = context;
+            _provider = provider;
+        }
+
+        public async Task<Guid[]> ReadEventIdsAsync(Guid ingestionId)
+        {
+            var connection = await OpenConnectionAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT {Quote("Id")} FROM {Quote("IncomingNachaProcessingEvents")} "
+                + $"WHERE {Quote("IncomingNachaFileIngestionId")} = @ingestionId ORDER BY {Quote("Id")}";
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "@ingestionId";
+            parameter.Value = ingestionId;
+            command.Parameters.Add(parameter);
+
+            var values = new List<Guid>();
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                values.Add(reader.GetGuid(0));
+            }
+
+            return values.ToArray();
+        }
+
+        public async Task<decimal> ReadDecimalAsync(string table, string column)
+        {
+            var connection = await OpenConnectionAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT {Quote(column)} FROM {Quote(table)}";
+            var value = await command.ExecuteScalarAsync();
+            Assert.NotNull(value);
+            return Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private async Task<System.Data.Common.DbConnection> OpenConnectionAsync()
+        {
+            var connection = _context.Database.GetDbConnection();
+            if (connection.State != ConnectionState.Open)
+            {
+                await connection.OpenAsync();
+            }
+
+            return connection;
         }
 
         private string Quote(string identifier)

@@ -111,7 +111,7 @@ public class IncomingNachaIntegrationExecution : AuditableEntity
     public string CorrelationId { get; set; } = string.Empty;
 
     public IncomingNachaDispatchQueue DispatchQueue { get; set; } = null!;
-    public EntryDetail EntryDetail { get; set; } = null!;
+    public EntryDetail? EntryDetail { get; set; }
 }
 
 public enum IncomingNachaIndividualProcessingStatus

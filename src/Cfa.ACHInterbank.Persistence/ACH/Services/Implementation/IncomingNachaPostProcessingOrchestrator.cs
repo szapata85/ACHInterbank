@@ -176,7 +176,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 && dispatchOperation.OperationKey == IntegrationGuaranteeConstants.ProcContrapartidas)
             {
                 queue.QueueStatus = IncomingNachaDispatchQueueStatus.Dispatched;
-                queue.ConfirmedAtUtc = DateTime.UtcNow;
+                queue.ConfirmedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
                 queue.NextAttemptAtUtc = null;
                 queue.LastResponseCode = string.Empty;
                 queue.LastErrorCode = string.Empty;
@@ -198,14 +198,14 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 DispatchQueueId = queue.Id,
                 EntryDetailId = classifications.TryGetValue(queue.IncomingNachaEntryClassificationId, out var executionClassification)
                     ? executionClassification.EntryDetailId
-                    : 0,
+                    : null,
                 AttemptNumber = queue.AttemptCount,
                 ClearingHouseId = queue.ClearingHouseId,
                 MethodName = SoapMethodName,
                 SoapMethodName = SoapMethodName,
                 ExecutionMode = NormalizeAuditValue(procTransaccionesRuntime.OperatingMode, 20),
                 CorrelationId = correlationId,
-                StartedAtUtc = DateTime.UtcNow
+                StartedAtUtc = _timeProvider.GetUtcNow().UtcDateTime
             };
             _context.IncomingNachaIntegrationExecution.Add(execution);
 
@@ -231,7 +231,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 }
 
                 var readinessContext = await EnsureProcTransaccionesReadinessAsync(queue.AchTransaction, ct);
-                var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, DateTime.Now, ct);
+                var resolution = await _mapper.ResolveAsync(queue, ingestion, classification, queue.AchTransaction, queue.AchTransaction.AchCycle, _timeProvider.GetLocalNow().DateTime, ct);
                 EnsureSnapshotConsistency(readinessContext.Readiness, resolution);
                 var requestXml = _mapper.BuildSoapBody(resolution.Contract);
                 ApplyRequestAudit(execution, resolution, requestXml, procTransaccionesRuntime.Endpoint);
@@ -249,7 +249,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                     procTransaccionesRuntime.OperatingMode,
                     ct);
                 var parsed = _parser.Parse(responseXml);
-                var finishedAtUtc = DateTime.UtcNow;
+                var finishedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
                 var transportStatus = ResolveTransportStatus(parsed, procTransaccionesRuntime.OperatingMode);
                 var catalogResult = transportStatus == IntegrationTransportStatus.Succeeded
@@ -356,17 +356,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.IsSuccessful = false;
                 execution.IsFunctionalRejection = false;
                 execution.IsTechnicalFailure = true;
-                execution.ProcessingStatus = queue.AttemptCount < _resilienceOptions.MaxAttempts
-                    ? IncomingNachaIndividualProcessingStatus.RetryPending
-                    : IncomingNachaIndividualProcessingStatus.TechnicalFailed;
-                execution.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
-                execution.ResultCode = string.Empty;
-                execution.ResultDescription = string.Empty;
-                execution.TechnicalErrorCode = queue.LastErrorCode;
-                execution.TechnicalErrorMessage = ex.Message;
-                execution.ProcessingStatus = queue.AttemptCount < _resilienceOptions.MaxAttempts
-                    ? IncomingNachaIndividualProcessingStatus.RetryPending
-                    : IncomingNachaIndividualProcessingStatus.TechnicalFailed;
+                execution.ProcessingStatus = IncomingNachaIndividualProcessingStatus.TechnicalFailed;
                 execution.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
                 execution.ResultCode = string.Empty;
                 execution.ResultDescription = string.Empty;
@@ -376,10 +366,10 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.BusinessStatus = IntegrationResponseBusinessStatus.Unknown;
                 execution.RetryAllowed = false;
                 execution.RequiresManualReview = false;
-                execution.ProcessedAtUtc = DateTime.UtcNow;
+                execution.ProcessedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
                 execution.TechnicalException = BuildTechnicalException(ex);
                 execution.RequestHash = execution.RequestHash == string.Empty ? Hash(ex.Message) : execution.RequestHash;
-                execution.FinishedAtUtc = DateTime.UtcNow;
+                execution.FinishedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
                 execution.DurationMs = CalculateDurationMs(execution.StartedAtUtc, execution.FinishedAtUtc.Value);
                 queue.NextAttemptAtUtc = null;
                 AddAutomaticEvent(queue, "DispatchBlockedByMapping", "Blocked", ex.Message, queue.LastErrorCode);
@@ -391,7 +381,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 queue.LastErrorMessage = ex.Message;
                 execution.ResponseCode = queue.LastErrorCode;
                 execution.ResponseMessage = ex.Message;
-                execution.FinishedAtUtc = DateTime.UtcNow;
+                execution.FinishedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
                 execution.IsSuccess = false;
                 execution.IsRetryable = true;
                 execution.SoapResponseCode = queue.LastErrorCode;
@@ -400,6 +390,14 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.IsSuccessful = false;
                 execution.IsFunctionalRejection = false;
                 execution.IsTechnicalFailure = true;
+                execution.ProcessingStatus = queue.AttemptCount < _resilienceOptions.MaxAttempts
+                    ? IncomingNachaIndividualProcessingStatus.RetryPending
+                    : IncomingNachaIndividualProcessingStatus.TechnicalFailed;
+                execution.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
+                execution.ResultCode = string.Empty;
+                execution.ResultDescription = string.Empty;
+                execution.TechnicalErrorCode = queue.LastErrorCode;
+                execution.TechnicalErrorMessage = ex.Message;
                 execution.TransportStatus = IntegrationTransportStatus.Failed;
                 execution.BusinessStatus = IntegrationResponseBusinessStatus.Unknown;
                 execution.RetryAllowed = true;
@@ -614,7 +612,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 queue.AttemptCount,
                 code = code ?? string.Empty
             }),
-            OccurredAtUtc = DateTime.UtcNow,
+            OccurredAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
             RaisedBy = "inbound.dispatch.orchestrator"
         });
     }
@@ -798,11 +796,11 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             : await _achResultResolver.ResolveAsync(new IncomingNachaAchResultRequest(
                 queue.ClearingHouseId,
                 responseCode,
-                AchReturnFlowType.Any,
-                IsDebit: false,
-                IsCredit: true,
-                IsPrenotification: false,
-                IsReturn: false,
+                queue.AchTransaction.Type == TransactionTypeEnum.Return ? AchReturnFlowType.Return : AchReturnFlowType.Any,
+                IsDebit: queue.AchTransaction.Type == TransactionTypeEnum.Debit,
+                IsCredit: queue.AchTransaction.Type == TransactionTypeEnum.Credit,
+                IsPrenotification: queue.AchTransaction.Type == TransactionTypeEnum.Prenotification,
+                IsReturn: queue.AchTransaction.Type == TransactionTypeEnum.Return,
                 processedAtUtc), ct);
 
         execution.ProcessingStatus = IncomingNachaIndividualProcessingStatus.Completed;
@@ -815,9 +813,12 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             500);
         execution.BusinessOutcome = resolution is { IsResolved: true }
             ? resolution.BusinessOutcome
-            : execution.IsSuccessful
-                ? IncomingNachaBusinessOutcome.Successful
-                : IncomingNachaBusinessOutcome.Rejected;
+            : execution.BusinessStatus switch
+            {
+                IntegrationResponseBusinessStatus.Success => IncomingNachaBusinessOutcome.Successful,
+                IntegrationResponseBusinessStatus.Rejected => IncomingNachaBusinessOutcome.Rejected,
+                _ => IncomingNachaBusinessOutcome.PendingResponse
+            };
     }
 
     private string ResolveSoapTechnicalStatus(

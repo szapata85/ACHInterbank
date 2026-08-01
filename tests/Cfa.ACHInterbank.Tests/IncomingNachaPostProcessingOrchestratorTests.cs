@@ -838,6 +838,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.IsFunctionalRejection)));
         Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.IsTechnicalFailure)));
         Assert.NotNull(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.TechnicalException)));
+        Assert.True(entity.FindProperty(nameof(IncomingNachaIntegrationExecution.EntryDetailId))!.IsNullable);
+        Assert.False(entity.GetForeignKeys().Single(x => x.PrincipalEntityType.ClrType == typeof(EntryDetail)).IsRequired);
         Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.CorrelationId)));
         Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.DispatchQueueId)));
         Assert.Contains(entity.GetIndexes(), x => x.Properties.Any(p => p.Name == nameof(IncomingNachaIntegrationExecution.SoapMethodName)));

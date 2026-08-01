@@ -60,6 +60,18 @@ public class IncomingNachaCommandCenterController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [EndpointSummary("Validaciones de admisión del archivo NACHA-M entrante")]
+    [EndpointDescription("Expone el resultado funcional de admisión con código estable, explicación en español, valores esperado y encontrado y una acción sugerida.")]
+    [HttpGet("ingestions/{ingestionId:guid}/validations")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
+    [ProducesResponseType(typeof(IReadOnlyList<IncomingNachaValidationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetIngestionValidations(Guid ingestionId, CancellationToken ct)
+    {
+        var result = await _service.GetIngestionValidationsAsync(ingestionId, ct);
+        return result is null ? NotFound() : Ok(result);
+    }
+
     [EndpointSummary("Lotes del archivo NACHA-M entrante")]
     [EndpointDescription("Consulta paginada y ordenada de lotes, conteos y totales monetarios del archivo. Los valores se entregan como números decimales.")]
     [HttpGet("ingestions/{ingestionId:guid}/batches")]

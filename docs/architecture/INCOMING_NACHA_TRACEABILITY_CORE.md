@@ -190,3 +190,67 @@ La suite `IncomingNachaTraceabilityCoreTests` cubre admisión válida, diferenci
 - PostgreSQL y SQL Server: scripts idempotentes generados y `has-pending-model-changes` sin diferencias para ambos proveedores.
 - PostgreSQL real no se ejecutó porque no había una instancia PostgreSQL disponible en el ambiente; no se simuló ese resultado.
 - No se ejecutaron llamadas SOAP durante esta fase.
+
+## Cierre backend operativo y validación multimotor (Prompt 2)
+
+### Causa raíz y lectura de esquemas históricos
+
+El job `Financial integrity (SQL Server + PostgreSQL)` fallaba después del `Down`, no durante la migración. La prueba volvía al esquema anterior a `EnforceFinancialIntegrity` y consultaba `EntryDetails` con el modelo EF actual. EF incluía `BatchHeaderId`, `CreatedAt` y `UpdatedAt`, columnas que el rollback había retirado correctamente.
+
+La prueba específica ahora ejecuta únicamente:
+
+```text
+esquema anterior → EnforceFinancialIntegrity → esquema anterior
+```
+
+`HistoricalFinancialSnapshotReader` lee el snapshot anterior mediante SQL parametrizado y selecciona sólo columnas presentes en ese esquema. La lógica es compartida; únicamente el delimitador de identificadores cambia por proveedor. Así se verifica el dato histórico después del rollback sin debilitar `Down`, mantener columnas artificiales ni usar el modelo actual contra un esquema incompatible.
+
+### Validación física de la migración de trazabilidad
+
+Las migraciones `20260801140315_IncomingNachaTraceabilityCore` (PostgreSQL) y `20260801140342_IncomingNachaTraceabilityCore` (SQL Server) se probaron con bases reales, aisladas y efímeras. En cada proveedor la prueba migró a la versión anterior, insertó datos históricos, aplicó `Up`, verificó backfill, relaciones, nulabilidad, índice único y precisión `decimal/numeric(18,2)`, ejecutó `Down` y volvió a leer el importe con una proyección compatible con el esquema histórico.
+
+Se comprobó físicamente:
+
+- `EntryDetails.BatchHeaderId` y `AddendaRecords.EntryDetailId` después de `Up`;
+- `CreatedAt` con backfill desde la fecha conocida de recepción;
+- `IncomingNachaIntegrationExecution.EntryDetailId` nullable para operaciones no asociadas a una entrada;
+- FK ejecución–entrada e índice único de entrada e intento;
+- retiro real de las columnas nuevas durante `Down`;
+- conservación exacta del importe histórico después del rollback.
+
+El índice PostgreSQL conserva el nombre físico generado por su migración (`IX_IncomingNachaIntegrationExecution_EntryDetailId_AttemptNumb~`); SQL Server usa el nombre completo. La prueba valida el objeto real de cada motor sin duplicar el flujo.
+
+### Dispatch, intentos y resultados SOAP
+
+Cada intento de `Proc_Transacciones` conserva el `EntryDetailId`. La ausencia excepcional de clasificación ya no produce el identificador ficticio `0`: se conserva `null`, coherente con la nulabilidad diseñada para operaciones como `Proc_Contrapartidas`.
+
+Los contratos del centro de control exponen ahora:
+
+- fecha de programación, intento actual y máximo de intentos;
+- operación SOAP y endpoint lógico;
+- inicio, fin y duración;
+- estado de transporte y texto visible en español;
+- código y mensaje técnico controlado;
+- resultado funcional, origen, identificador externo, código y causal ACH;
+- `CorrelationId` y vínculo individual con la transacción.
+
+Un timeout, error de transporte o excepción conserva `NotProcessed`, deja vacíos `ResultCode` y `AchReturnCodeId` y utiliza los campos técnicos. La aplicabilidad de `AchReturnCodes` usa cámara, código, flujo, vigencia y el tipo real de transacción (crédito, débito, prenotificación o devolución). Una respuesta no resuelta por catálogo permanece `PendingResponse`; no se inventa un rechazo. `R96`, `R16` y `R17` sólo adquieren el significado configurado para su cámara y contexto.
+
+Las pruebas SOAP de esta fase usan adaptadores determinísticos y el límite contractual existente; no se ejecutaron operaciones monetarias contra infraestructura externa ni se registraron payloads sensibles.
+
+### Contratos progresivos y lenguaje visible
+
+Se añadió `GET /incoming-nacha-command-center/ingestions/{id}/validations`. El endpoint reconstruye el resultado de admisión persistido y devuelve código estable, título, explicación, valor esperado, valor encontrado, acción sugerida, tipo, severidad e indicador de éxito.
+
+El detalle de ingesta incluye resumen de lotes, transacciones, adendas, débitos, créditos y conteos por resultado. Las listas de ingestas, colas, transacciones e intentos conservan códigos técnicos y agregan textos visibles en español. Los importes siguen siendo `decimal`; no se formatean en el backend.
+
+### Evidencia ejecutada en el cierre
+
+- Prioridad cero antes de corregir: 8 totales, 6 aprobadas, 2 fallidas, 0 omitidas; se reprodujeron ambos errores originales.
+- Prioridad cero después de corregir: 8 aprobadas, 0 fallidas, 0 omitidas sobre SQL Server y PostgreSQL reales.
+- Migración de trazabilidad física: 2 aprobadas, 0 fallidas, 0 omitidas, con `Up` y `Down` reales.
+- Pruebas focalizadas de ingesta, descifrado, idempotencia, trazabilidad, centro de control y orquestador SOAP: 95 aprobadas, 0 fallidas, 0 omitidas.
+- Regresión backend completa con SQL Server y PostgreSQL requeridos: 2.069 aprobadas, 0 fallidas y 1 omitida. La única omisión es el diagnóstico arquitectónico explícito `SoapArchitectureDiagnosticTests`, no una prueba funcional ni multimotor.
+- `has-pending-model-changes`: sin diferencias para PostgreSQL y SQL Server.
+- Scripts idempotentes generados para ambos proveedores.
+- GitHub CLI no tenía una sesión autenticada; por ello no fue posible consultar remotamente el run `30706518660`. El workflow local fue conservado sin reducir servicios, filtro, modo requerido ni artefactos.

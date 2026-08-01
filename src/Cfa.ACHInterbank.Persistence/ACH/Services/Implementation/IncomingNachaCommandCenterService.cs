@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -13,20 +14,26 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
 {
     private readonly AchDbContext _context;
     private readonly IIncomingNachaStateMachineService _stateMachineService;
+    private readonly IncomingNachaDispatchResilienceOptions _resilienceOptions;
+    private readonly TimeProvider _timeProvider;
 
     public IncomingNachaCommandCenterService(
         AchDbContext context,
-        IIncomingNachaStateMachineService stateMachineService)
+        IIncomingNachaStateMachineService stateMachineService,
+        IOptions<IncomingNachaDispatchResilienceOptions>? resilienceOptions = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _stateMachineService = stateMachineService;
+        _resilienceOptions = resilienceOptions?.Value ?? new IncomingNachaDispatchResilienceOptions();
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<IncomingNachaObservabilitySummaryDto> GetObservabilitySummaryAsync(int windowHours = 24, CancellationToken ct = default)
     {
         var safeWindowHours = Math.Clamp(windowHours, 1, 168);
-        var fromUtc = DateTime.UtcNow.AddHours(-safeWindowHours);
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        var fromUtc = nowUtc.AddHours(-safeWindowHours);
         var fromOffsetUtc = new DateTimeOffset(fromUtc, TimeSpan.Zero);
 
         var ingestionsQ = _context.IncomingNachaFileIngestions
@@ -180,24 +187,34 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         }
 
         var total = await q.CountAsync(ct);
-        var items = await q.OrderByDescending(x => x.UploadedAtUtc)
+        var rows = await q.OrderByDescending(x => x.UploadedAtUtc)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(x => new IncomingNachaIngestionListItemDto(
-                x.Id,
-                x.FileName,
-                x.CorrelationId,
-                x.IngestionStatus,
-                x.CycleResolutionStatus,
-                x.ParsingStatus,
-                x.ResolvedClearingHouseId,
-                x.ResolvedAchCycleId,
-                x.OperationalDate,
-                x.IsReprocess,
-                x.UploadedAtUtc,
-                _context.IncomingNachaDispatchQueue.Count(q => q.IncomingNachaFileIngestionId == x.Id),
-                _context.IncomingNachaProcessingEvents.Count(e => e.IncomingNachaFileIngestionId == x.Id)))
+            .Select(x => new
+            {
+                Item = new IncomingNachaIngestionListItemDto(
+                    x.Id,
+                    x.FileName,
+                    x.CorrelationId,
+                    x.IngestionStatus,
+                    x.CycleResolutionStatus,
+                    x.ParsingStatus,
+                    x.ResolvedClearingHouseId,
+                    x.ResolvedAchCycleId,
+                    x.OperationalDate,
+                    x.IsReprocess,
+                    x.UploadedAtUtc,
+                    _context.IncomingNachaDispatchQueue.Count(q => q.IncomingNachaFileIngestionId == x.Id),
+                    _context.IncomingNachaProcessingEvents.Count(e => e.IncomingNachaFileIngestionId == x.Id)),
+                x.Stage
+            })
             .ToListAsync(ct);
+        var items = rows.Select(x => x.Item with
+        {
+            IngestionStatusText = IncomingNachaContractText.IngestionStatus(x.Item.IngestionStatus),
+            StageCode = x.Stage.ToString(),
+            StageText = IncomingNachaContractText.Stage(x.Stage)
+        }).ToList();
 
         return new IncomingNachaPageResult<IncomingNachaIngestionListItemDto>(items, page, pageSize, total);
     }
@@ -219,6 +236,24 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             .Select(x => new IncomingNachaProcessingEventDto(x.Id, x.EventType, x.EventStatus, x.Message, x.OccurredAtUtc, x.RaisedBy, x.AchTransactionId))
             .ToListAsync(ct);
 
+        var latestProcessing = await _context.IncomingNachaFileProcessingResults.AsNoTracking()
+            .Where(x => x.IncomingNachaFileIngestionId == ingestionId)
+            .OrderByDescending(x => x.AttemptNumber)
+            .Select(x => new { x.TotalBatches, x.TotalEntries, x.TotalAddendas })
+            .FirstOrDefaultAsync(ct);
+        var financialTotals = await _context.FileControls.AsNoTracking()
+            .Where(x => x.NachaHeader != null && x.NachaHeader.IncomingNachaFileIngestionId == ingestionId)
+            .GroupBy(_ => 1)
+            .Select(g => new { Debit = g.Sum(x => x.TotalDebitAmount), Credit = g.Sum(x => x.TotalCreditAmount) })
+            .FirstOrDefaultAsync(ct);
+        var outcomes = await _context.IncomingNachaIntegrationExecution.AsNoTracking()
+            .Where(x => x.DispatchQueue.IncomingNachaFileIngestionId == ingestionId)
+            .GroupBy(x => x.BusinessOutcome)
+            .Select(g => new { Outcome = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        var technicalFailures = await _context.IncomingNachaIntegrationExecution.AsNoTracking()
+            .CountAsync(x => x.DispatchQueue.IncomingNachaFileIngestionId == ingestionId && x.IsTechnicalFailure, ct);
+
         return new IncomingNachaIngestionDetailDto(
             ingestion.Id,
             ingestion.FileName,
@@ -234,7 +269,76 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             ingestion.IsReprocess,
             ingestion.ParentIngestionId,
             queue.Items,
-            events);
+            events)
+        {
+            Summary = new IncomingNachaFileSummaryDto(
+                latestProcessing?.TotalBatches ?? 0,
+                latestProcessing?.TotalEntries ?? 0,
+                latestProcessing?.TotalAddendas ?? 0,
+                financialTotals?.Debit ?? 0m,
+                financialTotals?.Credit ?? 0m,
+                outcomes.FirstOrDefault(x => x.Outcome == IncomingNachaBusinessOutcome.Successful)?.Count ?? 0,
+                outcomes.FirstOrDefault(x => x.Outcome == IncomingNachaBusinessOutcome.Rejected)?.Count ?? 0,
+                outcomes.FirstOrDefault(x => x.Outcome == IncomingNachaBusinessOutcome.Returned)?.Count ?? 0,
+                technicalFailures),
+            AdmissionIssue = BuildAdmissionIssue(ingestion),
+            IngestionStatusText = IncomingNachaContractText.IngestionStatus(ingestion.IngestionStatus),
+            StageCode = ingestion.Stage.ToString(),
+            StageText = IncomingNachaContractText.Stage(ingestion.Stage)
+        };
+    }
+
+    public async Task<IReadOnlyList<IncomingNachaValidationDto>?> GetIngestionValidationsAsync(
+        Guid ingestionId,
+        CancellationToken ct = default)
+    {
+        var ingestion = await _context.IncomingNachaFileIngestions.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == ingestionId, ct);
+        if (ingestion is null)
+        {
+            return null;
+        }
+
+        var issue = BuildAdmissionIssue(ingestion);
+        if (issue is not null)
+        {
+            var persistedIssue = await TryReadPersistedAdmissionIssueAsync(ingestionId, ct) ?? issue;
+            return
+            [
+                new IncomingNachaValidationDto(
+                    persistedIssue.Code,
+                    persistedIssue.Title,
+                    persistedIssue.Message,
+                    persistedIssue.ExpectedValue,
+                    persistedIssue.FoundValue,
+                    persistedIssue.SuggestedAction,
+                    persistedIssue.ErrorType,
+                    persistedIssue.Severity,
+                    false)
+            ];
+        }
+
+        if (ingestion.Stage is IncomingNachaIngestionStage.Persisted
+            || ingestion.Stage is IncomingNachaIngestionStage.Parsing
+            || ingestion.Stage is IncomingNachaIngestionStage.ValidatingContent
+            || ingestion.Stage is IncomingNachaIngestionStage.Persisting)
+        {
+            return
+            [
+                new IncomingNachaValidationDto(
+                    "ADMISSION_ACCEPTED",
+                    "Archivo admitido",
+                    "El archivo superó las validaciones de fecha, cámara, perfil y ciclo.",
+                    ingestion.OperationalDate?.ToString("yyyy-MM-dd"),
+                    ingestion.HeaderDate?.ToString("yyyy-MM-dd"),
+                    "Continúe con el seguimiento del procesamiento.",
+                    "Functional",
+                    "Information",
+                    true)
+            ];
+        }
+
+        return [];
     }
 
     public async Task<IncomingNachaPageResult<IncomingNachaQueueListItemDto>> GetQueueAsync(IncomingNachaQueueQuery query, CancellationToken ct = default)
@@ -272,6 +376,7 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             .Select(x => new QueueProjection(
                 x.Id,
                 x.IncomingNachaFileIngestionId,
+                x.Classification.EntryDetailId,
                 x.AchTransactionId,
                 x.AchCycleId,
                 x.ClearingHouseId,
@@ -323,7 +428,18 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                     : x.BusinessOutcome == IncomingNachaBusinessOutcome.NotProcessed ? "No procesado"
                     : "Pendiente de respuesta",
                 x.AchReturnCodeId, x.ResultCode, x.ResultDescription,
-                x.IsSuccess, x.IsRetryable, x.StartedAtUtc, x.FinishedAtUtc))
+                x.IsSuccess, x.IsRetryable, x.StartedAtUtc, x.FinishedAtUtc)
+            {
+                LogicalEndpoint = string.IsNullOrEmpty(x.SoapEndpoint) ? string.Empty : "WSCFAACH",
+                DurationMs = x.DurationMs,
+                TransportStatusCode = x.TransportStatus.ToString(),
+                TransportStatusText = IncomingNachaContractText.TransportStatus(x.TransportStatus),
+                TechnicalErrorCode = x.TechnicalErrorCode,
+                TechnicalErrorMessage = x.TechnicalErrorMessage,
+                ResultSource = x.ResultSource,
+                ExternalTransactionId = x.ExternalTransactionId,
+                ProcessedAtUtc = x.ProcessedAtUtc
+            })
             .ToListAsync(ct);
 
         var events = await _context.IncomingNachaProcessingEvents.AsNoTracking()
@@ -350,7 +466,14 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             queue.LastResponseCode,
             queue.ConfirmedAtUtc,
             queue.CreatedAt,
-            _stateMachineService.GetAllowedDispatchActions(queue.QueueStatus));
+            _stateMachineService.GetAllowedDispatchActions(queue.QueueStatus))
+        {
+            EntryDetailId = queue.Classification.EntryDetailId,
+            QueueStatusText = IncomingNachaContractText.QueueStatus(queue.QueueStatus),
+            ScheduledAtUtc = queue.CreatedAt.UtcDateTime,
+            MaxAttempts = _resilienceOptions.MaxAttempts,
+            SoapOperation = executions.FirstOrDefault()?.MethodName ?? "Proc_Transacciones"
+        };
 
         var ingestionDto = new IncomingNachaIngestionListItemDto(
             ingestion.Id,
@@ -365,7 +488,12 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             ingestion.IsReprocess,
             ingestion.UploadedAtUtc,
             0,
-            0);
+            0)
+        {
+            IngestionStatusText = IncomingNachaContractText.IngestionStatus(ingestion.IngestionStatus),
+            StageCode = ingestion.Stage.ToString(),
+            StageText = IncomingNachaContractText.Stage(ingestion.Stage)
+        };
 
         var classification = queue.Classification;
         var classificationDto = new IncomingNachaEntryClassificationDto(
@@ -510,7 +638,22 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 execution?.ResultCode ?? string.Empty,
                 execution?.ResultDescription ?? string.Empty,
                 execution?.ProcessedAtUtc,
-                execution?.CorrelationId ?? ingestionId.ToString("N"));
+                execution?.CorrelationId ?? ingestionId.ToString("N"))
+            {
+                ClearingHouseId = queue?.ClearingHouseId ?? 0,
+                OperationalDate = queue?.OperationalDate,
+                AchCycleId = queue?.AchCycleId ?? string.Empty,
+                ScheduledAtUtc = queue?.CreatedAt.UtcDateTime,
+                StartedAtUtc = execution?.StartedAtUtc,
+                FinishedAtUtc = execution?.FinishedAtUtc,
+                NextRetryAtUtc = queue?.NextAttemptAtUtc,
+                MaxAttempts = _resilienceOptions.MaxAttempts,
+                SoapOperation = execution?.MethodName ?? (queue is null ? string.Empty : "Proc_Transacciones"),
+                ExternalTransactionId = execution?.ExternalTransactionId ?? string.Empty,
+                AchReturnCodeId = execution?.AchReturnCodeId,
+                TechnicalErrorCode = execution?.TechnicalErrorCode ?? string.Empty,
+                TechnicalErrorMessage = execution?.TechnicalErrorMessage ?? string.Empty
+            };
         }).ToList();
 
         return new IncomingNachaPageResult<IncomingNachaTransactionDto>(items, page, pageSize, total);
@@ -581,7 +724,7 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
     public Task<IncomingNachaManualActionResultDto> RetryManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
         => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualRetry, (q, req) =>
         {
-            q.NextAttemptAtUtc = DateTime.UtcNow;
+            q.NextAttemptAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             q.LastErrorCode = string.Empty;
             q.LastErrorMessage = string.Empty;
             if (req.Priority.HasValue)
@@ -589,13 +732,13 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 q.Priority = Math.Clamp(req.Priority.Value, 1, 999);
             }
 
-            return "Retry manual aplicado.";
+            return "Reintento manual aplicado.";
         }, ct);
 
     public Task<IncomingNachaManualActionResultDto> UnblockManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
         => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualUnblock, (q, req) =>
         {
-            q.NextAttemptAtUtc = DateTime.UtcNow;
+            q.NextAttemptAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             q.LastErrorCode = string.Empty;
             q.LastErrorMessage = string.Empty;
             if (req.Priority.HasValue)
@@ -603,19 +746,19 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 q.Priority = Math.Clamp(req.Priority.Value, 1, 999);
             }
 
-            return "Unblock manual aplicado.";
+            return "Desbloqueo manual aplicado.";
         }, ct);
 
     public Task<IncomingNachaManualActionResultDto> RequeueManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
         => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualRequeue, (q, req) =>
         {
-            q.NextAttemptAtUtc = DateTime.UtcNow;
+            q.NextAttemptAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             if (req.Priority.HasValue)
             {
                 q.Priority = Math.Clamp(req.Priority.Value, 1, 999);
             }
 
-            return "Requeue manual aplicado.";
+            return "Nueva programación manual aplicada.";
         }, ct);
 
     public Task<IncomingNachaManualActionResultDto> MarkFailedFinalManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
@@ -659,7 +802,10 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
 
         if (replayed)
         {
-            return new IncomingNachaManualActionResultDto(queue.Id, ToActionLabel(transitionEvent), queue.QueueStatus, queue.QueueStatus, true, "Solicitud idempotente ya aplicada previamente.");
+            return new IncomingNachaManualActionResultDto(queue.Id, ToActionLabel(transitionEvent), queue.QueueStatus, queue.QueueStatus, true, "Solicitud idempotente ya aplicada previamente.")
+            {
+                ActionText = ToActionText(transitionEvent)
+            };
         }
 
         var previousStatus = queue.QueueStatus;
@@ -698,7 +844,10 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             transition,
             ct);
 
-        return new IncomingNachaManualActionResultDto(queue.Id, ToActionLabel(transitionEvent), previousStatus, queue.QueueStatus, false, $"{appliedMessage} [{transition.ResultCode}]");
+        return new IncomingNachaManualActionResultDto(queue.Id, ToActionLabel(transitionEvent), previousStatus, queue.QueueStatus, false, $"{appliedMessage} [{transition.ResultCode}]")
+        {
+            ActionText = ToActionText(transitionEvent)
+        };
     }
 
     private IncomingNachaQueueListItemDto ToQueueListDto(QueueProjection x)
@@ -719,7 +868,14 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             x.LastResponseCode,
             x.ConfirmedAtUtc,
             x.CreatedAt,
-            _stateMachineService.GetAllowedDispatchActions(x.QueueStatus));
+            _stateMachineService.GetAllowedDispatchActions(x.QueueStatus))
+        {
+            EntryDetailId = x.EntryDetailId,
+            QueueStatusText = IncomingNachaContractText.QueueStatus(x.QueueStatus),
+            ScheduledAtUtc = x.CreatedAt.UtcDateTime,
+            MaxAttempts = _resilienceOptions.MaxAttempts,
+            SoapOperation = "Proc_Transacciones"
+        };
     }
 
     private static string ToActionLabel(IncomingNachaDispatchEvent transitionEvent)
@@ -730,6 +886,16 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             IncomingNachaDispatchEvent.ManualRequeue => "Requeue",
             IncomingNachaDispatchEvent.ManualMarkFailedFinal => "MarkFailedFinal",
             _ => transitionEvent.ToString()
+        };
+
+    private static string ToActionText(IncomingNachaDispatchEvent transitionEvent)
+        => transitionEvent switch
+        {
+            IncomingNachaDispatchEvent.ManualRetry => "Reintentar",
+            IncomingNachaDispatchEvent.ManualUnblock => "Desbloquear",
+            IncomingNachaDispatchEvent.ManualRequeue => "Volver a programar",
+            IncomingNachaDispatchEvent.ManualMarkFailedFinal => "Marcar como falla final",
+            _ => "Acción operativa"
         };
 
     private async Task RegisterTransitionEventAsync(
@@ -766,16 +932,57 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 request.IdempotencyKey,
                 performedBy = normalizedBy
             }),
-            OccurredAtUtc = DateTime.UtcNow,
+            OccurredAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
             RaisedBy = normalizedBy
         });
 
         await _context.SaveChangesAsync(ct);
     }
 
+    private static IncomingNachaAdmissionIssue? BuildAdmissionIssue(IncomingNachaFileIngestion ingestion)
+    {
+        if (string.IsNullOrWhiteSpace(ingestion.RejectionCode)
+            && ingestion.Stage is not IncomingNachaIngestionStage.Rejected)
+        {
+            return null;
+        }
+
+        var technical = !string.IsNullOrWhiteSpace(ingestion.TechnicalErrorCode);
+        return new IncomingNachaAdmissionIssue(
+            ingestion.RejectionCode ?? ingestion.TechnicalErrorCode ?? "FILE_ADMISSION_REJECTED",
+            ingestion.RejectionTitle ?? (technical ? "No fue posible procesar el archivo" : "No fue posible admitir el archivo"),
+            ingestion.RejectionDescription ?? ingestion.TechnicalErrorMessage ?? "El archivo no superó las validaciones operativas.",
+            ingestion.SuggestedAction ?? "Verifique los datos del archivo y vuelva a intentarlo.",
+            technical ? "Technical" : "Functional",
+            "Error");
+    }
+
+    private async Task<IncomingNachaAdmissionIssue?> TryReadPersistedAdmissionIssueAsync(Guid ingestionId, CancellationToken ct)
+    {
+        var json = await _context.IncomingNachaFileProcessingResults.AsNoTracking()
+            .Where(x => x.IncomingNachaFileIngestionId == ingestionId)
+            .OrderByDescending(x => x.AttemptNumber)
+            .Select(x => x.ParserErrorsJson)
+            .FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<IncomingNachaAdmissionIssue[]>(json)?.FirstOrDefault();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private sealed record QueueProjection(
         Guid Id,
         Guid IncomingNachaFileIngestionId,
+        int EntryDetailId,
         int AchTransactionId,
         string AchCycleId,
         int ClearingHouseId,
