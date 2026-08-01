@@ -79,7 +79,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _soapIntegrationSettingsService = soapIntegrationSettingsService;
         _localLivePreparationService = localLivePreparationService;
         _responseCatalogResolver = responseCatalogResolver;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = timeProvider ?? OperationalTimeProvider.SystemBogota;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(

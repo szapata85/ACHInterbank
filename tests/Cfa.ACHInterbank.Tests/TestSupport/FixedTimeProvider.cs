@@ -19,19 +19,11 @@ internal static class TestClock
 {
     public static readonly DateTime OperationalDate = new(2026, 7, 24);
     public static readonly DateTimeOffset UtcNow = new(2026, 7, 24, 17, 0, 0, TimeSpan.Zero);
-    public static readonly TimeZoneInfo BogotaTimeZone = ResolveBogotaTimeZone();
+    public static readonly TimeZoneInfo BogotaTimeZone = TimeZoneInfo.CreateCustomTimeZone(
+        "TestAmericaBogota",
+        TimeSpan.FromHours(-5),
+        "Test America/Bogota",
+        "Test America/Bogota");
 
     public static FixedTimeProvider Create() => new(UtcNow, BogotaTimeZone);
-
-    private static TimeZoneInfo ResolveBogotaTimeZone()
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("America/Bogota");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("SA Pacific Standard Time");
-        }
-    }
 }

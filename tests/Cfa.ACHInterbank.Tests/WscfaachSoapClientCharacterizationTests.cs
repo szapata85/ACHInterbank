@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.External.Connections;
 using Cfa.ACHInterbank.External;
+using Cfa.ACHInterbank.Tests.TestSupport;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -153,9 +154,8 @@ public class WscfaachSoapClientCharacterizationTests
     public async Task ProcTransaccionesAsync_ControlledLocalBridge_PreservesLogicalHostHeader()
     {
         using var server = await LocalSoapServer.StartAsync(
-            (_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") },
-            "localhost");
-        var logicalEndpoint = new Uri(new Uri(server.Url), "WSCFAACH.svc").AbsoluteUri;
+            (_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") });
+        var logicalEndpoint = new UriBuilder(Uri.UriSchemeHttp, "localhost", server.Port, "WSCFAACH.svc").Uri.AbsoluteUri;
         var settings = Settings(logicalEndpoint, "Proc_Transacciones");
         var logicalUri = new Uri(logicalEndpoint);
         var sut = new WscfaachSoapClient(
@@ -229,91 +229,4 @@ public class WscfaachSoapClientCharacterizationTests
         public HttpClient CreateClient(string name) => new();
     }
 
-    private sealed class LocalSoapServer : IDisposable
-    {
-        private readonly HttpListener _listener;
-        private readonly Func<HttpListenerRequest, string, HttpResponseMessage> _handler;
-        private readonly CancellationTokenSource _cts = new();
-        private readonly Task _loopTask;
-
-        public List<CapturedRequest> Requests { get; } = [];
-        public string Url { get; }
-
-        private LocalSoapServer(string url, Func<HttpListenerRequest, string, HttpResponseMessage> handler)
-        {
-            Url = url;
-            _handler = handler;
-            _listener = new HttpListener();
-            _listener.Prefixes.Add(url);
-            _listener.Start();
-            _loopTask = Task.Run(ListenLoopAsync);
-        }
-
-        public static async Task<LocalSoapServer> StartAsync(
-            Func<HttpListenerRequest, string, HttpResponseMessage> handler,
-            string host = "127.0.0.1")
-        {
-            var port = GetFreePort();
-            var url = $"http://{host}:{port}/";
-            var server = new LocalSoapServer(url, handler);
-            await Task.Delay(20);
-            return server;
-        }
-
-        private async Task ListenLoopAsync()
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                HttpListenerContext context;
-                try { context = await _listener.GetContextAsync(); }
-                catch { break; }
-
-                using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding ?? Encoding.UTF8);
-                var body = await reader.ReadToEndAsync();
-                Requests.Add(new CapturedRequest(
-                    body,
-                    context.Request.Headers["SOAPAction"] ?? string.Empty,
-                    context.Request.ContentType ?? string.Empty,
-                    context.Request.Headers["Host"] ?? string.Empty,
-                    context.Request.Url?.AbsolutePath ?? string.Empty));
-
-                var response = _handler(context.Request, body);
-                context.Response.StatusCode = (int)response.StatusCode;
-                if (response.Content is not null)
-                {
-                    var payload = await response.Content.ReadAsStringAsync();
-                    var bytes = Encoding.UTF8.GetBytes(payload);
-                    context.Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "text/xml";
-                    await context.Response.OutputStream.WriteAsync(bytes);
-                }
-
-                context.Response.Close();
-            }
-        }
-
-        private static int GetFreePort()
-        {
-            var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-            listener.Start();
-            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            listener.Stop();
-            return port;
-        }
-
-        public void Dispose()
-        {
-            _cts.Cancel();
-            _listener.Stop();
-            _listener.Close();
-            try { _loopTask.Wait(500); } catch { }
-            _cts.Dispose();
-        }
-    }
-
-    private sealed record CapturedRequest(
-        string Body,
-        string SoapAction,
-        string ContentType,
-        string Host,
-        string Path);
 }

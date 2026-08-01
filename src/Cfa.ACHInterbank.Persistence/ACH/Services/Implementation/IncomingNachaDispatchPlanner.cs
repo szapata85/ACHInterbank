@@ -38,7 +38,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         _strategyResolver = strategyResolver;
         _shadowCompareService = shadowCompareService;
         _logger = logger ?? NullLogger<IncomingNachaDispatchPlanner>.Instance;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = timeProvider ?? OperationalTimeProvider.SystemBogota;
     }
 
     public async Task<int> PlanForIngestionAsync(Guid ingestionId, string plannedBy, CancellationToken ct = default)
