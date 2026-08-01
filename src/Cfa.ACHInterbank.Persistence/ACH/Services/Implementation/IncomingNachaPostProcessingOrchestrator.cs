@@ -48,6 +48,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly ISoapIntegrationSettingsService? _soapIntegrationSettingsService;
     private readonly IIncomingNachaLocalLivePreparationService? _localLivePreparationService;
     private readonly IIntegrationResponseCatalogResolver? _responseCatalogResolver;
+    private readonly TimeProvider _timeProvider;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -62,7 +63,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         IContrapartidaDispatchJobService? contrapartidaDispatchJobService = null,
         ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
         IIncomingNachaLocalLivePreparationService? localLivePreparationService = null,
-        IIntegrationResponseCatalogResolver? responseCatalogResolver = null)
+        IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _mapper = mapper;
@@ -77,6 +79,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _soapIntegrationSettingsService = soapIntegrationSettingsService;
         _localLivePreparationService = localLivePreparationService;
         _responseCatalogResolver = responseCatalogResolver;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -101,18 +104,14 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         CancellationToken ct)
     {
         var safeChunk = Math.Clamp(chunkSize, 10, 500);
-        var nowUtc = DateTime.UtcNow;
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        var nowLocal = _timeProvider.GetLocalNow().LocalDateTime;
         var integrationCodePolicies = await _context.AchFileRejectionCodes
             .AsNoTracking()
             .Where(x => x.IsActive && x.AppliesToStage == "Integration")
             .ToDictionaryAsync(x => x.Code.ToUpper(), x => x.IsRetryable, ct);
 
-        var releasedFromWaitingWindow = await _context.IncomingNachaDispatchQueue
-            .Where(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow)
-            .Where(x => x.NextAttemptAtUtc == null || x.NextAttemptAtUtc <= nowUtc)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(x => x.QueueStatus, IncomingNachaDispatchQueueStatus.Queued)
-                .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), ct);
+        var waitingWindowResolution = await ReevaluateWaitingWindowAsync(nowUtc, nowLocal, ct);
 
         var ids = await _context.IncomingNachaDispatchQueue
             .AsNoTracking()
@@ -126,7 +125,15 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
 
         if (ids.Count == 0)
         {
-            return new IncomingNachaPostProcessingRunResult(0, 0, 0, 0, 0, 0, 0, "Sin elementos en cola.");
+            return new IncomingNachaPostProcessingRunResult(
+                0,
+                0,
+                0,
+                0,
+                0,
+                waitingWindowResolution.Blocked,
+                waitingWindowResolution.Released,
+                "Sin elementos en cola.");
         }
 
         var queues = await _context.IncomingNachaDispatchQueue
@@ -143,8 +150,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         var confirmed = 0;
         var retryPending = 0;
         var failedFinal = 0;
-        var blocked = 0;
-        var waitingWindow = releasedFromWaitingWindow;
+        var blocked = waitingWindowResolution.Blocked;
+        var waitingWindow = waitingWindowResolution.Released;
         var contrapartidaDispatchTargets = new HashSet<(string CycleId, int ClearingHouseId)>();
         var procTransaccionesRuntime = await ResolveProcTransaccionesRuntimeAsync(ct);
 
@@ -416,6 +423,105 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             Blocked: blocked,
             WaitingWindow: waitingWindow,
             Summary: summary);
+    }
+
+    private async Task<(int Released, int Blocked)> ReevaluateWaitingWindowAsync(
+        DateTime nowUtc,
+        DateTime nowLocal,
+        CancellationToken ct)
+    {
+        var waitingQueues = await _context.IncomingNachaDispatchQueue
+            .Include(x => x.AchTransaction)
+            .ThenInclude(x => x.AchCycle)
+            .Where(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow)
+            .ToListAsync(ct);
+
+        var released = 0;
+        var blocked = 0;
+        var changed = false;
+
+        foreach (var queue in waitingQueues)
+        {
+            var cycle = queue.AchTransaction?.AchCycle;
+            var window = cycle is null
+                ? new IncomingNachaDispatchWindowEvaluation(
+                    IncomingNachaDispatchWindowPosition.Invalid,
+                    null)
+                : IncomingNachaDispatchWindowCalculator.Evaluate(
+                    cycle,
+                    nowLocal,
+                    _timeProvider.LocalTimeZone);
+
+            switch (window.Position)
+            {
+                case IncomingNachaDispatchWindowPosition.Open:
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.Queued;
+                    queue.NextAttemptAtUtc = nowUtc;
+                    queue.LastErrorCode = string.Empty;
+                    queue.LastErrorMessage = string.Empty;
+                    AddAutomaticEvent(
+                        queue,
+                        "DispatchWindowOpened",
+                        "Applied",
+                        "La ventana operativa fue reevaluada y está abierta; el despacho quedó en cola.");
+                    released++;
+                    changed = true;
+                    break;
+
+                case IncomingNachaDispatchWindowPosition.Before:
+                    if (queue.NextAttemptAtUtc != window.NextEligibleAtUtc
+                        || !string.IsNullOrEmpty(queue.LastErrorCode))
+                    {
+                        queue.NextAttemptAtUtc = window.NextEligibleAtUtc;
+                        queue.LastErrorCode = string.Empty;
+                        queue.LastErrorMessage = "En espera del inicio de la ventana operativa del ciclo.";
+                        AddAutomaticEvent(
+                            queue,
+                            "DispatchWindowScheduled",
+                            "Applied",
+                            "Se calculó de forma determinística el próximo inicio de ventana operativa.");
+                        changed = true;
+                    }
+                    break;
+
+                case IncomingNachaDispatchWindowPosition.Expired:
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+                    queue.NextAttemptAtUtc = null;
+                    queue.LastErrorCode = "WINDOW_EXPIRED";
+                    queue.LastErrorMessage = "La ventana operativa del ciclo expiró; no se permite despacho automático.";
+                    AddAutomaticEvent(
+                        queue,
+                        "DispatchWindowExpired",
+                        "Blocked",
+                        queue.LastErrorMessage,
+                        queue.LastErrorCode);
+                    blocked++;
+                    changed = true;
+                    break;
+
+                default:
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+                    queue.NextAttemptAtUtc = null;
+                    queue.LastErrorCode = "WINDOW_SCHEDULE_INVALID";
+                    queue.LastErrorMessage = "No fue posible reevaluar de forma determinística la ventana operativa.";
+                    AddAutomaticEvent(
+                        queue,
+                        "DispatchWindowInvalid",
+                        "Blocked",
+                        queue.LastErrorMessage,
+                        queue.LastErrorCode);
+                    blocked++;
+                    changed = true;
+                    break;
+            }
+        }
+
+        if (changed)
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+
+        return (released, blocked);
     }
 
     private static string Hash(string payload)
@@ -847,7 +953,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
             queue.AchTransaction.Reference,
             correlationId,
             dryRun: !IsLiveMode(operatingMode),
-            externalTransmission: false,
+            externalTransmission: IsLiveMode(operatingMode),
             ct);
     }
 

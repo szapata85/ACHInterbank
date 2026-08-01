@@ -12,7 +12,8 @@ const cenitProductionReferencePattern = /^\d{7}\.\d{3}\.\d{8}\.\d+$/;
 const legacyOperationalPattern = /^\d{7}\.\d{3}\.[1-9]\d*$/;
 const officialReturnPattern = /^\d{7}\.\d{3}\.RET$/i;
 const internalFixturePattern = /\.ach$/i;
-const rejectedExtensionPattern = /\.(txt|nacha|env)$/i;
+const digitalEnvelopePattern = /\.env$/i;
+const rejectedExtensionPattern = /\.(txt|nacha)$/i;
 
 @Component({
   selector: 'app-nacha-upload',
@@ -53,6 +54,7 @@ export class NachaUploadComponent implements OnInit {
   ];
 
   form = this.fb.group({
+    clearingHouseId: [null as number | null, Validators.required],
     file: [null as File | null, Validators.required]
   });
 
@@ -83,15 +85,29 @@ export class NachaUploadComponent implements OnInit {
   }
 
   upload(): void {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      this.notifications.error('Selecciona un archivo NACHA-M para continuar.');
+    this.submitUpload(false);
+  }
+
+  reprocess(): void {
+    if (!this.lastUploadResult?.canReprocess || !this.lastUploadResult.ingestionId) {
+      this.notifications.error('La ingesta actual no está habilitada para reproceso controlado.');
       return;
     }
 
+    this.submitUpload(true, this.lastUploadResult.ingestionId);
+  }
+
+  private submitUpload(forceReprocess: boolean, parentIngestionId?: string): void {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.notifications.error('Selecciona una cámara y un archivo NACHA-M para continuar.');
+      return;
+    }
+
+    const clearingHouseId = this.form.get('clearingHouseId')?.value;
     const file = this.form.get('file')?.value;
-    if (!file) {
-      this.notifications.error('Selecciona un archivo NACHA-M para continuar.');
+    if (!clearingHouseId || !file) {
+      this.notifications.error('Selecciona una cámara y un archivo NACHA-M para continuar.');
       return;
     }
 
@@ -107,7 +123,7 @@ export class NachaUploadComponent implements OnInit {
 
     this.uploading = true;
     this.nachaUpload
-      .upload(file)
+      .upload(file, clearingHouseId, { forceReprocess, parentIngestionId })
       .pipe(
         finalize(() => {
           this.uploading = false;
@@ -116,20 +132,43 @@ export class NachaUploadComponent implements OnInit {
       )
       .subscribe({
         next: (response) => {
-          this.lastUploadResult = this.toUploadResult(response, 200);
-          this.notifications.success(this.lastUploadResult.message || 'Archivo cargado correctamente.');
-          this.resetFileSelection();
+          this.lastUploadResult = this.toUploadResult(response, 200, clearingHouseId);
+          this.notifyUploadResult(this.lastUploadResult);
+          if (!this.lastUploadResult.canReprocess) {
+            this.resetFileSelection();
+          }
           this.loadRecords();
           this.cdr.markForCheck();
         },
         error: (error: unknown) => {
-          this.lastUploadResult = this.toUploadResult(this.extractErrorBody(error), this.extractStatus(error));
-          this.notifications.error(this.lastUploadResult.message || 'No fue posible cargar el archivo NACHA-M.');
-          this.resetFileSelection();
+          this.lastUploadResult = this.toUploadResult(
+            this.extractErrorBody(error),
+            this.extractStatus(error),
+            clearingHouseId
+          );
+          this.notifyUploadResult(this.lastUploadResult);
+          if (!this.lastUploadResult.canReprocess) {
+            this.resetFileSelection();
+          }
           this.loadRecords();
           this.cdr.markForCheck();
         }
       });
+  }
+
+  private notifyUploadResult(result: NachaUploadResultView): void {
+    const message = result.message || 'No fue posible cargar el archivo NACHA-M.';
+    switch (classifyNachaUploadNotification(result)) {
+      case 'success':
+        this.notifications.success(message);
+        break;
+      case 'warning':
+        this.notifications.warning(message);
+        break;
+      default:
+        this.notifications.error(message);
+        break;
+    }
   }
 
   searchRecords(): void {
@@ -173,7 +212,7 @@ export class NachaUploadComponent implements OnInit {
   }
 
   private resetFileSelection(): void {
-    this.form.reset({ file: null });
+    this.form.reset({ clearingHouseId: null, file: null });
     this.selectedFileValidation = null;
     if (this.fileInput) {
       this.fileInput.nativeElement.value = '';
@@ -205,19 +244,29 @@ export class NachaUploadComponent implements OnInit {
     return error;
   }
 
-  private toUploadResult(payload: unknown, statusCode: number): NachaUploadResultView {
+  private toUploadResult(
+    payload: unknown,
+    statusCode: number,
+    selectedClearingHouseId: number
+  ): NachaUploadResultView {
     const body = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
     const success = this.readBoolean(body, 'success');
     const partial = this.readBoolean(body, 'partial');
     const message = this.readString(body, 'message');
     const errors = this.readStringArray(body, 'errors');
     const traceId = this.readString(body, 'traceId');
+    const ingestionId = this.readString(body, 'ingestionId');
     const ingestionStatus = this.readString(body, 'ingestionStatus');
     const cycleResolutionStatus = this.readString(body, 'cycleResolutionStatus');
     const parsingStatus = this.readString(body, 'parsingStatus');
+    const detectedClearingHouseId = this.readNumber(body, 'detectedClearingHouseId');
+    const resolvedClearingHouseId = this.readNumber(body, 'resolvedClearingHouseId');
     const totalBatches = this.readNumber(body, 'totalBatches');
     const totalEntries = this.readNumber(body, 'totalEntries');
     const totalAddendas = this.readNumber(body, 'totalAddendas');
+    const canReprocess = Boolean(ingestionId)
+      && ['Fallido', 'Duplicado'].includes(ingestionStatus)
+      && ['FallidoReprocesable', 'EnProceso'].includes(parsingStatus);
 
     const lowerMessage = message.toLowerCase();
     const isControlledRejection = statusCode >= 400
@@ -242,9 +291,14 @@ export class NachaUploadComponent implements OnInit {
       message,
       errors,
       traceId,
+      ingestionId,
+      canReprocess,
       ingestionStatus,
       cycleResolutionStatus,
       parsingStatus,
+      selectedClearingHouseId,
+      detectedClearingHouseId,
+      resolvedClearingHouseId,
       totalBatches,
       totalEntries,
       totalAddendas
@@ -294,8 +348,18 @@ export function classifyNachaUploadFile(fileName: string): NachaUploadFileValida
       allowed: false,
       kind: 'rejected',
       label: 'Formato no permitido',
-      detail: 'Los archivos .txt, .nacha y .env no se admiten en NachaUpload.',
-      rejectionMessage: 'Los archivos .txt, .nacha y .env no se admiten en NachaUpload.'
+      detail: 'Los archivos .txt y .nacha no se admiten en NachaUpload.',
+      rejectionMessage: 'Los archivos .txt y .nacha no se admiten en NachaUpload.'
+    };
+  }
+
+  if (digitalEnvelopePattern.test(normalizedName)) {
+    return {
+      allowed: true,
+      kind: 'digital-envelope-achcol',
+      label: 'Sobre digital ACH Colombia',
+      detail: 'Archivo cifrado .ENV; requiere seleccionar ACH Colombia.',
+      rejectionMessage: ''
     };
   }
 
@@ -358,7 +422,7 @@ export function classifyNachaUploadFile(fileName: string): NachaUploadFileValida
     };
   }
 
-type NachaUploadResultView = {
+export type NachaUploadResultView = {
   statusCode: number;
   statusLabel: string;
   success: boolean;
@@ -366,17 +430,36 @@ type NachaUploadResultView = {
   message: string;
   errors: string[];
   traceId: string;
+  ingestionId: string;
+  canReprocess: boolean;
   ingestionStatus: string;
   cycleResolutionStatus: string;
   parsingStatus: string;
+  selectedClearingHouseId: number;
+  detectedClearingHouseId: number | null;
+  resolvedClearingHouseId: number | null;
   totalBatches: number | null;
   totalEntries: number | null;
   totalAddendas: number | null;
 };
 
+export function classifyNachaUploadNotification(
+  result: Pick<NachaUploadResultView, 'success' | 'partial' | 'canReprocess' | 'statusCode'>
+): 'success' | 'warning' | 'error' {
+  if (result.success && !result.partial) {
+    return 'success';
+  }
+
+  if (result.canReprocess || result.statusCode < 500) {
+    return 'warning';
+  }
+
+  return 'error';
+}
+
 export type NachaUploadFileValidation = {
   allowed: boolean;
-  kind: 'production-reference-achcol' | 'production-reference-cenit' | 'official-ach' | 'official-ret' | 'uat-fixture' | 'rejected';
+  kind: 'digital-envelope-achcol' | 'production-reference-achcol' | 'production-reference-cenit' | 'official-ach' | 'official-ret' | 'uat-fixture' | 'rejected';
   label: string;
   detail: string;
   rejectionMessage: string;

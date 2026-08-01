@@ -31,15 +31,18 @@ export interface NachaUploadFilters {
   fileCreationDate?: string;
 }
 
+export interface NachaUploadOptions {
+  forceReprocess?: boolean;
+  parentIngestionId?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class NachaUploadService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiService);
 
-  upload(file: File): Observable<unknown> {
-    const form = new FormData();
-    form.append('file', file);
-
+  upload(file: File, clearingHouseId: number, options: NachaUploadOptions = {}): Observable<unknown> {
+    const form = buildNachaUploadFormData(file, clearingHouseId, options);
     return this.http.post(this.api.resolveUrl('NachaUpload/upload'), form);
   }
 
@@ -54,4 +57,21 @@ export class NachaUploadService {
 
     return this.http.get<NachaUploadRecord[]>(this.api.resolveUrl('NachaUpload/records'), { params });
   }
+}
+
+export function buildNachaUploadFormData(
+  file: File,
+  clearingHouseId: number,
+  options: NachaUploadOptions = {}
+): FormData {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('clearingHouseId', clearingHouseId.toString());
+  if (options.forceReprocess) {
+    form.append('forceReprocess', 'true');
+    if (options.parentIngestionId) {
+      form.append('parentIngestionId', options.parentIngestionId);
+    }
+  }
+  return form;
 }

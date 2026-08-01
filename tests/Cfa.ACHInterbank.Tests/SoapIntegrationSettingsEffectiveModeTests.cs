@@ -15,7 +15,7 @@ namespace Cfa.ACHInterbank.Tests;
 public class SoapIntegrationSettingsEffectiveModeTests
 {
     [Fact]
-    public async Task GetAsync_ExposesTheSameEffectiveModeConfiguredForProcTransaccionesDispatch()
+    public async Task GetAsync_UsesPersistedLiveModeInsteadOfDispatchOption()
     {
         await using var context = BuildContext();
         await SeedSoapSettingsAsync(context);
@@ -33,7 +33,7 @@ public class SoapIntegrationSettingsEffectiveModeTests
                 IntegrationGuaranteeConstants.OutboundRequest, 1, 1, [], [], [], [], false, true, [], []));
         var service = new SoapIntegrationSettingsService(
             context,
-            Options.Create(new ProcTransaccionesDispatchOptions { Mode = "Live" }),
+            Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
             readiness.Object);
 
         var result = await service.GetAsync();
@@ -52,7 +52,7 @@ public class SoapIntegrationSettingsEffectiveModeTests
     public async Task GetAsync_ReportsDryRunWithoutChangingTheConfiguredSoapMapping()
     {
         await using var context = BuildContext();
-        await SeedSoapSettingsAsync(context);
+        await SeedSoapSettingsAsync(context, operatingMode: "DryRun");
         var service = new SoapIntegrationSettingsService(
             context,
             Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }));
@@ -61,13 +61,13 @@ public class SoapIntegrationSettingsEffectiveModeTests
 
         Assert.Equal("DryRun", result.ProcTransaccionesEffectiveSettings!.EffectiveMode);
         Assert.False(result.ProcTransaccionesEffectiveSettings.MappingReady);
-        Assert.Equal("FUNCTIONAL_MAPPING_INVALID", result.ProcTransaccionesEffectiveSettings.MappingIssueCode);
+        Assert.Equal("SOAP_RUNTIME_CONFIGURATION_INVALID", result.ProcTransaccionesEffectiveSettings.MappingIssueCode);
         Assert.DoesNotContain("password", System.Text.Json.JsonSerializer.Serialize(result), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("token", System.Text.Json.JsonSerializer.Serialize(result), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task GetAsync_WhenNoSettingsExist_ReturnsDefaultsWithoutPersisting()
+    public async Task GetAsync_WhenNoSettingsExist_DoesNotSynthesizeOrPersistEndpoints()
     {
         await using var context = BuildContext();
         var service = new SoapIntegrationSettingsService(
@@ -76,7 +76,10 @@ public class SoapIntegrationSettingsEffectiveModeTests
 
         var result = await service.GetAsync();
 
-        Assert.NotEmpty(result.WscfaachMappings);
+        Assert.Empty(result.WscfaachMappings);
+        Assert.Empty(result.WsAxonRespuestaTransaccionesMappings);
+        Assert.Equal("Disabled", result.ProcTransaccionesEffectiveSettings!.EffectiveMode);
+        Assert.Equal("SOAP_RUNTIME_CONFIGURATION_INVALID", result.ProcTransaccionesEffectiveSettings.MappingIssueCode);
         Assert.Empty(await context.Set<SoapIntegrationSetting>().ToListAsync());
     }
 
@@ -103,7 +106,9 @@ public class SoapIntegrationSettingsEffectiveModeTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private static async Task SeedSoapSettingsAsync(AchDbContext context)
+    private static async Task SeedSoapSettingsAsync(
+        AchDbContext context,
+        string operatingMode = "Live")
     {
         context.Set<SoapIntegrationSetting>().Add(new SoapIntegrationSetting
         {
@@ -114,6 +119,8 @@ public class SoapIntegrationSettingsEffectiveModeTests
                     MethodName = "Proc_Transacciones",
                     Endpoint = "http://local/WSCFAACH.svc",
                     SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
+                    OperatingMode = operatingMode,
+                    TimeoutSeconds = 15,
                     Enabled = true,
                     InputParameterMappings = [new SoapInputParameterMappingDto { InputName = "IDTRAN", SoapParameterName = "IDTRAN" }]
                 }

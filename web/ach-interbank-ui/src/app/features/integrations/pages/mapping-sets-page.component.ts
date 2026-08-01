@@ -1210,6 +1210,10 @@ export class MappingSetsPageComponent implements OnInit, OnDestroy {
     }
 
     if (this.normalizeSourceKind(rule.sourceKind).toLowerCase() === 'constant') {
+      if (this.isAllowedFunctionalConstant(rule)) {
+        return false;
+      }
+
       const hasConcreteValue = !!(rule.fixedValue ?? rule.defaultValue ?? '').trim();
       return hasConcreteValue
         ? [rule.fixedValue, rule.defaultValue].some((value) => this.isPlaceholderValue(value))
@@ -1217,6 +1221,17 @@ export class MappingSetsPageComponent implements OnInit, OnDestroy {
     }
 
     return [rule.fixedValue, rule.defaultValue, rule.sourceFieldPath].some((value) => this.isPlaceholderValue(value));
+  }
+
+  private isAllowedFunctionalConstant(rule: IntegrationMappingRule): boolean {
+    const operationKey = this.selectedMethod?.operationKey ?? '';
+    const parameterPath = this.targetFields.find((parameter) => parameter.id === rule.parameterId)?.parameterPath ?? '';
+    const parameterName = parameterPath.split('.').pop() ?? '';
+    const value = (rule.fixedValue ?? rule.defaultValue ?? '').trim();
+
+    return operationKey === 'Proc_Transacciones'
+      && parameterName.toUpperCase() === 'IREVER'
+      && value === '0';
   }
 
   private isPlaceholderValue(value: string | null | undefined): boolean {

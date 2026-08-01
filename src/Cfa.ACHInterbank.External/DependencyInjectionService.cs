@@ -28,6 +28,8 @@ public static class DependencyInjectionService
     {
         services.Configure<WsAxonEndpointSecurityOptions>(
             configuration.GetSection(WsAxonEndpointSecurityOptions.SectionName));
+        services.Configure<ControlledLocalSoapTransportOptions>(
+            configuration.GetSection(ControlledLocalSoapTransportOptions.SectionName));
 
         var resilienceSection = configuration.GetSection("Resilience:Soap");
         var timeoutSeconds = resilienceSection.GetValue<int?>("TimeoutSeconds") ?? 15;

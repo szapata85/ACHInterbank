@@ -29,6 +29,52 @@ public class IncomingNachaDispatchPlannerTests
     }
 
     [Fact]
+    public async Task PlanForIngestionAsync_WaitingWindow_PersistsDeterministicNextEligibleUtc()
+    {
+        await using var context = BuildContext();
+        var ingestion = SeedCommonGraph(context);
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == "C1");
+        cycle.StartTime = new TimeSpan(13, 0, 0);
+        cycle.EndTime = new TimeSpan(14, 0, 0);
+        await context.SaveChangesAsync();
+
+        var sut = new IncomingNachaDispatchPlanner(
+            context,
+            new IncomingNachaDispatchEligibilityPolicy(),
+            timeProvider: TestClock.Create());
+
+        await sut.PlanForIngestionAsync(ingestion.Id, "tester");
+
+        var queue = await context.IncomingNachaDispatchQueue.SingleAsync(x => x.AchTransactionId == 100);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.WaitingWindow, queue.QueueStatus);
+        Assert.Equal(new DateTime(2026, 7, 24, 18, 0, 0, DateTimeKind.Utc), queue.NextAttemptAtUtc);
+        Assert.Empty(queue.LastErrorCode);
+    }
+
+    [Fact]
+    public async Task PlanForIngestionAsync_ExpiredWindow_BlocksFailClosed()
+    {
+        await using var context = BuildContext();
+        var ingestion = SeedCommonGraph(context);
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == "C1");
+        cycle.StartTime = new TimeSpan(8, 0, 0);
+        cycle.EndTime = new TimeSpan(10, 0, 0);
+        await context.SaveChangesAsync();
+
+        var sut = new IncomingNachaDispatchPlanner(
+            context,
+            new IncomingNachaDispatchEligibilityPolicy(),
+            timeProvider: TestClock.Create());
+
+        await sut.PlanForIngestionAsync(ingestion.Id, "tester");
+
+        var queue = await context.IncomingNachaDispatchQueue.SingleAsync(x => x.AchTransactionId == 100);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, queue.QueueStatus);
+        Assert.Equal("WINDOW_EXPIRED", queue.LastErrorCode);
+        Assert.Null(queue.NextAttemptAtUtc);
+    }
+
+    [Fact]
     public async Task PlanForIngestionAsync_UsesIngestionAndClassificationInUniqueIdempotencyKey()
     {
         await using var context = BuildContext();

@@ -1,4 +1,4 @@
-import { classifyNachaUploadFile } from './nacha-upload.component';
+import { classifyNachaUploadFile, classifyNachaUploadNotification } from './nacha-upload.component';
 
 describe('NachaUploadComponent file validation', () => {
   it('should classify ACH Colombia production references without implying homologation', () => {
@@ -55,8 +55,17 @@ describe('NachaUploadComponent file validation', () => {
     expect(result.label).toBe('Fixture UAT/golden interno');
   });
 
-  it('should reject txt, nacha and env files', () => {
-    for (const fileName of ['rechazo.txt', 'rechazo.nacha', 'rechazo.env']) {
+  it('should classify encrypted ACH Colombia envelopes', () => {
+    const result = classifyNachaUploadFile('0001283.001.20260731.1.OUT.env');
+
+    expect(result.allowed).toBeTrue();
+    expect(result.kind).toBe('digital-envelope-achcol');
+    expect(result.label).toBe('Sobre digital ACH Colombia');
+    expect(result.detail).toContain('seleccionar ACH Colombia');
+  });
+
+  it('should reject txt and nacha files', () => {
+    for (const fileName of ['rechazo.txt', 'rechazo.nacha']) {
       const result = classifyNachaUploadFile(fileName);
 
       expect(result.allowed).toBeFalse();
@@ -71,5 +80,27 @@ describe('NachaUploadComponent file validation', () => {
     expect(result.allowed).toBeFalse();
     expect(result.kind).toBe('rejected');
     expect(result.rejectionMessage).toContain('nombre operativo ACHCOL/CENIT');
+  });
+
+  it('should never report success for a controlled reprocess candidate', () => {
+    const result = classifyNachaUploadNotification({
+      success: false,
+      partial: false,
+      canReprocess: true,
+      statusCode: 200
+    });
+
+    expect(result).toBe('warning');
+  });
+
+  it('should report success only for a complete successful response', () => {
+    const result = classifyNachaUploadNotification({
+      success: true,
+      partial: false,
+      canReprocess: false,
+      statusCode: 200
+    });
+
+    expect(result).toBe('success');
   });
 });

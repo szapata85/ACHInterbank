@@ -68,6 +68,9 @@ services:
       Quartz__InstanceId: AUTO
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
       DigitalEnvelope__CertificateBootstrap__Enabled: "false"
+      RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E: "${RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E:-false}"
+      ALLOW_LOCAL_MONETARY_SOAP_E2E: "${ALLOW_LOCAL_MONETARY_SOAP_E2E:-false}"
+      ProcTransacciones__Mode: "${PROC_TRANSACCIONES_MODE:-DryRun}"
       RateLimiting__PermitLimit: "${RATE_LIMITING_PERMIT_LIMIT:-10}"
       RateLimiting__WindowSeconds: "${RATE_LIMITING_WINDOW_SECONDS:-1}"
       RateLimiting__QueueLimit: "${RATE_LIMITING_QUEUE_LIMIT:-2}"

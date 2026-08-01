@@ -1,4 +1,6 @@
 ﻿using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Persistence.Security.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cfa.ACHInterbank.Persistence.DataBase;
@@ -17,6 +19,11 @@ public static class DbInitializer
             dbContext.AuditEnabled = false;
             await new Cfa.ACHInterbank.Persistence.Integrations.Services.IntegrationCatalogBootstrapper(dbContext).EnsureAsync();
             await new Cfa.ACHInterbank.Persistence.Integrations.Services.IntegrationMappingBootstrapper(dbContext).EnsureAsync();
+
+            var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+            dbContext.AuditEnabled = true;
+            await new SoapIntegrationSettingsBootstrapper(dbContext, configuration).EnsureAsync();
+            dbContext.AuditEnabled = false;
         }
 
         var seeders = scope.ServiceProvider

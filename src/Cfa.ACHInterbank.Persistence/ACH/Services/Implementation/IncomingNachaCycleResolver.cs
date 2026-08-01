@@ -49,6 +49,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 
         var immediateOrigin = header.Substring(13, 10).Trim();
         var headerDateRaw = header.Substring(23, 8).Trim();
+        var headerTimeRaw = header.Substring(31, 4).Trim();
         var fileCycleNumber = CenitOfficialFileNameParser.ExtractCycleNumberFromFileName(request.FileName);
         var fileNameParsed = CenitOfficialFileNameParser.TryParseCenitFileName(request.FileName, out var parsedFileName)
             ? parsedFileName
@@ -68,6 +69,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
         }
 
         var operationalDate = ParseDate(headerDateRaw);
+        var fileCreationTime = ParseTime(headerTimeRaw);
         if (!operationalDate.HasValue)
         {
             errors.Add($"Fecha operativa inválida en header: '{headerDateRaw}'.");
@@ -120,6 +122,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             .ToListAsync(ct);
 
         IReadOnlyList<AchCycle> effectiveCandidates = candidates;
+        var resolvedByHeaderTime = false;
         if (fileCycleNumber.HasValue)
         {
             effectiveCandidates = candidates
@@ -149,6 +152,43 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 });
             }
         }
+        else if (string.Equals(clearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase)
+                 && candidates.Count > 1)
+        {
+            // ACH Colombia's file consecutive is not a cycle identifier. Resolve the
+            // persisted cycle from the type-1 creation time and configured windows.
+            if (!fileCreationTime.HasValue)
+            {
+                errors.Add("ACHCOL_HEADER_FILE_CREATION_TIME_INVALID");
+                return Build(false, false, clearingHouse.Id, operationalDate, null, 0.25m, IncomingNachaCycleResolutionStatus.NoResuelto, "HoraHeaderInvalida", warnings, errors, new
+                {
+                    request.FileName,
+                    immediateOrigin,
+                    headerDateRaw,
+                    headerTimeRaw,
+                    candidateIds = candidates.Select(x => x.Id).ToList()
+                });
+            }
+
+            var windowCandidates = candidates
+                .Where(x => IsWithinCycleTime(fileCreationTime.Value, x.StartTime, x.EndTime))
+                .ToList();
+            if (windowCandidates.Count == 0)
+            {
+                errors.Add("ACHCOL_HEADER_TIME_WITHOUT_CYCLE_WINDOW");
+                return Build(false, false, clearingHouse.Id, operationalDate, null, 0.25m, IncomingNachaCycleResolutionStatus.NoResuelto, "HoraSinVentana", warnings, errors, new
+                {
+                    request.FileName,
+                    immediateOrigin,
+                    headerDateRaw,
+                    headerTimeRaw,
+                    candidateIds = candidates.Select(x => x.Id).ToList()
+                });
+            }
+
+            effectiveCandidates = windowCandidates;
+            resolvedByHeaderTime = windowCandidates.Count == 1;
+        }
 
         var inferredStatus = string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
             ? IncomingNachaCycleResolutionStatus.ResueltoConfirmado
@@ -170,12 +210,19 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 cycle.Id,
                 legacyResolved: true);
 
-            return Build(true, false, clearingHouse.Id, operationalDate, cycle.Id, 0.95m, inferredStatus, fileCycleNumber.HasValue ? "Header+Nombre" : "Header", warnings, errors, new
+            var resolutionMode = fileCycleNumber.HasValue
+                ? "Header+Nombre"
+                : resolvedByHeaderTime
+                    ? "Header+Ventana"
+                    : "Header";
+            return Build(true, false, clearingHouse.Id, operationalDate, cycle.Id, 0.95m, inferredStatus, resolutionMode, warnings, errors, new
             {
                 request.FileName,
                 immediateOrigin,
                 headerDateRaw,
+                headerTimeRaw,
                 fileCycleNumber,
+                resolvedByHeaderTime,
                 parsedFileDate = fileNameParsed?.FileDate,
                 parsedSuffix = fileNameParsed?.Suffix,
                 candidateCount = candidates.Count,
@@ -199,6 +246,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
                 request.FileName,
                 immediateOrigin,
                 headerDateRaw,
+                headerTimeRaw,
                 fileCycleNumber,
                 parsedFileDate = fileNameParsed?.FileDate,
                 parsedSuffix = fileNameParsed?.Suffix,
@@ -220,6 +268,7 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
             request.FileName,
             immediateOrigin,
             headerDateRaw,
+            headerTimeRaw,
             fileCycleNumber,
             parsedFileDate = fileNameParsed?.FileDate,
             parsedSuffix = fileNameParsed?.Suffix,
@@ -314,6 +363,21 @@ public class IncomingNachaCycleResolver : IIncomingNachaCycleResolver
 
         return null;
     }
+
+    private static TimeSpan? ParseTime(string? value)
+        => TimeOnly.TryParseExact(
+            value,
+            "HHmm",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var parsed)
+            ? parsed.ToTimeSpan()
+            : null;
+
+    private static bool IsWithinCycleTime(TimeSpan value, TimeSpan start, TimeSpan end)
+        => start <= end
+            ? value >= start && value <= end
+            : value >= start || value <= end;
 
     private async Task<ClearingHouse?> InferClearingHouseFromFileNameAsync(string fileName, CancellationToken ct)
     {

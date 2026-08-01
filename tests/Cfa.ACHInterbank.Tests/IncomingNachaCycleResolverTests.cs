@@ -165,6 +165,69 @@ public class IncomingNachaCycleResolverTests
         Assert.Equal(Domain.Models.ACH.IncomingNachaCycleResolutionStatus.Ambiguo, result.Status);
     }
 
+    [Theory]
+    [InlineData("0840", "ACHCOL-20260727-02")]
+    [InlineData("0740", "ACHCOL-20260727-01")]
+    [InlineData("1200", null)]
+    public async Task ResolveAsync_ResolvesAchColombiaCycle_FromHeaderCreationTimeWindow(
+        string creationTime,
+        string? expectedCycleId)
+    {
+        using var context = BuildContext();
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 7,
+            Name = "ACH Colombia",
+            Code = "ACHCOL",
+            OriginCode = "1111111111",
+            ClearingHouseId = 7,
+            ClearingHouseConfig = new ClearingHouseConfig { Id = 7, HolidayStrategy = "Colombian" }
+        });
+        context.AchCycles.AddRange(
+            new AchCycle
+            {
+                Id = "ACHCOL-20260727-01",
+                CycleName = "Ciclo 1",
+                ClearingHouseId = 7,
+                ProcessingDate = new DateTime(2026, 7, 27),
+                StartTime = new TimeSpan(19, 1, 0),
+                EndTime = new TimeSpan(8, 15, 0),
+                CutoffTime = new TimeSpan(8, 15, 0)
+            },
+            new AchCycle
+            {
+                Id = "ACHCOL-20260727-02",
+                CycleName = "Ciclo 2",
+                ClearingHouseId = 7,
+                ProcessingDate = new DateTime(2026, 7, 27),
+                StartTime = new TimeSpan(8, 16, 0),
+                EndTime = new TimeSpan(10, 45, 0),
+                CutoffTime = new TimeSpan(10, 45, 0)
+            });
+        await context.SaveChangesAsync();
+        var sut = new IncomingNachaCycleResolver(context);
+
+        var result = await sut.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        {
+            FileName = "0001283.001.20260727.1.OUT",
+            Records = [BuildHeader("1111111111", "20260727", creationTime)]
+        });
+
+        if (expectedCycleId is null)
+        {
+            Assert.False(result.IsResolved);
+            Assert.Equal(Domain.Models.ACH.IncomingNachaCycleResolutionStatus.NoResuelto, result.Status);
+            Assert.Contains("ACHCOL_HEADER_TIME_WITHOUT_CYCLE_WINDOW", result.Errors);
+        }
+        else
+        {
+            Assert.True(result.IsResolved);
+            Assert.Equal(expectedCycleId, result.AchCycleId);
+            Assert.Equal("Header+Ventana", result.ResolutionMode);
+            Assert.Contains("resolvedByHeaderTime", result.EvidenceJson, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task ResolveAsync_ReturnsNoResuelto_WhenNoCandidates()
     {
@@ -240,8 +303,8 @@ public class IncomingNachaCycleResolverTests
         context.SaveChanges();
     }
 
-    private static string BuildHeader(string immediateOrigin, string processingDate)
+    private static string BuildHeader(string immediateOrigin, string processingDate, string creationTime = "1200")
     {
-        return "1" + "01" + "0000000001" + immediateOrigin.PadLeft(10, '0') + processingDate + "1200" + "A" + "10610" + "1" + "DESTINO".PadRight(23) + "ORIGEN".PadRight(23) + "REF00001".PadRight(8) + new string(' ', 10);
+        return "1" + "01" + "0000000001" + immediateOrigin.PadLeft(10, '0') + processingDate + creationTime + "A" + "10610" + "1" + "DESTINO".PadRight(23) + "ORIGEN".PadRight(23) + "REF00001".PadRight(8) + new string(' ', 10);
     }
 }

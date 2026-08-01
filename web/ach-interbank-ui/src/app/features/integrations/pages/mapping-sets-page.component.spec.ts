@@ -99,6 +99,7 @@ describe('MappingSetsPageComponent', () => {
     { id: 23, methodId: 1, parameterPath: 'ANSIDLOTE', displayName: 'ANSIDLOTE', descriptionEs: 'Id lote respuesta reservado', category: 'SOAP', exampleValue: '0', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 7, isActive: true },
     { id: 24, methodId: 1, parameterPath: 'ANCLC', displayName: 'ANCLC', descriptionEs: 'Codigo local reservado', category: 'SOAP', exampleValue: '', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 8, isActive: true },
     { id: 10, methodId: 3, parameterPath: 'Proc_Transacciones.TraceNumber', displayName: 'TraceNumber', descriptionEs: 'Trace destino', category: 'SOAP', exampleValue: '123', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
+    { id: 25, methodId: 3, parameterPath: 'IREVER', displayName: 'IREVER', descriptionEs: 'Indicador de reverso', category: 'SOAP', exampleValue: '0', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 2, isActive: true },
     { id: 11, methodId: 2, parameterPath: 'idCanal', displayName: 'Id canal', descriptionEs: 'Identificador del canal', category: 'Respuesta transaccion', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
     { id: 12, methodId: 2, parameterPath: 'nombreCanal', displayName: 'Nombre canal', descriptionEs: 'Nombre del canal', category: 'Respuesta transaccion', exampleValue: 'ACH', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 2, isActive: true },
     { id: 13, methodId: 2, parameterPath: 'idTransaccion', displayName: 'Id transaccion', descriptionEs: 'Id transaccion', category: 'Respuesta transaccion', exampleValue: 'TX-1', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 3, isActive: true },
@@ -252,6 +253,23 @@ describe('MappingSetsPageComponent', () => {
           fixedValue: null,
           defaultValue: null,
           transformationCode: 'Trim',
+          formatMask: null,
+          priority: 1,
+          requiredOverride: true,
+          enabled: true,
+          conditionExpression: null
+        },
+        {
+          id: 107,
+          mappingSetId: '22222222-2222-2222-2222-222222222222',
+          methodId: 3,
+          parameterId: 25,
+          sourceKind: 'Constant',
+          sourceCatalogFieldId: 17,
+          sourceFieldPath: 'constant.value',
+          fixedValue: '0',
+          defaultValue: null,
+          transformationCode: null,
           formatMask: null,
           priority: 1,
           requiredOverride: true,
@@ -575,6 +593,16 @@ describe('MappingSetsPageComponent', () => {
     expect(text).toContain('Valor fijo');
     expect(text).toContain('Constante técnica');
     expect(text).not.toContain('Sin mapear');
+  });
+
+  it('acepta IREVER=0 para Proc_Transacciones sin contarlo como bloqueante funcional', () => {
+    const row = component.matrixRows.find((item) => item.parameterSoap === 'IREVER')!;
+
+    expect(row.status).toBe('Constante técnica');
+    expect(row.fieldOrigin).toBe('Valor fijo');
+    expect(row.conversionRule).toBe('Constante');
+    expect(component.matrixStats.blocking).toBe(0);
+    expect(component.matrixStats.warnings).toBe(1);
   });
 
   it('clasifica Constant con SEED como placeholder pendiente funcional', () => {

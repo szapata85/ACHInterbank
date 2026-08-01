@@ -143,6 +143,25 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
     }
 
     [Fact]
+    public async Task RegistrarRespuestaTransaccionAsync_WhenDatabaseModeIsNotLive_StopsBeforeNetwork()
+    {
+        var sut = BuildClientWithCustomMapping(new SoapEndpointMethodMappingDto
+        {
+            MethodName = "RegistrarRespuestaTransaccion",
+            Enabled = true,
+            OperatingMode = "DryRun",
+            TimeoutSeconds = 15,
+            Endpoint = "http://127.0.0.1:1/WSAxonRespuestaTransacciones.svc",
+            SoapAction = "act"
+        });
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.RegistrarRespuestaTransaccionAsync("<x/>"));
+
+        Assert.Contains("Live", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ControlledLocal_AllowsExpectedLocalService()
     {
         using var server = await LocalSoapServer.StartAsync((_, _) =>
@@ -179,6 +198,31 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         await sut.RegistrarRespuestaTransaccionAsync("<x/>");
 
         Assert.Equal(policy.HostHeader, server.Requests.Single().Host);
+    }
+
+    [Fact]
+    public async Task ControlledLocal_BridgePreservesPersistedLogicalHostHeaderAndPath()
+    {
+        using var server = await LocalSoapServer.StartAsync(
+            (_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") },
+            "localhost");
+        var logicalEndpoint = new Uri(server.Url);
+        var transport = new ControlledLocalSoapTransportOptions
+        {
+            TransportHost = "127.0.0.1",
+            HostHeader = $"localhost:{logicalEndpoint.Port}"
+        };
+        var sut = BuildClient(
+            server.Url,
+            out _,
+            policy: ControlledLocalPolicy(server.Url),
+            transport: transport);
+
+        await sut.RegistrarRespuestaTransaccionAsync("<x/>");
+
+        var request = Assert.Single(server.Requests);
+        Assert.Equal(transport.HostHeader, request.Host);
+        Assert.Equal("/WSAxonRespuestaTransacciones.svc/", request.Path);
     }
 
     [Fact]
@@ -330,17 +374,20 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         string endpoint,
         out Mock<ISoapIntegrationSettingsService> settingsMock,
         string? soapAction = null,
-        WsAxonEndpointSecurityOptions? policy = null)
+        WsAxonEndpointSecurityOptions? policy = null,
+        ControlledLocalSoapTransportOptions? transport = null)
     {
         var mapping = new SoapEndpointMethodMappingDto
         {
             MethodName = "RegistrarRespuestaTransaccion",
             Enabled = true,
             Endpoint = endpoint,
-            SoapAction = soapAction ?? "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion"
+            SoapAction = soapAction ?? "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
+            OperatingMode = "Live",
+            TimeoutSeconds = 15
         };
         policy ??= ControlledLocalPolicy(endpoint);
-        return BuildClientWithMockedSettings(mapping, policy, out settingsMock);
+        return BuildClientWithMockedSettings(mapping, policy, out settingsMock, transport);
     }
 
     private static WsAxonRespuestaTransaccionesSoapClient BuildClientWithoutMapping()
@@ -355,6 +402,11 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
 
     private static WsAxonRespuestaTransaccionesSoapClient BuildClientWithCustomMapping(SoapEndpointMethodMappingDto mapping)
     {
+        mapping = mapping with
+        {
+            OperatingMode = string.IsNullOrWhiteSpace(mapping.OperatingMode) ? "Live" : mapping.OperatingMode,
+            TimeoutSeconds = mapping.TimeoutSeconds <= 0 ? 15 : mapping.TimeoutSeconds
+        };
         return BuildClientWithMockedSettings(
             mapping,
             new WsAxonEndpointSecurityOptions(),
@@ -364,7 +416,8 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
     private static WsAxonRespuestaTransaccionesSoapClient BuildClientWithMockedSettings(
         SoapEndpointMethodMappingDto mapping,
         WsAxonEndpointSecurityOptions policy,
-        out Mock<ISoapIntegrationSettingsService> settings)
+        out Mock<ISoapIntegrationSettingsService> settings,
+        ControlledLocalSoapTransportOptions? transport = null)
     {
         settings = new Mock<ISoapIntegrationSettingsService>();
         settings.Setup(x => x.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new SoapIntegrationSettingsDto
@@ -374,7 +427,8 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         return new WsAxonRespuestaTransaccionesSoapClient(
             Mock.Of<ILoggerManager>(),
             settings.Object,
-            Options.Create(policy));
+            Options.Create(policy),
+            Options.Create(transport ?? new ControlledLocalSoapTransportOptions()));
     }
 
     private static WsAxonEndpointSecurityOptions ControlledLocalPolicy(string endpoint)
@@ -419,10 +473,12 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
             _loopTask = Task.Run(ListenLoopAsync);
         }
 
-        public static async Task<LocalSoapServer> StartAsync(Func<HttpListenerRequest, string, HttpResponseMessage> handler)
+        public static async Task<LocalSoapServer> StartAsync(
+            Func<HttpListenerRequest, string, HttpResponseMessage> handler,
+            string host = "127.0.0.1")
         {
             var port = GetFreePort();
-            var url = $"http://127.0.0.1:{port}/WSAxonRespuestaTransacciones.svc/";
+            var url = $"http://{host}:{port}/WSAxonRespuestaTransacciones.svc/";
             var server = new LocalSoapServer(url, handler);
             await Task.Delay(20);
             return server;
@@ -442,7 +498,8 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
                     body,
                     context.Request.Headers["SOAPAction"] ?? string.Empty,
                     context.Request.ContentType ?? string.Empty,
-                    context.Request.Headers["Host"] ?? string.Empty));
+                    context.Request.Headers["Host"] ?? string.Empty,
+                    context.Request.Url?.AbsolutePath ?? string.Empty));
 
                 var response = _handler(context.Request, body);
                 context.Response.StatusCode = (int)response.StatusCode;
@@ -478,5 +535,10 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         }
     }
 
-    private sealed record CapturedRequest(string Body, string SoapAction, string ContentType, string Host);
+    private sealed record CapturedRequest(
+        string Body,
+        string SoapAction,
+        string ContentType,
+        string Host,
+        string Path);
 }

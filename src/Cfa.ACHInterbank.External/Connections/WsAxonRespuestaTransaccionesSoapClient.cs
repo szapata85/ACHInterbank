@@ -18,15 +18,18 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
     private readonly ILoggerManager _logger;
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly WsAxonEndpointSecurityOptions _endpointSecurity;
+    private readonly ControlledLocalSoapTransportOptions _controlledLocalTransport;
 
     public WsAxonRespuestaTransaccionesSoapClient(
         ILoggerManager logger,
         ISoapIntegrationSettingsService soapSettingsService,
-        IOptions<WsAxonEndpointSecurityOptions> endpointSecurity)
+        IOptions<WsAxonEndpointSecurityOptions> endpointSecurity,
+        IOptions<ControlledLocalSoapTransportOptions>? controlledLocalTransport = null)
     {
         _logger = logger;
         _soapSettingsService = soapSettingsService;
         _endpointSecurity = endpointSecurity.Value;
+        _controlledLocalTransport = controlledLocalTransport?.Value ?? new ControlledLocalSoapTransportOptions();
     }
 
     public Task<string> RegistrarRespuestaTransaccionAsync(string requestXml, CancellationToken ct = default)
@@ -94,18 +97,37 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
 
     private async Task<string> SendAsync(string requestXml, CancellationToken ct)
     {
-        var (endpoint, soapAction) = await ResolveConfigurationAsync(ct)
+        var (logicalEndpoint, soapAction, timeout) = await ResolveConfigurationAsync(ct)
             .ConfigureAwait(false);
+        if (_endpointSecurity.Mode != WsAxonEndpointSecurityMode.ControlledLocal
+            && !string.IsNullOrWhiteSpace(_endpointSecurity.HostHeader))
+        {
+            throw new InvalidOperationException(
+                "SOAP Host header override is only allowed by the ControlledLocal WSAXON policy.");
+        }
+
+        var transport = ControlledLocalSoapTransportResolver.Resolve(
+            logicalEndpoint,
+            _endpointSecurity.Mode == WsAxonEndpointSecurityMode.ControlledLocal
+                ? _controlledLocalTransport
+                : null,
+            _endpointSecurity.Mode == WsAxonEndpointSecurityMode.ControlledLocal
+                ? _endpointSecurity.HostHeader
+                : null);
         var envelope = BuildEnvelope(requestXml);
 
-        using var client = new HttpClient();
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        using var client = new HttpClient { Timeout = timeout };
+        using var request = new HttpRequestMessage(HttpMethod.Post, transport.TransportEndpoint);
         request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
-        ApplyControlledLocalHostHeader(request, endpoint, _endpointSecurity);
+        if (!string.IsNullOrWhiteSpace(transport.HostHeader))
+        {
+            request.Headers.Host = transport.HostHeader;
+        }
         request.Headers.Add("SOAPAction", soapAction);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
-        _logger.LogInfo($"SOAP request RegistrarRespuestaTransaccion -> {endpoint}");
+        _logger.LogInfo(
+            $"SOAP request RegistrarRespuestaTransaccion -> {logicalEndpoint}; transport={transport.TransportEndpoint}");
 
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
             .ConfigureAwait(false);
@@ -127,36 +149,7 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         return responseContent;
     }
 
-    private static void ApplyControlledLocalHostHeader(
-        HttpRequestMessage request,
-        Uri endpoint,
-        WsAxonEndpointSecurityOptions policy)
-    {
-        if (string.IsNullOrWhiteSpace(policy.HostHeader))
-        {
-            return;
-        }
-
-        if (policy.Mode != WsAxonEndpointSecurityMode.ControlledLocal)
-        {
-            throw new InvalidOperationException(
-                "SOAP Host header override is only allowed by the ControlledLocal WSAXON policy.");
-        }
-
-        var hostHeader = policy.HostHeader.Trim();
-        if (hostHeader.IndexOfAny(['/', '\\', '@', '?', '#', '\r', '\n']) >= 0
-            || !Uri.TryCreate($"{endpoint.Scheme}://{hostHeader}", UriKind.Absolute, out var hostUri)
-            || !ControlledLocalHosts.Contains(hostUri.IdnHost)
-            || hostUri.Port != endpoint.Port)
-        {
-            throw new InvalidOperationException(
-                "SOAP Host header override is outside the ControlledLocal WSAXON policy.");
-        }
-
-        request.Headers.Host = hostHeader;
-    }
-
-    private async Task<(Uri Endpoint, string SoapAction)> ResolveConfigurationAsync(CancellationToken ct)
+    private async Task<(Uri Endpoint, string SoapAction, TimeSpan Timeout)> ResolveConfigurationAsync(CancellationToken ct)
     {
         const string action = "RegistrarRespuestaTransaccion";
         var settings = await _soapSettingsService.GetAsync(ct).ConfigureAwait(false);
@@ -174,6 +167,12 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
             throw new InvalidOperationException($"SOAP mapping for '{action}' is not configured in database.");
         }
 
+        if (!string.Equals(mapping.OperatingMode, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"SOAP method '{action}' is not enabled for Live execution by database configuration.");
+        }
+
         if (string.IsNullOrWhiteSpace(mapping.Endpoint))
         {
             throw new InvalidOperationException($"SOAP endpoint for '{action}' is not configured in database.");
@@ -184,7 +183,16 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
             throw new InvalidOperationException($"SOAP action for '{action}' is not configured in database.");
         }
 
-        return (ValidateEndpoint(mapping.Endpoint, _endpointSecurity), mapping.SoapAction);
+        if (mapping.TimeoutSeconds is < 1 or > 300)
+        {
+            throw new InvalidOperationException(
+                $"SOAP timeout for '{action}' is not valid in database configuration.");
+        }
+
+        return (
+            ValidateEndpoint(mapping.Endpoint, _endpointSecurity),
+            mapping.SoapAction,
+            TimeSpan.FromSeconds(mapping.TimeoutSeconds));
     }
 
     private static Uri ValidateEndpoint(string endpoint, WsAxonEndpointSecurityOptions policy)

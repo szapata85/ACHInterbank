@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.External.Connections;
 using Cfa.ACHInterbank.External;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -129,6 +130,52 @@ public class WscfaachSoapClientCharacterizationTests
             && !message.Contains(sensitiveResponse, StringComparison.Ordinal))), Times.Once);
     }
 
+    [Fact]
+    public async Task ProcTransaccionesAsync_WhenDatabaseModeIsNotLive_StopsBeforeNetwork()
+    {
+        var settings = Settings(
+            "http://127.0.0.1:1/WSCFAACH.svc",
+            "Proc_Transacciones",
+            operatingMode: "DryRun");
+        var sut = new WscfaachSoapClient(
+            Mock.Of<ILoggerManager>(),
+            settings.Object,
+            new StaticHttpClientFactory(),
+            new ConfigurationBuilder().Build());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ProcTransaccionesAsync("<Proc_Transacciones/>") );
+
+        Assert.Contains("Live", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProcTransaccionesAsync_ControlledLocalBridge_PreservesLogicalHostHeader()
+    {
+        using var server = await LocalSoapServer.StartAsync(
+            (_, _) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<ok/>") },
+            "localhost");
+        var logicalEndpoint = new Uri(new Uri(server.Url), "WSCFAACH.svc").AbsoluteUri;
+        var settings = Settings(logicalEndpoint, "Proc_Transacciones");
+        var logicalUri = new Uri(logicalEndpoint);
+        var sut = new WscfaachSoapClient(
+            Mock.Of<ILoggerManager>(),
+            settings.Object,
+            new StaticHttpClientFactory(),
+            new ConfigurationBuilder().Build(),
+            Options.Create(new ControlledLocalSoapTransportOptions
+            {
+                TransportHost = "127.0.0.1",
+                HostHeader = $"localhost:{logicalUri.Port}"
+            }));
+
+        await sut.ProcTransaccionesAsync("<Proc_Transacciones/>");
+
+        var request = Assert.Single(server.Requests);
+        Assert.Equal($"localhost:{logicalUri.Port}", request.Host);
+        Assert.Equal("/WSCFAACH.svc", request.Path);
+    }
+
     private static WscfaachSoapClient BuildClient(string endpoint)
     {
         var settings = Settings(endpoint, "Proc_Transacciones");
@@ -140,7 +187,10 @@ public class WscfaachSoapClientCharacterizationTests
             new ConfigurationBuilder().Build());
     }
 
-    private static Mock<ISoapIntegrationSettingsService> Settings(string endpoint, string methodName)
+    private static Mock<ISoapIntegrationSettingsService> Settings(
+        string endpoint,
+        string methodName,
+        string operatingMode = "Live")
     {
         var settings = new Mock<ISoapIntegrationSettingsService>();
         settings.Setup(x => x.GetAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new SoapIntegrationSettingsDto
@@ -152,7 +202,9 @@ public class WscfaachSoapClientCharacterizationTests
                     MethodName = methodName,
                     Enabled = true,
                     Endpoint = endpoint,
-                    SoapAction = $"http://tempuri.org/IWSCFAACH/{methodName}"
+                    SoapAction = $"http://tempuri.org/IWSCFAACH/{methodName}",
+                    OperatingMode = operatingMode,
+                    TimeoutSeconds = 15
                 }
             ]
         });
@@ -197,10 +249,12 @@ public class WscfaachSoapClientCharacterizationTests
             _loopTask = Task.Run(ListenLoopAsync);
         }
 
-        public static async Task<LocalSoapServer> StartAsync(Func<HttpListenerRequest, string, HttpResponseMessage> handler)
+        public static async Task<LocalSoapServer> StartAsync(
+            Func<HttpListenerRequest, string, HttpResponseMessage> handler,
+            string host = "127.0.0.1")
         {
             var port = GetFreePort();
-            var url = $"http://127.0.0.1:{port}/";
+            var url = $"http://{host}:{port}/";
             var server = new LocalSoapServer(url, handler);
             await Task.Delay(20);
             return server;
@@ -219,7 +273,9 @@ public class WscfaachSoapClientCharacterizationTests
                 Requests.Add(new CapturedRequest(
                     body,
                     context.Request.Headers["SOAPAction"] ?? string.Empty,
-                    context.Request.ContentType ?? string.Empty));
+                    context.Request.ContentType ?? string.Empty,
+                    context.Request.Headers["Host"] ?? string.Empty,
+                    context.Request.Url?.AbsolutePath ?? string.Empty));
 
                 var response = _handler(context.Request, body);
                 context.Response.StatusCode = (int)response.StatusCode;
@@ -254,5 +310,10 @@ public class WscfaachSoapClientCharacterizationTests
         }
     }
 
-    private sealed record CapturedRequest(string Body, string SoapAction, string ContentType);
+    private sealed record CapturedRequest(
+        string Body,
+        string SoapAction,
+        string ContentType,
+        string Host,
+        string Path);
 }

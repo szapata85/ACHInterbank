@@ -9,6 +9,7 @@ public sealed class IncomingNachaIngestionRequest
     public string ContentType { get; init; } = "application/octet-stream";
     public string RequestedBy { get; init; } = "system";
     public string CorrelationId { get; init; } = string.Empty;
+    public int? RequestedClearingHouseId { get; init; }
     public Guid? ParentIngestionId { get; init; }
     public bool ForceReprocess { get; init; }
 }

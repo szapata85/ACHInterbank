@@ -12,6 +12,7 @@ public record ProcTransaccionesEffectiveSettingsDto
     public string Operation { get; init; } = "Proc_Transacciones";
     public string EffectiveMode { get; init; } = "DryRun";
     public string Endpoint { get; init; } = string.Empty;
+    public int TimeoutSeconds { get; init; }
     public bool Enabled { get; init; }
     public bool MappingReady { get; init; }
     public string? MappingIssueCode { get; init; }

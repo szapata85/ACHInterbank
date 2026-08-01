@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
@@ -24,6 +25,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
     private readonly IExternalFileNamePolicy _externalFileNamePolicy;
     private readonly ILogger<IncomingNachaIngestionAppService> _logger;
     private readonly INachaConfigResolver _profileResolver;
+    private readonly IManagedDigitalEnvelopeService? _digitalEnvelopeService;
 
     public IncomingNachaIngestionAppService(
         AchDbContext context,
@@ -32,7 +34,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         IIncomingNachaPostParseProcessor postParseProcessor,
         IExternalFileNamePolicy externalFileNamePolicy,
         ILogger<IncomingNachaIngestionAppService> logger,
-        INachaConfigResolver? profileResolver = null)
+        INachaConfigResolver? profileResolver = null,
+        IManagedDigitalEnvelopeService? digitalEnvelopeService = null)
     {
         _context = context;
         _cycleResolver = cycleResolver;
@@ -41,6 +44,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         _externalFileNamePolicy = externalFileNamePolicy;
         _logger = logger;
         _profileResolver = profileResolver ?? new NachaConfigResolver(context);
+        _digitalEnvelopeService = digitalEnvelopeService;
     }
 
     public async Task<IncomingNachaIngestionResponse> IngestAsync(IncomingNachaIngestionRequest request, CancellationToken ct = default)
@@ -57,7 +61,6 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         }
 
         var fileHash = ComputeSha256(fileBytes);
-        var records = ChunkFixed106(fileBytes);
         var sameNameDifferentContent = await _context.IncomingNachaFileIngestions
             .AsNoTracking()
             .AnyAsync(x => x.FileName == request.FileName
@@ -78,9 +81,35 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             }
 
             parentIngestionId ??= canonicalCandidate.Id;
-            if (!candidatesByFingerprint.Any(x => x.Id == parentIngestionId.Value))
+            if (canonicalCandidate.IsReprocess || canonicalCandidate.Id != parentIngestionId.Value)
             {
-                throw new ArgumentException("ParentIngestionId no corresponde al archivo a reprocesar (hash/tamaño diferente).");
+                throw new ArgumentException("ParentIngestionId debe corresponder a la ingesta canónica original del archivo.");
+            }
+
+            var latestParentResultIsReprocessable = await _context.IncomingNachaFileProcessingResults
+                .AsNoTracking()
+                .Where(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value)
+                .OrderByDescending(x => x.AttemptNumber)
+                .ThenByDescending(x => x.StartedAtUtc)
+                .Select(x => (bool?)x.IsReprocessable)
+                .FirstOrDefaultAsync(ct);
+            if (latestParentResultIsReprocessable == false)
+            {
+                throw new ArgumentException("La ingesta base no está autorizada para reproceso.");
+            }
+
+            var hasPersistedProcessing = await _context.NachaHeaders.AsNoTracking()
+                    .AnyAsync(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value, ct)
+                || await _context.IncomingNachaTransactionLinks.AsNoTracking()
+                    .AnyAsync(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value, ct)
+                || await _context.IncomingNachaEntryClassifications.AsNoTracking()
+                    .AnyAsync(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value, ct)
+                || await _context.IncomingNachaDispatchQueue.AsNoTracking()
+                    .AnyAsync(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value, ct);
+            if (hasPersistedProcessing)
+            {
+                throw new ArgumentException(
+                    "El reproceso de la ingesta base está bloqueado porque ya existe persistencia canónica o despacho asociado.");
             }
 
             var alreadyReprocessed = await _context.IncomingNachaFileIngestions.AsNoTracking()
@@ -97,6 +126,9 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
 
         if (!request.ForceReprocess && canonicalCandidate is not null)
         {
+            var effectiveCandidate = SelectEffectiveCandidate(candidatesByFingerprint, canonicalCandidate);
+            var effectiveProcessing = await GetLatestNonDuplicateProcessingAsync(effectiveCandidate.Id, ct);
+            var canReprocess = CanReprocessDuplicate(candidatesByFingerprint, effectiveCandidate);
             var nextAttempt = await _context.IncomingNachaFileProcessingResults
                 .AsNoTracking()
                 .Where(x => x.IncomingNachaFileIngestionId == canonicalCandidate.Id)
@@ -113,7 +145,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 FailureStage = "ValidacionDuplicidad",
                 ErrorCount = 1,
                 ParserErrorsJson = JsonSerializer.Serialize(new[] { "Archivo duplicado" }),
-                IsReprocessable = true
+                IsReprocessable = canReprocess
             });
             _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
             {
@@ -133,17 +165,21 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             await _context.SaveChangesAsync(ct);
             return new IncomingNachaIngestionResponse
             {
-                IngestionId = canonicalCandidate.Id,
-                OriginalFileName = canonicalCandidate.FileName,
-                FileHash = canonicalCandidate.FileHashSha256,
-                CorrelationId = canonicalCandidate.CorrelationId,
+                IngestionId = effectiveCandidate.Id,
+                OriginalFileName = effectiveCandidate.FileName,
+                FileHash = effectiveCandidate.FileHashSha256,
+                CorrelationId = effectiveCandidate.CorrelationId,
                 IngestionStatus = IncomingNachaIngestionStatus.Duplicado,
-                CycleResolutionStatus = canonicalCandidate.CycleResolutionStatus,
-                ParsingStatus = canonicalCandidate.ParsingStatus,
-                DetectedClearingHouseId = canonicalCandidate.DetectedClearingHouseId,
-                ResolvedClearingHouseId = canonicalCandidate.ResolvedClearingHouseId,
-                ResolvedAchCycleId = canonicalCandidate.ResolvedAchCycleId,
-                OperationalDate = canonicalCandidate.OperationalDate,
+                CycleResolutionStatus = effectiveCandidate.CycleResolutionStatus,
+                ParsingStatus = effectiveCandidate.ParsingStatus,
+                DetectedClearingHouseId = effectiveCandidate.DetectedClearingHouseId,
+                ResolvedClearingHouseId = effectiveCandidate.ResolvedClearingHouseId,
+                ResolvedAchCycleId = effectiveCandidate.ResolvedAchCycleId,
+                OperationalDate = effectiveCandidate.OperationalDate,
+                TotalBatches = effectiveProcessing?.TotalBatches ?? 0,
+                TotalEntries = effectiveProcessing?.TotalEntries ?? 0,
+                TotalAddendas = effectiveProcessing?.TotalAddendas ?? 0,
+                WarningCount = effectiveProcessing?.WarningCount ?? 0,
                 ErrorCount = 1,
                 Errors = new[] { "Archivo duplicado detectado por hash/tamaño." }
             };
@@ -255,15 +291,90 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             throw;
         }
 
-        ingestion.IngestionStatus = IncomingNachaIngestionStatus.EnValidacion;
-        ingestion.Notes = "Validación de resolución de cámara/ciclo en proceso.";
-        await _context.SaveChangesAsync(ct);
+        var processingFileBytes = fileBytes;
+        var processingFileName = request.FileName;
+        var processingFileHash = fileHash;
+        var containsDecryptedPlaintext = false;
 
-        var resolution = await _cycleResolver.ResolveAsync(new IncomingNachaCycleResolutionRequest
+        try
         {
-            FileName = request.FileName,
-            Records = records
-        }, ct);
+            if (IsDigitalEnvelopeFile(request.FileName))
+            {
+                if (!request.RequestedClearingHouseId.HasValue || request.RequestedClearingHouseId.Value <= 0)
+                {
+                    throw new ManagedDigitalEnvelopeException(
+                        "DIGITAL_ENVELOPE_CLEARING_HOUSE_REQUIRED",
+                        "ClearingHouseId es obligatorio para descifrar un archivo .env.");
+                }
+
+                var selectedClearingHouse = await _context.ClearingHouses
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == request.RequestedClearingHouseId.Value, ct)
+                    ?? throw new ManagedDigitalEnvelopeException(
+                        "DIGITAL_ENVELOPE_CLEARING_HOUSE_NOT_FOUND",
+                        "La cámara seleccionada no existe.");
+
+                if (!string.Equals(selectedClearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ManagedDigitalEnvelopeException(
+                        "DIGITAL_ENVELOPE_CLEARING_HOUSE_INVALID",
+                        "Los archivos .env sólo se admiten para la cámara ACH Colombia.");
+                }
+
+                if (_digitalEnvelopeService is null)
+                {
+                    throw new ManagedDigitalEnvelopeException(
+                        "DIGITAL_ENVELOPE_SERVICE_UNAVAILABLE",
+                        "El servicio canónico de sobre digital no está disponible.");
+                }
+
+                var decrypted = await _digitalEnvelopeService.DecryptAsync(
+                    new ManagedDigitalEnvelopeRequest(
+                        CertificateVersionId: 0,
+                        FileName: request.FileName,
+                        Content: fileBytes,
+                        Actor: string.IsNullOrWhiteSpace(request.RequestedBy) ? "system" : request.RequestedBy,
+                        ClearingHouseId: selectedClearingHouse.Id,
+                        OperationMode: "LIVE"),
+                    ct);
+
+                processingFileBytes = decrypted.Content;
+                processingFileName = decrypted.FileName;
+                processingFileHash = ComputeSha256(processingFileBytes);
+                containsDecryptedPlaintext = true;
+
+                _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+                {
+                    IncomingNachaFileIngestionId = ingestion.Id,
+                    EventType = "DigitalEnvelopeDecrypted",
+                    EventStatus = "Applied",
+                    Message = "Sobre digital ACH Colombia descifrado en memoria y entregado al pipeline NACHA-M canónico.",
+                    EvidenceJson = JsonSerializer.Serialize(new
+                    {
+                        sourceFileName = request.FileName,
+                        canonicalFileName = processingFileName,
+                        sourceHashSha256 = fileHash,
+                        canonicalHashSha256 = processingFileHash,
+                        certificateVersionId = decrypted.CertificateVersionId,
+                        cryptographicProfile = decrypted.CryptographicProfile,
+                        plaintextPersistedToDisk = false
+                    }),
+                    RaisedBy = "IncomingNachaIngestionAppService"
+                });
+                await _context.SaveChangesAsync(ct);
+            }
+
+            var records = ChunkFixed106(processingFileBytes);
+
+            ingestion.IngestionStatus = IncomingNachaIngestionStatus.EnValidacion;
+            ingestion.Notes = "Validación de resolución de cámara/ciclo en proceso.";
+            await _context.SaveChangesAsync(ct);
+
+            var resolution = await _cycleResolver.ResolveAsync(new IncomingNachaCycleResolutionRequest
+            {
+                FileName = processingFileName,
+                Records = records
+            }, ct);
 
         ingestion.DetectedClearingHouseId = resolution.DetectedClearingHouseId;
         ingestion.ResolvedClearingHouseId = resolution.ClearingHouseId;
@@ -274,6 +385,30 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         ingestion.ResolutionConfidence = resolution.Confidence;
         ingestion.ResolutionEvidenceJson = resolution.EvidenceJson;
         ingestion.WarningsJson = JsonSerializer.Serialize(resolution.Warnings);
+
+        if (request.RequestedClearingHouseId.HasValue
+            && resolution.ClearingHouseId.HasValue
+            && request.RequestedClearingHouseId.Value != resolution.ClearingHouseId.Value)
+        {
+            const string mismatch = "La cámara seleccionada no coincide con la cámara detectada en el contenido NACHA-M.";
+            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
+            ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+            ingestion.Notes = "CLEARING_HOUSE_SELECTION_MISMATCH";
+            _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                AttemptNumber = 1,
+                StartedAtUtc = DateTime.UtcNow,
+                FinishedAtUtc = DateTime.UtcNow,
+                OutcomeStatus = IncomingNachaProcessingOutcomeStatus.BloqueadoAmbiguo,
+                FailureStage = "ValidacionCamaraSeleccionada",
+                ErrorCount = 1,
+                ParserErrorsJson = JsonSerializer.Serialize(new[] { "CLEARING_HOUSE_SELECTION_MISMATCH" }),
+                IsReprocessable = true
+            });
+            await _context.SaveChangesAsync(ct);
+            return BuildResponse(ingestion, null, [mismatch]);
+        }
 
         if (!resolution.IsResolved)
         {
@@ -418,11 +553,11 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ExternalFileType = ExternalFileType.NachaIn,
             Flow = ExternalFileFlow.Recepcion,
             Direction = ExternalFileDirection.Inbound,
-            ProvidedExternalFileName = request.FileName,
-            InternalFileName = request.FileName,
-            NachaContent = Encoding.UTF8.GetString(fileBytes),
-            FileHash = fileHash,
-            FileSize = fileBytes.LongLength,
+            ProvidedExternalFileName = processingFileName,
+            InternalFileName = processingFileName,
+            NachaContent = Encoding.UTF8.GetString(processingFileBytes),
+            FileHash = processingFileHash,
+            FileSize = processingFileBytes.LongLength,
             CycleId = ingestion.ResolvedAchCycleId,
             CycleNumber = cycleNumber,
             RequestedBy = request.RequestedBy ?? "system"
@@ -463,8 +598,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         try
         {
             var parseResult = await _parserService.ParseAndSaveDetailedAsync(
-                new MemoryStream(fileBytes),
-                request.FileName,
+                new MemoryStream(processingFileBytes),
+                processingFileName,
                 new NachaParseRequest
                 {
                     IncomingNachaFileIngestionId = ingestion.Id,
@@ -495,19 +630,6 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 ? IncomingNachaParsingStatus.ExitosoConAdvertencias
                 : IncomingNachaParsingStatus.Exitoso;
 
-            if (!await _context.IncomingNachaTransactionLinks.AnyAsync(x => x.IncomingNachaFileIngestionId == ingestion.Id, ct))
-            {
-                _context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
-                {
-                    IncomingNachaFileIngestionId = ingestion.Id,
-                    LinkType = IncomingNachaLinkType.NoResuelto,
-                    ConfidenceScore = 0,
-                    EvidenceJson = "{\"estado\":\"pendiente\"}",
-                    LinkedBy = "sistema",
-                    IsFinal = false
-                });
-            }
-
             var executedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "sistema" : request.RequestedBy.Trim();
             await _postParseProcessor.ProcessAsync(ingestion.Id, executedBy, ct);
 
@@ -527,10 +649,75 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             processingResult.IsReprocessable = true;
             processingResult.FinishedAtUtc = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync(ct);
+            // El estado terminal de auditoría debe persistirse aun si el cliente canceló la solicitud.
+            await _context.SaveChangesAsync(CancellationToken.None);
             return BuildResponse(ingestion, processingResult, new[] { ex.Message });
         }
+        }
+        catch (ManagedDigitalEnvelopeException ex)
+        {
+            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
+            ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
+            ingestion.Notes = $"DIGITAL_ENVELOPE_DECRYPTION_FAILED;Code={ex.ErrorCode}";
+            _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                AttemptNumber = 1,
+                StartedAtUtc = DateTime.UtcNow,
+                FinishedAtUtc = DateTime.UtcNow,
+                OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Fallido,
+                FailureStage = "DigitalEnvelopeDecryption",
+                ErrorCount = 1,
+                ParserErrorsJson = JsonSerializer.Serialize(new[] { ex.ErrorCode }),
+                IsReprocessable = true
+            });
+            _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
+            {
+                IncomingNachaFileIngestionId = ingestion.Id,
+                EventType = "DigitalEnvelopeDecryptionFailed",
+                EventStatus = "Blocked",
+                Message = "El sobre digital no superó el descifrado o la validación criptográfica.",
+                EvidenceJson = JsonSerializer.Serialize(new { errorCode = ex.ErrorCode, plaintextPersistedToDisk = false }),
+                RaisedBy = "IncomingNachaIngestionAppService"
+            });
+            await _context.SaveChangesAsync(ct);
+            return BuildResponse(ingestion, null, [ex.ErrorCode]);
+        }
+        finally
+        {
+            if (containsDecryptedPlaintext)
+            {
+                CryptographicOperations.ZeroMemory(processingFileBytes);
+            }
+        }
     }
+
+    private static IncomingNachaFileIngestion SelectEffectiveCandidate(
+        IReadOnlyList<IncomingNachaFileIngestion> candidates,
+        IncomingNachaFileIngestion canonicalCandidate)
+        => candidates.FirstOrDefault(x => x.IsReprocess && x.ParentIngestionId == canonicalCandidate.Id)
+           ?? canonicalCandidate;
+
+    private async Task<IncomingNachaFileProcessingResult?> GetLatestNonDuplicateProcessingAsync(
+        Guid ingestionId,
+        CancellationToken ct)
+        => await _context.IncomingNachaFileProcessingResults
+            .AsNoTracking()
+            .Where(x => x.IncomingNachaFileIngestionId == ingestionId
+                        && x.OutcomeStatus != IncomingNachaProcessingOutcomeStatus.Duplicado)
+            .OrderByDescending(x => x.AttemptNumber)
+            .ThenByDescending(x => x.StartedAtUtc)
+            .FirstOrDefaultAsync(ct);
+
+    private static bool CanReprocessDuplicate(
+        IReadOnlyList<IncomingNachaFileIngestion> candidates,
+        IncomingNachaFileIngestion effectiveCandidate)
+        => candidates.All(x => !x.IsReprocess)
+           && effectiveCandidate.ParsingStatus is IncomingNachaParsingStatus.EnProceso
+               or IncomingNachaParsingStatus.FallidoReprocesable;
+
+    private static bool IsDigitalEnvelopeFile(string fileName)
+        => Path.GetFileName(fileName).EndsWith(".env", StringComparison.OrdinalIgnoreCase);
 
     private static IncomingNachaIngestionResponse BuildResponse(
         IncomingNachaFileIngestion ingestion,

@@ -60,6 +60,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         soap.Setup(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(responseXml);
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
+        var mappingTraceWriter = new Mock<IIntegrationMappingTraceWriter>();
         await new IntegrationCatalogBootstrapper(context).EnsureAsync();
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
@@ -70,6 +71,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
             dispatchOptions: LiveProcTransaccionesOptions(),
             operationResolver: operationResolver.Object,
             mappingReadinessService: readiness.Object,
+            mappingTraceWriter: mappingTraceWriter.Object,
             soapIntegrationSettingsService: SoapSettingsService("http://localhost:7083/WSCFAACH.svc"),
             responseCatalogResolver: new IntegrationResponseCatalogResolver(context));
 
@@ -110,6 +112,15 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.Equal("R96", readModel.Latest.ResponseCode);
         Assert.Equal("Crédito aplicado correctamente", readModel.Latest.ResponseDescription);
         Assert.Equal("Success", readModel.Latest.BusinessStatus);
+        mappingTraceWriter.Verify(x => x.WriteAsync(
+            It.IsAny<TransactionIntegrationOperationResult>(),
+            It.IsAny<object>(),
+            100,
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            false,
+            true,
+            It.IsAny<CancellationToken>()), Times.Once);
     }
     [Fact]
     public async Task ExecuteAsync_BlocksQueue_WhenMappingIsInvalid()
@@ -160,6 +171,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
+        var mappingTraceWriter = new Mock<IIntegrationMappingTraceWriter>();
 
         var sut = new IncomingNachaPostProcessingOrchestrator(
             context,
@@ -168,7 +180,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             soap.Object,
             dispatchOptions: Options.Create(new ProcTransaccionesDispatchOptions { Mode = "DryRun" }),
             operationResolver: operationResolver.Object,
-            mappingReadinessService: readiness.Object);
+            mappingReadinessService: readiness.Object,
+            mappingTraceWriter: mappingTraceWriter.Object);
 
         var result = await sut.ExecuteAsync(50, "tester");
 
@@ -188,6 +201,15 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.DoesNotContain("RegistrarRespuestaTransaccion", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
         Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "ProcTransaccionesDryRunGuardrail"));
         soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        mappingTraceWriter.Verify(x => x.WriteAsync(
+            It.IsAny<TransactionIntegrationOperationResult>(),
+            It.IsAny<object>(),
+            100,
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            true,
+            false,
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -898,6 +920,74 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
         Assert.Equal(1, result.WaitingWindow);
         Assert.Equal(1, result.Confirmed);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_NullWaitingTimestampBeforeWindow_IsScheduledAndNotReleased()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == queue.AchCycleId);
+        cycle.ProcessingDate = TestSupport.TestClock.OperationalDate;
+        cycle.StartTime = new TimeSpan(13, 0, 0);
+        cycle.EndTime = new TimeSpan(14, 0, 0);
+        queue.QueueStatus = IncomingNachaDispatchQueueStatus.WaitingWindow;
+        queue.NextAttemptAtUtc = null;
+        await context.SaveChangesAsync();
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            timeProvider: TestSupport.TestClock.Create());
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(0, result.Picked);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.WaitingWindow, queue.QueueStatus);
+        Assert.Equal(new DateTime(2026, 7, 24, 18, 0, 0, DateTimeKind.Utc), queue.NextAttemptAtUtc);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "DispatchWindowScheduled"));
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ExpiredWaitingWindow_BlocksWithoutDispatch()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == queue.AchCycleId);
+        cycle.ProcessingDate = TestSupport.TestClock.OperationalDate;
+        cycle.StartTime = new TimeSpan(8, 0, 0);
+        cycle.EndTime = new TimeSpan(10, 0, 0);
+        queue.QueueStatus = IncomingNachaDispatchQueueStatus.WaitingWindow;
+        queue.NextAttemptAtUtc = null;
+        await context.SaveChangesAsync();
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            timeProvider: TestSupport.TestClock.Create());
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        Assert.Equal(0, result.Picked);
+        Assert.Equal(1, result.Blocked);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, queue.QueueStatus);
+        Assert.Equal("WINDOW_EXPIRED", queue.LastErrorCode);
+        Assert.Null(queue.NextAttemptAtUtc);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "DispatchWindowExpired"));
+        soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static void SeedDispatchItem(AchDbContext context)

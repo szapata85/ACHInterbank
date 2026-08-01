@@ -66,6 +66,7 @@ public class NachaParserService : INachaParserService
         int totalEntries = 0;
         int totalAddendas = 0;
         string? parsedNachaId = null;
+        var originalAutoDetectChangesEnabled = _context.ChangeTracker.AutoDetectChangesEnabled;
 
         try
         {
@@ -101,6 +102,7 @@ public class NachaParserService : INachaParserService
             BatchHeader? currentBatch = null;
             EntryDetail? lastEntry = null;
             var lastEntryAwaitingAddenda = false;
+            var lastEntryAccepted = false;
             var entryDetails = new List<EntryDetail>();
             var addendaRecords = new List<AddendaRecord>();
             var batchControls = new List<BatchControl>();
@@ -163,6 +165,7 @@ public class NachaParserService : INachaParserService
                         }
 
                         lastEntry = null;
+                        lastEntryAccepted = false;
                         currentBatch = ParseBatchHeaderLinq([line]).FirstOrDefault();
                         if (currentBatch is not null)
                         {
@@ -194,17 +197,13 @@ public class NachaParserService : INachaParserService
                         await ValidateEntrySequencePolicyAsync(entry, currentBatch, currentHeader, lastConsecutiveByBatch, seenSequenceNumbers, ct);
 
                         var (isValid, failureReason) = await ValidateEntryAsync(entry, currentBatch, failures, ct);
+                        lastEntry = entry;
+                        lastEntryAccepted = isValid;
+                        lastEntryAwaitingAddenda = string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal);
                         if (isValid)
                         {
                             entryDetails.Add(entry);
-                            lastEntry = entry;
-                            lastEntryAwaitingAddenda = string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal);
                             totalEntries++;
-                        }
-                        else
-                        {
-                            lastEntry = null;
-                            lastEntryAwaitingAddenda = false;
                         }
 
                         break;
@@ -220,18 +219,14 @@ public class NachaParserService : INachaParserService
                             addenda.NachaID = currentHeader?.NachaID;
                             currentBatchMetrics?.RegisterAddenda();
                             fileMetrics.RegisterAddenda();
-                            if (lastEntry is null)
-                            {
-                                failures.Add(new NachaValidationFailure("7", currentBatch?.BatchNumber.ToString(), null, null,
-                                    "Registro Addenda sin detalle asociado."));
-                            }
-                            else
+                            if (lastEntryAccepted)
                             {
                                 addenda.EntryDetailSequenceNumber ??= GetEntrySequenceSuffix(lastEntry.SequenceNumber);
                                 addendaRecords.Add(addenda);
-                                lastEntryAwaitingAddenda = false;
                                 totalAddendas++;
                             }
+
+                            lastEntryAwaitingAddenda = false;
                         }
                         break;
                     case '8':
@@ -247,6 +242,7 @@ public class NachaParserService : INachaParserService
                             batchControls.Add(batchControl);
                             currentBatchMetrics = null;
                             lastEntry = null;
+                            lastEntryAccepted = false;
                         }
                         break;
                     case '9':
@@ -292,7 +288,6 @@ public class NachaParserService : INachaParserService
             await _context.SaveChangesAsync(ct);
             var validAddendas = currentHeader?.AddendaRecords?.ToList() ?? [];
             await ApplyReturnStateTransitionsAsync(validEntries, validAddendas, failures, ct);
-            _context.ChangeTracker.AutoDetectChangesEnabled = true;
         }
         catch (Exception ex)
         {
@@ -301,6 +296,10 @@ public class NachaParserService : INachaParserService
                 ex.GetType().Name,
                 ComputeSafeIncident(ex.GetType().Name));
             throw;
+        }
+        finally
+        {
+            _context.ChangeTracker.AutoDetectChangesEnabled = originalAutoDetectChangesEnabled;
         }
 
         return new NachaParseResult

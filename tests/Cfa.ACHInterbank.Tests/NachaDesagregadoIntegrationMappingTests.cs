@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Integrations.Models;
+using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
+using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -36,6 +38,23 @@ public sealed class NachaDesagregadoIntegrationMappingTests
     {
         await using var fixture = await Fixture.CreateAsync();
         await fixture.PublishProcTransaccionesMappingAsync();
+        fixture.Context.SoapIntegrationSettings.Add(new SoapIntegrationSetting
+        {
+            WscfaachMappingsJson = System.Text.Json.JsonSerializer.Serialize(new[]
+            {
+                new SoapEndpointMethodMappingDto
+                {
+                    MethodName = "Proc_Transacciones",
+                    Endpoint = "http://localhost:7083/WSCFAACH.svc",
+                    SoapAction = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
+                    OperatingMode = "Live",
+                    TimeoutSeconds = 15,
+                    Enabled = true
+                }
+            }),
+            WsAxonRespuestaTransaccionesMappingsJson = "[]"
+        });
+        await fixture.Context.SaveChangesAsync();
         var readiness = new IntegrationMappingReadinessService(fixture.Context, fixture.Catalog);
         var service = new SoapIntegrationSettingsService(
             fixture.Context,

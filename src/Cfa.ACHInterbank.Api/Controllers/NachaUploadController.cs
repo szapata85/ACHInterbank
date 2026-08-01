@@ -38,7 +38,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
         private static readonly Regex OfficialNachaNamePattern = new(@"^\d{7}\.\d{3}\.\d{8}\.\d+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
-            ".ach", ".nacha", ".txt", ".OUT", ".RET"
+            ".ach", ".nacha", ".txt", ".OUT", ".RET", ".env"
         };
         private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -93,6 +93,19 @@ namespace Cfa.ACHInterbank.Api.Controllers
                 });
             }
 
+            if (extension.Equals(".env", StringComparison.OrdinalIgnoreCase)
+                && (!request.ClearingHouseId.HasValue || request.ClearingHouseId.Value <= 0))
+            {
+                return BadRequest(new NachaUploadResponseDto
+                {
+                    Success = false,
+                    Partial = false,
+                    Message = "Debe seleccionar la cámara del sobre digital.",
+                    Errors = ["ClearingHouseId es obligatorio para archivos .env."],
+                    TraceId = traceId
+                });
+            }
+
             if (!string.IsNullOrWhiteSpace(file.ContentType) && !AllowedContentTypes.Contains(file.ContentType))
             {
                 return BadRequest(new NachaUploadResponseDto
@@ -115,6 +128,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
                     RequestedBy = User?.Identity?.Name ?? "usuario-api",
                     CorrelationId = traceId,
+                    RequestedClearingHouseId = request.ClearingHouseId,
                     ForceReprocess = request.ForceReprocess,
                     ParentIngestionId = request.ParentIngestionId
                 }, ct);
@@ -131,6 +145,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
                         Domain.Models.ACH.IncomingNachaIngestionStatus.Bloqueado => "Archivo bloqueado por ambigüedad de ciclo.",
                         Domain.Models.ACH.IncomingNachaIngestionStatus.PendienteResolucion => "Archivo pendiente de resolución de ciclo.",
                         Domain.Models.ACH.IncomingNachaIngestionStatus.Completado => "Archivo procesado correctamente.",
+                        Domain.Models.ACH.IncomingNachaIngestionStatus.Fallido => "No fue posible procesar el archivo.",
                         _ => "Archivo recibido."
                     },
                     Errors = result.Errors,
@@ -154,7 +169,8 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     TotalAddendas = result.TotalAddendas
                 };
 
-                if (result.IngestionStatus == Domain.Models.ACH.IncomingNachaIngestionStatus.Bloqueado)
+                if (result.IngestionStatus is Domain.Models.ACH.IncomingNachaIngestionStatus.Bloqueado
+                    or Domain.Models.ACH.IncomingNachaIngestionStatus.Fallido)
                 {
                     return UnprocessableEntity(response);
                 }
@@ -218,13 +234,6 @@ namespace Cfa.ACHInterbank.Api.Controllers
         {
             var query = _context.NachaHeaders
                 .AsNoTracking()
-                .Include(h => h.ClearingHouse)
-                .Include(h => h.AchCycle)
-                .Include(h => h.EntryDetails)
-                .Include(h => h.Batches)
-                .Include(h => h.AddendaRecords)
-                .Include(h => h.BatchControls)
-                .Include(h => h.FileControls)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(immediateOrigin))
@@ -273,18 +282,18 @@ namespace Cfa.ACHInterbank.Api.Controllers
                     AchCycleId = h.AchCycleId,
                     AchCycleName = h.AchCycle != null ? h.AchCycle.CycleName : null,
                     ClearingHouseName = h.ClearingHouse != null ? h.ClearingHouse.Name : null,
-                    TotalEntries = h.EntryDetails != null ? h.EntryDetails.Count : 0,
-                    TotalAddendas = h.AddendaRecords != null ? h.AddendaRecords.Count : 0,
-                    TotalBatches = h.Batches != null ? h.Batches.Count : 0,
-                    TotalAmount = h.EntryDetails != null
-                        ? h.EntryDetails.Sum(e => e.Amount ?? 0)
-                        : 0,
-                    TotalDebitAmount = h.FileControls != null
-                        ? h.FileControls.Sum(fc => fc.TotalDebitAmount)
-                        : 0,
-                    TotalCreditAmount = h.FileControls != null
-                        ? h.FileControls.Sum(fc => fc.TotalCreditAmount)
-                        : 0
+                    TotalEntries = _context.EntryDetails.Count(e => e.NachaID == h.NachaID),
+                    TotalAddendas = _context.AddendaRecords.Count(a => a.NachaID == h.NachaID),
+                    TotalBatches = _context.BatchHeaders.Count(b => b.NachaID == h.NachaID),
+                    TotalAmount = _context.EntryDetails
+                        .Where(e => e.NachaID == h.NachaID)
+                        .Sum(e => e.Amount ?? 0),
+                    TotalDebitAmount = _context.FileControls
+                        .Where(fc => fc.NachaID == h.NachaID)
+                        .Sum(fc => fc.TotalDebitAmount),
+                    TotalCreditAmount = _context.FileControls
+                        .Where(fc => fc.NachaID == h.NachaID)
+                        .Sum(fc => fc.TotalCreditAmount)
                 })
                 .ToListAsync(ct);
 
@@ -295,6 +304,7 @@ namespace Cfa.ACHInterbank.Api.Controllers
     public class NachaUploadRequest
     {
         public IFormFile File { get; set; } = null!;
+        public int? ClearingHouseId { get; set; }
         public bool ForceReprocess { get; set; }
         public Guid? ParentIngestionId { get; set; }
     }

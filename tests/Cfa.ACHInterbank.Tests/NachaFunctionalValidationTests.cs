@@ -255,6 +255,43 @@ public class NachaFunctionalValidationTests
     }
 
     [Fact]
+    public async Task ParseInvalidEntryWithDeclaredAddenda_ShouldConsumeFollowingType7WithoutStructuralFailure()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+        var records = NachaFixedWidthAssertions.SplitRecords(BuildIncomingFile()).ToList();
+        records[2] = ReplaceSegment(records[2], 1, 2, "23");
+
+        var result = await ParseAsync(context, string.Concat(records), "1234567.001.1");
+
+        result.Failures.Should().ContainSingle(failure =>
+            failure.Reason.Contains("Prenotificación debe tener valor 0", StringComparison.Ordinal));
+        result.TotalEntries.Should().Be(0);
+        result.TotalAddendas.Should().Be(0);
+        context.EntryDetails.Should().BeEmpty();
+        context.AddendaRecords.Should().BeEmpty();
+        context.BatchControls.Should().ContainSingle();
+        context.FileControls.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task ParseStructuralFailure_ShouldRestoreAutoDetectChanges()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+        var records = NachaFixedWidthAssertions.SplitRecords(BuildIncomingFile()).ToList();
+        records[3] = ReplaceSegment(records[3], 0, 1, "8");
+
+        var act = () => ParseAsync(context, string.Concat(records), "1234567.001.1");
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*ACHCOL-T6-T7-ORDER*");
+        context.ChangeTracker.AutoDetectChangesEnabled.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task ParseAchColombiaIncomingGoldenFile_ShouldLoadDisaggregatedRecords()
     {
         using var connection = CreateOpenConnection();

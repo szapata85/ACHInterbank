@@ -19,3 +19,11 @@ public enum WsAxonEndpointSecurityMode
     ControlledLocal = 1,
     ConfiguredAllowlist = 2
 }
+
+public sealed class ControlledLocalSoapTransportOptions
+{
+    public const string SectionName = "SoapTransport:ControlledLocal";
+
+    public string? TransportHost { get; set; }
+    public string? HostHeader { get; set; }
+}

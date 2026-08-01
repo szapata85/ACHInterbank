@@ -326,20 +326,49 @@ public sealed class IntegrationMappingBootstrapper
             .OrderByDescending(x => x.Version)
             .ToListAsync(ct);
 
+        IntegrationMappingSet? compatiblePublishedSet = null;
         foreach (var published in publishedSets)
         {
             var rules = await _context.IntegrationMappingRules
                 .AsNoTracking()
-                .Where(x => x.MappingSetId == published.Id && x.Enabled)
+                .Where(x => x.MappingSetId == published.Id)
                 .ToListAsync(ct);
 
-            if (IsRegistrarRespuestaMappingCompatible(parameters, rules))
+            if (compatiblePublishedSet is null
+                && IsRegistrarRespuestaMappingCompatible(parameters, rules))
             {
-                return;
+                compatiblePublishedSet = published;
             }
         }
 
-        foreach (var invalidPublishedSet in publishedSets)
+        var invalidPublishedSets = compatiblePublishedSet is null
+            ? publishedSets
+            : publishedSets.Where(x => x.Id != compatiblePublishedSet.Id).ToList();
+
+        if (compatiblePublishedSet is not null)
+        {
+            if (invalidPublishedSets.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var invalidPublishedSet in invalidPublishedSets)
+            {
+                invalidPublishedSet.Status = IntegrationMappingSetStatusEnum.Archived;
+                invalidPublishedSet.IsActive = false;
+            }
+
+            await _context.SaveChangesAsync(ct);
+            foreach (var invalidPublishedSet in invalidPublishedSets)
+            {
+                _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(invalidPublishedSet, ArchivedInvalidSeedContractAction, ct));
+            }
+
+            await _context.SaveChangesAsync(ct);
+            return;
+        }
+
+        foreach (var invalidPublishedSet in invalidPublishedSets)
         {
             invalidPublishedSet.Status = IntegrationMappingSetStatusEnum.Archived;
             invalidPublishedSet.IsActive = false;
@@ -366,23 +395,24 @@ public sealed class IntegrationMappingBootstrapper
 
         foreach (var parameter in parameters)
         {
-            var sourcePath = RegistrarRespuestaSourcePathFor(parameter.ParameterPath);
+            var sourcePath = RegistrarRespuestaSourcePathFor(parameter.ParameterPath)
+                ?? throw new InvalidOperationException($"No existe una fuente diferencial canonica para '{parameter.ParameterPath}'.");
             _context.IntegrationMappingRules.Add(new IntegrationMappingRule
             {
                 MappingSetId = publishedSet.Id,
                 MethodId = method.Id,
                 ParameterId = parameter.Id,
-                SourceKind = SourceKindFor(sourcePath),
-                SourceFieldPath = sourcePath ?? string.Empty,
-                FixedValue = sourcePath is null ? DefaultValueFor(parameter) : null,
-                DefaultValue = parameter.Required ? null : DefaultValueFor(parameter),
+                SourceKind = IntegrationSourceKindEnum.DifferentialResponse,
+                SourceFieldPath = sourcePath,
+                FixedValue = null,
+                DefaultValue = null,
                 Priority = 1,
                 Enabled = true
             });
         }
 
         await _context.SaveChangesAsync(ct);
-        foreach (var invalidPublishedSet in publishedSets)
+        foreach (var invalidPublishedSet in invalidPublishedSets)
         {
             _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(invalidPublishedSet, ArchivedInvalidSeedContractAction, ct));
         }
@@ -395,29 +425,42 @@ public sealed class IntegrationMappingBootstrapper
         IReadOnlyCollection<IntegrationMethodParameter> parameters,
         IReadOnlyCollection<IntegrationMappingRule> rules)
     {
+        var expectedParameterPaths = RegistrarRespuestaWsdlParameterPaths
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var activeParameterPaths = parameters
             .Select(x => x.ParameterPath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var expectedParameterPaths = RegistrarRespuestaWsdlParameterPaths
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (!activeParameterPaths.SetEquals(expectedParameterPaths)
+        if (parameters.Count != RegistrarRespuestaWsdlParameterPaths.Length
+            || !activeParameterPaths.SetEquals(expectedParameterPaths)
             || activeParameterPaths.Overlaps(RegistrarRespuestaNonWsdlParameterPaths))
         {
             return false;
         }
 
-        var expectedParameterIds = parameters
-            .Where(x => expectedParameterPaths.Contains(x.ParameterPath))
-            .Select(x => x.Id)
-            .ToHashSet();
-        var ruleParameterIds = rules
-            .Select(x => x.ParameterId)
-            .ToHashSet();
+        if (rules.Count != RegistrarRespuestaWsdlParameterPaths.Length
+            || rules.Any(x => !x.Enabled)
+            || rules.GroupBy(x => x.ParameterId).Any(x => x.Count() != 1))
+        {
+            return false;
+        }
 
-        return expectedParameterIds.Count == RegistrarRespuestaWsdlParameterPaths.Length
-            && expectedParameterIds.All(ruleParameterIds.Contains)
-            && ruleParameterIds.All(expectedParameterIds.Contains);
+        foreach (var parameter in parameters)
+        {
+            var rule = rules.SingleOrDefault(x => x.ParameterId == parameter.Id);
+            var expectedSourcePath = RegistrarRespuestaSourcePathFor(parameter.ParameterPath);
+            if (rule is null
+                || rule.MethodId != parameter.MethodId
+                || rule.SourceKind != IntegrationSourceKindEnum.DifferentialResponse
+                || !string.Equals(rule.SourceFieldPath, expectedSourcePath, StringComparison.OrdinalIgnoreCase)
+                || rule.FixedValue is not null
+                || rule.DefaultValue is not null)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private async Task NormalizeRegistrarRespuestaHistoryActionsAsync(CancellationToken ct)

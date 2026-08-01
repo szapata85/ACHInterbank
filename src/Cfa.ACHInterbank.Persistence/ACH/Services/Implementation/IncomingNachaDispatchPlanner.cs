@@ -107,14 +107,52 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
                     ? IncomingNachaDispatchQueueStatus.WaitingWindow
                     : IncomingNachaDispatchQueueStatus.Blocked;
 
+            var nextAttemptAtUtc = status == IncomingNachaDispatchQueueStatus.Queued
+                ? nowUtcOffset.UtcDateTime
+                : (DateTime?)null;
+            var lastErrorCode = status == IncomingNachaDispatchQueueStatus.Blocked
+                ? "POLICY_BLOCKED"
+                : string.Empty;
+            var queueReason = evaluation.Reason;
+
+            if (status == IncomingNachaDispatchQueueStatus.WaitingWindow)
+            {
+                var window = IncomingNachaDispatchWindowCalculator.Evaluate(
+                    tx.AchCycle,
+                    nowLocal,
+                    _timeProvider.LocalTimeZone);
+
+                switch (window.Position)
+                {
+                    case IncomingNachaDispatchWindowPosition.Before:
+                        nextAttemptAtUtc = window.NextEligibleAtUtc;
+                        break;
+                    case IncomingNachaDispatchWindowPosition.Expired:
+                        status = IncomingNachaDispatchQueueStatus.Blocked;
+                        lastErrorCode = "WINDOW_EXPIRED";
+                        queueReason = "La ventana operativa del ciclo ya expiró; no se permite despacho automático.";
+                        break;
+                    case IncomingNachaDispatchWindowPosition.Invalid:
+                        status = IncomingNachaDispatchQueueStatus.Blocked;
+                        lastErrorCode = "WINDOW_SCHEDULE_INVALID";
+                        queueReason = "No fue posible calcular de forma determinística la próxima ventana operativa.";
+                        break;
+                    default:
+                        status = IncomingNachaDispatchQueueStatus.Blocked;
+                        lastErrorCode = "WINDOW_POLICY_INCONSISTENT";
+                        queueReason = "La evaluación de ventana operativa resultó inconsistente; se bloqueó de forma segura.";
+                        break;
+                }
+            }
+
             CompareDispatchShadow(
                 tx,
                 ingestion,
                 clearingHouseCodes.GetValueOrDefault(tx.AchCycle.ClearingHouseId),
                 paymentRailCodes.GetValueOrDefault(tx.AchCycle.ClearingHouseId),
                 status,
-                evaluation.IsEligible,
-                evaluation.IsWaitingWindow,
+                status == IncomingNachaDispatchQueueStatus.Queued,
+                status == IncomingNachaDispatchQueueStatus.WaitingWindow,
                 evaluation.Priority);
 
             _context.IncomingNachaDispatchQueue.Add(new IncomingNachaDispatchQueue
@@ -129,9 +167,9 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
                 QueueStatus = status,
                 Priority = evaluation.Priority,
                 IdempotencyDispatchKey = dispatchKey,
-                NextAttemptAtUtc = status == IncomingNachaDispatchQueueStatus.Queued ? nowUtcOffset.UtcDateTime : null,
-                LastErrorCode = status == IncomingNachaDispatchQueueStatus.Blocked ? "POLICY_BLOCKED" : string.Empty,
-                LastErrorMessage = evaluation.Reason
+                NextAttemptAtUtc = nextAttemptAtUtc,
+                LastErrorCode = lastErrorCode,
+                LastErrorMessage = queueReason
             });
             created++;
         }
@@ -196,5 +234,69 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
         var raw = $"{ingestionId:N}|{transactionId}|{cycleId}|{classificationId:N}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexString(hash);
+    }
+}
+
+internal enum IncomingNachaDispatchWindowPosition
+{
+    Before,
+    Open,
+    Expired,
+    Invalid
+}
+
+internal readonly record struct IncomingNachaDispatchWindowEvaluation(
+    IncomingNachaDispatchWindowPosition Position,
+    DateTime? NextEligibleAtUtc);
+
+internal static class IncomingNachaDispatchWindowCalculator
+{
+    public static IncomingNachaDispatchWindowEvaluation Evaluate(
+        AchCycle cycle,
+        DateTime nowLocal,
+        TimeZoneInfo localTimeZone)
+    {
+        var processingDate = cycle.ProcessingDate.Date;
+        var startLocal = cycle.StartTime <= cycle.EndTime
+            ? processingDate + cycle.StartTime
+            : processingDate.AddDays(-1) + cycle.StartTime;
+        var endLocal = processingDate + cycle.EndTime;
+        var comparableNow = DateTime.SpecifyKind(nowLocal, DateTimeKind.Unspecified);
+        startLocal = DateTime.SpecifyKind(startLocal, DateTimeKind.Unspecified);
+        endLocal = DateTime.SpecifyKind(endLocal, DateTimeKind.Unspecified);
+
+        if (comparableNow > endLocal)
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Expired,
+                null);
+        }
+
+        if (comparableNow >= startLocal)
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Open,
+                null);
+        }
+
+        if (localTimeZone.IsInvalidTime(startLocal) || localTimeZone.IsAmbiguousTime(startLocal))
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Invalid,
+                null);
+        }
+
+        try
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Before,
+                TimeZoneInfo.ConvertTimeToUtc(startLocal, localTimeZone));
+        }
+        catch (ArgumentException)
+        {
+            return new IncomingNachaDispatchWindowEvaluation(
+                IncomingNachaDispatchWindowPosition.Invalid,
+                null);
+        }
     }
 }

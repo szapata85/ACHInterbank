@@ -42,14 +42,33 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
             return;
         }
 
+        var resolvedClearingHouseCode = ingestion.ResolvedClearingHouseId.HasValue
+            ? await _context.ClearingHouses
+                .AsNoTracking()
+                .Where(x => x.Id == ingestion.ResolvedClearingHouseId.Value)
+                .Select(x => x.Code)
+                .SingleOrDefaultAsync(ct)
+            : null;
+        var clearingHouseCode = resolvedClearingHouseCode?.Trim().ToUpperInvariant();
+        if (clearingHouseCode is not ("CENIT" or "ACHCOL"))
+        {
+            return;
+        }
+
         var trace = RequireDigits(entry.SequenceNumber, 15, "TRACE");
         var marker = "local-live-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(trace))).ToLowerInvariant()[..20];
         var localCompanyIdentification = BuildLocalCompanyIdentification(trace);
+        var localCompanyName = "LOCAL LIVE " + clearingHouseCode;
         var existing = await _context.AchTransactions
             .Include(x => x.AchBatch)
             .SingleOrDefaultAsync(x => x.TraceNumber == trace, ct);
         if (existing is not null)
         {
+            if (existing.State is AchTransferStateEnum.AppliedTacitly or AchTransferStateEnum.Certified)
+            {
+                return;
+            }
+
             // A prior local preparation used the technical marker here.  It is
             // intentionally longer than the WCF IDORIG segment, so normalize
             // only records created by this local flow before resuming dispatch.
@@ -71,16 +90,16 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
 
         if (string.IsNullOrWhiteSpace(ingestion.ResolvedAchCycleId))
         {
-            throw new InvalidOperationException("LOCAL_LIVE_PREPARATION_CYCLE_MISSING: la ingesta no resolvió ciclo CENIT.");
+            throw new InvalidOperationException("LOCAL_LIVE_PREPARATION_CYCLE_MISSING: la ingesta no resolvió un ciclo.");
         }
 
         var cycle = await _context.AchCycles
             .Include(x => x.ClearingHouse)
             .SingleOrDefaultAsync(x => x.Id == ingestion.ResolvedAchCycleId, ct)
             ?? throw new InvalidOperationException("LOCAL_LIVE_PREPARATION_CYCLE_MISSING: no existe el ciclo resuelto.");
-        if (!string.Equals(cycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(cycle.ClearingHouse?.Code, clearingHouseCode, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("LOCAL_LIVE_PREPARATION_CLEARING_HOUSE_INVALID: el ciclo debe pertenecer a CENIT.");
+            throw new InvalidOperationException("LOCAL_LIVE_PREPARATION_CLEARING_HOUSE_INVALID: el ciclo debe pertenecer a la cámara resuelta.");
         }
 
         var batch = await _context.BatchHeaders.AsNoTracking()
@@ -88,8 +107,8 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
             ?? throw new InvalidOperationException("LOCAL_LIVE_PREPARATION_BATCH_MISSING: no existe BatchHeader para la entrada.");
         var originatorCode = RequireDigits(batch.OriginParticipantEntityCode, 8, "BCOORIG");
         var receiverCode = RequireDigits(entry.ReceivingParticipantEntityCode, 8, "BCORECEP");
-        var destination = await ResolveInstitutionAsync(receiverCode, requireDefaultSource: true, ct);
-        var source = await ResolveInstitutionAsync(originatorCode, requireDefaultSource: false, ct);
+        var destination = await ResolveInstitutionAsync(receiverCode, requireDefaultSource: true, clearingHouseCode, ct);
+        var source = await ResolveInstitutionAsync(originatorCode, requireDefaultSource: false, clearingHouseCode, ct);
         var description = await _context.CompanyEntryDescriptionCatalogs
             .AsNoTracking()
             .Where(x => x.IsActive)
@@ -109,7 +128,7 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
             {
                 AchCycleId = cycle.Id,
                 ServiceClassCode = batch.ServiceClassCode ?? "220",
-                CompanyName = "LOCAL LIVE CENIT",
+                CompanyName = localCompanyName,
                 CompanyIdentification = localCompanyIdentification,
                 CompanyEntryDescription = description.Term,
                 CompanyEntryDescriptionId = description.Id,
@@ -130,7 +149,7 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
             TransactionCode = "32",
             ServiceClassCode = batch.ServiceClassCode ?? "220",
             CompanyEntryDescriptionId = description.Id,
-            CompanyName = "LOCAL LIVE CENIT",
+            CompanyName = localCompanyName,
             CompanyIdentification = localCompanyIdentification,
             OriginatingDFI = originatorCode + source.CheckDigit,
             ReceivingDFI = receiverCode + RequireDigits(entry.CheckDigit, 1, "RECEIVING_CHECK_DIGIT"),
@@ -157,7 +176,7 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
             EventType = "LocalLiveTransactionPrepared",
             EventStatus = "Created",
             Message = "Datos locales preparados para Proc_Transacciones.",
-            EvidenceJson = $"{{\"createdBy\":\"{CreatedBy}\",\"clearingHouse\":\"CENIT\"}}",
+            EvidenceJson = $"{{\"createdBy\":\"{CreatedBy}\",\"clearingHouse\":\"{clearingHouseCode}\"}}",
             OccurredAtUtc = DateTime.UtcNow,
             RaisedBy = CreatedBy
         });
@@ -170,7 +189,11 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
            && string.Equals(_configuration["ALLOW_LOCAL_MONETARY_SOAP_E2E"], "true", StringComparison.OrdinalIgnoreCase)
            && string.Equals(_configuration["ProcTransacciones:Mode"], "Live", StringComparison.OrdinalIgnoreCase);
 
-    private async Task<FinancialInstitution> ResolveInstitutionAsync(string participantCode, bool requireDefaultSource, CancellationToken ct)
+    private async Task<FinancialInstitution> ResolveInstitutionAsync(
+        string participantCode,
+        bool requireDefaultSource,
+        string clearingHouseCode,
+        CancellationToken ct)
     {
         var institutions = await _context.FinancialInstitutions
             .Where(x => x.RoutingNumber + x.TransitCode == participantCode)
@@ -189,7 +212,7 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
         {
             institution = new FinancialInstitution
             {
-                Name = "CENIT LOCAL EXTERNAL " + participantCode[^3..],
+                Name = clearingHouseCode + " LOCAL EXTERNAL " + participantCode[^3..],
                 RoutingNumber = participantCode[..5],
                 TransitCode = participantCode[5..],
                 IsDefaultSource = false,
