@@ -20,4 +20,5 @@ internal sealed class OperationalTimeProvider : TimeProvider
     public override TimeZoneInfo LocalTimeZone { get; }
 
     public override DateTimeOffset GetUtcNow() => _utcClock.GetUtcNow();
+
 }

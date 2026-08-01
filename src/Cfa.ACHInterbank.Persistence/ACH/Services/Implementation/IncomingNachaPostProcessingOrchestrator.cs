@@ -104,8 +104,9 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         CancellationToken ct)
     {
         var safeChunk = Math.Clamp(chunkSize, 10, 500);
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var nowLocal = _timeProvider.GetLocalNow().LocalDateTime;
+        var nowUtcOffset = _timeProvider.GetUtcNow();
+        var nowUtc = nowUtcOffset.UtcDateTime;
+        var nowLocal = TimeZoneInfo.ConvertTime(nowUtcOffset, _timeProvider.LocalTimeZone).DateTime;
         var integrationCodePolicies = await _context.AchFileRejectionCodes
             .AsNoTracking()
             .Where(x => x.IsActive && x.AppliesToStage == "Integration")

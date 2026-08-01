@@ -77,7 +77,7 @@ public class IncomingNachaDispatchPlanner : IIncomingNachaDispatchPlanner
 
         var created = 0;
         var nowUtcOffset = _timeProvider.GetUtcNow();
-        var nowLocal = _timeProvider.GetLocalNow().LocalDateTime;
+        var nowLocal = TimeZoneInfo.ConvertTime(nowUtcOffset, _timeProvider.LocalTimeZone).DateTime;
         foreach (var candidate in candidates)
         {
             if (!txMap.TryGetValue(candidate.AchTransactionId, out var tx))
