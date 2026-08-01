@@ -1,8 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { permissionGuard } from '../../core/guards/permission.guard';
-import { NachaOperationalDashboardComponent } from './pages/nacha-operational-dashboard.component';
-import { NachaOperationalFileDetailComponent } from './pages/nacha-operational-file-detail.component';
 import { NachaSoapUatConsoleComponent } from './pages/nacha-soap-uat-console.component';
 import { AchReconciliationConsoleComponent } from './pages/ach-reconciliation-console.component';
 
@@ -10,23 +8,12 @@ export const NACHA_OPERATIONAL_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'nacha/operational-dashboard' },
   {
     path: 'nacha/operational-dashboard',
-    component: NachaOperationalDashboardComponent,
-    canActivate: [permissionGuard],
-    data: {
-      permissions: ['CanReadAch'],
-      breadcrumb: 'Preparación SOAP',
-      title: 'Consulta operativa NACHA-M y preparación SOAP'
-    }
+    pathMatch: 'full',
+    redirectTo: '/incoming-nacha-command-center'
   },
   {
     path: 'nacha/operational-dashboard/files/:fileId',
-    component: NachaOperationalFileDetailComponent,
-    canActivate: [permissionGuard],
-    data: {
-      permissions: ['CanReadAch'],
-      breadcrumb: 'Detalle archivo NACHA-M',
-      title: 'Detalle operativo NACHA-M solo lectura'
-    }
+    redirectTo: '/incoming-nacha-command-center/files/:fileId'
   },
   {
     path: 'nacha/soap-uat-console',

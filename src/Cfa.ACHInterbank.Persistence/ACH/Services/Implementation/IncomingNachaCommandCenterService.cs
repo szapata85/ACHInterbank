@@ -186,8 +186,76 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             q = q.Where(x => x.FileName.Contains(val));
         }
 
+        if (query.ClearingHouseId.HasValue)
+        {
+            q = q.Where(x => x.ResolvedClearingHouseId == query.ClearingHouseId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.AchCycleId))
+        {
+            var cycleId = query.AchCycleId.Trim();
+            q = q.Where(x => x.ResolvedAchCycleId == cycleId);
+        }
+
+        if (query.OperationalDate.HasValue)
+        {
+            var operationalDate = query.OperationalDate.Value.Date;
+            q = q.Where(x => x.OperationalDate.HasValue && x.OperationalDate.Value.Date == operationalDate);
+        }
+
+        if (query.UploadedFromUtc.HasValue)
+        {
+            q = q.Where(x => x.UploadedAtUtc >= query.UploadedFromUtc.Value);
+        }
+
+        if (query.UploadedToUtc.HasValue)
+        {
+            q = q.Where(x => x.UploadedAtUtc <= query.UploadedToUtc.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.ResultCode))
+        {
+            var resultCode = query.ResultCode.Trim();
+            q = q.Where(x => _context.IncomingNachaIntegrationExecution.Any(e =>
+                e.DispatchQueue.IncomingNachaFileIngestionId == x.Id && e.ResultCode == resultCode));
+        }
+
+        if (query.BusinessOutcome.HasValue)
+        {
+            q = q.Where(x => _context.IncomingNachaIntegrationExecution.Any(e =>
+                e.DispatchQueue.IncomingNachaFileIngestionId == x.Id && e.BusinessOutcome == query.BusinessOutcome.Value));
+        }
+
+        if (query.HasTechnicalErrors.HasValue)
+        {
+            q = query.HasTechnicalErrors.Value
+                ? q.Where(x => _context.IncomingNachaIntegrationExecution.Any(e => e.DispatchQueue.IncomingNachaFileIngestionId == x.Id && e.IsTechnicalFailure))
+                : q.Where(x => !_context.IncomingNachaIntegrationExecution.Any(e => e.DispatchQueue.IncomingNachaFileIngestionId == x.Id && e.IsTechnicalFailure));
+        }
+
+        if (query.HasIssues.HasValue)
+        {
+            q = query.HasIssues.Value
+                ? q.Where(x => x.Stage == IncomingNachaIngestionStage.Rejected
+                    || x.Stage == IncomingNachaIngestionStage.Failed
+                    || _context.IncomingNachaIntegrationExecution.Any(e => e.DispatchQueue.IncomingNachaFileIngestionId == x.Id
+                        && (e.IsTechnicalFailure || e.BusinessOutcome == IncomingNachaBusinessOutcome.Rejected || e.BusinessOutcome == IncomingNachaBusinessOutcome.Returned)))
+                : q.Where(x => x.Stage != IncomingNachaIngestionStage.Rejected
+                    && x.Stage != IncomingNachaIngestionStage.Failed
+                    && !_context.IncomingNachaIntegrationExecution.Any(e => e.DispatchQueue.IncomingNachaFileIngestionId == x.Id
+                        && (e.IsTechnicalFailure || e.BusinessOutcome == IncomingNachaBusinessOutcome.Rejected || e.BusinessOutcome == IncomingNachaBusinessOutcome.Returned)));
+        }
+
         var total = await q.CountAsync(ct);
-        var rows = await q.OrderByDescending(x => x.UploadedAtUtc)
+        q = query.SortBy.Trim().ToLowerInvariant() switch
+        {
+            "filename" => query.SortDescending ? q.OrderByDescending(x => x.FileName) : q.OrderBy(x => x.FileName),
+            "operationaldate" => query.SortDescending ? q.OrderByDescending(x => x.OperationalDate) : q.OrderBy(x => x.OperationalDate),
+            "cycle" => query.SortDescending ? q.OrderByDescending(x => x.ResolvedAchCycleId) : q.OrderBy(x => x.ResolvedAchCycleId),
+            _ => query.SortDescending ? q.OrderByDescending(x => x.UploadedAtUtc) : q.OrderBy(x => x.UploadedAtUtc)
+        };
+
+        var rows = await q
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new
@@ -206,14 +274,74 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                     x.UploadedAtUtc,
                     _context.IncomingNachaDispatchQueue.Count(q => q.IncomingNachaFileIngestionId == x.Id),
                     _context.IncomingNachaProcessingEvents.Count(e => e.IncomingNachaFileIngestionId == x.Id)),
-                x.Stage
+                x.Stage,
+                x.UploadedBy
             })
             .ToListAsync(ct);
-        var items = rows.Select(x => x.Item with
+
+        var ingestionIds = rows.Select(x => x.Item.Id).ToArray();
+        var clearingHouseIds = rows.Where(x => x.Item.ResolvedClearingHouseId.HasValue)
+            .Select(x => x.Item.ResolvedClearingHouseId!.Value).Distinct().ToArray();
+        var clearingHouseNames = await _context.ClearingHouses.AsNoTracking()
+            .Where(x => clearingHouseIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        var processing = await _context.IncomingNachaFileProcessingResults.AsNoTracking()
+            .Where(x => ingestionIds.Contains(x.IncomingNachaFileIngestionId))
+            .GroupBy(x => x.IncomingNachaFileIngestionId)
+            .Select(g => g.OrderByDescending(x => x.AttemptNumber).Select(x => new
+            {
+                x.IncomingNachaFileIngestionId,
+                x.TotalBatches,
+                x.TotalEntries
+            }).First())
+            .ToListAsync(ct);
+        var processingByIngestion = processing.ToDictionary(x => x.IncomingNachaFileIngestionId);
+        var financialTotals = await _context.FileControls.AsNoTracking()
+            .Where(x => x.NachaHeader != null && x.NachaHeader.IncomingNachaFileIngestionId.HasValue
+                && ingestionIds.Contains(x.NachaHeader.IncomingNachaFileIngestionId.Value))
+            .GroupBy(x => x.NachaHeader!.IncomingNachaFileIngestionId!.Value)
+            .Select(g => new { IngestionId = g.Key, Debit = g.Sum(x => x.TotalDebitAmount), Credit = g.Sum(x => x.TotalCreditAmount) })
+            .ToListAsync(ct);
+        var totalsByIngestion = financialTotals.ToDictionary(x => x.IngestionId);
+        var executionRows = await _context.IncomingNachaIntegrationExecution.AsNoTracking()
+            .Where(x => ingestionIds.Contains(x.DispatchQueue.IncomingNachaFileIngestionId))
+            .Select(x => new { x.DispatchQueue.IncomingNachaFileIngestionId, x.BusinessOutcome, x.IsTechnicalFailure })
+            .ToListAsync(ct);
+        var queueRows = await _context.IncomingNachaDispatchQueue.AsNoTracking()
+            .Where(x => ingestionIds.Contains(x.IncomingNachaFileIngestionId))
+            .Select(x => new { x.IncomingNachaFileIngestionId, x.QueueStatus, x.CreatedAt })
+            .ToListAsync(ct);
+
+        var items = rows.Select(x =>
         {
-            IngestionStatusText = IncomingNachaContractText.IngestionStatus(x.Item.IngestionStatus),
-            StageCode = x.Stage.ToString(),
-            StageText = IncomingNachaContractText.Stage(x.Stage)
+            processingByIngestion.TryGetValue(x.Item.Id, out var processingResult);
+            totalsByIngestion.TryGetValue(x.Item.Id, out var totals);
+            var itemExecutions = executionRows.Where(e => e.IncomingNachaFileIngestionId == x.Item.Id).ToList();
+            var itemQueue = queueRows.Where(qr => qr.IncomingNachaFileIngestionId == x.Item.Id).ToList();
+            var hasTechnicalErrors = itemExecutions.Any(e => e.IsTechnicalFailure);
+            var hasIssues = hasTechnicalErrors
+                || x.Stage is IncomingNachaIngestionStage.Rejected or IncomingNachaIngestionStage.Failed
+                || itemExecutions.Any(e => e.BusinessOutcome is IncomingNachaBusinessOutcome.Rejected or IncomingNachaBusinessOutcome.Returned);
+
+            return x.Item with
+            {
+                IngestionStatusText = IncomingNachaContractText.IngestionStatus(x.Item.IngestionStatus),
+                StageCode = x.Stage.ToString(),
+                StageText = IncomingNachaContractText.Stage(x.Stage),
+                ClearingHouseName = x.Item.ResolvedClearingHouseId.HasValue
+                    ? clearingHouseNames.GetValueOrDefault(x.Item.ResolvedClearingHouseId.Value, $"Cámara {x.Item.ResolvedClearingHouseId.Value}")
+                    : "Por identificar",
+                UploadedBy = string.IsNullOrWhiteSpace(x.UploadedBy) ? "Sistema" : x.UploadedBy,
+                TotalBatches = processingResult?.TotalBatches ?? 0,
+                TotalTransactions = processingResult?.TotalEntries ?? 0,
+                TotalDebit = totals?.Debit ?? 0m,
+                TotalCredit = totals?.Credit ?? 0m,
+                ProcessingStatusText = FileProcessingStatusText(itemQueue.Select(qr => qr.QueueStatus).ToList(), x.Stage),
+                OverallResultText = FileOverallResultText(itemExecutions.Select(e => e.BusinessOutcome).ToList(), hasTechnicalErrors, x.Stage),
+                ScheduledAtUtc = itemQueue.Count == 0 ? null : itemQueue.Min(qr => qr.CreatedAt).UtcDateTime,
+                HasTechnicalErrors = hasTechnicalErrors,
+                HasIssues = hasIssues
+            };
         }).ToList();
 
         return new IncomingNachaPageResult<IncomingNachaIngestionListItemDto>(items, page, pageSize, total);
@@ -253,6 +381,15 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             .ToListAsync(ct);
         var technicalFailures = await _context.IncomingNachaIntegrationExecution.AsNoTracking()
             .CountAsync(x => x.DispatchQueue.IncomingNachaFileIngestionId == ingestionId && x.IsTechnicalFailure, ct);
+        var clearingHouseName = ingestion.ResolvedClearingHouseId.HasValue
+            ? await _context.ClearingHouses.AsNoTracking()
+                .Where(x => x.Id == ingestion.ResolvedClearingHouseId.Value)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(ct)
+            : null;
+        var pendingTransactions = queue.Items.Count(x => x.QueueStatus is not IncomingNachaDispatchQueueStatus.Confirmed
+            and not IncomingNachaDispatchQueueStatus.FailedFinal);
+        var detailOutcomes = outcomes.Select(x => x.Outcome).ToList();
 
         return new IncomingNachaIngestionDetailDto(
             ingestion.Id,
@@ -284,7 +421,13 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             AdmissionIssue = BuildAdmissionIssue(ingestion),
             IngestionStatusText = IncomingNachaContractText.IngestionStatus(ingestion.IngestionStatus),
             StageCode = ingestion.Stage.ToString(),
-            StageText = IncomingNachaContractText.Stage(ingestion.Stage)
+            StageText = IncomingNachaContractText.Stage(ingestion.Stage),
+            ClearingHouseName = clearingHouseName ?? (ingestion.ResolvedClearingHouseId.HasValue ? $"Cámara {ingestion.ResolvedClearingHouseId.Value}" : "Por identificar"),
+            UploadedBy = string.IsNullOrWhiteSpace(ingestion.UploadedBy) ? "Sistema" : ingestion.UploadedBy,
+            UploadedAtUtc = ingestion.UploadedAtUtc,
+            ReceivedAtUtc = ingestion.ReceivedAtUtc,
+            OverallResultText = FileOverallResultText(detailOutcomes, technicalFailures > 0, ingestion.Stage),
+            PendingTransactions = pendingTransactions
         };
     }
 
@@ -315,6 +458,9 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                     persistedIssue.ErrorType,
                     persistedIssue.Severity,
                     false)
+                {
+                    OccurredAtUtc = ingestion.UploadedAtUtc
+                }
             ];
         }
 
@@ -335,6 +481,9 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                     "Functional",
                     "Information",
                     true)
+                {
+                    OccurredAtUtc = ingestion.UploadedAtUtc
+                }
             ];
         }
 
@@ -545,7 +694,10 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 x.EntryDetails.Count,
                 x.EntryDetails.Sum(e => e.Amount ?? 0m),
                 x.BatchControl == null ? 0m : x.BatchControl.TotalDebitAmount,
-                x.BatchControl == null ? 0m : x.BatchControl.TotalCreditAmount))
+                x.BatchControl == null ? 0m : x.BatchControl.TotalCreditAmount)
+            {
+                CompanyEntryDescription = x.CompanyEntryDescription ?? string.Empty
+            })
             .ToListAsync(ct);
 
         return new IncomingNachaPageResult<IncomingNachaBatchDto>(items, page, pageSize, total);
@@ -579,6 +731,19 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             rows = rows.Where(x => _context.IncomingNachaIntegrationExecution.Any(e => e.EntryDetailId == x.EntryDetailID && e.BusinessOutcome == query.BusinessOutcome.Value));
         if (query.ProcessingStatus.HasValue)
             rows = rows.Where(x => _context.IncomingNachaIntegrationExecution.Any(e => e.EntryDetailId == x.EntryDetailID && e.ProcessingStatus == query.ProcessingStatus.Value));
+        if (query.HasAddenda.HasValue)
+            rows = query.HasAddenda.Value
+                ? rows.Where(x => _context.AddendaRecords.Any(a => a.EntryDetailId == x.EntryDetailID))
+                : rows.Where(x => !_context.AddendaRecords.Any(a => a.EntryDetailId == x.EntryDetailID));
+        if (query.HasTechnicalError.HasValue)
+            rows = query.HasTechnicalError.Value
+                ? rows.Where(x => _context.IncomingNachaIntegrationExecution.Any(e => e.EntryDetailId == x.EntryDetailID && e.IsTechnicalFailure))
+                : rows.Where(x => !_context.IncomingNachaIntegrationExecution.Any(e => e.EntryDetailId == x.EntryDetailID && e.IsTechnicalFailure));
+        if (!string.IsNullOrWhiteSpace(query.TransactionCode))
+        {
+            var transactionCode = query.TransactionCode.Trim();
+            rows = rows.Where(x => x.TransactionCode == transactionCode);
+        }
 
         rows = query.SortBy.Trim().ToLowerInvariant() switch
         {
@@ -611,6 +776,10 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             .GroupBy(x => x.EntryDetailId!.Value)
             .Select(x => new { EntryDetailId = x.Key, Count = x.Count() })
             .ToDictionaryAsync(x => x.EntryDetailId, x => x.Count, ct);
+        var transactionCodes = entries.Select(x => x.TransactionCode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToArray();
+        var transactionCodeDescriptions = await _context.TransactionCodes.AsNoTracking()
+            .Where(x => transactionCodes.Contains(x.Code))
+            .ToDictionaryAsync(x => x.Code, x => x.Description, ct);
 
         var items = entries.Select(entry =>
         {
@@ -640,6 +809,7 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 execution?.ProcessedAtUtc,
                 execution?.CorrelationId ?? ingestionId.ToString("N"))
             {
+                DispatchQueueId = queue?.Id,
                 ClearingHouseId = queue?.ClearingHouseId ?? 0,
                 OperationalDate = queue?.OperationalDate,
                 AchCycleId = queue?.AchCycleId ?? string.Empty,
@@ -652,7 +822,15 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 ExternalTransactionId = execution?.ExternalTransactionId ?? string.Empty,
                 AchReturnCodeId = execution?.AchReturnCodeId,
                 TechnicalErrorCode = execution?.TechnicalErrorCode ?? string.Empty,
-                TechnicalErrorMessage = execution?.TechnicalErrorMessage ?? string.Empty
+                TechnicalErrorMessage = execution?.TechnicalErrorMessage ?? string.Empty,
+                TransactionCodeDescription = entry.TransactionCode is not null
+                    ? transactionCodeDescriptions.GetValueOrDefault(entry.TransactionCode, "Código de transacción NACHA-M")
+                    : "Código de transacción NACHA-M",
+                AccountNumberMasked = MaskValue(entry.AccountNumber, 4),
+                OriginInstitution = MaskInstitution(entry.BatchHeader?.OriginParticipantEntityCode),
+                DestinationInstitution = MaskInstitution(entry.ReceivingParticipantEntityCode),
+                RecipientNameMasked = MaskName(entry.RecipUserName),
+                EffectiveEntryDate = entry.BatchHeader?.EffectiveEntryDate ?? string.Empty
             };
         }).ToList();
 
@@ -663,19 +841,31 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         Guid ingestionId,
         int entryDetailId,
         CancellationToken ct = default)
-        => await _context.AddendaRecords.AsNoTracking()
+    {
+        var addendas = await _context.AddendaRecords.AsNoTracking()
             .Where(x => x.EntryDetailId == entryDetailId
                 && x.NachaHeader != null
                 && x.NachaHeader.IncomingNachaFileIngestionId == ingestionId)
             .OrderBy(x => x.AddendumSequence)
-            .Select(x => new IncomingNachaAddendaDto(
+            .Select(x => new
+            {
                 x.AddendaID,
-                x.CodeTypeAddendumRecord ?? string.Empty,
-                x.AddendumSequence ?? string.Empty,
-                x.ReturnReasonCode ?? string.Empty,
-                x.OriginalTraceNumber ?? string.Empty,
-                x.PaymentRelatedInformation ?? string.Empty))
+                x.CodeTypeAddendumRecord,
+                x.AddendumSequence,
+                x.ReturnReasonCode,
+                x.OriginalTraceNumber,
+                x.PaymentRelatedInformation
+            })
             .ToListAsync(ct);
+
+        return addendas.Select(x => new IncomingNachaAddendaDto(
+            x.AddendaID,
+            x.CodeTypeAddendumRecord ?? string.Empty,
+            x.AddendumSequence ?? string.Empty,
+            x.ReturnReasonCode ?? string.Empty,
+            MaskValue(x.OriginalTraceNumber, 4),
+            MaskText(x.PaymentRelatedInformation))).ToList();
+    }
 
     private static string ClassificationText(IncomingNachaFunctionalClass? value) => value switch
     {
@@ -720,6 +910,58 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         IncomingNachaBusinessOutcome.NotProcessed => "No procesado",
         _ => "Pendiente de respuesta"
     };
+
+    private static string FileProcessingStatusText(
+        IReadOnlyCollection<IncomingNachaDispatchQueueStatus> statuses,
+        IncomingNachaIngestionStage stage)
+    {
+        if (stage == IncomingNachaIngestionStage.Failed) return "Error técnico";
+        if (stage == IncomingNachaIngestionStage.Rejected) return "No procesado";
+        if (statuses.Count == 0) return stage == IncomingNachaIngestionStage.Persisted ? "Pendiente de programación" : "Carga en curso";
+        if (statuses.All(x => x == IncomingNachaDispatchQueueStatus.Confirmed)) return "Procesado";
+        if (statuses.Any(x => x is IncomingNachaDispatchQueueStatus.Dispatching or IncomingNachaDispatchQueueStatus.Dispatched)) return "Procesando";
+        if (statuses.Any(x => x == IncomingNachaDispatchQueueStatus.RetryPending)) return "Pendiente de reintento";
+        if (statuses.Any(x => x == IncomingNachaDispatchQueueStatus.FailedFinal)) return "Procesado con errores técnicos";
+        if (statuses.Any(x => x == IncomingNachaDispatchQueueStatus.Blocked)) return "Procesamiento bloqueado";
+        return "Programado";
+    }
+
+    private static string FileOverallResultText(
+        IReadOnlyCollection<IncomingNachaBusinessOutcome> outcomes,
+        bool hasTechnicalErrors,
+        IncomingNachaIngestionStage stage)
+    {
+        if (stage == IncomingNachaIngestionStage.Rejected) return "Rechazado durante la validación";
+        if (hasTechnicalErrors) return "Con errores técnicos";
+        if (outcomes.Count == 0) return "Pendiente";
+        if (outcomes.Any(x => x is IncomingNachaBusinessOutcome.Rejected or IncomingNachaBusinessOutcome.Returned)) return "Procesado con novedades";
+        if (outcomes.All(x => x == IncomingNachaBusinessOutcome.Successful)) return "Procesado correctamente";
+        return "Procesamiento pendiente";
+    }
+
+    private static string MaskValue(string? value, int visibleSuffix)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        if (normalized.Length == 0) return string.Empty;
+        var suffixLength = Math.Min(visibleSuffix, normalized.Length);
+        return $"****{normalized[^suffixLength..]}";
+    }
+
+    private static string MaskInstitution(string? value) => MaskValue(value, 4);
+
+    private static string MaskName(string? value)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        if (normalized.Length == 0) return string.Empty;
+        return normalized.Length == 1 ? "*" : $"{normalized[0]}***";
+    }
+
+    private static string MaskText(string? value)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        if (normalized.Length == 0) return string.Empty;
+        return normalized.Length <= 8 ? "Información protegida" : $"Información protegida · …{normalized[^4..]}";
+    }
 
     public Task<IncomingNachaManualActionResultDto> RetryManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
         => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualRetry, (q, req) =>

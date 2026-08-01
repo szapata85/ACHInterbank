@@ -257,8 +257,8 @@ export const APP_ROUTES: Routes = [
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
-          breadcrumb: 'Inbound NACHA',
-          title: 'Command Center inbound NACHA'
+          breadcrumb: 'Seguimiento de archivos NACHA-M',
+          title: 'Seguimiento de archivos NACHA-M'
         },
         loadChildren: () =>
           import('./features/incoming-nacha-command-center/incoming-nacha-command-center.module').then(

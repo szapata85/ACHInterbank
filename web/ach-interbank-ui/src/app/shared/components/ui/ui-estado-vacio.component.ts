@@ -1,14 +1,16 @@
+import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 
 @Component({
   selector: 'ui-estado-vacio',
   standalone: true,
+  imports: [CommonModule],
   template: `
     <div class="estado">
       <span class="icono material-symbols-outlined" aria-hidden="true">inbox</span>
       <p class="titulo">{{ titulo }}</p>
       <small>{{ mensaje }}</small>
-      <small class="sugerencia">Puedes ajustar los filtros o crear un nuevo registro.</small>
+      <small class="sugerencia" *ngIf="sugerencia">{{ sugerencia }}</small>
     </div>
   `,
   styles: [`
@@ -22,4 +24,5 @@ import { Component, Input } from '@angular/core';
 export class UiEstadoVacioComponent {
   @Input() titulo = 'Sin resultados';
   @Input() mensaje = 'No se encontraron datos con los filtros actuales.';
+  @Input() sugerencia = 'Ajuste los filtros e intente nuevamente.';
 }

@@ -1,100 +1,226 @@
-<section class="nacha-operational-page">
+<main class="nacha-file-detail" aria-labelledby="detail-title">
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
-    { etiqueta: 'ACH' },
-    { etiqueta: 'Panel operativo', ruta: '/ach/nacha/operational-dashboard' },
-    { etiqueta: 'Detalle archivo' }
+    { etiqueta: 'Seguimiento de archivos', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: detail?.fileName || 'Detalle del archivo' }
   ]"></ui-migas-pan>
 
-  <ui-encabezado-pagina
-    titulo="Detalle operativo NACHA-M"
-    descripcion="Consulta solo lectura de encabezado, lotes, entradas, adendas, controles y totales persistidos."
-  ></ui-encabezado-pagina>
+  <div class="detail-actions">
+    <button mat-stroked-button type="button" (click)="backToList()">
+      <mat-icon aria-hidden="true">arrow_back</mat-icon> Volver al listado
+    </button>
+    <button mat-flat-button color="primary" type="button" (click)="refresh()" [disabled]="loadingDetail">
+      <mat-icon aria-hidden="true">refresh</mat-icon> Actualizar información
+    </button>
+  </div>
 
-  <ui-alerta
-    tipo="advertencia"
-    titulo="Productivo NO-GO"
-    mensaje="Esta pantalla no reprocesa, no ejecuta SOAP, no mueve dinero y no descarga archivos productivos."
-  ></ui-alerta>
+  <mat-progress-bar *ngIf="loadingDetail" mode="indeterminate" aria-label="Consultando detalle del archivo"></mat-progress-bar>
+  <ui-estado-error *ngIf="detailError && !loadingDetail" titulo="Detalle no disponible" [mensaje]="detailError"
+                   (reintentar)="refresh()"></ui-estado-error>
 
-  <ui-alerta
-    tipo="info"
-    titulo="Backend solo lectura sanitizado"
-    mensaje="El detalle usa el read-store persistido y enmascara cuentas, documentos, trazas y correlaciones sensibles."
-  ></ui-alerta>
+  <ng-container *ngIf="detail as file">
+    <header class="file-hero">
+      <div class="file-hero__main">
+        <p class="eyebrow">Archivo recibido</p>
+        <h2 id="detail-title" [matTooltip]="file.fileName">{{ file.fileName }}</h2>
+        <div class="status-row">
+          <span [class]="tone(file.stageText)">{{ file.stageText }}</span>
+          <span [class]="tone(file.overallResultText)">{{ file.overallResultText }}</span>
+        </div>
+      </div>
+      <dl class="file-metadata">
+        <div><dt>Cámara</dt><dd>{{ file.clearingHouseName }}</dd></div>
+        <div><dt>Fecha operativa</dt><dd>{{ file.operationalDate ? (file.operationalDate | date:'dd/MM/yyyy':'UTC') : 'Pendiente de definición' }}</dd></div>
+        <div><dt>Ciclo</dt><dd>{{ file.resolvedAchCycleId || 'Por resolver' }}</dd></div>
+        <div><dt>Fecha de carga</dt><dd>{{ file.uploadedAtUtc | dateFormat }}</dd></div>
+        <div><dt>Usuario</dt><dd>{{ file.uploadedBy }}</dd></div>
+        <div>
+          <dt>Identificador de correlación</dt>
+          <dd>
+            {{ abbreviated(file.correlationId) }}
+            <button mat-icon-button type="button" (click)="copyCorrelation(file.correlationId)"
+                    aria-label="Copiar identificador de correlación" matTooltip="Copiar identificador">
+              <mat-icon aria-hidden="true">content_copy</mat-icon>
+            </button>
+          </dd>
+        </div>
+      </dl>
+    </header>
 
-  <p class="back-link">
-    <a routerLink="/ach/nacha/operational-dashboard">Volver al dashboard</a>
-  </p>
-
-  <ui-alerta *ngIf="error" tipo="error" titulo="Detalle no disponible" [mensaje]="error"></ui-alerta>
-  <ui-estado-carga *ngIf="cargando" mensaje="Cargando detalle operativo NACHA-M..."></ui-estado-carga>
-
-  <ng-container *ngIf="detail as vm">
-    <section class="data-source-strip" aria-label="Fuente de datos">
-      <span class="badge" [ngClass]="vm.isPartialData ? 'badge-neutral' : 'badge-success'">Fuente: {{ dataSourceLabel(vm.dataSource) }}</span>
-      <span class="badge badge-success">SIN DATOS SENSIBLES: {{ vm.noSensitiveData }}</span>
-      <span class="badge badge-danger">NO-GO</span>
+    <section class="file-summary" aria-label="Resumen ejecutivo del archivo">
+      <article><span>Lotes</span><strong>{{ file.summary.totalBatches }}</strong></article>
+      <article><span>Transacciones</span><strong>{{ file.summary.totalTransactions }}</strong></article>
+      <article class="money"><span>Total débito</span><strong>{{ file.summary.totalDebit | currencyCol }}</strong></article>
+      <article class="money"><span>Total crédito</span><strong>{{ file.summary.totalCredit | currencyCol }}</strong></article>
+      <article class="successful"><span>Exitosas</span><strong>{{ file.summary.successfulTransactions }}</strong></article>
+      <article class="rejected"><span>Rechazadas</span><strong>{{ file.summary.rejectedTransactions }}</strong></article>
+      <article class="returned"><span>Devueltas</span><strong>{{ file.summary.returnedTransactions }}</strong></article>
+      <article><span>Pendientes</span><strong>{{ file.pendingTransactions }}</strong></article>
+      <article class="technical"><span>Errores técnicos</span><strong>{{ file.summary.technicalFailures }}</strong></article>
     </section>
 
-    <ui-alerta
-      *ngIf="vm.warnings.length"
-      tipo="info"
-      titulo="Warnings operativos"
-      [mensaje]="vm.warnings.join(' ')"
-    ></ui-alerta>
-
-    <section class="summary-strip" aria-label="Resumen archivo">
-      <article><small>Archivo</small><strong>{{ vm.fileName }}</strong></article>
-      <article><small>Cámara</small><strong>{{ vm.clearingHouseCode }}</strong></article>
-      <article><small>Perfil</small><strong>{{ vm.profileCode }}</strong></article>
-      <article><small>Flujo</small><strong>{{ vm.flowType }}</strong></article>
-      <article><small>Estado</small><strong>{{ vm.processingStatus }}</strong></article>
-      <article><small>Validado</small><strong>{{ vm.validationPassed }}</strong></article>
-      <article><small>CorrelationId</small><strong>{{ vm.correlationId }}</strong></article>
-      <article><small>Recibido</small><strong>{{ formatDate(vm.receivedAt) }}</strong></article>
-      <article><small>Records persistidos</small><strong>{{ vm.totalsSummary.persistedRecordCount }}</strong></article>
+    <section class="progress-card" aria-labelledby="progress-title">
+      <div class="section-heading">
+        <div><h2 id="progress-title">Progreso del archivo</h2><p>Etapas registradas durante la recepción y lectura del contenido.</p></div>
+      </div>
+      <ol class="progress-timeline">
+        <li *ngFor="let stage of progressStages" [attr.data-state]="progressState(stage.code)">
+          <span class="progress-marker" aria-hidden="true">
+            <mat-icon>{{ progressState(stage.code) === 'completed' ? 'check' : progressState(stage.code) === 'failed' ? 'error' : progressState(stage.code) === 'rejected' ? 'block' : 'circle' }}</mat-icon>
+          </span>
+          <span>{{ stage.label }}</span>
+          <small>
+            {{ progressState(stage.code) === 'completed' ? 'Completada' : progressState(stage.code) === 'current' ? 'Etapa actual' : progressState(stage.code) === 'failed' ? 'Error técnico' : progressState(stage.code) === 'rejected' ? 'Rechazada' : 'Pendiente' }}
+          </small>
+        </li>
+      </ol>
     </section>
 
-    <ui-tarjeta titulo="Encabezado" subtitulo="Encabezado NACHA-M sanitizado.">
-      <section class="summary-strip" *ngIf="vm.header as header">
-        <article><small>ID de encabezado</small><strong>{{ header.headerId }}</strong></article>
-        <article><small>Prioridad</small><strong>{{ header.priorityCode }}</strong></article>
-        <article><small>Destino</small><strong>{{ header.immediateDestination }}</strong></article>
-        <article><small>Origen</small><strong>{{ header.immediateOrigin }}</strong></article>
-        <article><small>Fecha</small><strong>{{ header.fileCreationDate }}</strong></article>
-        <article><small>Hora</small><strong>{{ header.fileCreationTime }}</strong></article>
-        <article><small>Tamaño de registro</small><strong>{{ header.recordSize }}</strong></article>
-        <article><small>Bloqueo</small><strong>{{ header.blockingFactor }}</strong></article>
-      </section>
-    </ui-tarjeta>
+    <mat-tab-group class="detail-tabs" [selectedIndex]="selectedTabIndex" (selectedIndexChange)="tabChanged($event)"
+                   animationDuration="150ms" aria-label="Secciones del detalle del archivo">
+      <mat-tab label="Resumen">
+        <section class="tab-content" aria-labelledby="summary-section-title">
+          <div class="detail-section narrative-card">
+            <h2 id="summary-section-title">Situación actual</h2>
+            <p><strong>{{ file.stageText }}.</strong> {{ file.overallResultText }}.</p>
+            <dl class="summary-description">
+              <div><dt>Qué ocurrió</dt><dd>{{ file.admissionIssue?.message || 'El archivo fue recibido y su información se encuentra disponible para seguimiento operativo.' }}</dd></div>
+              <div><dt>Resultado general</dt><dd>{{ file.overallResultText }}</dd></div>
+              <div><dt>Fecha y ciclo</dt><dd>{{ file.operationalDate ? (file.operationalDate | date:'dd/MM/yyyy':'UTC') : 'Fecha pendiente' }} · {{ file.resolvedAchCycleId || 'Ciclo por resolver' }}</dd></div>
+              <div><dt>Próximo paso</dt><dd>{{ file.pendingTransactions > 0 ? 'Continuar el seguimiento de las transacciones pendientes según su programación.' : 'No hay transacciones pendientes de procesamiento.' }}</dd></div>
+              <div *ngIf="file.admissionIssue"><dt>Acción sugerida</dt><dd>{{ file.admissionIssue.suggestedAction }}</dd></div>
+            </dl>
+          </div>
+        </section>
+      </mat-tab>
 
-    <ui-tarjeta titulo="Lotes" subtitulo="Encabezados de lote persistidos.">
-      <ui-grilla-empresarial [columnas]="columnasBatches" [datos]="vm.batches" [cargando]="cargando" tituloVacio="Sin lotes"></ui-grilla-empresarial>
-    </ui-tarjeta>
+      <mat-tab label="Validaciones">
+        <section class="tab-content" aria-labelledby="validations-title">
+          <div class="section-heading"><div><h2 id="validations-title">Validaciones del archivo</h2><p>Resultados de admisión, fecha, cámara, perfil y ciclo.</p></div></div>
+          <mat-progress-bar *ngIf="loadingValidations" mode="indeterminate" aria-label="Consultando validaciones"></mat-progress-bar>
+          <ui-estado-error *ngIf="validationsError && !loadingValidations" titulo="Validaciones no disponibles" [mensaje]="validationsError" (reintentar)="retryValidations()"></ui-estado-error>
+          <ui-estado-vacio *ngIf="!loadingValidations && !validationsError && validations.length === 0" titulo="Sin validaciones para mostrar"
+                           mensaje="El archivo todavía no registra resultados de validación." sugerencia="Actualice la información cuando avance el procesamiento."></ui-estado-vacio>
+          <div class="validation-list" *ngIf="validations.length > 0">
+            <article *ngFor="let validation of validations" [class.validation-error]="!validation.isSuccessful">
+              <mat-icon aria-hidden="true">{{ validation.isSuccessful ? 'check_circle' : validation.severity === 'Warning' ? 'warning' : 'error' }}</mat-icon>
+              <div>
+                <header><h3>{{ validation.title }}</h3><span [class]="tone(validation.isSuccessful ? 'Completado' : 'Rechazado')">{{ validation.isSuccessful ? 'Superada' : 'No superada' }}</span></header>
+                <p>{{ validation.message }}</p>
+                <dl>
+                  <div *ngIf="validation.expectedValue"><dt>Valor esperado</dt><dd>{{ validation.expectedValue }}</dd></div>
+                  <div *ngIf="validation.foundValue"><dt>Valor encontrado</dt><dd>{{ validation.foundValue }}</dd></div>
+                  <div><dt>Acción sugerida</dt><dd>{{ validation.suggestedAction }}</dd></div>
+                  <div *ngIf="validation.occurredAtUtc"><dt>Fecha</dt><dd>{{ validation.occurredAtUtc | dateFormat }}</dd></div>
+                </dl>
+              </div>
+            </article>
+          </div>
+        </section>
+      </mat-tab>
 
-    <ui-tarjeta titulo="Entradas" subtitulo="Detalles de entrada con cuentas y documentos enmascarados.">
-      <ui-grilla-empresarial [columnas]="columnasEntries" [datos]="vm.entries" [cargando]="cargando" tituloVacio="Sin entradas"></ui-grilla-empresarial>
-    </ui-tarjeta>
+      <mat-tab label="Lotes">
+        <section class="tab-content" aria-labelledby="batches-title">
+          <div class="section-heading"><div><h2 id="batches-title">Lotes del archivo</h2><p>Contenido y totales monetarios consultados por página desde el servidor.</p></div><span>{{ batchTotal }} lote{{ batchTotal === 1 ? '' : 's' }}</span></div>
+          <mat-progress-bar *ngIf="loadingBatches" mode="indeterminate" aria-label="Consultando lotes"></mat-progress-bar>
+          <ui-estado-error *ngIf="batchesError && !loadingBatches" titulo="Lotes no disponibles" [mensaje]="batchesError" (reintentar)="retryBatches()"></ui-estado-error>
+          <ui-estado-vacio *ngIf="!loadingBatches && !batchesError && batches.length === 0" titulo="Este archivo no contiene lotes para mostrar"
+                           mensaje="No se encontraron lotes persistidos para el archivo."></ui-estado-vacio>
+          <div class="desktop-table" *ngIf="batches.length > 0">
+            <table mat-table [dataSource]="batches" matSort matSortActive="batchNumber" matSortDirection="asc" (matSortChange)="batchSortChanged($event)">
+              <ng-container matColumnDef="batchNumber"><th mat-header-cell *matHeaderCellDef mat-sort-header="batchNumber">Número de lote</th><td mat-cell *matCellDef="let row">{{ row.batchNumber }}</td></ng-container>
+              <ng-container matColumnDef="serviceClass"><th mat-header-cell *matHeaderCellDef>Clase de servicio</th><td mat-cell *matCellDef="let row">{{ row.serviceClassCode }} · {{ row.standardEntryClassCode }}</td></ng-container>
+              <ng-container matColumnDef="company"><th mat-header-cell *matHeaderCellDef mat-sort-header="companyName">Empresa</th><td mat-cell *matCellDef="let row">{{ row.companyName || 'No informada' }}</td></ng-container>
+              <ng-container matColumnDef="description"><th mat-header-cell *matHeaderCellDef>Descripción de la operación</th><td mat-cell *matCellDef="let row">{{ row.companyEntryDescription || 'No informada' }}</td></ng-container>
+              <ng-container matColumnDef="effectiveDate"><th mat-header-cell *matHeaderCellDef>Fecha efectiva</th><td mat-cell *matCellDef="let row">{{ row.effectiveEntryDate || 'No informada' }}</td></ng-container>
+              <ng-container matColumnDef="transactions"><th mat-header-cell *matHeaderCellDef>Transacciones</th><td mat-cell *matCellDef="let row">{{ row.totalTransactions }}</td></ng-container>
+              <ng-container matColumnDef="debit"><th mat-header-cell *matHeaderCellDef>Total débito</th><td mat-cell *matCellDef="let row" class="amount">{{ row.totalDebit | currencyCol }}</td></ng-container>
+              <ng-container matColumnDef="credit"><th mat-header-cell *matHeaderCellDef>Total crédito</th><td mat-cell *matCellDef="let row" class="amount">{{ row.totalCredit | currencyCol }}</td></ng-container>
+              <ng-container matColumnDef="action"><th mat-header-cell *matHeaderCellDef>Acción</th><td mat-cell *matCellDef="let row"><button mat-stroked-button type="button" (click)="filterByBatch(row)" [attr.aria-label]="'Ver transacciones del lote ' + row.batchNumber">Ver transacciones</button></td></ng-container>
+              <tr mat-header-row *matHeaderRowDef="batchColumns"></tr><tr mat-row *matRowDef="let row; columns: batchColumns"></tr>
+            </table>
+          </div>
+          <div class="compact-list" *ngIf="batches.length > 0">
+            <article *ngFor="let batch of batches"><h3>Lote {{ batch.batchNumber }}</h3><p>{{ batch.companyName }} · {{ batch.totalTransactions }} transacciones</p><p class="amount">Crédito: {{ batch.totalCredit | currencyCol }}</p><button mat-stroked-button type="button" (click)="filterByBatch(batch)">Ver transacciones</button></article>
+          </div>
+          <mat-paginator *ngIf="batchTotal > 0" [length]="batchTotal" [pageIndex]="batchPageIndex" [pageSize]="batchPageSize" [pageSizeOptions]="[10, 20, 50]" showFirstLastButtons (page)="batchPageChanged($event)" aria-label="Paginación de lotes"></mat-paginator>
+        </section>
+      </mat-tab>
 
-    <ui-tarjeta titulo="Addendas" subtitulo="Registros de addenda sanitizados.">
-      <ui-grilla-empresarial [columnas]="columnasAddendas" [datos]="vm.addendas" [cargando]="cargando" tituloVacio="Sin addendas"></ui-grilla-empresarial>
-    </ui-tarjeta>
+      <mat-tab label="Transacciones">
+        <section class="tab-content" aria-labelledby="transactions-title">
+          <div class="section-heading"><div><h2 id="transactions-title">Transacciones</h2><p>Clasificación, programación y resultado de cada transacción.</p></div><span>{{ transactionTotal }} transacción{{ transactionTotal === 1 ? '' : 'es' }}</span></div>
+          <form [formGroup]="transactionFilters" (ngSubmit)="applyTransactionFilters()" class="transaction-filters">
+            <mat-form-field appearance="outline"><mat-label>Lote</mat-label><mat-select formControlName="batchId"><mat-option [value]="null">Todos los lotes</mat-option><mat-option *ngFor="let batch of batches" [value]="batch.id">Lote {{ batch.batchNumber }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Número de rastreo o receptor</mat-label><input matInput formControlName="search" autocomplete="off"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Código de transacción</mat-label><input matInput formControlName="transactionCode" autocomplete="off"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Estado técnico</mat-label><mat-select formControlName="processingStatus"><mat-option value="">Todos</mat-option><mat-option *ngFor="let status of processingStatuses" [value]="status.value">{{ status.label }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Resultado funcional</mat-label><mat-select formControlName="businessOutcome"><mat-option value="">Todos</mat-option><mat-option *ngFor="let outcome of businessOutcomes" [value]="outcome.value">{{ outcome.label }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Código ACH</mat-label><input matInput formControlName="resultCode" autocomplete="off" placeholder="Ej. R16"></mat-form-field>
+            <div class="checkbox-filters"><mat-checkbox formControlName="hasAddenda">Con addenda</mat-checkbox><mat-checkbox formControlName="hasTechnicalError">Con error técnico</mat-checkbox></div>
+            <div class="filter-actions"><button mat-stroked-button type="button" (click)="clearTransactionFilters()">Limpiar filtros</button><button mat-flat-button color="primary" type="submit">Aplicar filtros</button></div>
+          </form>
+          <mat-progress-bar *ngIf="loadingTransactions" mode="indeterminate" aria-label="Consultando transacciones"></mat-progress-bar>
+          <ui-estado-error *ngIf="transactionsError && !loadingTransactions" titulo="Transacciones no disponibles" [mensaje]="transactionsError" (reintentar)="retryTransactions()"></ui-estado-error>
+          <ui-estado-vacio *ngIf="!loadingTransactions && !transactionsError && transactions.length === 0" titulo="Este archivo no contiene transacciones para mostrar" mensaje="No se encontraron transacciones con los filtros seleccionados."></ui-estado-vacio>
+          <div class="desktop-table" *ngIf="transactions.length > 0">
+            <table mat-table [dataSource]="transactions" matSort matSortActive="traceNumber" matSortDirection="asc" (matSortChange)="transactionSortChanged($event)">
+              <ng-container matColumnDef="trace"><th mat-header-cell *matHeaderCellDef mat-sort-header="traceNumber">Número de rastreo</th><td mat-cell *matCellDef="let row">{{ row.traceNumber }}</td></ng-container>
+              <ng-container matColumnDef="code"><th mat-header-cell *matHeaderCellDef>Código</th><td mat-cell *matCellDef="let row"><strong>{{ row.transactionCode }}</strong><small>{{ row.transactionCodeDescription }}</small></td></ng-container>
+              <ng-container matColumnDef="account"><th mat-header-cell *matHeaderCellDef>Cuenta</th><td mat-cell *matCellDef="let row">{{ row.accountNumberMasked || 'No informada' }}</td></ng-container>
+              <ng-container matColumnDef="amount"><th mat-header-cell *matHeaderCellDef mat-sort-header="amount">Valor</th><td mat-cell *matCellDef="let row" class="amount">{{ row.amount | currencyCol }}</td></ng-container>
+              <ng-container matColumnDef="classification"><th mat-header-cell *matHeaderCellDef>Clasificación</th><td mat-cell *matCellDef="let row">{{ row.classificationText }}</td></ng-container>
+              <ng-container matColumnDef="technical"><th mat-header-cell *matHeaderCellDef>Estado técnico</th><td mat-cell *matCellDef="let row"><span [class]="tone(row.processingStatusText)">{{ row.processingStatusText }}</span></td></ng-container>
+              <ng-container matColumnDef="outcome"><th mat-header-cell *matHeaderCellDef>Resultado funcional</th><td mat-cell *matCellDef="let row"><span [class]="tone(row.businessOutcomeText)">{{ row.businessOutcomeText }}</span></td></ng-container>
+              <ng-container matColumnDef="result"><th mat-header-cell *matHeaderCellDef>Código y causal</th><td mat-cell *matCellDef="let row">{{ row.resultCode ? row.resultCode + ' — ' + row.resultDescription : 'No disponible' }}</td></ng-container>
+              <ng-container matColumnDef="service"><th mat-header-cell *matHeaderCellDef>Servicio utilizado</th><td mat-cell *matCellDef="let row">{{ serviceName(row.soapOperation) }}</td></ng-container>
+              <ng-container matColumnDef="attempts"><th mat-header-cell *matHeaderCellDef>Intentos</th><td mat-cell *matCellDef="let row">{{ row.attemptCount }} de {{ row.maxAttempts }}</td></ng-container>
+              <ng-container matColumnDef="processedAt"><th mat-header-cell *matHeaderCellDef>Procesamiento</th><td mat-cell *matCellDef="let row">{{ row.processedAtUtc ? (row.processedAtUtc | dateFormat) : 'Pendiente' }}</td></ng-container>
+              <ng-container matColumnDef="action"><th mat-header-cell *matHeaderCellDef>Acción</th><td mat-cell *matCellDef="let row"><button mat-stroked-button type="button" (click)="openTransaction(row)" [attr.aria-label]="'Ver detalle de la transacción ' + row.traceNumber">Ver detalle</button></td></ng-container>
+              <tr mat-header-row *matHeaderRowDef="transactionColumns"></tr><tr mat-row *matRowDef="let row; columns: transactionColumns"></tr>
+            </table>
+          </div>
+          <div class="compact-list" *ngIf="transactions.length > 0">
+            <article *ngFor="let transaction of transactions"><header><h3>{{ transaction.traceNumber }}</h3><span [class]="tone(transaction.businessOutcomeText)">{{ transaction.businessOutcomeText }}</span></header><p>{{ transaction.transactionCode }} — {{ transaction.transactionCodeDescription }}</p><p class="amount">{{ transaction.amount | currencyCol }}</p><p>{{ transaction.resultCode ? transaction.resultCode + ' — ' + transaction.resultDescription : 'Código ACH no disponible' }}</p><button mat-stroked-button type="button" (click)="openTransaction(transaction)">Ver detalle</button></article>
+          </div>
+          <mat-paginator *ngIf="transactionTotal > 0" [length]="transactionTotal" [pageIndex]="transactionPageIndex" [pageSize]="transactionPageSize" [pageSizeOptions]="[10, 20, 50]" showFirstLastButtons (page)="transactionPageChanged($event)" aria-label="Paginación de transacciones"></mat-paginator>
 
-    <ui-tarjeta titulo="Controles" subtitulo="Controles de lote y de archivo persistidos.">
-      <ui-grilla-empresarial [columnas]="columnasBatchControls" [datos]="vm.batchControls" [cargando]="cargando" tituloVacio="Sin controles de lote"></ui-grilla-empresarial>
-      <ui-grilla-empresarial [columnas]="columnasFileControls" [datos]="vm.fileControls" [cargando]="cargando" tituloVacio="Sin controles de archivo"></ui-grilla-empresarial>
-    </ui-tarjeta>
+          <aside *ngIf="selectedTransaction as transaction" class="transaction-panel" aria-labelledby="transaction-detail-title">
+            <header class="transaction-panel__header">
+              <div><p class="eyebrow">Detalle de la transacción</p><h2 id="transaction-detail-title" #transactionHeading tabindex="-1">{{ transaction.traceNumber }}</h2></div>
+              <button mat-icon-button type="button" (click)="closeTransaction()" aria-label="Cerrar detalle de la transacción"><mat-icon aria-hidden="true">close</mat-icon></button>
+            </header>
+            <mat-progress-bar *ngIf="loadingTransactionDetail" mode="indeterminate" aria-label="Consultando detalle de la transacción"></mat-progress-bar>
+            <section aria-labelledby="transaction-info-title"><h3 id="transaction-info-title">Información de la transacción</h3><dl class="detail-grid"><div><dt>Código</dt><dd>{{ transaction.transactionCode }} — {{ transaction.transactionCodeDescription }}</dd></div><div><dt>Valor</dt><dd class="amount">{{ transaction.amount | currencyCol }}</dd></div><div><dt>Cuenta</dt><dd>{{ transaction.accountNumberMasked || 'No informada' }}</dd></div><div><dt>Institución origen</dt><dd>{{ transaction.originInstitution || 'No informada' }}</dd></div><div><dt>Institución destino</dt><dd>{{ transaction.destinationInstitution || 'No informada' }}</dd></div><div><dt>Receptor</dt><dd>{{ transaction.recipientNameMasked || 'Información protegida' }}</dd></div><div><dt>Lote</dt><dd>{{ transaction.batchNumber }}</dd></div><div><dt>Fecha efectiva</dt><dd>{{ transaction.effectiveEntryDate || 'No informada' }}</dd></div></dl></section>
+            <section aria-labelledby="addendas-title"><h3 id="addendas-title">Addendas</h3><ui-estado-vacio *ngIf="!loadingTransactionDetail && addendas.length === 0" titulo="La transacción no tiene addendas asociadas" mensaje="No se registró información complementaria para esta transacción." sugerencia=""></ui-estado-vacio><div class="addenda-list"><article *ngFor="let addenda of addendas"><h4>Tipo {{ addenda.typeCode }} · secuencia {{ addenda.sequence }}</h4><p>{{ addenda.paymentInformation || 'Información complementaria protegida' }}</p><dl><div *ngIf="addenda.returnReasonCode"><dt>Código relacionado</dt><dd>{{ addenda.returnReasonCode }}</dd></div><div *ngIf="addenda.originalTraceNumber"><dt>Rastreo original</dt><dd>{{ addenda.originalTraceNumber }}</dd></div></dl></article></div></section>
+            <section aria-labelledby="classification-title"><h3 id="classification-title">Clasificación</h3><dl class="detail-grid"><div><dt>Clasificación funcional</dt><dd>{{ transaction.classificationText }}</dd></div><div><dt>Motivo</dt><dd>{{ queueDetail?.classification?.businessMeaning || 'No informado por el servicio' }}</dd></div><div><dt>Operación seleccionada</dt><dd>{{ serviceName(transaction.soapOperation) }}</dd></div></dl></section>
+            <section aria-labelledby="processing-detail-title"><h3 id="processing-detail-title">Procesamiento</h3><dl class="detail-grid"><div><dt>Estado técnico</dt><dd><span [class]="tone(transaction.processingStatusText)">{{ transaction.processingStatusText }}</span></dd></div><div><dt>Fecha programada</dt><dd>{{ transaction.scheduledAtUtc ? (transaction.scheduledAtUtc | dateFormat) : 'Sin programar' }}</dd></div><div><dt>Inicio</dt><dd>{{ transaction.startedAtUtc ? (transaction.startedAtUtc | dateFormat) : 'Pendiente' }}</dd></div><div><dt>Finalización</dt><dd>{{ transaction.finishedAtUtc ? (transaction.finishedAtUtc | dateFormat) : 'Pendiente' }}</dd></div><div><dt>Intentos realizados</dt><dd>{{ transaction.attemptCount }} de {{ transaction.maxAttempts }}</dd></div><div><dt>Próximo intento</dt><dd>{{ transaction.nextRetryAtUtc ? (transaction.nextRetryAtUtc | dateFormat) : 'No programado' }}</dd></div><div><dt>Correlación</dt><dd>{{ abbreviated(transaction.correlationId) }}</dd></div></dl></section>
+            <section aria-labelledby="result-title"><h3 id="result-title">Resultado</h3><div class="result-separation"><article><span>Resultado técnico</span><strong [class]="tone(transaction.processingStatusText)">{{ transaction.processingStatusText }}</strong></article><article><span>Resultado funcional</span><strong [class]="tone(transaction.businessOutcomeText)">{{ transaction.businessOutcomeText }}</strong></article><article><span>Código ACH</span><strong>{{ transaction.resultCode ? transaction.resultCode + ' — ' + transaction.resultDescription : 'No disponible' }}</strong></article></div><dl class="detail-grid"><div><dt>Identificador externo</dt><dd>{{ transaction.externalTransactionId || 'No disponible' }}</dd></div><div><dt>Acción operativa sugerida</dt><dd>{{ transaction.nextRetryAtUtc ? 'Mantener el seguimiento hasta el próximo intento programado.' : transaction.technicalErrorCode ? 'Revisar la evidencia técnica y la programación vigente.' : 'No se requiere una acción manual.' }}</dd></div></dl><div class="controlled-error" *ngIf="transaction.technicalErrorCode"><mat-icon aria-hidden="true">info</mat-icon><div><strong>{{ technicalMessage(transaction.technicalErrorCode, transaction.technicalErrorMessage) }}</strong><details><summary>Información para soporte</summary><p>Código técnico: {{ transaction.technicalErrorCode }}</p></details></div></div></section>
+            <section *ngIf="queueDetail?.executions?.length" aria-labelledby="attempts-title"><h3 id="attempts-title">Intentos realizados</h3><ol class="attempt-list"><li *ngFor="let attempt of queueDetail?.executions"><header><strong>Intento {{ attempt.attemptNumber }}</strong><span [class]="tone(attempt.processingStatusText)">{{ attempt.processingStatusText }}</span></header><p>{{ attempt.startedAtUtc | dateFormat }} · {{ attempt.durationMs }} ms · {{ serviceName(attempt.methodName) }}</p><p>{{ attempt.resultCode ? attempt.resultCode + ' — ' + attempt.resultDescription : attempt.transportStatusText || 'Sin respuesta funcional' }}</p></li></ol></section>
+            <p class="inline-notice" *ngIf="transactionDetailError">{{ transactionDetailError }}</p>
+          </aside>
+        </section>
+      </mat-tab>
 
-    <ui-tarjeta titulo="Totales" subtitulo="Totales persistidos y conteos operativos.">
-      <section class="summary-strip">
-        <article><small>Lotes</small><strong>{{ vm.totalsSummary.batchCount }}</strong></article>
-        <article><small>Entradas</small><strong>{{ vm.totalsSummary.entryCount }}</strong></article>
-        <article><small>Addendas</small><strong>{{ vm.totalsSummary.addendaCount }}</strong></article>
-        <article><small>Records persistidos</small><strong>{{ vm.totalsSummary.persistedRecordCount }}</strong></article>
-        <article><small>Débitos</small><strong>{{ vm.totalsSummary.totalDebitAmount }}</strong></article>
-        <article><small>Créditos</small><strong>{{ vm.totalsSummary.totalCreditAmount }}</strong></article>
-      </section>
-    </ui-tarjeta>
+      <mat-tab label="Procesamiento">
+        <section class="tab-content" aria-labelledby="processing-title">
+          <div class="section-heading"><div><h2 id="processing-title">Programación y procesamiento</h2><p>Estado de la cola, intentos y próximo procesamiento por transacción.</p></div></div>
+          <ui-estado-vacio *ngIf="file.queue.length === 0" titulo="No hay procesamiento programado" mensaje="Las transacciones del archivo todavía no tienen una programación de envío." sugerencia="Actualice la información cuando avance el proceso."></ui-estado-vacio>
+          <div class="desktop-table" *ngIf="file.queue.length > 0">
+            <table mat-table [dataSource]="file.queue">
+              <ng-container matColumnDef="transaction"><th mat-header-cell *matHeaderCellDef>Transacción</th><td mat-cell *matCellDef="let row">{{ row.entryDetailId || 'Sin asociación' }}</td></ng-container>
+              <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>Estado</th><td mat-cell *matCellDef="let row"><span [class]="tone(row.queueStatusText)">{{ row.queueStatusText }}</span></td></ng-container>
+              <ng-container matColumnDef="scheduled"><th mat-header-cell *matHeaderCellDef>Fecha programada</th><td mat-cell *matCellDef="let row">{{ row.scheduledAtUtc | dateFormat }}</td></ng-container>
+              <ng-container matColumnDef="attempts"><th mat-header-cell *matHeaderCellDef>Intentos</th><td mat-cell *matCellDef="let row">{{ row.attemptCount }} de {{ row.maxAttempts }}</td></ng-container>
+              <ng-container matColumnDef="nextAttempt"><th mat-header-cell *matHeaderCellDef>Próximo intento</th><td mat-cell *matCellDef="let row">{{ row.nextAttemptAtUtc ? (row.nextAttemptAtUtc | dateFormat) : 'No programado' }}</td></ng-container>
+              <ng-container matColumnDef="service"><th mat-header-cell *matHeaderCellDef>Servicio</th><td mat-cell *matCellDef="let row">{{ serviceName(row.soapOperation) }}</td></ng-container>
+              <ng-container matColumnDef="error"><th mat-header-cell *matHeaderCellDef>Novedad técnica</th><td mat-cell *matCellDef="let row">{{ row.lastErrorCode ? technicalMessage(row.lastErrorCode, row.lastErrorMessage) : 'Sin novedades técnicas' }}</td></ng-container>
+              <tr mat-header-row *matHeaderRowDef="processingColumns"></tr><tr mat-row *matRowDef="let row; columns: processingColumns"></tr>
+            </table>
+          </div>
+          <div class="compact-list" *ngIf="file.queue.length > 0"><article *ngFor="let item of file.queue"><header><h3>Transacción {{ item.entryDetailId || 'sin asociación' }}</h3><span [class]="tone(item.queueStatusText)">{{ item.queueStatusText }}</span></header><p>Programado: {{ item.scheduledAtUtc | dateFormat }}</p><p>Intentos: {{ item.attemptCount }} de {{ item.maxAttempts }}</p><p>Próximo intento: {{ item.nextAttemptAtUtc ? (item.nextAttemptAtUtc | dateFormat) : 'No programado' }}</p></article></div>
+        </section>
+      </mat-tab>
+    </mat-tab-group>
   </ng-container>
-</section>
+</main>

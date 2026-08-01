@@ -16,6 +16,17 @@ public sealed class IncomingNachaIngestionQuery
     public IncomingNachaParsingStatus? ParsingStatus { get; set; }
     public string? CorrelationId { get; set; }
     public string? FileName { get; set; }
+    public int? ClearingHouseId { get; set; }
+    public string? AchCycleId { get; set; }
+    public DateTime? OperationalDate { get; set; }
+    public DateTime? UploadedFromUtc { get; set; }
+    public DateTime? UploadedToUtc { get; set; }
+    public string? ResultCode { get; set; }
+    public IncomingNachaBusinessOutcome? BusinessOutcome { get; set; }
+    public bool? HasTechnicalErrors { get; set; }
+    public bool? HasIssues { get; set; }
+    public string SortBy { get; set; } = "uploadedAtUtc";
+    public bool SortDescending { get; set; } = true;
 }
 
 public sealed record IncomingNachaIngestionListItemDto(
@@ -36,6 +47,17 @@ public sealed record IncomingNachaIngestionListItemDto(
     public string IngestionStatusText { get; init; } = string.Empty;
     public string StageCode { get; init; } = string.Empty;
     public string StageText { get; init; } = string.Empty;
+    public string ClearingHouseName { get; init; } = string.Empty;
+    public string UploadedBy { get; init; } = string.Empty;
+    public int TotalBatches { get; init; }
+    public int TotalTransactions { get; init; }
+    public decimal TotalDebit { get; init; }
+    public decimal TotalCredit { get; init; }
+    public string ProcessingStatusText { get; init; } = string.Empty;
+    public string OverallResultText { get; init; } = string.Empty;
+    public DateTime? ScheduledAtUtc { get; init; }
+    public bool HasTechnicalErrors { get; init; }
+    public bool HasIssues { get; init; }
 }
 
 public sealed record IncomingNachaIngestionDetailDto(
@@ -60,6 +82,12 @@ public sealed record IncomingNachaIngestionDetailDto(
     public string IngestionStatusText { get; init; } = string.Empty;
     public string StageCode { get; init; } = string.Empty;
     public string StageText { get; init; } = string.Empty;
+    public string ClearingHouseName { get; init; } = string.Empty;
+    public string UploadedBy { get; init; } = string.Empty;
+    public DateTime UploadedAtUtc { get; init; }
+    public DateTime? ReceivedAtUtc { get; init; }
+    public string OverallResultText { get; init; } = string.Empty;
+    public int PendingTransactions { get; init; }
 }
 
 public sealed record IncomingNachaFileSummaryDto(
@@ -85,7 +113,10 @@ public sealed record IncomingNachaValidationDto(
     string SuggestedAction,
     string ErrorType,
     string Severity,
-    bool IsSuccessful);
+    bool IsSuccessful)
+{
+    public DateTime? OccurredAtUtc { get; init; }
+}
 
 public sealed class IncomingNachaQueueQuery
 {
@@ -189,7 +220,10 @@ public sealed record IncomingNachaBatchDto(
     int TotalTransactions,
     decimal TotalAmount,
     decimal TotalDebit,
-    decimal TotalCredit);
+    decimal TotalCredit)
+{
+    public string CompanyEntryDescription { get; init; } = string.Empty;
+}
 
 public sealed class IncomingNachaTransactionQuery
 {
@@ -200,6 +234,9 @@ public sealed class IncomingNachaTransactionQuery
     public string? ResultCode { get; set; }
     public IncomingNachaBusinessOutcome? BusinessOutcome { get; set; }
     public IncomingNachaIndividualProcessingStatus? ProcessingStatus { get; set; }
+    public bool? HasAddenda { get; set; }
+    public bool? HasTechnicalError { get; set; }
+    public string? TransactionCode { get; set; }
     public string SortBy { get; set; } = "traceNumber";
     public bool SortDescending { get; set; }
 }
@@ -226,6 +263,7 @@ public sealed record IncomingNachaTransactionDto(
     DateTime? ProcessedAtUtc,
     string CorrelationId)
 {
+    public Guid? DispatchQueueId { get; init; }
     public int ClearingHouseId { get; init; }
     public DateTime? OperationalDate { get; init; }
     public string AchCycleId { get; init; } = string.Empty;
@@ -239,6 +277,12 @@ public sealed record IncomingNachaTransactionDto(
     public int? AchReturnCodeId { get; init; }
     public string TechnicalErrorCode { get; init; } = string.Empty;
     public string TechnicalErrorMessage { get; init; } = string.Empty;
+    public string TransactionCodeDescription { get; init; } = string.Empty;
+    public string AccountNumberMasked { get; init; } = string.Empty;
+    public string OriginInstitution { get; init; } = string.Empty;
+    public string DestinationInstitution { get; init; } = string.Empty;
+    public string RecipientNameMasked { get; init; } = string.Empty;
+    public string EffectiveEntryDate { get; init; } = string.Empty;
 }
 
 public sealed record IncomingNachaAddendaDto(

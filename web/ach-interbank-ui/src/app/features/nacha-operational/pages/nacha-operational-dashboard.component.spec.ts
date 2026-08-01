@@ -1,24 +1,32 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { provideRouter } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
-import { NachaOperationalDashboardData } from '../models/nacha-operational.models';
-import { NachaOperationalReadinessService } from '../services/nacha-operational-readiness.service';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { Router, provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
+import { ClearingHousesService } from '../../clearing-houses/clearing-houses.service';
+import { IncomingNachaCommandCenterService } from '../services/incoming-nacha-command-center.service';
 import { NachaOperationalDashboardComponent } from './nacha-operational-dashboard.component';
 
 describe('NachaOperationalDashboardComponent', () => {
   let fixture: ComponentFixture<NachaOperationalDashboardComponent>;
-  let service: jasmine.SpyObj<NachaOperationalReadinessService>;
+  let api: jasmine.SpyObj<IncomingNachaCommandCenterService>;
 
   beforeEach(async () => {
-    service = jasmine.createSpyObj<NachaOperationalReadinessService>('NachaOperationalReadinessService', ['getDashboardData']);
-    service.getDashboardData.and.returnValue(of(data()));
+    api = jasmine.createSpyObj<IncomingNachaCommandCenterService>('IncomingNachaCommandCenterService', ['getFiles', 'getSummary']);
+    api.getFiles.and.returnValue(of(filesPage()));
+    api.getSummary.and.returnValue(of(summary()));
+    const clearingHouses = jasmine.createSpyObj<ClearingHousesService>('ClearingHousesService', ['list']);
+    clearingHouses.list.and.returnValue(of({ items: [{
+      id: 1, name: 'CENIT', code: 'CENIT', originCode: '00000000', isActive: true,
+      timeZoneId: 'America/Bogota', holidayStrategy: 'Colombia', requiresNachaProfile: true,
+      activeCycleCount: 1, isReady: true, missingRequirements: [], createdAt: '2026-08-01T00:00:00Z'
+    }], page: 1, pageSize: 20, totalCount: 1, totalPages: 1 }));
 
     await TestBed.configureTestingModule({
-      imports: [NachaOperationalDashboardComponent],
+      imports: [NachaOperationalDashboardComponent, NoopAnimationsModule],
       providers: [
         provideRouter([]),
-        { provide: NachaOperationalReadinessService, useValue: service }
+        { provide: IncomingNachaCommandCenterService, useValue: api },
+        { provide: ClearingHousesService, useValue: clearingHouses }
       ]
     }).compileComponents();
 
@@ -26,224 +34,85 @@ describe('NachaOperationalDashboardComponent', () => {
     fixture.detectChanges();
   });
 
-  it('Component_ShouldCreate', () => {
-    expect(fixture.componentInstance).toBeTruthy();
+  it('muestra una vista operativa en español con estados técnico y funcional separados', () => {
+    const content = text();
+    expect(content).toContain('Seguimiento de archivos NACHA-M');
+    expect(content).toContain('Carga completada');
+    expect(content).toContain('Procesado');
+    expect(content).toContain('Procesado correctamente');
+    expect(content).not.toContain('Command Center');
+    expect(content).not.toContain('Dispatch');
   });
 
-  it('Component_ShouldRenderNoGoBanner', () => {
-    expect(text()).toContain('Productivo NO-GO');
-    expect(text()).toContain('SOAP real deshabilitado');
+  it('aplica formato monetario colombiano con dos decimales', () => {
+    expect(text()).toContain('$ 1.250.000,25');
+    expect(text()).toContain('$ 2.500.000,50');
   });
 
-  it('Component_ShouldRenderOperationalSummary', () => {
-    expect(text()).toContain('Fase backend');
-    expect(text()).toContain('6B.5.6');
-    expect(text()).toContain('NO-GO');
+  it('construye filtros, reinicia la página y conserva el ordenamiento en la URL', () => {
+    const router = TestBed.inject(Router);
+    const navigate = spyOn(router, 'navigate').and.resolveTo(true);
+    fixture.componentInstance.filtersForm.patchValue({ fileName: ' archivo.OUT ', resultCode: 'r16', hasIssues: true });
+    fixture.componentInstance.sortBy = 'fileName';
+    fixture.componentInstance.sortDescending = false;
+
+    fixture.componentInstance.applyFilters();
+
+    expect(navigate).toHaveBeenCalledWith([], jasmine.objectContaining({
+      queryParams: jasmine.objectContaining({ page: 1, fileName: 'archivo.OUT', resultCode: 'R16', hasIssues: true, sortBy: 'fileName' })
+    }));
   });
 
-  it('Component_ShouldRenderBackendReadStoreData', () => {
-    expect(text()).toContain('Fuente: backend solo lectura');
-    expect(text()).toContain('BACKEND SOLO LECTURA SANITIZADO');
+  it('limpia todos los filtros sin conservar datos sensibles en almacenamiento local', () => {
+    const storedBefore = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).sort();
+    fixture.componentInstance.filtersForm.patchValue({ fileName: 'privado', resultCode: 'R17', hasTechnicalErrors: true });
+    fixture.componentInstance.clearFilters();
+    const value = fixture.componentInstance.filtersForm.getRawValue();
+    expect(value.fileName).toBe('');
+    expect(value.resultCode).toBe('');
+    expect(value.hasTechnicalErrors).toBeFalse();
+    const storedAfter = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).sort();
+    expect(storedAfter).toEqual(storedBefore);
   });
 
-  it('Component_ShouldRenderDataSourceBadge', () => {
-    expect(text()).toContain('Servicio: backend solo lectura');
-  });
-
-  it('Component_ShouldRenderPartialDataWarning', () => {
-    service.getDashboardData.and.returnValue(of(data({ isPartialData: true, dataSource: 'parcial', warnings: ['No se encontraron datos persistidos de preparación SOAP; se usa un marcador seguro solo lectura.'] })));
-    const partialFixture = TestBed.createComponent(NachaOperationalDashboardComponent);
-    partialFixture.detectChanges();
-
-    expect(partialFixture.nativeElement.textContent).toContain('Fuente: parcial');
-    expect(partialFixture.nativeElement.textContent).toContain('No se encontraron datos persistidos de preparación SOAP');
-  });
-
-  it('Component_ShouldFallbackToDemoWhenApiFails', () => {
-    service.getDashboardData.and.returnValue(of(data({ isDemoData: true, dataSource: 'demo seguro' })));
-    const demoFixture = TestBed.createComponent(NachaOperationalDashboardComponent);
-    demoFixture.detectChanges();
-
-    expect(demoFixture.nativeElement.textContent).toContain('Fuente: demo seguro');
-    expect(demoFixture.nativeElement.textContent).toContain('DEMO SOLO LECTURA');
-  });
-
-  it('Component_ShouldKeepNoGoBannerWithReadStoreData', () => {
-    expect(text()).toContain('Productivo NO-GO');
-    expect(text()).toContain('NO-GO');
-  });
-
-  it('Component_ShouldRenderFilesTable', () => {
-    expect(text()).toContain('Archivos NACHA-M');
-  });
-
-  it('Component_ShouldRenderDecisionsTable', () => {
-    expect(text()).toContain('Decisiones funcionales');
-  });
-
-  it('Component_ShouldRenderReadinessTable', () => {
-    expect(text()).toContain('Preparación SOAP/UAT');
-  });
-
-  it('Component_ShouldRenderAuditTable', () => {
-    expect(text()).toContain('Auditoría Fase 6B.5');
-  });
-
-  it('Component_ShouldShowLoadingState', () => {
-    service.getDashboardData.and.returnValue(new Subject<NachaOperationalDashboardData>().asObservable());
-    const loadingFixture = TestBed.createComponent(NachaOperationalDashboardComponent);
-    loadingFixture.detectChanges();
-
-    expect(loadingFixture.nativeElement.textContent).toContain('Cargando consulta operativa NACHA-M');
-  });
-
-  it('Component_ShouldShowErrorState', () => {
-    service.getDashboardData.and.returnValue(throwError(() => new Error('fallo controlado')));
+  it('presenta un error recuperable y conserva la pantalla cuando falla la API', () => {
+    api.getFiles.and.returnValue(throwError(() => ({ status: 500 })));
     const errorFixture = TestBed.createComponent(NachaOperationalDashboardComponent);
     errorFixture.detectChanges();
-
-    expect(errorFixture.nativeElement.textContent).toContain('fallo controlado');
+    expect(errorFixture.nativeElement.textContent).toContain('No fue posible consultar la información');
+    expect(errorFixture.nativeElement.textContent).toContain('Reintentar');
   });
 
-  it('Component_ShouldNotRenderExecutionButtons', () => {
-    const content = text();
-
-    expect(content).not.toContain('Ejecutar SOAP');
-    expect(content).not.toContain('Mover dinero');
-    expect(content).not.toContain('Habilitar productivo');
-  });
-
-  it('Dashboard_ShouldNavigateToFileDetailForPersistedFile', () => {
+  it('navega al archivo con una URL recuperable y conserva la URL de retorno', () => {
     const router = TestBed.inject(Router);
-    const navigateSpy = spyOn(router, 'navigate').and.resolveTo(true);
-    const file = { ...fixture.componentInstance.data!.files[0], fileId: 'nacha-N1', dataSource: 'backend solo lectura' };
-
-    fixture.componentInstance.verDetalle(file);
-
-    expect(navigateSpy).toHaveBeenCalledWith(['/ach/nacha/operational-dashboard/files', 'nacha-N1']);
+    const navigate = spyOn(router, 'navigate').and.resolveTo(true);
+    fixture.componentInstance.openFile(filesPage().items[0]);
+    expect(navigate).toHaveBeenCalledWith(['files', '11111111-1111-1111-1111-111111111111'], jasmine.objectContaining({
+      queryParams: jasmine.objectContaining({ seccion: 'resumen', retorno: jasmine.any(String) })
+    }));
   });
 
-  it('Dashboard_ShouldNotNavigateForDemoFileWithoutIdentifier', () => {
-    const router = TestBed.inject(Router);
-    const navigateSpy = spyOn(router, 'navigate').and.resolveTo(true);
-    const file = { ...fixture.componentInstance.data!.files[0], fileId: 'demo-ach-in-001', dataSource: 'demo seguro' };
-
-    fixture.componentInstance.verDetalle(file);
-
-    expect(navigateSpy).not.toHaveBeenCalled();
-  });
-
-  function text(): string {
-    return fixture.nativeElement.textContent;
-  }
+  function text(): string { return fixture.nativeElement.textContent; }
 });
 
-function data(overrides: Partial<NachaOperationalDashboardData> = {}): NachaOperationalDashboardData {
-  const isDemoData = overrides.isDemoData ?? false;
-  const isPartialData = overrides.isPartialData ?? false;
-  const dataSource = overrides.dataSource ?? (isPartialData ? 'parcial' : isDemoData ? 'demo seguro' : 'backend solo lectura');
-  const warnings = overrides.warnings ?? (isPartialData ? ['Datos parciales solo lectura.'] : []);
-
+function filesPage() {
   return {
-    summary: {
-      productiveStatus: 'NO-GO',
-      backendPhase: '6B.5.6',
-      soapMode: 'Simulated',
-      productiveExecution: false,
-      wouldInvokeRealSoap: false,
-      totalFiles: 1,
-      totalIncomingFiles: 1,
-      totalOutgoingFiles: 0,
-      totalReturnFiles: 0,
-      totalDecisions: 1,
-      totalSoapCandidates: 1,
-      totalNoGoBlocks: 1,
-      totalManualReview: 0,
-      totalReadinessChecks: 1,
-      lastUpdatedAt: '2026-05-24T23:00:00Z',
-      isDemoData,
-      isPartialData,
-      dataSource,
-      warnings
-    },
-    files: [
-      {
-        fileId: 'demo-ach-in-001',
-        fileName: 'ACH_COL_IN_001.ach',
-        clearingHouseCode: 'ACH',
-        profileCode: 'OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0',
-        flowType: 'IncomingCreditFromExternalOriginator',
-        isReturnFile: false,
-        validationPassed: true,
-        batchCount: 1,
-        entryCount: 1,
-        addendaCount: 1,
-        batchControlCount: 1,
-        fileControlCount: 1,
-        processingStatus: 'Processed',
-        receivedAt: '2026-05-24T23:00:00Z',
-        createdAt: '2026-05-24T23:00:00Z',
-        correlationId: 'phase-6c1',
-        hasErrors: false,
-        warningCount: 0,
-        errorCount: 0
-      }
-    ],
-    decisions: [
-      {
-        correlationId: 'phase-6c1',
-        fileName: 'ACH_COL_IN_001.ach',
-        entryTraceNumber: '900000010000001',
-        originalTraceNumber: null,
-        decisionType: 'ApplyCreditMovement',
-        soapOperationCandidate: 'ProcTransacciones',
-        requiresMonetaryMovement: true,
-        reasonCode: '00',
-        reasonDescription: 'UAT',
-        newInternalStatus: 'Accepted',
-        manualReviewRequired: false,
-        isBlocked: false,
-        blockReason: null,
-        createdAt: '2026-05-24T23:00:00Z'
-      }
-    ],
-    readiness: [
-      {
-        correlationId: 'phase-6c1',
-        operationCandidate: 'ProcTransacciones',
-        isReadyForUat: true,
-        isBlocked: false,
-        blockReasons: [],
-        payloadMappingPassed: true,
-        requestMappingPassed: true,
-        operationalGatePassed: true,
-        readinessCheckPassed: true,
-        simulationPassed: true,
-        resiliencePassed: true,
-        requiresMonetaryMovement: true,
-        phase: '6B.5',
-        lastCheckedAt: '2026-05-24T23:00:00Z',
-        productiveExecution: false,
-        wouldInvokeRealSoap: false
-      }
-    ],
-    audit: [
-      {
-        correlationId: 'phase-6c1',
-        phase: '6B.5',
-        eventType: 'Completed',
-        severity: 'Information',
-        message: 'Readiness operacional UAT finalizado.',
-        isBlocked: false,
-        timestamp: '2026-05-24T23:00:00Z',
-        sanitizedDetails: { Phase: '6B.5' }
-      }
-    ],
-    generatedAt: '2026-05-24T23:00:00Z',
-    isDemoData,
-    isPartialData,
-    dataSource,
-    warnings,
-    productiveStatus: 'NO-GO'
+    items: [{
+      id: '11111111-1111-1111-1111-111111111111', fileName: '0001283.001.20260731.1', correlationId: 'corr-1',
+      ingestionStatus: 'Completado' as const, ingestionStatusText: 'Completado', stageCode: 'Persisted', stageText: 'Carga completada',
+      cycleResolutionStatus: 'ResueltoConfirmado', parsingStatus: 'Exitoso', resolvedClearingHouseId: 1,
+      clearingHouseName: 'CENIT', resolvedAchCycleId: 'CICLO-01', operationalDate: '2026-07-31', uploadedAtUtc: '2026-08-01T14:00:00Z',
+      uploadedBy: 'operador', queueItems: 2, processingEvents: 4, totalBatches: 1, totalTransactions: 2,
+      totalDebit: 1250000.25, totalCredit: 2500000.5, processingStatusText: 'Procesado', overallResultText: 'Procesado correctamente',
+      scheduledAtUtc: '2026-08-01T14:02:00Z', hasTechnicalErrors: false, hasIssues: false
+    }],
+    page: 1, pageSize: 20, totalItems: 1
+  };
+}
+
+function summary() {
+  return {
+    generatedAtUtc: '2026-08-01T15:00:00Z', windowHours: 168,
+    pipelineHealth: { totalIngestions: 1, totalQueueItems: 2, backlogItems: 0, blockedItems: 0, retryPendingItems: 0, failedFinalItems: 0, confirmedItems: 2 }
   };
 }

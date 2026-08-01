@@ -1,168 +1,301 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { Router, RouterModule } from '@angular/router';
-import { ColDef } from 'ag-grid-community';
-import { finalize } from 'rxjs';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDatepickerIntl, MatDatepickerModule } from '@angular/material/datepicker';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSortModule, Sort } from '@angular/material/sort';
+import { MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { ActivatedRoute, Params, Router, RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, finalize, map, of, switchMap } from 'rxjs';
+import { ClearingHousesService } from '../../clearing-houses/clearing-houses.service';
+import { SpanishDatepickerIntl } from '../../../core/services/material-spanish-intl';
 import { SharedModule } from '../../../shared/shared.module';
 import {
-  NachaOperationalAudit,
-  NachaOperationalDashboardData,
-  NachaOperationalDecision,
-  NachaOperationalFile,
-  NachaSoapReadiness
-} from '../models/nacha-operational.models';
-import { NachaOperationalReadinessService } from '../services/nacha-operational-readiness.service';
+  ClearingHouseOption,
+  IncomingNachaBusinessOutcome,
+  IncomingNachaFileFilters,
+  IncomingNachaFileListItem,
+  IncomingNachaObservabilitySummary
+} from '../models/incoming-nacha-command-center.models';
+import { operationalTone } from '../presentation/incoming-nacha-presentation';
+import { IncomingNachaCommandCenterService } from '../services/incoming-nacha-command-center.service';
+
+function validDateRange(control: AbstractControl): ValidationErrors | null {
+  const from = control.get('uploadedFrom')?.value as Date | null;
+  const to = control.get('uploadedTo')?.value as Date | null;
+  return from && to && from > to ? { invalidDateRange: true } : null;
+}
 
 @Component({
   selector: 'app-nacha-operational-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, SharedModule],
+  imports: [
+    CommonModule, ReactiveFormsModule, RouterModule, SharedModule, MatButtonModule, MatCardModule,
+    MatCheckboxModule, MatDatepickerModule, MatFormFieldModule, MatIconModule, MatInputModule,
+    MatNativeDateModule, MatPaginatorModule, MatProgressBarModule, MatSelectModule, MatSortModule,
+    MatTableModule, MatTooltipModule
+  ],
   templateUrl: './nacha-operational-dashboard.component.html',
   styleUrls: ['./nacha-operational-dashboard.component.scss'],
+  providers: [{ provide: MatDatepickerIntl, useClass: SpanishDatepickerIntl }],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NachaOperationalDashboardComponent implements OnInit {
-  private readonly service = inject(NachaOperationalReadinessService);
+  private readonly api = inject(IncomingNachaCommandCenterService);
+  private readonly clearingHousesApi = inject(ClearingHousesService);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
 
-  data?: NachaOperationalDashboardData;
-  cargando = false;
+  readonly displayedColumns = [
+    'fileName', 'clearingHouse', 'operationalDate', 'cycle', 'uploadedAt', 'validation',
+    'processing', 'counts', 'amounts', 'result', 'scheduledAt', 'actions'
+  ];
+  readonly pageSizes = [10, 20, 50];
+  readonly ingestionStatuses = [
+    { value: 'Recibido', label: 'Recibido' },
+    { value: 'EnValidacion', label: 'Validando información' },
+    { value: 'Parseado', label: 'Contenido interpretado' },
+    { value: 'Completado', label: 'Carga completada' },
+    { value: 'Bloqueado', label: 'Bloqueado' },
+    { value: 'Fallido', label: 'Error técnico' },
+    { value: 'Duplicado', label: 'Duplicado' }
+  ];
+  readonly businessOutcomes: Array<{ value: IncomingNachaBusinessOutcome; label: string }> = [
+    { value: 'Successful', label: 'Exitoso' },
+    { value: 'Rejected', label: 'Rechazado' },
+    { value: 'Returned', label: 'Devuelto' },
+    { value: 'PendingResponse', label: 'Pendiente de respuesta' },
+    { value: 'NotProcessed', label: 'No procesado' }
+  ];
+
+  readonly filtersForm = this.fb.group({
+    fileName: [''],
+    clearingHouseId: [null as number | null],
+    operationalDate: [null as Date | null],
+    uploadedFrom: [null as Date | null],
+    uploadedTo: [null as Date | null],
+    achCycleId: [''],
+    ingestionStatus: [''],
+    businessOutcome: [''],
+    resultCode: [''],
+    hasIssues: [false],
+    hasTechnicalErrors: [false]
+  }, { validators: validDateRange });
+
+  rows: IncomingNachaFileListItem[] = [];
+  clearingHouses: ClearingHouseOption[] = [];
+  summary?: IncomingNachaObservabilitySummary;
+  totalItems = 0;
+  pageIndex = 0;
+  pageSize = 20;
+  sortBy = 'uploadedAtUtc';
+  sortDescending = true;
+  loading = false;
   error = '';
-
-  readonly columnasArchivos: ColDef<NachaOperationalFile>[] = [
-    { field: 'fileName', headerName: 'Archivo', minWidth: 210 },
-    { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 110 },
-    { field: 'profileCode', headerName: 'Perfil', minWidth: 260 },
-    { field: 'flowType', headerName: 'Flujo', minWidth: 220 },
-    { field: 'isReturnFile', headerName: '.RET', minWidth: 90 },
-    { field: 'validationPassed', headerName: 'Validado', minWidth: 110 },
-    { field: 'batchCount', headerName: 'Lotes', minWidth: 110 },
-    { field: 'entryCount', headerName: 'Entradas', minWidth: 110 },
-    { field: 'addendaCount', headerName: 'Addenda', minWidth: 110 },
-    { field: 'processingStatus', headerName: 'Estado', minWidth: 170 },
-    { headerName: 'Recibido', minWidth: 180, valueGetter: (p) => this.formatDate(p.data?.receivedAt) }
-  ];
-
-  readonly columnasDecisiones: ColDef<NachaOperationalDecision>[] = [
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 210 },
-    { field: 'decisionType', headerName: 'DecisionType', minWidth: 210 },
-    { field: 'soapOperationCandidate', headerName: 'Candidato SOAP', minWidth: 210 },
-    { field: 'requiresMonetaryMovement', headerName: 'Movimiento', minWidth: 130 },
-    { field: 'reasonCode', headerName: 'Causal', minWidth: 110 },
-    { field: 'reasonDescription', headerName: 'Descripción', minWidth: 260 },
-    { field: 'newInternalStatus', headerName: 'Nuevo estado', minWidth: 170 },
-    { field: 'manualReviewRequired', headerName: 'Revisión manual', minWidth: 150 }
-  ];
-
-  readonly columnasReadiness: ColDef<NachaSoapReadiness>[] = [
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 210 },
-    { field: 'isReadyForUat', headerName: 'Ready UAT', minWidth: 130 },
-    { field: 'isBlocked', headerName: 'Blocked', minWidth: 120 },
-    { headerName: 'Bloqueos', minWidth: 320, valueGetter: (p) => p.data?.blockReasons.join(' | ') ?? '' },
-    { field: 'operationalGatePassed', headerName: 'Gate', minWidth: 110 },
-    { field: 'readinessCheckPassed', headerName: 'Preparación', minWidth: 130 },
-    { field: 'simulationPassed', headerName: 'Simulación', minWidth: 130 },
-    { field: 'resiliencePassed', headerName: 'Resiliencia', minWidth: 130 },
-    { field: 'productiveExecution', headerName: 'Productivo', minWidth: 130 },
-    { field: 'wouldInvokeRealSoap', headerName: 'SOAP real', minWidth: 130 }
-  ];
-
-  readonly columnasAuditoria: ColDef<NachaOperationalAudit>[] = [
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 210 },
-    { field: 'phase', headerName: 'Fase', minWidth: 100 },
-    { field: 'eventType', headerName: 'Evento', minWidth: 220 },
-    { field: 'severity', headerName: 'Severidad', minWidth: 130 },
-    { field: 'message', headerName: 'Mensaje', minWidth: 300 },
-    { field: 'isBlocked', headerName: 'Bloqueado', minWidth: 120 },
-    { headerName: 'Marca temporal', minWidth: 180, valueGetter: (p) => this.formatDate(p.data?.timestamp) },
-    { headerName: 'Detalles sanitizados', minWidth: 300, valueGetter: (p) => this.formatDetails(p.data?.sanitizedDetails) }
-  ];
+  lastUpdatedAt?: Date;
+  filtersExpanded = true;
 
   ngOnInit(): void {
-    this.cargar();
+    this.readFormFromQuery(this.route.snapshot.queryParams);
+    this.loadClearingHouses();
+    this.route.queryParamMap.pipe(
+      map((params) => this.filtersFromParams(Object.fromEntries(params.keys.map((key) => [key, params.get(key)])))),
+      switchMap((filters) => {
+        this.loading = true;
+        this.error = '';
+        return this.api.getFiles(filters).pipe(
+          catchError(() => {
+            this.error = 'No fue posible consultar los archivos. Revise su conexión e intente nuevamente.';
+            return of(null);
+          }),
+          finalize(() => {
+            this.loading = false;
+            this.cdr.markForCheck();
+          })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe((page) => {
+      if (!page) return;
+      this.rows = page.items;
+      this.totalItems = page.totalItems;
+      this.pageIndex = page.page - 1;
+      this.pageSize = page.pageSize;
+      this.lastUpdatedAt = new Date();
+      this.cdr.markForCheck();
+    });
+
+    this.loadSummary();
   }
 
-  cargar(): void {
-    this.cargando = true;
-    this.error = '';
+  applyFilters(): void {
+    this.filtersForm.markAllAsTouched();
+    if (this.filtersForm.invalid) return;
+    void this.navigateWithFilters(0);
+  }
 
-    this.service.getDashboardData().pipe(finalize(() => {
-      this.cargando = false;
-      this.cdr.markForCheck();
-    })).subscribe({
-      next: (data) => {
-        this.data = data;
-      },
-      error: (err) => {
-        this.error = err?.message ?? 'No fue posible cargar la consulta operativa NACHA-M.';
-      }
+  clearFilters(): void {
+    this.filtersForm.reset({
+      fileName: '', clearingHouseId: null, operationalDate: null, uploadedFrom: null, uploadedTo: null,
+      achCycleId: '', ingestionStatus: '', businessOutcome: '', resultCode: '', hasIssues: false,
+      hasTechnicalErrors: false
+    });
+    this.sortBy = 'uploadedAtUtc';
+    this.sortDescending = true;
+    void this.router.navigate([], { relativeTo: this.route, queryParams: { page: 1, pageSize: this.pageSize }, replaceUrl: true });
+  }
+
+  refresh(): void {
+    this.loadSummary();
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { actualizacion: Date.now() },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
     });
   }
 
-  badgeClass(value: string | boolean | undefined): string {
-    const normalized = String(value ?? '').toLowerCase();
-    if (normalized.includes('no-go') || normalized.includes('blocked') || normalized === 'true') {
-      return 'badge-danger';
-    }
-
-    if (normalized.includes('ready') || normalized.includes('simulated') || normalized.includes('dryrun')) {
-      return 'badge-success';
-    }
-
-    if (normalized.includes('manual')) {
-      return 'badge-warning';
-    }
-
-    return 'badge-neutral';
+  pageChanged(event: PageEvent): void {
+    this.pageSize = event.pageSize;
+    void this.navigateWithFilters(event.pageIndex);
   }
 
-  formatDate(value?: string | null): string {
-    return value ? new Date(value).toLocaleString('es-CO') : '-';
+  sortChanged(sort: Sort): void {
+    this.sortBy = sort.active || 'uploadedAtUtc';
+    this.sortDescending = sort.direction !== 'asc';
+    void this.navigateWithFilters(0);
   }
 
-  dataSourceLabel(data: NachaOperationalDashboardData): string {
-    if (data.isDemoData || data.summary.isDemoData) {
-      return 'Fuente: demo seguro';
-    }
-
-    if (data.isPartialData || data.summary.isPartialData) {
-      return 'Fuente: parcial';
-    }
-
-    return 'Fuente: backend solo lectura';
+  openFile(row: IncomingNachaFileListItem): void {
+    void this.router.navigate(['files', row.id], {
+      relativeTo: this.route,
+      queryParams: { seccion: 'resumen', retorno: this.router.url }
+    });
   }
 
-  dataSourceLabelValue(value?: string | null): string {
-    const normalized = String(value ?? '').toLowerCase();
-    if (normalized.includes('demo')) {
-      return 'demo seguro';
-    }
-    if (normalized.includes('parcial')) {
-      return 'parcial';
-    }
-    return 'backend solo lectura';
+  tone(value: string): string {
+    return `status status--${operationalTone(value)}`;
   }
 
-  canNavigateToFileDetail(file: NachaOperationalFile): boolean {
-    const fileId = file.fileId ?? '';
-    const source = (file.dataSource ?? '').toLowerCase();
-    return fileId.length > 0 && !fileId.startsWith('demo-') && !source.includes('demo');
+  private navigateWithFilters(pageIndex: number): Promise<boolean> {
+    const value = this.filtersForm.getRawValue();
+    const queryParams: Params = {
+      page: pageIndex + 1,
+      pageSize: this.pageSize,
+      fileName: this.trim(value.fileName),
+      clearingHouseId: value.clearingHouseId,
+      operationalDate: this.dateOnly(value.operationalDate),
+      uploadedFromUtc: this.startOfDay(value.uploadedFrom),
+      uploadedToUtc: this.endOfDay(value.uploadedTo),
+      achCycleId: this.trim(value.achCycleId),
+      ingestionStatus: this.trim(value.ingestionStatus),
+      businessOutcome: this.trim(value.businessOutcome),
+      resultCode: this.trim(value.resultCode)?.toUpperCase(),
+      hasIssues: value.hasIssues || null,
+      hasTechnicalErrors: value.hasTechnicalErrors || null,
+      sortBy: this.sortBy,
+      sortDescending: this.sortDescending || null
+    };
+    return this.router.navigate([], { relativeTo: this.route, queryParams, replaceUrl: true });
   }
 
-  verDetalle(file: NachaOperationalFile): void {
-    if (!this.canNavigateToFileDetail(file)) {
-      return;
-    }
-
-    void this.router.navigate(['/ach/nacha/operational-dashboard/files', file.fileId]);
+  private filtersFromParams(params: Params): IncomingNachaFileFilters {
+    this.pageIndex = Math.max(0, Number(params['page'] ?? 1) - 1);
+    this.pageSize = this.pageSizes.includes(Number(params['pageSize'])) ? Number(params['pageSize']) : 20;
+    this.sortBy = params['sortBy'] ?? 'uploadedAtUtc';
+    this.sortDescending = String(params['sortDescending'] ?? 'true') !== 'false';
+    return {
+      page: this.pageIndex + 1,
+      pageSize: this.pageSize,
+      fileName: params['fileName'] || undefined,
+      clearingHouseId: params['clearingHouseId'] ? Number(params['clearingHouseId']) : undefined,
+      operationalDate: params['operationalDate'] || undefined,
+      uploadedFromUtc: params['uploadedFromUtc'] || undefined,
+      uploadedToUtc: params['uploadedToUtc'] || undefined,
+      achCycleId: params['achCycleId'] || undefined,
+      ingestionStatus: params['ingestionStatus'] || undefined,
+      businessOutcome: params['businessOutcome'] || undefined,
+      resultCode: params['resultCode'] || undefined,
+      hasIssues: params['hasIssues'] === 'true' ? true : undefined,
+      hasTechnicalErrors: params['hasTechnicalErrors'] === 'true' ? true : undefined,
+      sortBy: this.sortBy,
+      sortDescending: this.sortDescending
+    } as IncomingNachaFileFilters;
   }
 
-  private formatDetails(details?: Record<string, string>): string {
-    if (!details) {
-      return '';
-    }
+  private readFormFromQuery(params: Params): void {
+    this.filtersForm.patchValue({
+      fileName: params['fileName'] ?? '',
+      clearingHouseId: params['clearingHouseId'] ? Number(params['clearingHouseId']) : null,
+      operationalDate: this.parseDate(params['operationalDate']),
+      uploadedFrom: this.parseDate(params['uploadedFromUtc']),
+      uploadedTo: this.parseDate(params['uploadedToUtc']),
+      achCycleId: params['achCycleId'] ?? '',
+      ingestionStatus: params['ingestionStatus'] ?? '',
+      businessOutcome: params['businessOutcome'] ?? '',
+      resultCode: params['resultCode'] ?? '',
+      hasIssues: params['hasIssues'] === 'true',
+      hasTechnicalErrors: params['hasTechnicalErrors'] === 'true'
+    }, { emitEvent: false });
+  }
 
-    return Object.entries(details).map(([key, value]) => `${key}: ${value}`).join(' | ');
+  private loadSummary(): void {
+    this.api.getSummary().pipe(catchError(() => of(undefined)), takeUntilDestroyed(this.destroyRef))
+      .subscribe((summary) => {
+        this.summary = summary;
+        this.cdr.markForCheck();
+      });
+  }
+
+  private loadClearingHouses(): void {
+    this.clearingHousesApi.list('', true, 1).pipe(catchError(() => of({ items: [] })), takeUntilDestroyed(this.destroyRef))
+      .subscribe((page) => {
+        this.clearingHouses = page.items.map((item) => ({ id: item.id, name: item.name }));
+        this.cdr.markForCheck();
+      });
+  }
+
+  private trim(value: string | null | undefined): string | undefined {
+    return value?.trim() || undefined;
+  }
+
+  private dateOnly(value: Date | null | undefined): string | undefined {
+    if (!value) return undefined;
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private startOfDay(value: Date | null | undefined): string | undefined {
+    if (!value) return undefined;
+    const date = new Date(value);
+    date.setHours(0, 0, 0, 0);
+    return date.toISOString();
+  }
+
+  private endOfDay(value: Date | null | undefined): string | undefined {
+    if (!value) return undefined;
+    const date = new Date(value);
+    date.setHours(23, 59, 59, 999);
+    return date.toISOString();
+  }
+
+  private parseDate(value: string | null | undefined): Date | null {
+    return value ? new Date(value) : null;
   }
 }

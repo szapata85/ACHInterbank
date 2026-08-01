@@ -377,6 +377,119 @@ public class IncomingNachaCommandCenterServiceTests
         Assert.NotNull(transaction.ScheduledAtUtc);
     }
 
+    [Fact]
+    public async Task GetTransactionsAsync_ShouldMaskSensitiveData_AndKeepTechnicalAndFunctionalResultsSeparate()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.RetryPending);
+        var header = new NachaHeader
+        {
+            NachaID = "MASKED-FILE",
+            IncomingNachaFileIngestionId = queue.IncomingNachaFileIngestionId,
+            ClearingHouseId = queue.ClearingHouseId,
+            AchCycleId = queue.AchCycleId
+        };
+        var batch = new BatchHeader
+        {
+            BatchID = 12,
+            BatchNumber = 3,
+            NachaID = header.NachaID,
+            NachaHeader = header,
+            OriginParticipantEntityCode = "12345678",
+            EffectiveEntryDate = "260801"
+        };
+        var entry = new EntryDetail
+        {
+            EntryDetailID = 12,
+            BatchHeaderId = batch.BatchID,
+            BatchHeader = batch,
+            BatchNumber = batch.BatchNumber,
+            NachaID = header.NachaID,
+            NachaHeader = header,
+            SequenceNumber = "876543210000012",
+            TransactionCode = "22",
+            AccountNumber = "9876543210",
+            ReceivingParticipantEntityCode = "87654321",
+            RecipUserName = "PERSONA PRIVADA",
+            Amount = 25m
+        };
+        context.NachaHeaders.Add(header);
+        context.BatchHeaders.Add(batch);
+        context.EntryDetails.Add(entry);
+        context.AddendaRecords.Add(new AddendaRecord
+        {
+            AddendaID = 12,
+            EntryDetailId = entry.EntryDetailID,
+            EntryDetail = entry,
+            NachaID = header.NachaID,
+            NachaHeader = header,
+            PaymentRelatedInformation = "REFERENCIA-SENSIBLE-1234",
+            OriginalTraceNumber = "123456789012345"
+        });
+        context.IncomingNachaIntegrationExecution.Add(new IncomingNachaIntegrationExecution
+        {
+            DispatchQueueId = queue.Id,
+            EntryDetailId = entry.EntryDetailID,
+            AttemptNumber = 1,
+            ClearingHouseId = queue.ClearingHouseId,
+            CorrelationId = "corr-timeout",
+            ProcessingStatus = IncomingNachaIndividualProcessingStatus.TechnicalFailed,
+            BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed,
+            IsTechnicalFailure = true,
+            TechnicalErrorCode = "SOAP_TIMEOUT",
+            TechnicalErrorMessage = "Tiempo agotado",
+            ResultCode = string.Empty,
+            ResultDescription = string.Empty
+        });
+        await context.SaveChangesAsync();
+
+        var transactions = await CreateSut(context).GetTransactionsAsync(queue.IncomingNachaFileIngestionId,
+            new IncomingNachaTransactionQuery { HasAddenda = true, HasTechnicalError = true, PageSize = 20 });
+        var transaction = Assert.Single(transactions.Items);
+        Assert.Equal("****3210", transaction.AccountNumberMasked);
+        Assert.Equal("****5678", transaction.OriginInstitution);
+        Assert.Equal("****4321", transaction.DestinationInstitution);
+        Assert.Equal("P***", transaction.RecipientNameMasked);
+        Assert.Equal("Error técnico", transaction.ProcessingStatusText);
+        Assert.Equal("No procesado", transaction.BusinessOutcomeText);
+        Assert.Empty(transaction.ResultCode);
+        Assert.Null(transaction.AchReturnCodeId);
+
+        var addendas = await CreateSut(context).GetAddendasAsync(queue.IncomingNachaFileIngestionId, entry.EntryDetailID);
+        var addenda = Assert.Single(addendas);
+        Assert.DoesNotContain("REFERENCIA-SENSIBLE", addenda.PaymentInformation);
+        Assert.Equal("****2345", addenda.OriginalTraceNumber);
+    }
+
+    [Fact]
+    public async Task GetIngestionsAsync_ShouldApplyServerFilters_AndExposeOperationalSummaryFields()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Queued);
+        var ingestion = await context.IncomingNachaFileIngestions.SingleAsync(x => x.Id == queue.IncomingNachaFileIngestionId);
+        ingestion.UploadedBy = "operador.prueba";
+        ingestion.ResolvedClearingHouseId = 1;
+        ingestion.ResolvedAchCycleId = "CC-001";
+        ingestion.OperationalDate = new DateTime(2026, 8, 1);
+        await context.SaveChangesAsync();
+
+        var result = await CreateSut(context).GetIngestionsAsync(new IncomingNachaIngestionQuery
+        {
+            ClearingHouseId = 1,
+            AchCycleId = "CC-001",
+            OperationalDate = new DateTime(2026, 8, 1),
+            SortBy = "fileName",
+            SortDescending = false
+        });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("operador.prueba", item.UploadedBy);
+        Assert.Equal("CENIT", item.ClearingHouseName);
+        Assert.Equal("Programado", item.ProcessingStatusText);
+        Assert.Equal("Pendiente", item.OverallResultText);
+        Assert.NotNull(item.ScheduledAtUtc);
+    }
+
     private static async Task<IncomingNachaDispatchQueue> SeedQueueAsync(AchDbContext context, IncomingNachaDispatchQueueStatus status)
     {
         var clearing = new ClearingHouse { Id = 1, Name = "CENIT", Code = "CENIT", OriginCode = "00000000", ClearingHouseId = 1 };
