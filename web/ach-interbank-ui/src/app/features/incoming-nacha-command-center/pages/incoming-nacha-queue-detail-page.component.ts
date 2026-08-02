@@ -15,6 +15,7 @@ import {
   IncomingNachaQueueListItem
 } from '../models/incoming-nacha-command-center.models';
 import { IncomingNachaCommandCenterApiService } from '../services/incoming-nacha-command-center-api.service';
+import { supportActionLabel, supportActionsLabel, supportOutcomeLabel, supportStatusLabel } from '../presentation/incoming-nacha-support-presentation';
 
 type ManualActionType = 'retry' | 'unblock' | 'requeue' | 'mark-failed-final';
 
@@ -60,7 +61,7 @@ export class IncomingNachaQueueDetailPageComponent implements OnInit {
     { field: 'responseCode', headerName: 'Código', minWidth: 110 },
     { field: 'responseMessage', headerName: 'Respuesta', minWidth: 260 },
     { field: 'isSuccess', headerName: 'Éxito', minWidth: 95, valueGetter: (p) => (p.data?.isSuccess ? 'Sí' : 'No') },
-    { field: 'isRetryable', headerName: 'Retryable', minWidth: 110, valueGetter: (p) => (p.data?.isRetryable ? 'Sí' : 'No') },
+    { field: 'isRetryable', headerName: 'Permite reintento', minWidth: 140, valueGetter: (p) => (p.data?.isRetryable ? 'Sí' : 'No') },
     { headerName: 'Inicio', minWidth: 170, valueGetter: (p) => this.formatDate(p.data?.startedAtUtc) },
     { headerName: 'Fin', minWidth: 170, valueGetter: (p) => this.formatDate(p.data?.finishedAtUtc) }
   ];
@@ -90,7 +91,7 @@ export class IncomingNachaQueueDetailPageComponent implements OnInit {
         this.detalle = detalle;
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'No fue posible cargar el detalle de cola inbound.';
+        this.error = err?.error?.message ?? 'No fue posible consultar el detalle del procesamiento.';
       }
     });
   }
@@ -180,15 +181,15 @@ export class IncomingNachaQueueDetailPageComponent implements OnInit {
   }
 
   etiquetaAccion(action: ManualActionType): string {
-    return action === 'mark-failed-final' ? 'mark-failed-final' : action;
+    return supportActionLabel(action);
   }
 
+  estadoProcesamiento(value: string): string { return supportStatusLabel(value); }
+
+  accionesAutorizadas(values: readonly string[]): string { return supportActionsLabel(values); }
+
   private procesarResultado(result: IncomingNachaManualActionResult): void {
-    const outcome = result.isIdempotentReplay
-      ? 'Replay idempotente'
-      : result.currentStatus === result.previousStatus
-        ? 'Rejected'
-        : 'Applied';
+    const outcome = supportOutcomeLabel(result.isIdempotentReplay, result.previousStatus, result.currentStatus);
 
     this.resultadoAccion = `${outcome}: ${result.message}`;
     if (result.isIdempotentReplay) {

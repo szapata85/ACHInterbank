@@ -2,16 +2,16 @@
   <ui-migas-pan [items]="migas"></ui-migas-pan>
 
   <ui-encabezado-pagina
-    titulo="Cola dispatch inbound NACHA-M"
-    descripcion="Supervisión operativa de reintentos y acciones manuales autorizadas por AllowedActions del backend."
+    titulo="Cola de procesamiento NACHA-M"
+    descripcion="Supervise la programación, los reintentos y las acciones de soporte autorizadas para cada transacción."
   ></ui-encabezado-pagina>
 
-  <ui-tarjeta titulo="Filtros de cola" subtitulo="La disponibilidad de acciones se decide exclusivamente en backend.">
+  <ui-tarjeta titulo="Filtros de procesamiento" subtitulo="La disponibilidad de acciones se decide según el estado y los permisos del usuario.">
     <form [formGroup]="filtrosForm" class="filtros-grid">
-      <ui-campo-texto etiqueta="IngestionId" [control]="$any(filtrosForm.controls.ingestionId)"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Estado cola" [control]="$any(filtrosForm.controls.queueStatus)"></ui-campo-texto>
-      <ui-campo-texto etiqueta="Tx ACH" [control]="$any(filtrosForm.controls.achTransactionId)"></ui-campo-texto>
-      <ui-campo-texto etiqueta="CorrelationId" [control]="$any(filtrosForm.controls.correlationId)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Identificador del archivo" [control]="$any(filtrosForm.controls.ingestionId)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Estado del procesamiento" [control]="$any(filtrosForm.controls.queueStatus)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Transacción ACH" [control]="$any(filtrosForm.controls.achTransactionId)"></ui-campo-texto>
+      <ui-campo-texto etiqueta="Identificador de seguimiento" [control]="$any(filtrosForm.controls.correlationId)"></ui-campo-texto>
       <ui-campo-numero etiqueta="Página" [control]="$any(filtrosForm.controls.page)"></ui-campo-numero>
       <ui-campo-numero etiqueta="Tamaño" [control]="$any(filtrosForm.controls.pageSize)"></ui-campo-numero>
     </form>
@@ -19,18 +19,18 @@
     <div class="acciones">
       <ui-boton texto="Buscar" icono="search" (accion)="buscar()"></ui-boton>
       <ui-boton texto="Limpiar" variante="contorno" icono="filter_alt_off" (accion)="limpiar()"></ui-boton>
-      <ui-boton texto="Volver a ingestas" variante="secundario" icono="arrow_back" (accion)="volverIngestas()"></ui-boton>
+      <ui-boton texto="Volver al seguimiento" variante="secundario" icono="arrow_back" (accion)="volverIngestas()"></ui-boton>
     </div>
   </ui-tarjeta>
 
   <ui-alerta *ngIf="error" tipo="error" titulo="Error de consulta" [mensaje]="error"></ui-alerta>
 
-  <ui-tarjeta [titulo]="'Items en cola (' + totalItems + ')'" subtitulo="Solo se muestran acciones permitidas por backend (state machine enterprise).">
+  <ui-tarjeta [titulo]="'Elementos programados (' + totalItems + ')'" subtitulo="Las acciones disponibles respetan el estado actual y los permisos del usuario.">
     <ui-grilla-empresarial
       [columnas]="columnas"
       [datos]="items"
       [cargando]="cargando"
-      tituloVacio="Sin items"
+      tituloVacio="Sin elementos programados"
       mensajeVacio="No se encontraron resultados con los filtros actuales."
     ></ui-grilla-empresarial>
   </ui-tarjeta>

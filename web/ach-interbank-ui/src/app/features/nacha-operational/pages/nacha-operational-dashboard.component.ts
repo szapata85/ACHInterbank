@@ -20,6 +20,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, finalize, map, of, switchMap } from 'rxjs';
 import { ClearingHousesService } from '../../clearing-houses/clearing-houses.service';
 import { SpanishDatepickerIntl } from '../../../core/services/material-spanish-intl';
+import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import {
   ClearingHouseOption,
@@ -59,6 +60,7 @@ export class NachaOperationalDashboardComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly notifications = inject(NotificationService);
 
   readonly displayedColumns = [
     'fileName', 'clearingHouse', 'operationalDate', 'cycle', 'uploadedAt', 'validation',
@@ -119,7 +121,8 @@ export class NachaOperationalDashboardComponent implements OnInit {
         this.error = '';
         return this.api.getFiles(filters).pipe(
           catchError(() => {
-            this.error = 'No fue posible consultar los archivos. Revise su conexión e intente nuevamente.';
+            this.notifications.dismissType('error');
+            this.error = 'Revise su conexión e intente nuevamente.';
             return of(null);
           }),
           finalize(() => {
@@ -131,6 +134,7 @@ export class NachaOperationalDashboardComponent implements OnInit {
       takeUntilDestroyed(this.destroyRef)
     ).subscribe((page) => {
       if (!page) return;
+      this.notifications.dismissType('error');
       this.rows = page.items;
       this.totalItems = page.totalItems;
       this.pageIndex = page.page - 1;

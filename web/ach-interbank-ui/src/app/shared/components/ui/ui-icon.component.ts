@@ -34,6 +34,7 @@ const SUPPORTED_MATERIAL_SYMBOLS = new Set([
   'lock_clock',
   'login',
   'manage_accounts',
+  'manage_search',
   'menu',
   'note_add',
   'palette',

@@ -7,6 +7,7 @@ import { finalize } from 'rxjs';
 import { SharedModule } from '../../../shared/shared.module';
 import { IncomingNachaQueueListItem } from '../models/incoming-nacha-command-center.models';
 import { IncomingNachaCommandCenterApiService } from '../services/incoming-nacha-command-center-api.service';
+import { supportActionsLabel, supportStatusLabel } from '../presentation/incoming-nacha-support-presentation';
 
 @Component({
   selector: 'app-incoming-nacha-queue-page',
@@ -30,8 +31,8 @@ export class IncomingNachaQueuePageComponent implements OnInit {
 
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/dashboard' },
-    { etiqueta: 'Command Center Inbound NACHA', ruta: '/incoming-nacha-command-center' },
-    { etiqueta: 'Cola dispatch' }
+    { etiqueta: 'Seguimiento de archivos NACHA-M', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: 'Cola de procesamiento' }
   ];
 
   readonly filtrosForm = this.fb.group({
@@ -45,12 +46,12 @@ export class IncomingNachaQueuePageComponent implements OnInit {
 
   readonly columnas: ColDef<IncomingNachaQueueListItem>[] = [
     { field: 'achTransactionId', headerName: 'Tx', minWidth: 100 },
-    { field: 'queueStatus', headerName: 'Estado cola', minWidth: 140 },
+    { headerName: 'Estado del procesamiento', minWidth: 190, valueGetter: (p) => supportStatusLabel(p.data?.queueStatus) },
     { field: 'priority', headerName: 'Prioridad', minWidth: 110 },
     { field: 'attemptCount', headerName: 'Intentos', minWidth: 100 },
     { headerName: 'Próximo intento', minWidth: 170, valueGetter: (p) => this.formatDate(p.data?.nextAttemptAtUtc) },
     { headerName: 'Último error', minWidth: 260, valueGetter: (p) => this.composeError(p.data) },
-    { headerName: 'AllowedActions', minWidth: 220, valueGetter: (p) => this.composeAllowedActions(p.data) },
+    { headerName: 'Acciones autorizadas', minWidth: 230, valueGetter: (p) => this.composeAllowedActions(p.data) },
     {
       headerName: 'Acciones',
       minWidth: 150,
@@ -97,7 +98,7 @@ export class IncomingNachaQueuePageComponent implements OnInit {
         this.totalItems = result.totalItems;
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'No fue posible consultar la cola de dispatch inbound.';
+        this.error = err?.error?.message ?? 'No fue posible consultar la programación del procesamiento.';
       }
     });
   }
@@ -119,7 +120,7 @@ export class IncomingNachaQueuePageComponent implements OnInit {
   }
 
   private composeAllowedActions(row?: IncomingNachaQueueListItem | null): string {
-    return row?.allowedActions?.allowedActions?.length ? row.allowedActions.allowedActions.join(', ') : '—';
+    return supportActionsLabel(row?.allowedActions?.allowedActions);
   }
 
   private composeError(row?: IncomingNachaQueueListItem | null): string {

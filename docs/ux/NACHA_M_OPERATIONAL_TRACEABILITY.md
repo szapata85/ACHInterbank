@@ -215,3 +215,91 @@ Se ejecutó `npm audit fix --ignore-scripts`, sin `--force`, sin cambio mayor de
 `angular.json` sólo define `build`, `serve` y `test`; no existen archivos ESLint/TSLint ni configuración parcial. `npx ng lint` confirma `Cannot find "lint" target`. No se agregó ESLint ni dependencias para simular el control. Su adopción queda como deuda técnica separada: crear una fase de migración a `angular-eslint`, fijar reglas compatibles con Angular 21, establecer una línea base y activar el gate de CI sin mezclar cambios funcionales.
 
 Los controles alternativos ejecutados fueron `npx tsc -p tsconfig.app.json --noEmit`, `npm run build`, 21 pruebas unitarias focalizadas y las 662 pruebas unitarias completas; todos aprobaron. `npm ci` terminó con 0 vulnerabilidades. La vista conserva español, humanización, separación técnica/funcional, enmascaramiento, formato `es-CO`, responsive y accesibilidad; no se cambiaron entidades, migraciones, reglas financieras ni códigos ACH.
+
+## Cierre correctivo final: menú, runtime y estabilidad CI
+
+### Navegación dinámica
+
+La ausencia de la opción se debía a que la ruta existía en Angular, pero no había un registro equivalente en el bootstrap oficial ni en la tabla `MenuItems`. Se agregó `IncomingNachaCommandCenterMenuSeeder`, un `IDbSeeder` con orden 3, que resuelve el padre por la ruta estable `/transactions`, crea o actualiza la opción canónica, desactiva equivalentes técnicos y normaliza sus relaciones. No se agregaron tablas ni migraciones.
+
+Datos persistidos:
+
+| Campo | Valor |
+|---|---|
+| Etiqueta | Seguimiento de archivos NACHA-M |
+| Ruta | `/incoming-nacha-command-center` |
+| Icono | `manage_search` |
+| Padre | Transacciones (`/transactions`) |
+| Orden | 7 |
+| Coincidencia exacta | Sí |
+| Activa y visible | Sí |
+| Permiso | `CanReadAch` |
+| Roles | `Admin`, `ACH.Operator` |
+
+El esquema real no posee columnas independientes de título, descripción o visibilidad: la etiqueta del menú es el título de navegación, `IsActive` controla su exposición y la descripción funcional está en los metadatos y encabezado de la ruta. No se alteró el esquema para duplicar esos conceptos.
+
+La primera ejecución automática del bootstrap creó la opción y la segunda ejecución mediante `POST /Maintenance/seed` conservó un único registro. Las pruebas cubren creación, actualización de una etiqueta técnica, desactivación de duplicados, segunda ejecución, rol administrador, rol operador y usuario sin `CanReadAch`. El repositorio de navegación consulta la base directamente; no existe una caché backend que invalidar. Una sesión nueva vuelve a solicitar el menú.
+
+El proveedor activo fue SQL Server y la base local `ACHInterbank`. La verificación final usó esta consulta, sin incluir credenciales:
+
+```sql
+SELECT mi.Id, mi.Label, mi.Route, mi.Icon, mi.[Order], mi.Exact, mi.IsActive,
+       parent.Label AS ParentLabel, parent.Route AS ParentRoute,
+       (SELECT COUNT(*) FROM MenuItemPermissions p WHERE p.MenuItemId = mi.Id) AS PermissionLinks,
+       (SELECT COUNT(*) FROM MenuItemRoles r WHERE r.MenuItemId = mi.Id) AS RoleLinks
+FROM MenuItems mi
+LEFT JOIN MenuItems parent ON parent.Id = mi.ParentId
+WHERE mi.Route = '/incoming-nacha-command-center';
+```
+
+Resultado: identificador 3807, una opción canónica, padre `Transacciones`, orden 7, exacta/activa, un permiso y dos roles; `CanReadAch`, `ACH.Operator` y `Admin`; cero equivalentes técnicos activos. `GET /api/navigation/menu`, con autenticación real, respondió 200 y devolvió exactamente una opción canónica.
+
+### Causa del runtime anterior y artefacto definitivo
+
+La ruta fuente ya cargaba `NachaOperationalDashboardComponent`; no existía un conflicto de lazy loading. El contenedor SPA activo no tenía volúmenes montados y servía una imagen anterior: su bundle contenía `Command Center Inbound NACHA-M` y no contenía el título nuevo. La causa demostrada fue un artefacto Docker obsoleto, no el caché del navegador ni una regla Angular.
+
+Se retiraron los dos componentes técnicos antiguos que estaban sin rutas ni referencias. Las páginas secundarias todavía útiles —observabilidad, programación y detalle de soporte— se conservaron y se humanizaron; ya no muestran como texto principal `AllowedActions`, claves de idempotencia ni términos de programación en inglés. La ruta canónica sigue cargando la vista operativa y los alias históricos conservan sus redirecciones existentes.
+
+La imagen SPA se reconstruyó sin caché y sólo se recreó el servicio `achinterbank-spa`; el volumen de SQL Server permaneció intacto. Evidencia final:
+
+- Imagen: `sha256:2beab4f8709a1943b8979579b5932394b73369371f489709447fd7a876719cbb`.
+- Bundle: `main.8b16fcd00d006ef8.js`.
+- SHA-256 del bundle servido: `F6977FF22592014D7B9E8C549AC096E81FF18CD6BF05831C4F02449D1FFEC7AC`.
+- El bundle contiene `Seguimiento de archivos NACHA-M` y no contiene `Command Center Inbound NACHA-M`.
+- `/incoming-nacha-command-center` y `/incoming-nacha-command-center/files/1` respondieron con el `index.html` de la SPA.
+- La ruta API `/incoming-nacha-command-center/ingestions` llegó al backend y respondió 401 sin autenticación, en vez de devolver HTML.
+- `nginx -t` aprobó. No hay Service Worker configurado ni caché Nginx adicional.
+
+La configuración Nginx vigente separa los prefijos API `observability`, `ingestions` y `queue` del fallback Angular; no necesitó otro cambio en este cierre.
+
+### Estado vacío, error y revisión visual
+
+El estado de error ahora dice “No fue posible consultar los archivos recibidos”, conserva el contexto y ofrece `Reintentar consulta`. El aviso global redundante se descarta cuando el panel recuperable asume la presentación. Una respuesta correcta sin registros muestra el estado vacío y nunca informa un error ni un total falso. Playwright volvió a comprobar ambos estados después del ajuste.
+
+Se revisaron capturas reales y determinísticas en `web/ach-interbank-ui/test-results`: menú, escritorio, detalle real, filtros/listado, validaciones, lotes, transacciones, resultado técnico, programación, error recuperable, estado vacío y móvil. No se observaron solapamientos, desplazamiento horizontal general, contenido crítico cortado ni términos técnicos prohibidos.
+
+### Prueba temporal del orquestador
+
+`ExecuteAsync_ReleasesWaitingWindowItems_WhenDue` construía sus fechas con `DateTime.UtcNow` y `DateTime.Today`, mientras producción determina el vencimiento con el `TimeProvider` inyectado y la zona `America/Bogota`. En CI, la fecha del fixture podía quedar fuera de la fecha operativa/ventana configurada; por eso no liberaba ningún elemento. La lógica productiva era correcta.
+
+El fixture ahora usa `TestClock`, fecha operativa fija, ventana 08:00–16:00 y tiempos derivados del mismo reloj. Cubre: aún no vencido, vencido, instante exacto, ya liberado, estado no aplicable, ciclos y cámaras diferentes, varios vencidos, idempotencia y segunda ejecución sin repetir SOAP. También se corrigió la preparación del catálogo de prueba para usar la descripción de la empresa del lote base y claves de cámaras explícitas, evitando compartir accidentalmente una clave única en la regresión completa.
+
+La prueba focalizada pasó 20 ejecuciones consecutivas, sin esperas, reintentos de aserción ni dependencia del orden. La clase completa del orquestador terminó con 25 aprobadas.
+
+### Resultados finales del cierre
+
+- `dotnet restore ACHInterbank.sln`: correcto.
+- `dotnet build ACHInterbank.sln -c Release --no-restore --maxcpucount:1`: 0 advertencias, 0 errores.
+- Regresión backend: 2072 aprobadas, 0 fallidas y 7 omitidas; 2079 totales; 17 min 44 s; `TestResults/dotnet-tests-corrective-final-green.trx`.
+- `FinancialIntegrity` multimotor: 8 aprobadas, 0 fallidas, 0 omitidas; `TestResults/FinancialIntegrity/financial-integrity-corrective.trx`. Incluye la trazabilidad/migración entrante en SQL Server y PostgreSQL.
+- `ClearingHouseMultiDb`: 2 aprobadas, 0 fallidas, 0 omitidas; `TestResults/ClearingHouses/clearing-houses-corrective.trx`.
+- `SoapArchitectureDiagnosticTests`: su única omisión sigue siendo intencional y documenta deuda de separación arquitectural futura; no valida comportamiento productivo.
+- `npx tsc -p tsconfig.app.json --noEmit`: correcto.
+- `npm run build`: correcto, hash Angular `9787ed62a9fd7ce6`.
+- Pruebas Angular: 667 aprobadas, 0 fallidas, 0 omitidas.
+- Playwright final: 7 aprobadas, 0 fallidas, 0 omitidas; incluye menú/API/SQL Server reales en escritorio y móvil, más escenarios excepcionales determinísticos.
+- `npm audit --json` y `npm audit --omit=dev`: 0 vulnerabilidades después de la corrección transitiva compatible ya documentada; no se usó `--force`.
+
+Los workflows `.NET`, Angular, integridad financiera, multimotor, PostgreSQL y E2E se inspeccionaron. No se excluyeron pruebas, no se redujeron umbrales y el escenario de menú/runtime real se agregó al gate E2E con PostgreSQL. La ausencia de lint continúa como deuda separada con TypeScript, build y pruebas como controles actuales.
+
+No se modificaron migraciones, entidades, reglas financieras, códigos ACH ni `docs/uat/certificados_pruebas`. No se ejecutaron llamadas SOAP, no se crearon commits y no se hizo push. El contenedor PostgreSQL temporal de las pruebas multimotor se eliminó; sólo permanecen los servicios oficiales que ya estaban activos al comenzar.

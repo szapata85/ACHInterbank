@@ -105,7 +105,7 @@ test.describe('seguimiento operativo integral NACHA-M', () => {
     await expect.poll(() => requests.some((url) => url.includes('page=2'))).toBeTruthy();
   });
 
-  test('presenta estado vacío y recupera un error de API', async ({ page }) => {
+  test('presenta estado vacío y recupera un error de API', async ({ page }, testInfo) => {
     let attempts = 0;
     await page.route(/\/incoming-nacha-command-center\/ingestions\?/, async (route) => {
       attempts += 1;
@@ -116,9 +116,20 @@ test.describe('seguimiento operativo integral NACHA-M', () => {
       }
     });
     await page.goto(centerPath);
-    await expect(page.getByText('No fue posible consultar la información')).toBeVisible();
-    await page.getByRole('button', { name: 'Reintentar' }).click();
+    const errorState = page.locator('ui-estado-error .estado');
+    await expect(errorState).toBeVisible();
+    await expect(page.getByText('No fue posible consultar los archivos recibidos')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reintentar consulta' })).toBeVisible();
+    await waitForAnimations(errorState);
+    await page.screenshot({ path: testInfo.outputPath('error-recuperable.png'), fullPage: true });
+    await errorState.screenshot({ path: testInfo.outputPath('error-recuperable-detalle.png') });
+    await page.getByRole('button', { name: 'Reintentar consulta' }).click();
+    const emptyState = page.locator('ui-estado-vacio .estado');
+    await expect(emptyState).toBeVisible();
     await expect(page.getByText('No se encontraron archivos', { exact: true })).toBeVisible();
+    await waitForAnimations(emptyState);
+    await page.screenshot({ path: testInfo.outputPath('estado-vacio.png'), fullPage: true });
+    await emptyState.screenshot({ path: testInfo.outputPath('estado-vacio-detalle.png') });
     const expectedTransportError = 'Failed to load resource: the server responded with a status of 500';
     const errors = browserErrors.get(page) ?? [];
     expect(errors.some((message) => message.includes(expectedTransportError))).toBeTruthy();
@@ -140,6 +151,12 @@ test.describe('seguimiento operativo integral NACHA-M', () => {
     await page.screenshot({ path: testInfo.outputPath('detalle-movil.png'), fullPage: true });
   });
 });
+
+async function waitForAnimations(locator: import('@playwright/test').Locator): Promise<void> {
+  await locator.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
+}
 
 async function mockFiles(page: Page, body: unknown): Promise<void> {
   await page.route(/\/incoming-nacha-command-center\/ingestions\?/, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }));

@@ -140,7 +140,7 @@
 
     <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Consultando archivos NACHA-M"></mat-progress-bar>
 
-    <ui-estado-error *ngIf="error && !loading" titulo="No fue posible consultar la información" [mensaje]="error"
+    <ui-estado-error *ngIf="error && !loading" titulo="No fue posible consultar los archivos recibidos" [mensaje]="error" textoReintentar="Reintentar consulta"
                      (reintentar)="refresh()"></ui-estado-error>
 
     <ui-estado-vacio *ngIf="!loading && !error && rows.length === 0"

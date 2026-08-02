@@ -13,6 +13,7 @@ import {
   IncomingNachaTopError
 } from '../models/incoming-nacha-command-center.models';
 import { IncomingNachaCommandCenterApiService } from '../services/incoming-nacha-command-center-api.service';
+import { supportStatusLabel } from '../presentation/incoming-nacha-support-presentation';
 
 @Component({
   selector: 'app-incoming-nacha-observability-page',
@@ -37,7 +38,7 @@ export class IncomingNachaObservabilityPageComponent implements OnInit {
   });
 
   readonly columnasEstatus: ColDef<IncomingNachaKpiCount>[] = [
-    { field: 'key', headerName: 'Estado', minWidth: 170 },
+    { headerName: 'Estado', minWidth: 190, valueGetter: (p) => supportStatusLabel(p.data?.key) },
     { field: 'count', headerName: 'Cantidad', minWidth: 120 }
   ];
 
@@ -51,20 +52,20 @@ export class IncomingNachaObservabilityPageComponent implements OnInit {
     { field: 'clearingHouseId', headerName: 'Cámara', minWidth: 100 },
     { field: 'achCycleId', headerName: 'Ciclo', minWidth: 130 },
     { field: 'totalItems', headerName: 'Total', minWidth: 100 },
-    { field: 'blockedItems', headerName: 'Blocked', minWidth: 100 },
-    { field: 'retryPendingItems', headerName: 'RetryPending', minWidth: 130 },
-    { field: 'waitingWindowItems', headerName: 'WaitingWindow', minWidth: 130 },
-    { field: 'failedFinalItems', headerName: 'FailedFinal', minWidth: 120 },
-    { field: 'confirmedItems', headerName: 'Confirmed', minWidth: 110 }
+    { field: 'blockedItems', headerName: 'Bloqueados', minWidth: 110 },
+    { field: 'retryPendingItems', headerName: 'Pendientes de reintento', minWidth: 180 },
+    { field: 'waitingWindowItems', headerName: 'En espera de ventana', minWidth: 170 },
+    { field: 'failedFinalItems', headerName: 'Errores definitivos', minWidth: 160 },
+    { field: 'confirmedItems', headerName: 'Procesados', minWidth: 120 }
   ];
 
   readonly columnasTimeline: ColDef<IncomingNachaTimelinePoint>[] = [
     { headerName: 'Hora UTC', minWidth: 170, valueGetter: (p) => this.formatDate(p.data?.bucketAtUtc) },
     { field: 'totalEvents', headerName: 'Eventos', minWidth: 100 },
-    { field: 'manualApplied', headerName: 'Applied', minWidth: 100 },
-    { field: 'manualRejected', headerName: 'Rejected', minWidth: 100 },
-    { field: 'retryPendingTransitions', headerName: 'RetryPending', minWidth: 130 },
-    { field: 'failedFinalTransitions', headerName: 'FailedFinal', minWidth: 120 }
+    { field: 'manualApplied', headerName: 'Acciones aplicadas', minWidth: 150 },
+    { field: 'manualRejected', headerName: 'Acciones no aplicadas', minWidth: 170 },
+    { field: 'retryPendingTransitions', headerName: 'Pendientes de reintento', minWidth: 180 },
+    { field: 'failedFinalTransitions', headerName: 'Errores definitivos', minWidth: 160 }
   ];
 
   ngOnInit(): void {
@@ -84,7 +85,7 @@ export class IncomingNachaObservabilityPageComponent implements OnInit {
         this.summary = summary;
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'No fue posible cargar observabilidad inbound.';
+        this.error = err?.error?.message ?? 'No fue posible consultar los indicadores operativos.';
       }
     });
   }

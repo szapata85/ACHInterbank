@@ -895,9 +895,14 @@ public class IncomingNachaPostProcessingOrchestratorTests
     {
         await using var context = BuildContext();
         SeedDispatchItem(context);
+        var clock = TestSupport.TestClock.Create();
         var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == queue.AchCycleId);
+        cycle.ProcessingDate = TestSupport.TestClock.OperationalDate;
+        cycle.StartTime = new TimeSpan(8, 0, 0);
+        cycle.EndTime = new TimeSpan(16, 0, 0);
         queue.QueueStatus = IncomingNachaDispatchQueueStatus.WaitingWindow;
-        queue.NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(-2);
+        queue.NextAttemptAtUtc = clock.UtcNow.UtcDateTime.AddMinutes(-2);
         await context.SaveChangesAsync();
 
         var mappingIdentity = BuildMappingIdentity();
@@ -916,12 +921,150 @@ public class IncomingNachaPostProcessingOrchestratorTests
             operationResolver: operationResolver.Object,
             mappingReadinessService: readiness.Object,
             dispatchOptions: LiveProcTransaccionesOptions(),
-            responseCatalogResolver: Catalog(Success("00", "Crédito aplicado")));
+            responseCatalogResolver: Catalog(Success("00", "Crédito aplicado")),
+            timeProvider: clock);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+        var secondResult = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.WaitingWindow);
+        Assert.Equal(1, result.Confirmed);
+        Assert.Equal(0, secondResult.WaitingWindow);
+        Assert.Equal(0, secondResult.Confirmed);
+        queue = await context.IncomingNachaDispatchQueue.SingleAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Confirmed, queue.QueueStatus);
+        soap.Verify(
+            client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReleasesWaitingWindowItem_AtExactWindowBoundary()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        var clock = TestSupport.TestClock.Create();
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        var cycle = await context.AchCycles.SingleAsync(x => x.Id == queue.AchCycleId);
+        cycle.ProcessingDate = TestSupport.TestClock.OperationalDate;
+        cycle.StartTime = new TimeSpan(12, 0, 0);
+        cycle.EndTime = new TimeSpan(12, 0, 0);
+        queue.QueueStatus = IncomingNachaDispatchQueueStatus.WaitingWindow;
+        queue.NextAttemptAtUtc = clock.UtcNow.UtcDateTime;
+        await context.SaveChangesAsync();
+
+        var mappingIdentity = BuildMappingIdentity();
+        var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            operationResolver: BuildProcTransaccionesOperationResolver().Object,
+            mappingReadinessService: BuildProcTransaccionesReadinessService(
+                mappingIdentity.MappingSetId,
+                mappingIdentity.Version,
+                mappingIdentity.SnapshotHash).Object,
+            dispatchOptions: LiveProcTransaccionesOptions(),
+            responseCatalogResolver: Catalog(Success("00", "Crédito aplicado")),
+            timeProvider: clock);
 
         var result = await sut.ExecuteAsync(50, "tester");
 
         Assert.Equal(1, result.WaitingWindow);
         Assert.Equal(1, result.Confirmed);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Confirmed,
+            (await context.IncomingNachaDispatchQueue.SingleAsync()).QueueStatus);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReleasesMultipleDueItems_FromDifferentCyclesAndClearingHouses()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        SeedSecondDispatchItem(context);
+        var clock = TestSupport.TestClock.Create();
+        var cycles = await context.AchCycles.ToListAsync();
+        foreach (var cycle in cycles)
+        {
+            cycle.ProcessingDate = TestSupport.TestClock.OperationalDate;
+            cycle.StartTime = new TimeSpan(8, 0, 0);
+            cycle.EndTime = new TimeSpan(16, 0, 0);
+        }
+        var queues = await context.IncomingNachaDispatchQueue.ToListAsync();
+        foreach (var queue in queues)
+        {
+            queue.QueueStatus = IncomingNachaDispatchQueueStatus.WaitingWindow;
+            queue.NextAttemptAtUtc = clock.UtcNow.UtcDateTime.AddMinutes(-1);
+        }
+        await context.SaveChangesAsync();
+
+        var mappingIdentity = BuildMappingIdentity();
+        var mapper = BuildMapperSuccess(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
+        var soap = new Mock<IWscfaachSoapClient>();
+        soap.Setup(client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            operationResolver: BuildProcTransaccionesOperationResolver().Object,
+            mappingReadinessService: BuildProcTransaccionesReadinessService(
+                mappingIdentity.MappingSetId,
+                mappingIdentity.Version,
+                mappingIdentity.SnapshotHash).Object,
+            dispatchOptions: LiveProcTransaccionesOptions(),
+            responseCatalogResolver: Catalog(Success("00", "Crédito aplicado")),
+            timeProvider: clock);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(2, result.WaitingWindow);
+        Assert.Equal(2, result.Confirmed);
+        Assert.All(
+            await context.IncomingNachaDispatchQueue.ToListAsync(),
+            queue => Assert.Equal(IncomingNachaDispatchQueueStatus.Confirmed, queue.QueueStatus));
+        soap.Verify(
+            client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_IgnoresAlreadyReleasedAndNonApplicableState_Idempotently()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
+        queue.QueueStatus = IncomingNachaDispatchQueueStatus.Confirmed;
+        queue.NextAttemptAtUtc = null;
+        await context.SaveChangesAsync();
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = new IncomingNachaPostProcessingOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            timeProvider: TestSupport.TestClock.Create());
+
+        var firstResult = await sut.ExecuteAsync(50, "tester");
+        var secondResult = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(0, firstResult.WaitingWindow);
+        Assert.Equal(0, firstResult.Picked);
+        Assert.Equal(0, secondResult.WaitingWindow);
+        Assert.Equal(0, secondResult.Picked);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Confirmed,
+            (await context.IncomingNachaDispatchQueue.SingleAsync()).QueueStatus);
+        soap.Verify(
+            client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -994,7 +1137,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
     private static void SeedDispatchItem(AchDbContext context)
     {
-        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian" });
         context.ClearingHouses.Add(new ClearingHouse
         {
             Id = 1,
@@ -1105,6 +1248,105 @@ public class IncomingNachaPostProcessingOrchestratorTests
             Priority = 100,
             IdempotencyDispatchKey = Guid.NewGuid().ToString("N"),
             NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(-1)
+        });
+        context.SaveChanges();
+    }
+
+    private static void SeedSecondDispatchItem(AchDbContext context)
+    {
+        var ingestion = context.IncomingNachaFileIngestions.Single();
+        var companyEntryDescriptionId = context.AchBatches
+            .Where(batch => batch.Id == 1)
+            .Select(batch => batch.CompanyEntryDescriptionId)
+            .Single();
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 2, ClearingHouseId = 2, HolidayStrategy = "Colombian" });
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 2,
+            Name = "CENIT",
+            Code = "CENIT",
+            OriginCode = "87654321",
+            ClearingHouseId = 2
+        });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "C2",
+            CycleName = "c2",
+            ClearingHouseId = 2,
+            ProcessingDate = TestSupport.TestClock.OperationalDate,
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(16, 0, 0),
+            CutoffTime = new TimeSpan(15, 0, 0)
+        });
+        context.AchBatches.Add(new AchBatch
+        {
+            Id = 2,
+            AchCycleId = "C2",
+            CompanyEntryDescriptionId = companyEntryDescriptionId,
+            EffectiveEntryDate = TestSupport.TestClock.OperationalDate
+        });
+        var transaction = new AchTransaction
+        {
+            Id = 101,
+            Amount = 200m,
+            TransactionExternalId = "EXT-2",
+            Reference = "R2",
+            Type = TransactionTypeEnum.Credit,
+            TransactionCode = "22",
+            SourceAccountNumber = "S2",
+            DestinationAccountNumber = "D2",
+            SourceInstitutionId = 1,
+            DestinationInstitutionId = 1,
+            OriginatingDFI = "11111111",
+            ReceivingDFI = "222222220",
+            TraceNumber = "123456789012346",
+            CompanyName = "C2",
+            CompanyIdentification = "I2",
+            AchCycleId = "C2",
+            AchBatchId = 2,
+            EffectiveEntryDate = TestSupport.TestClock.OperationalDate
+        };
+        context.AchTransactions.Add(transaction);
+        context.EntryDetails.Add(new EntryDetail
+        {
+            EntryDetailID = 2,
+            TransactionCode = "22",
+            ReceivingParticipantEntityCode = "22222222",
+            AccountNumber = "D2",
+            Amount = 200m,
+            RecipUserName = "Receiver 2"
+        });
+        var classification = new IncomingNachaEntryClassification
+        {
+            Id = Guid.NewGuid(),
+            IncomingNachaFileIngestionId = ingestion.Id,
+            EntryDetailId = 2
+        };
+        var link = new IncomingNachaTransactionLink
+        {
+            Id = Guid.NewGuid(),
+            IncomingNachaFileIngestionId = ingestion.Id,
+            EntryDetailId = 2,
+            AchTransactionId = transaction.Id,
+            IsFinal = true,
+            LinkType = IncomingNachaLinkType.ExactTrace15
+        };
+        context.IncomingNachaEntryClassifications.Add(classification);
+        context.IncomingNachaTransactionLinks.Add(link);
+        context.IncomingNachaDispatchQueue.Add(new IncomingNachaDispatchQueue
+        {
+            Id = Guid.NewGuid(),
+            IncomingNachaFileIngestionId = ingestion.Id,
+            IncomingNachaEntryClassificationId = classification.Id,
+            IncomingNachaTransactionLinkId = link.Id,
+            AchTransactionId = transaction.Id,
+            AchCycleId = "C2",
+            ClearingHouseId = 2,
+            OperationalDate = TestSupport.TestClock.OperationalDate,
+            QueueStatus = IncomingNachaDispatchQueueStatus.WaitingWindow,
+            Priority = 101,
+            IdempotencyDispatchKey = Guid.NewGuid().ToString("N"),
+            NextAttemptAtUtc = TestSupport.TestClock.UtcNow.UtcDateTime.AddMinutes(-1)
         });
         context.SaveChanges();
     }

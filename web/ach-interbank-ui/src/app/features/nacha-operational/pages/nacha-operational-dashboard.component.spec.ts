@@ -79,7 +79,7 @@ describe('NachaOperationalDashboardComponent', () => {
     api.getFiles.and.returnValue(throwError(() => ({ status: 500 })));
     const errorFixture = TestBed.createComponent(NachaOperationalDashboardComponent);
     errorFixture.detectChanges();
-    expect(errorFixture.nativeElement.textContent).toContain('No fue posible consultar la información');
+    expect(errorFixture.nativeElement.textContent).toContain('No fue posible consultar los archivos recibidos');
     expect(errorFixture.nativeElement.textContent).toContain('Reintentar');
   });
 

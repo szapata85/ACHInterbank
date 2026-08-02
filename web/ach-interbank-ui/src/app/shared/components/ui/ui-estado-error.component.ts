@@ -9,7 +9,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
     <div class="estado">
       <p class="titulo">{{ titulo }}</p>
       <small>{{ mensaje }}</small>
-      <button *ngIf="mostrarReintentar" type="button" (click)="reintentar.emit()">Reintentar</button>
+      <button *ngIf="mostrarReintentar" type="button" (click)="reintentar.emit()">{{ textoReintentar }}</button>
     </div>
   `,
   styles: [`
@@ -26,5 +26,6 @@ export class UiEstadoErrorComponent {
   @Input() titulo = 'No fue posible completar la operación';
   @Input() mensaje = 'Ocurrió un error al procesar la solicitud. Intente nuevamente.';
   @Input() mostrarReintentar = true;
+  @Input() textoReintentar = 'Reintentar';
   @Output() reintentar = new EventEmitter<void>();
 }
