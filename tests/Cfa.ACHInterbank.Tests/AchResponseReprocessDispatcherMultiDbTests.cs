@@ -38,6 +38,7 @@ public sealed class AchResponseReprocessDispatcherMultiDbTests
         EnsureRequiredConfiguration(provider);
         await using var fixture = await DatabaseFixture.CreateAsync(provider);
         await VerifyMigrationLifecycleAsync(fixture);
+        await ApplyLatestMigrationsAsync(fixture);
         await VerifyClaimHeartbeatAndSingleExecutionAsync(fixture);
         await VerifyLostOwnershipAndRecoveryAsync(fixture);
         await VerifyTerminalResultsAsync(fixture);
@@ -69,6 +70,19 @@ public sealed class AchResponseReprocessDispatcherMultiDbTests
         await migrator.MigrateAsync(migration);
         Assert.Equal(9, await CountJob41ColumnsAsync(context, fixture.Provider));
         Assert.Contains(migration, await context.Database.GetAppliedMigrationsAsync());
+    }
+
+    private static async Task ApplyLatestMigrationsAsync(DatabaseFixture fixture)
+    {
+        await using var context = fixture.CreateContext();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(3, await CountCurrentAchResponseColumnsAsync(context, fixture.Provider));
+        Assert.Equal(1, await ScalarAsync(context, fixture.Provider == DatabaseProvider.SqlServer
+            ? "SELECT COUNT(*) FROM [Job4PreservedData] WHERE [Value] = N'preserved'"
+            : "SELECT COUNT(*) FROM \"Job4PreservedData\" WHERE \"Value\" = 'preserved'"));
     }
 
     private static async Task VerifyClaimHeartbeatAndSingleExecutionAsync(DatabaseFixture fixture)
@@ -293,6 +307,11 @@ public sealed class AchResponseReprocessDispatcherMultiDbTests
         => ScalarAsync(context, provider == DatabaseProvider.SqlServer
             ? "SELECT COUNT(*) FROM sys.indexes WHERE name='IX_AchResponseReprocessAttempts_Status_LeaseExpiresAtUtc_RequestedAtUtc_Id'"
             : "SELECT COUNT(*) FROM pg_indexes WHERE indexname='IX_AchResponseReprocessAttempts_Status_LeaseExpiresAtUtc_RequestedAtUtc_Id'");
+
+    private static Task<int> CountCurrentAchResponseColumnsAsync(AchDbContext context, DatabaseProvider provider)
+        => ScalarAsync(context, provider == DatabaseProvider.SqlServer
+            ? "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='AchResponses' AND COLUMN_NAME IN ('AchTransactionId','CorrelationCriterion','CorrelationStatus')"
+            : "SELECT COUNT(*) FROM information_schema.columns WHERE table_name='AchResponses' AND column_name IN ('AchTransactionId','CorrelationCriterion','CorrelationStatus')");
 
     private static async Task<int> ScalarAsync(AchDbContext context, string sql)
     {
