@@ -85,11 +85,10 @@
           <mat-form-field appearance="outline">
             <mat-label>Tipo de operación</mat-label>
             <mat-select formControlName="type" data-validation-path="type">
-              <mat-option [value]="TransactionType.Credit">Crédito</mat-option>
               <mat-option [value]="TransactionType.Debit">Débito</mat-option>
-              <mat-option [value]="TransactionType.Reversal">Reverso</mat-option>
             </mat-select>
-            <mat-error>Seleccione el tipo de transacción.</mat-error>
+            <mat-hint>Las operaciones monetarias originadas por CFA se registran como débito.</mat-hint>
+            <mat-error *ngIf="form.get('type')?.hasError('required')">Selecciona el tipo de operación.</mat-error>
           </mat-form-field>
 
           <mat-form-field appearance="outline">

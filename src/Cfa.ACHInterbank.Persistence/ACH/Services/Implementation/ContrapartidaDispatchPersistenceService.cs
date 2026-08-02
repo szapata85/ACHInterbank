@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,15 @@ public sealed class ContrapartidaDispatchPersistenceService : IContrapartidaDisp
         int clearingHouseId,
         CancellationToken ct = default)
     {
+        if (transaction.ClassificationStatus != AchTransactionClassificationStatus.Determined
+            || transaction.Direction != AchTransactionDirection.Outgoing
+            || transaction.Origin != AchTransactionOrigin.Cfa
+            || transaction.MonetaryIntegrationRoute != AchMonetaryIntegrationRoute.ProcContrapartidas)
+        {
+            throw new InvalidOperationException(
+                "La transacción no es elegible para el movimiento débito de contrapartidas y no será encolada.");
+        }
+
         ContrapartidaDispatchItem? existing = null;
         if (transaction.Id > 0)
         {

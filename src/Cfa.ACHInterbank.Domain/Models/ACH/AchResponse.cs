@@ -7,6 +7,10 @@ public class AchResponse
     public Guid Id { get; set; }
     public int? ClearingHouseId { get; set; }
     public ClearingHouse? ClearingHouse { get; set; }
+    public int? AchTransactionId { get; set; }
+    public AchTransaction? AchTransaction { get; set; }
+    public AchResponseCorrelationStatus CorrelationStatus { get; set; } = AchResponseCorrelationStatus.Unknown;
+    public string? CorrelationCriterion { get; set; }
     public TipoRespuestaAch TipoRespuesta { get; set; }
     public string IdTransaccion { get; set; } = string.Empty;
     public string CodigoCamaraCompensacion { get; set; } = string.Empty;

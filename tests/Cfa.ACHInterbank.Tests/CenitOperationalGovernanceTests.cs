@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
@@ -104,7 +105,41 @@ public class CenitOperationalGovernanceTests
         Assert.Contains(decisions, x => x.DecisionType == "Deferred");
         var tx = await context.AchTransactions.FirstAsync();
         Assert.Equal(setup.NextCycleId, tx.AchCycleId);
+        Assert.NotEqual(77, tx.AchBatchId);
+        Assert.Equal(setup.NextCycleId, (await context.AchBatches.SingleAsync(x => x.Id == tx.AchBatchId)).AchCycleId);
+        var dispatch = await context.ContrapartidaDispatchItems.SingleAsync(x => x.AchTransactionId == tx.Id);
+        Assert.Equal(setup.NextCycleId, dispatch.AchCycleId);
+        Assert.Equal(tx.AchBatchId, dispatch.AchBatchId);
         Assert.True(await context.CenitCycleQueues.AnyAsync(x => x.QueueReason == "LiquidityDeferredByRule123"));
+
+        var repeated = await sut.OptimizeCycleAsync(setup.Execution, CancellationToken.None);
+        Assert.Equal(decisions.Count, repeated.Count);
+        Assert.Single(await context.LiquidityOptimizationDecisions.Where(x => x.AchTransactionId == tx.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task LiquidityOptimization_WhenFinalWriteFails_RollsBackCycleBatchQueueAndDispatch()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = CreateContext(connection);
+        var setup = await SeedCycleExecutionScenarioAsync(context, "Ciclo 2", availableLiquidity: 0m);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TRIGGER phase1a_fail_liquidity BEFORE INSERT ON LiquidityOptimizationDecisions BEGIN SELECT RAISE(ABORT, 'phase1a rollback test'); END;");
+        var sut = new LiquidityOptimizationService(context, new TransactionPriorityPolicy(new AchRegulatoryCatalogService(context)));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => sut.OptimizeCycleAsync(setup.Execution, CancellationToken.None));
+
+        await using var verification = CreateContext(connection);
+        var transaction = await verification.AchTransactions.AsNoTracking().SingleAsync(x => x.Id == 100);
+        var dispatch = await verification.ContrapartidaDispatchItems.AsNoTracking().SingleAsync(x => x.AchTransactionId == 100);
+        Assert.Equal("c1", transaction.AchCycleId);
+        Assert.Equal(77, transaction.AchBatchId);
+        Assert.Equal("c1", dispatch.AchCycleId);
+        Assert.Equal(77, dispatch.AchBatchId);
+        Assert.False(await verification.AchBatches.AnyAsync(x => x.AchCycleId == setup.NextCycleId));
+        Assert.Empty(await verification.CenitCycleQueues.ToListAsync());
+        Assert.Empty(await verification.AchTransactionStateEvents.ToListAsync());
     }
 
     [Fact]
@@ -236,7 +271,7 @@ public class CenitOperationalGovernanceTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
         context.ClearingHouses.Add(new ClearingHouse { Id = 2, Code = "CENIT", Name = "CENIT", OriginCode = "011111111", ClearingHouseId = 1 });
         context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = TestCompanyEntryDescriptionId, Term = "PAGO", Description = "Pago", IsActive = true, StandardEntryClassCode = "PPD" });
-        var fi1 = new FinancialInstitution { Id = 1, Name = "A", RoutingNumber = "1234", TransitCode = "5678", Status = FinancialInstitutionStatus.Active };
+        var fi1 = new FinancialInstitution { Id = 1, Name = "A", RoutingNumber = "1234", TransitCode = "5678", IsDefaultSource = true, Status = FinancialInstitutionStatus.Active };
         fi1.CalculateCheckDigit();
         var fi2 = new FinancialInstitution { Id = 2, Name = "B", RoutingNumber = "8765", TransitCode = "4321", Status = FinancialInstitutionStatus.Active };
         fi2.CalculateCheckDigit();
@@ -246,12 +281,14 @@ public class CenitOperationalGovernanceTests
         context.AchCycles.AddRange(cycle, next);
         var batch = new AchBatch { Id = 77, AchCycleId = "c1", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescription = "PAGO", EffectiveEntryDate = DateTime.UtcNow.Date, OriginOrOdfi = "12345678", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId };
         context.AchBatches.Add(batch);
-        var tx = new AchTransaction { Id = 100, Amount = 100, Reference = "ref", TransactionExternalId = "op", Type = TransactionTypeEnum.Credit, AchCycleId = "c1", AchBatchId = 77, CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000001", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, EffectiveEntryDate = DateTime.UtcNow.Date };
+        var tx = new AchTransaction { Id = 100, Amount = 100, Reference = "ref", TransactionExternalId = "op", Type = TransactionTypeEnum.Debit, AchCycleId = "c1", AchBatchId = 77, CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000001", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, EffectiveEntryDate = DateTime.UtcNow.Date, Direction = AchTransactionDirection.Outgoing, Origin = AchTransactionOrigin.Cfa, MonetaryIntegrationRoute = AchMonetaryIntegrationRoute.ProcContrapartidas, ClassificationStatus = AchTransactionClassificationStatus.Determined, SourceInstitutionWasDefaultAtCreation = true, ClassifiedAtUtc = DateTime.UtcNow, ClassificationVersion = 1 };
         context.AchTransactions.Add(tx);
+        context.ContrapartidaDispatchItems.Add(new ContrapartidaDispatchItem { AchTransactionId = 100, AchCycleId = "c1", AchBatchId = 77, ClearingHouseId = 2, State = ContrapartidaDispatchItemStateEnum.PendingContrapartidaReport });
         var execution = new CenitCycleExecution { Id = 500, AchCycleId = "c1", Status = "Running" };
         var netting = new CenitNettingExecution { Id = 600, CenitCycleExecutionId = 500, TotalCredit = 0, TotalDebit = 0 };
         context.AchTransactionTypePolicies.AddRange(
             new AchTransactionTypePolicy { TransactionType = "Credit", PriorityOrder = 80, IsMonetary = true, IsActive = true },
+            new AchTransactionTypePolicy { TransactionType = "Debit", PriorityOrder = 80, IsMonetary = true, IsActive = true },
             new AchTransactionTypePolicy { TransactionType = "Return", PriorityOrder = 100, IsMonetary = true, IsActive = true });
         context.CenitCycleExecutions.Add(execution);
         context.CenitNettingExecutions.Add(netting);

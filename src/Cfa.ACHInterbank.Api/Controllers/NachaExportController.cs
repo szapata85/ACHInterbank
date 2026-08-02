@@ -75,7 +75,8 @@ public class NachaExportController : ControllerBase
                 return NotFound();
             }
 
-            string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
+            var artifact = await _nachaBuilder.BuildNachaFileArtifactByCycleAsync(cycleId, ct);
+            string nachaContent = artifact.Content;
             string internalFileName = BuildInternalNachaFileName(cycle);
             if (IsEmptyExport(nachaContent))
             {
@@ -85,6 +86,7 @@ public class NachaExportController : ControllerBase
             var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, internalFileName, nachaContent, ct);
             string fileName = fileNamePolicyResult.ExternalFileName;
             string normalizedNachaContent = NormalizeFileHeaderIdentifier(nachaContent, fileNamePolicyResult.Components.FileIdModifier);
+            string contentSha256 = ComputeSha256(normalizedNachaContent);
             await _fileExportAuditService.RecordGeneratedFileAsync(
                 cycle.Id,
                 cycle.ClearingHouseId,
@@ -93,6 +95,8 @@ public class NachaExportController : ControllerBase
                 CountRecords(normalizedNachaContent),
                 CountTransactions(normalizedNachaContent),
                 false,
+                artifact.AchTransactionIds,
+                contentSha256,
                 ct);
 
             return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
@@ -120,7 +124,8 @@ public class NachaExportController : ControllerBase
                 return NotFound();
             }
 
-            string nachaContent = await _nachaBuilder.BuildNachaFileByCycleAsync(cycleId, ct);
+            var artifact = await _nachaBuilder.BuildNachaFileArtifactByCycleAsync(cycleId, ct);
+            string nachaContent = artifact.Content;
             ClearingHouseDto? clearingHouse = await _clearingHouseService.GetByIdAsync(cycle.ClearingHouseId, ct);
             if (clearingHouse is null)
             {
@@ -136,6 +141,7 @@ public class NachaExportController : ControllerBase
             var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, internalFileName, nachaContent, ct);
             string fileName = fileNamePolicyResult.ExternalFileName;
             string normalizedNachaContent = NormalizeFileHeaderIdentifier(nachaContent, fileNamePolicyResult.Components.FileIdModifier);
+            string contentSha256 = ComputeSha256(normalizedNachaContent);
             var shouldEncrypt = forceEncryption || _envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId);
             if (!shouldEncrypt)
             {
@@ -147,6 +153,8 @@ public class NachaExportController : ControllerBase
                     CountRecords(normalizedNachaContent),
                     CountTransactions(normalizedNachaContent),
                     false,
+                    artifact.AchTransactionIds,
+                    contentSha256,
                     ct);
                 return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
             }
@@ -154,7 +162,6 @@ public class NachaExportController : ControllerBase
             var plainBytes = Encoding.ASCII.GetBytes(normalizedNachaContent);
             try
             {
-                var plainHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(plainBytes));
                 var envelope = await _digitalEnvelope.EncryptAsync(
                     cycle.ClearingHouseId,
                     fileName,
@@ -169,11 +176,13 @@ public class NachaExportController : ControllerBase
                     CountRecords(normalizedNachaContent),
                     CountTransactions(normalizedNachaContent),
                     true,
+                    artifact.AchTransactionIds,
+                    contentSha256,
                     ct);
                 if (ControllerContext.HttpContext is not null)
                 {
                     Response.Headers["X-Cryptographic-Profile"] = envelope.CryptographicProfile;
-                    Response.Headers["X-Plaintext-SHA256"] = plainHash;
+                    Response.Headers["X-Plaintext-SHA256"] = contentSha256;
                 }
                 return File(envelope.Content, envelope.ContentType, envelope.FileName);
             }
@@ -198,6 +207,9 @@ public class NachaExportController : ControllerBase
 
     private static bool IsEmptyExport(string nachaContent)
         => string.IsNullOrWhiteSpace(nachaContent);
+
+    private static string ComputeSha256(string content)
+        => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.ASCII.GetBytes(content)));
 
     private UnprocessableEntityObjectResult EmptyExport(string cycleId)
         => UnprocessableEntity(CreateProblemDetails(

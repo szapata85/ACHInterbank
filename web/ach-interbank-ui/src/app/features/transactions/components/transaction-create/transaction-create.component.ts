@@ -194,7 +194,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     customerId: [null],
     amount: ['', [Validators.required, positiveMoneyValidator]],
     transactionExternalId: ['', [Validators.required, Validators.maxLength(64)]],
-    type: [TransactionTypeEnum.Credit, Validators.required],
+    type: [TransactionTypeEnum.Debit, Validators.required],
     accountType: [AccountTypeEnum.Checking, Validators.required],
     isPrenotification: [false],
     destinationInstitutionId: [null, [Validators.required, Validators.min(1)]],
@@ -636,7 +636,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             this.form.reset({
               customerId: null,
               transactionExternalId: '',
-              type: TransactionTypeEnum.Credit,
+              type: TransactionTypeEnum.Debit,
               accountType: AccountTypeEnum.Checking,
               isPrenotification: false,
               sourcePersonType: 'PJ',

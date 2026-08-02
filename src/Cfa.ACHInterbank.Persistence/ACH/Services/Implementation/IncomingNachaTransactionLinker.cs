@@ -27,7 +27,7 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
     {
         var trace = (entry.SequenceNumber ?? string.Empty).Trim();
         var originalTraceRef = (addenda?.OriginalTraceNumber ?? string.Empty).Trim();
-        var externalId = (entry.RecipIdNumber ?? string.Empty).Trim();
+        var recipientIdentifier = (entry.RecipIdNumber ?? string.Empty).Trim();
 
         // 1) OriginalTraceRef exacto para devoluciones
         if (!string.IsNullOrWhiteSpace(originalTraceRef))
@@ -38,12 +38,12 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
                 .ToListAsync(ct);
             if (candidates.Count == 1)
             {
-                return Build(IncomingNachaLinkType.ExactOriginalTraceRef, candidates[0], true, 1.00m, false, false, "ExactOriginalTraceRef", candidates, trace, originalTraceRef, externalId);
+                return Build(IncomingNachaLinkType.ExactOriginalTraceRef, candidates[0], true, 1.00m, false, false, "ExactOriginalTraceRef", candidates, trace, originalTraceRef, recipientIdentifier);
             }
 
             if (candidates.Count > 1)
             {
-                return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.30m, true, false, "AmbiguousOriginalTraceRef", candidates, trace, originalTraceRef, externalId);
+                return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.30m, true, false, "AmbiguousOriginalTraceRef", candidates, trace, originalTraceRef, recipientIdentifier);
             }
         }
 
@@ -56,34 +56,17 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
                 .ToListAsync(ct);
             if (candidates.Count == 1)
             {
-                return Build(IncomingNachaLinkType.ExactTrace15, candidates[0], true, 0.98m, false, false, "ExactTrace15", candidates, trace, originalTraceRef, externalId);
+                return Build(IncomingNachaLinkType.ExactTrace15, candidates[0], true, 0.98m, false, false, "ExactTrace15", candidates, trace, originalTraceRef, recipientIdentifier);
             }
 
             if (candidates.Count > 1)
             {
-                return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.25m, true, false, "AmbiguousTrace15", candidates, trace, originalTraceRef, externalId);
+                return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.25m, true, false, "AmbiguousTrace15", candidates, trace, originalTraceRef, recipientIdentifier);
             }
         }
 
-        // 3) TransactionExternalId exacto
-        if (!string.IsNullOrWhiteSpace(externalId))
-        {
-            var candidates = await _context.AchTransactions.AsNoTracking()
-                .Where(x => x.TransactionExternalId == externalId)
-                .Select(x => x.Id)
-                .ToListAsync(ct);
-            if (candidates.Count == 1)
-            {
-                return Build(IncomingNachaLinkType.ExactTransactionExternalId, candidates[0], true, 0.95m, false, false, "ExactTransactionExternalId", candidates, trace, originalTraceRef, externalId);
-            }
-
-            if (candidates.Count > 1)
-            {
-                return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.20m, true, false, "AmbiguousExternalId", candidates, trace, originalTraceRef, externalId);
-            }
-        }
-
-        // 4) Composite business key exacta (endurecida para reducir colisiones):
+        // 3) Composite business key exacta. RecipIdNumber es una identificación del receptor;
+        // no se interpreta como TransactionExternalId porque ese contrato no está demostrado.
         // monto + cuenta destino + identificación receptor + transactionCode
         // + dfi receptor + fecha operativa + ciclo/cámara cuando estén disponibles.
         var destinationAccount = (entry.AccountNumber ?? string.Empty).Trim();
@@ -149,15 +132,15 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
 
         if (compositeCandidates.Count == 1)
         {
-            return Build(IncomingNachaLinkType.ExactCompositeBusinessKey, compositeCandidates[0], true, 0.90m, false, false, "ExactCompositeBusinessKeyV2", compositeCandidates, trace, originalTraceRef, externalId);
+            return Build(IncomingNachaLinkType.ExactCompositeBusinessKey, compositeCandidates[0], true, 0.90m, false, false, "ExactCompositeBusinessKeyV2", compositeCandidates, trace, originalTraceRef, recipientIdentifier);
         }
 
         if (compositeCandidates.Count > 1)
         {
-            return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.15m, true, false, "AmbiguousCompositeBusinessKeyV2", compositeCandidates, trace, originalTraceRef, externalId);
+            return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.15m, true, false, "AmbiguousCompositeBusinessKeyV2", compositeCandidates, trace, originalTraceRef, recipientIdentifier);
         }
 
-        return Build(IncomingNachaLinkType.NotFound, null, false, 0.0m, false, true, "NotFound", [], trace, originalTraceRef, externalId);
+        return Build(IncomingNachaLinkType.NotFound, null, false, 0.0m, false, true, "NotFound", [], trace, originalTraceRef, recipientIdentifier);
     }
 
     private static TransactionTypeEnum? ResolveExpectedTransactionType(IncomingNachaFunctionalClass functionalClass)
@@ -167,9 +150,9 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
             IncomingNachaFunctionalClass.CreditoEntrante => TransactionTypeEnum.Credit,
             IncomingNachaFunctionalClass.DebitoEntrante => TransactionTypeEnum.Debit,
             IncomingNachaFunctionalClass.Prenotificacion => TransactionTypeEnum.Credit,
-            IncomingNachaFunctionalClass.Devolucion => TransactionTypeEnum.Debit,
-            IncomingNachaFunctionalClass.RechazadaOperador => TransactionTypeEnum.Debit,
-            IncomingNachaFunctionalClass.RetornoEpr => TransactionTypeEnum.Debit,
+            IncomingNachaFunctionalClass.Devolucion => null,
+            IncomingNachaFunctionalClass.RechazadaOperador => null,
+            IncomingNachaFunctionalClass.RetornoEpr => null,
             _ => null
         };
     }
@@ -185,7 +168,7 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
         IReadOnlyList<int> candidates,
         string trace,
         string originalTrace,
-        string externalId)
+        string recipientIdentifier)
     {
         return new IncomingNachaLinkingResult
         {
@@ -201,7 +184,7 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
                 candidates,
                 trace,
                 originalTrace,
-                externalId
+                recipientIdentifier
             })
         };
     }

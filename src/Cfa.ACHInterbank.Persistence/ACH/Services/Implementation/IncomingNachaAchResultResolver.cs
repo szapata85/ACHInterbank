@@ -36,10 +36,18 @@ public sealed class IncomingNachaAchResultResolver : IIncomingNachaAchResultReso
                 || (request.IsCredit && x.AppliesToCredit)
                 || (request.IsPrenotification && x.AppliesToPrenotification)
                 || (request.IsReturn && x.AppliesToReturn))
-            .OrderByDescending(x => x.FlowType == request.FlowType)
-            .ThenByDescending(x => x.EffectiveFrom)
-            .Take(2)
             .ToListAsync(ct);
+
+        if (candidates.Any(x => x.FlowType == request.FlowType))
+        {
+            candidates = candidates.Where(x => x.FlowType == request.FlowType).ToList();
+        }
+
+        if (candidates.Count > 0)
+        {
+            var latestEffectiveFrom = candidates.Max(x => x.EffectiveFrom);
+            candidates = candidates.Where(x => x.EffectiveFrom == latestEffectiveFrom).Take(2).ToList();
+        }
 
         if (candidates.Count != 1)
         {

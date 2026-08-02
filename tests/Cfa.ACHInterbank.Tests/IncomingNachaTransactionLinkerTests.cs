@@ -21,15 +21,15 @@ public class IncomingNachaTransactionLinkerTests
     }
 
     [Fact]
-    public async Task LinkAsync_ByExternalId_Exact()
+    public async Task LinkAsync_DoesNotTreatRecipientIdAsTransactionExternalId()
     {
         using var context = BuildContext();
         SeedTx(context, 2, trace: "223456789012345", externalId: "EXT-2");
         var sut = new IncomingNachaTransactionLinker(context);
 
         var result = await sut.LinkAsync(new EntryDetail { SequenceNumber = "000000000000001", RecipIdNumber = "EXT-2", Amount = 10, AccountNumber = "001", TransactionCode = "22" }, null, new IncomingNachaLinkingContext { FunctionalClass = IncomingNachaFunctionalClass.CreditoEntrante });
-        Assert.Equal(IncomingNachaLinkType.ExactTransactionExternalId, result.LinkType);
-        Assert.Equal(2, result.AchTransactionId);
+        Assert.Equal(IncomingNachaLinkType.NotFound, result.LinkType);
+        Assert.Null(result.AchTransactionId);
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class IncomingNachaTransactionLinkerTests
     }
 
     [Fact]
-    public async Task LinkAsync_CompositeKey_UsesFunctionalClassToAvoidCreditDebitCollision()
+    public async Task LinkAsync_ReturnCompositeKey_DoesNotGuessTransactionType()
     {
         using var context = BuildContext();
         SeedTx(context, 30, trace: "999999999999930", externalId: "EXT-F1", amount: 810, account: "AC3", recipientId: "RID3", transactionCode: "27", achCycleId: "CYCLE-X", receivingDfi: "333333330", effectiveDate: new DateTime(2026, 4, 20), type: Domain.Entities.Transactions.Enums.TransactionTypeEnum.Credit);
@@ -144,8 +144,8 @@ public class IncomingNachaTransactionLinkerTests
                 OperationalDate = new DateTime(2026, 4, 20)
             });
 
-        Assert.Equal(IncomingNachaLinkType.ExactCompositeBusinessKey, result.LinkType);
-        Assert.Equal(31, result.AchTransactionId);
+        Assert.Equal(IncomingNachaLinkType.Ambiguous, result.LinkType);
+        Assert.Null(result.AchTransactionId);
     }
 
     private static AchDbContext BuildContext()

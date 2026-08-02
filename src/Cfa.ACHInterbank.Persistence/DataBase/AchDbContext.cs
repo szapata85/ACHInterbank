@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
@@ -99,6 +100,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<ReturnReason> ReturnReasons => Set<ReturnReason>();
     public DbSet<AchReturnGenerated> AchReturnsGenerated => Set<AchReturnGenerated>();
     public DbSet<AchFileExport> AchFileExports => Set<AchFileExport>();
+    public DbSet<AchFileExportTransaction> AchFileExportTransactions => Set<AchFileExportTransaction>();
     public DbSet<ContrapartidaDispatchBatch> ContrapartidaDispatchBatches => Set<ContrapartidaDispatchBatch>();
     public DbSet<ContrapartidaDispatchItem> ContrapartidaDispatchItems => Set<ContrapartidaDispatchItem>();
     public DbSet<ContrapartidaDispatchAttempt> ContrapartidaDispatchAttempts => Set<ContrapartidaDispatchAttempt>();
@@ -199,6 +201,21 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AchDbContext).Assembly);
 
         var isPostgres = Database.ProviderName?.Contains("Npgsql") == true;
+        modelBuilder.Entity<AchTransactionStateEvent>()
+            .HasIndex(x => x.IdempotencyKey)
+            .IsUnique()
+            .HasDatabaseName("UX_AchTransactionStateEvents_IdempotencyKey")
+            .HasFilter(isPostgres ? "\"IdempotencyKey\" IS NOT NULL" : "[IdempotencyKey] IS NOT NULL");
+        modelBuilder.Entity<AchFileExport>()
+            .HasIndex(x => new { x.AchCycleId, x.ExportKind, x.IsEncrypted, x.Version })
+            .IsUnique()
+            .HasDatabaseName("UX_AchFileExports_Cycle_Kind_Encrypted_Version")
+            .HasFilter(isPostgres ? "\"Version\" IS NOT NULL" : "[Version] IS NOT NULL");
+        modelBuilder.Entity<CenitCycleQueue>()
+            .HasIndex(x => new { x.AchTransactionId, x.TargetAchCycleId })
+            .IsUnique()
+            .HasDatabaseName("UX_CenitCycleQueues_ActiveTarget")
+            .HasFilter(isPostgres ? "\"Status\" = 'Queued'" : "[Status] = 'Queued'");
         modelBuilder.Entity<DigitalEnvelopeCertificate>()
             .Property(c => c.UploadedAt)
             .HasDefaultValueSql(isPostgres ? "timezone('utc', now())" : "GETUTCDATE()");
@@ -466,6 +483,46 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         if (ChangeTracker.Entries<AchResponseAudit>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("La auditoría de respuestas ACH es inmutable.");
 
+        foreach (var entry in ChangeTracker.Entries<AchTransaction>().Where(x => x.State == EntityState.Modified))
+        {
+            var classificationChanged = HasChanged(entry.Property(x => x.Direction))
+                || HasChanged(entry.Property(x => x.Origin))
+                || HasChanged(entry.Property(x => x.MonetaryIntegrationRoute))
+                || HasChanged(entry.Property(x => x.ClassificationStatus))
+                || HasChanged(entry.Property(x => x.SourceInstitutionWasDefaultAtCreation))
+                || HasChanged(entry.Property(x => x.ClassifiedAtUtc))
+                || HasChanged(entry.Property(x => x.ClassificationVersion));
+            if (classificationChanged)
+            {
+                throw new InvalidOperationException("La clasificación histórica de una transacción ACH es inmutable.");
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<AchFileExport>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+        {
+            var export = entry.Entity;
+            var requiresTransmissionEvidence = export.LifecycleStatus is
+                AchFileExportLifecycleStatus.Transmitted or
+                AchFileExportLifecycleStatus.Acknowledged or
+                AchFileExportLifecycleStatus.Accepted or
+                AchFileExportLifecycleStatus.Rejected;
+            if (requiresTransmissionEvidence
+                && (string.IsNullOrWhiteSpace(export.TransmissionReference) || !export.TransmittedAtUtc.HasValue))
+            {
+                throw new InvalidOperationException("Un archivo no puede declararse transmitido sin referencia externa y fecha verificables.");
+            }
+
+            var requiresAcknowledgementEvidence = export.LifecycleStatus is
+                AchFileExportLifecycleStatus.Acknowledged or
+                AchFileExportLifecycleStatus.Accepted or
+                AchFileExportLifecycleStatus.Rejected;
+            if (requiresAcknowledgementEvidence
+                && (!export.AcknowledgedAtUtc.HasValue || string.IsNullOrWhiteSpace(export.AcknowledgementCode)))
+            {
+                throw new InvalidOperationException("Un archivo no puede declararse acusado, aceptado o rechazado sin evidencia de acuse.");
+            }
+        }
+
         foreach (var entry in ChangeTracker.Entries<AchResponse>().Where(x => x.State is EntityState.Added or EntityState.Modified))
             entry.Entity.Version = Guid.NewGuid();
         foreach (var entry in ChangeTracker.Entries<AchResponseStatusMapping>().Where(x => x.State is EntityState.Added or EntityState.Modified))
@@ -541,6 +598,9 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
 
         return await base.SaveChangesAsync(cancellationToken);
     }
+
+    private static bool HasChanged<T>(PropertyEntry<AchTransaction, T> property)
+        => property.IsModified && !EqualityComparer<T>.Default.Equals(property.OriginalValue, property.CurrentValue);
 
     private List<AuditLog> BuildAuditEntries(DateTime now, string changedBy, string? correlationId, string? actionContext)
     {

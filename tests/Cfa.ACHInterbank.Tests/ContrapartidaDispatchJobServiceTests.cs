@@ -8,6 +8,7 @@ using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -734,8 +735,8 @@ public class ContrapartidaDispatchJobServiceTests
             Amount = 1000m,
             TransactionExternalId = $"TX-CP-{sufijo}",
             Reference = $"REF-CP-{sufijo}",
-            Type = TransactionTypeEnum.Credit,
-            TransactionCode = "22",
+            Type = TransactionTypeEnum.Debit,
+            TransactionCode = "27",
             ServiceClassCode = "220",
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             CompanyName = "EMPRESA",
@@ -752,7 +753,14 @@ public class ContrapartidaDispatchJobServiceTests
             SourceInstitutionId = 1,
             DestinationInstitutionId = 2,
             AchCycleId = cycleId,
-            AchBatch = batch
+            AchBatch = batch,
+            Direction = AchTransactionDirection.Outgoing,
+            Origin = AchTransactionOrigin.Cfa,
+            MonetaryIntegrationRoute = AchMonetaryIntegrationRoute.ProcContrapartidas,
+            ClassificationStatus = AchTransactionClassificationStatus.Determined,
+            SourceInstitutionWasDefaultAtCreation = true,
+            ClassifiedAtUtc = DateTime.UtcNow,
+            ClassificationVersion = 1
         };
 
         context.AchTransactions.Add(tx);

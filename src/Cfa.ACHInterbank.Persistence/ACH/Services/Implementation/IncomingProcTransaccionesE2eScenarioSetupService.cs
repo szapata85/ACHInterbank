@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -154,6 +155,13 @@ public sealed class IncomingProcTransaccionesE2eScenarioSetupService
                 EffectiveEntryDate = achCycle.ProcessingDate.Date,
                 AddendaRecordIndicator = false,
                 IsPrenotification = false,
+                Direction = AchTransactionDirection.Incoming,
+                Origin = AchTransactionOrigin.ExternalInstitution,
+                MonetaryIntegrationRoute = AchMonetaryIntegrationRoute.ProcTransacciones,
+                ClassificationStatus = AchTransactionClassificationStatus.Determined,
+                SourceInstitutionWasDefaultAtCreation = false,
+                ClassifiedAtUtc = DateTime.UtcNow,
+                ClassificationVersion = 1,
                 State = AchTransferStateEnum.Pending,
                 StateChangedAtUtc = DateTime.UtcNow,
                 RecipientIdNumber = SyntheticRecipientId,

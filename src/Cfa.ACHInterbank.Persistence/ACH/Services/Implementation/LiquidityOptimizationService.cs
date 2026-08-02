@@ -8,6 +8,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Data;
 using System.Text.Json;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -40,23 +41,66 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
 
     public async Task<IReadOnlyCollection<LiquidityOptimizationDecision>> OptimizeCycleAsync(CenitCycleExecution execution, CancellationToken ct)
     {
+        if (!_context.Database.IsRelational())
+        {
+            return await OptimizeCycleCoreAsync(execution, ct);
+        }
+
+        var strategy = _context.Database.CreateExecutionStrategy();
+        IReadOnlyCollection<LiquidityOptimizationDecision>? result = null;
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            result = await OptimizeCycleCoreAsync(execution, ct);
+            await transaction.CommitAsync(ct);
+        });
+        return result ?? [];
+    }
+
+    private async Task<IReadOnlyCollection<LiquidityOptimizationDecision>> OptimizeCycleCoreAsync(CenitCycleExecution execution, CancellationToken ct)
+    {
+        var existing = await _context.LiquidityOptimizationDecisions
+            .AsNoTracking()
+            .Where(x => x.CenitCycleExecutionId == execution.Id)
+            .OrderBy(x => x.Id)
+            .ToListAsync(ct);
+        if (existing.Count > 0)
+        {
+            return existing;
+        }
+
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(x => x.ClearingHouse)
                 .ThenInclude(x => x!.ClearingHouseConfig)
             .FirstAsync(x => x.Id == execution.AchCycleId, ct);
         var cycleIndex = ExtractCycleIndex(cycle.CycleName);
-        var sourceFileReference = await _context.AchFileExports
-            .AsNoTracking()
-            .Where(x => x.AchCycleId == execution.AchCycleId)
-            .OrderByDescending(x => x.GeneratedAtUtc)
-            .Select(x => x.FileName)
-            .FirstOrDefaultAsync(ct) ?? string.Empty;
-
         var transactions = await _context.AchTransactions
+            .Include(x => x.AchBatch)
+            .Include(x => x.ContrapartidaDispatchItem)
             .Where(x => x.AchCycleId == execution.AchCycleId)
             .OrderByDescending(x => x.Amount)
             .ToListAsync(ct);
+        var transactionIds = transactions.Select(x => x.Id).ToArray();
+        var exactFileMemberships = await _context.AchFileExportTransactions
+            .AsNoTracking()
+            .Where(x => transactionIds.Contains(x.AchTransactionId))
+            .Select(x => new
+            {
+                x.AchTransactionId,
+                x.AchFileExport.FileName,
+                x.AchFileExport.Version,
+                x.AchFileExport.GeneratedAtUtc
+            })
+            .ToListAsync(ct);
+        var sourceFileByTransaction = exactFileMemberships
+            .GroupBy(x => x.AchTransactionId)
+            .ToDictionary(
+                x => x.Key,
+                x => x.OrderByDescending(y => y.Version)
+                    .ThenByDescending(y => y.GeneratedAtUtc)
+                    .Select(y => y.FileName)
+                    .First());
 
         var balances = await _context.CenitNetPositions
             .Where(x => x.CenitNettingExecution.CenitCycleExecutionId == execution.Id)
@@ -79,6 +123,8 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
             string reason;
             string? nextCycleId = null;
             var previousState = tx.State;
+            var previousBatchId = tx.AchBatchId;
+            var sourceFileReference = sourceFileByTransaction.GetValueOrDefault(tx.Id) ?? string.Empty;
 
             if (hasLiquidity)
             {
@@ -93,18 +139,35 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
                 nextCycleId = await ResolveNextCycleIdAsync(cycle, ct);
                 if (!string.IsNullOrWhiteSpace(nextCycleId))
                 {
+                    var targetBatch = await ResolveTargetBatchAsync(tx, nextCycleId, ct);
                     tx.AchCycleId = nextCycleId;
+                    tx.AchBatch = targetBatch;
+                    tx.AchBatchId = targetBatch.Id;
                     tx.StateChangedAtUtc = DateTime.UtcNow;
-                    _context.CenitCycleQueues.Add(new CenitCycleQueue
+                    if (tx.ContrapartidaDispatchItem is not null)
                     {
-                        AchTransactionId = tx.Id,
-                        OriginalAchCycleId = cycle.Id,
-                        TargetAchCycleId = nextCycleId,
-                        QueueReason = "LiquidityDeferredByRule123",
-                        Status = "Queued",
-                        EnqueuedAtUtc = DateTime.UtcNow,
-                        CenitCycleExecutionId = execution.Id
-                    });
+                        tx.ContrapartidaDispatchItem.AchCycleId = nextCycleId;
+                        tx.ContrapartidaDispatchItem.AchBatchId = targetBatch.Id;
+                        tx.ContrapartidaDispatchItem.ClearingHouseId = cycle.ClearingHouseId;
+                    }
+
+                    var alreadyQueued = await _context.CenitCycleQueues.AnyAsync(x =>
+                        x.AchTransactionId == tx.Id
+                        && x.TargetAchCycleId == nextCycleId
+                        && x.Status == "Queued", ct);
+                    if (!alreadyQueued)
+                    {
+                        _context.CenitCycleQueues.Add(new CenitCycleQueue
+                        {
+                            AchTransactionId = tx.Id,
+                            OriginalAchCycleId = cycle.Id,
+                            TargetAchCycleId = nextCycleId,
+                            QueueReason = "LiquidityDeferredByRule123",
+                            Status = "Queued",
+                            EnqueuedAtUtc = DateTime.UtcNow,
+                            CenitCycleExecutionId = execution.Id
+                        });
+                    }
                 }
             }
             else if (cycleIndex is 4 or 5)
@@ -153,8 +216,11 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
                         decision,
                         reason,
                         fromCycle = cycle.Id,
-                        toCycle = nextCycleId
-                    })
+                        toCycle = nextCycleId,
+                        fromBatchId = previousBatchId,
+                        toBatchId = tx.AchBatchId
+                    }),
+                    OccurredAtUtc = tx.StateChangedAtUtc
                 });
             }
         }
@@ -163,6 +229,52 @@ public class LiquidityOptimizationService : ILiquidityOptimizationService
         await _context.SaveChangesAsync(ct);
         CompareLiquidityShadow(cycle, execution, decisions);
         return decisions;
+    }
+
+    private async Task<AchBatch> ResolveTargetBatchAsync(AchTransaction transaction, string targetCycleId, CancellationToken ct)
+    {
+        var sourceBatch = transaction.AchBatch
+            ?? throw new InvalidOperationException("La transacción no tiene lote de origen para realizar la reasignación.");
+        var targetCycle = await _context.AchCycles.AsNoTracking()
+            .FirstAsync(x => x.Id == targetCycleId, ct);
+
+        var tracked = _context.AchBatches.Local.FirstOrDefault(x =>
+            x.AchCycleId == targetCycleId
+            && x.CompanyName == sourceBatch.CompanyName
+            && x.CompanyIdentification == sourceBatch.CompanyIdentification
+            && x.CompanyEntryDescription == sourceBatch.CompanyEntryDescription
+            && x.EffectiveEntryDate == targetCycle.ProcessingDate.Date);
+        if (tracked is not null)
+        {
+            return tracked;
+        }
+
+        var existing = await _context.AchBatches.FirstOrDefaultAsync(x =>
+            x.AchCycleId == targetCycleId
+            && x.CompanyName == sourceBatch.CompanyName
+            && x.CompanyIdentification == sourceBatch.CompanyIdentification
+            && x.CompanyEntryDescription == sourceBatch.CompanyEntryDescription
+            && x.EffectiveEntryDate == targetCycle.ProcessingDate.Date, ct);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var targetBatch = new AchBatch
+        {
+            AchCycleId = targetCycleId,
+            ServiceClassCode = sourceBatch.ServiceClassCode,
+            CompanyName = sourceBatch.CompanyName,
+            CompanyIdentification = sourceBatch.CompanyIdentification,
+            CompanyEntryDescription = sourceBatch.CompanyEntryDescription,
+            CompanyEntryDescriptionId = sourceBatch.CompanyEntryDescriptionId,
+            OriginOrOdfi = sourceBatch.OriginOrOdfi,
+            EffectiveEntryDate = targetCycle.ProcessingDate.Date,
+            BatchSequenceNumber = 0
+        };
+        _context.AchBatches.Add(targetBatch);
+        await _context.SaveChangesAsync(ct);
+        return targetBatch;
     }
 
     private void CompareLiquidityShadow(AchCycle cycle, CenitCycleExecution execution, IReadOnlyCollection<LiquidityOptimizationDecision> decisions)

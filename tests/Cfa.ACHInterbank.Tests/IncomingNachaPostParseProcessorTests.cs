@@ -159,8 +159,11 @@ public class IncomingNachaPostParseProcessorTests
             });
 
         var state = new Mock<IAchStateTransitionService>();
-        state.Setup(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchTransaction { Id = 100 });
+        state.Setup(x => x.TransitionAsync(It.IsAny<AchStateTransitionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchStateTransitionResult(new AchTransaction { Id = 100 }, true, false));
+        var resultResolver = new Mock<IIncomingNachaAchResultResolver>();
+        resultResolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaAchResultRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaAchResultResolution(true, 77, "R01", "Fondos insuficientes", IncomingNachaBusinessOutcome.Returned, "OK"));
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
         regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>
@@ -168,10 +171,17 @@ public class IncomingNachaPostParseProcessorTests
                 new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
             });
 
-        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object, null, resultResolver.Object);
         await sut.ProcessAsync(ingestionId, "tester");
 
-        state.Verify(x => x.TransitionAsync(100, AchTransferStateEnum.ReturnedByEpr, AchStateEventSourceEnum.Epr, "R01", It.IsAny<string?>(), "123456789012345", It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
+        state.Verify(x => x.TransitionAsync(
+            It.Is<AchStateTransitionRequest>(request => request.TransactionId == 100
+                && request.ToState == AchTransferStateEnum.ReturnedByEpr
+                && request.Source == AchStateEventSourceEnum.Epr
+                && request.ReasonCode == "R01"
+                && request.OriginalTraceRef == "123456789012345"
+                && request.IdempotencyKey != null),
+            It.IsAny<CancellationToken>()), Times.Once);
         Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(e => e.EventType == "TransicionDisparada"));
     }
 
@@ -180,6 +190,8 @@ public class IncomingNachaPostParseProcessorTests
     {
         using var context = BuildContext();
         SeedMinimalParsed(context, out var ingestionId, out _, out _);
+        context.ClearingHouses.Single().Code = "ACHCOL";
+        context.SaveChanges();
 
         var classifier = new Mock<IIncomingNachaFunctionalClassifier>();
         classifier.Setup(x => x.Classify(It.IsAny<EntryDetail>(), It.IsAny<AddendaRecord?>()))
@@ -206,8 +218,11 @@ public class IncomingNachaPostParseProcessorTests
             });
 
         var state = new Mock<IAchStateTransitionService>();
-        state.Setup(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchTransaction { Id = 101 });
+        state.Setup(x => x.TransitionAsync(It.IsAny<AchStateTransitionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchStateTransitionResult(new AchTransaction { Id = 101 }, true, false));
+        var resultResolver = new Mock<IIncomingNachaAchResultResolver>();
+        resultResolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaAchResultRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaAchResultResolution(true, 78, "DEV14", "Rechazo del operador", IncomingNachaBusinessOutcome.Rejected, "OK"));
 
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
         regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
@@ -216,10 +231,17 @@ public class IncomingNachaPostParseProcessorTests
                 new() { Code = "DEV14", Description = "rechazo operador", AppliesToReturn = true, IsActive = true, RegulatorySource = "OPERATOR" }
             });
 
-        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);
+        var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object, null, resultResolver.Object);
         await sut.ProcessAsync(ingestionId, "tester");
 
-        state.Verify(x => x.TransitionAsync(101, AchTransferStateEnum.ReturnedByOperator, AchStateEventSourceEnum.Operator, "DEV14", It.IsAny<string?>(), "123456789012345", It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Once);
+        state.Verify(x => x.TransitionAsync(
+            It.Is<AchStateTransitionRequest>(request => request.TransactionId == 101
+                && request.ToState == AchTransferStateEnum.ReturnedByOperator
+                && request.Source == AchStateEventSourceEnum.Operator
+                && request.ReasonCode == "DEV14"
+                && request.OriginalTraceRef == "123456789012345"
+                && request.IdempotencyKey != null),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -374,7 +396,9 @@ public class IncomingNachaPostParseProcessorTests
             ContentType = "text/plain",
             UploadedBy = "u",
             CorrelationId = "c",
-            Notes = "n"
+            Notes = "n",
+            ResolvedClearingHouseId = 1,
+            OperationalDate = new DateTime(2026, 8, 2)
         };
 
         var header = new NachaHeader { NachaID = "N1", IncomingNachaFileIngestionId = ingestionId };
@@ -385,6 +409,26 @@ public class IncomingNachaPostParseProcessorTests
         context.NachaHeaders.Add(header);
         context.EntryDetails.Add(entry);
         context.AddendaRecords.Add(addenda);
+        context.ClearingHouses.Add(new ClearingHouse { Id = 1, Name = "CENIT", Code = "CENIT", OriginCode = "00010100" });
+        for (var transactionId = 100; transactionId <= 104; transactionId++)
+        {
+            context.AchTransactions.Add(new AchTransaction
+            {
+                Id = transactionId,
+                Amount = 100,
+                TransactionExternalId = $"EXT-{transactionId}",
+                Reference = $"REF-{transactionId}",
+                Type = TransactionTypeEnum.Debit,
+                TransactionCode = "27",
+                TraceNumber = $"12345678{transactionId:0000000}",
+                EffectiveEntryDate = new DateTime(2026, 8, 2),
+                State = AchTransferStateEnum.Pending,
+                SourceAccountNumber = "1",
+                DestinationAccountNumber = "2",
+                AchCycleId = "C1",
+                AchBatchId = 1
+            });
+        }
         context.SaveChanges();
 
         entryId = entry.EntryDetailID;

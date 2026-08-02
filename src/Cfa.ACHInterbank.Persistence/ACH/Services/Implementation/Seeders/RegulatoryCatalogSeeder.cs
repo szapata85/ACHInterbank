@@ -24,7 +24,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
     {
         var clearingHouseIds = await ResolveReturnClearingHouseIdsAsync();
         await UpsertReturnCodesAsync(clearingHouseIds);
-        await UpsertFileRejectionCodesAsync();
+        await UpsertFileRejectionCodesAsync(clearingHouseIds);
         await UpsertTransactionTypePoliciesAsync();
         await UpsertReturnPoliciesAsync(clearingHouseIds);
         await UpsertReturnOfReturnPoliciesAsync(clearingHouseIds);
@@ -41,6 +41,17 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         var desired = BuildReturnCodes(clearingHouseIds)
             .ToDictionary(x => $"{x.ClearingHouseId}|{x.Code}|{x.FlowType}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchReturnCodes.ToListAsync();
+
+        foreach (var legacyR96 in existing.Where(x =>
+                     string.Equals(x.Code, "R96", StringComparison.OrdinalIgnoreCase)
+                     && string.Equals(x.FlowType, AchReturnFlowType.Any, StringComparison.OrdinalIgnoreCase)
+                     && !x.AppliesToReturn
+                     && x.EffectiveFrom.Year <= 2000))
+        {
+            legacyR96.IsActive = false;
+            legacyR96.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
+            legacyR96.RegulatorySource = "R96_INTEGRATION_ONLY";
+        }
 
         foreach (var row in existing)
         {
@@ -74,16 +85,29 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         }
     }
 
-    private async Task UpsertFileRejectionCodesAsync()
+    private async Task UpsertFileRejectionCodesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
     {
-        var desired = BuildFileRejectionCodes().ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+        var desired = BuildFileRejectionCodes(clearingHouseIds)
+            .ToDictionary(x => $"{x.ClearingHouseId}|{x.Code}|{x.AppliesToStage}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.AchFileRejectionCodes.ToListAsync();
 
         foreach (var row in existing)
         {
-            if (!desired.TryGetValue(row.Code, out var model))
+            if (!row.ClearingHouseId.HasValue && row.Code.StartsWith('D'))
             {
-                continue;
+                row.ClearingHouseId = clearingHouseIds.CenitId;
+            }
+
+            var key = $"{row.ClearingHouseId}|{row.Code}|{row.AppliesToStage}";
+            if (!desired.TryGetValue(key, out var model))
+            {
+                model = desired.Values.SingleOrDefault(x =>
+                    x.ClearingHouseId == row.ClearingHouseId
+                    && string.Equals(x.Code, row.Code, StringComparison.OrdinalIgnoreCase));
+                if (model is null)
+                {
+                    continue;
+                }
             }
 
             row.Description = model.Description;
@@ -91,9 +115,14 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.AppliesToStage = model.AppliesToStage;
             row.IsRetryable = model.IsRetryable;
             row.IsActive = model.IsActive;
+            row.EffectiveFrom = model.EffectiveFrom;
+            row.EffectiveTo = model.EffectiveTo;
+            row.RegulatorySource = model.RegulatorySource;
         }
 
-        foreach (var model in desired.Values.Where(x => existing.All(e => !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase))))
+        foreach (var model in desired.Values.Where(x => existing.All(e =>
+                     e.ClearingHouseId != x.ClearingHouseId
+                     || !string.Equals(e.Code, x.Code, StringComparison.OrdinalIgnoreCase))))
         {
             _context.AchFileRejectionCodes.Add(model);
         }
@@ -303,48 +332,26 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                     : throw new InvalidOperationException($"RegulatorySource no soportado para seed de devoluciones: {row.RegulatorySource}");
         }
 
-        return rows.Concat(new[]
-        {
-            new AchReturnCode
-            {
-                ClearingHouseId = clearingHouseIds.CenitId,
-                Code = "R96",
-                Description = "Transacción procesada exitosamente",
-                AppliesToDebit = true,
-                AppliesToCredit = true,
-                IsActive = true,
-                RegulatorySource = "CENIT",
-                BusinessOutcome = IncomingNachaBusinessOutcome.Successful
-            },
-            new AchReturnCode
-            {
-                ClearingHouseId = clearingHouseIds.AchColombiaId,
-                Code = "R96",
-                Description = "Transacción procesada exitosamente",
-                AppliesToDebit = true,
-                AppliesToCredit = true,
-                IsActive = true,
-                RegulatorySource = "ACH",
-                BusinessOutcome = IncomingNachaBusinessOutcome.Successful
-            }
-        });
+        return rows;
     }
 
-    private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes()
+    private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes((int CenitId, int AchColombiaId) clearingHouseIds)
     {
+        var effectiveFrom = new DateTime(2024, 1, 1);
+        const string cenitSource = "CENIT DSP-152 Anexo B; MATRIZ_REGLAS_CENIT";
         return new[]
         {
-            new AchFileRejectionCode { Code = "D01", Description = "Archivo duplicado detectado por hash/tamaño.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D02", Description = "Formato/estructura de archivo inválida o padding no conforme.", Severity = "Fatal", AppliesToStage = "Parser", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D03", Description = "Operador o canal de transmisión incorrecto.", Severity = "Fatal", AppliesToStage = "Transmission", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D04", Description = "Inconsistencia de secuencia, batch count o conteos físicos.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D05", Description = "Control hash/cuadres NACHA inválidos.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "D06", Description = "Campo obligatorio ausente o registro fuera de orden esperado.", Severity = "Fatal", AppliesToStage = "Parser", IsRetryable = false, IsActive = true },
-            new AchFileRejectionCode { Code = "I500", Description = "Error técnico de integración externa (HTTP 500).", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true },
-            new AchFileRejectionCode { Code = "I503", Description = "Servicio externo no disponible (HTTP 503).", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true },
-            new AchFileRejectionCode { Code = "ITIMEOUT", Description = "Timeout técnico en integración SOAP.", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true },
-            new AchFileRejectionCode { Code = "ISOAP", Description = "SOAP fault técnico recuperable.", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true },
-            new AchFileRejectionCode { Code = "IFUNC", Description = "Rechazo funcional de integración no reintentable automáticamente.", Severity = "Warning", AppliesToStage = "Integration", IsRetryable = false, IsActive = true }
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D01", Description = "El archivo está dirigido a una entidad receptora diferente de la esperada.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D02", Description = "El archivo fue firmado o cifrado para un operador receptor o usuarios no válidos.", Severity = "Fatal", AppliesToStage = "Protection", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D03", Description = "El archivo tiene formato incorrecto y no fue posible procesarlo.", Severity = "Fatal", AppliesToStage = "Parser", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D04", Description = "El archivo ya fue recibido y corresponde a un duplicado.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D05", Description = "El número de registros del nombre externo no coincide con el contenido del archivo.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { ClearingHouseId = clearingHouseIds.CenitId, Code = "D06", Description = "La distribución del archivo no corresponde al operador receptor según las reglas vigentes.", Severity = "Fatal", AppliesToStage = "Validation", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = cenitSource },
+            new AchFileRejectionCode { Code = "I500", Description = "Error técnico de integración externa (HTTP 500).", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" },
+            new AchFileRejectionCode { Code = "I503", Description = "Servicio externo no disponible (HTTP 503).", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" },
+            new AchFileRejectionCode { Code = "ITIMEOUT", Description = "Tiempo de espera agotado en la integración SOAP.", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" },
+            new AchFileRejectionCode { Code = "ISOAP", Description = "Falla técnica SOAP recuperable.", Severity = "Error", AppliesToStage = "Integration", IsRetryable = true, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" },
+            new AchFileRejectionCode { Code = "IFUNC", Description = "Rechazo funcional de integración no reintentable automáticamente.", Severity = "Warning", AppliesToStage = "Integration", IsRetryable = false, IsActive = true, EffectiveFrom = effectiveFrom, RegulatorySource = "Catálogo técnico interno" }
         };
     }
 

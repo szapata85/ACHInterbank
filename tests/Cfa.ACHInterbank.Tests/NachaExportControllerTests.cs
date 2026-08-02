@@ -72,7 +72,7 @@ public class NachaExportControllerTests
         var result = await controller.Export(identifier, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
-        builder.Verify(x => x.BuildNachaFileByCycleAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        builder.Verify(x => x.BuildNachaFileArtifactByCycleAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -167,8 +167,8 @@ public class NachaExportControllerTests
         var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
 
         builder
-            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(nachaContent);
+            .Setup(b => b.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaFileBuildArtifact(nachaContent, []));
         cycleService
             .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 1, CycleName = "CICLO-1", ProcessingDate = DateTime.UtcNow });
@@ -176,7 +176,7 @@ public class NachaExportControllerTests
             .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
         auditService
-            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 1, "NACHA", externalFileName, 0, 0, false, It.IsAny<CancellationToken>()))
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 1, "NACHA", externalFileName, 0, 0, false, It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         externalFileNamePolicy
             .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
@@ -224,8 +224,8 @@ public class NachaExportControllerTests
         var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
 
         builder
-            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(nachaContent);
+            .Setup(b => b.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaFileBuildArtifact(nachaContent, []));
         cycleService
             .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 7, CycleName = "Ciclo 7", ProcessingDate = DateTime.UtcNow });
@@ -236,7 +236,7 @@ public class NachaExportControllerTests
             .Setup(p => p.ShouldEncrypt(7))
             .Returns(true);
         auditService
-            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 7, "NACHA", externalFileName, 0, 0, true, It.IsAny<CancellationToken>()))
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 7, "NACHA", externalFileName, 0, 0, true, It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         crypto
             .Setup(c => c.EncryptAsync(
@@ -302,8 +302,8 @@ public class NachaExportControllerTests
         var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
 
         builder
-            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(nachaContent);
+            .Setup(b => b.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaFileBuildArtifact(nachaContent, []));
         cycleService
             .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 2, CycleName = "CICLO-3", ProcessingDate = DateTime.UtcNow });
@@ -314,7 +314,7 @@ public class NachaExportControllerTests
             .Setup(p => p.ShouldEncrypt(2))
             .Returns(false);
         auditService
-            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 2, "NACHA", "12345678.003.1", 2, 0, false, It.IsAny<CancellationToken>()))
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 2, "NACHA", "12345678.003.1", 2, 0, false, It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         externalFileNamePolicy
             .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
@@ -367,7 +367,7 @@ public class NachaExportControllerTests
             .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
         builder
-            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .Setup(b => b.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException(fatalMessage));
 
         var controller = new NachaExportController(
@@ -409,8 +409,8 @@ public class NachaExportControllerTests
             .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
         builder
-            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(string.Empty);
+            .Setup(b => b.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaFileBuildArtifact(string.Empty, []));
 
         var controller = new NachaExportController(
             builder.Object,
@@ -437,6 +437,8 @@ public class NachaExportControllerTests
                 It.IsAny<int>(),
                 It.IsAny<int>(),
                 It.IsAny<bool>(),
+                It.IsAny<IReadOnlyCollection<int>>(),
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -463,7 +465,7 @@ public class NachaExportControllerTests
             .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
         builder
-            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .Setup(b => b.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException(message));
 
         var controller = new NachaExportController(
@@ -502,8 +504,8 @@ public class NachaExportControllerTests
             .Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ClearingHouseDto { Id = 1, Code = "ACHCOL", OriginCode = "12345678", Name = "ACH Colombia" });
         builder
-            .Setup(b => b.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(string.Empty);
+            .Setup(b => b.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaFileBuildArtifact(string.Empty, []));
 
         return new NachaExportController(
             builder.Object,
@@ -546,7 +548,7 @@ public class NachaExportControllerTests
                 Name = "ACH Colombia"
             });
         builder
-            .Setup(service => service.BuildNachaFileByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .Setup(service => service.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(exception);
 
         return new NachaExportController(

@@ -109,6 +109,7 @@ public sealed class OpenApiDocumentGenerationTests
         transactionProperties.TryGetProperty("sourceInstitution", out _).Should().BeFalse();
         transactionProperties.TryGetProperty("achCycle", out _).Should().BeFalse();
         transactionProperties.TryGetProperty("addendas", out _).Should().BeFalse();
+        transactionProperties.TryGetProperty("fileExportMemberships", out _).Should().BeFalse();
 
         AssertAllReferencesAreLocalAndResolvable(root);
     }

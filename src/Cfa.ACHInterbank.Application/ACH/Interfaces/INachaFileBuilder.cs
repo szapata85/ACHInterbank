@@ -23,6 +23,11 @@ public interface INachaFileBuilder
     Task<string> BuildNachaFileByCycleAsync(string cycleId, CancellationToken ct = default);
 
     /// <summary>
+    /// Genera el archivo y devuelve la membresía exacta utilizada en esa versión.
+    /// </summary>
+    Task<Cfa.ACHInterbank.Application.ACH.Models.NachaFileBuildArtifact> BuildNachaFileArtifactByCycleAsync(string cycleId, CancellationToken ct = default);
+
+    /// <summary>
     /// Construye un registro NACHA-M individual de acuerdo con su layout configurado.
     /// </summary>
     /// <typeparam name="T">Entidad del dominio correspondiente al tipo de registro.</typeparam>

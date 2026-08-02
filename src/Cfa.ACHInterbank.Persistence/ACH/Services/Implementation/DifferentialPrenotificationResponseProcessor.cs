@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Homologation.Models;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Processing.Models;
@@ -7,6 +9,7 @@ using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -20,17 +23,20 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
     private readonly ITransactionIntegrationOperationResolver _operationResolver;
     private readonly IIntegrationMappingReadinessService _readinessService;
     private readonly IIntegrationMappingTraceWriter _traceWriter;
+    private readonly IAchStateTransitionService _stateTransitionService;
 
     public DifferentialPrenotificationResponseProcessor(
         AchDbContext context,
         ITransactionIntegrationOperationResolver operationResolver,
         IIntegrationMappingReadinessService readinessService,
-        IIntegrationMappingTraceWriter traceWriter)
+        IIntegrationMappingTraceWriter traceWriter,
+        IAchStateTransitionService stateTransitionService)
     {
         _context = context;
         _operationResolver = operationResolver;
         _readinessService = readinessService;
         _traceWriter = traceWriter;
+        _stateTransitionService = stateTransitionService;
     }
 
     public async Task<DifferentialPrenotificationResponseProcessResult> ProcessAsync(
@@ -55,6 +61,9 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         }
 
         var prenotification = match.Prenotification;
+        response.AchTransactionId = prenotification.Id;
+        response.CorrelationStatus = AchResponseCorrelationStatus.Matched;
+        response.CorrelationCriterion = "VinculoPrenotificacionNacha";
         if (prenotification.State != AchTransferStateEnum.Pending)
         {
             var duplicateTrace = await WriteTraceAsync(command, response, homologation, match, prenotification, cancellationToken);
@@ -158,55 +167,46 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
                 prenotification.Id);
         }
 
-        var fromState = prenotification.State;
-        prenotification.State = route.TargetState!.Value;
-        prenotification.StateChangedAtUtc = DateTime.UtcNow;
-        prenotification.ReturnReasonCode = route.ReasonCode ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(route.OriginalTraceRef))
-        {
-            prenotification.OriginalTraceRef = route.OriginalTraceRef;
-        }
-
-        _context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
-        {
-            AchTransactionId = prenotification.Id,
-            FromState = fromState,
-            ToState = route.TargetState.Value,
-            Source = route.Source,
-            ReasonCode = route.ReasonCode,
-            PayloadJson = JsonSerializer.Serialize(new
-            {
-                responseId = response.Id,
-                traceId = trace.TraceId,
-                command.IdTransaccion,
-                command.CodigoEstadoExterno,
-                command.CodigoCausalExterna,
-                homologation.EstadoInternoNombre,
-                nachaHeaderId = match.NachaHeader?.NachaID,
-                entryDetailId = match.EntryDetail?.EntryDetailID,
-                monetaryMovementCreated = false,
-                balancesAffected = false
-            })
-        });
-
-        var thirdParty = await _context.CustomerThirdParties
-            .FirstOrDefaultAsync(x => x.PrenotificationTransactionId == prenotification.Id, cancellationToken);
-        if (thirdParty is not null)
-        {
-            var thirdPartyStatus = route.TargetState is AchTransferStateEnum.Certified or AchTransferStateEnum.AppliedTacitly
-                ? CustomerThirdPartyStatusEnum.Active
-                : CustomerThirdPartyStatusEnum.Rejected;
-            var validationMessage = thirdPartyStatus == CustomerThirdPartyStatusEnum.Active
-                ? "Prenotificación aprobada automáticamente mediante respuesta NACHA-M."
-                : $"Prenotificación rechazada automáticamente mediante respuesta NACHA-M. Causal: {route.ReasonCode}.";
-
-            thirdParty.ApplyAutomaticNachaResult(
-                thirdPartyStatus,
+        var transition = await _stateTransitionService.TransitionAsync(
+            new AchStateTransitionRequest(
                 prenotification.Id,
-                match.NachaHeader!.AchCycleId,
+                route.TargetState!.Value,
+                route.Source,
+                route.ReasonCode,
+                JsonSerializer.Serialize(new
+                {
+                    responseId = response.Id,
+                    traceId = trace.TraceId,
+                    command.IdTransaccion,
+                    command.CodigoEstadoExterno,
+                    command.CodigoCausalExterna,
+                    homologation.EstadoInternoNombre,
+                    nachaHeaderId = match.NachaHeader?.NachaID,
+                    entryDetailId = match.EntryDetail?.EntryDetailID,
+                    monetaryMovementCreated = false,
+                    balancesAffected = false
+                }),
+                route.OriginalTraceRef,
                 response.FechaRecepcion,
-                validationMessage,
-                $"ach-response:{response.Id:D}:trace:{trace.TraceId}");
+                $"ach-response:{response.Id:D}",
+                response.ClearingHouseId,
+                ResolvedReasonDescription: homologation.DescripcionCausalNormalizada),
+            cancellationToken);
+        if (transition.WasDuplicate)
+        {
+            return new DifferentialPrenotificationResponseProcessResult(
+                Processed: false,
+                StateChanged: false,
+                StateEventCreated: false,
+                TracePersisted: true,
+                MonetaryMovementCreated: false,
+                BalancesAffected: false,
+                Duplicate: true,
+                PrenotificationTransactionId: prenotification.Id,
+                TraceId: trace.TraceId,
+                TargetState: transition.Transaction.State.ToString(),
+                ErrorCode: "DIFFERENTIAL_RESPONSE_ALREADY_PROCESSED",
+                Message: "La respuesta diferencial ya había sido procesada.");
         }
 
         return new DifferentialPrenotificationResponseProcessResult(
@@ -296,7 +296,7 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         var query = _context.AchTransactions
             .Include(x => x.SourceInstitution)
             .Include(x => x.AchCycle)
-            .Where(x => x.IsPrenotification && x.SourceInstitution.IsDefaultSource);
+            .Where(x => x.IsPrenotification);
 
         if (linkedTransactionId.HasValue)
         {
@@ -308,6 +308,9 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         }
 
         var candidates = await query
+            .Where(x => x.Direction == AchTransactionDirection.Outgoing
+                && x.Origin == AchTransactionOrigin.Cfa
+                && x.ClassificationStatus == AchTransactionClassificationStatus.Determined)
             .Where(x => x.Reference == reference
                 || x.TransactionExternalId == reference
                 || x.TraceNumber == reference)

@@ -228,7 +228,8 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
             fixture.Context,
             fixture.OperationResolver,
             readiness.Object,
-            traceWriter.Object);
+            traceWriter.Object,
+            new AchStateTransitionService(fixture.Context));
 
         var result = await sut.ProcessAsync(
             fixture.SuccessCommand(),
@@ -317,7 +318,8 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
                 context,
                 OperationResolver,
                 new IntegrationMappingReadinessService(context, Catalog),
-                new IntegrationMappingTraceWriter(context, Catalog));
+                new IntegrationMappingTraceWriter(context, Catalog),
+                new AchStateTransitionService(context));
         }
 
         public string TraceNumber => "000128300012345";

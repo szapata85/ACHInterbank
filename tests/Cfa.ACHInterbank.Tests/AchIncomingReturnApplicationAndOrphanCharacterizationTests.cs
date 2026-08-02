@@ -42,7 +42,8 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, ev.ToState);
         Assert.Equal(AchStateEventSourceEnum.Epr, ev.Source);
         Assert.Equal("R01", ev.ReasonCode);
-        Assert.Contains("\"eventType\": \"IncomingReturnApplied\"", ev.PayloadJson);
+        using var payload = JsonDocument.Parse(ev.PayloadJson!);
+        Assert.Equal("IncomingReturnApplied", payload.RootElement.GetProperty("eventType").GetString());
     }
 
     [Fact]
@@ -116,6 +117,40 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
     }
 
     [Fact]
+    public async Task IngestAsync_ShouldIgnoreSameSemanticReturnAcrossDifferentFiles()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001, txId: 10);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+        var receivedAt = new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc);
+        var content = BuildType7("R01", "123456780000001");
+
+        var first = await sut.IngestAsync(new("first.ach", content, receivedAt), CancellationToken.None);
+        var duplicate = await sut.IngestAsync(new("second-different-binary-name.ach", content, receivedAt.AddHours(1)), CancellationToken.None);
+
+        Assert.Equal(1, first.UpdatedTransactionCount);
+        Assert.Equal(0, duplicate.UpdatedTransactionCount);
+        Assert.Single(await c.AchTransactionStateEvents.Where(x => x.AchTransactionId == 10).ToListAsync());
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldNotApplyReturn_WhenOriginalTraceIsAmbiguous()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001, txId: 10);
+        SeedTx(c, "123456780000001", 7001, txId: 11, cycleId: "C2");
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+
+        var result = await sut.IngestAsync(
+            new("ambiguous.ach", BuildType7("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)),
+            CancellationToken.None);
+
+        Assert.Equal(0, result.UpdatedTransactionCount);
+        Assert.Contains(result.Failures, x => x.Code == "ORIGINAL_TRANSACTION_AMBIGUOUS");
+        Assert.All(await c.AchTransactions.ToListAsync(), x => Assert.Equal(AchTransferStateEnum.Pending, x.State));
+    }
+
+    [Fact]
     public async Task PostParseProcessor_ShouldCreateStateEvent_WhenIncomingReturnIsAppliedThroughStateTransitionService_CurrentBehavior()
     {
         await using var c = Ctx();
@@ -152,6 +187,19 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         {
             new() { Code = "R01", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
         });
+        c.AchReturnCodes.Add(new AchReturnCode
+        {
+            ClearingHouseId = 7001,
+            Code = "R01",
+            Description = "Devolución configurada",
+            FlowType = AchReturnFlowType.Return,
+            AppliesToCredit = true,
+            BusinessOutcome = IncomingNachaBusinessOutcome.Returned,
+            EffectiveFrom = new DateTime(2024, 1, 1),
+            IsActive = true,
+            RegulatorySource = "CENIT"
+        });
+        await c.SaveChangesAsync();
 
         var stateTransition = new AchStateTransitionService(c);
         var sut = new IncomingNachaPostParseProcessor(c, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, stateTransition);

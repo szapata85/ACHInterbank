@@ -32,7 +32,7 @@ public class BatchResolver : IBatchResolver
 
     public async Task<TransactionBatchContext> ResolveAsync(AchTransactionRequestData request, CancellationToken ct = default)
     {
-        var source = await _context.FinancialInstitutions
+        var sourceCandidates = await _context.FinancialInstitutions
             .AsNoTracking()
             .Where(fi => fi.IsDefaultSource && fi.Status == FinancialInstitutionStatus.Active)
             .Select(fi => new
@@ -42,9 +42,18 @@ public class BatchResolver : IBatchResolver
                 fi.RoutingNumber,
                 fi.TransitCode,
                 fi.CheckDigit
+                ,fi.IsDefaultSource
             })
-            .FirstOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException("No existe institución de origen por defecto y activa.");
+            .ToListAsync(ct);
+        if (sourceCandidates.Count == 0)
+        {
+            throw new InvalidOperationException("No existe una institución de origen por defecto y activa.");
+        }
+        if (sourceCandidates.Count > 1)
+        {
+            throw new InvalidOperationException("Existe más de una institución de origen por defecto activa. La configuración requiere revisión antes de crear transacciones.");
+        }
+        var source = sourceCandidates[0];
 
         string sourceRouting = source.RoutingNumber?.Trim() ?? string.Empty;
         string sourceTransit = source.TransitCode?.Trim() ?? string.Empty;
@@ -69,6 +78,7 @@ public class BatchResolver : IBatchResolver
                 fi.RoutingNumber,
                 fi.TransitCode,
                 fi.CheckDigit
+                ,fi.IsDefaultSource
             })
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Institución destino no encontrada o inactiva.");
@@ -159,7 +169,9 @@ public class BatchResolver : IBatchResolver
             ReturnSlaDeadlineAtUtc = await CalculateReturnSlaDeadlineAtUtcAsync(cycle, ct),
             ServiceClassCode = "200",
             SourceInstitutionId = source.Id,
+            SourceInstitutionIsDefault = source.IsDefaultSource,
             DestinationInstitutionId = dest.Id,
+            DestinationInstitutionIsDefault = dest.IsDefaultSource,
             ClearingHouseId = cycle.ClearingHouseId,
             MustQueueForTargetCycle = isCenit && isOutsideWindow,
             QueueReason = isCenit && isOutsideWindow

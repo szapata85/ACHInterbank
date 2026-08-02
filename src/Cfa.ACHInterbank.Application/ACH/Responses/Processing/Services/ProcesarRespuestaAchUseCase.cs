@@ -19,6 +19,7 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
     private readonly IRespuestaAchStatusMappingService _mappingService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDifferentialPrenotificationResponseProcessor? _prenotificationResponseProcessor;
+    private readonly IAchResponseTransactionCorrelationService? _transactionCorrelationService;
 
     public ProcesarRespuestaAchUseCase(
         ProcesarRespuestaAchCommandValidator validator,
@@ -27,7 +28,8 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         IAchResponseNotificationAttemptRepository attemptRepository,
         IRespuestaAchStatusMappingService mappingService,
         IUnitOfWork unitOfWork,
-        IDifferentialPrenotificationResponseProcessor? prenotificationResponseProcessor = null)
+        IDifferentialPrenotificationResponseProcessor? prenotificationResponseProcessor = null,
+        IAchResponseTransactionCorrelationService? transactionCorrelationService = null)
     {
         _validator = validator;
         _hashService = hashService;
@@ -36,6 +38,7 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         _mappingService = mappingService;
         _unitOfWork = unitOfWork;
         _prenotificationResponseProcessor = prenotificationResponseProcessor;
+        _transactionCorrelationService = transactionCorrelationService;
     }
 
     public async Task<ProcesarRespuestaAchResult> ExecuteAsync(ProcesarRespuestaAchCommand command, CancellationToken cancellationToken = default)
@@ -103,6 +106,13 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
         {
             prenotificationProcessing = await _prenotificationResponseProcessor.ProcessAsync(command, response, hom, cancellationToken);
 
+            if (prenotificationProcessing.PrenotificationTransactionId.HasValue)
+            {
+                response.AchTransactionId = prenotificationProcessing.PrenotificationTransactionId;
+                response.CorrelationStatus = AchResponseCorrelationStatus.Matched;
+                response.CorrelationCriterion = "VinculoPrenotificacionNacha";
+            }
+
             if (!prenotificationProcessing.Success)
             {
                 response.PermiteNotificacion = false;
@@ -133,7 +143,29 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
             }
         }
 
-        if (hom.ResolutionStatus == MappingResolutionStatus.Ambiguous)
+        if (!response.AchTransactionId.HasValue && _transactionCorrelationService is not null)
+        {
+            var correlation = await _transactionCorrelationService.CorrelateAsync(command.IdTransaccion, cancellationToken);
+            response.AchTransactionId = correlation.AchTransactionId;
+            response.CorrelationStatus = correlation.Status;
+            response.CorrelationCriterion = correlation.Criterion;
+        }
+
+        var correlationRequiresReview = response.CorrelationStatus is AchResponseCorrelationStatus.Ambiguous
+            or AchResponseCorrelationStatus.NotFound
+            or AchResponseCorrelationStatus.ManualReviewRequired;
+
+        if (correlationRequiresReview)
+        {
+            Transition(response, AchResponseProcessingStatus.RequiereRevisionManual, "TransactionCorrelation",
+                response.CorrelationStatus == AchResponseCorrelationStatus.Ambiguous
+                    ? "La respuesta coincide con varias transacciones y requiere revisión."
+                    : "La respuesta no tiene una asociación determinística con una transacción.",
+                correlationId,
+                now);
+            response.PermiteNotificacion = false;
+        }
+        else if (hom.ResolutionStatus == MappingResolutionStatus.Ambiguous)
         {
             Transition(response, AchResponseProcessingStatus.RequiereRevisionManual, "MappingAmbiguous",
                 hom.MotivoNoHomologacion ?? "Mapping ambiguo.", correlationId, now);

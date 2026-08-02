@@ -1,5 +1,6 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
@@ -36,6 +37,18 @@ public class AchTransaction : AuditableEntity
     public bool AddendaRecordIndicator { get; set; }
     public bool IsPrenotification { get; set; }
 
+    /// <summary>
+    /// Clasificación histórica fijada al crear la transacción. Los registros anteriores a
+    /// Fase 1A permanecen Unknown hasta que exista evidencia inequívoca para clasificarlos.
+    /// </summary>
+    public AchTransactionDirection Direction { get; set; } = AchTransactionDirection.Unknown;
+    public AchTransactionOrigin Origin { get; set; } = AchTransactionOrigin.Unknown;
+    public AchMonetaryIntegrationRoute MonetaryIntegrationRoute { get; set; } = AchMonetaryIntegrationRoute.ManualReview;
+    public AchTransactionClassificationStatus ClassificationStatus { get; set; } = AchTransactionClassificationStatus.Unknown;
+    public bool? SourceInstitutionWasDefaultAtCreation { get; set; }
+    public DateTime? ClassifiedAtUtc { get; set; }
+    public int ClassificationVersion { get; set; }
+
     public AchTransferStateEnum State { get; set; } = AchTransferStateEnum.Pending;
     public DateTime StateChangedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? SlaDeadlineAtUtc { get; set; }
@@ -63,4 +76,5 @@ public class AchTransaction : AuditableEntity
     public ICollection<AchTransactionAddenda> Addendas { get; set; } = new List<AchTransactionAddenda>();
     public ICollection<AchTransactionStateEvent> StateEvents { get; set; } = new List<AchTransactionStateEvent>();
     public ContrapartidaDispatchItem? ContrapartidaDispatchItem { get; set; }
+    public ICollection<AchFileExportTransaction> FileExportMemberships { get; set; } = new List<AchFileExportTransaction>();
 }

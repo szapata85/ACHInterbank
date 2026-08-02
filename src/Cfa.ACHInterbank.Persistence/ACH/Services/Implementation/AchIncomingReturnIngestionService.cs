@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -12,7 +13,8 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchIncomingReturnIngestionService(
     AchDbContext context,
     IAchRegulatoryCatalogService regulatoryCatalogService,
-    IAchCauseCodePolicy? causeCodePolicy = null) : IAchIncomingReturnIngestionService
+    IAchCauseCodePolicy? causeCodePolicy = null,
+    IAchStateTransitionService? stateTransitionService = null) : IAchIncomingReturnIngestionService
 {
     public async Task<AchIncomingReturnIngestionResult> IngestAsync(AchIncomingReturnIngestionRequest request, CancellationToken cancellationToken)
     {
@@ -57,10 +59,23 @@ public class AchIncomingReturnIngestionService(
                 continue;
             }
 
-            var originalTx = await context.AchTransactions
+            var originalCandidates = await context.AchTransactions
                 .AsNoTracking()
                 .Include(t => t.AchCycle)
-                .FirstOrDefaultAsync(t => t.TraceNumber == originalTrace || t.OriginalTraceRef == originalTrace, cancellationToken);
+                .Where(t => t.TraceNumber == originalTrace || t.OriginalTraceRef == originalTrace)
+                .OrderBy(t => t.Id)
+                .Take(2)
+                .ToListAsync(cancellationToken);
+
+            if (originalCandidates.Count > 1)
+            {
+                failures.Add(new("ORIGINAL_TRANSACTION_AMBIGUOUS", "La traza original coincide con varias transacciones y requiere revisión.", nameof(originalTrace), trace));
+                items.Add(new(trace, originalTrace, normalizedReason, null, null, null, null, false, record));
+                auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, null, null, false));
+                continue;
+            }
+
+            var originalTx = originalCandidates.SingleOrDefault();
 
             if (originalTx is null)
             {
@@ -118,7 +133,6 @@ public class AchIncomingReturnIngestionService(
                     }
                 }
 
-                // TODO Fase 4.x: validar duplicados contra auditoría persistente cuando exista modelo de ingesta entrante.
                 var returnCodeValidation = await regulatoryCatalogService.ValidateReturnCodeAsync(
                     clearingHouseId.Value,
                     normalizedReason,
@@ -189,6 +203,9 @@ public class AchIncomingReturnIngestionService(
                 .Select(x => x.TraceNumber).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).ToHashSet(StringComparer.Ordinal);
             var eligibleIds = items
                 .Where(x => x.IsLinked && x.OriginalTransactionId.HasValue)
+                .Where(x => x.ClearingHouseId.HasValue
+                    && !string.IsNullOrWhiteSpace(x.ReturnReasonCode)
+                    && !string.IsNullOrWhiteSpace(x.OriginalTraceNumber))
                 .Where(x => !duplicatedKeys.Contains(BuildDuplicateKey(x.OriginalTransactionId, x.ClearingHouseId, x.OriginalTraceNumber, x.ReturnReasonCode)))
                 .Where(x => (x.TraceNumber is null || !failedTraces.Contains(x.TraceNumber)) && (x.OriginalTraceNumber is null || !failedOriginalTraces.Contains(x.OriginalTraceNumber)))
                 .Select(x => x.OriginalTransactionId!.Value)
@@ -197,44 +214,59 @@ public class AchIncomingReturnIngestionService(
 
             if (eligibleIds.Count > 0)
             {
-                var toUpdate = await context.AchTransactions.Where(x => eligibleIds.Contains(x.Id)).ToListAsync(cancellationToken);
-                foreach (var tx in toUpdate)
+                var transitionPolicy = stateTransitionService ?? new AchStateTransitionService(context);
+                foreach (var transactionId in eligibleIds)
                 {
-                    var fromState = tx.State;
-                    // Devolución entrante recibida desde cámara/EPR; se usa estado existente ReturnedByEpr.
-                    tx.State = AchTransferStateEnum.ReturnedByEpr;
-                    tx.StateChangedAtUtc = DateTime.UtcNow;
-                    updatedTransactionIds.Add(tx.Id);
-
-                    var matchedItem = items.FirstOrDefault(x => x.OriginalTransactionId == tx.Id);
+                    var matchedItem = items.FirstOrDefault(x => x.OriginalTransactionId == transactionId)
+                        ?? throw new InvalidOperationException("No se encontró la evidencia de devolución seleccionada para aplicar.");
+                    var eventClearingHouseId = matchedItem.ClearingHouseId
+                        ?? throw new InvalidOperationException("La devolución elegible no conserva una cámara compensadora determinística.");
+                    var originalTraceNumber = matchedItem.OriginalTraceNumber
+                        ?? throw new InvalidOperationException("La devolución elegible no conserva la traza original.");
+                    var returnReasonCode = matchedItem.ReturnReasonCode
+                        ?? throw new InvalidOperationException("La devolución elegible no conserva el código de causal.");
+                    var transactionSnapshot = await context.AchTransactions.AsNoTracking()
+                        .Where(x => x.Id == transactionId)
+                        .Select(x => new { x.State, x.EffectiveEntryDate })
+                        .SingleAsync(cancellationToken);
                     var payload = $$"""
 {
   "schemaVersion": 1,
   "eventType": "IncomingReturnApplied",
   "source": "AchIncomingReturnIngestionService.IngestAsync",
   "generationMode": "incoming-return",
-  "achTransactionId": {{tx.Id}},
-  "previousState": "{{fromState}}",
-  "newState": "{{tx.State}}",
+  "achTransactionId": {{transactionId}},
+  "previousState": "{{transactionSnapshot.State}}",
+  "newState": "{{AchTransferStateEnum.ReturnedByEpr}}",
   "returnReasonCode": "{{matchedItem?.ReturnReasonCode ?? string.Empty}}",
   "originalTraceNumber": "{{matchedItem?.OriginalTraceNumber ?? string.Empty}}",
   "fileName": "{{request.FileName}}",
-  "effectiveEntryDate": "{{tx.EffectiveEntryDate:yyyy-MM-dd}}",
-  "appliedAtUtc": "{{tx.StateChangedAtUtc:O}}",
-  "stateChanged": {{(fromState != tx.State).ToString().ToLowerInvariant()}}
+  "effectiveEntryDate": "{{transactionSnapshot.EffectiveEntryDate:yyyy-MM-dd}}",
+  "appliedAtUtc": "{{request.ReceivedAtUtc:O}}",
+  "stateChanged": {{(transactionSnapshot.State != AchTransferStateEnum.ReturnedByEpr).ToString().ToLowerInvariant()}}
 }
 """;
-                    context.AchTransactionStateEvents.Add(new AchTransactionStateEvent
+                    var semanticKey = AchIncomingEventIdentityPolicy.BuildReturnKey(
+                        transactionId,
+                        eventClearingHouseId,
+                        originalTraceNumber,
+                        returnReasonCode,
+                        request.ReceivedAtUtc.Date);
+                    var transition = await transitionPolicy.TransitionAsync(new AchStateTransitionRequest(
+                        transactionId,
+                        AchTransferStateEnum.ReturnedByEpr,
+                        AchStateEventSourceEnum.Epr,
+                        returnReasonCode,
+                        payload,
+                        originalTraceNumber,
+                        request.ReceivedAtUtc,
+                        semanticKey,
+                        eventClearingHouseId), cancellationToken);
+                    if (transition.Applied)
                     {
-                        AchTransactionId = tx.Id,
-                        FromState = fromState,
-                        ToState = tx.State,
-                        Source = AchStateEventSourceEnum.Epr,
-                        ReasonCode = matchedItem?.ReturnReasonCode,
-                        PayloadJson = payload
-                    });
+                        updatedTransactionIds.Add(transactionId);
+                    }
                 }
-                await context.SaveChangesAsync(cancellationToken);
             }
         }
 
@@ -257,6 +289,7 @@ public class AchIncomingReturnIngestionService(
 
         return new(failures.Count == 0, decision, isRejectedTotal, isRejectedPartial, totalRecords, parsed, linked, unlinked, updatedTransactionIds.Count, updatedTransactionIds, items, failures, audit);
     }
+
 
     private static string DetermineDecision(int parsedReturnCount, int linkedReturnCount, IReadOnlyCollection<AchIncomingReturnIngestionFailure> failures)
     {

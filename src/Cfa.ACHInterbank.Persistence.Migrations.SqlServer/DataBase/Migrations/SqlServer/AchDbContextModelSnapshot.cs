@@ -2704,8 +2704,19 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<DateTime?>("AcknowledgedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AcknowledgementCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<int>("ClearingHouseId")
                         .HasColumnType("int");
+
+                    b.Property<string>("ContentSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -2726,14 +2737,31 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<bool>("IsEncrypted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("LifecycleStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("HistoricalUnknown");
+
                     b.Property<int>("TotalRecords")
                         .HasColumnType("int");
 
                     b.Property<int>("TotalTransactions")
                         .HasColumnType("int");
 
+                    b.Property<string>("TransmissionReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("TransmittedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("Version")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -2741,7 +2769,75 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasIndex("AchCycleId", "ExportKind", "GeneratedAtUtc");
 
+                    b.HasIndex("AchCycleId", "ExportKind", "IsEncrypted", "ContentSha256")
+                        .HasDatabaseName("IX_AchFileExports_ContentIdentity");
+
+                    b.HasIndex("AchCycleId", "ExportKind", "IsEncrypted", "FileName")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchFileExports_Cycle_Kind_Encrypted_FileName");
+
+                    b.HasIndex("AchCycleId", "ExportKind", "IsEncrypted", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchFileExports_Cycle_Kind_Encrypted_Version")
+                        .HasFilter("[Version] IS NOT NULL");
+
                     b.ToTable("AchFileExports", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchFileExportTransaction", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AchBatchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AchCycleId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("AchFileExportId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AchTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("FileSequence")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("IncludedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TraceNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AchFileExportId", "AchTransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("AchFileExportId", "FileSequence")
+                        .IsUnique();
+
+                    b.HasIndex("AchTransactionId", "AchFileExportId");
+
+                    b.ToTable("AchFileExportTransactions", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode", b =>
@@ -2757,6 +2853,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<int?>("ClearingHouseId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -2770,11 +2869,26 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateTime>("EffectiveFrom")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValue(new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsRetryable")
                         .HasColumnType("bit");
+
+                    b.Property<string>("RegulatorySource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)")
+                        .HasDefaultValue("Catálogo histórico pendiente de contexto");
 
                     b.Property<string>("Severity")
                         .IsRequired()
@@ -2786,8 +2900,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Code")
-                        .IsUnique();
+                    b.HasIndex("ClearingHouseId", "Code", "AppliesToStage", "EffectiveFrom")
+                        .IsUnique()
+                        .HasFilter("[ClearingHouseId] IS NOT NULL");
 
                     b.ToTable("AchFileRejectionCodes", (string)null);
                 });
@@ -2837,6 +2952,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("AchTransactionId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("AppliedMappingId")
                         .HasColumnType("int");
 
@@ -2874,9 +2992,20 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<string>("CorrelationCriterion")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("CorrelationId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CorrelationStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Unknown");
 
                     b.Property<string>("DescripcionCausal")
                         .HasMaxLength(300)
@@ -2957,6 +3086,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasIndex("IdTransaccion")
                         .HasDatabaseName("IX_AchResponses_IdTransaccion");
+
+                    b.HasIndex("AchTransactionId", "FechaRecepcion")
+                        .HasDatabaseName("IX_AchResponses_Transaction_ReceivedAt");
 
                     b.HasIndex("ClearingHouseId", "OperationalDate", "EstadoProcesamiento")
                         .HasDatabaseName("IX_AchResponses_Operational");
@@ -3827,9 +3959,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("AchBatchId")
+                        .IsConcurrencyToken()
                         .HasColumnType("int");
 
                     b.Property<string>("AchCycleId")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("nvarchar(40)");
 
@@ -3839,6 +3973,21 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ClassificationStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Unknown");
+
+                    b.Property<int>("ClassificationVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("ClassifiedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("CompanyEntryDescriptionId")
                         .HasColumnType("int");
@@ -3869,6 +4018,13 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int>("DestinationInstitutionId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Unknown");
+
                     b.Property<string>("DiscretionaryData")
                         .IsRequired()
                         .HasMaxLength(2)
@@ -3879,6 +4035,20 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<bool>("IsPrenotification")
                         .HasColumnType("bit");
+
+                    b.Property<string>("MonetaryIntegrationRoute")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("ManualReview");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Unknown");
 
                     b.Property<string>("OriginalTraceRef")
                         .IsRequired()
@@ -3921,6 +4091,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int>("SourceInstitutionId")
                         .HasColumnType("int");
 
+                    b.Property<bool?>("SourceInstitutionWasDefaultAtCreation")
+                        .HasColumnType("bit");
+
                     b.Property<string>("State")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -3934,7 +4107,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<string>("TraceNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<int>("TraceSequenceNumber")
                         .HasColumnType("int");
@@ -3968,6 +4142,18 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("DestinationInstitutionId");
 
                     b.HasIndex("SourceInstitutionId");
+
+                    b.HasIndex("TraceNumber")
+                        .HasDatabaseName("IX_AchTransactions_TraceNumber");
+
+                    b.HasIndex("TransactionExternalId")
+                        .HasDatabaseName("IX_AchTransactions_TransactionExternalId");
+
+                    b.HasIndex("MonetaryIntegrationRoute", "State")
+                        .HasDatabaseName("IX_AchTransactions_MonetaryRoute_State");
+
+                    b.HasIndex("Direction", "ClassificationStatus", "CreatedAt")
+                        .HasDatabaseName("IX_AchTransactions_Direction_Classification_CreatedAt");
 
                     b.ToTable("AchTransactions", (string)null);
                 });
@@ -4053,7 +4239,13 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<int?>("AchReturnCodeId")
+                        .HasColumnType("int");
+
                     b.Property<int>("AchTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ClearingHouseId")
                         .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -4064,12 +4256,23 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("PayloadJson")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ReasonCode")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ResolvedReasonDescription")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -4086,7 +4289,18 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AchReturnCodeId");
+
                     b.HasIndex("AchTransactionId");
+
+                    b.HasIndex("ClearingHouseId");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchTransactionStateEvents_IdempotencyKey")
+                        .HasFilter("[IdempotencyKey] IS NOT NULL");
+
+                    b.HasIndex("AchTransactionId", "OccurredAtUtc");
 
                     b.ToTable("AchTransactionStateEvents", (string)null);
                 });
@@ -4807,9 +5021,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AchTransactionId");
-
                     b.HasIndex("CenitCycleExecutionId");
+
+                    b.HasIndex("AchTransactionId", "TargetAchCycleId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CenitCycleQueues_ActiveTarget")
+                        .HasFilter("[Status] = 'Queued'");
 
                     b.HasIndex("TargetAchCycleId", "Status");
 
@@ -9065,6 +9282,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasIndex("AchTransactionId");
 
+                    b.HasIndex("CenitCycleExecutionId", "AchTransactionId")
+                        .IsUnique();
+
                     b.HasIndex("CenitCycleExecutionId", "DecisionType");
 
                     b.ToTable("LiquidityOptimizationDecisions", (string)null);
@@ -11555,8 +11775,42 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Navigation("ClearingHouse");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchFileExportTransaction", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchFileExport", "AchFileExport")
+                        .WithMany("Transactions")
+                        .HasForeignKey("AchFileExportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "AchTransaction")
+                        .WithMany("FileExportMemberships")
+                        .HasForeignKey("AchTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AchFileExport");
+
+                    b.Navigation("AchTransaction");
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchFileRejectionCode", b =>
+                {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ClearingHouse");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", b =>
                 {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "AchTransaction")
+                        .WithMany()
+                        .HasForeignKey("AchTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchResponseStatusMapping", "AppliedMapping")
                         .WithMany("AppliedResponses")
                         .HasForeignKey("AppliedMappingId")
@@ -11566,6 +11820,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .WithMany()
                         .HasForeignKey("ClearingHouseId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AchTransaction");
 
                     b.Navigation("AppliedMapping");
 
@@ -11774,13 +12030,27 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionStateEvent", b =>
                 {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnCode", "AchReturnCode")
+                        .WithMany()
+                        .HasForeignKey("AchReturnCodeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "AchTransaction")
                         .WithMany("StateEvents")
                         .HasForeignKey("AchTransactionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.ClearingHouse", "ClearingHouse")
+                        .WithMany()
+                        .HasForeignKey("ClearingHouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AchReturnCode");
+
                     b.Navigation("AchTransaction");
+
+                    b.Navigation("ClearingHouse");
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AddendaRecord", b =>
@@ -12586,8 +12856,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.EntryDetail", "EntryDetail")
                         .WithMany("ProcessingAttempts")
                         .HasForeignKey("EntryDetailId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Cfa.ACHInterbank.Domain.Entities.Integrations.IntegrationResponseCode", "ResponseCatalog")
                         .WithMany()
@@ -12969,6 +13238,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Navigation("Transactions");
                 });
 
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchFileExport", b =>
+                {
+                    b.Navigation("Transactions");
+                });
+
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchResponse", b =>
                 {
                     b.Navigation("AuditEntries");
@@ -12993,6 +13267,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Navigation("Addendas");
 
                     b.Navigation("ContrapartidaDispatchItem");
+
+                    b.Navigation("FileExportMemberships");
 
                     b.Navigation("StateEvents");
                 });

@@ -16,4 +16,11 @@ public class AchTransactionStateEvent : AuditableEntity
 
     public string? ReasonCode { get; set; }
     public string? PayloadJson { get; set; }
+    public string? IdempotencyKey { get; set; }
+    public int? ClearingHouseId { get; set; }
+    public ClearingHouse? ClearingHouse { get; set; }
+    public int? AchReturnCodeId { get; set; }
+    public AchReturnCode? AchReturnCode { get; set; }
+    public string? ResolvedReasonDescription { get; set; }
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
 }

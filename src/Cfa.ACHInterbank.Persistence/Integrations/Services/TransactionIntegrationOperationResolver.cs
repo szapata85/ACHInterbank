@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -20,24 +21,19 @@ public sealed class TransactionIntegrationOperationResolver : ITransactionIntegr
 
     public async Task<TransactionIntegrationOperationResult> ResolveAsync(AchTransaction transaction, CancellationToken ct = default)
     {
+        await Task.CompletedTask;
         if (transaction is null)
         {
             return Unsupported(null, string.Empty, "TRANSACTION_REQUIRED", "La transaccion es requerida.");
         }
 
-        var sourceIsDefault = transaction.SourceInstitution?.IsDefaultSource;
-        if (!sourceIsDefault.HasValue && transaction.SourceInstitutionId > 0)
-        {
-            sourceIsDefault = await _context.FinancialInstitutions
-                .AsNoTracking()
-                .Where(x => x.Id == transaction.SourceInstitutionId)
-                .Select(x => x.IsDefaultSource)
-                .FirstOrDefaultAsync(ct);
-        }
-
         var reference = ResolveReference(transaction);
 
-        if (transaction.Type == TransactionTypeEnum.Debit && sourceIsDefault == true)
+        if (transaction.ClassificationStatus == AchTransactionClassificationStatus.Determined
+            && transaction.MonetaryIntegrationRoute == AchMonetaryIntegrationRoute.ProcContrapartidas
+            && transaction.Direction == AchTransactionDirection.Outgoing
+            && transaction.Origin == AchTransactionOrigin.Cfa
+            && transaction.Type == TransactionTypeEnum.Debit)
         {
             return new TransactionIntegrationOperationResult(
                 transaction.Id,
@@ -54,7 +50,11 @@ public sealed class TransactionIntegrationOperationResolver : ITransactionIntegr
                 []);
         }
 
-        if (transaction.Type == TransactionTypeEnum.Credit && sourceIsDefault == false)
+        if (transaction.ClassificationStatus == AchTransactionClassificationStatus.Determined
+            && transaction.MonetaryIntegrationRoute == AchMonetaryIntegrationRoute.ProcTransacciones
+            && transaction.Direction == AchTransactionDirection.Incoming
+            && transaction.Origin == AchTransactionOrigin.ExternalInstitution
+            && transaction.Type == TransactionTypeEnum.Credit)
         {
             return new TransactionIntegrationOperationResult(
                 transaction.Id,
@@ -75,8 +75,8 @@ public sealed class TransactionIntegrationOperationResolver : ITransactionIntegr
         {
             transaction.Type switch
             {
-                TransactionTypeEnum.Debit => "DEBIT_NOT_ORIGINATED_BY_DEFAULT_SOURCE",
-                TransactionTypeEnum.Credit => "CREDIT_NOT_ORIGINATED_BY_EXTERNAL_INSTITUTION",
+                TransactionTypeEnum.Debit => "DEBIT_NOT_CLASSIFIED_FOR_PROC_CONTRAPARTIDAS",
+                TransactionTypeEnum.Credit => "CREDIT_NOT_CLASSIFIED_FOR_PROC_TRANSACCIONES",
                 _ => "TRANSACTION_OPERATION_NOT_SUPPORTED"
             }
         };
@@ -91,7 +91,7 @@ public sealed class TransactionIntegrationOperationResolver : ITransactionIntegr
             "No soportada",
             "No resuelto",
             false,
-            "La transaccion no cumple reglas para Proc_Contrapartidas ni Proc_Transacciones.",
+            "La clasificación histórica de la transacción no autoriza una integración monetaria automática.",
             false,
             errors);
     }

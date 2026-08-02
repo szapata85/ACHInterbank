@@ -111,7 +111,7 @@ describe('TransactionCreateComponent', () => {
     component.form.patchValue({
       amount,
       transactionExternalId: 'tx-001',
-      type: TransactionTypeEnum.Credit,
+      type: TransactionTypeEnum.Debit,
       accountType: AccountTypeEnum.Checking,
       isPrenotification: false,
       destinationInstitutionId: 7,
@@ -142,6 +142,10 @@ describe('TransactionCreateComponent', () => {
     });
     component.form.updateValueAndValidity();
   }
+
+  it('inicia el formulario con débito para operaciones monetarias originadas por CFA', () => {
+    expect(component.form.get('type')?.value).toBe(TransactionTypeEnum.Debit);
+  });
 
   it('TransactionCreateComponent_ShouldBuildValidPayload_WhenFormValid', () => {
     txApi.createTransaction.and.returnValue(of({ id: 11 } as any));

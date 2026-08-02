@@ -130,6 +130,9 @@ public class NachaFileBuilder : INachaFileBuilder
     // MÉTODO ALTERNATIVO: Generar NACHA-M por ciclo
     // ─────────────────────────────────────────────────────────────────────────────
     public async Task<string> BuildNachaFileByCycleAsync(string cycleId, CancellationToken ct = default)
+        => (await BuildNachaFileArtifactByCycleAsync(cycleId, ct)).Content;
+
+    public async Task<NachaFileBuildArtifact> BuildNachaFileArtifactByCycleAsync(string cycleId, CancellationToken ct = default)
     {
         var context = await _dataLoader.LoadByCycleAsync(cycleId, ct);
         var cycle = context.Cycle;
@@ -147,14 +150,21 @@ public class NachaFileBuilder : INachaFileBuilder
         EnforceCenitLiveGenerationGate(clearingHouseCode);
         EnforceLiveOfficialMode(clearingHouseCode);
         await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
+        string content;
         if (IsOfficialTableDrivenMode())
         {
-            return await BuildOfficialTableDrivenFileAsync(context, nachaHeader, ct);
+            content = await BuildOfficialTableDrivenFileAsync(context, nachaHeader, ct);
+        }
+        else
+        {
+            var layoutCache = await _dataLoader.LoadLayoutsAsync(ct);
+            var definitions = await _dataLoader.LoadDefinitionsAsync(ct);
+            content = await BuildFileAsync(context, definitions, layoutCache, nachaHeader, ct);
         }
 
-        var layoutCache = await _dataLoader.LoadLayoutsAsync(ct);
-        var definitions = await _dataLoader.LoadDefinitionsAsync(ct);
-        return await BuildFileAsync(context, definitions, layoutCache, nachaHeader, ct);
+        return new NachaFileBuildArtifact(
+            content,
+            transactions.Select(x => x.Id).OrderBy(x => x).ToArray());
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

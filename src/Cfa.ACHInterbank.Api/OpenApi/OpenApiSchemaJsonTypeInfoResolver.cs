@@ -25,7 +25,8 @@ internal static class OpenApiSchemaJsonTypeInfoResolver
         nameof(AchTransaction.AchBatch),
         nameof(AchTransaction.Addendas),
         nameof(AchTransaction.StateEvents),
-        nameof(AchTransaction.ContrapartidaDispatchItem)
+        nameof(AchTransaction.ContrapartidaDispatchItem),
+        nameof(AchTransaction.FileExportMemberships)
     };
 
     public static IJsonTypeInfoResolver Create()

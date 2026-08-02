@@ -2,6 +2,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.CertificateManagement;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
@@ -119,6 +120,7 @@ public static class DependencyInjectionService
         services.AddHostedService<DataProtectionKeyRingStartupValidator>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddSingleton<IAchTransactionClassificationPolicy, AchTransactionClassificationPolicy>();
 
         services.AddScoped<ICertificateCatalogService, ACH.Services.Implementation.CertificateManagement.CertificateCatalogService>();
         services.AddScoped<ICertificateLoadService, ACH.Services.Implementation.CertificateManagement.CertificateLoadService>();

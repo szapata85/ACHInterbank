@@ -122,6 +122,20 @@ public class RegulatoryCatalogSeederTests
             IsRetryable = true,
             IsActive = false
         });
+        context.AchReturnCodes.Add(new AchReturnCode
+        {
+            ClearingHouseId = clearingHouse.Id,
+            Code = "R96",
+            FlowType = AchReturnFlowType.Any,
+            Description = "Éxito global legado",
+            BusinessOutcome = IncomingNachaBusinessOutcome.Successful,
+            AppliesToDebit = true,
+            AppliesToCredit = true,
+            AppliesToReturn = false,
+            EffectiveFrom = new DateTime(2000, 1, 1),
+            RegulatorySource = "CENIT",
+            IsActive = true
+        });
 
         await context.SaveChangesAsync();
 
@@ -139,6 +153,26 @@ public class RegulatoryCatalogSeederTests
         Assert.Equal("Fatal", repairedD01.Severity);
         Assert.False(repairedD01.IsRetryable);
         Assert.True(repairedD01.IsActive);
+        Assert.Equal(clearingHouse.Id, repairedD01.ClearingHouseId);
+        Assert.Equal("El archivo está dirigido a una entidad receptora diferente de la esperada.", repairedD01.Description);
+
+        var repairedD04 = await context.AchFileRejectionCodes.AsNoTracking().SingleAsync(x => x.Code == "D04");
+        Assert.Equal(clearingHouse.Id, repairedD04.ClearingHouseId);
+        Assert.Equal("El archivo ya fue recibido y corresponde a un duplicado.", repairedD04.Description);
+
+        var cenitFileCodes = await context.AchFileRejectionCodes.AsNoTracking()
+            .Where(x => x.ClearingHouseId == clearingHouse.Id && x.Code.StartsWith("D"))
+            .ToDictionaryAsync(x => x.Code);
+        Assert.Equal("Protection", cenitFileCodes["D02"].AppliesToStage);
+        Assert.Contains("firmado o cifrado", cenitFileCodes["D02"].Description);
+        Assert.Equal("Parser", cenitFileCodes["D03"].AppliesToStage);
+        Assert.Contains("formato incorrecto", cenitFileCodes["D03"].Description);
+        Assert.Contains("nombre externo", cenitFileCodes["D05"].Description);
+        Assert.Contains("distribución", cenitFileCodes["D06"].Description);
+
+        var legacyR96 = await context.AchReturnCodes.AsNoTracking().SingleAsync(x => x.Code == "R96");
+        Assert.False(legacyR96.IsActive);
+        Assert.Equal(IncomingNachaBusinessOutcome.NotProcessed, legacyR96.BusinessOutcome);
 
         Assert.True(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14"));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "I503" && x.IsRetryable));

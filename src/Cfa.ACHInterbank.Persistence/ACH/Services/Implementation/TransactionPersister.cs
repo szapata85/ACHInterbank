@@ -27,6 +27,8 @@ public class TransactionPersister : ITransactionPersister
 
     public async Task<TransactionPersistResult> PersistAsync(AchTransactionRequestData request, TransactionBatchContext context, CancellationToken ct = default)
     {
+        var classification = context.Classification
+            ?? throw new InvalidOperationException("La clasificación canónica debe resolverse antes de persistir la transacción ACH.");
         var effectiveType = request.IsPrenotification || request.Type == TransactionTypeEnum.Prenotification
             ? TransactionTypeEnum.Prenotification
             : request.Type;
@@ -88,6 +90,13 @@ public class TransactionPersister : ITransactionPersister
             StateChangedAtUtc = stateChangedAtUtc,
             AddendaRecordIndicator = true,
             IsPrenotification = effectiveType == TransactionTypeEnum.Prenotification || request.IsPrenotification,
+            Direction = classification.Direction,
+            Origin = classification.Origin,
+            MonetaryIntegrationRoute = classification.MonetaryIntegrationRoute,
+            ClassificationStatus = classification.Status,
+            SourceInstitutionWasDefaultAtCreation = classification.SourceInstitutionWasDefaultAtCreation,
+            ClassifiedAtUtc = classification.ClassifiedAtUtc,
+            ClassificationVersion = classification.ClassificationVersion,
             SlaDeadlineAtUtc = context.ReturnSlaDeadlineAtUtc,
             RecipientIdNumber = request.RecipientIdNumber?.Trim() ?? string.Empty,
             DiscretionaryData = effectiveType == TransactionTypeEnum.Credit && request.RequiresIdentityValidation ? "V" : string.Empty,
@@ -108,6 +117,7 @@ public class TransactionPersister : ITransactionPersister
             ToState = AchTransferStateEnum.Pending,
             Source = AchStateEventSourceEnum.System,
             ReasonCode = "CREATED",
+            OccurredAtUtc = stateChangedAtUtc,
             PayloadJson = JsonSerializer.Serialize(new
             {
                 eventType = "TransactionCreated",

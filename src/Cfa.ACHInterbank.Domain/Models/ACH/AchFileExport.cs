@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 
 namespace Cfa.ACHInterbank.Domain.Models.ACH;
 
@@ -15,4 +16,12 @@ public class AchFileExport : AuditableEntity
     public int TotalTransactions { get; set; }
     public bool IsEncrypted { get; set; }
     public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
+    public int? Version { get; set; }
+    public string? ContentSha256 { get; set; }
+    public AchFileExportLifecycleStatus LifecycleStatus { get; set; } = AchFileExportLifecycleStatus.HistoricalUnknown;
+    public string? TransmissionReference { get; set; }
+    public DateTime? TransmittedAtUtc { get; set; }
+    public DateTime? AcknowledgedAtUtc { get; set; }
+    public string? AcknowledgementCode { get; set; }
+    public ICollection<AchFileExportTransaction> Transactions { get; set; } = new List<AchFileExportTransaction>();
 }

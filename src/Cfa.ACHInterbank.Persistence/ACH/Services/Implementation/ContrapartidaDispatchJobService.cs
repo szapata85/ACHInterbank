@@ -8,6 +8,7 @@ using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -174,6 +175,11 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             var pendingItemIds = await _context.ContrapartidaDispatchItems
                 .AsNoTracking()
                 .Where(i => i.AchCycleId == cycleId && i.ClearingHouseId == clearingHouseId)
+                .Where(i => i.AchTransaction.ClassificationStatus == AchTransactionClassificationStatus.Determined
+                    && i.AchTransaction.MonetaryIntegrationRoute == AchMonetaryIntegrationRoute.ProcContrapartidas
+                    && i.AchTransaction.Direction == AchTransactionDirection.Outgoing
+                    && i.AchTransaction.Origin == AchTransactionOrigin.Cfa
+                    && i.AchTransaction.Type == TransactionTypeEnum.Debit)
                 .Where(i => !transactionId.HasValue || i.AchTransactionId == transactionId.Value)
                 .Where(i => EligibleStates.Contains(i.State))
                 .Where(i => !i.NextAttemptAtUtc.HasValue || i.NextAttemptAtUtc <= nowUtc)
@@ -521,6 +527,11 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         var items = await _context.ContrapartidaDispatchItems
             .AsNoTracking()
             .Where(i => sourceItemIds.Contains(i.Id))
+            .Where(i => i.AchTransaction.ClassificationStatus == AchTransactionClassificationStatus.Determined
+                && i.AchTransaction.MonetaryIntegrationRoute == AchMonetaryIntegrationRoute.ProcContrapartidas
+                && i.AchTransaction.Direction == AchTransactionDirection.Outgoing
+                && i.AchTransaction.Origin == AchTransactionOrigin.Cfa
+                && i.AchTransaction.Type == TransactionTypeEnum.Debit)
             .Select(i => new { i.Id, i.State, i.AttemptCount })
             .ToListAsync(ct);
 

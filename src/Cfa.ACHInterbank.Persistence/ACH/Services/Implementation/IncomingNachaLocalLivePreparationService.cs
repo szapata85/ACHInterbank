@@ -3,6 +3,7 @@ using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -157,6 +158,13 @@ public sealed class IncomingNachaLocalLivePreparationService : IIncomingNachaLoc
             TraceSequenceNumber = int.Parse(trace[8..]),
             EffectiveEntryDate = cycle.ProcessingDate.Date,
             AddendaRecordIndicator = string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal),
+            Direction = AchTransactionDirection.Incoming,
+            Origin = AchTransactionOrigin.ExternalInstitution,
+            MonetaryIntegrationRoute = AchMonetaryIntegrationRoute.ProcTransacciones,
+            ClassificationStatus = AchTransactionClassificationStatus.Determined,
+            SourceInstitutionWasDefaultAtCreation = false,
+            ClassifiedAtUtc = DateTime.UtcNow,
+            ClassificationVersion = 1,
             State = AchTransferStateEnum.Pending,
             StateChangedAtUtc = DateTime.UtcNow,
             RecipientIdNumber = entry.RecipIdNumber ?? string.Empty,

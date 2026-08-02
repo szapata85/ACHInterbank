@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -13,6 +14,9 @@ public class AchResponseConfiguration : IEntityTypeConfiguration<AchResponse>
 
         builder.Property(x => x.TipoRespuesta).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(x => x.ClearingHouseId);
+        builder.Property(x => x.CorrelationStatus).HasConversion<string>().HasMaxLength(30)
+            .HasDefaultValue(AchResponseCorrelationStatus.Unknown).IsRequired();
+        builder.Property(x => x.CorrelationCriterion).HasMaxLength(80);
         builder.Property(x => x.IdTransaccion).IsRequired().HasMaxLength(100);
         builder.Property(x => x.CodigoCamaraCompensacion).IsRequired().HasMaxLength(30);
         builder.Property(x => x.CodigoEntidadOrigen).HasMaxLength(30);
@@ -42,6 +46,11 @@ public class AchResponseConfiguration : IEntityTypeConfiguration<AchResponse>
             .HasForeignKey(x => x.ClearingHouseId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.AchTransaction)
+            .WithMany()
+            .HasForeignKey(x => x.AchTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(x => x.AppliedMapping)
             .WithMany(x => x.AppliedResponses)
             .HasForeignKey(x => x.AppliedMappingId)
@@ -52,6 +61,7 @@ public class AchResponseConfiguration : IEntityTypeConfiguration<AchResponse>
         builder.HasIndex(x => new { x.TipoRespuesta, x.CodigoCamaraCompensacion, x.CodigoEstadoExterno }).HasDatabaseName("IX_AchResponses_Filter");
         builder.HasIndex(x => x.EstadoProcesamiento).HasDatabaseName("IX_AchResponses_EstadoProcesamiento");
         builder.HasIndex(x => x.CorrelationId).HasDatabaseName("IX_AchResponses_CorrelationId");
+        builder.HasIndex(x => new { x.AchTransactionId, x.FechaRecepcion }).HasDatabaseName("IX_AchResponses_Transaction_ReceivedAt");
         builder.HasIndex(x => new { x.ClearingHouseId, x.OperationalDate, x.EstadoProcesamiento }).HasDatabaseName("IX_AchResponses_Operational");
     }
 }

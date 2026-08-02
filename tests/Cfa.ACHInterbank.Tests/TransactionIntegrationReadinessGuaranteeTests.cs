@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Microsoft.Data.Sqlite;
@@ -727,8 +728,30 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
                 EffectiveEntryDate = cycle.ProcessingDate,
                 CompanyEntryDescriptionId = 1
             };
-            DebitFromCfa = BuildTransaction(101, TransactionTypeEnum.Debit, "UAT-DEB-CFA-101", 1, 2, cycle.Id, batch.Id);
-            CreditFromExternal = BuildTransaction(102, TransactionTypeEnum.Credit, "UAT-CRED-EXT-102", 2, 1, cycle.Id, batch.Id);
+            DebitFromCfa = BuildTransaction(
+                101,
+                TransactionTypeEnum.Debit,
+                "UAT-DEB-CFA-101",
+                1,
+                2,
+                cycle.Id,
+                batch.Id,
+                AchTransactionDirection.Outgoing,
+                AchTransactionOrigin.Cfa,
+                AchMonetaryIntegrationRoute.ProcContrapartidas,
+                true);
+            CreditFromExternal = BuildTransaction(
+                102,
+                TransactionTypeEnum.Credit,
+                "UAT-CRED-EXT-102",
+                2,
+                1,
+                cycle.Id,
+                batch.Id,
+                AchTransactionDirection.Incoming,
+                AchTransactionOrigin.ExternalInstitution,
+                AchMonetaryIntegrationRoute.ProcTransacciones,
+                false);
 
             Context.AchCycles.Add(cycle);
             Context.AchBatches.Add(batch);
@@ -743,7 +766,11 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             int sourceInstitutionId,
             int destinationInstitutionId,
             string cycleId,
-            int batchId)
+            int batchId,
+            AchTransactionDirection direction,
+            AchTransactionOrigin origin,
+            AchMonetaryIntegrationRoute route,
+            bool sourceWasDefault)
             => new()
             {
                 Id = id,
@@ -763,7 +790,14 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
                 DestinationInstitutionId = destinationInstitutionId,
                 AchCycleId = cycleId,
                 AchBatchId = batchId,
-                State = AchTransferStateEnum.Pending
+                State = AchTransferStateEnum.Pending,
+                Direction = direction,
+                Origin = origin,
+                MonetaryIntegrationRoute = route,
+                ClassificationStatus = AchTransactionClassificationStatus.Determined,
+                SourceInstitutionWasDefaultAtCreation = sourceWasDefault,
+                ClassifiedAtUtc = DateTime.UtcNow,
+                ClassificationVersion = 1
             };
 
         private static IntegrationSourceKindEnum SourceKindForFunctionalTest(IntegrationMethodParameter parameter)

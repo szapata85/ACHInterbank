@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -295,6 +296,13 @@ public sealed class BulkTransactionScenarioSeeder : IDbSeeder
                 TraceNumber = $"{routing8}{traceSequence:0000000}",
                 EffectiveEntryDate = effectiveDate,
                 AddendaRecordIndicator = true,
+                Direction = AchTransactionDirection.Outgoing,
+                Origin = AchTransactionOrigin.Cfa,
+                MonetaryIntegrationRoute = AchMonetaryIntegrationRoute.None,
+                ClassificationStatus = AchTransactionClassificationStatus.Determined,
+                SourceInstitutionWasDefaultAtCreation = true,
+                ClassifiedAtUtc = effectiveDate,
+                ClassificationVersion = 1,
                 State = AchTransferStateEnum.AppliedTacitly,
                 StateChangedAtUtc = effectiveDate,
                 SourceAccountNumber = debit.SourceAccountNumber,
@@ -433,6 +441,18 @@ public sealed class BulkTransactionScenarioSeeder : IDbSeeder
                 RecipientIdNumber = $"10{index:00000000}",
                 DiscretionaryData = type == TransactionTypeEnum.Credit && index % 3 == 0 ? "V" : string.Empty
             };
+
+            transaction.Direction = AchTransactionDirection.Outgoing;
+            transaction.Origin = AchTransactionOrigin.Cfa;
+            transaction.SourceInstitutionWasDefaultAtCreation = true;
+            transaction.ClassifiedAtUtc = cycle.ProcessingDate.Date;
+            transaction.ClassificationVersion = 1;
+            transaction.MonetaryIntegrationRoute = type == TransactionTypeEnum.Debit
+                ? AchMonetaryIntegrationRoute.ProcContrapartidas
+                : AchMonetaryIntegrationRoute.ManualReview;
+            transaction.ClassificationStatus = type == TransactionTypeEnum.Debit
+                ? AchTransactionClassificationStatus.Determined
+                : AchTransactionClassificationStatus.Invalid;
 
             transactions.Add(transaction);
 
