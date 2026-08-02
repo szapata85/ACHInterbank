@@ -462,6 +462,61 @@ public class IncomingNachaCommandCenterServiceTests
     }
 
     [Fact]
+    public async Task GetTransactionsAsync_ShouldAlwaysExposeANonNullableTransactionCodeDescription()
+    {
+        await using var context = await CreateContextAsync();
+        var queue = await SeedQueueAsync(context, IncomingNachaDispatchQueueStatus.Queued);
+        var header = new NachaHeader
+        {
+            NachaID = "TRANSACTION-CODE-DESCRIPTIONS",
+            IncomingNachaFileIngestionId = queue.IncomingNachaFileIngestionId,
+            ClearingHouseId = queue.ClearingHouseId,
+            AchCycleId = queue.AchCycleId
+        };
+        var batch = new BatchHeader
+        {
+            BatchID = 20,
+            BatchNumber = 1,
+            NachaID = header.NachaID,
+            NachaHeader = header
+        };
+        context.TransactionCodes.AddRange(
+            new TransactionCodeCatalog { Code = "22", Name = "Crédito", Description = "Crédito a cuenta corriente." },
+            new TransactionCodeCatalog { Code = "23", Name = "Prenotificación", Description = null });
+        context.NachaHeaders.Add(header);
+        context.BatchHeaders.Add(batch);
+        context.EntryDetails.AddRange(
+            CreateEntry(20, "000000000000020", "22"),
+            CreateEntry(21, "000000000000021", "23"),
+            CreateEntry(22, "000000000000022", "99"),
+            CreateEntry(23, "000000000000023", null));
+        await context.SaveChangesAsync();
+
+        var page = await CreateSut(context).GetTransactionsAsync(
+            queue.IncomingNachaFileIngestionId,
+            new IncomingNachaTransactionQuery { PageSize = 10 });
+
+        Assert.Equal(4, page.TotalItems);
+        Assert.Equal("Crédito a cuenta corriente.", page.Items.Single(x => x.Id == 20).TransactionCodeDescription);
+        Assert.Equal("Código de transacción NACHA-M", page.Items.Single(x => x.Id == 21).TransactionCodeDescription);
+        Assert.Equal("Código de transacción NACHA-M", page.Items.Single(x => x.Id == 22).TransactionCodeDescription);
+        Assert.Equal("Código de transacción NACHA-M", page.Items.Single(x => x.Id == 23).TransactionCodeDescription);
+
+        EntryDetail CreateEntry(int id, string sequence, string? transactionCode) => new()
+        {
+            EntryDetailID = id,
+            BatchHeaderId = batch.BatchID,
+            BatchHeader = batch,
+            BatchNumber = batch.BatchNumber,
+            NachaID = header.NachaID,
+            NachaHeader = header,
+            SequenceNumber = sequence,
+            TransactionCode = transactionCode,
+            Amount = 0m
+        };
+    }
+
+    [Fact]
     public async Task GetIngestionsAsync_ShouldApplyServerFilters_AndExposeOperationalSummaryFields()
     {
         await using var context = await CreateContextAsync();

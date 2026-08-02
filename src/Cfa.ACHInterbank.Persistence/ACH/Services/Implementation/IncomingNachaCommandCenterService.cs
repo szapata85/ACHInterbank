@@ -787,6 +787,9 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
             IncomingNachaDispatchQueue? queue = null;
             if (classification is not null) queueByClassification.TryGetValue(classification.Id, out queue);
             executionByEntry.TryGetValue(entry.EntryDetailID, out var execution);
+            var transactionCodeDescription = ResolveTransactionCodeDescription(
+                entry.TransactionCode,
+                transactionCodeDescriptions);
             return new IncomingNachaTransactionDto(
                 entry.EntryDetailID,
                 entry.BatchHeaderId ?? 0,
@@ -823,9 +826,7 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
                 AchReturnCodeId = execution?.AchReturnCodeId,
                 TechnicalErrorCode = execution?.TechnicalErrorCode ?? string.Empty,
                 TechnicalErrorMessage = execution?.TechnicalErrorMessage ?? string.Empty,
-                TransactionCodeDescription = entry.TransactionCode is not null
-                    ? transactionCodeDescriptions.GetValueOrDefault(entry.TransactionCode, "Código de transacción NACHA-M")
-                    : "Código de transacción NACHA-M",
+                TransactionCodeDescription = transactionCodeDescription,
                 AccountNumberMasked = MaskValue(entry.AccountNumber, 4),
                 OriginInstitution = MaskInstitution(entry.BatchHeader?.OriginParticipantEntityCode),
                 DestinationInstitution = MaskInstitution(entry.ReceivingParticipantEntityCode),
@@ -835,6 +836,22 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         }).ToList();
 
         return new IncomingNachaPageResult<IncomingNachaTransactionDto>(items, page, pageSize, total);
+    }
+
+    private static string ResolveTransactionCodeDescription(
+        string? transactionCode,
+        IReadOnlyDictionary<string, string?> transactionCodeDescriptions)
+    {
+        const string fallbackDescription = "Código de transacción NACHA-M";
+
+        if (string.IsNullOrWhiteSpace(transactionCode)
+            || !transactionCodeDescriptions.TryGetValue(transactionCode, out var description)
+            || string.IsNullOrWhiteSpace(description))
+        {
+            return fallbackDescription;
+        }
+
+        return description;
     }
 
     public async Task<IReadOnlyList<IncomingNachaAddendaDto>> GetAddendasAsync(

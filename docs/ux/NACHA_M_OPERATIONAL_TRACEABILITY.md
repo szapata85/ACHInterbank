@@ -151,3 +151,67 @@ Las capturas se generan en `web/ach-interbank-ui/test-results/nacha-operational-
 - Pruebas backend focalizadas `IncomingNachaCommandCenterServiceTests`: 15 aprobadas, 0 fallidas, 0 omitidas.
 - Regresión backend completa: dos intentos no finalizaron dentro de 6 y 15 minutos, sin producir resumen ni fallo; se conserva como limitación de validación, no como resultado aprobado.
 - `git diff --check`: completado sin errores de espacios; Git sólo informa la conversión futura LF/CRLF configurada para el repositorio.
+
+## Cierre de endurecimiento del Prompt 3
+
+### Nulabilidad y advertencia CS8601
+
+La advertencia de CI se reprodujo en la proyección de transacciones de `IncomingNachaCommandCenterService`. El catálogo permite que `TransactionCodeCatalog.Description` sea nulo en ambos proveedores, por lo que el diccionario resultante tiene valores `string?`. `GetValueOrDefault` podía devolver `null` cuando la clave existía con descripción nula, aunque se proporcionara un valor alternativo, y ese resultado se asignaba al DTO no nullable `TransactionCodeDescription`.
+
+Se centralizó la resolución de la descripción: conserva la descripción real cuando existe y usa `Código de transacción NACHA-M` para código ausente, entrada de catálogo ausente o descripción nula/vacía. La ausencia de una descripción de catálogo es válida; la propiedad del DTO sigue siendo no nullable porque la interfaz necesita siempre una etiqueta operativa. No se usaron `!`, supresiones de advertencias ni cambios globales de nulabilidad.
+
+La prueba `GetTransactionsAsync_ShouldAlwaysExposeANonNullableTransactionCodeDescription` cubre valor presente, descripción nula, catálogo sin coincidencia y código nulo. Las 16 pruebas focalizadas del servicio aprobaron. La compilación Release posterior produjo 0 advertencias y 0 errores.
+
+### Playwright con SPA, API y PostgreSQL reales
+
+Se agregó `e2e/incoming-nacha-command-center-postgres.spec.ts` al gate `test:e2e:job6`. El escenario usa inicio de sesión real y recorre:
+
+```text
+/login
+→ /incoming-nacha-command-center
+→ /incoming-nacha-command-center/files/{id}
+→ Validaciones
+→ Lotes
+→ navegación directa al detalle por URL
+```
+
+El fixture es sintético, fijo, idempotente y aislado. Se prepara en la base PostgreSQL E2E mediante el cliente `pg`, contiene una ingesta, resultado, encabezado y lote sin transacciones ni cola, y se elimina antes y después del escenario. No crea datos demo productivos, no usa certificados, no contacta una cámara y no ejecuta SOAP ni operaciones monetarias.
+
+El escenario real no llama `page.route` y no intercepta resumen, listado, detalle, validaciones, lotes ni transacciones. Comprueba respuestas HTTP, serialización, contenido visible, errores de consola, fallos de página y navegación directa. Los cinco escenarios excepcionales existentes conservan interceptaciones delimitadas para R96, R16, R17, error técnico, rechazo de validación, vacíos y error recuperable.
+
+La configuración Nginx del contenedor SPA se ajustó porque la ruta API `/incoming-nacha-command-center/...` caía en el `index.html`. El proxy se limita a `observability`, `ingestions` y `queue`; las rutas SPA canónicas y de detalle siguen resolviéndose por Angular. El escenario real aprobó 1/1 en 8,3 segundos y los escenarios determinísticos aprobaron 5/5, incluido el viewport móvil. Evidencias:
+
+- `web/ach-interbank-ui/test-results/incoming-nacha-command-cen-da8f7-ceptar-el-centro-de-control-chromium/listado-postgresql-real.png`.
+- `web/ach-interbank-ui/test-results/incoming-nacha-command-cen-da8f7-ceptar-el-centro-de-control-chromium/detalle-postgresql-real.png`.
+- Reporte HTML: `web/ach-interbank-ui/playwright-report/index.html`.
+
+### Regresión backend y multimotor
+
+La regresión equivalente a CI, sin `ClearingHouseMultiDb` y con un solo procesador, finalizó con 2071 pruebas: 2064 aprobadas, 0 fallidas y 7 omitidas, en 18 minutos 23 segundos. El resultado verificable está en `TestResults/dotnet-tests.trx`.
+
+Las categorías con infraestructura real se ejecutaron aparte contra SQL Server y PostgreSQL:
+
+- `FinancialIntegrity`: 8 aprobadas, 0 fallidas, 0 omitidas, 57 segundos; `TestResults/FinancialIntegrity/financial-integrity-multidb.trx`.
+- `IncomingNachaTraceabilityMigration`: 2 aprobadas, 0 fallidas, 0 omitidas, 48 segundos; `TestResults/IncomingNachaTraceabilityMigration/incoming-nacha-traceability-migration.trx`.
+- `ClearingHouseMultiDb`: 2 aprobadas, 0 fallidas, 0 omitidas, 1 minuto 44 segundos; `TestResults/ClearingHouses/clearing-houses-multidb.trx`.
+
+`SoapArchitectureDiagnosticTests` continúa omitida de forma intencional: su atributo indica que documenta contaminación arquitectural previa a un refactor futuro, y `docs/architecture/INCOMING_NACHA_TRACEABILITY_CORE.md` la clasifica como diagnóstico, no como validación funcional o productiva. La funcionalidad cubierta por esta fase está validada por las pruebas focalizadas, la regresión y los jobs multimotor.
+
+### Dependencias npm y riesgo residual
+
+El auditor inicial encontró cuatro vulnerabilidades, todas en desarrollo y ninguna en el paquete desplegado:
+
+| Paquete | Origen | Severidad inicial | Alcance y riesgo | Corrección aplicada |
+|---|---|---:|---|---|
+| `brace-expansion` 1.1.16 | `karma` → `minimatch` | Alta | Expansión no acotada durante herramientas de prueba; no se distribuye en producción. | Actualización transitiva compatible a 1.1.18. |
+| `@hono/node-server` 1.19.15 | Angular CLI → SDK MCP | Moderada | Recorrido de ruta codificada en servidor estático de desarrollo sobre Windows; el SPA desplegado no lo usa. | Actualización transitiva a 2.0.12, admitida por el SDK actualizado. |
+| `@modelcontextprotocol/sdk` 1.29.0 | Angular CLI | Moderada | Alerta compuesta por la dependencia Hono; sólo herramientas de desarrollo. | Actualización transitiva compatible a 1.30.0. |
+| `@angular/cli` 21.2.19 | Directa de desarrollo | Moderada | Alerta compuesta por SDK MCP/Hono; no afecta dependencias de producción. | Se conservó Angular CLI 21.2.19; la corrección transitiva eliminó la alerta. |
+
+Se ejecutó `npm audit fix --ignore-scripts`, sin `--force`, sin cambio mayor de Angular y sin modificar versiones directas de Angular, Material o Playwright. Después de una nueva instalación limpia, `npm audit --json` y `npm audit --omit=dev` reportaron 0 vulnerabilidades. No queda riesgo de seguridad conocido por `npm audit`; `npm outdated` mantiene actualizaciones funcionales futuras que deben tratarse en fases planificadas y no como parte de este cierre.
+
+### Ausencia de lint y controles estáticos
+
+`angular.json` sólo define `build`, `serve` y `test`; no existen archivos ESLint/TSLint ni configuración parcial. `npx ng lint` confirma `Cannot find "lint" target`. No se agregó ESLint ni dependencias para simular el control. Su adopción queda como deuda técnica separada: crear una fase de migración a `angular-eslint`, fijar reglas compatibles con Angular 21, establecer una línea base y activar el gate de CI sin mezclar cambios funcionales.
+
+Los controles alternativos ejecutados fueron `npx tsc -p tsconfig.app.json --noEmit`, `npm run build`, 21 pruebas unitarias focalizadas y las 662 pruebas unitarias completas; todos aprobaron. `npm ci` terminó con 0 vulnerabilidades. La vista conserva español, humanización, separación técnica/funcional, enmascaramiento, formato `es-CO`, responsive y accesibilidad; no se cambiaron entidades, migraciones, reglas financieras ni códigos ACH.
