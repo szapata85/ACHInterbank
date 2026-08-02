@@ -11,7 +11,7 @@ public static class AchResponseStatePolicy
             [AchResponseProcessingStatus.PendienteCorrelacion] = [AchResponseProcessingStatus.Huerfana, AchResponseProcessingStatus.Homologada, AchResponseProcessingStatus.RequiereRevisionManual],
             [AchResponseProcessingStatus.Huerfana] = [AchResponseProcessingStatus.EnRevision],
             [AchResponseProcessingStatus.NoHomologada] = [AchResponseProcessingStatus.Huerfana, AchResponseProcessingStatus.EnRevision, AchResponseProcessingStatus.PendienteReproceso],
-            [AchResponseProcessingStatus.RequiereRevisionManual] = [AchResponseProcessingStatus.EnRevision],
+            [AchResponseProcessingStatus.RequiereRevisionManual] = [AchResponseProcessingStatus.EnRevision, AchResponseProcessingStatus.PendienteReproceso],
             [AchResponseProcessingStatus.EnRevision] = [AchResponseProcessingStatus.Resuelta, AchResponseProcessingStatus.Rechazada, AchResponseProcessingStatus.PendienteReproceso],
             [AchResponseProcessingStatus.Homologada] = [AchResponseProcessingStatus.Notificada, AchResponseProcessingStatus.PendienteReintento, AchResponseProcessingStatus.ErrorFuncional, AchResponseProcessingStatus.ErrorTecnico],
             [AchResponseProcessingStatus.PendienteReintento] = [AchResponseProcessingStatus.PendienteReproceso, AchResponseProcessingStatus.Reprocesando],

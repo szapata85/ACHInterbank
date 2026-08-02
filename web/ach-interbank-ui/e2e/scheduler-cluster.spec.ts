@@ -45,7 +45,7 @@ test.describe.serial('administracion real del scheduler', () => {
     await submit.dblclick();
     await expect(manualDialog).toBeHidden();
     const history = page.getByRole('region', { name: 'Historial funcional' });
-    expect(await history.getByRole('cell', { name: 'Manual' }).count()).toBeGreaterThan(0);
+    await expect(history.getByRole('cell', { name: 'Manual' }).first()).toBeVisible();
 
     await openActions(page);
     await page.getByRole('button', { name: 'Ejecutar ahora' }).click();

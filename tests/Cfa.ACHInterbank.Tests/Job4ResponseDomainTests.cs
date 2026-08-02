@@ -40,6 +40,8 @@ public sealed class Job4ResponseDomainTests
     {
         AchResponseStatePolicy.EnsureTransition(AchResponseProcessingStatus.Huerfana,
             AchResponseProcessingStatus.EnRevision, "operator", "Investigación", "corr-1");
+        AchResponseStatePolicy.EnsureTransition(AchResponseProcessingStatus.RequiereRevisionManual,
+            AchResponseProcessingStatus.PendienteReproceso, "operator", "Reproceso gobernado", "corr-reprocess");
 
         Assert.Throws<InvalidOperationException>(() => AchResponseStatePolicy.EnsureTransition(
             AchResponseProcessingStatus.Notificada, AchResponseProcessingStatus.Huerfana,
