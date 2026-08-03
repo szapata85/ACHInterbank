@@ -1,7 +1,7 @@
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { OutgoingTransactionMonitoringApiService } from './outgoing-transaction-monitoring-api.service';
 import { OutgoingTransactionMonitoringListComponent } from './outgoing-transaction-monitoring-list.component';
 
@@ -12,10 +12,14 @@ describe('OutgoingTransactionMonitoringListComponent', () => {
 
   beforeEach(async () => {
     sessionStorage.clear();
-    api = jasmine.createSpyObj('OutgoingTransactionMonitoringApiService', ['search', 'getClearingHouses', 'getDestinationInstitutions']);
+    api = jasmine.createSpyObj('OutgoingTransactionMonitoringApiService', ['search', 'getClearingHouses', 'getDestinationInstitutions', 'getCycles']);
     api.search.and.returnValue(of({ items: [], pageNumber: 1, pageSize: 25, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false }));
     api.getClearingHouses.and.returnValue(of([]));
     api.getDestinationInstitutions.and.returnValue(of([]));
+    api.getCycles.and.returnValue(of([
+      { id: 'CYCLE-1', cycleName: 'Ciclo 1', clearingHouseId: 1, clearingHouseName: 'ACH Colombia', cutoffTime: '08:30:00' },
+      { id: 'CYCLE-2', cycleName: 'Ciclo 2', clearingHouseId: 2, clearingHouseName: 'CENIT', cutoffTime: '10:00:00' }
+    ]));
     await TestBed.configureTestingModule({
       imports: [OutgoingTransactionMonitoringListComponent],
       providers: [
@@ -95,6 +99,47 @@ describe('OutgoingTransactionMonitoringListComponent', () => {
     component.search();
 
     expect(api.search.calls.mostRecent().args[0].responseCode).toBe('R01');
+  });
+
+  it('carga el catálogo real y envía el identificador estable del ciclo seleccionado', () => {
+    expect(api.getCycles).toHaveBeenCalledWith(undefined);
+    expect(fixture.nativeElement.querySelector('mat-select[formcontrolname="cycleId"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="cycleId"]')).toBeNull();
+
+    component.form.patchValue({ cycleId: 'CYCLE-1' });
+    component.search();
+
+    expect(api.search.calls.mostRecent().args[0].cycleId).toBe('CYCLE-1');
+  });
+
+  it('recarga ciclos por cámara y limpia una selección incompatible', () => {
+    component.form.patchValue({ cycleId: 'CYCLE-1' });
+    api.getCycles.and.returnValue(of([
+      { id: 'CYCLE-2', cycleName: 'Ciclo 2', clearingHouseId: 2, clearingHouseName: 'CENIT', cutoffTime: '10:00:00' }
+    ]));
+
+    component.form.controls.clearingHouseId.setValue(2);
+
+    expect(api.getCycles).toHaveBeenCalledWith(2);
+    expect(component.form.controls.cycleId.value).toBeNull();
+    expect(component.cycles().map(cycle => cycle.id)).toEqual(['CYCLE-2']);
+  });
+
+  it('presenta error recuperable y permite reintentar el catálogo de ciclos', () => {
+    api.getCycles.and.returnValue(throwError(() => new Error('catálogo no disponible')));
+
+    component.retryCycleCatalog();
+    fixture.detectChanges();
+
+    expect(component.cyclesError()).toBeTrue();
+    expect(fixture.nativeElement.textContent).toContain('No fue posible consultar los ciclos.');
+
+    api.getCycles.and.returnValue(of([]));
+    component.retryCycleCatalog();
+    fixture.detectChanges();
+
+    expect(component.cyclesError()).toBeFalse();
+    expect(fixture.nativeElement.textContent).toContain('No hay ciclos disponibles.');
   });
 
   it('restaura los filtros al regresar del detalle', async () => {

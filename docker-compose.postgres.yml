@@ -42,6 +42,7 @@ services:
       Quartz__JobStore__PerformSchemaValidation: "false"
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
       DigitalEnvelope__CertificateBootstrap__Enabled: "false"
+      ACH_SOAP_LIVE_TESTS: "${ACH_SOAP_LIVE_TESTS:-false}"
       RateLimiting__PermitLimit: "${RATE_LIMITING_PERMIT_LIMIT:-10}"
       RateLimiting__WindowSeconds: "${RATE_LIMITING_WINDOW_SECONDS:-1}"
       RateLimiting__QueueLimit: "${RATE_LIMITING_QUEUE_LIMIT:-2}"

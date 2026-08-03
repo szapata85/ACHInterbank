@@ -157,6 +157,46 @@ public sealed class IntegrationBootstrapperTests
     }
 
     [Fact]
+    public async Task ProcContrapartidas_Bootstrapper_ShouldReplaceSeedMappingWithAmbiguousAccountSource_AndRemainIdempotent()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        var obsolete = await fixture.Context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        var accountParameterId = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.ParameterPath == "OFCTA")
+            .Select(x => x.Id)
+            .SingleAsync();
+        var accountRule = await fixture.Context.IntegrationMappingRules
+            .SingleAsync(x => x.MappingSetId == obsolete.Id && x.ParameterId == accountParameterId);
+        accountRule.SourceFieldPath = "transaction.originatingdfi";
+        accountRule.DefaultValue = "000010070";
+        await fixture.Context.SaveChangesAsync();
+
+        await bootstrapper.EnsureAsync();
+        var repaired = await fixture.Context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        var repairedRule = await fixture.Context.IntegrationMappingRules
+            .SingleAsync(x => x.MappingSetId == repaired.Id && x.ParameterId == accountParameterId);
+
+        Assert.NotEqual(obsolete.Id, repaired.Id);
+        Assert.Equal(IntegrationMappingSetStatusEnum.Archived, obsolete.Status);
+        Assert.False(obsolete.IsActive);
+        Assert.Equal("transaction.sourceAccountNumber", repairedRule.SourceFieldPath);
+        Assert.Null(repairedRule.DefaultValue);
+
+        await bootstrapper.EnsureAsync();
+        var finalPublishedId = await fixture.Context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive)
+            .Select(x => x.Id)
+            .SingleAsync();
+        Assert.Equal(repaired.Id, finalPublishedId);
+    }
+
+    [Fact]
     public async Task ProcTransacciones_BaseMapping_ShouldKeepObservedOptionalInputsAndResponseOutputs()
     {
         await using var fixture = await ContextFixture.CreateAsync();

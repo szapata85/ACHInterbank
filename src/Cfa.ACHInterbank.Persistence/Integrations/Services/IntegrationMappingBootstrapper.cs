@@ -67,15 +67,12 @@ public sealed class IntegrationMappingBootstrapper
             return;
         }
 
-        var existingPublished = await _context.IntegrationMappingSets
-            .AsNoTracking()
-            .AnyAsync(x => x.MethodId == method.Id
+        var existingPublishedSets = await _context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id
                 && x.Status == IntegrationMappingSetStatusEnum.Published
-                && x.IsActive, ct);
-        if (existingPublished)
-        {
-            return;
-        }
+                && x.IsActive)
+            .OrderByDescending(x => x.Version)
+            .ToListAsync(ct);
 
         var parameters = await _context.IntegrationMethodParameters
             .AsNoTracking()
@@ -83,12 +80,40 @@ public sealed class IntegrationMappingBootstrapper
             .OrderBy(x => x.SortOrder)
             .ToListAsync(ct);
 
+        if (existingPublishedSets.Any(x => !string.Equals(x.PublishedBy, "seed", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        foreach (var existing in existingPublishedSets)
+        {
+            var existingRules = await _context.IntegrationMappingRules
+                .AsNoTracking()
+                .Where(x => x.MappingSetId == existing.Id && x.Enabled)
+                .ToListAsync(ct);
+            if (IsProcContrapartidasMappingCompatible(method.Id, existing.Id, parameters, existingRules))
+            {
+                return;
+            }
+        }
+
+        foreach (var invalid in existingPublishedSets)
+        {
+            invalid.Status = IntegrationMappingSetStatusEnum.Archived;
+            invalid.IsActive = false;
+        }
+
+        var nextVersion = (await _context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id)
+            .Select(x => (int?)x.Version)
+            .MaxAsync(ct) ?? 0) + 1;
+
         var published = new IntegrationMappingSet
         {
             MethodId = method.Id,
             Name = "ProcContrapartidas Published",
             Status = IntegrationMappingSetStatusEnum.Published,
-            Version = 1,
+            Version = nextVersion,
             IsActive = true,
             Notes = "Version publicada de referencia funcional",
             PublishedAtUtc = DateTime.UtcNow,
@@ -99,6 +124,10 @@ public sealed class IntegrationMappingBootstrapper
         var publishedRules = BuildPublishedRules(method.Id, published.Id, parameters);
         _context.IntegrationMappingRules.AddRange(publishedRules);
         await _context.SaveChangesAsync(ct);
+        foreach (var invalid in existingPublishedSets)
+        {
+            _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(invalid, "ArchivedInvalidProcContrapartidasMapping", ct));
+        }
         _context.IntegrationMappingSetHistory.Add(await BuildHistoryAsync(published, "SeedPublished", ct));
         await _context.SaveChangesAsync(ct);
     }
@@ -109,17 +138,21 @@ public sealed class IntegrationMappingBootstrapper
 
         AddPathRule("OFNIT", IntegrationSourceKindEnum.Transaction, "transaction.companyidentification", "900123456");
         AddPathRule("OFEMP", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.code", "ACH");
-        AddPathRule("OFCTA", IntegrationSourceKindEnum.Transaction, "transaction.originatingdfi", "000010070");
-        AddPathRule("OFDD", IntegrationSourceKindEnum.Constant, "constant.value", "C");
+        AddPathRule("OFCTA", IntegrationSourceKindEnum.Transaction, "transaction.sourceAccountNumber", null);
+        AddConstantRule("OFDD", "TRANSFER  ");
         AddPathRule("OFFECHEFEC", IntegrationSourceKindEnum.Cycle, "cycle.processingdate", null);
-        AddPathRule("OFMONCRE", IntegrationSourceKindEnum.Transaction, "transaction.amount", "0");
-        AddPathRule("OFMONDEB", IntegrationSourceKindEnum.Constant, "constant.value", "0");
+        AddPathRule("OFMONDEB", IntegrationSourceKindEnum.Transaction, "transaction.amount", "0");
+        AddConstantRule("OFMONCRE", "0");
         AddPathRule("OFIDARCH", IntegrationSourceKindEnum.Batch, "batch.id", "1");
         AddPathRule("OFIDLOT", IntegrationSourceKindEnum.Batch, "batch.id", "1");
-        AddPathRule("OFIDTX", IntegrationSourceKindEnum.Transaction, "transaction.reference", "REF-1");
-        AddPathRule("OFIDEBAPLI", IntegrationSourceKindEnum.Transaction, "transaction.id", "1");
+        AddConstantRule("OFST", "OO");
+        AddConstantRule("OFIDTX", "0");
+        AddConstantRule("OFIDREVER", "0");
+        AddConstantRule("OFIDEBAPLI", "1");
         AddPathRule("OFIDCAMCOMPE", IntegrationSourceKindEnum.ClearingHouse, "clearinghouse.id", "1");
         AddPathRule("OFDIRECCIONIP", IntegrationSourceKindEnum.Constant, "constant.value", "0.0.0.0");
+        AddPathRule("OFLIBRE", IntegrationSourceKindEnum.Transaction, "transaction.reference", null);
+        AddPathRule("OFLIBRE1", IntegrationSourceKindEnum.Transaction, "transaction.id", null);
 
         return rules;
 
@@ -144,6 +177,49 @@ public sealed class IntegrationMappingBootstrapper
                 Enabled = true
             });
         }
+
+        void AddConstantRule(string parameterPath, string value)
+        {
+            var parameter = parameters.FirstOrDefault(p => p.ParameterPath == parameterPath);
+            if (parameter is null)
+            {
+                return;
+            }
+
+            rules.RemoveAll(r => r.ParameterId == parameter.Id);
+            rules.Add(new IntegrationMappingRule
+            {
+                MappingSetId = mappingSetId,
+                MethodId = methodId,
+                ParameterId = parameter.Id,
+                SourceKind = IntegrationSourceKindEnum.Constant,
+                FixedValue = value,
+                DefaultValue = value,
+                Priority = 1,
+                Enabled = true
+            });
+        }
+    }
+
+    private static bool IsProcContrapartidasMappingCompatible(
+        int methodId,
+        Guid mappingSetId,
+        IReadOnlyCollection<IntegrationMethodParameter> parameters,
+        IReadOnlyCollection<IntegrationMappingRule> rules)
+    {
+        var expected = BuildPublishedRules(methodId, mappingSetId, parameters);
+        if (rules.Count != expected.Count)
+        {
+            return false;
+        }
+
+        return expected.All(desired => rules.Any(actual =>
+            actual.ParameterId == desired.ParameterId
+            && actual.SourceKind == desired.SourceKind
+            && string.Equals(actual.SourceFieldPath ?? string.Empty, desired.SourceFieldPath ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(actual.FixedValue, desired.FixedValue, StringComparison.Ordinal)
+            && string.Equals(actual.DefaultValue, desired.DefaultValue, StringComparison.Ordinal)
+            && actual.Enabled));
     }
 
     private static List<IntegrationMappingRule> BuildDefaultValidRules(int methodId, Guid mappingSetId, IReadOnlyCollection<IntegrationMethodParameter> parameters)

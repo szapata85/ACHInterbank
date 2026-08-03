@@ -6,7 +6,8 @@ import {
   OutgoingMonitoringListItem,
   OutgoingMonitoringPage,
   OutgoingMonitoringQuery,
-  OutgoingMonitoringOption
+  OutgoingMonitoringOption,
+  OutgoingMonitoringCycleOption
 } from './outgoing-transaction-monitoring.models';
 
 @Injectable({ providedIn: 'root' })
@@ -45,6 +46,14 @@ export class OutgoingTransactionMonitoringApiService {
   getDestinationInstitutions(): Observable<OutgoingMonitoringOption[]> {
     return this.api.get<OutgoingMonitoringOption[]>('financial-institutions', {
       params: { includeInactive: false },
+      headers: { 'X-Skip-Loading': 'true' }
+    }).pipe(map(response => response ?? []));
+  }
+
+  getCycles(clearingHouseId?: number): Observable<OutgoingMonitoringCycleOption[]> {
+    const params = clearingHouseId == null ? undefined : { clearingHouseId };
+    return this.api.get<OutgoingMonitoringCycleOption[]>('api/ach-cycles', {
+      params,
       headers: { 'X-Skip-Loading': 'true' }
     }).pipe(map(response => response ?? []));
   }

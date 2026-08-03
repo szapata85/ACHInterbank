@@ -16,9 +16,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import { Subject, catchError, finalize, of, switchMap } from 'rxjs';
+import { Subject, catchError, finalize, of, startWith, switchMap } from 'rxjs';
 import { OutgoingTransactionMonitoringApiService } from './outgoing-transaction-monitoring-api.service';
-import { OutgoingMonitoringListItem, OutgoingMonitoringOption, OutgoingMonitoringPage, OutgoingMonitoringQuery } from './outgoing-transaction-monitoring.models';
+import { OutgoingMonitoringCycleOption, OutgoingMonitoringListItem, OutgoingMonitoringOption, OutgoingMonitoringPage, OutgoingMonitoringQuery } from './outgoing-transaction-monitoring.models';
 
 @Component({
   selector: 'app-outgoing-transaction-monitoring-list',
@@ -38,6 +38,7 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly searches = new Subject<OutgoingMonitoringQuery>();
+  private readonly cycleCatalogRequests = new Subject<number | null>();
 
   readonly displayedColumns = ['createdAt', 'identifier', 'clearingHouse', 'cycle', 'destination', 'amount', 'process', 'result', 'subsequent', 'updated', 'action'];
   readonly dataSource = new MatTableDataSource<OutgoingMonitoringListItem>([]);
@@ -48,17 +49,21 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
   readonly page = signal<OutgoingMonitoringPage<OutgoingMonitoringListItem>>(emptyPage());
   readonly institutions = signal<OutgoingMonitoringOption[]>([]);
   readonly clearingHouses = signal<OutgoingMonitoringOption[]>([]);
+  readonly cycles = signal<OutgoingMonitoringCycleOption[]>([]);
+  readonly cyclesLoading = signal(false);
+  readonly cyclesError = signal(false);
   private currentPage = 1;
   private currentPageSize: 10 | 25 | 50 | 100 = 25;
   private currentSort: OutgoingMonitoringQuery['sortBy'] = 'createdAt';
   private currentDirection: 'asc' | 'desc' = 'desc';
   private requestSequence = 0;
+  private cycleRequestSequence = 0;
 
   readonly form = this.fb.group({
     fromDate: [daysAgo(7)],
     toDate: [new Date()],
     clearingHouseId: [null as number | null],
-    cycleId: [''],
+    cycleId: [null as string | null],
     destinationInstitutionId: [null as number | null],
     transactionExternalId: [''],
     traceNumber: [''],
@@ -75,6 +80,38 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
 
   ngOnInit(): void {
     this.restoreFilters();
+    this.cycleCatalogRequests.pipe(
+      switchMap(clearingHouseId => {
+        const requestId = ++this.cycleRequestSequence;
+        this.cyclesLoading.set(true);
+        this.cyclesError.set(false);
+        return this.api.getCycles(clearingHouseId ?? undefined).pipe(
+          catchError(() => {
+            this.cyclesError.set(true);
+            return of([] as OutgoingMonitoringCycleOption[]);
+          }),
+          finalize(() => {
+            if (requestId === this.cycleRequestSequence) this.cyclesLoading.set(false);
+          })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(cycles => {
+      this.cycles.set(cycles);
+      const selectedCycle = this.form.controls.cycleId.value;
+      if (selectedCycle && !cycles.some(cycle => cycle.id === selectedCycle)) {
+        this.form.controls.cycleId.setValue(null);
+      }
+    });
+    let initializedClearingHouse = false;
+    this.form.controls.clearingHouseId.valueChanges.pipe(
+      startWith(this.form.controls.clearingHouseId.value),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(clearingHouseId => {
+      if (initializedClearingHouse) this.form.controls.cycleId.setValue(null);
+      initializedClearingHouse = true;
+      this.cycleCatalogRequests.next(clearingHouseId);
+    });
     this.api.getDestinationInstitutions().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: items => this.institutions.set(items ?? []),
       error: () => this.institutions.set([])
@@ -117,6 +154,10 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
   }
 
   refresh(): void { this.search(false); }
+
+  retryCycleCatalog(): void {
+    this.cycleCatalogRequests.next(this.form.controls.clearingHouseId.value);
+  }
 
   clearFilters(): void {
     this.form.reset({ fromDate: daysAgo(7), toDate: new Date() });
@@ -163,7 +204,7 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
       fromUtc: startOfDay(value.fromDate),
       toUtc: endOfDay(value.toDate),
       clearingHouseId: value.clearingHouseId ?? undefined,
-      cycleId: value.cycleId?.trim() || undefined,
+      cycleId: value.cycleId || undefined,
       destinationInstitutionId: value.destinationInstitutionId ?? undefined,
       transactionExternalId: value.transactionExternalId?.trim() || undefined,
       traceNumber: value.traceNumber?.trim() || undefined,

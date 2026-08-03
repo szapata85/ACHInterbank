@@ -12,6 +12,8 @@ public sealed class SoapIntegrationSettingsBootstrapper
 {
     public const string SectionName = "SoapIntegrationBootstrap";
 
+    private const string ProcContrapartidasMethodCode = "WSCFAACH.Proc_Contrapartidas";
+    private const string ProcContrapartidasMethodName = "Proc_Contrapartidas";
     private const string ProcTransaccionesMethodCode = "WSCFAACH.Proc_Transacciones";
     private const string ProcTransaccionesMethodName = "Proc_Transacciones";
     private const string RegistrarRespuestaMethodCode = "WSAXON.RegistrarRespuestaTransaccion";
@@ -51,6 +53,10 @@ public sealed class SoapIntegrationSettingsBootstrapper
         }
 
         var defaultTimeoutSeconds = ReadTimeout(section, "DefaultTimeoutSeconds");
+        var contrapartidasSpec = ReadOperation(
+            section.GetSection("ProcContrapartidas"),
+            ProcContrapartidasMethodName,
+            defaultTimeoutSeconds);
         var procSpec = ReadOperation(
             section.GetSection("ProcTransacciones"),
             ProcTransaccionesMethodName,
@@ -60,6 +66,7 @@ public sealed class SoapIntegrationSettingsBootstrapper
             RegistrarRespuestaMethodName,
             defaultTimeoutSeconds);
 
+        var contrapartidasParameters = await ReadInputParametersAsync(ProcContrapartidasMethodCode, ct);
         var procParameters = await ReadInputParametersAsync(ProcTransaccionesMethodCode, ct);
         var registrarParameters = await ReadInputParametersAsync(RegistrarRespuestaMethodCode, ct);
         ValidateRegistrarContract(registrarParameters);
@@ -79,6 +86,9 @@ public sealed class SoapIntegrationSettingsBootstrapper
         var wsAxon = DeserializeMappings(settings?.WsAxonRespuestaTransaccionesMappingsJson, "WSAXON");
 
         EnsureExistingTimeouts(wscfaach, defaultTimeoutSeconds);
+        Upsert(
+            wscfaach,
+            BuildMapping(contrapartidasSpec, contrapartidasParameters));
         Upsert(
             wscfaach,
             BuildMapping(procSpec, procParameters));

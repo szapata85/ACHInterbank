@@ -29,6 +29,8 @@ public sealed class SoapIntegrationSettingsBootstrapperTests
         await sut.EnsureAsync();
 
         var row = await fixture.Context.SoapIntegrationSettings.AsNoTracking().SingleAsync();
+        var contrapartidas = Assert.Single(ReadMappings(row.WscfaachMappingsJson), x =>
+            x.MethodName == "Proc_Contrapartidas");
         var proc = Assert.Single(ReadMappings(row.WscfaachMappingsJson), x =>
             x.MethodName == "Proc_Transacciones");
         var registrar = Assert.Single(ReadMappings(row.WsAxonRespuestaTransaccionesMappingsJson), x =>
@@ -39,6 +41,10 @@ public sealed class SoapIntegrationSettingsBootstrapperTests
         Assert.Equal(15, proc.TimeoutSeconds);
         Assert.True(proc.Enabled);
         Assert.Equal(25, proc.InputParameterMappings.Count);
+        Assert.Equal("http://localhost:7083/WSCFAACH.svc", contrapartidas.Endpoint);
+        Assert.Equal("http://tempuri.org/IWSCFAACH/Proc_Contrapartidas", contrapartidas.SoapAction);
+        Assert.Equal("Live", contrapartidas.OperatingMode);
+        Assert.Equal(17, contrapartidas.InputParameterMappings.Count(x => x.Required));
         Assert.Equal("http://localhost:7083/WSAxonRespuestaTransacciones.svc", registrar.Endpoint);
         Assert.Equal(
             "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
@@ -59,7 +65,7 @@ public sealed class SoapIntegrationSettingsBootstrapperTests
     }
 
     [Fact]
-    public async Task EnsureAsync_RepairsStaleRegistrar_RemovesOperationDuplicate_AndPreservesUnrelatedMapping()
+    public async Task EnsureAsync_RepairsStaleRegistrar_AndProcContrapartidasMappings()
     {
         await using var fixture = await ContextFixture.CreateAsync();
         await SeedCatalogAsync(fixture.Context);
@@ -91,9 +97,10 @@ public sealed class SoapIntegrationSettingsBootstrapperTests
         var wscfaach = ReadMappings(row.WscfaachMappingsJson);
         var wsAxon = ReadMappings(row.WsAxonRespuestaTransaccionesMappingsJson);
         Assert.Single(wscfaach, x => x.MethodName == "Proc_Transacciones");
-        var unrelated = Assert.Single(wscfaach, x => x.MethodName == "Proc_Contrapartidas");
-        Assert.Equal("DryRun", unrelated.OperatingMode);
-        Assert.Equal(15, unrelated.TimeoutSeconds);
+        var contrapartidas = Assert.Single(wscfaach, x => x.MethodName == "Proc_Contrapartidas");
+        Assert.Equal("Live", contrapartidas.OperatingMode);
+        Assert.Equal(15, contrapartidas.TimeoutSeconds);
+        Assert.Equal(22, contrapartidas.InputParameterMappings.Count);
         var registrar = Assert.Single(wsAxon, x => x.MethodName == "RegistrarRespuestaTransaccion");
         Assert.Equal("http://localhost:7083/WSAxonRespuestaTransacciones.svc", registrar.Endpoint);
         Assert.Equal("Live", registrar.OperatingMode);
@@ -153,6 +160,11 @@ public sealed class SoapIntegrationSettingsBootstrapperTests
         {
             ["SoapIntegrationBootstrap:Enabled"] = "true",
             ["SoapIntegrationBootstrap:DefaultTimeoutSeconds"] = "15",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:Endpoint"] = "http://localhost:7083/WSCFAACH.svc",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:SoapAction"] = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:OperatingMode"] = "Live",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:TimeoutSeconds"] = "15",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:Enabled"] = "true",
             ["SoapIntegrationBootstrap:ProcTransacciones:Endpoint"] = "http://localhost:7083/WSCFAACH.svc",
             ["SoapIntegrationBootstrap:ProcTransacciones:SoapAction"] = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
             ["SoapIntegrationBootstrap:ProcTransacciones:OperatingMode"] = "Live",

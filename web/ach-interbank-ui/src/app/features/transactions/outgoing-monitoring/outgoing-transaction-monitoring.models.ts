@@ -27,6 +27,15 @@ export interface OutgoingMonitoringOption {
   code?: string;
 }
 
+export interface OutgoingMonitoringCycleOption {
+  id: string;
+  cycleName: string;
+  clearingHouseId: number;
+  clearingHouseName: string;
+  processingDate?: string;
+  cutoffTime: string;
+}
+
 export interface OutgoingMonitoringPage<T> {
   items: T[];
   pageNumber: number;

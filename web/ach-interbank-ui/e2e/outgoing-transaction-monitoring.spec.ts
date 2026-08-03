@@ -30,9 +30,7 @@ test.describe.serial('monitoreo real de transacciones de salida', () => {
     await expect(page.getByRole('button', { name: /Limpiar filtros/ })).toBeVisible();
 
     await executeFilter(page, 'Cámara compensadora');
-    await page.getByLabel('Ciclo').fill('CICLO-E2E-SIN-COINCIDENCIA');
-    await executeSearch(page);
-    await page.getByLabel('Ciclo').fill('');
+    await executeFilter(page, 'Ciclo');
     await page.getByLabel('Identificador').fill('TX-E2E');
     await executeSearch(page);
     await page.getByLabel('Identificador').fill('');
@@ -180,12 +178,18 @@ test.describe.serial('monitoreo real de transacciones de salida', () => {
 
 async function executeFilter(page: Page, label: string): Promise<void> {
   const select = page.locator('mat-form-field').filter({ hasText: label }).locator('mat-select');
+  if (label === 'Ciclo') {
+    await expect(page.getByText('Cargando ciclos…', { exact: true })).toHaveCount(0);
+  }
   await select.click({ force: true });
-  const options = page.getByRole('option');
-  if (await options.count() > 1) await options.nth(1).click(); else await page.keyboard.press('Escape');
+  const enabledOptions = page.locator('[role="option"]:not([aria-disabled="true"])');
+  await expect.poll(() => enabledOptions.count()).toBeGreaterThan(1);
+  await enabledOptions.nth(1).click();
+  await expect(page.getByRole('option')).toHaveCount(0);
   await executeSearch(page);
   await select.click({ force: true });
-  if (await options.count()) await options.first().click(); else await page.keyboard.press('Escape');
+  await page.getByRole('option').first().click();
+  await expect(page.getByRole('option')).toHaveCount(0);
 }
 
 async function executeSearch(page: Page): Promise<void> {
