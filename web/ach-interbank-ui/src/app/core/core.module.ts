@@ -1,4 +1,4 @@
-import { NgModule, Optional, SkipSelf } from '@angular/core';
+import { LOCALE_ID, NgModule, Optional, SkipSelf } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { MAT_DATE_LOCALE } from '@angular/material/core';
@@ -19,6 +19,7 @@ import { SpanishDatepickerIntl, SpanishPaginatorIntl } from './services/material
     { provide: HTTP_INTERCEPTORS, useClass: LoadingInterceptor, multi: true },
     { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
     { provide: MAT_DATE_LOCALE, useValue: 'es-CO' },
+    { provide: LOCALE_ID, useValue: 'es-CO' },
     { provide: MatPaginatorIntl, useClass: SpanishPaginatorIntl },
     { provide: MatDatepickerIntl, useClass: SpanishDatepickerIntl }
   ]

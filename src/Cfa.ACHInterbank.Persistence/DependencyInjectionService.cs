@@ -8,6 +8,7 @@ using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
+using Cfa.ACHInterbank.Application.OutgoingTransactionMonitoring;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
@@ -121,6 +122,7 @@ public static class DependencyInjectionService
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<IAchTransactionClassificationPolicy, AchTransactionClassificationPolicy>();
+        services.AddSingleton<IOutgoingTransactionMonitoringStatusPolicy, OutgoingTransactionMonitoringStatusPolicy>();
 
         services.AddScoped<ICertificateCatalogService, ACH.Services.Implementation.CertificateManagement.CertificateCatalogService>();
         services.AddScoped<ICertificateLoadService, ACH.Services.Implementation.CertificateManagement.CertificateLoadService>();

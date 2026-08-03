@@ -21,6 +21,12 @@ public static class FineGrainedPermissions
         public const string PolicyPreview = "Transactions.PolicyPreview";
     }
 
+    public static class OutgoingTransactions
+    {
+        public const string MonitorRead = "OutgoingTransactions.Monitor.Read";
+        public const string MonitorTechnicalDetailRead = "OutgoingTransactions.Monitor.TechnicalDetail.Read";
+    }
+
     public static class Nacha
     {
         public const string Read = "Nacha.Read";
@@ -187,6 +193,7 @@ public static class FineGrainedPermissions
     [
         CanManageCertificates,
         Transactions.Read, Transactions.Create, Transactions.BulkSubmit, Transactions.PolicyPreview,
+        OutgoingTransactions.MonitorRead, OutgoingTransactions.MonitorTechnicalDetailRead,
         Nacha.Read, Nacha.Upload, Nacha.Export, Nacha.Generate, Nacha.Configure, Nacha.PublishConfig, Nacha.ArchiveConfig,
         NachaSimulator.Read, NachaSimulator.GenerateIncoming, NachaSimulator.GenerateDifferential, NachaSimulator.Download, NachaSimulator.Live,
         NachaSecurity.Read, NachaSecurity.GenerateEncrypted, NachaSecurity.ManualEncrypt, NachaSecurity.ManualDecrypt, NachaSecurity.AuthorizeDownload,

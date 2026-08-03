@@ -1,0 +1,61 @@
+<main class="detail" data-testid="outgoing-monitoring-detail">
+  <button mat-button type="button" (click)="back()"><mat-icon>arrow_back</mat-icon> Volver al monitoreo</button>
+  @if (loading()) {
+    <section class="state" aria-live="polite"><mat-spinner diameter="44"></mat-spinner><p>Cargando el seguimiento comprobable…</p></section>
+  } @else if (notFound()) {
+    <section class="state"><mat-icon>search_off</mat-icon><h1>Transacción no encontrada</h1><p>El registro no existe o no está clasificado de forma persistida como salida.</p><button mat-stroked-button (click)="back()">Regresar</button></section>
+  } @else if (error()) {
+    <section class="state" role="alert"><mat-icon>cloud_off</mat-icon><h1>No fue posible consultar el detalle.</h1><p>Puedes intentar nuevamente.</p><button mat-stroked-button (click)="reload()">Intentar nuevamente</button></section>
+  } @else if (detail(); as item) {
+    <header class="heading">
+      <div><p class="eyebrow">Seguimiento de salida</p><h1>{{ item.summary.transactionExternalId }}</h1><p>Último hecho comprobable: {{ item.summary.lastUpdatedAtUtc | date:'dd/MM/yyyy HH:mm' }}</p></div>
+      <span class="headline-status"><mat-icon>fact_check</mat-icon>{{ item.summary.processStatusDisplayName }}</span>
+    </header>
+
+    @for (warning of item.warnings; track warning) { <div class="warning"><mat-icon>info</mat-icon><span>{{ warning }}</span></div> }
+
+    <section class="summary-grid" aria-label="Resumen">
+      <mat-card><mat-card-header><mat-card-title>Resumen</mat-card-title></mat-card-header><mat-card-content><dl>
+        <div><dt>Creación</dt><dd>{{ item.summary.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Cámara compensadora</dt><dd>{{ item.summary.clearingHouseDisplayName }}</dd></div>
+        <div><dt>Ciclo</dt><dd>{{ item.summary.cycleDisplayName }}</dd></div><div><dt>Entidad destino</dt><dd>{{ item.summary.destinationInstitutionDisplayName }}</dd></div>
+        <div><dt>Cuenta destino</dt><dd>{{ item.summary.maskedDestinationAccount }}</dd></div><div><dt>Valor</dt><dd>{{ item.summary.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}</dd></div>
+      </dl></mat-card-content></mat-card>
+      <mat-card><mat-card-header><mat-card-title>Estado funcional</mat-card-title></mat-card-header><mat-card-content><dl>
+        <div><dt>Proceso</dt><dd>{{ item.summary.processStatusDisplayName }}</dd></div><div><dt>Resultado inicial</dt><dd>{{ item.summary.initialResultDisplayName }}</dd></div>
+        <div><dt>Situación posterior</dt><dd>{{ item.summary.subsequentSituationDisplayName }}</dd></div><div><dt>Atención requerida</dt><dd>{{ item.summary.requiresAttention ? 'Sí' : 'No' }}</dd></div>
+      </dl>@if(item.summary.attentionReason){<p class="attention">{{ item.summary.attentionReason }}</p>}</mat-card-content></mat-card>
+      <mat-card><mat-card-header><mat-card-title>Clasificación persistida</mat-card-title></mat-card-header><mat-card-content><dl>
+        <div><dt>Dirección</dt><dd>{{ item.classification.directionDisplayName }}</dd></div><div><dt>Origen</dt><dd>{{ item.classification.originDisplayName }}</dd></div>
+        <div><dt>Ruta monetaria</dt><dd>{{ item.classification.monetaryRouteDisplayName }}</dd></div><div><dt>Estado</dt><dd>{{ item.classification.classificationStatusDisplayName }}</dd></div>
+      </dl></mat-card-content></mat-card>
+      <mat-card><mat-card-header><mat-card-title>Resultado de integración</mat-card-title></mat-card-header><mat-card-content><dl>
+        <div><dt>Despacho registrado</dt><dd>{{ item.integration.wasDispatched ? 'Sí' : 'No' }}</dd></div><div><dt>Intentos</dt><dd>{{ item.integration.attemptCount }}</dd></div>
+        <div><dt>Resultado</dt><dd>{{ item.integration.resultDisplayName }}</dd></div><div><dt>Último intento</dt><dd>{{ item.integration.lastAttemptAtUtc ? (item.integration.lastAttemptAtUtc | date:'dd/MM/yyyy HH:mm') : 'Sin evidencia disponible' }}</dd></div>
+      </dl></mat-card-content></mat-card>
+    </section>
+
+    @if (item.files.length) {
+      <section><h2>Archivo de salida</h2><div class="file-grid">@for (file of item.files; track file.fileId) {
+        <mat-card data-testid="outgoing-file"><mat-card-content><h3>{{ file.fileName }}</h3><dl><div><dt>Versión</dt><dd>{{ file.version ?? 'No determinada' }}</dd></div><div><dt>Posición</dt><dd>{{ file.fileSequence }}</dd></div><div><dt>Inclusión</dt><dd>{{ file.includedAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Estado comprobable</dt><dd>{{ file.lifecycleStatusDisplayName }}</dd></div><div><dt>Transmisión</dt><dd>{{ file.hasTransmissionEvidence ? 'Transmisión comprobada' : 'Sin evidencia de transmisión' }}</dd></div><div><dt>Acuse</dt><dd>{{ file.hasAcknowledgementEvidence ? 'Acuse comprobado' : 'Pendiente de información externa' }}</dd></div></dl></mat-card-content></mat-card>
+      }</div></section>
+    }
+
+    @if (item.responses.length || item.returns.length) {
+      <section><h2>Resultado de la cámara y devoluciones</h2><div class="file-grid">
+        @for (response of item.responses; track response.id) { <mat-card><mat-card-content><h3>{{ response.responseTypeDisplayName }}</h3><p>{{ response.correlationStatusDisplayName }}</p><dl><div><dt>Fecha</dt><dd>{{ response.receivedAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Estado</dt><dd>{{ response.externalStatusCode }}</dd></div><div><dt>Causal</dt><dd>{{ response.causeCode ? response.causeCode + ' — ' + (response.causeDescription || 'Sin descripción contextual') : 'No determinada' }}</dd></div></dl></mat-card-content></mat-card> }
+        @for (returnItem of item.returns; track returnItem.occurredAtUtc) { <mat-card><mat-card-content><h3>{{ returnItem.stateDisplayName }}</h3><dl><div><dt>Fecha</dt><dd>{{ returnItem.occurredAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Causal contextual</dt><dd>{{ returnItem.causeCode ? returnItem.causeCode + ' — ' + (returnItem.causeDescription || 'Sin descripción contextual') : 'No determinada' }}</dd></div></dl></mat-card-content></mat-card> }
+      </div></section>
+    }
+
+    <section><h2>Línea de tiempo</h2><ol class="timeline" data-testid="outgoing-timeline">@for (event of item.timeline; track event.occurredAtUtc + event.stageCode) {
+      <li [class.technical]="event.isTechnical"><mat-icon [attr.aria-label]="event.stageDisplayName">{{ eventIcon(event.stageCode) }}</mat-icon><div><time>{{ event.occurredAtUtc | date:'dd/MM/yyyy HH:mm:ss' }}</time><h3>{{ event.title }}</h3><p>{{ event.description }}</p><span>{{ event.outcomeDisplayName }}</span></div></li>
+    }</ol></section>
+
+    @if (item.technicalDetail; as technical) {
+      <mat-expansion-panel class="technical-panel" data-testid="outgoing-technical-detail">
+        <mat-expansion-panel-header><mat-panel-title>Información técnica autorizada</mat-panel-title><mat-panel-description>Identificadores y métricas, sin contenidos sensibles</mat-panel-description></mat-expansion-panel-header>
+        <dl><div><dt>Identificador interno</dt><dd>{{ technical.transactionId }}</dd></div><div><dt>Método de integración</dt><dd>{{ technical.lastIntegrationMethod || 'No determinado' }}</dd></div><div><dt>Modo</dt><dd>{{ technical.lastIntegrationMode || 'No determinado' }}</dd></div><div><dt>Código</dt><dd>{{ technical.lastIntegrationCode || 'No determinado' }}</dd></div><div><dt>Duración</dt><dd>{{ technical.lastIntegrationDurationMs != null ? technical.lastIntegrationDurationMs + ' ms' : 'No determinada' }}</dd></div><div><dt>Correlación</dt><dd>{{ technical.lastCorrelationId || 'No determinada' }}</dd></div></dl>
+      </mat-expansion-panel>
+    }
+  }
+</main>

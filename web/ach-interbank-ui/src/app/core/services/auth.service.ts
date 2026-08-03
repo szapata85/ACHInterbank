@@ -76,7 +76,7 @@ export class AuthService {
 
   refreshSession(): Observable<UserSession> {
     return this.api
-      .post<AuthResponse>(`${this.authEndpoint}/refresh`, {})
+      .post<AuthResponse>(`${this.authEndpoint}/refresh`, {}, { headers: { 'X-Skip-Loading': 'true' } })
       .pipe(
         map((response) => {
           if (!response.sucess || !response.data?.token) {

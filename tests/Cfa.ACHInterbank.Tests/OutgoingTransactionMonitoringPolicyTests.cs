@@ -1,0 +1,78 @@
+using Cfa.ACHInterbank.Application.OutgoingTransactionMonitoring;
+using FluentAssertions;
+
+namespace Cfa.ACHInterbank.Tests;
+
+public sealed class OutgoingTransactionMonitoringPolicyTests
+{
+    private readonly OutgoingTransactionMonitoringStatusPolicy _policy = new();
+
+    [Fact]
+    public void Consolidate_PreservesAcceptanceWhenReturnedLater()
+    {
+        var result = _policy.Consolidate(Facts(success: true, accepted: true, returned: true));
+
+        result.ProcessStatusCode.Should().Be("Processed");
+        result.InitialResultCode.Should().Be("Accepted");
+        result.SubsequentSituationCode.Should().Be("ReturnedLater");
+        result.SubsequentSituationDisplayName.Should().Be("Devuelta posteriormente");
+    }
+
+    [Fact]
+    public void Consolidate_PreservesCertificationWhenReturnedLater()
+    {
+        var result = _policy.Consolidate(Facts(success: true, certified: true, returned: true));
+
+        result.InitialResultCode.Should().Be("Certified");
+        result.SubsequentSituationCode.Should().Be("ReturnedLater");
+    }
+
+    [Fact]
+    public void Consolidate_DoesNotConvertTechnicalFailureIntoFunctionalRejection()
+    {
+        var result = _policy.Consolidate(Facts(technicalFailure: true));
+
+        result.ProcessStatusCode.Should().Be("TechnicalError");
+        result.InitialResultCode.Should().Be("NotDetermined");
+        result.RequiresAttention.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Consolidate_UsesPersistedFunctionalRejectionOnly()
+    {
+        var result = _policy.Consolidate(Facts(functionalRejection: true));
+
+        result.InitialResultCode.Should().Be("Rejected");
+        result.RequiresAttention.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Consolidate_FlagsAmbiguousCorrelationForAttention()
+    {
+        var result = _policy.Consolidate(Facts(ambiguousCorrelation: true));
+
+        result.RequiresAttention.Should().BeTrue();
+        result.AttentionReason.Should().Contain("correlación");
+    }
+
+    private static OutgoingTransactionMonitoringFacts Facts(
+        bool success = false,
+        bool functionalRejection = false,
+        bool technicalFailure = false,
+        bool accepted = false,
+        bool certified = false,
+        bool returned = false,
+        bool manualReview = false,
+        bool ambiguousCorrelation = false)
+        => new(
+            HasDispatchItem: success || functionalRejection || technicalFailure,
+            HasSuccessfulIntegration: success,
+            HasFunctionalRejection: functionalRejection,
+            HasTechnicalFailure: technicalFailure,
+            HasAccepted: accepted,
+            HasCertified: certified,
+            HasReturn: returned,
+            HasManualReview: manualReview,
+            HasAmbiguousCorrelation: ambiguousCorrelation,
+            HasFileMembership: false);
+}

@@ -1,5 +1,7 @@
 import '@angular/compiler';
 import 'zone.js';
+import { registerLocaleData } from '@angular/common';
+import localeEsCo from '@angular/common/locales/es-CO';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { importProvidersFrom } from '@angular/core';
 
@@ -10,6 +12,8 @@ import { CoreModule } from './app/core/core.module';
 import { provideChunkLoadRecovery } from './app/core/services/chunk-load-recovery.service';
 import { LayoutModule } from './app/layout/layout.module';
 import { SharedModule } from './app/shared/shared.module';
+
+registerLocaleData(localeEsCo);
 
 bootstrapApplication(AppComponent, {
   providers: [

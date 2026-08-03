@@ -215,6 +215,17 @@ public static class DependencyInjectionService
                     ctx.User.HasClaim("permission", FineGrainedPermissions.Returns.GenerateFile)
                     || ctx.User.HasClaim("permission", "CanManageAch")));
 
+            options.AddPolicy(P0Policies.OutgoingTransactionsMonitorRead,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.OutgoingTransactions.MonitorRead)
+                    || ctx.User.HasClaim("permission", "CanReadAch")
+                    || ctx.User.HasClaim("permission", "CanManageAch")));
+
+            options.AddPolicy(P0Policies.OutgoingTransactionsMonitorTechnicalDetailRead,
+                policy => policy.RequireAssertion(ctx =>
+                    ctx.User.HasClaim("permission", FineGrainedPermissions.OutgoingTransactions.MonitorTechnicalDetailRead)
+                    || ctx.User.HasClaim("permission", "CanManageAch")));
+
             options.AddPolicy(P1Policies.ConfigRead, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Config.Read)
                 || ctx.User.HasClaim("permission", "CanReadAch")));

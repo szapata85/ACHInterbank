@@ -10,4 +10,6 @@ public static class P0Policies
     public const string TraceabilityCertifySol02 = "P0.TraceabilityCertifySol02";
     public const string ReturnsRead = "P0.ReturnsRead";
     public const string ReturnsGenerateFile = "P0.ReturnsGenerateFile";
+    public const string OutgoingTransactionsMonitorRead = "P0.OutgoingTransactionsMonitorRead";
+    public const string OutgoingTransactionsMonitorTechnicalDetailRead = "P0.OutgoingTransactionsMonitorTechnicalDetailRead";
 }

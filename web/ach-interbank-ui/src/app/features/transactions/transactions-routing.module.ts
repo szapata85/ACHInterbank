@@ -11,9 +11,31 @@ import { BulkIngestionDetailComponent } from './components/bulk-ingestion-detail
 import { CycleConfigManagementComponent } from './components/cycle-config-management/cycle-config-management.component';
 import { AchReturnOfReturnManagementComponent } from './components/ach-return-of-return-management/ach-return-of-return-management.component';
 import { permissionGuard } from '../../core/guards/permission.guard';
+import { OutgoingTransactionMonitoringListComponent } from './outgoing-monitoring/outgoing-transaction-monitoring-list.component';
+import { OutgoingTransactionMonitoringDetailComponent } from './outgoing-monitoring/outgoing-transaction-monitoring-detail.component';
 
 export const TRANSACTIONS_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'list' },
+  {
+    path: 'outgoing-monitoring',
+    component: OutgoingTransactionMonitoringListComponent,
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['OutgoingTransactions.Monitor.Read', 'CanReadAch', 'CanManageAch'],
+      title: 'Monitoreo de transacciones de salida',
+      breadcrumb: 'Transacciones de salida'
+    }
+  },
+  {
+    path: 'outgoing-monitoring/:id',
+    component: OutgoingTransactionMonitoringDetailComponent,
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['OutgoingTransactions.Monitor.Read', 'CanReadAch', 'CanManageAch'],
+      title: 'Detalle de transacción de salida',
+      breadcrumb: 'Detalle de salida'
+    }
+  },
   {
     path: 'list',
     component: TransactionListComponent,

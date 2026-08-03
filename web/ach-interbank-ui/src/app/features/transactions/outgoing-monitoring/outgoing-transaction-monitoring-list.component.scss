@@ -1,0 +1,20 @@
+:host { display: block; }
+.monitor { max-width: 1680px; margin: 0 auto; padding: 24px; color: var(--mat-sys-on-surface); }
+.page-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.page-heading h1 { margin: 2px 0 6px; font-size: clamp(1.6rem, 3vw, 2.25rem); }
+.page-heading p { margin: 0; color: var(--mat-sys-on-surface-variant); }
+.page-heading > mat-icon { width: 52px; height: 52px; font-size: 52px; color: var(--mat-sys-primary); }
+.eyebrow { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mat-sys-primary) !important; }
+.filters-card { margin-bottom: 20px; }
+.filters { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); gap: 10px 16px; padding-top: 16px; }
+.filter-actions { display: flex; gap: 12px; align-items: center; grid-column: span 2; }
+.filter-help { margin: 4px 0 0; color: var(--mat-sys-on-surface-variant); font-size: .88rem; }
+.state-panel { min-height: 260px; display: grid; place-items: center; align-content: center; gap: 8px; text-align: center; padding: 32px; border: 1px dashed var(--mat-sys-outline-variant); border-radius: 16px; }
+.state-panel h2, .state-panel p { margin: 0; }.state-panel mat-icon { font-size: 42px; width: 42px; height: 42px; }.error mat-icon { color: var(--mat-sys-error); }
+.results-summary { padding: 12px 4px; color: var(--mat-sys-on-surface-variant); }
+.desktop-table { overflow-x: auto; border: 1px solid var(--mat-sys-outline-variant); border-radius: 14px; }
+table { width: 100%; min-width: 1250px; } td small { display: block; color: var(--mat-sys-on-surface-variant); margin-top: 3px; }
+.status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }.status mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.attention { color: var(--mat-sys-error); font-weight: 650; }.mobile-cards { display: none; gap: 12px; }.mobile-cards dl { display: grid; gap: 8px; }.mobile-cards dl div { display: flex; justify-content: space-between; gap: 16px; }.mobile-cards dt { color: var(--mat-sys-on-surface-variant); }.mobile-cards dd { margin: 0; text-align: right; }
+@media (max-width: 1100px) { .filters { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 720px) { .monitor { padding: 16px; }.page-heading > mat-icon { display: none; }.filters { grid-template-columns: 1fr; }.filter-actions { grid-column: 1; flex-wrap: wrap; }.desktop-table { display: none; }.mobile-cards { display: grid; } }
