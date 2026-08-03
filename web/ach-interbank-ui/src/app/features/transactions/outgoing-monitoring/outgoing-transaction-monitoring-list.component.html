@@ -5,7 +5,9 @@
       <h1>Monitoreo de transacciones de salida</h1>
       <p>Consulta el recorrido comprobable de las transacciones originadas por CFA, sin ejecutar acciones operativas.</p>
     </div>
-    <mat-icon aria-hidden="true">monitoring</mat-icon>
+    <button mat-stroked-button type="button" (click)="refresh()" [disabled]="loading()" aria-label="Actualizar transacciones de salida">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
   </header>
 
   <mat-card class="filters-card">
@@ -23,6 +25,11 @@
           <input matInput [matDatepicker]="toPicker" formControlName="toDate" aria-label="Fecha final">
           <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
           <mat-datepicker #toPicker></mat-datepicker>
+          @if (form.hasError('dateOrder') && (form.controls.fromDate.touched || form.controls.toDate.touched)) {
+            <mat-error>La fecha final debe ser igual o posterior a la fecha inicial.</mat-error>
+          } @else if (form.hasError('dateRangeExceeded') && (form.controls.fromDate.touched || form.controls.toDate.touched)) {
+            <mat-error>El rango consultado no puede superar 90 días.</mat-error>
+          }
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Cámara compensadora</mat-label>
@@ -92,13 +99,13 @@
           <mat-label>Atención requerida</mat-label>
           <mat-select formControlName="requiresAttention"><mat-option [value]="null">Todos</mat-option><mat-option [value]="true">Sí</mat-option><mat-option [value]="false">No</mat-option></mat-select>
         </mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Importe mínimo</mat-label><input matInput type="number" min="0" formControlName="minimumAmount"></mat-form-field>
-        <mat-form-field appearance="outline"><mat-label>Importe máximo</mat-label><input matInput type="number" min="0" formControlName="maximumAmount"></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Importe mínimo</mat-label><input matInput type="number" min="0" formControlName="minimumAmount">@if(form.controls.minimumAmount.hasError('min')){<mat-error>El importe mínimo no puede ser negativo.</mat-error>}</mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Importe máximo</mat-label><input matInput type="number" min="0" formControlName="maximumAmount">@if(form.controls.maximumAmount.hasError('min')){<mat-error>El importe máximo no puede ser negativo.</mat-error>}@if(form.hasError('amountOrder') && form.controls.maximumAmount.touched){<mat-error>El importe máximo debe ser igual o superior al mínimo.</mat-error>}</mat-form-field>
         <div class="filter-actions">
-          <button mat-flat-button color="primary" type="submit" data-testid="outgoing-search">
+          <button mat-flat-button color="primary" type="submit" data-testid="outgoing-search" [disabled]="loading()">
             <mat-icon>search</mat-icon> Buscar
           </button>
-          <button mat-stroked-button type="button" (click)="clearFilters()">
+          <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="loading()">
             <mat-icon>filter_alt_off</mat-icon> Limpiar filtros
           </button>
         </div>
@@ -108,11 +115,10 @@
   </mat-card>
 
   @if (loading()) {
-    <section class="state-panel" aria-live="polite"><mat-spinner diameter="42"></mat-spinner><p>Consultando transacciones de salida…</p></section>
-  }
-  @if (error()) {
+    <section class="state-panel" aria-live="polite" aria-busy="true"><mat-spinner diameter="42"></mat-spinner><p>Consultando transacciones de salida…</p></section>
+  } @else if (error()) {
     <section class="state-panel error" role="alert">
-      <mat-icon>cloud_off</mat-icon><h2>No fue posible consultar las transacciones en este momento.</h2>
+      <mat-icon>cloud_off</mat-icon><h2>{{ errorMessage() }}</h2>
       <p>Puedes intentar nuevamente sin perder los filtros seleccionados.</p>
       <button mat-stroked-button type="button" (click)="search(false)">Intentar nuevamente</button>
     </section>
@@ -124,6 +130,7 @@
       }
         <div class="desktop-table" [hidden]="page().items.length === 0">
           <table mat-table [dataSource]="dataSource" matSort matSortActive="createdAt" matSortDirection="desc" (matSortChange)="sortChanged($event)">
+            <caption class="visually-hidden">Transacciones de salida encontradas</caption>
             <ng-container matColumnDef="createdAt"><th mat-header-cell *matHeaderCellDef mat-sort-header>Fecha</th><td mat-cell *matCellDef="let item">{{ item.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</td></ng-container>
             <ng-container matColumnDef="identifier"><th mat-header-cell *matHeaderCellDef mat-sort-header>Identificador</th><td mat-cell *matCellDef="let item"><strong>{{ item.transactionExternalId }}</strong><small>{{ item.traceNumber || 'Sin número de seguimiento' }}</small></td></ng-container>
             <ng-container matColumnDef="clearingHouse"><th mat-header-cell *matHeaderCellDef>Cámara</th><td mat-cell *matCellDef="let item">{{ item.clearingHouseDisplayName }}</td></ng-container>
@@ -142,7 +149,7 @@
           @for (item of page().items; track item.id) {
             <mat-card><mat-card-header><mat-card-title>{{ item.transactionExternalId }}</mat-card-title><mat-card-subtitle>{{ item.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</mat-card-subtitle></mat-card-header>
               <mat-card-content><dl><div><dt>Cámara</dt><dd>{{ item.clearingHouseDisplayName }}</dd></div><div><dt>Valor</dt><dd>{{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}</dd></div><div><dt>Proceso</dt><dd>{{ item.processStatusDisplayName }}</dd></div><div><dt>Resultado</dt><dd>{{ item.initialResultDisplayName }}</dd></div>@if(item.hasReturn){<div><dt>Situación</dt><dd class="attention">{{ item.subsequentSituationDisplayName }}</dd></div>}</dl></mat-card-content>
-              <mat-card-actions align="end"><button mat-button type="button" (click)="viewDetail(item)">Ver detalle</button></mat-card-actions></mat-card>
+              <mat-card-actions align="end"><button mat-button type="button" (click)="viewDetail(item)" [attr.aria-label]="'Ver detalle de ' + item.transactionExternalId">Ver detalle</button></mat-card-actions></mat-card>
           }
         </div>
         @if (page().items.length > 0) {

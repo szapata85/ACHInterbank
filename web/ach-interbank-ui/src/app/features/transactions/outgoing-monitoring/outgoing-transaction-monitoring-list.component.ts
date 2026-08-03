@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -43,6 +44,7 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
   readonly pageSizes = [10, 25, 50, 100];
   readonly loading = signal(false);
   readonly error = signal(false);
+  readonly errorMessage = signal('');
   readonly page = signal<OutgoingMonitoringPage<OutgoingMonitoringListItem>>(emptyPage());
   readonly institutions = signal<OutgoingMonitoringOption[]>([]);
   readonly clearingHouses = signal<OutgoingMonitoringOption[]>([]);
@@ -50,6 +52,7 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
   private currentPageSize: 10 | 25 | 50 | 100 = 25;
   private currentSort: OutgoingMonitoringQuery['sortBy'] = 'createdAt';
   private currentDirection: 'asc' | 'desc' = 'desc';
+  private requestSequence = 0;
 
   readonly form = this.fb.group({
     fromDate: [daysAgo(7)],
@@ -65,11 +68,12 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
     subsequentSituation: [''],
     hasReturn: [null as boolean | null],
     requiresAttention: [null as boolean | null],
-    minimumAmount: [null as number | null],
-    maximumAmount: [null as number | null]
-  });
+    minimumAmount: [null as number | null, Validators.min(0)],
+    maximumAmount: [null as number | null, Validators.min(0)]
+  }, { validators: [dateRangeValidator(), amountRangeValidator()] });
 
   ngOnInit(): void {
+    this.restoreFilters();
     this.api.getDestinationInstitutions().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: items => this.institutions.set(items ?? []),
       error: () => this.institutions.set([])
@@ -80,11 +84,19 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
     });
     this.searches.pipe(
       switchMap(query => {
+        const requestId = ++this.requestSequence;
         this.loading.set(true);
         this.error.set(false);
+        this.errorMessage.set('');
         return this.api.search(query).pipe(
-        catchError(() => { this.error.set(true); return of(emptyPage(query.pageNumber, query.pageSize)); }),
-        finalize(() => this.loading.set(false))
+        catchError((response: HttpErrorResponse) => {
+          this.error.set(true);
+          this.errorMessage.set(response.status === 401 || response.status === 403
+            ? 'No tienes permiso para consultar este monitoreo.'
+            : 'No fue posible consultar las transacciones en este momento.');
+          return of(emptyPage(query.pageNumber, query.pageSize));
+        }),
+        finalize(() => { if (requestId === this.requestSequence) this.loading.set(false); })
       );}),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(page => {
@@ -95,9 +107,15 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
   }
 
   search(resetPage = true): void {
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
     if (resetPage) this.currentPage = 1;
     this.searches.next(this.buildQuery());
   }
+
+  refresh(): void { this.search(false); }
 
   clearFilters(): void {
     this.form.reset({ fromDate: daysAgo(7), toDate: new Date() });
@@ -105,6 +123,7 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
     this.currentPageSize = 25;
     this.currentSort = 'createdAt';
     this.currentDirection = 'desc';
+    sessionStorage.removeItem('outgoing-monitoring-filters');
     this.search(false);
   }
 
@@ -161,12 +180,45 @@ export class OutgoingTransactionMonitoringListComponent implements OnInit {
       sortDirection: this.currentDirection
     }) as OutgoingMonitoringQuery;
   }
+
+  private restoreFilters(): void {
+    const stored = sessionStorage.getItem('outgoing-monitoring-filters');
+    if (!stored) return;
+    try {
+      const value = JSON.parse(stored) as Record<string, unknown>;
+      this.form.patchValue({
+        ...value,
+        fromDate: value['fromDate'] ? new Date(String(value['fromDate'])) : daysAgo(7),
+        toDate: value['toDate'] ? new Date(String(value['toDate'])) : new Date()
+      });
+    } catch {
+      sessionStorage.removeItem('outgoing-monitoring-filters');
+    }
+  }
 }
 
 function daysAgo(days: number): Date { const date = new Date(); date.setDate(date.getDate() - days); return date; }
 function startOfDay(value: Date | null | undefined): string | undefined { if (!value) return undefined; const date = new Date(value); date.setHours(0, 0, 0, 0); return date.toISOString(); }
 function endOfDay(value: Date | null | undefined): string | undefined { if (!value) return undefined; const date = new Date(value); date.setHours(23, 59, 59, 999); return date.toISOString(); }
 function compact<T extends object>(value: T): T { return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined && item !== '')) as T; }
+function dateRangeValidator(): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const from = control.get('fromDate')?.value as Date | null;
+    const to = control.get('toDate')?.value as Date | null;
+    if (!from || !to) return null;
+    const fromTime = new Date(from).getTime();
+    const toTime = new Date(to).getTime();
+    if (fromTime > toTime) return { dateOrder: true };
+    return (toTime - fromTime) / 86_400_000 > 90 ? { dateRangeExceeded: true } : null;
+  };
+}
+function amountRangeValidator(): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const minimum = control.get('minimumAmount')?.value as number | null;
+    const maximum = control.get('maximumAmount')?.value as number | null;
+    return minimum != null && maximum != null && minimum > maximum ? { amountOrder: true } : null;
+  };
+}
 function emptyPage(pageNumber = 1, pageSize = 25): OutgoingMonitoringPage<OutgoingMonitoringListItem> {
   return { items: [], pageNumber, pageSize, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false };
 }

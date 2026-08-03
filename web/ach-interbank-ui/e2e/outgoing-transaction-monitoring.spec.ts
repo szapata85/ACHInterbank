@@ -2,6 +2,9 @@ import { expect, Page, Response, test } from '@playwright/test';
 import { loginThroughUi } from './support/live-ui-auth';
 
 const route = '/transactions/outgoing-monitoring';
+const api = process.env['E2E_API_URL'] ?? 'http://localhost:843';
+const adminUser = process.env['E2E_ADMIN_USER'] ?? process.env['ACH_USER'] ?? 'admin';
+const adminPassword = process.env['E2E_ADMIN_PASSWORD'] ?? process.env['ACH_PASS'] ?? 'Admin123!';
 
 test.describe.serial('monitoreo real de transacciones de salida', () => {
   test('escritorio: menú, filtros, paginación y detalle comprobable', async ({ page }, testInfo) => {
@@ -92,6 +95,8 @@ test.describe.serial('monitoreo real de transacciones de salida', () => {
         expect(pageText).toMatch(/Causal contextual|Causal/);
       }
       await page.screenshot({ path: testInfo.outputPath('detalle-salida-real.png'), fullPage: true });
+      await page.getByRole('button', { name: 'Volver al monitoreo' }).click();
+      await expect(page).toHaveURL(new RegExp(`${route}/?$`));
     } else {
       await expect(page.getByText(/No encontramos transacciones de salida/)).toBeVisible();
     }
@@ -111,6 +116,65 @@ test.describe.serial('monitoreo real de transacciones de salida', () => {
     await expect(page.locator('[data-testid="outgoing-mobile-list"]').or(page.getByText(/No encontramos transacciones de salida/))).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath('monitoreo-salidas-movil.png'), fullPage: true });
+  });
+
+  test('tableta: conserva filtros y resultados sin desplazamiento horizontal global', async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await loginThroughUi(page);
+    await page.waitForLoadState('networkidle');
+    const evidence = observe(page);
+    const response = waitForMonitoringResponse(page);
+    await page.goto(route);
+    await waitForRenderedPage(page, await response);
+
+    await expect(page.getByTestId('outgoing-monitoring-page').getByRole('heading', { name: 'Monitoreo de transacciones de salida', level: 1 })).toBeVisible();
+    await expect(page.locator('[data-testid="outgoing-mobile-list"]').or(page.getByText(/No encontramos transacciones de salida/))).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    expect(evidence.apiErrors, JSON.stringify(evidence, null, 2)).toEqual([]);
+    expect(evidence.consoleErrors, JSON.stringify(evidence, null, 2)).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath('monitoreo-salidas-tableta.png'), fullPage: true });
+  });
+
+  test('permisos reales: oculta el menú y bloquea ruta y API sin autorización', async ({ page }) => {
+    test.setTimeout(120_000);
+    const suffix = Date.now().toString().slice(-8);
+    const deniedUser = `monitor-denied-${suffix}`;
+    const deniedPassword = `Aa1!${suffix}Zz`;
+    const adminToken = await loginApi(page, adminUser, adminPassword);
+    const created = await page.request.post(`${api}/api/users`, {
+      headers: auth(adminToken),
+      data: {
+        userName: deniedUser,
+        fullName: 'Consulta denegada monitor E2E',
+        email: `${deniedUser}@example.com`,
+        password: deniedPassword,
+        roleIds: []
+      }
+    });
+    expect(created.status()).toBe(201);
+    const location = created.headers()['location'];
+    expect(location).toBeTruthy();
+
+    try {
+      const deniedToken = await loginApi(page, deniedUser, deniedPassword);
+      await loginUi(page, deniedUser, deniedPassword);
+      await expect(page.locator(`mat-sidenav a[href="${route}"]`)).toHaveCount(0);
+
+      await page.goto(route);
+      await expect(page).toHaveURL(/\/unauthorized(?:\?.*)?$/);
+      await expect(page.getByTestId('outgoing-monitoring-page')).toHaveCount(0);
+
+      const deniedApi = await page.request.get(`${api}/api/transactions/outgoing-monitoring`, {
+        headers: auth(deniedToken)
+      });
+      expect(deniedApi.status()).toBe(403);
+    } finally {
+      if (location) {
+        const deleted = await page.request.delete(new URL(location, api).toString(), { headers: auth(adminToken) });
+        expect(deleted.status()).toBe(204);
+      }
+    }
   });
 });
 
@@ -155,8 +219,34 @@ function observe(page: Page) {
   page.on('pageerror', error => evidence.consoleErrors.push(error.message));
   page.on('response', response => {
     const url = new URL(response.url());
-    if (url.pathname.startsWith('/api/transactions/outgoing-monitoring') && response.status() >= 400)
+    if ((url.pathname.startsWith('/api/transactions/outgoing-monitoring') && response.status() >= 400) || response.status() >= 500)
       evidence.apiErrors.push(`${response.request().method()} ${url.pathname} ${response.status()}`);
+  });
+  page.on('requestfailed', request => {
+    const path = new URL(request.url()).pathname;
+    const reason = request.failure()?.errorText ?? 'solicitud fallida';
+    const canceledStaticFont = reason === 'net::ERR_ABORTED' && /\.(?:woff2?|ttf|otf)$/i.test(path);
+    if (!canceledStaticFont)
+      evidence.apiErrors.push(`${request.method()} ${path} ${reason}`);
   });
   return evidence;
 }
+
+async function loginApi(page: Page, username: string, password: string): Promise<string> {
+  const response = await page.request.post(`${api}/auth/login`, { data: { username, password } });
+  expect(response.status()).toBe(200);
+  return (await response.json()).data.token as string;
+}
+
+async function loginUi(page: Page, username: string, password: string): Promise<void> {
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await page.locator('input[formControlName="username"]').fill(username);
+  await page.locator('input[formControlName="password"]').fill(password);
+  const menuResponse = page.waitForResponse(response => response.request().method() === 'GET'
+    && new URL(response.url()).pathname === '/api/navigation/menu');
+  await page.getByRole('button', { name: 'Ingresar' }).click();
+  await expect(page).not.toHaveURL(/\/login(?:\?.*)?$/);
+  expect((await menuResponse).status()).toBe(200);
+}
+
+function auth(token: string): Record<string, string> { return { Authorization: `Bearer ${token}` }; }

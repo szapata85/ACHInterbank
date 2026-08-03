@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -16,7 +17,8 @@ import { OutgoingMonitoringDetail } from './outgoing-transaction-monitoring.mode
   standalone: true,
   imports: [CommonModule, MatButtonModule, MatCardModule, MatExpansionModule, MatIconModule, MatProgressSpinnerModule],
   templateUrl: './outgoing-transaction-monitoring-detail.component.html',
-  styleUrl: './outgoing-transaction-monitoring-detail.component.scss'
+  styleUrl: './outgoing-transaction-monitoring-detail.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OutgoingTransactionMonitoringDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
@@ -26,6 +28,7 @@ export class OutgoingTransactionMonitoringDetailComponent implements OnInit {
 
   readonly loading = signal(true);
   readonly notFound = signal(false);
+  readonly forbidden = signal(false);
   readonly error = signal(false);
   readonly detail = signal<OutgoingMonitoringDetail | null>(null);
 
@@ -33,11 +36,10 @@ export class OutgoingTransactionMonitoringDetailComponent implements OnInit {
     this.route.paramMap.pipe(
       map(params => Number(params.get('id'))),
       distinctUntilChanged(),
-      tap(() => { this.loading.set(true); this.error.set(false); this.notFound.set(false); }),
+      tap(() => this.resetState()),
       switchMap(id => this.api.getDetail(id).pipe(
-        catchError(response => {
-          this.notFound.set(response?.status === 404);
-          this.error.set(response?.status !== 404);
+        catchError((response: HttpErrorResponse) => {
+          this.applyError(response);
           return of(null);
         }),
         finalize(() => this.loading.set(false))
@@ -47,10 +49,37 @@ export class OutgoingTransactionMonitoringDetailComponent implements OnInit {
   }
 
   back(): void { void this.router.navigate(['/transactions/outgoing-monitoring']); }
-  reload(): void { const id = Number(this.route.snapshot.paramMap.get('id')); this.loading.set(true); this.api.getDetail(id).pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef)).subscribe({ next: value => { this.detail.set(value); this.error.set(false); }, error: () => this.error.set(true) }); }
+  reload(): void {
+    const id = Number(this.route.snapshot.paramMap.get('id'));
+    this.resetState();
+    this.api.getDetail(id).pipe(
+      catchError((response: HttpErrorResponse) => { this.applyError(response); return of(null); }),
+      finalize(() => this.loading.set(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(value => this.detail.set(value));
+  }
 
   eventIcon(stageCode: string): string {
-    const icons: Record<string, string> = { Creation: 'add_circle', Classification: 'rule', CycleAssignment: 'schedule', MonetaryIntegration: 'account_balance', FileInclusion: 'description', Acceptance: 'check_circle', Certification: 'verified', Return: 'assignment_return', DifferentialResponse: 'sync_alt' };
+    const icons: Record<string, string> = {
+      Creation: 'add_circle', Classification: 'rule', CycleAssignment: 'schedule', CycleReassignment: 'update',
+      Preparation: 'pending_actions', MonetaryIntegration: 'account_balance', FileInclusion: 'description',
+      FileProtection: 'lock', Transmission: 'send', Acknowledgement: 'mark_email_read', Acceptance: 'check_circle',
+      Certification: 'verified', Rejection: 'cancel', Return: 'assignment_return', DifferentialResponse: 'sync_alt',
+      TechnicalError: 'error', ManualReview: 'person_search'
+    };
     return icons[stageCode] ?? 'radio_button_checked';
+  }
+
+  private resetState(): void {
+    this.loading.set(true);
+    this.error.set(false);
+    this.notFound.set(false);
+    this.forbidden.set(false);
+  }
+
+  private applyError(response: HttpErrorResponse): void {
+    this.notFound.set(response.status === 404);
+    this.forbidden.set(response.status === 401 || response.status === 403);
+    this.error.set(!this.notFound() && !this.forbidden());
   }
 }

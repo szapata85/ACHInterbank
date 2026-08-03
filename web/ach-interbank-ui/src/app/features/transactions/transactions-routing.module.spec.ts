@@ -10,6 +10,11 @@ describe('TransactionsRoutingModule', () => {
     expectRoutePermission('list', 'CanReadAch');
   });
 
+  it('protege listado y detalle del monitor con el permiso funcional específico', () => {
+    expectRouteContainsPermission('outgoing-monitoring', 'OutgoingTransactions.Monitor.Read');
+    expectRouteContainsPermission('outgoing-monitoring/:id', 'OutgoingTransactions.Monitor.Read');
+  });
+
   it('protege las rutas con acciones de mutación con permiso de gestión', () => {
     [
       'create',
@@ -36,5 +41,13 @@ describe('TransactionsRoutingModule', () => {
     expect(route).withContext(`No existe la ruta ${path}`).toBeDefined();
     expect(route?.canActivate).withContext(`Falta guard en ${path}`).toContain(permissionGuard);
     expect(route?.data?.['permissions']).toEqual([permission]);
+  }
+
+  function expectRouteContainsPermission(path: string, permission: string): void {
+    const route = TRANSACTIONS_ROUTES.find((candidate) => candidate.path === path);
+
+    expect(route).withContext(`No existe la ruta ${path}`).toBeDefined();
+    expect(route?.canActivate).withContext(`Falta guard en ${path}`).toContain(permissionGuard);
+    expect(route?.data?.['permissions']).toContain(permission);
   }
 });

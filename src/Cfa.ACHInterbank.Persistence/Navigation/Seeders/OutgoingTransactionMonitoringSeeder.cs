@@ -16,6 +16,11 @@ public sealed class OutgoingTransactionMonitoringSeeder : IDbSeeder
     public static readonly Guid TechnicalPermissionId = Guid.Parse("a0420002-2f85-4ca5-a100-000000000002");
     public const string CanonicalRoute = "/transactions/outgoing-monitoring";
     public const string CanonicalLabel = "Transacciones de salida";
+    public const string CanonicalIcon = "monitoring";
+    public const int CanonicalOrder = 6;
+
+    private const string ParentRoute = "/transactions";
+    private const string DisabledDuplicateRoutePrefix = "/navigation/disabled/outgoing-monitoring";
 
     private readonly AchDbContext _context;
 
@@ -35,7 +40,8 @@ public sealed class OutgoingTransactionMonitoringSeeder : IDbSeeder
         await EnsureRolePermissionAsync(RoleConfiguration.OperatorRoleId, read.Id);
         await EnsureRolePermissionAsync(RoleConfiguration.AdminRoleId, technical.Id);
 
-        var parent = await _context.MenuItems.SingleAsync(item => item.Route == "/transactions");
+        var parent = await _context.MenuItems.SingleOrDefaultAsync(item => item.Route == ParentRoute)
+            ?? throw new InvalidOperationException($"No se encontró el grupo de navegación requerido en la ruta {ParentRoute}.");
         var candidates = await _context.MenuItems
             .Where(item => item.Route == CanonicalRoute || item.Label == CanonicalLabel)
             .OrderByDescending(item => item.Route == CanonicalRoute)
@@ -52,27 +58,37 @@ public sealed class OutgoingTransactionMonitoringSeeder : IDbSeeder
         item.ParentId = parent.Id;
         item.Label = CanonicalLabel;
         item.Route = CanonicalRoute;
-        item.Icon = "monitoring";
-        item.Order = 6;
+        item.Icon = CanonicalIcon;
+        item.Order = CanonicalOrder;
         item.Exact = true;
         item.IsActive = true;
         await _context.SaveChangesAsync();
 
         var candidateIds = candidates.Select(candidate => candidate.Id).Append(item.Id).Distinct().ToArray();
-        var permissionLinks = await _context.MenuItemPermissions.Where(link => candidateIds.Contains(link.MenuItemId)).ToListAsync();
-        var roleLinks = await _context.MenuItemRoles.Where(link => candidateIds.Contains(link.MenuItemId)).ToListAsync();
-        _context.MenuItemPermissions.RemoveRange(permissionLinks);
-        _context.MenuItemRoles.RemoveRange(roleLinks);
+        var permissionLinks = await _context.MenuItemPermissions
+            .Where(link => candidateIds.Contains(link.MenuItemId))
+            .ToListAsync();
+        var roleLinks = await _context.MenuItemRoles
+            .Where(link => candidateIds.Contains(link.MenuItemId))
+            .ToListAsync();
         foreach (var duplicate in candidates.Where(candidate => candidate.Id != item.Id))
         {
             duplicate.IsActive = false;
-            duplicate.Route = $"/navigation/disabled/outgoing-monitoring/{duplicate.Id}";
+            duplicate.Route = $"{DisabledDuplicateRoutePrefix}/{duplicate.Id}";
         }
 
-        _context.MenuItemPermissions.Add(new MenuItemPermission { MenuItemId = item.Id, PermissionId = read.Id });
-        _context.MenuItemRoles.AddRange(
-            new MenuItemRole { MenuItemId = item.Id, RoleId = RoleConfiguration.AdminRoleId },
-            new MenuItemRole { MenuItemId = item.Id, RoleId = RoleConfiguration.OperatorRoleId });
+        _context.MenuItemPermissions.RemoveRange(permissionLinks.Where(link =>
+            link.MenuItemId != item.Id || link.PermissionId != read.Id));
+        _context.MenuItemRoles.RemoveRange(roleLinks.Where(link =>
+            link.MenuItemId != item.Id
+            || (link.RoleId != RoleConfiguration.AdminRoleId && link.RoleId != RoleConfiguration.OperatorRoleId)));
+
+        if (!permissionLinks.Any(link => link.MenuItemId == item.Id && link.PermissionId == read.Id))
+            _context.MenuItemPermissions.Add(new MenuItemPermission { MenuItemId = item.Id, PermissionId = read.Id });
+        if (!roleLinks.Any(link => link.MenuItemId == item.Id && link.RoleId == RoleConfiguration.AdminRoleId))
+            _context.MenuItemRoles.Add(new MenuItemRole { MenuItemId = item.Id, RoleId = RoleConfiguration.AdminRoleId });
+        if (!roleLinks.Any(link => link.MenuItemId == item.Id && link.RoleId == RoleConfiguration.OperatorRoleId))
+            _context.MenuItemRoles.Add(new MenuItemRole { MenuItemId = item.Id, RoleId = RoleConfiguration.OperatorRoleId });
         await _context.SaveChangesAsync();
     }
 

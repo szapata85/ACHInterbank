@@ -4,6 +4,8 @@
     <section class="state" aria-live="polite"><mat-spinner diameter="44"></mat-spinner><p>Cargando el seguimiento comprobable…</p></section>
   } @else if (notFound()) {
     <section class="state"><mat-icon>search_off</mat-icon><h1>Transacción no encontrada</h1><p>El registro no existe o no está clasificado de forma persistida como salida.</p><button mat-stroked-button (click)="back()">Regresar</button></section>
+  } @else if (forbidden()) {
+    <section class="state" role="alert"><mat-icon>lock</mat-icon><h1>Acceso no autorizado</h1><p>No tienes permiso para consultar el detalle de esta transacción.</p><button mat-stroked-button (click)="back()">Regresar</button></section>
   } @else if (error()) {
     <section class="state" role="alert"><mat-icon>cloud_off</mat-icon><h1>No fue posible consultar el detalle.</h1><p>Puedes intentar nuevamente.</p><button mat-stroked-button (click)="reload()">Intentar nuevamente</button></section>
   } @else if (detail(); as item) {
@@ -38,6 +40,8 @@
       <section><h2>Archivo de salida</h2><div class="file-grid">@for (file of item.files; track file.fileId) {
         <mat-card data-testid="outgoing-file"><mat-card-content><h3>{{ file.fileName }}</h3><dl><div><dt>Versión</dt><dd>{{ file.version ?? 'No determinada' }}</dd></div><div><dt>Posición</dt><dd>{{ file.fileSequence }}</dd></div><div><dt>Inclusión</dt><dd>{{ file.includedAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Estado comprobable</dt><dd>{{ file.lifecycleStatusDisplayName }}</dd></div><div><dt>Transmisión</dt><dd>{{ file.hasTransmissionEvidence ? 'Transmisión comprobada' : 'Sin evidencia de transmisión' }}</dd></div><div><dt>Acuse</dt><dd>{{ file.hasAcknowledgementEvidence ? 'Acuse comprobado' : 'Pendiente de información externa' }}</dd></div></dl></mat-card-content></mat-card>
       }</div></section>
+    } @else {
+      <section class="empty-section" aria-label="Archivo de salida"><mat-icon>description</mat-icon><div><h2>Archivo de salida</h2><p>Esta transacción todavía no tiene un archivo NACHA-M asociado.</p></div></section>
     }
 
     @if (item.responses.length || item.returns.length) {
@@ -45,11 +49,19 @@
         @for (response of item.responses; track response.id) { <mat-card><mat-card-content><h3>{{ response.responseTypeDisplayName }}</h3><p>{{ response.correlationStatusDisplayName }}</p><dl><div><dt>Fecha</dt><dd>{{ response.receivedAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Estado</dt><dd>{{ response.externalStatusCode }}</dd></div><div><dt>Causal</dt><dd>{{ response.causeCode ? response.causeCode + ' — ' + (response.causeDescription || 'Sin descripción contextual') : 'No determinada' }}</dd></div></dl></mat-card-content></mat-card> }
         @for (returnItem of item.returns; track returnItem.occurredAtUtc) { <mat-card><mat-card-content><h3>{{ returnItem.stateDisplayName }}</h3><dl><div><dt>Fecha</dt><dd>{{ returnItem.occurredAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Causal contextual</dt><dd>{{ returnItem.causeCode ? returnItem.causeCode + ' — ' + (returnItem.causeDescription || 'Sin descripción contextual') : 'No determinada' }}</dd></div></dl></mat-card-content></mat-card> }
       </div></section>
+    } @else {
+      <section class="empty-section" aria-label="Resultado de la cámara"><mat-icon>hourglass_empty</mat-icon><div><h2>Resultado de la cámara</h2><p>Pendiente de información externa.</p></div></section>
     }
 
-    <section><h2>Línea de tiempo</h2><ol class="timeline" data-testid="outgoing-timeline">@for (event of item.timeline; track event.occurredAtUtc + event.stageCode) {
-      <li [class.technical]="event.isTechnical"><mat-icon [attr.aria-label]="event.stageDisplayName">{{ eventIcon(event.stageCode) }}</mat-icon><div><time>{{ event.occurredAtUtc | date:'dd/MM/yyyy HH:mm:ss' }}</time><h3>{{ event.title }}</h3><p>{{ event.description }}</p><span>{{ event.outcomeDisplayName }}</span></div></li>
-    }</ol></section>
+    <section><h2>Línea de tiempo</h2>
+      @if (item.timeline.length) {
+        <ol class="timeline" data-testid="outgoing-timeline">@for (event of item.timeline; track event.occurredAtUtc + event.stageCode) {
+          <li [class.technical]="event.isTechnical" [attr.data-severity]="event.severity"><mat-icon [attr.aria-label]="event.stageDisplayName">{{ eventIcon(event.stageCode) }}</mat-icon><div><time>{{ event.occurredAtUtc | date:'dd/MM/yyyy HH:mm:ss' }}</time><h3>{{ event.title }}</h3><p>{{ event.description }}</p><span>{{ event.outcomeDisplayName }}</span></div></li>
+        }</ol>
+      } @else {
+        <p class="no-timeline">Sin evidencia disponible para construir la línea de tiempo.</p>
+      }
+    </section>
 
     @if (item.technicalDetail; as technical) {
       <mat-expansion-panel class="technical-panel" data-testid="outgoing-technical-detail">

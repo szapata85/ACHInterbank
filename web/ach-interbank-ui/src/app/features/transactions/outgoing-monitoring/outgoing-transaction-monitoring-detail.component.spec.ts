@@ -40,5 +40,19 @@ describe('OutgoingTransactionMonitoringDetailComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('[data-testid="outgoing-timeline"] li').length).toBe(1);
     expect(fixture.nativeElement.textContent).toContain('Transacción creada');
+    expect(fixture.nativeElement.textContent).toContain('Aceptada');
+    expect(fixture.nativeElement.textContent).toContain('Devuelta posteriormente');
+    expect(fixture.nativeElement.textContent).toContain('Esta transacción todavía no tiene un archivo NACHA-M asociado.');
+    expect(fixture.nativeElement.textContent).toContain('Pendiente de información externa.');
+  });
+
+  it('presenta acceso denegado sin renderizar datos', () => {
+    fixture.detectChanges();
+    fixture.componentInstance.loading.set(false);
+    fixture.componentInstance.forbidden.set(true);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Acceso no autorizado');
+    expect(fixture.nativeElement.querySelector('[data-testid="outgoing-timeline"]')).toBeNull();
   });
 });
