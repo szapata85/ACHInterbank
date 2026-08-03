@@ -34,7 +34,7 @@ jobs:
       - name: Test
         run: >-
           dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
-          -c Release --no-build --filter 'Category!=ClearingHouseMultiDb'
+          -c Release --no-build --filter 'Category!=ClearingHouseMultiDb&Category!=OutgoingMonitorMultiDb'
           --logger "trx;LogFileName=dotnet-tests.trx" --results-directory TestResults
           -- RunConfiguration.MaxCpuCount=1
 
@@ -44,3 +44,98 @@ jobs:
         with:
           name: dotnet-test-results
           path: TestResults
+
+  outgoing-monitor-multidb:
+    name: Outgoing monitor (SQL Server + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUN_OUTGOING_MONITOR_MULTIDB: 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.300'
+
+      - name: Start isolated database services
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql_password="MonitorSql$(openssl rand -hex 12)!9"
+          pg_password="MonitorPg$(openssl rand -hex 12)!9"
+          sql_connection="Server=127.0.0.1,1433;Database=master;User Id=sa;Password=${sql_password};Encrypt=True;TrustServerCertificate=True;Connect Timeout=15"
+          pg_connection="Host=127.0.0.1;Port=5433;Database=achinterbank_test;Username=ach_test;Password=${pg_password};Timeout=15;Command Timeout=30"
+          echo "::add-mask::${sql_password}"
+          echo "::add-mask::${pg_password}"
+          echo "::add-mask::${sql_connection}"
+          echo "::add-mask::${pg_connection}"
+          docker run -d --name outgoing-monitor-sqlserver \
+            -e ACCEPT_EULA=Y -e MSSQL_PID=Developer -e MSSQL_SA_PASSWORD="${sql_password}" \
+            -p 1433:1433 \
+            mcr.microsoft.com/mssql/server@sha256:2cd0aec4a3bfc3cf9205bed3f7922f4c6208f7c767dc62edcee308d0fd7d56d0
+          docker run -d --name outgoing-monitor-postgres \
+            -e POSTGRES_DB=achinterbank_test -e POSTGRES_USER=ach_test -e POSTGRES_PASSWORD="${pg_password}" \
+            -p 5433:5432 \
+            postgres@sha256:eb4759788a2182f08257135e61a34f2cfc3c2914079f3465d64ee62350f4d081
+          echo "OUTGOING_MONITOR_SQLSERVER_CONNECTION_STRING=${sql_connection}" >> "$GITHUB_ENV"
+          echo "OUTGOING_MONITOR_POSTGRES_CONNECTION_STRING=${pg_connection}" >> "$GITHUB_ENV"
+          echo "OUTGOING_MONITOR_SQLSERVER_PASSWORD=${sql_password}" >> "$GITHUB_ENV"
+
+      - name: Wait for database services
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..40}; do
+            sql_ready=false
+            pg_ready=false
+            if docker exec outgoing-monitor-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$OUTGOING_MONITOR_SQLSERVER_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1; then sql_ready=true; fi
+            if docker exec outgoing-monitor-postgres pg_isready -U ach_test -d achinterbank_test >/dev/null 2>&1; then pg_ready=true; fi
+            if [[ "$sql_ready" == true && "$pg_ready" == true ]]; then exit 0; fi
+            sleep 5
+          done
+          echo 'SQL Server o PostgreSQL no quedó disponible dentro del tiempo máximo.' >&2
+          exit 1
+
+      - name: Restore
+        run: dotnet restore tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+
+      - name: Build once
+        run: dotnet build tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-restore --maxcpucount:1
+
+      - name: Run outgoing monitor multi-database tests
+        run: >-
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+          -c Release --no-build --no-restore --filter 'Category=OutgoingMonitorMultiDb'
+          --logger 'trx;LogFileName=outgoing-monitor-multidb.trx'
+          --results-directory TestResults/OutgoingMonitor
+          -- RunConfiguration.MaxCpuCount=1
+
+      - name: Verify exact multi-database execution
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          trx='TestResults/OutgoingMonitor/outgoing-monitor-multidb.trx'
+          test -f "$trx"
+          result_count="$(grep -o '<UnitTestResult ' "$trx" | wc -l)"
+          test "$result_count" -eq 2
+          if grep -q 'outcome="Skipped"' "$trx"; then
+            echo 'OutgoingMonitorMultiDb no permite pruebas omitidas.' >&2
+            exit 1
+          fi
+
+      - name: Upload multi-database test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outgoing-monitor-multidb-results
+          path: TestResults/OutgoingMonitor
+          if-no-files-found: error
+
+      - name: Stop database services
+        if: always()
+        run: docker rm -f outgoing-monitor-sqlserver outgoing-monitor-postgres || true

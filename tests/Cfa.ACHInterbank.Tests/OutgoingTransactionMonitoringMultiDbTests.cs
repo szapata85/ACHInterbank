@@ -17,10 +17,12 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
     private const string RequiredVariable = "RUN_OUTGOING_MONITOR_MULTIDB";
 
     [Fact]
+    [Trait("Category", "OutgoingMonitorMultiDb")]
     [Trait("Provider", "SqlServer")]
     public Task QueryAndDetail_RunAgainstSqlServer() => RunAsync(DatabaseProvider.SqlServer);
 
     [Fact]
+    [Trait("Category", "OutgoingMonitorMultiDb")]
     [Trait("Provider", "PostgreSql")]
     public Task QueryAndDetail_RunAgainstPostgreSql() => RunAsync(DatabaseProvider.PostgreSql);
 

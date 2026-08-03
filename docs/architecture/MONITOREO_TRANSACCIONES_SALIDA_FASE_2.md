@@ -148,7 +148,13 @@ La misma prueba se ejecutó contra PostgreSQL 16 en una base aislada, con migrac
 - Angular completo: 676/676 verdes.
 - Angular focalizado del monitor: 8/8 verdes.
 - Playwright contra API, SPA y SQL Server locales desplegados: 2/2 verdes, escritorio y móvil, sin mocks.
-- Regresión backend: 2.104 pruebas verdes y 7 omisiones condicionadas preexistentes en la corrida integral. Dos pruebas multi-motor de cámaras solicitaron configuración ambiental explícita; se repitió únicamente ese bloque con la configuración local y quedó 2/2 verde. Resultado compuesto: 2.106 aprobadas, 0 fallos pendientes.
+- Regresión backend: 2.104 pruebas verdes y 7 omisiones condicionadas preexistentes en la corrida integral. Dos pruebas multi-motor de cámaras solicitaron configuración ambiental explícita; se repitió únicamente ese bloque con la configuración local y quedó 2/2 verde. Resultado compuesto local: 2.106 aprobadas y 0 fallos en esa ejecución.
+
+### Cierre de integración continua
+
+El pipeline general ejecutaba las pruebas relacionales del monitor sin las variables ni los motores requeridos porque estas no tenían una categoría multi-motor. Se agregó `OutgoingMonitorMultiDb` a las dos pruebas por proveedor y la regresión general ahora excluye tanto `ClearingHouseMultiDb` como `OutgoingMonitorMultiDb`. El job dedicado `outgoing-monitor-multidb` inicia contenedores aislados de SQL Server y PostgreSQL, comprueba activamente su disponibilidad, define `RUN_OUTGOING_MONITOR_MULTIDB`, `OUTGOING_MONITOR_SQLSERVER_CONNECTION_STRING` y `OUTGOING_MONITOR_POSTGRES_CONNECTION_STRING`, y ejecuta únicamente la nueva categoría sin permitir omisiones.
+
+La validación local del filtro general aprobó 2.102 pruebas, no presentó fallos y conservó las 7 omisiones condicionadas preexistentes; el TRX confirmó que ninguna de las dos pruebas relacionales del monitor fue ejecutada. La suite dedicada aprobó 2/2 contra los motores reales. La sintaxis YAML fue validada localmente; la validación remota de GitHub Actions permanece pendiente del push del commit correctivo.
 
 ## 26. Limitaciones
 
@@ -168,4 +174,4 @@ No se modificaron golden files, lógica monetaria, migraciones, credenciales ni 
 
 ## 29. Veredicto
 
-**CERRADA.** La funcionalidad, la compatibilidad multi-motor, el build, las regresiones backend y Angular y el E2E desplegado quedaron verificados. No existen fallos pendientes dentro del alcance.
+**CERRADA FUNCIONALMENTE — PENDIENTE CIERRE DE CI.** La implementación funcional y las validaciones locales están completas. El cierre definitivo requiere comprobar en GitHub Actions, después del push, que `build-and-test` y `outgoing-monitor-multidb` finalicen en verde.
