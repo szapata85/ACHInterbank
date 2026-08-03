@@ -2,6 +2,7 @@ using System.Globalization;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -36,16 +37,26 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             return null;
         }
 
-        var published = await _context.Set<IntegrationMappingSet>()
+        var publishedMappings = await _context.Set<IntegrationMappingSet>()
             .AsNoTracking()
-            .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published)
+            .Where(x => x.MethodId == method.Id
+                && x.Status == IntegrationMappingSetStatusEnum.Published
+                && x.IsActive)
             .OrderByDescending(x => x.Version)
-            .FirstOrDefaultAsync(ct);
+            .ToListAsync(ct);
 
-        if (published is null)
+        if (publishedMappings.Count == 0)
         {
             return null;
         }
+
+        if (publishedMappings.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"INTEGRATION_MAPPING_NOT_UNIQUE: existen {publishedMappings.Count} mappings publicados activos para Proc_Contrapartidas.");
+        }
+
+        var published = publishedMappings[0];
 
         var parameters = await _context.Set<IntegrationMethodParameter>()
             .AsNoTracking()
@@ -70,6 +81,12 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             .ToDictionaryAsync(x => x.Id, ct);
 
         var tx = transactions.OrderBy(x => x.Id).FirstOrDefault();
+        if (cycle.ClearingHouse is null)
+        {
+            cycle.ClearingHouse = await _context.Set<ClearingHouse>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == cycle.ClearingHouseId, ct);
+        }
         var resolved = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var parameter in parameters)
@@ -82,10 +99,27 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
 
             if (winner is null)
             {
+                if (parameter.Required)
+                {
+                    throw new InvalidOperationException(
+                        $"INTEGRATION_MAPPING_REQUIRED: el mapping publicado no contiene una regla activa para {parameter.ParameterPath}.");
+                }
                 continue;
             }
 
-            resolved[parameter.ParameterPath] = ResolveValue(winner, sourceCatalog, cycle, tx, executionDateTime);
+            var ruleResolution = ResolveValue(winner, sourceCatalog, cycle, tx, executionDateTime);
+            if (parameter.Required && ruleResolution.UsedDefault)
+            {
+                throw new InvalidOperationException(
+                    $"INTEGRATION_MAPPING_SOURCE_REQUIRED: {parameter.ParameterPath} no se resolvio desde su fuente; no se permite fallback.");
+            }
+            if (parameter.Required && string.IsNullOrWhiteSpace(ruleResolution.Value))
+            {
+                throw new InvalidOperationException(
+                    $"INTEGRATION_MAPPING_SOURCE_REQUIRED: la fuente obligatoria de {parameter.ParameterPath} no produjo un valor.");
+            }
+
+            resolved[parameter.ParameterPath] = ruleResolution.Value;
         }
 
         if (!resolved.ContainsKey("OFIDLOT"))
@@ -96,23 +130,23 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
 
         var contract = new ProcContrapartidasRequestContract
         {
-            OFNIT = ResolveString("OFNIT"),
-            OFEMP = ResolveString("OFEMP"),
-            OFCTA = ResolveString("OFCTA"),
-            OFDD = ResolveString("OFDD"),
-            OFFECHEFEC = ResolveString("OFFECHEFEC"),
-            OFMONDEB = ResolveDecimal("OFMONDEB"),
-            OFMONCRE = ResolveDecimal("OFMONCRE"),
-            OFIDARCH = ResolveInt("OFIDARCH"),
-            OFIDLOT = ResolveInt("OFIDLOT"),
-            OFST = ResolveString("OFST"),
-            OFIDTX = ResolveString("OFIDTX"),
-            OFIDREVER = ResolveInt("OFIDREVER"),
-            OFIDEBAPLI = ResolveInt("OFIDEBAPLI"),
-            OFIDCAMCOMPE = ResolveInt("OFIDCAMCOMPE", cycle.ClearingHouseId),
-            OFDIRECCIONIP = ResolveString("OFDIRECCIONIP"),
-            OFLIBRE = ResolveString("OFLIBRE"),
-            OFLIBRE1 = ResolveInt("OFLIBRE1"),
+            OFNIT = ResolveRequiredString("OFNIT"),
+            OFEMP = ResolveRequiredString("OFEMP"),
+            OFCTA = ResolveRequiredString("OFCTA"),
+            OFDD = ResolveRequiredString("OFDD"),
+            OFFECHEFEC = ResolveRequiredString("OFFECHEFEC"),
+            OFMONDEB = ResolveRequiredDecimal("OFMONDEB"),
+            OFMONCRE = ResolveRequiredDecimal("OFMONCRE"),
+            OFIDARCH = ResolveRequiredInt("OFIDARCH"),
+            OFIDLOT = ResolveRequiredInt("OFIDLOT"),
+            OFST = ResolveRequiredString("OFST"),
+            OFIDTX = ResolveRequiredString("OFIDTX"),
+            OFIDREVER = ResolveRequiredInt("OFIDREVER"),
+            OFIDEBAPLI = ResolveRequiredInt("OFIDEBAPLI"),
+            OFIDCAMCOMPE = ResolveRequiredInt("OFIDCAMCOMPE"),
+            OFDIRECCIONIP = ResolveRequiredString("OFDIRECCIONIP"),
+            OFLIBRE = ResolveRequiredString("OFLIBRE"),
+            OFLIBRE1 = ResolveRequiredInt("OFLIBRE1"),
             ANSIDLOTE = ResolveInt("ANSIDLOTE"),
             ANSST = ResolveString("ANSST"),
             ANCLC = ResolveString("ANCLC"),
@@ -139,18 +173,33 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
         string ResolveString(string key)
             => resolved.TryGetValue(key, out var v) ? v ?? string.Empty : string.Empty;
 
+        string ResolveRequiredString(string key)
+        {
+            var value = ResolveString(key);
+            return !string.IsNullOrWhiteSpace(value)
+                ? value
+                : throw new InvalidOperationException($"INTEGRATION_MAPPING_SOURCE_REQUIRED: {key} no produjo un valor obligatorio.");
+        }
+
         int ResolveInt(string key, int fallback = 0)
             => resolved.TryGetValue(key, out var v) && int.TryParse(v, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
                 ? parsed
                 : fallback;
 
-        decimal ResolveDecimal(string key)
-            => resolved.TryGetValue(key, out var v) && decimal.TryParse(v, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
-                ? parsed
-                : 0m;
+        int ResolveRequiredInt(string key)
+            => resolved.TryGetValue(key, out var value)
+                && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                    ? parsed
+                    : throw new InvalidOperationException($"INTEGRATION_MAPPING_CONVERSION_FAILED: {key} no produjo un entero valido.");
+
+        decimal ResolveRequiredDecimal(string key)
+            => resolved.TryGetValue(key, out var value)
+                && decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                    ? parsed
+                    : throw new InvalidOperationException($"INTEGRATION_MAPPING_CONVERSION_FAILED: {key} no produjo un decimal valido.");
     }
 
-    private static string? ResolveValue(
+    private static RuleResolution ResolveValue(
         IntegrationMappingRule rule,
         IReadOnlyDictionary<long, IntegrationSourceCatalogField> sourceCatalog,
         AchCycle cycle,
@@ -159,7 +208,9 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
     {
         if (!string.IsNullOrWhiteSpace(rule.FixedValue))
         {
-            return ApplyTransformation(rule.FixedValue, rule.TransformationCode, rule.FormatMask);
+            return new RuleResolution(
+                ApplyTransformation(rule.FixedValue, rule.TransformationCode, rule.FormatMask),
+                UsedDefault: false);
         }
 
         var sourcePath = !string.IsNullOrWhiteSpace(rule.SourceFieldPath)
@@ -175,8 +226,13 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             _ => ResolvePath(sourcePath, cycle, tx, executionDateTime)
         };
 
+        var usedDefault = rule.SourceKind != IntegrationSourceKindEnum.Constant
+            && resolved is null
+            && rule.DefaultValue is not null;
         resolved ??= rule.DefaultValue;
-        return ApplyTransformation(resolved, rule.TransformationCode, rule.FormatMask);
+        return new RuleResolution(
+            ApplyTransformation(resolved, rule.TransformationCode, rule.FormatMask),
+            usedDefault);
     }
 
     private static string? ResolvePath(string sourcePath, AchCycle cycle, AchTransaction? tx, DateTime executionDateTime)
@@ -192,6 +248,12 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             "transaction.transactionexternalid" => tx?.TransactionExternalId,
             "transaction.reference" => tx?.Reference,
             "transaction.amount" => tx?.Amount.ToString(CultureInfo.InvariantCulture),
+            "transaction.debitcreditindicator" => tx?.Type switch
+            {
+                TransactionTypeEnum.Debit => "D",
+                TransactionTypeEnum.Credit => "C",
+                _ => null
+            },
             "transaction.tracenumber" => tx?.TraceNumber,
             "transaction.originatingdfi" => tx?.OriginatingDFI,
             "transaction.companyidentification" => tx?.CompanyIdentification,
@@ -222,4 +284,6 @@ public class ProcContrapartidasFunctionalMappingResolver : IProcContrapartidasFu
             _ => value
         };
     }
+
+    private readonly record struct RuleResolution(string? Value, bool UsedDefault);
 }

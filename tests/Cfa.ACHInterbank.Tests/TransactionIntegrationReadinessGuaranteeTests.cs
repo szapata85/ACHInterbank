@@ -150,6 +150,26 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     public async Task ProcContrapartidasReadiness_ShouldNotBeOk_WhenMonetaryOrDirectionFieldsUsePlaceholders()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            configureRule: (parameter, rule) =>
+            {
+                var placeholder = parameter.ParameterPath switch
+                {
+                    "OFMONDEB" => "0",
+                    "OFDD" => "TRANSFER  ",
+                    _ => null
+                };
+                if (placeholder is null)
+                {
+                    return;
+                }
+
+                rule.SourceKind = IntegrationSourceKindEnum.Constant;
+                rule.SourceFieldPath = string.Empty;
+                rule.FixedValue = placeholder;
+                rule.DefaultValue = placeholder;
+            });
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(
@@ -169,6 +189,18 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
     public async Task Readiness_ShouldNotUseFallback_WhenProcContrapartidasIsBootstrapPublished()
     {
         await using var fixture = await GuaranteeFixture.CreateAsync();
+        await fixture.PublishCompleteMappingAsync(
+            IntegrationGuaranteeConstants.ProcContrapartidas,
+            configureRule: (parameter, rule) =>
+            {
+                if (parameter.ParameterPath == "OFIDTX")
+                {
+                    rule.SourceKind = IntegrationSourceKindEnum.Constant;
+                    rule.SourceFieldPath = string.Empty;
+                    rule.FixedValue = "0";
+                    rule.DefaultValue = "0";
+                }
+            });
         var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
 
         var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
@@ -176,6 +208,22 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
         Assert.Equal("Failed", readiness.Status);
         Assert.False(readiness.IsReady);
         Assert.False(readiness.UsesFallback);
+    }
+
+    [Fact]
+    public async Task BootstrapPublishedProcContrapartidasMapping_ShouldBeReadyWithOnlyTechnicalWarnings()
+    {
+        await using var fixture = await GuaranteeFixture.CreateAsync();
+        var operation = await fixture.OperationResolver.ResolveAsync(fixture.DebitFromCfa);
+
+        var readiness = await fixture.ReadinessService.EvaluateAsync(operation);
+
+        Assert.True(readiness.IsReady);
+        Assert.Equal("ReadyWithWarnings", readiness.Status);
+        Assert.True(readiness.CanBuildPayload);
+        Assert.False(readiness.UsesFallback);
+        Assert.Empty(readiness.Errors);
+        Assert.Contains(readiness.Warnings, x => x.Contains("OFDIRECCIONIP", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -240,12 +288,9 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             {
                 var value = parameter.ParameterPath switch
                 {
-                    "OFDD" => "TRANSFER  ",
                     "OFMONCRE" => "0",
                     "OFST" => "OO",
-                    "OFIDTX" => "0",
                     "OFIDREVER" => "0",
-                    "OFIDEBAPLI" => "1",
                     _ => null
                 };
 
@@ -813,6 +858,10 @@ public sealed class TransactionIntegrationReadinessGuaranteeTests
             => parameter.ParameterPath switch
             {
                 "TIPTRAN" => "transaction.transactionCode",
+                "OFCTA" => "transaction.sourceAccountNumber",
+                "OFDD" => "transaction.debitCreditIndicator",
+                "OFMONDEB" => "transaction.amount",
+                "OFIDTX" => "transaction.reference",
                 "BCORECEP" => "destinationInstitution.transitCodeNormalized",
                 "BCOORIG" => "sourceInstitution.transitCodeNormalized",
                 "NORIG" => "sourceInstitution.name",

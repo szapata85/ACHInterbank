@@ -344,6 +344,7 @@ public class IntegrationCatalogService : IIntegrationCatalogService
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.reference", "Referencia transacción", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.amount", "Monto transacción", "decimal", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.transactionCode", "Código transacción", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.debitCreditIndicator", "Indicador débito/crédito", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceNumber", "Trazabilidad transacción", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceSequenceNumber", "Secuencia transacción D7", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.companyIdentification", "NIT/Id empresa origen", "string", false, order++),

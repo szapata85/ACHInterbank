@@ -57,6 +57,15 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         "constant.value"
     };
 
+    private static readonly HashSet<string> ProcContrapartidasCriticalParameters = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "OFCTA",
+        "OFDD",
+        "OFMONDEB",
+        "OFMONCRE",
+        "OFIDTX"
+    };
+
     private readonly AchDbContext _context;
     private readonly IIntegrationCatalogService _catalogService;
     private readonly IntegrationMappingSnapshotBuilder _snapshotBuilder;
@@ -308,6 +317,11 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         {
             functionalErrors.AddRange(await ValidateProcTransaccionesRuntimeAsync(transactionId.Value, ct));
         }
+        else if (string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)
+            && transactionId.HasValue)
+        {
+            functionalErrors.AddRange(await ValidateProcContrapartidasRuntimeAsync(transactionId.Value, ct));
+        }
 
         if (functionalErrors.Count > 0)
         {
@@ -533,6 +547,48 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
         return [];
     }
 
+    private async Task<IReadOnlyCollection<string>> ValidateProcContrapartidasRuntimeAsync(
+        int transactionId,
+        CancellationToken ct)
+    {
+        var transaction = await _context.AchTransactions
+            .AsNoTracking()
+            .Where(x => x.Id == transactionId)
+            .Select(x => new
+            {
+                x.Amount,
+                x.Reference,
+                x.SourceAccountNumber,
+                x.Type
+            })
+            .FirstOrDefaultAsync(ct);
+
+        if (transaction is null)
+        {
+            return ["Proc_Contrapartidas no puede validar las fuentes: la transaccion no existe."];
+        }
+
+        var errors = new List<string>();
+        if (transaction.Amount <= 0m)
+        {
+            errors.Add("OFMONDEB requiere un monto debitado real mayor que cero.");
+        }
+        if (string.IsNullOrWhiteSpace(transaction.Reference))
+        {
+            errors.Add("OFIDTX requiere la referencia funcional real de la transaccion.");
+        }
+        if (string.IsNullOrWhiteSpace(transaction.SourceAccountNumber))
+        {
+            errors.Add("OFCTA requiere la cuenta origen persistida de la transaccion.");
+        }
+        if (transaction.Type != Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.TransactionTypeEnum.Debit)
+        {
+            errors.Add("OFDD requiere una transaccion de naturaleza debito para Proc_Contrapartidas.");
+        }
+
+        return errors;
+    }
+
     private static FunctionalCoverageAssessment AssessFunctionalCoverage(
         string operationKey,
         IntegrationMethodParameter parameter,
@@ -598,7 +654,13 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             }
         }
 
-        if (fixedValue is not null && (IsPlaceholder(fixedValue) || LooksLikeSeededDate(fixedValue)))
+        if (fixedValue is not null
+            && IsCriticalProcContrapartidasParameter(operationKey, parameterPath)
+            && (IsPlaceholder(fixedValue) || LooksLikeSeededDate(fixedValue)))
+        {
+            errors.Add(ErrorMessage(operationKey, parameterPath, fixedValue, "valor fijo invalido puede reemplazar una fuente financiera o funcional critica"));
+        }
+        else if (fixedValue is not null && (IsPlaceholder(fixedValue) || LooksLikeSeededDate(fixedValue)))
         {
             warnings.Add(WarningMessage(operationKey, parameterPath, fixedValue, "valor fijo detectado en regla con fuente; validar que no actue como fallback funcional"));
         }
@@ -638,12 +700,9 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
 
         return parameterPath.ToUpperInvariant() switch
         {
-            "OFDD" => string.Equals(value, "TRANSFER", StringComparison.OrdinalIgnoreCase),
             "OFMONCRE" => string.Equals(value, "0", StringComparison.OrdinalIgnoreCase),
             "OFST" => string.Equals(value, "OO", StringComparison.OrdinalIgnoreCase),
-            "OFIDTX" => string.Equals(value, "0", StringComparison.OrdinalIgnoreCase),
             "OFIDREVER" => string.Equals(value, "0", StringComparison.OrdinalIgnoreCase),
-            "OFIDEBAPLI" => string.Equals(value, "1", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }
@@ -664,16 +723,29 @@ public sealed class IntegrationMappingReadinessService : IIntegrationMappingRead
             };
         }
 
-        return string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(parameterPath, "OFCTA", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(sourcePath, "transaction.originatingdfi", StringComparison.OrdinalIgnoreCase);
+        if (!string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return parameterPath.ToUpperInvariant() switch
+        {
+            "OFCTA" => !string.Equals(sourcePath, "transaction.sourceAccountNumber", StringComparison.OrdinalIgnoreCase),
+            "OFDD" => !string.Equals(sourcePath, "transaction.debitCreditIndicator", StringComparison.OrdinalIgnoreCase),
+            "OFMONDEB" => !string.Equals(sourcePath, "transaction.amount", StringComparison.OrdinalIgnoreCase),
+            "OFIDTX" => !string.Equals(sourcePath, "transaction.reference", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
     }
 
     private static bool BlocksReadinessDefault(string operationKey, string parameterPath, string? sourcePath, string value)
         => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(parameterPath, "OFCTA", StringComparison.OrdinalIgnoreCase)
-            && (string.Equals(sourcePath, "transaction.originatingdfi", StringComparison.OrdinalIgnoreCase)
-                || IsPlaceholder(value));
+            && IsCriticalProcContrapartidasParameter(operationKey, parameterPath)
+            && IsPlaceholder(value);
+
+    private static bool IsCriticalProcContrapartidasParameter(string operationKey, string parameterPath)
+        => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcContrapartidas, StringComparison.OrdinalIgnoreCase)
+            && ProcContrapartidasCriticalParameters.Contains(parameterPath);
 
     private static bool IsSemanticallyDoubtfulSource(string operationKey, string parameterPath, string? sourcePath)
         => string.Equals(operationKey, IntegrationGuaranteeConstants.ProcTransacciones, StringComparison.OrdinalIgnoreCase)

@@ -330,6 +330,7 @@ public sealed class IntegrationCatalogBootstrapper
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.reference", "Referencia transaccion", "string", true, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.amount", "Monto transaccion", "decimal", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.transactionCode", "Codigo transaccion", "string", false, order++),
+            Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.debitCreditIndicator", "Indicador debito/credito", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceNumber", "Trazabilidad transaccion", "string", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.traceSequenceNumber", "Secuencia transaccion D7", "int", false, order++),
             Source(methodId, IntegrationSourceKindEnum.Transaction, nameof(AchTransaction), "transaction.companyIdentification", "NIT/Id empresa origen", "string", false, order++),

@@ -30,9 +30,9 @@ public sealed class IntegrationBootstrapperTests
         Assert.Equal(27, firstCounts.TransaccionesParameters);
         Assert.Equal(22, firstCounts.ContrapartidasParameters);
         Assert.Equal(7, firstCounts.RespuestaParameters);
-        Assert.Equal(68, firstCounts.TransaccionesSourceFields);
-        Assert.Equal(68, firstCounts.ContrapartidasSourceFields);
-        Assert.Equal(68, firstCounts.RespuestaSourceFields);
+        Assert.Equal(69, firstCounts.TransaccionesSourceFields);
+        Assert.Equal(69, firstCounts.ContrapartidasSourceFields);
+        Assert.Equal(69, firstCounts.RespuestaSourceFields);
         Assert.Equal(2, firstCounts.ResponseCodes);
         AssertCountsEqual(firstCounts, secondCounts);
     }
@@ -154,10 +154,24 @@ public sealed class IntegrationBootstrapperTests
         Assert.Contains(parameters, x => x.ParameterPath == "ANCLC" && !x.Required && x.IsActive);
         Assert.Contains(parameters, x => x.ParameterPath == "ANSIDTX" && !x.Required && x.IsActive);
         Assert.Contains(parameters, x => x.ParameterPath == "ANSIDREVER" && !x.Required && x.IsActive);
+
+        IntegrationMappingRule RuleFor(string path)
+        {
+            var parameterId = parameters.Single(x => x.ParameterPath == path).Id;
+            return rules.Single(x => x.ParameterId == parameterId);
+        }
+
+        Assert.Equal("transaction.amount", RuleFor("OFMONDEB").SourceFieldPath, ignoreCase: true);
+        Assert.Null(RuleFor("OFMONDEB").DefaultValue);
+        Assert.Equal("transaction.debitCreditIndicator", RuleFor("OFDD").SourceFieldPath, ignoreCase: true);
+        Assert.Null(RuleFor("OFDD").DefaultValue);
+        Assert.Equal("transaction.reference", RuleFor("OFIDTX").SourceFieldPath, ignoreCase: true);
+        Assert.Null(RuleFor("OFIDTX").DefaultValue);
+        Assert.Equal("transaction.id", RuleFor("OFIDEBAPLI").SourceFieldPath, ignoreCase: true);
     }
 
     [Fact]
-    public async Task ProcContrapartidas_Bootstrapper_ShouldReplaceSeedMappingWithAmbiguousAccountSource_AndRemainIdempotent()
+    public async Task ProcContrapartidas_Bootstrapper_ShouldRepairSeedMappingInPlace_AndRemainIdempotent()
     {
         await using var fixture = await ContextFixture.CreateAsync();
         var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
@@ -172,6 +186,7 @@ public sealed class IntegrationBootstrapperTests
             .SingleAsync();
         var accountRule = await fixture.Context.IntegrationMappingRules
             .SingleAsync(x => x.MappingSetId == obsolete.Id && x.ParameterId == accountParameterId);
+        var originalRuleId = accountRule.Id;
         accountRule.SourceFieldPath = "transaction.originatingdfi";
         accountRule.DefaultValue = "000010070";
         await fixture.Context.SaveChangesAsync();
@@ -182,18 +197,54 @@ public sealed class IntegrationBootstrapperTests
         var repairedRule = await fixture.Context.IntegrationMappingRules
             .SingleAsync(x => x.MappingSetId == repaired.Id && x.ParameterId == accountParameterId);
 
-        Assert.NotEqual(obsolete.Id, repaired.Id);
-        Assert.Equal(IntegrationMappingSetStatusEnum.Archived, obsolete.Status);
-        Assert.False(obsolete.IsActive);
+        Assert.Equal(obsolete.Id, repaired.Id);
+        Assert.Equal(IntegrationMappingSetStatusEnum.Published, obsolete.Status);
+        Assert.True(obsolete.IsActive);
+        Assert.Equal(originalRuleId, repairedRule.Id);
         Assert.Equal("transaction.sourceAccountNumber", repairedRule.SourceFieldPath);
         Assert.Null(repairedRule.DefaultValue);
 
+        await bootstrapper.EnsureAsync();
         await bootstrapper.EnsureAsync();
         var finalPublishedId = await fixture.Context.IntegrationMappingSets
             .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive)
             .Select(x => x.Id)
             .SingleAsync();
         Assert.Equal(repaired.Id, finalPublishedId);
+    }
+
+    [Fact]
+    public async Task ProcContrapartidas_Bootstrapper_ShouldPreservePublishedUserMapping()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+        var bootstrapper = new IntegrationMappingBootstrapper(fixture.Context);
+        await bootstrapper.EnsureAsync();
+
+        var method = await fixture.Context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        var published = await fixture.Context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        var referenceParameterId = await fixture.Context.IntegrationMethodParameters
+            .Where(x => x.MethodId == method.Id && x.ParameterPath == "OFIDTX")
+            .Select(x => x.Id)
+            .SingleAsync();
+        var referenceRule = await fixture.Context.IntegrationMappingRules
+            .SingleAsync(x => x.MappingSetId == published.Id && x.ParameterId == referenceParameterId);
+        published.PublishedBy = "operador-uat";
+        published.Name = "Mapping publicado por usuario";
+        referenceRule.SourceFieldPath = "transaction.transactionExternalId";
+        await fixture.Context.SaveChangesAsync();
+
+        await bootstrapper.EnsureAsync();
+        await bootstrapper.EnsureAsync();
+
+        var preserved = await fixture.Context.IntegrationMappingSets.SingleAsync(x => x.Id == published.Id);
+        var preservedRule = await fixture.Context.IntegrationMappingRules.SingleAsync(x => x.Id == referenceRule.Id);
+        Assert.Equal("operador-uat", preserved.PublishedBy);
+        Assert.Equal("Mapping publicado por usuario", preserved.Name);
+        Assert.Equal("transaction.transactionExternalId", preservedRule.SourceFieldPath);
+        Assert.Single(await fixture.Context.IntegrationMappingSets
+            .Where(x => x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive)
+            .ToListAsync());
     }
 
     [Fact]

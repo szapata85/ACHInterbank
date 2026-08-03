@@ -178,6 +178,45 @@ public class IntegrationMappingEndToEndTests
         Assert.NotNull(result!.Contract);
         Assert.False(result.UsedFallback);
         Assert.Equal(fixture.Transaction.Reference, result.Contract.OFIDTX);
+        Assert.Equal(fixture.Transaction.Amount, result.Contract.OFMONDEB);
+        Assert.Equal("D", result.Contract.OFDD);
+        Assert.Equal(fixture.Transaction.Id, result.Contract.OFIDEBAPLI);
+    }
+
+    [Fact]
+    public async Task Resolver_ShouldFailControlled_WhenRequiredReferenceSourceIsMissing()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        fixture.Transaction.Reference = string.Empty;
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow));
+
+        Assert.Contains("INTEGRATION_MAPPING_SOURCE_REQUIRED", error.Message);
+        Assert.Contains("OFIDTX", error.Message);
+    }
+
+    [Fact]
+    public async Task Resolver_ShouldUseInvariantMonetaryConversion()
+    {
+        await using var fixture = await IntegrationFixture.CreateAsync();
+        var originalCulture = System.Globalization.CultureInfo.CurrentCulture;
+        var originalUiCulture = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+            System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo("de-DE");
+
+            var result = await fixture.Resolver.TryResolveAsync(fixture.Cycle, [fixture.Transaction], DateTime.UtcNow);
+
+            Assert.NotNull(result);
+            Assert.Equal(75.5m, result!.Contract.OFMONDEB);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = originalCulture;
+            System.Globalization.CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     [Fact]
@@ -324,8 +363,8 @@ public class IntegrationMappingEndToEndTests
                 AchBatchId = batch.Id,
                 Amount = 75.5m,
                 Reference = "TX-REF-001",
-                Type = TransactionTypeEnum.Credit,
-                TransactionCode = "22",
+                Type = TransactionTypeEnum.Debit,
+                TransactionCode = "27",
                 TraceNumber = "TRACE001",
                 CompanyIdentification = "900",
                 OriginatingDFI = "001",
@@ -364,7 +403,7 @@ public class IntegrationMappingEndToEndTests
             {
                 var (kind, path, fixedVal) = parameter.ParameterPath switch
                 {
-                    "OFIDLOT" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),
+                    "OFIDLOT" => (IntegrationSourceKindEnum.Batch, "batch.id", (string?)null),
                     "OFIDTX" => (IntegrationSourceKindEnum.Transaction, "transaction.transactionExternalId", (string?)null),
                     "CycleId" => (IntegrationSourceKindEnum.Cycle, "cycle.id", (string?)null),
                     "CycleName" => (IntegrationSourceKindEnum.Cycle, "cycle.cycleName", (string?)null),

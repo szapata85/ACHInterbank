@@ -136,6 +136,7 @@ async function createTransaction(page: Page, token: string, db: G36RuntimeDb, ke
     const created = await postJson<CreatedTransaction>(page, token, '/transactions', {
       amount: 1000 + index,
       transactionExternalId: externalId,
+      reference: externalId.replace(/\./g, '-'),
       type: 2,
       accountType: 1,
       isPrenotification: false,

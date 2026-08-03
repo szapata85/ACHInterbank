@@ -5,10 +5,13 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.OutgoingTransactionMonitoring;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.Integrations.Services;
+using Cfa.ACHInterbank.Persistence.Security.Services;
 using FluentAssertions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Npgsql;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -161,7 +164,91 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         retryAttempts.Select(item => item.IsTechnicalFailure).Should().Equal(true, false);
         retryAttempts.Select(item => item.IsSuccessful).Should().Equal(false, true);
         (await context.AchTransactions.CountAsync(item => item.Id == ids.RetrySucceeded)).Should().Be(1);
+
+        await ValidateProcContrapartidasBootstrapAsync(context, transactionId);
     }
+
+    private static async Task ValidateProcContrapartidasBootstrapAsync(AchDbContext context, int transactionId)
+    {
+        var bootstrapper = new IntegrationMappingBootstrapper(context);
+        await bootstrapper.EnsureAsync();
+        var method = await context.IntegrationMethods.SingleAsync(x => x.Code == "WSCFAACH.Proc_Contrapartidas");
+        var firstSet = await context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        var firstRuleIds = await context.IntegrationMappingRules
+            .Where(x => x.MappingSetId == firstSet.Id)
+            .OrderBy(x => x.ParameterId)
+            .Select(x => x.Id)
+            .ToListAsync();
+
+        await bootstrapper.EnsureAsync();
+        await bootstrapper.EnsureAsync();
+
+        var finalSet = await context.IntegrationMappingSets.SingleAsync(x =>
+            x.MethodId == method.Id && x.Status == IntegrationMappingSetStatusEnum.Published && x.IsActive);
+        var finalRuleIds = await context.IntegrationMappingRules
+            .Where(x => x.MappingSetId == finalSet.Id)
+            .OrderBy(x => x.ParameterId)
+            .Select(x => x.Id)
+            .ToListAsync();
+        finalSet.Id.Should().Be(firstSet.Id);
+        finalRuleIds.Should().Equal(firstRuleIds);
+        finalRuleIds.Should().HaveCount(17);
+
+        var transaction = await context.AchTransactions.SingleAsync(x => x.Id == transactionId);
+        transaction.Type = TransactionTypeEnum.Debit;
+        transaction.TransactionCode = "27";
+        await context.SaveChangesAsync();
+        var cycle = await context.AchCycles
+            .Include(x => x.ClearingHouse)
+            .SingleAsync(x => x.Id == transaction.AchCycleId);
+
+        var resolution = await new ProcContrapartidasFunctionalMappingResolver(context)
+            .TryResolveAsync(cycle, [transaction], DateTime.UtcNow);
+        resolution.Should().NotBeNull();
+        resolution!.UsedFallback.Should().BeFalse();
+        resolution.Contract.OFIDTX.Should().Be(transaction.Reference);
+        resolution.Contract.OFMONDEB.Should().Be(transaction.Amount);
+        resolution.Contract.OFDD.Should().Be("D");
+
+        var operationResolver = new TransactionIntegrationOperationResolver(context);
+        var operation = await operationResolver.ResolveAsync(transaction);
+        var readiness = await new IntegrationMappingReadinessService(context, new IntegrationCatalogService(context))
+            .EvaluateAsync(operation);
+        readiness.IsReady.Should().BeTrue();
+        readiness.Status.Should().Be("ReadyWithWarnings");
+        readiness.UsesFallback.Should().BeFalse();
+        readiness.Errors.Should().BeEmpty();
+
+        var settingsBootstrapper = new SoapIntegrationSettingsBootstrapper(context, BuildSoapBootstrapConfiguration());
+        await settingsBootstrapper.EnsureAsync();
+        await settingsBootstrapper.EnsureAsync();
+        (await context.SoapIntegrationSettings.CountAsync()).Should().Be(1);
+        var settings = await context.SoapIntegrationSettings.AsNoTracking().SingleAsync();
+        settings.WscfaachMappingsJson.Should().Contain("Proc_Contrapartidas");
+    }
+
+    private static IConfiguration BuildSoapBootstrapConfiguration()
+        => new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["SoapIntegrationBootstrap:Enabled"] = "true",
+            ["SoapIntegrationBootstrap:DefaultTimeoutSeconds"] = "15",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:Endpoint"] = "http://localhost:7083/WSCFAACH.svc",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:SoapAction"] = "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:OperatingMode"] = "Live",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:TimeoutSeconds"] = "15",
+            ["SoapIntegrationBootstrap:ProcContrapartidas:Enabled"] = "true",
+            ["SoapIntegrationBootstrap:ProcTransacciones:Endpoint"] = "http://localhost:7083/WSCFAACH.svc",
+            ["SoapIntegrationBootstrap:ProcTransacciones:SoapAction"] = "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
+            ["SoapIntegrationBootstrap:ProcTransacciones:OperatingMode"] = "Live",
+            ["SoapIntegrationBootstrap:ProcTransacciones:TimeoutSeconds"] = "15",
+            ["SoapIntegrationBootstrap:ProcTransacciones:Enabled"] = "true",
+            ["SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:Endpoint"] = "http://localhost:7083/WSAxonRespuestaTransacciones.svc",
+            ["SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:SoapAction"] = "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
+            ["SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:OperatingMode"] = "Live",
+            ["SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:TimeoutSeconds"] = "15",
+            ["SoapIntegrationBootstrap:RegistrarRespuestaTransaccion:Enabled"] = "true"
+        }).Build();
 
     private static async Task<int> SeedAsync(AchDbContext context)
     {
