@@ -154,7 +154,14 @@ La misma prueba se ejecutó contra PostgreSQL 16 en una base aislada, con migrac
 
 El pipeline general ejecutaba las pruebas relacionales del monitor sin las variables ni los motores requeridos porque estas no tenían una categoría multi-motor. Se agregó `OutgoingMonitorMultiDb` a las dos pruebas por proveedor y la regresión general ahora excluye tanto `ClearingHouseMultiDb` como `OutgoingMonitorMultiDb`. El job dedicado `outgoing-monitor-multidb` inicia contenedores aislados de SQL Server y PostgreSQL, comprueba activamente su disponibilidad, define `RUN_OUTGOING_MONITOR_MULTIDB`, `OUTGOING_MONITOR_SQLSERVER_CONNECTION_STRING` y `OUTGOING_MONITOR_POSTGRES_CONNECTION_STRING`, y ejecuta únicamente la nueva categoría sin permitir omisiones.
 
-La validación local del filtro general aprobó 2.102 pruebas, no presentó fallos y conservó las 7 omisiones condicionadas preexistentes; el TRX confirmó que ninguna de las dos pruebas relacionales del monitor fue ejecutada. La suite dedicada aprobó 2/2 contra los motores reales. La sintaxis YAML fue validada localmente; la validación remota de GitHub Actions permanece pendiente del push del commit correctivo.
+La validación local del filtro general aprobó 2.102 pruebas, no presentó fallos y conservó las 7 omisiones condicionadas preexistentes; el TRX confirmó que ninguna de las dos pruebas relacionales del monitor fue ejecutada. La suite dedicada aprobó 2/2 contra los motores reales. La validación remota quedó completada en verde mediante GitHub Actions run `30781515656`: el workflow `dotnet-ci`, `build-and-test` y `Outgoing monitor (SQL Server + PostgreSQL)` terminaron en `success`. SQL Server y PostgreSQL fueron validados en el job dedicado, las dos pruebas multi-motor se ejecutaron sin omisiones, los resultados se publicaron y los contenedores se limpiaron. No quedan validaciones remotas pendientes para la Fase 2.
+
+### Referencia canónica de cierre
+
+Commit técnico definitivo: `57c2b929fdc650a899c8511f4dba251862e58b2d`
+Mensaje: `fix: integrar pruebas multi-motor del monitor en CI`
+
+El commit `31d740ccc864c244fe8dfc0f211ceacc242e3b3a` contiene la implementación funcional inicial. El commit `57c2b929fdc650a899c8511f4dba251862e58b2d` representa el cierre técnico definitivo de la Fase 2, incluida su integración continua multi-motor.
 
 ## 26. Limitaciones
 
@@ -174,4 +181,8 @@ No se modificaron golden files, lógica monetaria, migraciones, credenciales ni 
 
 ## 29. Veredicto
 
-**CERRADA FUNCIONALMENTE — PENDIENTE CIERRE DE CI.** La implementación funcional y las validaciones locales están completas. El cierre definitivo requiere comprobar en GitHub Actions, después del push, que `build-and-test` y `outgoing-monitor-multidb` finalicen en verde.
+**CERRADA.** La Fase 2 quedó implementada y validada localmente, en SQL Server, en PostgreSQL, mediante Angular, mediante Playwright y mediante GitHub Actions. El monitor conserva `AchTransactions` como raíz canónica, usa evidencia persistida y no mantiene validaciones pendientes dentro del alcance.
+
+## Preparación para la Fase 3
+
+La Fase 3 debe partir del HEAD resultante de este microcierre documental y asumir la Fase 2 como cerrada. No debe reabrir la clasificación persistida, el monitor, la API, la SPA, la línea de tiempo, los permisos, las pruebas multi-motor ni la integración continua de la Fase 2 salvo que aparezca evidencia concreta de una regresión.
