@@ -30,7 +30,7 @@ describe('OutgoingTransactionMonitoringDetailComponent', () => {
   it('renderiza los hechos comprobables de la línea de tiempo', () => {
     fixture.detectChanges();
     fixture.componentInstance.detail.set({
-      summary: { transactionExternalId: 'TX-1', processStatusDisplayName: 'Procesada', createdAtUtc: '2026-08-02T10:00:00Z', lastUpdatedAtUtc: '2026-08-02T11:00:00Z', clearingHouseDisplayName: 'Cámara', cycleDisplayName: 'Ciclo', destinationInstitutionDisplayName: 'Entidad', maskedDestinationAccount: '******1234', amount: 100, initialResultDisplayName: 'Aceptada', subsequentSituationDisplayName: 'Devuelta posteriormente', requiresAttention: false },
+      summary: { transactionExternalId: 'TX-1', processStatusDisplayName: 'Procesada', createdAtUtc: '2026-08-02T10:00:00Z', lastUpdatedAtUtc: '2026-08-02T11:00:00Z', clearingHouseDisplayName: 'Cámara', cycleDisplayName: 'Ciclo', cycleProcessingDate: '2026-08-03T00:00:00Z', nextExpectedStepDisplayName: 'Sin pasos pendientes.', destinationInstitutionDisplayName: 'Entidad', maskedDestinationAccount: '******1234', amount: 100, initialResultDisplayName: 'Aceptada', subsequentSituationDisplayName: 'Devuelta posteriormente', requiresAttention: false },
       classification: { directionDisplayName: 'Salida', originDisplayName: 'Originada por CFA', monetaryRouteDisplayName: 'Integración de contrapartidas', classificationStatusDisplayName: 'Determinada', classificationVersion: 1 },
       integration: { wasDispatched: true, attemptCount: 1, resultDisplayName: 'Aceptada' },
       files: [], responses: [], returns: [], warnings: ['Sin evidencia de transmisión.'],

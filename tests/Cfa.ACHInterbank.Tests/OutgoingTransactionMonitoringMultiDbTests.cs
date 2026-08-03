@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.OutgoingTransactionMonitoring;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
@@ -32,15 +33,24 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("SEED_OUTGOING_MONITOR_RUNTIME_FIXTURE"), "true", StringComparison.OrdinalIgnoreCase))
             return;
-        var connectionString = Environment.GetEnvironmentVariable("OUTGOING_MONITOR_RUNTIME_SQLSERVER_CONNECTION_STRING");
+        var provider = Environment.GetEnvironmentVariable("OUTGOING_MONITOR_RUNTIME_PROVIDER") ?? "SqlServer";
+        var connectionVariable = provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase)
+            ? "OUTGOING_MONITOR_RUNTIME_POSTGRES_CONNECTION_STRING"
+            : "OUTGOING_MONITOR_RUNTIME_SQLSERVER_CONNECTION_STRING";
+        var connectionString = Environment.GetEnvironmentVariable(connectionVariable);
         if (string.IsNullOrWhiteSpace(connectionString))
-            throw new InvalidOperationException("Falta OUTGOING_MONITOR_RUNTIME_SQLSERVER_CONNECTION_STRING.");
-        var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseSqlServer(connectionString, sql => sql.MigrationsAssembly("Cfa.ACHInterbank.Persistence.Migrations.SqlServer"))
-            .Options;
+            throw new InvalidOperationException($"Falta {connectionVariable}.");
+        var builder = new DbContextOptionsBuilder<AchDbContext>();
+        if (provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase)) builder.UseNpgsql(connectionString);
+        else builder.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("Cfa.ACHInterbank.Persistence.Migrations.SqlServer"));
+        var options = builder.Options;
         await using var context = new AchDbContext(options);
         var id = await SeedAsync(context);
+        var phase4 = await SeedPhase4Async(context);
         (await context.AchTransactions.AnyAsync(item => item.Id == id)).Should().BeTrue();
+        (await context.AchTransactions.CountAsync(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))).Should().Be(35);
+        (await context.ContrapartidaDispatchAttempts.CountAsync(item => item.DispatchItem.AchTransactionId == phase4.RetrySucceeded)).Should().Be(2);
+        (await context.AchFileExportTransactions.CountAsync(item => item.AchTransactionId == phase4.ExactFile)).Should().Be(1);
     }
 
     private static async Task RunAsync(DatabaseProvider provider)
@@ -84,6 +94,73 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         detail.Timeline.Should().Contain(item => item.StageDisplayName == "Aceptación");
         detail.Timeline.Should().Contain(item => item.StageDisplayName == "Devolución");
         detail.TechnicalDetail.Should().BeNull();
+
+        var ids = await SeedPhase4Async(context);
+        var phase4 = await service.SearchAsync(new OutgoingTransactionMonitoringQuery
+        {
+            FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), PageSize = 50
+        });
+        phase4.TotalItems.Should().Be(35);
+        phase4.Items.Should().OnlyContain(item => !item.TransactionExternalId.Contains("HISTORICA"));
+        phase4.Items.Where(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))
+            .Should().OnlyContain(item => item.MaskedDestinationAccount == "******7890");
+        phase4.Items.Single(item => item.Id == ids.FutureCycle).ProcessStatusCode.Should().Be("Scheduled");
+        phase4.Items.Single(item => item.Id == ids.FutureCycle).NextExpectedStepDisplayName.Should().Contain("fecha prevista");
+        phase4.Items.Single(item => item.Id == ids.PendingResponse).InitialResultCode.Should().Be("PendingResponse");
+        phase4.Items.Single(item => item.Id == ids.Accepted).InitialResultCode.Should().Be("Accepted");
+        phase4.Items.Single(item => item.Id == ids.Rejected).InitialResultCode.Should().Be("Rejected");
+        phase4.Items.Single(item => item.Id == ids.TechnicalFailure).ProcessStatusCode.Should().Be("TechnicalError");
+        phase4.Items.Single(item => item.Id == ids.TechnicalFailure).InitialResultCode.Should().Be("NotDetermined");
+        phase4.Items.Single(item => item.Id == ids.AcceptedReturned).SubsequentSituationCode.Should().Be("ReturnedLater");
+        phase4.Items.Single(item => item.Id == ids.WithoutFile).FileName.Should().BeNull();
+        phase4.Items.Single(item => item.Id == ids.ExactFile).FileName.Should().Be("UAT-F4-SALIDA.001");
+        phase4.Items.Single(item => item.Id == ids.ExactFile).FileVersion.Should().Be(1);
+
+        var rejected = await service.SearchAsync(new OutgoingTransactionMonitoringQuery
+        {
+            FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), ResponseCode = " r01 ", PageSize = 10
+        });
+        rejected.Items.Should().ContainSingle(item => item.Id == ids.Rejected);
+        var scheduled = await service.SearchAsync(new OutgoingTransactionMonitoringQuery
+        {
+            FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), ProcessStatus = "Scheduled", PageSize = 10
+        });
+        scheduled.Items.Should().ContainSingle(item => item.Id == ids.FutureCycle);
+        var pending = await service.SearchAsync(new OutgoingTransactionMonitoringQuery
+        {
+            FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), InitialResult = "PendingResponse", PageSize = 10
+        });
+        pending.Items.Should().ContainSingle(item => item.Id == ids.PendingResponse);
+
+        var firstPage = await service.SearchAsync(new OutgoingTransactionMonitoringQuery
+        {
+            FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), PageSize = 10
+        });
+        var secondPage = await service.SearchAsync(new OutgoingTransactionMonitoringQuery
+        {
+            FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), PageNumber = 2, PageSize = 10
+        });
+        firstPage.TotalPages.Should().Be(4);
+        firstPage.Items.Select(item => item.Id).Should().NotIntersectWith(secondPage.Items.Select(item => item.Id));
+
+        var exactFileDetail = await service.GetDetailAsync(ids.ExactFile, includeTechnicalDetail: true);
+        exactFileDetail!.Files.Should().ContainSingle();
+        exactFileDetail.Files[0].FileName.Should().Be("UAT-F4-SALIDA.001");
+        exactFileDetail.Files[0].HasTransmissionEvidence.Should().BeFalse();
+        exactFileDetail.TechnicalDetail.Should().NotBeNull();
+
+        var returnedDetail = await service.GetDetailAsync(ids.AcceptedReturned, includeTechnicalDetail: false);
+        returnedDetail!.Timeline.Should().Contain(item => item.StageDisplayName == "Aceptaci\u00f3n");
+        returnedDetail.Timeline.Should().Contain(item => item.StageDisplayName == "Devoluci\u00f3n");
+        returnedDetail.TechnicalDetail.Should().BeNull();
+
+        var retryAttempts = await context.ContrapartidaDispatchAttempts.AsNoTracking()
+            .Where(item => item.DispatchItem.AchTransactionId == ids.RetrySucceeded)
+            .OrderBy(item => item.AttemptNumber).ToListAsync();
+        retryAttempts.Should().HaveCount(2);
+        retryAttempts.Select(item => item.IsTechnicalFailure).Should().Equal(true, false);
+        retryAttempts.Select(item => item.IsSuccessful).Should().Equal(false, true);
+        (await context.AchTransactions.CountAsync(item => item.Id == ids.RetrySucceeded)).Should().Be(1);
     }
 
     private static async Task<int> SeedAsync(AchDbContext context)
@@ -148,6 +225,141 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
             new AchFileExportTransaction { AchFileExportId = file2.Id, AchTransactionId = outgoing.Id, AchCycleId = cycle.Id, AchBatchId = batch.Id, FileSequence = 1, TraceNumber = outgoing.TraceNumber, Amount = outgoing.Amount, IncludedAtUtc = file2.GeneratedAtUtc });
         await context.SaveChangesAsync();
         return outgoing.Id;
+    }
+
+    private static async Task<ScenarioIds> SeedPhase4Async(AchDbContext context)
+    {
+        var existing = await context.AchTransactions.AsNoTracking()
+            .Where(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))
+            .Select(item => new { item.Id, item.TransactionExternalId })
+            .ToListAsync();
+        if (existing.Count > 0)
+            return ScenarioIds.From(existing.ToDictionary(item => item.TransactionExternalId, item => item.Id));
+
+        var now = new DateTimeOffset(2026, 8, 2, 12, 0, 0, TimeSpan.Zero);
+        var configuration = await context.Set<ClearingHouseConfig>().OrderBy(item => item.Id).FirstAsync();
+        var house = new ClearingHouse { Name = "Camara UAT Fase 4", Code = "UATF4", OriginCode = "UATF4", ClearingHouseId = configuration.Id };
+        var source = Institution("CFA local UAT", true, "10001", "101");
+        var destination = Institution("Entidad destino sintetica", false, "10002", "102");
+        context.AddRange(house, source, destination);
+        await context.SaveChangesAsync();
+        var cycle = new AchCycle
+        {
+            Id = "UAT-F4-CYCLE-20260802", CycleName = "Ciclo UAT Fase 4", ProcessingDate = new DateTime(2026, 8, 2),
+            StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(12), CutoffTime = TimeSpan.FromHours(11),
+            ClearingHouseId = house.Id, OperationalStatus = AchCycleOperationalStatus.Open
+        };
+        var futureCycle = new AchCycle
+        {
+            Id = "UAT-F4-CYCLE-20260805", CycleName = "Ciclo futuro UAT Fase 4", ProcessingDate = new DateTime(2026, 8, 5),
+            StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(12), CutoffTime = TimeSpan.FromHours(11),
+            ClearingHouseId = house.Id, OperationalStatus = AchCycleOperationalStatus.Open
+        };
+        var batch = new AchBatch
+        {
+            AchCycleId = cycle.Id, ServiceClassCode = "220", CompanyName = "CFA", CompanyIdentification = "UATF4",
+            OriginOrOdfi = "00000001", EffectiveEntryDate = new DateTime(2026, 8, 2), BatchSequenceNumber = 1, CompanyEntryDescriptionId = 1
+        };
+        context.AddRange(cycle, futureCycle, batch);
+        await context.SaveChangesAsync();
+
+        AchTransaction Tx(string suffix, string trace, string cycleId, int minute) => Phase4Transaction(
+            $"UAT-F4-MON-SAL-{suffix}", trace, source.Id, destination.Id, cycleId, batch.Id, now.AddMinutes(minute));
+        var future = Tx("01-FUTURO", "900000000000001", futureCycle.Id, 0);
+        var pending = Tx("02-PENDIENTE", "900000000000002", cycle.Id, 1);
+        var accepted = Tx("03-ACEPTADA", "900000000000003", cycle.Id, 2);
+        var rejected = Tx("04-RECHAZADA", "900000000000004", cycle.Id, 3);
+        var returned = Tx("05-DEVUELTA", "900000000000005", cycle.Id, 4);
+        var withoutFile = Tx("06-SIN-ARCHIVO", "900000000000006", cycle.Id, 5);
+        var technical = Tx("07-ERROR-TECNICO", "900000000000007", cycle.Id, 6);
+        var retry = Tx("08-REINTENTO", "900000000000008", cycle.Id, 7);
+        var exactFile = Tx("11-ARCHIVO-EXACTO", "900000000000011", cycle.Id, 8);
+        var historical = Transaction("UAT-F4-MON-SAL-HISTORICA-NO-DETERMINADA", "900000000009999", AchTransactionDirection.Unknown,
+            AchTransactionClassificationStatus.Unknown, source.Id, destination.Id, cycle.Id, batch.Id, now.AddMinutes(9));
+        var fillers = Enumerable.Range(1, 25).Select(index => Tx($"PAG-{index:00}", $"900000000001{index:00}", cycle.Id, 10 + index)).ToArray();
+        context.AchTransactions.AddRange([future, pending, accepted, rejected, returned, withoutFile, technical, retry, exactFile, historical, .. fillers]);
+        await context.SaveChangesAsync();
+
+        context.AchTransactionStateEvents.AddRange(
+            StateEvent(accepted.Id, AchTransferStateEnum.Pending, AchTransferStateEnum.AppliedTacitly, now.UtcDateTime.AddMinutes(20)),
+            StateEvent(returned.Id, AchTransferStateEnum.Pending, AchTransferStateEnum.AppliedTacitly, now.UtcDateTime.AddMinutes(21)),
+            StateEvent(returned.Id, AchTransferStateEnum.AppliedTacitly, AchTransferStateEnum.ReturnedByEpr, now.UtcDateTime.AddMinutes(22), "R01", "Fondos insuficientes en el contexto UAT"));
+
+        var file1 = File(cycle.Id, house.Id, "UAT-F4-SALIDA.001", 1, now.UtcDateTime.AddMinutes(23));
+        var file2 = File(cycle.Id, house.Id, "UAT-F4-SALIDA.002", 2, now.UtcDateTime.AddMinutes(24));
+        context.AchFileExports.AddRange(file1, file2);
+        await context.SaveChangesAsync();
+        context.AchFileExportTransactions.AddRange(
+            Membership(file1.Id, exactFile, cycle.Id, batch.Id, file1.GeneratedAtUtc),
+            Membership(file2.Id, fillers[0], cycle.Id, batch.Id, file2.GeneratedAtUtc));
+        AddDispatch(context, pending, cycle, house, batch, [Attempt(1, success: true, code: "00", started: now.UtcDateTime.AddMinutes(25))]);
+        AddDispatch(context, rejected, cycle, house, batch, [Attempt(1, rejection: true, code: "R01", started: now.UtcDateTime.AddMinutes(26))]);
+        AddDispatch(context, technical, cycle, house, batch, [Attempt(1, technical: true, code: "TIMEOUT", started: now.UtcDateTime.AddMinutes(27))]);
+        AddDispatch(context, retry, cycle, house, batch,
+            [Attempt(1, technical: true, code: "TIMEOUT", started: now.UtcDateTime.AddMinutes(28)), Attempt(2, success: true, code: "00", started: now.UtcDateTime.AddMinutes(29))]);
+        await context.SaveChangesAsync();
+        return new ScenarioIds(future.Id, pending.Id, accepted.Id, rejected.Id, returned.Id, withoutFile.Id, technical.Id, retry.Id, exactFile.Id);
+    }
+
+    private static AchTransaction Phase4Transaction(string externalId, string trace, int sourceId, int destinationId, string cycleId, int batchId, DateTimeOffset createdAt)
+    {
+        var transaction = Transaction(externalId, trace, AchTransactionDirection.Outgoing, AchTransactionClassificationStatus.Determined,
+            sourceId, destinationId, cycleId, batchId, createdAt);
+        transaction.State = AchTransferStateEnum.Pending;
+        return transaction;
+    }
+
+    private static AchTransactionStateEvent StateEvent(int transactionId, AchTransferStateEnum from, AchTransferStateEnum to,
+        DateTime occurred, string? code = null, string? description = null) => new()
+        {
+            AchTransactionId = transactionId, FromState = from, ToState = to, Source = AchStateEventSourceEnum.Epr,
+            ReasonCode = code, ResolvedReasonDescription = description, OccurredAtUtc = occurred
+        };
+
+    private static AchFileExportTransaction Membership(int fileId, AchTransaction transaction, string cycleId, int batchId, DateTime includedAt)
+        => new() { AchFileExportId = fileId, AchTransactionId = transaction.Id, AchCycleId = cycleId, AchBatchId = batchId,
+            FileSequence = 1, TraceNumber = transaction.TraceNumber, Amount = transaction.Amount, IncludedAtUtc = includedAt };
+
+    private static void AddDispatch(AchDbContext context, AchTransaction transaction, AchCycle cycle, ClearingHouse house, AchBatch batch,
+        IReadOnlyList<ContrapartidaDispatchAttempt> attempts)
+    {
+        var item = new ContrapartidaDispatchItem
+        {
+            AchTransactionId = transaction.Id, AchCycleId = cycle.Id, ClearingHouseId = house.Id, AchBatchId = batch.Id,
+            State = attempts.Any(attempt => attempt.IsSuccessful) ? ContrapartidaDispatchItemStateEnum.ReportedToContrapartida : ContrapartidaDispatchItemStateEnum.RetryPending,
+            AttemptCount = attempts.Count, LastAttemptAtUtc = attempts.Max(attempt => attempt.StartedAtUtc),
+            LastSuccessAtUtc = attempts.Where(attempt => attempt.IsSuccessful).Select(attempt => attempt.FinishedAtUtc).LastOrDefault(),
+            LastResponseCode = attempts[^1].ExternalResponseCode, LastErrorCode = attempts[^1].ErrorCode,
+            LastErrorMessage = attempts[^1].ErrorMessage, LastCorrelationId = attempts[^1].CorrelationId, LastDispatchedBy = "UAT-F4"
+        };
+        foreach (var attempt in attempts) item.Attempts.Add(attempt);
+        context.ContrapartidaDispatchItems.Add(item);
+    }
+
+    private static ContrapartidaDispatchAttempt Attempt(int number, bool success = false, bool rejection = false, bool technical = false,
+        string code = "", DateTime started = default) => new()
+        {
+            AttemptNumber = number, StartedAtUtc = started, FinishedAtUtc = started.AddSeconds(1),
+            Result = success ? ContrapartidaDispatchAttemptResultEnum.Success : ContrapartidaDispatchAttemptResultEnum.Failed,
+            CorrelationId = $"UAT-F4-ATTEMPT-{number}-{code}", TriggeredBy = "UAT-F4", RetryEligible = technical,
+            ExternalResponseCode = code, ExternalResponseMessage = rejection ? "Fondos insuficientes" : success ? "Integracion completada" : "Tiempo de espera agotado",
+            ErrorCode = technical ? code : string.Empty, ErrorMessage = technical ? "Falla tecnica controlada y sanitizada" : string.Empty,
+            RequestPayloadXml = string.Empty, ResponsePayloadXml = string.Empty, SoapMethodName = "Proc_Contrapartidas",
+            SoapEndpoint = "simulador-local-controlado", ExecutionMode = "DryRun", DurationMs = 1000, SoapResponseCode = code,
+            SoapResponseDescription = rejection ? "Fondos insuficientes" : string.Empty, SoapTechnicalStatus = technical ? "Error tecnico" : "Completado",
+            TransportStatus = technical ? IntegrationTransportStatus.TimedOut : IntegrationTransportStatus.Succeeded,
+            BusinessStatus = success ? IntegrationResponseBusinessStatus.Success : rejection ? IntegrationResponseBusinessStatus.Rejected : IntegrationResponseBusinessStatus.Unknown,
+            RetryAllowed = technical, ProcessedAtUtc = started.AddSeconds(1), IsSuccessful = success,
+            IsFunctionalRejection = rejection, IsTechnicalFailure = technical, TechnicalException = string.Empty
+        };
+
+    private sealed record ScenarioIds(int FutureCycle, int PendingResponse, int Accepted, int Rejected, int AcceptedReturned,
+        int WithoutFile, int TechnicalFailure, int RetrySucceeded, int ExactFile)
+    {
+        public static ScenarioIds From(IReadOnlyDictionary<string, int> ids) => new(
+            ids["UAT-F4-MON-SAL-01-FUTURO"], ids["UAT-F4-MON-SAL-02-PENDIENTE"], ids["UAT-F4-MON-SAL-03-ACEPTADA"],
+            ids["UAT-F4-MON-SAL-04-RECHAZADA"], ids["UAT-F4-MON-SAL-05-DEVUELTA"], ids["UAT-F4-MON-SAL-06-SIN-ARCHIVO"],
+            ids["UAT-F4-MON-SAL-07-ERROR-TECNICO"], ids["UAT-F4-MON-SAL-08-REINTENTO"], ids["UAT-F4-MON-SAL-11-ARCHIVO-EXACTO"]);
     }
 
     private static FinancialInstitution Institution(string name, bool source, string routing, string transit)

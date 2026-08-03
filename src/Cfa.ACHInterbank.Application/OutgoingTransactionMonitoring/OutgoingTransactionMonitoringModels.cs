@@ -11,6 +11,7 @@ public sealed record OutgoingTransactionMonitoringQuery
     public int? DestinationInstitutionId { get; init; }
     public string? TransactionExternalId { get; init; }
     public string? TraceNumber { get; init; }
+    public string? ResponseCode { get; init; }
     public TransactionTypeEnum? TransactionType { get; init; }
     public string? ProcessStatus { get; init; }
     public string? InitialResult { get; init; }
@@ -44,6 +45,8 @@ public sealed record OutgoingTransactionMonitoringListItem
     public string ClearingHouseDisplayName { get; init; } = string.Empty;
     public string CycleId { get; init; } = string.Empty;
     public string CycleDisplayName { get; init; } = string.Empty;
+    public DateTime CycleProcessingDate { get; init; }
+    public string NextExpectedStepDisplayName { get; init; } = string.Empty;
     public string DestinationInstitutionDisplayName { get; init; } = string.Empty;
     public string TransactionTypeCode { get; init; } = string.Empty;
     public string TransactionTypeDisplayName { get; init; } = string.Empty;

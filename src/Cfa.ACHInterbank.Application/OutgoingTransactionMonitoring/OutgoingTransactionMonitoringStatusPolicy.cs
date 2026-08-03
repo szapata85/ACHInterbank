@@ -35,6 +35,9 @@ public sealed class OutgoingTransactionMonitoringStatusPolicy : IOutgoingTransac
     {
         if (facts.HasTechnicalFailure && !facts.HasSuccessfulIntegration)
             return ("TechnicalError", "Error técnico");
+        if (facts.IsFutureCycle && !facts.HasDispatchItem && !facts.HasFileMembership
+            && !facts.HasAccepted && !facts.HasCertified && !facts.HasReturn)
+            return ("Scheduled", "Asignada a un ciclo futuro");
         if (facts.HasSuccessfulIntegration || facts.HasAccepted || facts.HasCertified || facts.HasReturn || facts.HasFileMembership)
             return ("Processed", "Procesada");
         if (facts.HasDispatchItem)
@@ -50,6 +53,8 @@ public sealed class OutgoingTransactionMonitoringStatusPolicy : IOutgoingTransac
             return ("Accepted", "Aceptada");
         if (facts.HasFunctionalRejection)
             return ("Rejected", "Rechazada");
+        if (facts.HasSuccessfulIntegration && !facts.HasResponse)
+            return ("PendingResponse", "Pendiente de respuesta de la cámara compensadora");
         if (facts.HasSuccessfulIntegration)
             return ("IntegrationSuccessful", "Integración exitosa");
         return ("NotDetermined", "No determinado");

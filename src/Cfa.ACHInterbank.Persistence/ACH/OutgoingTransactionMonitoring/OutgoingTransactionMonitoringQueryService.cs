@@ -244,6 +244,12 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             source = source.Where(item => item.TransactionExternalId.StartsWith(query.TransactionExternalId));
         if (!string.IsNullOrEmpty(query.TraceNumber))
             source = source.Where(item => item.TraceNumber.StartsWith(query.TraceNumber));
+        if (!string.IsNullOrEmpty(query.ResponseCode))
+            source = source.Where(item =>
+                _context.ContrapartidaDispatchAttempts.Any(attempt => attempt.DispatchItem.AchTransactionId == item.Id
+                    && (attempt.ExternalResponseCode == query.ResponseCode || attempt.SoapResponseCode == query.ResponseCode))
+                || _context.AchResponses.Any(response => response.AchTransactionId == item.Id
+                    && (response.CodigoEstadoExterno == query.ResponseCode || response.CodigoCausalExterna == query.ResponseCode)));
         if (query.TransactionType.HasValue)
             source = source.Where(item => item.Type == query.TransactionType.Value);
         if (query.MinimumAmount.HasValue)
@@ -289,8 +295,14 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
     }
 
     private IQueryable<AchTransaction> ApplyProcessFilter(IQueryable<AchTransaction> source, string? value)
-        => value?.ToLowerInvariant() switch
+    {
+        var todayUtc = _timeProvider.GetUtcNow().UtcDateTime.Date;
+        return value?.ToLowerInvariant() switch
         {
+            "scheduled" => source.Where(item => item.AchCycle.ProcessingDate > todayUtc
+                && item.ContrapartidaDispatchItem == null
+                && !item.StateEvents.Any()
+                && !item.FileExportMemberships.Any()),
             "created" => source.Where(item => item.ContrapartidaDispatchItem == null
                 && !item.StateEvents.Any()
                 && !item.FileExportMemberships.Any()),
@@ -309,6 +321,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
                 || item.FileExportMemberships.Any()),
             _ => source
         };
+    }
 
     private IQueryable<AchTransaction> ApplyInitialResultFilter(IQueryable<AchTransaction> source, string? value)
         => value?.ToLowerInvariant() switch
@@ -321,6 +334,12 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
                 attempt.DispatchItem.AchTransactionId == item.Id && attempt.IsFunctionalRejection)),
             "integrationsuccessful" => source.Where(item => _context.ContrapartidaDispatchAttempts.Any(attempt =>
                 attempt.DispatchItem.AchTransactionId == item.Id && attempt.IsSuccessful)),
+            "pendingresponse" => source.Where(item =>
+                _context.ContrapartidaDispatchAttempts.Any(attempt => attempt.DispatchItem.AchTransactionId == item.Id && attempt.IsSuccessful)
+                && !_context.AchResponses.Any(response => response.AchTransactionId == item.Id)
+                && item.State != AchTransferStateEnum.Certified
+                && item.State != AchTransferStateEnum.AppliedTacitly
+                && !item.StateEvents.Any(evt => evt.ToState == AchTransferStateEnum.Certified || evt.ToState == AchTransferStateEnum.AppliedTacitly)),
             "notdetermined" => source.Where(item =>
                 item.State != AchTransferStateEnum.Certified
                 && item.State != AchTransferStateEnum.AppliedTacitly
@@ -375,6 +394,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             ClearingHouseName = transaction.AchCycle.ClearingHouse.Name,
             CycleId = transaction.AchCycleId,
             CycleName = transaction.AchCycle.CycleName,
+            CycleProcessingDate = transaction.AchCycle.ProcessingDate,
             DestinationInstitutionName = transaction.DestinationInstitution.Name,
             DestinationAccountNumber = transaction.DestinationAccountNumber,
             TransactionType = transaction.Type,
@@ -401,6 +421,8 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             HasAmbiguousCorrelation = _context.AchResponses.Any(response => response.AchTransactionId == transaction.Id
                 && (response.CorrelationStatus == AchResponseCorrelationStatus.Ambiguous
                     || response.CorrelationStatus == AchResponseCorrelationStatus.ManualReviewRequired)),
+            HasResponse = _context.AchResponses.Any(response => response.AchTransactionId == transaction.Id
+                && response.CorrelationStatus == AchResponseCorrelationStatus.Matched),
             HasFileMembership = transaction.FileExportMemberships.Any(),
             LatestStateEventAtUtc = transaction.StateEvents
                 .Select(evt => (DateTime?)evt.OccurredAtUtc)
@@ -468,7 +490,9 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             row.HasReturn,
             row.HasManualReview,
             row.HasAmbiguousCorrelation,
-            row.HasFileMembership);
+            row.HasFileMembership,
+            row.HasResponse,
+            row.CycleProcessingDate.Date > _timeProvider.GetUtcNow().UtcDateTime.Date);
         var status = _statusPolicy.Consolidate(facts);
         var fileStatus = FileLifecycle(row.FileLifecycleStatus, row.FileTransmissionReference, row.FileTransmittedAtUtc);
 
@@ -482,6 +506,8 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             ClearingHouseDisplayName = row.ClearingHouseName,
             CycleId = row.CycleId,
             CycleDisplayName = row.CycleName,
+            CycleProcessingDate = row.CycleProcessingDate,
+            NextExpectedStepDisplayName = NextExpectedStep(status),
             DestinationInstitutionDisplayName = row.DestinationInstitutionName,
             TransactionTypeCode = row.TransactionType.ToString(),
             TransactionTypeDisplayName = TransactionTypeDisplay(row.TransactionType),
@@ -535,6 +561,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             CycleId = NormalizeText(query.CycleId, 64, "ciclo"),
             TransactionExternalId = NormalizeIdentifier(query.TransactionExternalId, 64, "identificador"),
             TraceNumber = NormalizeIdentifier(query.TraceNumber, 32, "número de seguimiento"),
+            ResponseCode = NormalizeIdentifier(query.ResponseCode, 32, "código de respuesta")?.ToUpperInvariant(),
             SortBy = query.SortBy.Trim(),
             SortDirection = query.SortDirection.Trim()
         };
@@ -694,6 +721,18 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
         _ => "No determinado"
     };
 
+    private static string NextExpectedStep(OutgoingTransactionMonitoringStatus status)
+        => status.ProcessStatusCode switch
+        {
+            "Scheduled" => "Esperar la fecha prevista del ciclo asignado.",
+            "Created" => "Preparar la integración monetaria de la transacción.",
+            "Processing" => "Completar el procesamiento técnico en curso.",
+            "TechnicalError" => "Revisar la falla técnica y la elegibilidad de reintento.",
+            _ when status.InitialResultCode == "PendingResponse" => "Esperar la respuesta de la cámara compensadora.",
+            _ when status.SubsequentSituationCode is "Returned" or "ReturnedLater" => "Revisar la causal de devolución registrada.",
+            _ => "No existen pasos pendientes determinados con la evidencia disponible."
+        };
+
     private static string CorrelationDisplay(AchResponseCorrelationStatus status) => status switch
     {
         AchResponseCorrelationStatus.Matched => "Correlacionada",
@@ -756,6 +795,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
         public string ClearingHouseName { get; init; } = string.Empty;
         public string CycleId { get; init; } = string.Empty;
         public string CycleName { get; init; } = string.Empty;
+        public DateTime CycleProcessingDate { get; init; }
         public string DestinationInstitutionName { get; init; } = string.Empty;
         public string DestinationAccountNumber { get; init; } = string.Empty;
         public TransactionTypeEnum TransactionType { get; init; }
@@ -773,6 +813,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
         public bool HasReturn { get; init; }
         public bool HasManualReview { get; init; }
         public bool HasAmbiguousCorrelation { get; init; }
+        public bool HasResponse { get; init; }
         public bool HasFileMembership { get; init; }
         public DateTime? LatestStateEventAtUtc { get; init; }
         public DateTime? LatestAttemptAtUtc { get; init; }

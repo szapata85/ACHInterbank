@@ -74,5 +74,31 @@ public sealed class OutgoingTransactionMonitoringPolicyTests
             HasReturn: returned,
             HasManualReview: manualReview,
             HasAmbiguousCorrelation: ambiguousCorrelation,
-            HasFileMembership: false);
+            HasFileMembership: false,
+            HasResponse: accepted || certified || returned,
+            IsFutureCycle: false);
+
+    [Fact]
+    public void Consolidate_RepresentsFutureCycleWithoutInventingProcessing()
+    {
+        var facts = Facts() with { IsFutureCycle = true };
+
+        var result = _policy.Consolidate(facts);
+
+        result.ProcessStatusCode.Should().Be("Scheduled");
+        result.ProcessStatusDisplayName.Should().Be("Asignada a un ciclo futuro");
+        result.InitialResultCode.Should().Be("NotDetermined");
+    }
+
+    [Fact]
+    public void Consolidate_RepresentsSuccessfulIntegrationWithoutResponseAsPending()
+    {
+        var facts = Facts(success: true) with { HasResponse = false };
+
+        var result = _policy.Consolidate(facts);
+
+        result.ProcessStatusCode.Should().Be("Processed");
+        result.InitialResultCode.Should().Be("PendingResponse");
+        result.InitialResultDisplayName.Should().Contain("Pendiente de respuesta");
+    }
 }

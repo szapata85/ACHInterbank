@@ -19,7 +19,8 @@
     <section class="summary-grid" aria-label="Resumen">
       <mat-card><mat-card-header><mat-card-title>Resumen</mat-card-title></mat-card-header><mat-card-content><dl>
         <div><dt>Creación</dt><dd>{{ item.summary.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Cámara compensadora</dt><dd>{{ item.summary.clearingHouseDisplayName }}</dd></div>
-        <div><dt>Ciclo</dt><dd>{{ item.summary.cycleDisplayName }}</dd></div><div><dt>Entidad destino</dt><dd>{{ item.summary.destinationInstitutionDisplayName }}</dd></div>
+        <div><dt>Ciclo</dt><dd>{{ item.summary.cycleDisplayName }}</dd></div><div><dt>Fecha prevista</dt><dd>{{ item.summary.cycleProcessingDate | date:'dd/MM/yyyy' }}</dd></div>
+        <div><dt>Siguiente paso esperado</dt><dd>{{ item.summary.nextExpectedStepDisplayName }}</dd></div><div><dt>Entidad destino</dt><dd>{{ item.summary.destinationInstitutionDisplayName }}</dd></div>
         <div><dt>Cuenta destino</dt><dd>{{ item.summary.maskedDestinationAccount }}</dd></div><div><dt>Valor</dt><dd>{{ item.summary.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}</dd></div>
       </dl></mat-card-content></mat-card>
       <mat-card><mat-card-header><mat-card-title>Estado funcional</mat-card-title></mat-card-header><mat-card-content><dl>

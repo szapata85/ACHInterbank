@@ -20,6 +20,9 @@ public sealed class OutgoingTransactionMonitoringSeederTests
     public async Task SeedAsync_ThreeExecutions_PreserveOneCanonicalMenuAndPermissionGraph()
     {
         await using var fixture = CreateFixture();
+        var dashboard = await fixture.Context.MenuItems.SingleAsync(item => item.Route == "/dashboard");
+        dashboard.Label = "Dashboard";
+        await fixture.Context.SaveChangesAsync();
         var seeder = new OutgoingTransactionMonitoringSeeder(fixture.Context);
 
         await seeder.SeedAsync();
@@ -41,6 +44,8 @@ public sealed class OutgoingTransactionMonitoringSeederTests
         Assert.Equal(MenuConfiguration.MainMenuId, item.MenuId);
         Assert.True(item.Exact);
         Assert.True(item.IsActive);
+        Assert.Equal(OutgoingTransactionMonitoringSeeder.CanonicalDashboardLabel,
+            (await fixture.Context.MenuItems.SingleAsync(candidate => candidate.Route == "/dashboard")).Label);
 
         Assert.Equal(1, await fixture.Context.Permissions.CountAsync(permission =>
             permission.Name == FineGrainedPermissions.OutgoingTransactions.MonitorRead));

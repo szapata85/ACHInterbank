@@ -60,6 +60,10 @@
           <input matInput formControlName="traceNumber" maxlength="32" autocomplete="off">
         </mat-form-field>
         <mat-form-field appearance="outline">
+          <mat-label>Código de respuesta</mat-label>
+          <input matInput formControlName="responseCode" maxlength="32" autocomplete="off">
+        </mat-form-field>
+        <mat-form-field appearance="outline">
           <mat-label>Tipo de operación</mat-label>
           <mat-select formControlName="transactionType">
             <mat-option [value]="null">Todos</mat-option>
@@ -72,6 +76,7 @@
           <mat-label>Estado del proceso</mat-label>
           <mat-select formControlName="processStatus">
             <mat-option value="">Todos</mat-option><mat-option value="Created">Creada</mat-option>
+            <mat-option value="Scheduled">Asignada a un ciclo futuro</mat-option>
             <mat-option value="Processing">En procesamiento</mat-option><mat-option value="Processed">Procesada</mat-option>
             <mat-option value="TechnicalError">Error técnico</mat-option>
           </mat-select>
@@ -82,6 +87,7 @@
             <mat-option value="">Todos</mat-option><mat-option value="Accepted">Aceptada</mat-option>
             <mat-option value="Certified">Certificada</mat-option><mat-option value="Rejected">Rechazada</mat-option>
             <mat-option value="IntegrationSuccessful">Integración exitosa</mat-option><mat-option value="NotDetermined">No determinado</mat-option>
+            <mat-option value="PendingResponse">Pendiente de respuesta</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline">
@@ -134,7 +140,7 @@
             <ng-container matColumnDef="createdAt"><th mat-header-cell *matHeaderCellDef mat-sort-header>Fecha</th><td mat-cell *matCellDef="let item">{{ item.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</td></ng-container>
             <ng-container matColumnDef="identifier"><th mat-header-cell *matHeaderCellDef mat-sort-header>Identificador</th><td mat-cell *matCellDef="let item"><strong>{{ item.transactionExternalId }}</strong><small>{{ item.traceNumber || 'Sin número de seguimiento' }}</small></td></ng-container>
             <ng-container matColumnDef="clearingHouse"><th mat-header-cell *matHeaderCellDef>Cámara</th><td mat-cell *matCellDef="let item">{{ item.clearingHouseDisplayName }}</td></ng-container>
-            <ng-container matColumnDef="cycle"><th mat-header-cell *matHeaderCellDef>Ciclo</th><td mat-cell *matCellDef="let item">{{ item.cycleDisplayName }}</td></ng-container>
+            <ng-container matColumnDef="cycle"><th mat-header-cell *matHeaderCellDef>Ciclo</th><td mat-cell *matCellDef="let item">{{ item.cycleDisplayName }}<small>{{ item.cycleProcessingDate | date:'dd/MM/yyyy' }}</small></td></ng-container>
             <ng-container matColumnDef="destination"><th mat-header-cell *matHeaderCellDef>Entidad destino</th><td mat-cell *matCellDef="let item">{{ item.destinationInstitutionDisplayName }}<small>{{ item.maskedDestinationAccount }}</small></td></ng-container>
             <ng-container matColumnDef="amount"><th mat-header-cell *matHeaderCellDef mat-sort-header>Valor</th><td mat-cell *matCellDef="let item">{{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}</td></ng-container>
             <ng-container matColumnDef="process"><th mat-header-cell *matHeaderCellDef>Proceso</th><td mat-cell *matCellDef="let item"><span class="status"><mat-icon>{{ statusIcon(item.processStatusCode) }}</mat-icon>{{ item.processStatusDisplayName }}</span></td></ng-container>
@@ -148,7 +154,7 @@
         <div class="mobile-cards" data-testid="outgoing-mobile-list" [hidden]="page().items.length === 0">
           @for (item of page().items; track item.id) {
             <mat-card><mat-card-header><mat-card-title>{{ item.transactionExternalId }}</mat-card-title><mat-card-subtitle>{{ item.createdAtUtc | date:'dd/MM/yyyy HH:mm' }}</mat-card-subtitle></mat-card-header>
-              <mat-card-content><dl><div><dt>Cámara</dt><dd>{{ item.clearingHouseDisplayName }}</dd></div><div><dt>Valor</dt><dd>{{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}</dd></div><div><dt>Proceso</dt><dd>{{ item.processStatusDisplayName }}</dd></div><div><dt>Resultado</dt><dd>{{ item.initialResultDisplayName }}</dd></div>@if(item.hasReturn){<div><dt>Situación</dt><dd class="attention">{{ item.subsequentSituationDisplayName }}</dd></div>}</dl></mat-card-content>
+              <mat-card-content><dl><div><dt>Cámara</dt><dd>{{ item.clearingHouseDisplayName }}</dd></div><div><dt>Ciclo</dt><dd>{{ item.cycleDisplayName }} · {{ item.cycleProcessingDate | date:'dd/MM/yyyy' }}</dd></div><div><dt>Valor</dt><dd>{{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}</dd></div><div><dt>Proceso</dt><dd>{{ item.processStatusDisplayName }}</dd></div><div><dt>Resultado</dt><dd>{{ item.initialResultDisplayName }}</dd></div>@if(item.hasReturn){<div><dt>Situación</dt><dd class="attention">{{ item.subsequentSituationDisplayName }}</dd></div>}</dl></mat-card-content>
               <mat-card-actions align="end"><button mat-button type="button" (click)="viewDetail(item)" [attr.aria-label]="'Ver detalle de ' + item.transactionExternalId">Ver detalle</button></mat-card-actions></mat-card>
           }
         </div>

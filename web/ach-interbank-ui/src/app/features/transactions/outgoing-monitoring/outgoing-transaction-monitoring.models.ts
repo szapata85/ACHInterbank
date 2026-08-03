@@ -6,6 +6,7 @@ export interface OutgoingMonitoringQuery {
   destinationInstitutionId?: number;
   transactionExternalId?: string;
   traceNumber?: string;
+  responseCode?: string;
   transactionType?: number;
   processStatus?: string;
   initialResult?: string;
@@ -45,6 +46,8 @@ export interface OutgoingMonitoringListItem {
   clearingHouseDisplayName: string;
   cycleId: string;
   cycleDisplayName: string;
+  cycleProcessingDate: string;
+  nextExpectedStepDisplayName: string;
   destinationInstitutionDisplayName: string;
   transactionTypeCode: string;
   transactionTypeDisplayName: string;

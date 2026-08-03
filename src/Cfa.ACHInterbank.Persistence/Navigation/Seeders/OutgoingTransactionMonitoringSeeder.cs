@@ -18,6 +18,7 @@ public sealed class OutgoingTransactionMonitoringSeeder : IDbSeeder
     public const string CanonicalLabel = "Transacciones de salida";
     public const string CanonicalIcon = "monitoring";
     public const int CanonicalOrder = 6;
+    public const string CanonicalDashboardLabel = "Panel principal";
 
     private const string ParentRoute = "/transactions";
     private const string DisabledDuplicateRoutePrefix = "/navigation/disabled/outgoing-monitoring";
@@ -30,6 +31,10 @@ public sealed class OutgoingTransactionMonitoringSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
+        var dashboard = await _context.MenuItems.SingleOrDefaultAsync(item => item.Route == "/dashboard");
+        if (dashboard is not null)
+            dashboard.Label = CanonicalDashboardLabel;
+
         var read = await UpsertPermissionAsync(ReadPermissionId, FineGrainedPermissions.OutgoingTransactions.MonitorRead,
             "Consultar el monitoreo de transacciones de salida");
         var technical = await UpsertPermissionAsync(TechnicalPermissionId, FineGrainedPermissions.OutgoingTransactions.MonitorTechnicalDetailRead,

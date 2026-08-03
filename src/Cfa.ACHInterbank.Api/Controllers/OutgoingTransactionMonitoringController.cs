@@ -86,6 +86,7 @@ public sealed class OutgoingTransactionMonitoringController : ControllerBase
             query.CycleId,
             query.DestinationInstitutionId,
             query.TransactionType,
+            query.ResponseCode,
             query.ProcessStatus,
             query.InitialResult,
             query.SubsequentSituation,

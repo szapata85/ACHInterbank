@@ -89,6 +89,14 @@ describe('OutgoingTransactionMonitoringListComponent', () => {
     expect(query.transactionExternalId).toBe('TX-001');
   });
 
+  it('normaliza y envia el codigo de respuesta al servidor', () => {
+    component.form.patchValue({ responseCode: '  r01  ' });
+
+    component.search();
+
+    expect(api.search.calls.mostRecent().args[0].responseCode).toBe('R01');
+  });
+
   it('restaura los filtros al regresar del detalle', async () => {
     sessionStorage.setItem('outgoing-monitoring-filters', JSON.stringify({
       transactionExternalId: 'TX-GUARDADA',

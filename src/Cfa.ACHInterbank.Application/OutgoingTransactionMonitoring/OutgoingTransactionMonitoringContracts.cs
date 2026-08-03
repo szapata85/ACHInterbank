@@ -32,7 +32,9 @@ public sealed record OutgoingTransactionMonitoringFacts(
     bool HasReturn,
     bool HasManualReview,
     bool HasAmbiguousCorrelation,
-    bool HasFileMembership);
+    bool HasFileMembership,
+    bool HasResponse,
+    bool IsFutureCycle);
 
 public sealed record OutgoingTransactionMonitoringStatus(
     string ProcessStatusCode,
