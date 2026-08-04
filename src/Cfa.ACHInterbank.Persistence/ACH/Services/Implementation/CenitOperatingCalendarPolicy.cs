@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -11,10 +12,17 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
 {
     private const string CenitCode = "CENIT";
     private readonly AchDbContext _context;
+    private readonly ICycleNumberResolver _cycleNumberResolver;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
 
-    public CenitOperatingCalendarPolicy(AchDbContext context)
+    public CenitOperatingCalendarPolicy(
+        AchDbContext context,
+        ICycleNumberResolver? cycleNumberResolver = null,
+        IOperationalCycleWindowResolver? windowResolver = null)
     {
         _context = context;
+        _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
     }
 
     public async Task ValidateCycleConsistencyAsync(int clearingHouseId, DateTime processingDate, CancellationToken ct)
@@ -48,7 +56,7 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
         }
 
         var ordered = cycleConfigs
-            .Select(x => ParseCycleIndex(x.CycleName))
+            .Select(x => _cycleNumberResolver.Resolve(x.CycleName) ?? -1)
             .OrderBy(x => x)
             .ToArray();
 
@@ -61,7 +69,21 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
 
     public async Task<AchCycle> ResolveTargetCycleAsync(int clearingHouseId, DateTime receivedAtUtc, CancellationToken ct)
     {
-        var date = receivedAtUtc.Date;
+        var clearingHouse = await _context.ClearingHouses
+            .AsNoTracking()
+            .Include(house => house.ClearingHouseConfig)
+            .SingleAsync(house => house.Id == clearingHouseId, ct);
+        var timeZoneId = clearingHouse.ClearingHouseConfig.TimeZoneId;
+        var receivedInstant = new DateTimeOffset(
+            DateTime.SpecifyKind(receivedAtUtc, DateTimeKind.Utc),
+            TimeSpan.Zero);
+        var localNow = _windowResolver.Resolve(
+            receivedAtUtc.Date,
+            TimeSpan.Zero,
+            new TimeSpan(23, 59, 59),
+            timeZoneId,
+            receivedInstant).LocalNow;
+        var date = localNow.Date;
         var cycles = await _context.AchCycles
             .Where(x => x.ClearingHouseId == clearingHouseId && x.ProcessingDate.Date == date)
             .OrderBy(x => x.CutoffTime)
@@ -72,8 +94,12 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
             throw new InvalidOperationException("No existen ciclos programados para determinar ciclo objetivo CENIT.");
         }
 
-        var nowTime = receivedAtUtc.TimeOfDay;
-        var target = cycles.FirstOrDefault(x => nowTime <= x.CutoffTime);
+        var target = cycles.FirstOrDefault(cycle => receivedInstant <= _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.EndTime,
+            timeZoneId,
+            receivedInstant).EndInstant);
         if (target is not null)
         {
             return target;
@@ -86,11 +112,5 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
             .FirstOrDefaultAsync(ct);
 
         return nextCycle ?? cycles[^1];
-    }
-
-    private static int ParseCycleIndex(string cycleName)
-    {
-        var digits = new string(cycleName.Where(char.IsDigit).ToArray());
-        return int.TryParse(digits, out var value) ? value : -1;
     }
 }

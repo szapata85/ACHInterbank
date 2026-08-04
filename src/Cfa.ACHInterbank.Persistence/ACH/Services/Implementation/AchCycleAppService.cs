@@ -1,5 +1,6 @@
 using AutoMapper;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -14,11 +15,19 @@ public class AchCycleAppService : IAchCycleAppService
 {
     private readonly AchDbContext _context;
     private readonly IMapper _mapper;
+    private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
 
-    public AchCycleAppService(AchDbContext context, IMapper mapper)
+    public AchCycleAppService(
+        AchDbContext context,
+        IMapper mapper,
+        TimeProvider? timeProvider = null,
+        IOperationalCycleWindowResolver? windowResolver = null)
     {
         _context = context;
         _mapper = mapper;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
     }
 
     public async Task<IEnumerable<AchCycleDto>> GetAsync(
@@ -30,6 +39,7 @@ public class AchCycleAppService : IAchCycleAppService
         var query = _context.AchCycles
             .AsNoTracking()
             .Include(cycle => cycle.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .AsQueryable();
 
         if (clearingHouseId.HasValue)
@@ -72,6 +82,7 @@ public class AchCycleAppService : IAchCycleAppService
         var entity = await _context.AchCycles
             .AsNoTracking()
             .Include(cycle => cycle.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .FirstOrDefaultAsync(cycle => cycle.Id == id, ct);
 
         var dto = _mapper.Map<AchCycleDto?>(entity);
@@ -258,26 +269,20 @@ public class AchCycleAppService : IAchCycleAppService
         }
     }
 
-    private static AchCycleDto ApplyOperationalMetadata(AchCycleDto dto, AchCycle cycle)
+    private AchCycleDto ApplyOperationalMetadata(AchCycleDto dto, AchCycle cycle)
     {
-        var now = DateTime.UtcNow;
-        var window = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
+        var window = _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.EndTime,
+            ClearingHouseOperationalTimeZone.Resolve(cycle),
+            _timeProvider.GetUtcNow());
 
-        dto.WindowLabel = $"{window.Start:yyyy-MM-dd HH:mm} - {window.End:yyyy-MM-dd HH:mm}";
-        dto.AcceptsTransactions = now >= window.Start && now <= window.End;
-        dto.OperationalStatus = now < window.Start ? "Scheduled" : dto.AcceptsTransactions ? "Open" : "Closed";
+        dto.WindowLabel = $"{window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}";
+        dto.AcceptsTransactions = window.IsInside;
+        dto.OperationalStatus = window.Status == OperationalCycleWindowStatus.Before ? "Scheduled" : dto.AcceptsTransactions ? "Open" : "Closed";
         dto.IsContingencyCycle = IsContingencyCycle(cycle.CycleName);
         return dto;
-    }
-
-    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
-    {
-        if (startTime <= endTime)
-        {
-            return (processingDate.Date + startTime, processingDate.Date + endTime);
-        }
-
-        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
     }
 
     private static bool IsContingencyCycle(string cycleName)

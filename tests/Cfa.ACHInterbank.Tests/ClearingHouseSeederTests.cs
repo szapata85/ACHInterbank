@@ -18,7 +18,7 @@ public class ClearingHouseSeederTests
         await using var context = new AchDbContext(options);
         await context.Database.EnsureCreatedAsync();
 
-        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 9, HolidayStrategy = "Colombian" });
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 9, HolidayStrategy = "Colombian", TimeZoneId = string.Empty });
         context.ClearingHouses.Add(new ClearingHouse
         {
             Id = 42,
@@ -45,5 +45,30 @@ public class ClearingHouseSeederTests
         Assert.Equal(3, await context.ClearingHouseConfigs.CountAsync());
         Assert.All(clearingHouses, house =>
             Assert.True(context.ClearingHouseConfigs.Any(config => config.Id == house.ClearingHouseId && config.ClearingHouseId == house.Id)));
+        Assert.All(clearingHouses, house =>
+            Assert.Equal("America/Bogota", context.ClearingHouseConfigs.Single(config => config.Id == house.ClearingHouseId).TimeZoneId));
+    }
+
+    [Fact]
+    public async Task SeedAsync_ExistingNonEmptyManualTimeZone_DoesNotOverwriteIt()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options;
+        await using var context = new AchDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+        {
+            Id = 9,
+            ClearingHouseId = 0,
+            HolidayStrategy = "Manual",
+            TimeZoneId = "Europe/Madrid"
+        });
+        await context.SaveChangesAsync();
+
+        await new ClearingHouseSeeder(context).SeedAsync();
+
+        var houses = await context.ClearingHouses.Include(house => house.ClearingHouseConfig).ToListAsync();
+        Assert.All(houses, house => Assert.Equal("Europe/Madrid", house.ClearingHouseConfig.TimeZoneId));
     }
 }

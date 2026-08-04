@@ -13,23 +13,40 @@ public class AchCycleScheduler : IAchCycleScheduler
     private readonly IBankHoliday _holidayService;
     private readonly IServiceProvider _provider;
     private readonly ICenitOperatingCalendarPolicy _cenitCalendarPolicy;
+    private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
 
     public AchCycleScheduler(AchDbContext context,
                              IBankHoliday holidayService,
                              IServiceProvider provider,
-                             ICenitOperatingCalendarPolicy cenitCalendarPolicy)
+                             ICenitOperatingCalendarPolicy cenitCalendarPolicy,
+                             TimeProvider? timeProvider = null,
+                             IOperationalCycleWindowResolver? windowResolver = null)
     {
         _context = context;
         _holidayService = holidayService;
         _provider = provider;
         _cenitCalendarPolicy = cenitCalendarPolicy;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
     }
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
     {
         // Servicio para obtener el próximo día hábil
         var txService = _provider.GetRequiredService<IAchTransactionService>();
-        DateTime nextBusinessDate = await txService.GetNextBusinessDayAsync(DateTime.Now);
+        var clearingHouse = await _context.ClearingHouses
+            .AsNoTracking()
+            .Include(house => house.ClearingHouseConfig)
+            .SingleOrDefaultAsync(house => house.Id == clearingHouseId)
+            ?? throw new InvalidOperationException("Clearing house not found");
+        var localNow = _windowResolver.Resolve(
+            _timeProvider.GetUtcNow().UtcDateTime.Date,
+            TimeSpan.Zero,
+            new TimeSpan(23, 59, 59),
+            clearingHouse.ClearingHouseConfig.TimeZoneId,
+            _timeProvider.GetUtcNow()).LocalNow;
+        DateTime nextBusinessDate = await txService.GetNextBusinessDayAsync(localNow);
 
         // ✅ Validar que no existan ciclos para esa cámara en la fecha
         bool exists = await _context.AchCycles

@@ -1,6 +1,7 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -18,19 +19,22 @@ public class RoutingStrategyService : IRoutingStrategyService
     private readonly IAchCycleScheduler _cycleScheduler;
     private readonly IPaymentRailContextService _paymentRailContextService;
     private readonly ILogger<RoutingStrategyService> _logger;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
 
     public RoutingStrategyService(
         AchDbContext context,
         IBankHoliday holidayService,
         IAchCycleScheduler cycleScheduler,
         IPaymentRailContextService? paymentRailContextService = null,
-        ILogger<RoutingStrategyService>? logger = null)
+        ILogger<RoutingStrategyService>? logger = null,
+        IOperationalCycleWindowResolver? windowResolver = null)
     {
         _context = context;
         _holidayService = holidayService;
         _cycleScheduler = cycleScheduler;
         _paymentRailContextService = paymentRailContextService ?? new NullPaymentRailContextService();
         _logger = logger ?? NullLogger<RoutingStrategyService>.Instance;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
     }
 
     public async Task<string> ResolveClearingHouseForTransactionAsync(
@@ -66,13 +70,29 @@ public class RoutingStrategyService : IRoutingStrategyService
         }
 
         var prefIds = preferences.Select(p => p.ClearingHouseId).Distinct().ToList();
-        var clearingHouseCodeById = await _context.ClearingHouses
+        var clearingHouseById = await _context.ClearingHouses
             .AsNoTracking()
             .Where(ch => prefIds.Contains(ch.Id))
-            .ToDictionaryAsync(ch => ch.Id, ch => ch.Code, ct);
+            .Select(ch => new
+            {
+                ch.Id,
+                ch.Code,
+                TimeZoneId = ch.ClearingHouseConfig.TimeZoneId
+            })
+            .ToDictionaryAsync(ch => ch.Id, ct);
 
         // 2️) Próxima fecha hábil
-        DateTime processingDate = GetNextBusinessDay(now.Date);
+        var firstPreference = preferences[0];
+        var firstHouse = clearingHouseById[firstPreference.ClearingHouseId];
+        var firstTimeZoneId = ResolveTimeZoneId(firstHouse.Code, firstHouse.TimeZoneId);
+        var currentInstant = ResolveCurrentInstant(now, firstTimeZoneId);
+        var firstLocalNow = _windowResolver.Resolve(
+            now.Date,
+            TimeSpan.Zero,
+            new TimeSpan(23, 59, 59),
+            firstTimeZoneId,
+            currentInstant).LocalNow;
+        DateTime processingDate = GetNextBusinessDay(firstLocalNow.Date);
 
         // 3️) Buscar el siguiente ciclo disponible, avanzando al próximo día hábil
         //     cuando los cortes de hoy ya pasaron.
@@ -107,17 +127,24 @@ public class RoutingStrategyService : IRoutingStrategyService
                     .ThenBy(c => c.CutoffTime)
                     .ToList();
 
+                var house = clearingHouseById[pref.ClearingHouseId];
+                var timeZoneId = ResolveTimeZoneId(house.Code, house.TimeZoneId);
+                var candidateInstant = ResolveCurrentInstant(now, timeZoneId);
                 var nextCycle = candidateCycles
-                    .Select(c => new { Cycle = c, Window = BuildCycleWindow(c.ProcessingDate, c.StartTime, c.EndTime) })
-                    .Where(x => now <= x.Window.End)
-                    .OrderBy(x => x.Window.End)
+                    .Select(c => new
+                    {
+                        Cycle = c,
+                        Window = _windowResolver.Resolve(c.ProcessingDate, c.StartTime, c.EndTime, timeZoneId, candidateInstant)
+                    })
+                    .Where(x => x.Window.Status != OperationalCycleWindowStatus.After)
+                    .OrderBy(x => x.Window.EndInstant)
                     .ThenBy(x => x.Cycle.CutoffTime)
                     .Select(x => x.Cycle)
                     .FirstOrDefault();
 
                 if (nextCycle != null)
                 {
-                    clearingHouseCodeById.TryGetValue(nextCycle.ClearingHouseId, out var clearingHouseCode);
+                    var clearingHouseCode = house.Code;
                     var resolvedContext = _paymentRailContextService.ResolveContext(
                         nextCycle.ClearingHouseId,
                         clearingHouseCode,
@@ -189,14 +216,32 @@ public class RoutingStrategyService : IRoutingStrategyService
         return 2;
     }
 
-    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
+    private DateTimeOffset ResolveCurrentInstant(DateTime suppliedTime, string timeZoneId)
     {
-        if (startTime <= endTime)
+        if (suppliedTime.Kind == DateTimeKind.Utc)
         {
-            return (processingDate.Date + startTime, processingDate.Date + endTime);
+            return new DateTimeOffset(suppliedTime, TimeSpan.Zero);
         }
 
-        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
+        return _windowResolver.ConvertLocalToInstant(
+            DateTime.SpecifyKind(suppliedTime, DateTimeKind.Unspecified),
+            timeZoneId);
+    }
+
+    private static string ResolveTimeZoneId(string clearingHouseCode, string? configuredTimeZoneId)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredTimeZoneId))
+        {
+            return configuredTimeZoneId;
+        }
+
+        if (string.Equals(clearingHouseCode, RegulatoryCycleScheduleCatalog.AchColombiaCode, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(clearingHouseCode, RegulatoryCycleScheduleCatalog.CenitCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return RegulatoryCycleScheduleCatalog.BogotaTimeZoneId;
+        }
+
+        throw new InvalidOperationException($"La cámara '{clearingHouseCode}' no tiene zona horaria operativa configurada.");
     }
 
     private sealed class NullPaymentRailContextService : IPaymentRailContextService

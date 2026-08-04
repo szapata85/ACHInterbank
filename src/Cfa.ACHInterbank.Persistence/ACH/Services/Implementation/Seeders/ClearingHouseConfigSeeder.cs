@@ -1,4 +1,5 @@
 ﻿using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -25,14 +26,16 @@ public class ClearingHouseConfigSeeder : IDbSeeder
             return;
         }
 
-        if (!_context.ClearingHouseConfigs.Any())
+        if (!await _context.ClearingHouseConfigs.AnyAsync())
         {
             _context.ChangeTracker.AutoDetectChangesEnabled = false;
             _context.ClearingHouseConfigs.Add(new ClearingHouseConfig
             {
-                ClearingHouseId = 1,
+                // Bootstrap only: ClearingHouseSeeder creates the code-resolved owned
+                // configurations and repoints each clearing house without relying on IDs.
+                ClearingHouseId = 0,
                 HolidayStrategy = "Colombian",
-                TimeZoneId = "America/Bogota"
+                TimeZoneId = RegulatoryCycleScheduleCatalog.BogotaTimeZoneId
             });
 
             await _context.SaveChangesAsync();

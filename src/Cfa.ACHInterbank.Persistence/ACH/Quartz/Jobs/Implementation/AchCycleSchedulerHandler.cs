@@ -1,8 +1,10 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -14,17 +16,23 @@ public class AchCycleSchedulerHandler : ITaskHandler
     private readonly AchDbContext _db;
     private readonly IServiceProvider _sp;
     private readonly ILogger<AchCycleSchedulerHandler> _log;
+    private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
 
     public string Code => "AchCycleScheduler";
 
     public AchCycleSchedulerHandler(
         AchDbContext db,
         IServiceProvider sp,
-        ILogger<AchCycleSchedulerHandler> log)
+        ILogger<AchCycleSchedulerHandler> log,
+        TimeProvider? timeProvider = null,
+        IOperationalCycleWindowResolver? windowResolver = null)
     {
         _db = db;
         _sp = sp;
         _log = log;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
     }
 
     public async Task<string> ExecuteAsync(TaskDefinition task, CancellationToken ct)
@@ -39,38 +47,50 @@ public class AchCycleSchedulerHandler : ITaskHandler
         if (filterCodes.Length > 0)
             query = query.Where(ch => filterCodes.Contains(ch.Code));
 
-        var clearingHouseIds = await query.Select(ch => ch.Id).ToListAsync(ct);
-        if (clearingHouseIds.Count == 0)
+        var clearingHouses = await query
+            .Select(ch => new { ch.Id, ch.Code, TimeZoneId = ch.ClearingHouseConfig.TimeZoneId })
+            .ToListAsync(ct);
+        if (clearingHouses.Count == 0)
             return "No se encontraron cámaras de compensación en BD (o el filtro no tuvo coincidencias).";
 
-        // ✅ Fecha de procesamiento (día hábil)
-        var txService = _sp.GetRequiredService<IAchTransactionService>();
-        var processingDate = await txService.GetNextBusinessDayAsync(DateTime.Now, ct);
-
         int ok = 0, fail = 0;
+        var nowInstant = _timeProvider.GetUtcNow();
 
-        await Parallel.ForEachAsync(clearingHouseIds, ct, async (id, token) =>
+        await Parallel.ForEachAsync(clearingHouses, ct, async (house, token) =>
         {
             try
             {
                 using var scope = _sp.CreateScope();
                 var scheduler = scope.ServiceProvider.GetRequiredService<IAchCycleScheduler>();
+                var txService = scope.ServiceProvider.GetRequiredService<IAchTransactionService>();
+                var localNow = _windowResolver.Resolve(
+                    nowInstant.UtcDateTime.Date,
+                    TimeSpan.Zero,
+                    new TimeSpan(23, 59, 59),
+                    house.TimeZoneId,
+                    nowInstant).LocalNow;
+                var processingDate = await txService.GetNextBusinessDayAsync(localNow, token);
 
                 // ⚠️ Delega la validación al scheduler interno
-                await scheduler.ScheduleCyclesForClearingHouseAsync(id, processingDate);
+                await scheduler.ScheduleCyclesForClearingHouseAsync(house.Id, processingDate);
 
                 var db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
                 var executionService = scope.ServiceProvider.GetRequiredService<ICenitCycleExecutionService>();
                 var cenitCyclesToRun = await db.AchCycles
                     .Include(x => x.ClearingHouse)
-                    .Where(x => x.ClearingHouseId == id
+                        .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
+                    .Where(x => x.ClearingHouseId == house.Id
                                 && x.ProcessingDate.Date == processingDate.Date
                                 && x.ClearingHouse != null
-                                && x.ClearingHouse.Code == "CENIT"
-                                && x.EndTime <= DateTime.UtcNow.TimeOfDay)
+                                && x.ClearingHouse.Code == "CENIT")
                     .ToListAsync(token);
 
-                foreach (var cycle in cenitCyclesToRun)
+                foreach (var cycle in cenitCyclesToRun.Where(cycle => _windowResolver.Resolve(
+                    cycle.ProcessingDate,
+                    cycle.StartTime,
+                    cycle.EndTime,
+                    ClearingHouseOperationalTimeZone.Resolve(cycle),
+                    nowInstant).Status == OperationalCycleWindowStatus.After))
                 {
                     await executionService.StartExecutionAsync(cycle, token);
                 }
@@ -79,11 +99,11 @@ public class AchCycleSchedulerHandler : ITaskHandler
             catch (Exception ex)
             {
                 Interlocked.Increment(ref fail);
-                _log.LogError(ex, "Falló programación para ClearingHouseId={Id}", id);
+                _log.LogError(ex, "Falló programación para ClearingHouseId={Id}", house.Id);
             }
         });
 
 
-        return $"Scheduler paralelo ejecutado. Cámaras: {clearingHouseIds.Count}. Éxitos: {ok}. Fallos: {fail}.";
+        return $"Scheduler paralelo ejecutado. Cámaras: {clearingHouses.Count}. Éxitos: {ok}. Fallos: {fail}.";
     }
 }

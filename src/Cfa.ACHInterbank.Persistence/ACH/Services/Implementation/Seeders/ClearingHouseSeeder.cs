@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -19,8 +20,8 @@ public class ClearingHouseSeeder(AchDbContext context) : IDbSeeder
 
         var initial = new[]
         {
-            new { Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "000101006", PaymentRailCode = PaymentRailCodes.AchColombia },
-            new { Code = "CENIT", Name = "CENIT", OriginCode = "011111111", PaymentRailCode = PaymentRailCodes.Cenit }
+            new { Code = RegulatoryCycleScheduleCatalog.AchColombiaCode, Name = "ACH Colombia", OriginCode = "000101006", PaymentRailCode = PaymentRailCodes.AchColombia },
+            new { Code = RegulatoryCycleScheduleCatalog.CenitCode, Name = "CENIT", OriginCode = "011111111", PaymentRailCode = PaymentRailCodes.Cenit }
         };
 
         foreach (var item in initial)
@@ -69,7 +70,7 @@ public class ClearingHouseSeeder(AchDbContext context) : IDbSeeder
             var configCompleted = false;
             if (string.IsNullOrWhiteSpace(ownConfig.TimeZoneId))
             {
-                ownConfig.TimeZoneId = "America/Bogota";
+                ownConfig.TimeZoneId = RegulatoryCycleScheduleCatalog.BogotaTimeZoneId;
                 configCompleted = true;
             }
 

@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -12,26 +14,60 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
 {
     private readonly AchDbContext _context;
     private readonly ITransactionPrerequisitePolicyService _prerequisitePolicyService;
+    private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
 
     private sealed record PrenoteLookupKey(int DestinationInstitutionId, string DestinationAccountNumber, string TransactionCode);
 
     public NachaTransactionValidationService(
         AchDbContext context,
         IBankHoliday holidayService,
-        ITransactionPrerequisitePolicyService prerequisitePolicyService)
+        ITransactionPrerequisitePolicyService prerequisitePolicyService,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
     {
         _context = context;
         _ = holidayService;
         _prerequisitePolicyService = prerequisitePolicyService
             ?? throw new ArgumentNullException(nameof(prerequisitePolicyService));
+        _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseToPaymentRailMapper(),
+            new CycleNumberResolver());
     }
 
     public async Task ValidateTransactionsForSendAsync(IReadOnlyList<AchTransaction> transactions, CancellationToken ct = default)
     {
+        var cycleIds = transactions
+            .Select(transaction => transaction.AchCycleId)
+            .Where(cycleId => !string.IsNullOrWhiteSpace(cycleId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var cycles = await _context.AchCycles
+            .AsNoTracking()
+            .Include(cycle => cycle.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
+            .Where(cycle => cycleIds.Contains(cycle.Id))
+            .ToDictionaryAsync(cycle => cycle.Id, StringComparer.Ordinal, ct);
         var prenoteLookup = await BuildPrenoteLookupAsync(transactions, ct);
 
         foreach (var tx in transactions)
         {
+            if (cycles.TryGetValue(tx.AchCycleId, out var cycle))
+            {
+                var regulatoryDecision = _cycleTransactionPolicy.Evaluate(new CycleTransactionPolicyRequest(
+                    cycle.ClearingHouse?.Code,
+                    cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+                    cycle.CycleName,
+                    tx.Type,
+                    tx.IsPrenotification,
+                    tx.ReturnReasonCode,
+                    tx.OriginalTraceRef));
+                if (!regulatoryDecision.IsAllowed)
+                {
+                    throw new NachaGenerationException(
+                        regulatoryDecision.ReasonCode,
+                        $"Transacción {tx.Id}; cámara {regulatoryDecision.RailCode}; ciclo {regulatoryDecision.CycleNumber}: {regulatoryDecision.Message}");
+                }
+            }
+
             if (tx.IsPrenotification && tx.Amount != 0)
             {
                 throw new InvalidOperationException($"La prenotificación {tx.Id} debe tener valor 0.");

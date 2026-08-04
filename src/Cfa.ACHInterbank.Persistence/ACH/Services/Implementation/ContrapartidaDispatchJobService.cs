@@ -50,6 +50,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly ISoapIntegrationSettingsService? _soapIntegrationSettingsService;
     private readonly IIntegrationResponseCatalogResolver? _responseCatalogResolver;
     private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
@@ -62,7 +63,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         IIntegrationMappingReadinessService? mappingReadinessService = null,
         ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
         IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IOperationalCycleWindowResolver? windowResolver = null)
     {
         _context = context;
         _soapClient = soapClient;
@@ -75,6 +77,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         _soapIntegrationSettingsService = soapIntegrationSettingsService;
         _responseCatalogResolver = responseCatalogResolver;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
     }
 
     public async Task<ContrapartidaCycleDispatchResult> ProcessCycleAsync(
@@ -153,16 +156,16 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         var safeTriggeredBy = string.IsNullOrWhiteSpace(triggeredBy) ? "quartz:contrapartida" : triggeredBy.Trim();
         var nowUtcOffset = _timeProvider.GetUtcNow();
         var nowUtc = nowUtcOffset.UtcDateTime;
-        var nowLocal = _timeProvider.GetLocalNow().LocalDateTime;
 
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(c => c.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .Include(c => c.ClearingHouseCycleConfig)
             .FirstOrDefaultAsync(c => c.Id == cycleId && c.ClearingHouseId == clearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {cycleId} para cámara {clearingHouseId}.");
 
-        ValidateCycleOperationalWindow(cycle, nowLocal);
+        var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;
 
         var processed = 0;
         var succeeded = 0;
@@ -504,13 +507,14 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
         var cycle = await _context.AchCycles
             .AsNoTracking()
+            .Include(c => c.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .Include(c => c.ClearingHouseCycleConfig)
             .FirstOrDefaultAsync(x => x.Id == sourceBatch.AchCycleId && x.ClearingHouseId == sourceBatch.ClearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {sourceBatch.AchCycleId} para cámara {sourceBatch.ClearingHouseId}.");
         var nowUtcOffset = _timeProvider.GetUtcNow();
         var nowUtc = nowUtcOffset.UtcDateTime;
-        var nowLocal = _timeProvider.GetLocalNow().LocalDateTime;
-        ValidateCycleOperationalWindow(cycle, nowLocal);
+        var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;
 
         var sourceItemIds = await _context.ContrapartidaDispatchAttempts
             .AsNoTracking()
@@ -1178,7 +1182,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                || code.Equals("SOAP_EXCEPTION", StringComparison.OrdinalIgnoreCase)
                || code.Equals("EMPTY_RESPONSE", StringComparison.OrdinalIgnoreCase));
 
-    private static void ValidateCycleOperationalWindow(AchCycle cycle, DateTime nowLocal)
+    private OperationalCycleWindow ValidateCycleOperationalWindow(AchCycle cycle, DateTimeOffset nowInstant)
     {
         if (cycle.ClearingHouseCycleConfig is not null)
         {
@@ -1196,21 +1200,18 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             }
         }
 
-        var (windowStart, windowEnd) = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
-        if (nowLocal < windowStart || nowLocal > windowEnd)
+        var window = _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.EndTime,
+            ClearingHouseOperationalTimeZone.Resolve(cycle),
+            nowInstant);
+        if (!window.IsInside)
         {
-            throw new InvalidOperationException($"Ciclo {cycle.Id} fuera de ventana operativa: {windowStart:yyyy-MM-dd HH:mm} - {windowEnd:yyyy-MM-dd HH:mm}.");
-        }
-    }
-
-    internal static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
-    {
-        if (startTime <= endTime)
-        {
-            return (processingDate.Date + startTime, processingDate.Date + endTime);
+            throw new InvalidOperationException($"Ciclo {cycle.Id} fuera de ventana operativa: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");
         }
 
-        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
+        return window;
     }
 
     private DateTime CalculateNextAttemptAtUtc(int attemptCount)

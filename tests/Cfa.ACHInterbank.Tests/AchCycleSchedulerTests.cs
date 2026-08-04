@@ -11,6 +11,39 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class AchCycleSchedulerTests
 {
+    [Theory]
+    [InlineData(2026, 8, 1)]
+    [InlineData(2026, 8, 2)]
+    public async Task ScheduleCyclesForClearingHouseAsync_WeekendProcessingDate_DoesNotScheduleCycles(int year, int month, int day)
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options);
+        context.Database.EnsureCreated();
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, HolidayStrategy = "Colombian", TimeZoneId = "America/Bogota" });
+        context.ClearingHouses.Add(new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "12345678", ClearingHouseId = 1 });
+        context.ClearingHouseCycleConfigs.Add(new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 1,
+            CycleName = "CICLO-1",
+            StartTime = new TimeSpan(19, 1, 0),
+            EndTime = new TimeSpan(8, 30, 0),
+            CutoffTime = new TimeSpan(8, 30, 0),
+            EffectiveFrom = new DateTime(2026, 1, 1),
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+        var holidays = new Mock<IBankHoliday>();
+        holidays.Setup(service => service.GetHolidays(It.IsAny<int>())).Returns([]);
+        var cenitPolicy = new Mock<ICenitOperatingCalendarPolicy>();
+        cenitPolicy.Setup(policy => policy.ValidateCycleConsistencyAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var scheduler = new AchCycleScheduler(context, holidays.Object, Mock.Of<IServiceProvider>(), cenitPolicy.Object);
+
+        await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(year, month, day));
+
+        Assert.Empty(context.AchCycles);
+    }
+
     [Fact]
     public async Task ScheduleCyclesForClearingHouseAsync_CreatesMultipleDailyCyclesIncludingContingency()
     {

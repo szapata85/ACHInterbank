@@ -1,12 +1,14 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using System.Text;
 
 namespace Cfa.ACHInterbank.Application.ACH.Implementation;
 
-public class CenitClearingHouseStrategy : IClearingHouseStrategy
+public class CenitClearingHouseStrategy(ICycleNumberResolver? cycleNumberResolver = null) : IClearingHouseStrategy
 {
+    private readonly ICycleNumberResolver _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
     public string Name => "CENIT";
     public string OutputFormat => "CENIT";
     public IReadOnlyCollection<TransactionTypeEnum> SupportedTransactionTypes =>
@@ -33,7 +35,7 @@ public class CenitClearingHouseStrategy : IClearingHouseStrategy
         var originCode = string.IsNullOrWhiteSpace(cycle.ClearingHouse?.OriginCode)
             ? "00000000"
             : cycle.ClearingHouse.OriginCode.Trim();
-        var cycleNumber = ExtractCycleNumber(cycle.CycleName);
+        var cycleNumber = _cycleNumberResolver.Resolve(cycle.CycleName) ?? 0;
         return $"{originCode}.{cycleNumber}.1";
     }
 
@@ -50,9 +52,4 @@ public class CenitClearingHouseStrategy : IClearingHouseStrategy
         return Encoding.UTF8.GetBytes(xml.Trim());
     }
 
-    private static int ExtractCycleNumber(string? cycleName)
-    {
-        var digits = new string((cycleName ?? string.Empty).Where(char.IsDigit).ToArray());
-        return int.TryParse(digits, out var cycleNumber) ? cycleNumber : 0;
-    }
 }

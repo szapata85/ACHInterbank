@@ -75,6 +75,30 @@ public class RoutingStrategyServiceTests
     }
 
     [Fact]
+    public async Task ResolveClearingHouseForTransactionAsync_UtcInstantAtOvernightOpening_AssignsNextProcessingDateCycleOne()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        var processingDate = new DateTime(2026, 8, 4);
+        SeedRoutingData(context, processingDate.AddDays(-1));
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService.Setup(h => h.GetHolidays(It.IsAny<int>())).Returns(new List<BankHolidayModel>());
+        var scheduler = new Mock<IAchCycleScheduler>();
+        scheduler.Setup(s => s.ScheduleCyclesForClearingHouseAsync(It.IsAny<int>(), It.IsAny<DateTime>()))
+            .Returns(Task.CompletedTask);
+        var service = new RoutingStrategyService(context, holidayService.Object, scheduler.Object);
+
+        var resolved = await service.ResolveClearingHouseForTransactionAsync(
+            2,
+            new DateTime(2026, 8, 4, 0, 1, 0, DateTimeKind.Utc),
+            CancellationToken.None);
+
+        var cycle = await context.AchCycles.SingleAsync(candidate => candidate.Id == resolved);
+        Assert.Equal("CICLO-1", cycle.CycleName);
+        Assert.Equal(processingDate, cycle.ProcessingDate);
+    }
+
+    [Fact]
     public async Task ResolveClearingHouseForTransactionAsync_WithPaymentRailBridge_LeavesLegacyDecisionUnchanged()
     {
         using var connection = CreateOpenConnection();

@@ -1,12 +1,14 @@
 ﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using System.Text;
 
 namespace Cfa.ACHInterbank.Application.ACH.Implementation;
 
-public class AchClearingHouseStrategy : IClearingHouseStrategy
+public class AchClearingHouseStrategy(ICycleNumberResolver? cycleNumberResolver = null) : IClearingHouseStrategy
 {
+    private readonly ICycleNumberResolver _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
     public string Name => "ACH Colombia";
     public string OutputFormat => "NACHA-M";
     public IReadOnlyCollection<TransactionTypeEnum> SupportedTransactionTypes =>
@@ -39,7 +41,7 @@ public class AchClearingHouseStrategy : IClearingHouseStrategy
 
     public string BuildFileName(AchCycle cycle, DateTime generatedAtUtc)
     {
-        var cycleNumber = ExtractCycleNumber(cycle.CycleName);
+        var cycleNumber = _cycleNumberResolver.Resolve(cycle.CycleName) ?? 0;
         return $"ACH_{cycle.ProcessingDate:yyyyMMdd}_{cycleNumber:00}_{generatedAtUtc:HHmmss}.txt";
     }
 
@@ -55,9 +57,4 @@ public class AchClearingHouseStrategy : IClearingHouseStrategy
         return Encoding.UTF8.GetBytes(content);
     }
 
-    private static int ExtractCycleNumber(string? cycleName)
-    {
-        var digits = new string((cycleName ?? string.Empty).Where(char.IsDigit).ToArray());
-        return int.TryParse(digits, out var cycleNumber) ? cycleNumber : 0;
-    }
 }

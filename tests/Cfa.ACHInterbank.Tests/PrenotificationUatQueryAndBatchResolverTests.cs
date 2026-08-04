@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
@@ -74,18 +75,26 @@ public class PrenotificationUatQueryAndBatchResolverTests
     public async Task BatchResolver_AllowsDebitPrenotificationInCycleFive()
     {
         await using var context = CreateContext();
-        var clearingHouse = new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "000101006" };
+        var clearingHouseConfig = new ClearingHouseConfig
+        {
+            Id = 10,
+            ClearingHouseId = 1,
+            TimeZoneId = "America/Bogota",
+            PaymentRailCode = "ACH_COLOMBIA"
+        };
+        var clearingHouse = new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "000101006", ClearingHouseId = 10 };
         var cycle = new AchCycle
         {
             Id = "cycle-five",
             CycleName = "Ciclo 5",
-            ProcessingDate = DateTime.Now.Date,
-            StartTime = TimeSpan.Zero,
-            EndTime = new TimeSpan(23, 59, 0),
-            CutoffTime = new TimeSpan(23, 59, 0),
+            ProcessingDate = new DateTime(2026, 8, 4),
+            StartTime = new TimeSpan(16, 1, 0),
+            EndTime = new TimeSpan(18, 0, 0),
+            CutoffTime = new TimeSpan(18, 0, 0),
             ClearingHouseId = 1,
             ClearingHouse = clearingHouse
         };
+        context.ClearingHouseConfigs.Add(clearingHouseConfig);
         context.ClearingHouses.Add(clearingHouse);
         context.AchCycles.Add(cycle);
         context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = 1, Term = "PAGOS PSE", IsActive = true });
@@ -112,7 +121,10 @@ public class PrenotificationUatQueryAndBatchResolverTests
             .Setup(x => x.ResolveClearingHouseForTransactionAsync(93, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("cycle-five");
 
-        var sut = new BatchResolver(context, batchRepository.Object, routing.Object);
+        var fixedClock = new FixedTimeProvider(
+            new DateTimeOffset(2026, 8, 4, 22, 0, 0, TimeSpan.Zero),
+            TimeZoneInfo.Utc);
+        var sut = new BatchResolver(context, batchRepository.Object, routing.Object, fixedClock);
         var request = new AchTransactionRequestData
         {
             Type = TransactionTypeEnum.Debit,

@@ -1,6 +1,8 @@
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -16,15 +18,26 @@ public class TransactionPolicyService : ITransactionPolicyService
     private readonly AchDbContext _context;
     private readonly IRoutingStrategyService _routingStrategyService;
     private readonly TransactionPolicyOptions _options;
+    private readonly TimeProvider _timeProvider;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
 
     public TransactionPolicyService(
         AchDbContext context,
         IRoutingStrategyService routingStrategyService,
-        IOptions<TransactionPolicyOptions> options)
+        IOptions<TransactionPolicyOptions> options,
+        TimeProvider? timeProvider = null,
+        IOperationalCycleWindowResolver? windowResolver = null,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
     {
         _context = context;
         _routingStrategyService = routingStrategyService;
         _options = options.Value ?? new TransactionPolicyOptions();
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseToPaymentRailMapper(),
+            new CycleNumberResolver());
     }
 
     public async Task<TransactionPolicyPreview> PreviewAsync(TransactionPolicyPreviewRequest request, CancellationToken ct = default)
@@ -44,16 +57,26 @@ public class TransactionPolicyService : ITransactionPolicyService
             return Reject("La cuenta destino es obligatoria para validar políticas ACH.");
         }
 
-        var now = DateTime.Now;
-        var cycleId = await _routingStrategyService.ResolveClearingHouseForTransactionAsync(request.DestinationInstitutionId, now, ct);
+        var nowInstant = _timeProvider.GetUtcNow();
+        var cycleId = await _routingStrategyService.ResolveClearingHouseForTransactionAsync(
+            request.DestinationInstitutionId,
+            nowInstant.UtcDateTime,
+            ct);
         var cycle = await _context.AchCycles
             .AsNoTracking()
             .Include(c => c.ClearingHouse)
+                .ThenInclude(clearingHouse => clearingHouse!.ClearingHouseConfig)
             .FirstOrDefaultAsync(c => c.Id == cycleId, ct)
             ?? throw new InvalidOperationException("No se encontró el ciclo ACH resuelto para la transacción.");
 
-        var window = BuildCycleWindow(cycle.ProcessingDate, cycle.StartTime, cycle.EndTime);
-        var isWithinProcessingWindow = now >= window.Start && now <= window.End;
+        var resolvedWindow = _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.EndTime,
+            ClearingHouseOperationalTimeZone.Resolve(cycle),
+            nowInstant);
+        var window = (Start: resolvedWindow.LocalStart, End: resolvedWindow.LocalEnd);
+        var isWithinProcessingWindow = resolvedWindow.IsInside;
         if (!isWithinProcessingWindow)
         {
             return Reject(
@@ -61,6 +84,21 @@ public class TransactionPolicyService : ITransactionPolicyService
                 cycle,
                 window,
                 idempotencyKey: BuildIdempotencyKey(request, cycle.Id));
+        }
+
+        var regulatoryDecision = _cycleTransactionPolicy.Evaluate(new CycleTransactionPolicyRequest(
+            cycle.ClearingHouse?.Code,
+            cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+            cycle.CycleName,
+            request.Type,
+            request.IsPrenotification));
+        if (!regulatoryDecision.IsAllowed)
+        {
+            return Reject(
+                $"{regulatoryDecision.ReasonCode}: {regulatoryDecision.Message}",
+                cycle,
+                window,
+                BuildIdempotencyKey(request, cycle.Id));
         }
 
         var rule = ResolveRule(cycle.ClearingHouseId, cycle.CycleName, request.Type, request.AccountType, request.IsPrenotification);
@@ -162,16 +200,6 @@ public class TransactionPolicyService : ITransactionPolicyService
             rule?.MaxTransactionsPerCycle.HasValue == true && existingCount.HasValue ? Math.Max(0, rule.MaxTransactionsPerCycle.Value - existingCount.Value) : null,
             idempotencyKey,
             false);
-    }
-
-    private static (DateTime Start, DateTime End) BuildCycleWindow(DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
-    {
-        if (startTime <= endTime)
-        {
-            return (processingDate.Date + startTime, processingDate.Date + endTime);
-        }
-
-        return (processingDate.Date.AddDays(-1) + startTime, processingDate.Date + endTime);
     }
 
     private static string BuildIdempotencyKey(TransactionPolicyPreviewRequest request, string cycleId)

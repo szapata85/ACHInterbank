@@ -51,6 +51,9 @@ services:
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
     image: achinterbank-api:2026.07.24
     environment:
+      # The host/container zone is intentionally UTC by default. Operational
+      # cycle decisions must use each clearing house TimeZoneId instead.
+      TZ: "${API_HOST_TIME_ZONE:-UTC}"
       Database__Provider: SqlServer
       Database__ApplyMigrations: "${DATABASE_APPLY_MIGRATIONS:-true}"
       Database__ApplySeed: "${DATABASE_APPLY_SEED:-true}"
