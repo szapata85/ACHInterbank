@@ -69,3 +69,24 @@ La misma política se aplica en preview/asignación y en `NachaTransactionValida
 - La suite .NET CI equivalente posterior a la corrección no entregó resumen en este host; aunque las seis fallas y las dos clases afectadas aprobaron, falta una corrida global concluida con cero fallos para marcar el cierre como completo.
 - Las pruebas multi-DB reales requieren habilitación explícita y configuración segura de sus dos proveedores; PostgreSQL no fue levantado en este trabajo.
 - La certificación externa oficial con ACH Colombia/CENIT permanece fuera de este cierre técnico local.
+
+## Resultado final de regresión
+
+La ejecución de GitHub Actions posterior a la corrección determinista concluyó
+satisfactoriamente:
+
+- Build Release: aprobado, 0 advertencias y 0 errores.
+- Suite .NET: 2141 aprobadas, 0 fallidas, 7 omitidas y 2148 totales.
+- Duración de la suite: 7 minutos 52 segundos.
+- dotnet-ci: aprobado.
+- angular-ci: aprobado.
+- clearing-houses-multidb: aprobado.
+- financial-integrity-multidb: aprobado.
+
+Los seis fallos previamente detectados quedaron resueltos mediante relojes
+deterministas, fechas operativas explícitas y configuración America/Bogota en
+los fixtures. No se modificó código productivo ni se debilitó ninguna regla
+regulatoria.
+
+El cierre técnico de la brecha de ciclos ACH Colombia y CENIT se considera
+COMPLETADO.
