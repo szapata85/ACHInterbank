@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -13,15 +14,21 @@ public class CenitCycleExecutionService : ICenitCycleExecutionService
     private readonly AchDbContext _context;
     private readonly ICenitNettingService _nettingService;
     private readonly ILiquidityOptimizationService _liquidityService;
+    private readonly ICycleCalendarGuard _calendarGuard;
+    private readonly TimeProvider _timeProvider;
 
     public CenitCycleExecutionService(
         AchDbContext context,
         ICenitNettingService nettingService,
-        ILiquidityOptimizationService liquidityService)
+        ILiquidityOptimizationService liquidityService,
+        ICycleCalendarGuard? calendarGuard = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _nettingService = nettingService;
         _liquidityService = liquidityService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context, timeProvider: _timeProvider);
     }
 
     public async Task<CenitCycleExecution> StartExecutionAsync(AchCycle cycle, CancellationToken ct)
@@ -35,6 +42,12 @@ public class CenitCycleExecutionService : ICenitCycleExecutionService
             throw new InvalidOperationException("La ejecución dedicada CENIT solo aplica para la cámara CENIT.");
         }
 
+        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+        if (!calendarDecision.CanExecute)
+        {
+            throw new CycleDeferredByCalendarException(cycle.Id, calendarDecision);
+        }
+
         var execution = await _context.CenitCycleExecutions
             .FirstOrDefaultAsync(x => x.AchCycleId == cycle.Id, ct);
 
@@ -43,7 +56,7 @@ public class CenitCycleExecutionService : ICenitCycleExecutionService
             execution = new CenitCycleExecution
             {
                 AchCycleId = cycle.Id,
-                StartedAtUtc = DateTime.UtcNow,
+                StartedAtUtc = _timeProvider.GetUtcNow().UtcDateTime,
                 Status = "Running",
                 Summary = "Execution started"
             };
@@ -62,7 +75,7 @@ public class CenitCycleExecutionService : ICenitCycleExecutionService
         foreach (var item in queued)
         {
             item.Status = "Consumed";
-            item.DequeuedAtUtc = DateTime.UtcNow;
+            item.DequeuedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
             item.CenitCycleExecutionId = execution.Id;
         }
 
@@ -72,7 +85,7 @@ public class CenitCycleExecutionService : ICenitCycleExecutionService
         await _liquidityService.OptimizeCycleAsync(execution, ct);
 
         execution.Status = "Completed";
-        execution.CompletedAtUtc = DateTime.UtcNow;
+        execution.CompletedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
         execution.Summary = "Execution completed with netting and optimization.";
         await _context.SaveChangesAsync(ct);
 

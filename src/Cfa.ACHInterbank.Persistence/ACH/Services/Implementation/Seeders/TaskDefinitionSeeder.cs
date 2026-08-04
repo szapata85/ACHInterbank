@@ -47,9 +47,10 @@ public class TaskDefinitionSeeder : IDbSeeder
             });
         }
 
-        if (!_context.TaskDefinitions.Any(t => t.Code == "SeedBankHolidays"))
+        var bankHolidaySeedTask = _context.TaskDefinitions.FirstOrDefault(t => t.Code == "SeedBankHolidays");
+        if (bankHolidaySeedTask is null)
         {
-            _context.TaskDefinitions.Add(new TaskDefinition
+            bankHolidaySeedTask = new TaskDefinition
             {
                 Code = "SeedBankHolidays",
                 Name = "Sembrar festivos (Ley Emiliani)",
@@ -57,8 +58,17 @@ public class TaskDefinitionSeeder : IDbSeeder
                 CronExpression = "0 10 0 1 1 ? *",
                 TimeZoneId = "America/Bogota",
                 CalendarPolicy = CalendarPolicyEnum.IgnoreCalendar,
+                ManualExecutionEnabled = true,
                 StartAt = new DateTimeOffset(2025, 1, 1, 0, 10, 0, TimeSpan.Zero)
-            });
+            };
+            _context.TaskDefinitions.Add(bankHolidaySeedTask);
+        }
+        else if (!bankHolidaySeedTask.ManualExecutionEnabled)
+        {
+            bankHolidaySeedTask.ManualExecutionEnabled = true;
+            _context.Entry(bankHolidaySeedTask)
+                .Property(t => t.ManualExecutionEnabled)
+                .IsModified = true;
         }
 
 

@@ -50,6 +50,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly IIntegrationResponseCatalogResolver? _responseCatalogResolver;
     private readonly TimeProvider _timeProvider;
     private readonly IIncomingNachaAchResultResolver? _achResultResolver;
+    private readonly ICycleCalendarGuard _calendarGuard;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -66,7 +67,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         IIncomingNachaLocalLivePreparationService? localLivePreparationService = null,
         IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
         TimeProvider? timeProvider = null,
-        IIncomingNachaAchResultResolver? achResultResolver = null)
+        IIncomingNachaAchResultResolver? achResultResolver = null,
+        ICycleCalendarGuard? calendarGuard = null)
     {
         _context = context;
         _mapper = mapper;
@@ -83,6 +85,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _responseCatalogResolver = responseCatalogResolver;
         _timeProvider = timeProvider ?? OperationalTimeProvider.SystemBogota;
         _achResultResolver = achResultResolver;
+        _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context, timeProvider: _timeProvider);
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -157,10 +160,32 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         var blocked = waitingWindowResolution.Blocked;
         var waitingWindow = waitingWindowResolution.Released;
         var contrapartidaDispatchTargets = new HashSet<(string CycleId, int ClearingHouseId)>();
+        var calendarDecisions = new Dictionary<string, CycleCalendarGuardResult>(StringComparer.Ordinal);
         var procTransaccionesRuntime = await ResolveProcTransaccionesRuntimeAsync(ct);
 
         foreach (var queue in queues)
         {
+            if (!calendarDecisions.TryGetValue(queue.AchTransaction.AchCycleId, out var calendarDecision))
+            {
+                calendarDecision = await _calendarGuard.EnsureExecutableAsync(queue.AchTransaction.AchCycle, ct);
+                calendarDecisions.Add(queue.AchTransaction.AchCycleId, calendarDecision);
+            }
+            if (!calendarDecision.CanExecute)
+            {
+                queue.QueueStatus = IncomingNachaDispatchQueueStatus.WaitingWindow;
+                queue.NextAttemptAtUtc = null;
+                queue.LastErrorCode = "DEFERRED_BY_OPERATIONAL_CALENDAR";
+                queue.LastErrorMessage = calendarDecision.Reason;
+                AddAutomaticEvent(
+                    queue,
+                    "DeferredByOperationalCalendar",
+                    "Deferred",
+                    $"Despacho diferido hasta {calendarDecision.RescheduledDate:yyyy-MM-dd}; SOAP no invocado.",
+                    queue.LastErrorCode);
+                waitingWindow++;
+                continue;
+            }
+
             queue.QueueStatus = IncomingNachaDispatchQueueStatus.Dispatching;
             queue.LastAttemptAtUtc = nowUtc;
             queue.AttemptCount += 1;

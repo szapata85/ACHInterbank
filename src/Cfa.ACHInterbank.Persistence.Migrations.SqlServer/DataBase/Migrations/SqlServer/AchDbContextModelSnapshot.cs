@@ -2643,6 +2643,15 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<bool>("AllowsExplicitReprocessing")
                         .HasColumnType("bit");
 
+                    b.Property<int>("CalendarDeferralCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CalendarDeferralReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("CalendarDeferredAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<int?>("ClearingHouseCycleConfigId")
                         .HasColumnType("int");
 
@@ -2666,7 +2675,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int>("OperationalStatus")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("OriginalProcessingDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("ProcessingDate")
+                        .IsConcurrencyToken()
                         .HasColumnType("date");
 
                     b.Property<int>("ReceptionToleranceMinutes")
@@ -4491,9 +4504,15 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateOnly?>("CommemorativeDate")
+                        .HasColumnType("date");
+
                     b.Property<string>("CountryCode")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
@@ -4502,9 +4521,37 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("EffectiveFromYear")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsSystemGenerated")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LegalOrigin")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("RuleCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int?>("RuleKind")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.HasKey("Id");
 
-                    b.ToTable("BankHolidays");
+                    b.HasIndex("Date")
+                        .HasDatabaseName("IX_BankHolidays_EffectiveDate");
+
+                    b.HasIndex("RuleCode", "CommemorativeDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BankHolidays_LegalRule")
+                        .HasFilter("[RuleCode] IS NOT NULL AND [CommemorativeDate] IS NOT NULL");
+
+                    b.ToTable("BankHolidays", (string)null);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.BatchControl", b =>
@@ -5340,6 +5387,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int>("ClearingHouseId")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
@@ -5352,6 +5402,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
 

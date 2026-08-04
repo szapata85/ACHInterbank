@@ -21,8 +21,8 @@
     <header class="dates-hero">
       <div>
         <p class="eyebrow">Calendario por cámara</p>
-        <h2 id="dates-content-title">Fechas especiales</h2>
-        <p>Fechas no operativas adicionales al calendario bancario general.</p>
+        <h2 id="dates-content-title">Fechas especiales de {{ house.name }}</h2>
+        <p>Esta configuración solo afecta a la cámara seleccionada. Los ciclos pendientes volverán a evaluarse antes de ejecutarse.</p>
       </div>
       <button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="startCreate()">
         <mat-icon>add</mat-icon>Nueva fecha especial
@@ -88,6 +88,13 @@
               <th mat-header-cell *matHeaderCellDef mat-sort-header="description">Descripción</th>
               <td mat-cell *matCellDef="let row">{{ row.description }}</td>
             </ng-container>
+            <ng-container matColumnDef="effect">
+              <th mat-header-cell *matHeaderCellDef>Efecto operativo</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.isActive ? 'Impide la ejecución de los ciclos de esta cámara' : 'Sin efecto mientras permanezca inactiva' }}
+                <small *ngIf="row.calendarWarning">{{ row.calendarWarning }}</small>
+              </td>
+            </ng-container>
             <ng-container matColumnDef="state">
               <th mat-header-cell *matHeaderCellDef>Estado</th>
               <td mat-cell *matCellDef="let row"><mat-chip>{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip></td>
@@ -122,6 +129,8 @@
           <article *ngFor="let row of dataSource.filteredData; trackBy: track">
             <header><div><strong>{{ dateText(row.date) }}</strong><span>{{ weekday(row.date) | titlecase }}</span></div><mat-chip>{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip></header>
             <p>{{ row.description }}</p>
+            <p>{{ row.isActive ? 'Esta fecha impedirá la ejecución de los ciclos de esta cámara.' : 'Sin efecto operativo mientras permanezca inactiva.' }}</p>
+            <p *ngIf="row.calendarWarning">{{ row.calendarWarning }}</p>
             <span class="mobile-cards__updated">Última modificación: {{ row.updatedAt ? (row.updatedAt | date:'short') : 'No disponible' }}</span>
             <button *ngIf="canManage" mat-stroked-button type="button" [matMenuTriggerFor]="mobileActions">Acciones<mat-icon>expand_more</mat-icon></button>
             <mat-menu #mobileActions="matMenu">
@@ -146,10 +155,9 @@
           <mat-datepicker-toggle matIconSuffix [for]="datePicker"></mat-datepicker-toggle>
           <mat-datepicker #datePicker></mat-datepicker>
           <mat-error *ngIf="form.controls.date.hasError('required')">La fecha es obligatoria.</mat-error>
-          <mat-error *ngIf="form.controls.date.hasError('weekendDate')">No se permiten fechas en fin de semana.</mat-error>
-          <mat-error *ngIf="form.controls.date.hasError('bankHoliday')">La fecha ya es un festivo bancario general.</mat-error>
           <mat-error *ngIf="form.controls.date.hasError('duplicateDate')">La fecha ya está configurada para esta cámara.</mat-error>
         </mat-form-field>
+        <p *ngIf="dateWarning" class="form-warning" role="status">{{ dateWarning }}</p>
         <mat-form-field appearance="outline">
           <mat-label>Descripción</mat-label>
           <textarea matInput rows="3" formControlName="description" maxlength="200"></textarea>

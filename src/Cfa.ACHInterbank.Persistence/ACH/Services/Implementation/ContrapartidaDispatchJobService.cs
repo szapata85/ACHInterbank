@@ -51,6 +51,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly IIntegrationResponseCatalogResolver? _responseCatalogResolver;
     private readonly TimeProvider _timeProvider;
     private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly ICycleCalendarGuard _calendarGuard;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
@@ -64,7 +65,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
         IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
         TimeProvider? timeProvider = null,
-        IOperationalCycleWindowResolver? windowResolver = null)
+        IOperationalCycleWindowResolver? windowResolver = null,
+        ICycleCalendarGuard? calendarGuard = null)
     {
         _context = context;
         _soapClient = soapClient;
@@ -78,6 +80,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         _responseCatalogResolver = responseCatalogResolver;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context, timeProvider: _timeProvider);
     }
 
     public async Task<ContrapartidaCycleDispatchResult> ProcessCycleAsync(
@@ -164,6 +167,14 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             .Include(c => c.ClearingHouseCycleConfig)
             .FirstOrDefaultAsync(c => c.Id == cycleId && c.ClearingHouseId == clearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {cycleId} para cámara {clearingHouseId}.");
+
+        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+        if (!calendarDecision.CanExecute)
+        {
+            var deferredSummary = $"Ciclo {cycleId} cámara {clearingHouseId}: diferido por calendario operativo hasta {calendarDecision.RescheduledDate:yyyy-MM-dd}. SOAP no invocado.";
+            _logger.LogInformation("{Summary} Reason={Reason}", deferredSummary, calendarDecision.Reason);
+            return new ContrapartidaCycleDispatchResult(cycleId, clearingHouseId, 0, 0, 0, 0, 0, deferredSummary);
+        }
 
         var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;
 
@@ -512,6 +523,24 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             .Include(c => c.ClearingHouseCycleConfig)
             .FirstOrDefaultAsync(x => x.Id == sourceBatch.AchCycleId && x.ClearingHouseId == sourceBatch.ClearingHouseId, ct)
             ?? throw new InvalidOperationException($"No existe ciclo {sourceBatch.AchCycleId} para cámara {sourceBatch.ClearingHouseId}.");
+        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+        if (!calendarDecision.CanExecute)
+        {
+            var deferredSummary = $"Reintento {sourceBatch.Id}: diferido por calendario operativo hasta {calendarDecision.RescheduledDate:yyyy-MM-dd}. SOAP no invocado.";
+            _logger.LogInformation("{Summary} Reason={Reason}", deferredSummary, calendarDecision.Reason);
+            return new ContrapartidaBatchRetryResult(
+                sourceBatch.Id,
+                Guid.Empty,
+                sourceBatch.AchCycleId,
+                sourceBatch.ClearingHouseId,
+                0,
+                0,
+                0,
+                0,
+                0,
+                deferredSummary);
+        }
+
         var nowUtcOffset = _timeProvider.GetUtcNow();
         var nowUtc = nowUtcOffset.UtcDateTime;
         var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;

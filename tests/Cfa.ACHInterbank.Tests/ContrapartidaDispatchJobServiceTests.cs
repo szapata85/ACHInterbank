@@ -26,6 +26,49 @@ namespace Cfa.ACHInterbank.Tests;
 public class ContrapartidaDispatchJobServiceTests
 {
     [Fact]
+    public async Task ProcessCycleAsync_BlockedByOperationalCalendar_DoesNotInvokeSoapOrCreateBatch()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var context = new AchDbContext(
+            new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options);
+        await context.Database.EnsureCreatedAsync();
+        var cycleId = await SembrarEstructuraBaseAsync(context);
+
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var mapper = new Mock<IProcContrapartidasRequestMapper>(MockBehavior.Strict);
+        var parser = new Mock<IProcContrapartidasResponseParser>(MockBehavior.Strict);
+        var guard = new Mock<ICycleCalendarGuard>(MockBehavior.Strict);
+        guard.Setup(x => x.EnsureExecutableAsync(It.IsAny<AchCycle>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleCalendarGuardResult(
+                false,
+                true,
+                new DateOnly(2026, 7, 13),
+                new DateOnly(2026, 7, 14),
+                "Festivo de Chiquinquira trasladado por Ley Emiliani"));
+
+        var sut = new ContrapartidaDispatchJobService(
+            context,
+            soap.Object,
+            mapper.Object,
+            parser.Object,
+            NullLogger<ContrapartidaDispatchJobService>.Instance,
+            LiveDispatchOptions(),
+            timeProvider: TestClock.Create(),
+            calendarGuard: guard.Object);
+
+        var result = await sut.ProcessCycleAsync(cycleId, 1, "qa-calendar", 100);
+
+        Assert.Equal(0, result.Processed);
+        Assert.Contains("SOAP no invocado", result.Summary);
+        Assert.Empty(await context.ContrapartidaDispatchBatches.ToListAsync());
+        Assert.Empty(await context.ContrapartidaDispatchAttempts.ToListAsync());
+        soap.Verify(x => x.ProcContrapartidasAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        mapper.VerifyNoOtherCalls();
+        parser.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task ProcessCycleAsync_DebeRetornarSinProcesados_CuandoNoHayItemsElegibles()
     {
         using var connection = new SqliteConnection("DataSource=:memory:");

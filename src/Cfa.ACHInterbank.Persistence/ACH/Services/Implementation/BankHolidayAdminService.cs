@@ -32,8 +32,16 @@ public class BankHolidayAdminService : IBankHolidayAdminService
             {
                 Id = h.Id,
                 Date = h.Date.ToDateTime(TimeOnly.MinValue),
+                CommemorativeDate = h.CommemorativeDate.HasValue
+                    ? h.CommemorativeDate.Value.ToDateTime(TimeOnly.MinValue)
+                    : null,
                 Description = h.Description,
-                CountryCode = h.CountryCode
+                CountryCode = h.CountryCode,
+                RuleCode = h.RuleCode,
+                RuleKind = h.RuleKind.HasValue ? h.RuleKind.Value.ToString() : null,
+                IsSystemGenerated = h.IsSystemGenerated,
+                LegalOrigin = h.LegalOrigin,
+                EffectiveFromYear = h.EffectiveFromYear
             })
             .ToListAsync(ct);
 
@@ -42,21 +50,26 @@ public class BankHolidayAdminService : IBankHolidayAdminService
 
     public async Task<BankHolidayDto> CreateAsync(BankHolidayDto dto, CancellationToken ct = default)
     {
+        var date = DateOnly.FromDateTime(dto.Date);
+        var countryCode = NormalizeCountryCode(dto.CountryCode);
+        if (await _context.BankHolidays.AnyAsync(x => x.Date == date && x.CountryCode == countryCode, ct))
+        {
+            throw new InvalidOperationException("Ya existe un festivo nacional para la fecha indicada.");
+        }
+
         var entity = new BankHolidayModel
         {
-            Date = DateOnly.FromDateTime(dto.Date),
-            Description = dto.Description,
-            CountryCode = string.IsNullOrWhiteSpace(dto.CountryCode) ? "CO" : dto.CountryCode
+            Date = date,
+            CommemorativeDate = date,
+            Description = NormalizeDescription(dto.Description),
+            CountryCode = countryCode,
+            IsSystemGenerated = false
         };
 
         _context.BankHolidays.Add(entity);
         await _context.SaveChangesAsync(ct);
 
-        dto.Id = entity.Id;
-        dto.Date = entity.Date.ToDateTime(TimeOnly.MinValue);
-        dto.CountryCode = entity.CountryCode;
-
-        return dto;
+        return ToDto(entity);
     }
 
     public async Task<BankHolidayDto> UpdateAsync(BankHolidayDto dto, CancellationToken ct = default)
@@ -64,16 +77,25 @@ public class BankHolidayAdminService : IBankHolidayAdminService
         var entity = await _context.BankHolidays.FirstOrDefaultAsync(h => h.Id == dto.Id, ct)
             ?? throw new InvalidOperationException("Festivo no encontrado.");
 
-        entity.Date = DateOnly.FromDateTime(dto.Date);
-        entity.Description = dto.Description;
-        entity.CountryCode = string.IsNullOrWhiteSpace(dto.CountryCode) ? "CO" : dto.CountryCode;
+        EnsureManual(entity);
+
+        var date = DateOnly.FromDateTime(dto.Date);
+        var countryCode = NormalizeCountryCode(dto.CountryCode);
+        if (await _context.BankHolidays.AnyAsync(
+                x => x.Id != entity.Id && x.Date == date && x.CountryCode == countryCode,
+                ct))
+        {
+            throw new InvalidOperationException("Ya existe un festivo nacional para la fecha indicada.");
+        }
+
+        entity.Date = date;
+        entity.CommemorativeDate = date;
+        entity.Description = NormalizeDescription(dto.Description);
+        entity.CountryCode = countryCode;
 
         await _context.SaveChangesAsync(ct);
 
-        dto.Date = entity.Date.ToDateTime(TimeOnly.MinValue);
-        dto.CountryCode = entity.CountryCode;
-
-        return dto;
+        return ToDto(entity);
     }
 
     public async Task DeleteAsync(int id, CancellationToken ct = default)
@@ -84,7 +106,46 @@ public class BankHolidayAdminService : IBankHolidayAdminService
             return;
         }
 
+        EnsureManual(entity);
+
         _context.BankHolidays.Remove(entity);
         await _context.SaveChangesAsync(ct);
     }
+
+    private static void EnsureManual(BankHolidayModel entity)
+    {
+        if (entity.IsSystemGenerated)
+        {
+            throw new InvalidOperationException("Los festivos nacionales generados por la legislación no se pueden modificar ni eliminar manualmente.");
+        }
+    }
+
+    private static string NormalizeCountryCode(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "CO" : value.Trim().ToUpperInvariant();
+
+    private static string NormalizeDescription(string? value)
+    {
+        var description = value?.Trim() ?? string.Empty;
+        if (description.Length == 0)
+        {
+            throw new InvalidOperationException("El nombre del festivo es obligatorio.");
+        }
+
+        return description.Length <= 200 ? description : description[..200];
+    }
+
+    private static BankHolidayDto ToDto(BankHolidayModel entity)
+        => new()
+        {
+            Id = entity.Id,
+            Date = entity.Date.ToDateTime(TimeOnly.MinValue),
+            CommemorativeDate = entity.CommemorativeDate?.ToDateTime(TimeOnly.MinValue),
+            Description = entity.Description,
+            CountryCode = entity.CountryCode,
+            RuleCode = entity.RuleCode,
+            RuleKind = entity.RuleKind?.ToString(),
+            IsSystemGenerated = entity.IsSystemGenerated,
+            LegalOrigin = entity.LegalOrigin,
+            EffectiveFromYear = entity.EffectiveFromYear
+        };
 }

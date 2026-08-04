@@ -14,15 +14,18 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
     private readonly AchDbContext _context;
     private readonly ICycleNumberResolver _cycleNumberResolver;
     private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly IOperationalCalendarService _calendar;
 
     public CenitOperatingCalendarPolicy(
         AchDbContext context,
         ICycleNumberResolver? cycleNumberResolver = null,
-        IOperationalCycleWindowResolver? windowResolver = null)
+        IOperationalCycleWindowResolver? windowResolver = null,
+        IOperationalCalendarService? calendar = null)
     {
         _context = context;
         _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _calendar = calendar ?? new OperationalCalendarService(context);
     }
 
     public async Task ValidateCycleConsistencyAsync(int clearingHouseId, DateTime processingDate, CancellationToken ct)
@@ -83,7 +86,9 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
             new TimeSpan(23, 59, 59),
             timeZoneId,
             receivedInstant).LocalNow;
-        var date = localNow.Date;
+        var localDate = DateOnly.FromDateTime(localNow);
+        var targetBusinessDate = await _calendar.GetNextBusinessDayAsync(localDate, clearingHouseId, ct);
+        var date = targetBusinessDate.ToDateTime(TimeOnly.MinValue);
         var cycles = await _context.AchCycles
             .Where(x => x.ClearingHouseId == clearingHouseId && x.ProcessingDate.Date == date)
             .OrderBy(x => x.CutoffTime)
@@ -91,15 +96,22 @@ public class CenitOperatingCalendarPolicy : ICenitOperatingCalendarPolicy
 
         if (cycles.Count == 0)
         {
-            throw new InvalidOperationException("No existen ciclos programados para determinar ciclo objetivo CENIT.");
+            var firstFutureCycle = await _context.AchCycles
+                .Where(x => x.ClearingHouseId == clearingHouseId && x.ProcessingDate.Date > date.Date)
+                .OrderBy(x => x.ProcessingDate)
+                .ThenBy(x => x.CutoffTime)
+                .FirstOrDefaultAsync(ct);
+            return firstFutureCycle ?? throw new InvalidOperationException("No existen ciclos programados para determinar ciclo objetivo CENIT.");
         }
 
-        var target = cycles.FirstOrDefault(cycle => receivedInstant <= _windowResolver.Resolve(
+        var target = targetBusinessDate == localDate
+            ? cycles.FirstOrDefault(cycle => receivedInstant <= _windowResolver.Resolve(
             cycle.ProcessingDate,
             cycle.StartTime,
             cycle.EndTime,
             timeZoneId,
-            receivedInstant).EndInstant);
+            receivedInstant).EndInstant)
+            : cycles[0];
         if (target is not null)
         {
             return target;

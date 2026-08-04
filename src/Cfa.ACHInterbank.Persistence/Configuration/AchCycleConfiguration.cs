@@ -26,7 +26,8 @@ public class AchCycleConfiguration : IEntityTypeConfiguration<AchCycle>
             .IsRequired();
 
         builder.Property(cycle => cycle.ProcessingDate)
-            .HasColumnType("date");
+            .HasColumnType("date")
+            .IsConcurrencyToken();
 
         builder.HasIndex(cycle => new { cycle.ClearingHouseId, cycle.ProcessingDate, cycle.CycleName })
             .IsUnique();

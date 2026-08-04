@@ -32,7 +32,20 @@ public class ClearingHouseSpecialDatesController : ControllerBase
     [HttpPost]
     [Authorize(Policy = FineGrainedPermissions.ClearingHouses.ManageSpecialDates)]
     public async Task<IActionResult> Create([FromBody] ClearingHouseSpecialDateDto dto, CancellationToken ct = default)
-        => Ok(await _service.CreateAsync(dto, ct));
+    {
+        try
+        {
+            return Ok(await _service.CreateAsync(dto, ct));
+        }
+        catch (InvalidOperationException exception) when (IsDuplicate(exception))
+        {
+            return Conflict(new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = exception.Message
+            });
+        }
+    }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
     /// </summary>
@@ -42,7 +55,18 @@ public class ClearingHouseSpecialDatesController : ControllerBase
     public async Task<IActionResult> Update(int id, [FromBody] ClearingHouseSpecialDateDto dto, CancellationToken ct = default)
     {
         if (id != dto.Id) return BadRequest();
-        return Ok(await _service.UpdateAsync(dto, ct));
+        try
+        {
+            return Ok(await _service.UpdateAsync(dto, ct));
+        }
+        catch (InvalidOperationException exception) when (IsDuplicate(exception))
+        {
+            return Conflict(new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = exception.Message
+            });
+        }
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -52,6 +76,9 @@ public class ClearingHouseSpecialDatesController : ControllerBase
     [Authorize(Policy = FineGrainedPermissions.ClearingHouses.ManageSpecialDates)]
     public async Task<IActionResult> ChangeStatus(int id, [FromBody] ClearingHouseSpecialDateStatusDto dto, CancellationToken ct = default)
         => Ok(await _service.ChangeStatusAsync(id, dto.IsActive, ct));
+
+    private static bool IsDuplicate(InvalidOperationException exception)
+        => exception.Message.Contains("ya está configurada", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class ClearingHouseSpecialDateStatusDto

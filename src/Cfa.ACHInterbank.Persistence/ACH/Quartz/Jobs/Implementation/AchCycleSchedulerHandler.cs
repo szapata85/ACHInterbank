@@ -62,14 +62,18 @@ public class AchCycleSchedulerHandler : ITaskHandler
             {
                 using var scope = _sp.CreateScope();
                 var scheduler = scope.ServiceProvider.GetRequiredService<IAchCycleScheduler>();
-                var txService = scope.ServiceProvider.GetRequiredService<IAchTransactionService>();
+                var calendar = scope.ServiceProvider.GetRequiredService<IOperationalCalendarService>();
                 var localNow = _windowResolver.Resolve(
                     nowInstant.UtcDateTime.Date,
                     TimeSpan.Zero,
                     new TimeSpan(23, 59, 59),
                     house.TimeZoneId,
                     nowInstant).LocalNow;
-                var processingDate = await txService.GetNextBusinessDayAsync(localNow, token);
+                var processingDateOnly = await calendar.GetNextBusinessDayAsync(
+                    DateOnly.FromDateTime(localNow),
+                    house.Id,
+                    token);
+                var processingDate = processingDateOnly.ToDateTime(TimeOnly.MinValue);
 
                 // ⚠️ Delega la validación al scheduler interno
                 await scheduler.ScheduleCyclesForClearingHouseAsync(house.Id, processingDate);
@@ -92,7 +96,17 @@ public class AchCycleSchedulerHandler : ITaskHandler
                     ClearingHouseOperationalTimeZone.Resolve(cycle),
                     nowInstant).Status == OperationalCycleWindowStatus.After))
                 {
-                    await executionService.StartExecutionAsync(cycle, token);
+                    try
+                    {
+                        await executionService.StartExecutionAsync(cycle, token);
+                    }
+                    catch (CycleDeferredByCalendarException deferred)
+                    {
+                        _log.LogInformation(
+                            "Ciclo {CycleId} diferido por calendario hasta {RescheduledDate}; no se inició ejecución CENIT.",
+                            cycle.Id,
+                            deferred.Result.RescheduledDate);
+                    }
                 }
                 Interlocked.Increment(ref ok);
             }

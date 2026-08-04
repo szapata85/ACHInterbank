@@ -30,6 +30,8 @@ td strong { display: block; }
 .dialog-intro { margin-bottom: .8rem; color: #526174; line-height: 1.55; }
 .editor-form { display: grid; gap: .8rem; }
 .form-error { margin: 0; padding: .7rem; border-radius: .5rem; background: #fef3f2; color: #b42318; }
+.form-warning { margin: 0; padding: .7rem; border-radius: .5rem; background: #fffaeb; color: #854a0e; line-height: 1.45; }
+.read-only small { display: block; margin-top: .2rem; }
 mat-dialog-actions button mat-spinner { display: inline-block; margin-right: .4rem; }
 
 @media (max-width: 1050px) {

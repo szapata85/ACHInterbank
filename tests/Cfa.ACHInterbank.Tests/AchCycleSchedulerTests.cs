@@ -113,7 +113,8 @@ public class AchCycleSchedulerTests
         cenitPolicy.Setup(x => x.ValidateCycleConsistencyAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var scheduler = new AchCycleScheduler(context, holidayService.Object, provider.Object, cenitPolicy.Object);
 
-        await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 03, 23));
+        // 23 de marzo de 2026 es el descanso efectivo de San Jose por Ley Emiliani.
+        await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 03, 24));
 
         var cycles = (await context.AchCycles
             .Where(x => x.ClearingHouseId == 1)

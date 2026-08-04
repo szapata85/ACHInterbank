@@ -72,7 +72,7 @@ export class BankHolidaysComponent implements OnInit {
   operationError = '';
   lastLoadedYear = new Date().getFullYear();
 
-  readonly displayedColumns = ['date', 'description', 'countryCode', 'actions'];
+  readonly displayedColumns = ['date', 'commemorativeDate', 'description', 'rule', 'actions'];
   readonly minYear = 1900;
   readonly maxYear = 2100;
 
@@ -165,7 +165,7 @@ export class BankHolidaysComponent implements OnInit {
   }
 
   startEdit(item: BankHoliday): void {
-    if (this.saving) {
+    if (this.saving || item.isSystemGenerated) {
       return;
     }
 
@@ -240,7 +240,7 @@ export class BankHolidaysComponent implements OnInit {
   }
 
   remove(item: BankHoliday): void {
-    if (this.saving || this.deleteDialogOpen) {
+    if (this.saving || this.deleteDialogOpen || item.isSystemGenerated) {
       return;
     }
 
@@ -270,6 +270,22 @@ export class BankHolidaysComponent implements OnInit {
   formatHolidayDate(value: string): string {
     const date = parseBankHolidayLocalDate(value);
     return date ? this.dateFormatter.format(date) : value;
+  }
+
+  ruleText(holiday: BankHoliday): string {
+    switch (holiday.ruleKind) {
+      case 'Emiliani': return 'Trasladado al lunes por la Ley Emiliani';
+      case 'Easter': return 'Festivo calculado a partir de la Pascua';
+      case 'EasterEmiliani': return 'Calculado desde la Pascua y trasladado al lunes';
+      case 'ChiquinquiraEmiliani': return 'Chiquinquirá: trasladado al lunes por la Ley Emiliani';
+      case 'Fixed': return 'Festivo nacional de fecha fija';
+      default: return holiday.isSystemGenerated ? 'Festivo nacional legal' : 'Registro manual';
+    }
+  }
+
+  hasDifferentCommemorativeDate(holiday: BankHoliday): boolean {
+    return !!holiday.commemorativeDate
+      && holiday.commemorativeDate.split('T')[0] !== holiday.date.split('T')[0];
   }
 
   private deleteHoliday(item: BankHoliday): void {

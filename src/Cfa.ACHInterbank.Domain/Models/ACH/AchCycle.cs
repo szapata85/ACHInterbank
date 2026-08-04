@@ -27,6 +27,10 @@ public class AchCycle : AuditableEntity
 
     // Indica si debe correrse al siguiente día hábil si cae en festivo
     public bool RescheduleOnHoliday { get; set; }
+    public DateTime? OriginalProcessingDate { get; set; }
+    public DateTimeOffset? CalendarDeferredAtUtc { get; set; }
+    public string? CalendarDeferralReason { get; set; }
+    public int CalendarDeferralCount { get; set; }
 
     // Relación con la cámara de compensación
     public int ClearingHouseId { get; set; }

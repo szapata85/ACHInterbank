@@ -3,6 +3,13 @@ export interface BankHoliday {
   date: string;
   description: string;
   countryCode: string;
+  commemorativeDate?: string | null;
+  ruleCode?: string | null;
+  ruleKind?: 'Fixed' | 'Emiliani' | 'Easter' | 'EasterEmiliani' | 'ChiquinquiraEmiliani' | null;
+  isSystemGenerated?: boolean;
+  legalOrigin?: string | null;
+  effectiveFromYear?: number | null;
+  wasMoved?: boolean;
 }
 
 const dateOnlyPattern = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/;

@@ -5,5 +5,9 @@ export interface ClearingHouseSpecialDate {
   date: string;
   description: string;
   isActive: boolean;
+  isWeekend?: boolean;
+  isNationalHoliday?: boolean;
+  calendarWarning?: string | null;
+  createdAt?: string | null;
   updatedAt?: string | null;
 }

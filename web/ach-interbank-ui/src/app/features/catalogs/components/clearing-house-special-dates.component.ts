@@ -97,7 +97,7 @@ export class ClearingHouseSpecialDatesComponent {
   private editorRef?: MatDialogRef<unknown>;
   private clearingHouseId = 0;
 
-  readonly displayedColumns = ['date', 'weekday', 'description', 'state', 'updated', 'actions'];
+  readonly displayedColumns = ['date', 'weekday', 'description', 'effect', 'state', 'updated', 'actions'];
   readonly dataSource = new MatTableDataSource<ClearingHouseSpecialDate>([]);
   readonly canManage = this.auth.hasPermission('ClearingHouses.ManageSpecialDates');
   readonly canReadPolicies = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
@@ -125,6 +125,7 @@ export class ClearingHouseSpecialDatesComponent {
   saving = false;
   error = '';
   editing: ClearingHouseSpecialDate | null = null;
+  dateWarning = '';
 
   constructor() {
     this.filterForm.controls.status.valueChanges
@@ -133,6 +134,25 @@ export class ClearingHouseSpecialDatesComponent {
     this.filterForm.controls.description.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.applyLocalFilters());
+    this.form.controls.date.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => {
+        this.dateWarning = '';
+        if (!value || Number.isNaN(value.getTime())) return;
+        this.clearFunctionalDateErrors();
+        this.loadHolidays(value.getFullYear())
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: holidays => {
+              this.validateDate(value, holidays);
+              this.cdr.markForCheck();
+            },
+            error: () => {
+              this.dateWarning = 'No fue posible comprobar si la fecha coincide con un festivo nacional.';
+              this.cdr.markForCheck();
+            }
+          });
+      });
 
     this.route.paramMap.pipe(
       switchMap(params => {
@@ -234,6 +254,7 @@ export class ClearingHouseSpecialDatesComponent {
   startCreate(): void {
     if (!this.canManage) return;
     this.editing = null;
+    this.dateWarning = '';
     this.form.reset({ date: null, description: '' });
     this.openEditor();
   }
@@ -241,6 +262,7 @@ export class ClearingHouseSpecialDatesComponent {
   startEdit(item: ClearingHouseSpecialDate): void {
     if (!this.canManage) return;
     this.editing = item;
+    this.dateWarning = item.calendarWarning ?? '';
     this.form.reset({
       date: parseLocalDate(item.date),
       description: item.description
@@ -318,6 +340,7 @@ export class ClearingHouseSpecialDatesComponent {
     this.editorRef?.close();
     this.editorRef = undefined;
     this.editing = null;
+    this.dateWarning = '';
   }
 
   private persist(): void {
@@ -382,26 +405,24 @@ export class ClearingHouseSpecialDatesComponent {
 
   private validateDate(value: Date, holidays: BankHoliday[]): boolean {
     const day = value.getDay();
+    const warnings: string[] = [];
     if (day === 0 || day === 6) {
-      this.setDateError('weekendDate');
-      return false;
+      warnings.push('La fecha ya corresponde a un sábado o domingo. Puede guardarla como antecedente propio de la cámara.');
     }
     const normalized = this.apiDate(value);
     if (holidays.some(holiday => normalizeDate(holiday.date) === normalized)) {
-      this.setDateError('bankHoliday');
-      return false;
+      warnings.push('La fecha ya corresponde a un festivo nacional. La configuración seguirá siendo independiente para esta cámara.');
     }
     if (this.allItems.some(item => item.id !== (this.editing?.id ?? 0) && normalizeDate(item.date) === normalized)) {
       this.setDateError('duplicateDate');
       return false;
     }
+    this.dateWarning = warnings.join(' ');
     return true;
   }
 
   private clearFunctionalDateErrors(): void {
     const errors = { ...(this.form.controls.date.errors ?? {}) };
-    delete errors['weekendDate'];
-    delete errors['bankHoliday'];
     delete errors['duplicateDate'];
     this.form.controls.date.setErrors(Object.keys(errors).length ? errors : null);
   }

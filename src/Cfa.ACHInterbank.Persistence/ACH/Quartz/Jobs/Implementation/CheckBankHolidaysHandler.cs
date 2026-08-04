@@ -9,17 +9,21 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 public class CheckBankHolidaysHandler : ITaskHandler
 {
     private readonly IBankHoliday _bankholiday;
+    private readonly IOperationalTimeSnapshotProvider _operationalTime;
 
-    public CheckBankHolidaysHandler(IBankHoliday bankholiday)
+    public CheckBankHolidaysHandler(
+        IBankHoliday bankholiday,
+        IOperationalTimeSnapshotProvider operationalTime)
     {
         _bankholiday = bankholiday;
+        _operationalTime = operationalTime;
     }
 
     public string Code => "CheckBankHolidays";
 
     public Task<string> ExecuteAsync(TaskDefinition task, CancellationToken cancellationToken)
     {
-        var year = DateTime.Now.Year;
+        var year = _operationalTime.CaptureNow().OperationalDate.Year;
         var holidays = _bankholiday.GetHolidays(year);
         return Task.FromResult($"{holidays.Count} festivos encontrados en {year}");
     }

@@ -10,31 +10,31 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchCycleScheduler : IAchCycleScheduler
 {
     private readonly AchDbContext _context;
-    private readonly IBankHoliday _holidayService;
     private readonly IServiceProvider _provider;
     private readonly ICenitOperatingCalendarPolicy _cenitCalendarPolicy;
     private readonly TimeProvider _timeProvider;
     private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly IOperationalCalendarService _calendar;
 
     public AchCycleScheduler(AchDbContext context,
                              IBankHoliday holidayService,
                              IServiceProvider provider,
                              ICenitOperatingCalendarPolicy cenitCalendarPolicy,
                              TimeProvider? timeProvider = null,
-                             IOperationalCycleWindowResolver? windowResolver = null)
+                             IOperationalCycleWindowResolver? windowResolver = null,
+                             IOperationalCalendarService? calendar = null)
     {
         _context = context;
-        _holidayService = holidayService;
+        _ = holidayService;
         _provider = provider;
         _cenitCalendarPolicy = cenitCalendarPolicy;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _calendar = calendar ?? new OperationalCalendarService(context);
     }
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
     {
-        // Servicio para obtener el próximo día hábil
-        var txService = _provider.GetRequiredService<IAchTransactionService>();
         var clearingHouse = await _context.ClearingHouses
             .AsNoTracking()
             .Include(house => house.ClearingHouseConfig)
@@ -46,35 +46,23 @@ public class AchCycleScheduler : IAchCycleScheduler
             new TimeSpan(23, 59, 59),
             clearingHouse.ClearingHouseConfig.TimeZoneId,
             _timeProvider.GetUtcNow()).LocalNow;
-        DateTime nextBusinessDate = await txService.GetNextBusinessDayAsync(localNow);
+        var nextBusinessDate = await _calendar.GetNextBusinessDayAsync(
+            DateOnly.FromDateTime(localNow),
+            clearingHouseId);
 
         // ✅ Validar que no existan ciclos para esa cámara en la fecha
         bool exists = await _context.AchCycles
             .AnyAsync(c => c.ClearingHouseId == clearingHouseId &&
-                           c.ProcessingDate.Date == nextBusinessDate.Date);
+                           c.ProcessingDate.Date == nextBusinessDate.ToDateTime(TimeOnly.MinValue).Date);
         if (exists)
         {
             // Si ya hay ciclos, no continuar
             return;
         }
 
-        // 🔄 Si quieres programar para TODAS las cámaras, hazlo una sola vez
-        var houseIds = await _context.ClearingHouses
-            .Select(ch => ch.Id)
-            .ToListAsync();
-
-        foreach (int id in houseIds)
-        {
-            // Validar por cada cámara para la misma fecha
-            bool alreadyHas = await _context.AchCycles
-                .AnyAsync(c => c.ClearingHouseId == id &&
-                               c.ProcessingDate.Date == nextBusinessDate.Date);
-
-            if (!alreadyHas)
-            {
-                await ScheduleCyclesForClearingHouseAsync(id, nextBusinessDate);
-            }
-        }
+        await ScheduleCyclesForClearingHouseAsync(
+            clearingHouseId,
+            nextBusinessDate.ToDateTime(TimeOnly.MinValue));
     }
 
 
@@ -97,21 +85,9 @@ public class AchCycleScheduler : IAchCycleScheduler
 
 
 
-        // Festivos y fechas especiales de la cámara para ese año
-        var holidays = await _context.BankHolidays
-            .Where(h => h.Date.Year == processingDate.Year)
-            .Select(h => h.Date)
-            .ToListAsync();
-
-        var specialDates = await _context.ClearingHouseSpecialDates
-            .Where(d => d.ClearingHouseId == clearingHouseId && d.Date.Year == processingDate.Year)
-            .Select(d => d.Date)
-            .ToListAsync();
-
-        // Saltar si la fecha no es hábil
-        if (processingDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
-            holidays.Contains(DateOnly.FromDateTime(processingDate)) ||
-            specialDates.Contains(DateOnly.FromDateTime(processingDate)))
+        if (!await _calendar.IsBusinessDayAsync(
+                DateOnly.FromDateTime(processingDate),
+                clearingHouseId))
         {
             return;
         }
@@ -185,43 +161,8 @@ public class AchCycleScheduler : IAchCycleScheduler
             .ToListAsync();
     }
 
-    public DateTime GetNextValidProcessingDate(DateTime baseDate)
-    {
-        var date = baseDate;
-
-        while (IsNonWorkingDay(date))
-        {
-            date = date.AddDays(1);
-        }
-
-        return date;
-    }
-
-    private bool IsNonWorkingDay(DateTime date)
-    {
-        List<Domain.Models.ACH.BankHolidayModel> holidays = _holidayService.GetHolidays(date.Year);
-
-        // 1. Convierte el DateTime de entrada a DateOnly para la comparación.
-        DateOnly dateOnly = DateOnly.FromDateTime(date);
-
-        // 2. Verifica si es fin de semana.
-        bool isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
-
-        // 3. Usa Any() para buscar un BankHoliday cuya fecha coincida con la fecha que se está evaluando.
-        //    Esto compara dos objetos DateOnly.
-        bool isBankHoliday = holidays.Any(h => h.Date == dateOnly);
-
-        // Retorna true si es fin de semana o si es un día festivo.
-        return isWeekend || isBankHoliday;
-    }
-
-    private DateTime GetNextBusinessDay(DateTime date, List<DateOnly> holidays)
-    {
-        do
-        {
-            date = date.AddDays(1);
-        } while (holidays.Contains(DateOnly.FromDateTime(date.Date)) || date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday);
-
-        return date;
-    }
+    public DateTime GetNextValidProcessingDate(DateTime baseDate, int clearingHouseId)
+        => _calendar.GetNextBusinessDayAsync(DateOnly.FromDateTime(baseDate), clearingHouseId)
+            .GetAwaiter().GetResult()
+            .ToDateTime(TimeOnly.MinValue);
 }

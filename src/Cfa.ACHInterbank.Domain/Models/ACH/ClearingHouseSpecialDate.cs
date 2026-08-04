@@ -1,6 +1,8 @@
-﻿namespace Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Base;
 
-public class ClearingHouseSpecialDate
+namespace Cfa.ACHInterbank.Domain.Models.ACH;
+
+public class ClearingHouseSpecialDate : AuditableEntity
 {
     public int Id { get; set; }
     public int ClearingHouseId { get; set; }

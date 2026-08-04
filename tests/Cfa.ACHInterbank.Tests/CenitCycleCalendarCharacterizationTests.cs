@@ -119,6 +119,7 @@ public class CenitCycleCalendarCharacterizationTests
         var services = new ServiceCollection();
         services.AddDbContext<AchDbContext>(o => o.UseInMemoryDatabase(nameof(BankHolidayService_ShouldIdentifyBusinessAndNonBusinessDays_CurrentBehavior)));
         services.AddScoped<IHolidayStrategyFactory, FakeHolidayStrategyFactory>();
+        services.AddScoped<IBankHolidayProvisioningService, BankHolidayProvisioningService>();
         services.AddSingleton<IBankHoliday, BankHoliday>();
         var provider = services.BuildServiceProvider();
 

@@ -73,19 +73,26 @@ describe('ClearingHouseSpecialDatesComponent', () => {
     expect(component.loading).toBeFalse();
   });
 
-  it('validates weekend, bank holiday and duplicate dates without timezone shifts', () => {
+  it('warns about weekends and national holidays but only blocks camera duplicates', () => {
+    component.allItems = [];
     component.startCreate();
     component.form.setValue({ date: new Date(2026, 7, 1), description: 'Cierre sabatino' });
-    component.save();
-    expect(component.form.controls.date.hasError('weekendDate')).toBeTrue();
+    expect((component as any).validateDate(new Date(2026, 7, 1), [])).toBeTrue();
+    expect(component.dateWarning).toContain('sábado o domingo');
 
-    holidays.list.and.returnValue(of([{ id: 1, date: '2027-08-03', name: 'Festivo' } as any]));
+    component.startCreate();
     component.form.controls.date.setValue(new Date(2027, 7, 3));
-    component.save();
-    expect(component.form.controls.date.hasError('bankHoliday')).toBeTrue();
+    component.form.controls.description.setValue('Cierre adicional');
+    expect((component as any).validateDate(
+      new Date(2027, 7, 3),
+      [{ id: 1, date: '2027-08-03', description: 'Festivo', countryCode: 'CO' }]
+    )).toBeTrue();
+    expect(component.dateWarning).toContain('festivo nacional');
 
+    component.startCreate();
     component.allItems = [{ ...specialDate(), date: '2027-08-04' }];
     component.form.controls.date.setValue(new Date(2027, 7, 4));
+    component.form.controls.description.setValue('Duplicada');
     component.save();
     expect(component.form.controls.date.hasError('duplicateDate')).toBeTrue();
   });

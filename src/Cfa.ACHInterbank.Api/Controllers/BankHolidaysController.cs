@@ -11,10 +11,14 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 public class BankHolidaysController : ControllerBase
 {
     private readonly IBankHolidayAdminService _service;
+    private readonly IBankHolidayProvisioningService _provisioning;
 
-    public BankHolidaysController(IBankHolidayAdminService service)
+    public BankHolidaysController(
+        IBankHolidayAdminService service,
+        IBankHolidayProvisioningService provisioning)
     {
         _service = service;
+        _provisioning = provisioning;
     }
     /// <summary>
     /// Endpoint de la API ACH Interbank.
@@ -54,4 +58,11 @@ public class BankHolidaysController : ControllerBase
         await _service.DeleteAsync(id, ct);
         return NoContent();
     }
+
+    [HttpPost("ensure")]
+    [Authorize(Policy = "CanManageAch")]
+    public async Task<IActionResult> Ensure([FromBody] BankHolidayEnsureRequest request, CancellationToken ct = default)
+        => Ok(await _provisioning.EnsureYearsAsync(request.Years, ct));
 }
+
+public sealed record BankHolidayEnsureRequest(IReadOnlyList<int> Years);

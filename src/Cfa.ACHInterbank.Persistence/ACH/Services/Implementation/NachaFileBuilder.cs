@@ -49,6 +49,7 @@ public class NachaFileBuilder : INachaFileBuilder
     private readonly ILogger<NachaFileBuilder>? _logger;
     private readonly INachaControlTotalsCalculator _controlTotalsCalculator;
     private readonly IOperationalTimeSnapshotProvider _operationalTimeProvider;
+    private readonly ICycleCalendarGuard _calendarGuard;
 
     public NachaFileBuilder(
         AchDbContext context,
@@ -69,7 +70,8 @@ public class NachaFileBuilder : INachaFileBuilder
         ILogger<NachaFileBuilder>? logger = null,
         IBatchNumberGenerator? batchNumberGenerator = null,
         INachaControlTotalsCalculator? controlTotalsCalculator = null,
-        IOperationalTimeSnapshotProvider? operationalTimeProvider = null)
+        IOperationalTimeSnapshotProvider? operationalTimeProvider = null,
+        ICycleCalendarGuard? calendarGuard = null)
     {
         _context = context;
         _ = holidayService;
@@ -90,6 +92,7 @@ public class NachaFileBuilder : INachaFileBuilder
         _logger = logger;
         _controlTotalsCalculator = controlTotalsCalculator ?? new NachaControlTotalsCalculator();
         _operationalTimeProvider = operationalTimeProvider ?? new OperationalTimeSnapshotProvider();
+        _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +116,11 @@ public class NachaFileBuilder : INachaFileBuilder
             Transactions = transactions
         };
         var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
+        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+        if (!calendarDecision.CanExecute)
+        {
+            throw new CycleDeferredByCalendarException(cycle.Id, calendarDecision);
+        }
         EnforceCenitLiveGenerationGate(clearingHouseCode);
         EnforceLiveOfficialMode(clearingHouseCode);
         await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
@@ -147,6 +155,11 @@ public class NachaFileBuilder : INachaFileBuilder
 
         var nachaHeader = await _dataLoader.LoadHeaderAsync(cycle.Id, ct);
         var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
+        var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
+        if (!calendarDecision.CanExecute)
+        {
+            throw new CycleDeferredByCalendarException(cycle.Id, calendarDecision);
+        }
         EnforceCenitLiveGenerationGate(clearingHouseCode);
         EnforceLiveOfficialMode(clearingHouseCode);
         await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);

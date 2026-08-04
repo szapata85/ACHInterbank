@@ -6,19 +6,21 @@ public class AchInitializationService
 {
     private readonly IBankHoliday _bankHolidaySeeder;
     private readonly IAchCycleSeeder _achCycleSeeder;
+    private readonly IOperationalTimeSnapshotProvider _operationalTime;
 
     public AchInitializationService(
         IBankHoliday bankHolidaySeeder,
-        IAchCycleSeeder achCycleSeeder)
+        IAchCycleSeeder achCycleSeeder,
+        IOperationalTimeSnapshotProvider operationalTime)
     {
         _bankHolidaySeeder = bankHolidaySeeder;
         _achCycleSeeder = achCycleSeeder;
+        _operationalTime = operationalTime;
     }
 
     public async Task InitializeAsync()
     {
-        //var currentYear = DateTime.Now.Year;
-        var currentYear = DateTime.Now.Year;
+        var currentYear = _operationalTime.CaptureNow().OperationalDate.Year;
 
         // Seed bank holidays if not already present
         await _bankHolidaySeeder.SeedHolidaysIfNotExistsAsync(currentYear);

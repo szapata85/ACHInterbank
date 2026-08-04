@@ -15,11 +15,11 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class RoutingStrategyService : IRoutingStrategyService
 {
     private readonly AchDbContext _context;
-    private readonly IBankHoliday _holidayService;
     private readonly IAchCycleScheduler _cycleScheduler;
     private readonly IPaymentRailContextService _paymentRailContextService;
     private readonly ILogger<RoutingStrategyService> _logger;
     private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly IOperationalCalendarService _calendar;
 
     public RoutingStrategyService(
         AchDbContext context,
@@ -27,14 +27,16 @@ public class RoutingStrategyService : IRoutingStrategyService
         IAchCycleScheduler cycleScheduler,
         IPaymentRailContextService? paymentRailContextService = null,
         ILogger<RoutingStrategyService>? logger = null,
-        IOperationalCycleWindowResolver? windowResolver = null)
+        IOperationalCycleWindowResolver? windowResolver = null,
+        IOperationalCalendarService? calendar = null)
     {
         _context = context;
-        _holidayService = holidayService;
+        _ = holidayService;
         _cycleScheduler = cycleScheduler;
         _paymentRailContextService = paymentRailContextService ?? new NullPaymentRailContextService();
         _logger = logger ?? NullLogger<RoutingStrategyService>.Instance;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _calendar = calendar ?? new OperationalCalendarService(context);
     }
 
     public async Task<string> ResolveClearingHouseForTransactionAsync(
@@ -92,33 +94,35 @@ public class RoutingStrategyService : IRoutingStrategyService
             new TimeSpan(23, 59, 59),
             firstTimeZoneId,
             currentInstant).LocalNow;
-        DateTime processingDate = GetNextBusinessDay(firstLocalNow.Date);
+        DateTime processingDate = firstLocalNow.Date;
 
         // 3️) Buscar el siguiente ciclo disponible, avanzando al próximo día hábil
         //     cuando los cortes de hoy ya pasaron.
         for (int attempt = 0; attempt < 15; attempt++)
         {
-            // Crear ciclos on-demand solo si faltan
-            List<int> existing = await _context.AchCycles
-                .Where(c => prefIds.Contains(c.ClearingHouseId) &&
-                            c.ProcessingDate.Date == processingDate.Date)
-                .Select(c => c.ClearingHouseId)
-                .Distinct()
-                .ToListAsync(ct);
-
-            List<int> missing = prefIds.Except(existing).ToList();
-            foreach (int chId in missing)
-            {
-                await _cycleScheduler.ScheduleCyclesForClearingHouseAsync(chId, processingDate);
-            }
-
             // 4️) Evaluar cámaras en el orden IsDefault + Priority
             foreach (InstitutionClearingHousePreference pref in preferences)
             {
+                var candidateDate = await _calendar.GetNextBusinessDayAsync(
+                    DateOnly.FromDateTime(processingDate),
+                    pref.ClearingHouseId,
+                    ct);
+                var candidateProcessingDate = candidateDate.ToDateTime(TimeOnly.MinValue);
+                var hasCycles = await _context.AchCycles.AnyAsync(c =>
+                    c.ClearingHouseId == pref.ClearingHouseId
+                    && c.ProcessingDate.Date == candidateProcessingDate.Date,
+                    ct);
+                if (!hasCycles)
+                {
+                    await _cycleScheduler.ScheduleCyclesForClearingHouseAsync(
+                        pref.ClearingHouseId,
+                        candidateProcessingDate);
+                }
+
                 var candidateCyclesRaw = await _context.AchCycles
                     .Where(c =>
                         c.ClearingHouseId == pref.ClearingHouseId &&
-                        c.ProcessingDate.Date == processingDate.Date)
+                        c.ProcessingDate.Date == candidateProcessingDate.Date)
                     .OrderBy(c => c.ProcessingDate)
                     .ToListAsync(ct);
 
@@ -171,35 +175,13 @@ public class RoutingStrategyService : IRoutingStrategyService
 
             // Si no hay ciclos con cortes futuros en la fecha actual,
             // avanzamos al siguiente día hábil y volvemos a intentar.
-            processingDate = GetNextBusinessDay(processingDate.AddDays(1));
+            processingDate = processingDate.AddDays(1);
         }
 
         throw new InvalidOperationException(
             "No hay ciclos disponibles para las cámaras habilitadas en el orden de IsDefault y prioridad.");
     }
 
-
-    private DateTime GetNextBusinessDay(DateTime startDate)
-    {
-        var date = startDate;
-        var holidays = _holidayService.GetHolidays(date.Year)
-                                      .Select(h => h.Date)
-                                      .ToHashSet();
-
-        while (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
-               holidays.Contains(DateOnly.FromDateTime(date)))
-        {
-            date = date.AddDays(1);
-
-            if (!holidays.Any(h => h.Year == date.Year))
-            {
-                holidays = _holidayService.GetHolidays(date.Year)
-                                          .Select(h => h.Date)
-                                          .ToHashSet();
-            }
-        }
-        return date;
-    }
 
     private static int NormalizePriority(int priority)
     {
