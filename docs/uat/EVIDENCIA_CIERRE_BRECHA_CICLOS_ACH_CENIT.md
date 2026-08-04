@@ -40,6 +40,11 @@ La misma política se aplica en preview/asignación y en `NachaTransactionValida
 
 ## Pruebas y build
 
+- GitHub Actions posterior al cierre regulatorio terminó en 8 min 28 s con 2135 aprobadas, 6 fallidas, 7 omitidas y 2148 totales. Las seis fallas estaban en `TransactionPolicyServiceTests` y `AchContrapartidasByCycleHandlerTests`: los fixtures usaban `DateTime.Today` y el reloj real mientras producción evaluaba correctamente el instante en `America/Bogota`.
+- Corrección CI focalizada: ambos fixtures usan `FixedTimeProvider` con `2026-08-04T01:15:00Z`, `ProcessingDate = 2026-08-03`, ventana local explícita y `TimeZoneId = America/Bogota`. No se modificó código de producción ni se debilitó comportamiento regulatorio.
+- Fallas originales de `TransactionPolicyServiceTests`: 3/3 aprobadas; clase completa: 5/5 aprobadas.
+- Fallas originales de `AchContrapartidasByCycleHandlerTests`: 3/3 aprobadas; clase completa: 4/4 aprobadas.
+- Regresión UTC/Bogotá: aprobada; con la fecha UTC ya en `2026-08-04`, el ciclo de Bogotá `2026-08-03` permanece activo y alcanza la detección de duplicado.
 - Ventanas/zona: 14 aprobadas.
 - Política Ciclo 5: 10 aprobadas.
 - Seeds/calendario/configuración: 25 aprobadas.
@@ -48,7 +53,7 @@ La misma política se aplica en preview/asignación y en `NachaTransactionValida
 - Servicio de configuración de ciclos: 7 aprobadas.
 - Build Persistence: 0 warnings, 0 errores.
 - Build solución Release: 0 warnings, 0 errores.
-- Suite completa: no concluyó en este host; agotó 10 y 20 minutos sin emitir fallos. Una corrida diagnóstica de 10 minutos con `--blame-hang-timeout 2m` no detectó prueba individual colgada. No se declara aprobada.
+- Suite CI equivalente posterior a la corrección: la única ejecución local alcanzó 20 min 04 s sin emitir fallos ni resumen antes de ser terminada por el límite del ejecutor. Conteos finales aprobadas/fallidas/omitidas/totales: no disponibles; no se declara aprobada ni se repitió el comando.
 - Multi-DB real: 7 pruebas no dependientes de infraestructura aprobaron; las dos variantes reales SQL Server/PostgreSQL exigieron `CLEARING_HOUSES_REQUIRE_DATABASES=true`. No se inició un segundo stack PostgreSQL al no existir indicio de defecto específico de proveedor.
 
 ## Evidencia Docker SQL Server 2025
@@ -61,6 +66,6 @@ La misma política se aplica en preview/asignación y en `NachaTransactionValida
 
 ## Riesgos reales restantes
 
-- La suite .NET completa no entregó resumen dentro de 20 minutos en este host; aunque los grupos afectados aprobaron y el detector no halló un test individual colgado, falta una corrida global concluida para afirmar regresión total.
+- La suite .NET CI equivalente posterior a la corrección no entregó resumen en este host; aunque las seis fallas y las dos clases afectadas aprobaron, falta una corrida global concluida con cero fallos para marcar el cierre como completo.
 - Las pruebas multi-DB reales requieren habilitación explícita y configuración segura de sus dos proveedores; PostgreSQL no fue levantado en este trabajo.
 - La certificación externa oficial con ACH Colombia/CENIT permanece fuera de este cierre técnico local.

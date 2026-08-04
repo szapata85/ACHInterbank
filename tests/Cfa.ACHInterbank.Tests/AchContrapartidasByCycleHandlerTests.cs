@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Tests.TestSupport;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -13,6 +14,9 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class AchContrapartidasByCycleHandlerTests
 {
+    private static readonly DateTime BogotaProcessingDate = new(2026, 8, 3);
+    private static readonly DateTimeOffset FixedUtcInstant = new(2026, 8, 4, 1, 15, 0, TimeSpan.Zero);
+
     [Fact]
     public async Task ExecuteAsync_DebeRetornarMensajeSinCiclos_CuandoNoHayVentanasActivas()
     {
@@ -31,7 +35,8 @@ public class AchContrapartidasByCycleHandlerTests
         var sut = new AchContrapartidasByCycleHandler(
             context,
             dispatchJob.Object,
-            NullLogger<AchContrapartidasByCycleHandler>.Instance);
+            NullLogger<AchContrapartidasByCycleHandler>.Instance,
+            CreateFixedClock());
 
         var resultado = await sut.ExecuteAsync(CrearTask(), CancellationToken.None);
 
@@ -52,7 +57,7 @@ public class AchContrapartidasByCycleHandlerTests
         await using var context = new AchDbContext(options);
         await context.Database.EnsureCreatedAsync();
 
-        await SembrarCicloActivoAsync(context, "cycle-01", 1, new TimeSpan(22, 0, 0));
+        await SembrarCicloActivoAsync(context, "cycle-01", 1, BogotaProcessingDate, new TimeSpan(22, 0, 0));
 
         var dispatchJob = new Mock<IContrapartidaDispatchJobService>();
         dispatchJob
@@ -62,7 +67,8 @@ public class AchContrapartidasByCycleHandlerTests
         var sut = new AchContrapartidasByCycleHandler(
             context,
             dispatchJob.Object,
-            NullLogger<AchContrapartidasByCycleHandler>.Instance);
+            NullLogger<AchContrapartidasByCycleHandler>.Instance,
+            CreateFixedClock());
 
         var task = CrearTask(new Dictionary<string, string>
         {
@@ -94,8 +100,8 @@ public class AchContrapartidasByCycleHandlerTests
         await using var context = new AchDbContext(options);
         await context.Database.EnsureCreatedAsync();
 
-        await SembrarCicloActivoAsync(context, "cycle-01", 1, new TimeSpan(21, 0, 0));
-        await SembrarCicloActivoAsync(context, "cycle-02", 2, new TimeSpan(22, 0, 0));
+        await SembrarCicloActivoAsync(context, "cycle-01", 1, BogotaProcessingDate, new TimeSpan(21, 0, 0));
+        await SembrarCicloActivoAsync(context, "cycle-02", 2, BogotaProcessingDate, new TimeSpan(22, 0, 0));
 
         var dispatchJob = new Mock<IContrapartidaDispatchJobService>();
         dispatchJob
@@ -108,7 +114,8 @@ public class AchContrapartidasByCycleHandlerTests
         var sut = new AchContrapartidasByCycleHandler(
             context,
             dispatchJob.Object,
-            NullLogger<AchContrapartidasByCycleHandler>.Instance);
+            NullLogger<AchContrapartidasByCycleHandler>.Instance,
+            CreateFixedClock());
 
         var task = CrearTask(new Dictionary<string, string>
         {
@@ -139,9 +146,9 @@ public class AchContrapartidasByCycleHandlerTests
         await using var context = new AchDbContext(options);
         await context.Database.EnsureCreatedAsync();
 
-        await SembrarCicloActivoAsync(context, "cycle-01", 1, new TimeSpan(20, 0, 0));
-        await SembrarCicloActivoAsync(context, "cycle-02", 2, new TimeSpan(21, 0, 0));
-        await SembrarCicloActivoAsync(context, "cycle-03", 3, new TimeSpan(22, 0, 0));
+        await SembrarCicloActivoAsync(context, "cycle-01", 1, BogotaProcessingDate, new TimeSpan(20, 0, 0));
+        await SembrarCicloActivoAsync(context, "cycle-02", 2, BogotaProcessingDate, new TimeSpan(21, 0, 0));
+        await SembrarCicloActivoAsync(context, "cycle-03", 3, BogotaProcessingDate, new TimeSpan(22, 0, 0));
 
         var dispatchJob = new Mock<IContrapartidaDispatchJobService>();
         dispatchJob
@@ -152,7 +159,8 @@ public class AchContrapartidasByCycleHandlerTests
         var sut = new AchContrapartidasByCycleHandler(
             context,
             dispatchJob.Object,
-            NullLogger<AchContrapartidasByCycleHandler>.Instance);
+            NullLogger<AchContrapartidasByCycleHandler>.Instance,
+            CreateFixedClock());
 
         var task = CrearTask(new Dictionary<string, string>
         {
@@ -189,13 +197,19 @@ public class AchContrapartidasByCycleHandlerTests
         return task;
     }
 
-    private static async Task SembrarCicloActivoAsync(AchDbContext context, string cycleId, int clearingHouseId, TimeSpan cutoff)
+    private static async Task SembrarCicloActivoAsync(
+        AchDbContext context,
+        string cycleId,
+        int clearingHouseId,
+        DateTime processingDate,
+        TimeSpan cutoff)
     {
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = clearingHouseId,
             ClearingHouseId = clearingHouseId,
-            HolidayStrategy = "Colombian"
+            HolidayStrategy = "Colombian",
+            TimeZoneId = "America/Bogota"
         });
 
         context.ClearingHouses.Add(new ClearingHouse
@@ -211,7 +225,7 @@ public class AchContrapartidasByCycleHandlerTests
         {
             Id = cycleId,
             CycleName = $"Ciclo {cycleId}",
-            ProcessingDate = DateTime.Today,
+            ProcessingDate = processingDate,
             StartTime = TimeSpan.Zero,
             EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = cutoff,
@@ -220,4 +234,7 @@ public class AchContrapartidasByCycleHandlerTests
 
         await context.SaveChangesAsync();
     }
+
+    private static FixedTimeProvider CreateFixedClock()
+        => new(FixedUtcInstant, TimeZoneInfo.Utc);
 }

@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Tests.TestSupport;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -19,6 +20,8 @@ public class TransactionPolicyServiceTests
     private const int TestClearingHouseId = 9301;
     private const int TestSourceInstitutionId = 9401;
     private const int TestDestinationInstitutionId = 9402;
+    private static readonly DateTime BogotaProcessingDate = new(2026, 8, 3);
+    private static readonly DateTimeOffset UtcInstantAfterDateBoundary = new(2026, 8, 4, 1, 15, 0, TimeSpan.Zero);
 
     [Fact]
     public async Task PreviewAsync_RejectsWhenOutsideCycleWindow()
@@ -26,13 +29,13 @@ public class TransactionPolicyServiceTests
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
         var companyEntryDescriptionId = SeedCatalog(context);
-        var cycle = SeedCycle(context, "cycle-outside", DateTime.Today.AddDays(1), new TimeSpan(0, 0, 0), new TimeSpan(0, 30, 0));
+        var cycle = SeedCycle(context, "cycle-outside", BogotaProcessingDate.AddDays(1), new TimeSpan(0, 0, 0), new TimeSpan(0, 30, 0));
 
         var routing = new Mock<IRoutingStrategyService>();
         routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cycle.Id);
 
-        var service = CreateService(context, routing.Object);
+        var service = CreateService(context, routing.Object, CreateFixedClock());
         var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
             1000m,
             null,
@@ -51,12 +54,12 @@ public class TransactionPolicyServiceTests
     }
 
     [Fact]
-    public async Task PreviewAsync_RejectsDuplicateTransactionsWithinCycle()
+    public async Task PreviewAsync_RejectsDuplicateTransactionsWithinCycle_UtcDateAlreadyAdvancedWhileBogotaStillPreviousDate_UsesBogotaOperationalTime()
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
         var companyEntryDescriptionId = SeedCatalog(context);
-        var cycle = SeedCycle(context, "cycle-open", DateTime.Today, TimeSpan.Zero, new TimeSpan(23, 59, 0));
+        var cycle = SeedCycle(context, "cycle-open", BogotaProcessingDate, TimeSpan.Zero, new TimeSpan(23, 59, 0));
         context.AchBatches.Add(new AchBatch
         {
             Id = 1,
@@ -66,7 +69,7 @@ public class TransactionPolicyServiceTests
             CompanyEntryDescription = "NOMINAS",
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginOrOdfi = "12345678",
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = BogotaProcessingDate
         });
 
         context.AchTransactions.Add(new AchTransaction
@@ -86,7 +89,7 @@ public class TransactionPolicyServiceTests
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             SourceInstitutionId = TestSourceInstitutionId,
             DestinationInstitutionId = TestDestinationInstitutionId,
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = BogotaProcessingDate
         });
         await context.SaveChangesAsync();
 
@@ -94,7 +97,7 @@ public class TransactionPolicyServiceTests
         routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cycle.Id);
 
-        var service = CreateService(context, routing.Object);
+        var service = CreateService(context, routing.Object, CreateFixedClock());
         var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
             1500m,
             null,
@@ -110,6 +113,8 @@ public class TransactionPolicyServiceTests
 
         Assert.False(preview.CanSubmit);
         Assert.True(preview.WouldDuplicate);
+        Assert.Equal(new DateTime(2026, 8, 4), UtcInstantAfterDateBoundary.UtcDateTime.Date);
+        Assert.Equal(BogotaProcessingDate, cycle.ProcessingDate.Date);
     }
 
     [Fact]
@@ -118,7 +123,7 @@ public class TransactionPolicyServiceTests
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
         var companyEntryDescriptionId = SeedCatalog(context);
-        var cycle = SeedCycle(context, "cycle-contract", DateTime.Today, TimeSpan.Zero, new TimeSpan(23, 59, 0));
+        var cycle = SeedCycle(context, "cycle-contract", BogotaProcessingDate, TimeSpan.Zero, new TimeSpan(23, 59, 0));
         context.AchBatches.Add(new AchBatch
         {
             Id = 3,
@@ -128,7 +133,7 @@ public class TransactionPolicyServiceTests
             CompanyEntryDescription = "NOMINAS",
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginOrOdfi = "12345678",
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = BogotaProcessingDate
         });
 
         context.AchTransactions.Add(new AchTransaction
@@ -149,7 +154,7 @@ public class TransactionPolicyServiceTests
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             SourceInstitutionId = TestSourceInstitutionId,
             DestinationInstitutionId = TestDestinationInstitutionId,
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = BogotaProcessingDate
         });
         await context.SaveChangesAsync();
 
@@ -157,7 +162,7 @@ public class TransactionPolicyServiceTests
         routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cycle.Id);
 
-        var service = CreateService(context, routing.Object);
+        var service = CreateService(context, routing.Object, CreateFixedClock());
         var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
             1500m,
             null,
@@ -214,7 +219,7 @@ public class TransactionPolicyServiceTests
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
         var companyEntryDescriptionId = SeedCatalog(context);
-        var cycle = SeedCycle(context, "cycle-opid", DateTime.Today, TimeSpan.Zero, new TimeSpan(23, 59, 0));
+        var cycle = SeedCycle(context, "cycle-opid", BogotaProcessingDate, TimeSpan.Zero, new TimeSpan(23, 59, 0));
         context.AchBatches.Add(new AchBatch
         {
             Id = 2,
@@ -224,7 +229,7 @@ public class TransactionPolicyServiceTests
             CompanyEntryDescription = "NOMINAS",
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             OriginOrOdfi = "12345678",
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = BogotaProcessingDate
         });
 
         context.AchTransactions.Add(new AchTransaction
@@ -245,7 +250,7 @@ public class TransactionPolicyServiceTests
             CompanyEntryDescriptionId = companyEntryDescriptionId,
             SourceInstitutionId = TestSourceInstitutionId,
             DestinationInstitutionId = TestDestinationInstitutionId,
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = BogotaProcessingDate
         });
         await context.SaveChangesAsync();
 
@@ -253,7 +258,7 @@ public class TransactionPolicyServiceTests
         routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(TestDestinationInstitutionId, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cycle.Id);
 
-        var service = CreateService(context, routing.Object);
+        var service = CreateService(context, routing.Object, CreateFixedClock());
         var preview = await service.PreviewAsync(new TransactionPolicyPreviewRequest(
             2000m,
             "TX-EXT-777",
@@ -271,7 +276,10 @@ public class TransactionPolicyServiceTests
         Assert.True(preview.WouldDuplicate);
     }
 
-    private static TransactionPolicyService CreateService(AchDbContext context, IRoutingStrategyService routing)
+    private static TransactionPolicyService CreateService(
+        AchDbContext context,
+        IRoutingStrategyService routing,
+        TimeProvider timeProvider)
     {
         var options = Options.Create(new TransactionPolicyOptions
         {
@@ -284,7 +292,7 @@ public class TransactionPolicyServiceTests
             }
         });
 
-        return new TransactionPolicyService(context, routing, options);
+        return new TransactionPolicyService(context, routing, options, timeProvider);
     }
 
     private static int SeedCatalog(AchDbContext context)
@@ -299,7 +307,8 @@ public class TransactionPolicyServiceTests
             context.ClearingHouseConfigs.Add(new ClearingHouseConfig
             {
                 Id = TestClearingHouseConfigId,
-                HolidayStrategy = "Colombian"
+                HolidayStrategy = "Colombian",
+                TimeZoneId = "America/Bogota"
             });
         }
 
@@ -385,4 +394,7 @@ public class TransactionPolicyServiceTests
         context.Database.EnsureCreated();
         return context;
     }
+
+    private static FixedTimeProvider CreateFixedClock()
+        => new(UtcInstantAfterDateBoundary, TimeZoneInfo.Utc);
 }
