@@ -1,9 +1,11 @@
 using Cfa.ACHInterbank.Application.OutgoingTransactionMonitoring;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
@@ -20,7 +22,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
 
     private readonly AchDbContext _context;
     private readonly IOutgoingTransactionMonitoringStatusPolicy _statusPolicy;
-    private readonly TimeProvider _timeProvider;
+    private readonly IOperationalTimeSnapshotProvider _operationalTime;
 
     public OutgoingTransactionMonitoringQueryService(
         AchDbContext context,
@@ -29,16 +31,17 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
     {
         _context = context;
         _statusPolicy = statusPolicy;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _operationalTime = new OperationalTimeSnapshotProvider(timeProvider);
     }
 
     public async Task<OutgoingMonitoringPagedResult<OutgoingTransactionMonitoringListItem>> SearchAsync(
         OutgoingTransactionMonitoringQuery query,
         CancellationToken cancellationToken = default)
     {
-        var normalized = Normalize(query);
+        var timeSnapshot = _operationalTime.CaptureNow();
+        var normalized = Normalize(query, new DateTimeOffset(timeSnapshot.CapturedAtUtc));
         var source = BuildConfirmedOutgoingQuery(normalized);
-        source = ApplyFunctionalFilters(source, normalized);
+        source = ApplyFunctionalFilters(source, normalized, timeSnapshot.OperationalDate);
 
         var totalItems = await source.LongCountAsync(cancellationToken);
         source = ApplyOrdering(source, normalized.SortBy, normalized.SortDirection);
@@ -49,7 +52,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             .Select(BuildProjection())
             .ToListAsync(cancellationToken);
 
-        var items = rows.Select(MapListItem).ToArray();
+        var items = rows.Select(row => MapListItem(row, timeSnapshot.OperationalDate)).ToArray();
         var totalPages = totalItems == 0 ? 0 : (int)Math.Ceiling(totalItems / (double)normalized.PageSize);
         return new OutgoingMonitoringPagedResult<OutgoingTransactionMonitoringListItem>(
             items,
@@ -68,6 +71,8 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
     {
         if (transactionId <= 0)
             return null;
+
+        var operationalDate = _operationalTime.CaptureNow().OperationalDate;
 
         var row = await _context.AchTransactions
             .AsNoTracking()
@@ -188,9 +193,10 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
 
         var lastAttempt = attempts.LastOrDefault();
         var warnings = BuildWarnings(row, files).ToArray();
+        var summary = MapListItem(row, operationalDate);
         return new OutgoingTransactionMonitoringDetail
         {
-            Summary = MapListItem(row),
+            Summary = summary,
             Classification = new OutgoingTransactionClassificationDetail(
                 "Salida",
                 row.Origin == AchTransactionOrigin.Cfa ? "Originada por CFA" : "No determinado",
@@ -203,7 +209,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             Integration = new OutgoingTransactionIntegrationDetail(
                 row.HasDispatchItem,
                 attempts.Count,
-                MapListItem(row).InitialResultDisplayName,
+                summary.InitialResultDisplayName,
                 EmptyToNull(lastAttempt?.ExternalResponseCode),
                 EmptyToNull(lastAttempt?.ExternalResponseMessage),
                 lastAttempt?.StartedAtUtc,
@@ -262,7 +268,8 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
 
     private IQueryable<AchTransaction> ApplyFunctionalFilters(
         IQueryable<AchTransaction> source,
-        OutgoingTransactionMonitoringQuery query)
+        OutgoingTransactionMonitoringQuery query,
+        DateOnly operationalDate)
     {
         if (query.HasReturn.HasValue)
             source = query.HasReturn.Value
@@ -288,22 +295,26 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
                             || response.CorrelationStatus == AchResponseCorrelationStatus.ManualReviewRequired)));
         }
 
-        source = ApplyProcessFilter(source, query.ProcessStatus);
+        source = ApplyProcessFilter(source, query.ProcessStatus, operationalDate);
         source = ApplyInitialResultFilter(source, query.InitialResult);
         source = ApplySubsequentFilter(source, query.SubsequentSituation);
         return source;
     }
 
-    private IQueryable<AchTransaction> ApplyProcessFilter(IQueryable<AchTransaction> source, string? value)
+    private IQueryable<AchTransaction> ApplyProcessFilter(
+        IQueryable<AchTransaction> source,
+        string? value,
+        DateOnly operationalDate)
     {
-        var todayUtc = _timeProvider.GetUtcNow().UtcDateTime.Date;
+        var operationalDayStart = operationalDate.ToDateTime(TimeOnly.MinValue);
         return value?.ToLowerInvariant() switch
         {
-            "scheduled" => source.Where(item => item.AchCycle.ProcessingDate > todayUtc
+            "scheduled" => source.Where(item => item.AchCycle.ProcessingDate > operationalDayStart
                 && item.ContrapartidaDispatchItem == null
                 && !item.StateEvents.Any()
                 && !item.FileExportMemberships.Any()),
-            "created" => source.Where(item => item.ContrapartidaDispatchItem == null
+            "created" => source.Where(item => item.AchCycle.ProcessingDate <= operationalDayStart
+                && item.ContrapartidaDispatchItem == null
                 && !item.StateEvents.Any()
                 && !item.FileExportMemberships.Any()),
             "processing" => source.Where(item => item.ContrapartidaDispatchItem != null
@@ -478,7 +489,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
                 .FirstOrDefault()
         };
 
-    private OutgoingTransactionMonitoringListItem MapListItem(MonitoringRow row)
+    private OutgoingTransactionMonitoringListItem MapListItem(MonitoringRow row, DateOnly operationalDate)
     {
         var facts = new OutgoingTransactionMonitoringFacts(
             row.HasDispatchItem,
@@ -492,7 +503,7 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             row.HasAmbiguousCorrelation,
             row.HasFileMembership,
             row.HasResponse,
-            row.CycleProcessingDate.Date > _timeProvider.GetUtcNow().UtcDateTime.Date);
+            DateOnly.FromDateTime(row.CycleProcessingDate) > operationalDate);
         var status = _statusPolicy.Consolidate(facts);
         var fileStatus = FileLifecycle(row.FileLifecycleStatus, row.FileTransmissionReference, row.FileTransmittedAtUtc);
 
@@ -532,10 +543,11 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
         };
     }
 
-    private OutgoingTransactionMonitoringQuery Normalize(OutgoingTransactionMonitoringQuery query)
+    private static OutgoingTransactionMonitoringQuery Normalize(
+        OutgoingTransactionMonitoringQuery query,
+        DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(query);
-        var now = _timeProvider.GetUtcNow();
         var from = query.FromUtc ?? now.AddDays(-7);
         var to = query.ToUtc ?? now;
         if (from > to || to - from > TimeSpan.FromDays(90))

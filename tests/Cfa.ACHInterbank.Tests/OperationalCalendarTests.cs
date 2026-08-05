@@ -2,6 +2,8 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.ACH.Services.StrategyImplementation;
@@ -166,6 +168,27 @@ public sealed class OperationalCalendarIntegrationTests
         Assert.Equal(1, repaired.Inserted);
         Assert.Equal(19, await fixture.Context.BankHolidays.CountAsync(x => x.Date.Year == 2026));
         Assert.Single(fixture.Context.ClearingHouseSpecialDates);
+    }
+
+    [Fact]
+    public async Task BankHolidaySeedJob_IsIdempotentForCurrentAndNextBogotaYear()
+    {
+        await using var fixture = await CalendarFixture.CreateAsync();
+        var clock = new FixedClock(new DateTimeOffset(2026, 8, 5, 0, 30, 0, TimeSpan.Zero));
+        var handler = new SeedBankHolidaysHandler(
+            new BankHolidayProvisioningService(fixture.Context),
+            new OperationalTimeSnapshotProvider(clock),
+            NullLogger<SeedBankHolidaysHandler>.Instance);
+        var task = new TaskDefinition { Code = "SeedBankHolidays", Name = "Festivos nacionales" };
+
+        var first = await handler.ExecuteAsync(task, CancellationToken.None);
+        var second = await handler.ExecuteAsync(task, CancellationToken.None);
+
+        Assert.Contains("insertados=38", first);
+        Assert.Contains("insertados=0", second);
+        Assert.Equal(38, await fixture.Context.BankHolidays.CountAsync());
+        Assert.Equal(19, await fixture.Context.BankHolidays.CountAsync(x => x.Date.Year == 2026));
+        Assert.Equal(19, await fixture.Context.BankHolidays.CountAsync(x => x.Date.Year == 2027));
     }
 
     [Fact]

@@ -63,9 +63,12 @@ public sealed class OutgoingTransactionMonitoringPolicyTests
         bool certified = false,
         bool returned = false,
         bool manualReview = false,
-        bool ambiguousCorrelation = false)
+        bool ambiguousCorrelation = false,
+        bool dispatchItem = false,
+        bool fileMembership = false,
+        bool futureCycle = false)
         => new(
-            HasDispatchItem: success || functionalRejection || technicalFailure,
+            HasDispatchItem: dispatchItem || success || functionalRejection || technicalFailure,
             HasSuccessfulIntegration: success,
             HasFunctionalRejection: functionalRejection,
             HasTechnicalFailure: technicalFailure,
@@ -74,20 +77,70 @@ public sealed class OutgoingTransactionMonitoringPolicyTests
             HasReturn: returned,
             HasManualReview: manualReview,
             HasAmbiguousCorrelation: ambiguousCorrelation,
-            HasFileMembership: false,
+            HasFileMembership: fileMembership,
             HasResponse: accepted || certified || returned,
-            IsFutureCycle: false);
+            IsFutureCycle: futureCycle);
+
+    [Fact]
+    public void Consolidate_RepresentsUnscheduledTransactionAsCreated()
+    {
+        var result = _policy.Consolidate(Facts());
+
+        result.ProcessStatusCode.Should().Be("Created");
+    }
 
     [Fact]
     public void Consolidate_RepresentsFutureCycleWithoutInventingProcessing()
     {
-        var facts = Facts() with { IsFutureCycle = true };
+        var facts = Facts(futureCycle: true);
 
         var result = _policy.Consolidate(facts);
 
         result.ProcessStatusCode.Should().Be("Scheduled");
         result.ProcessStatusDisplayName.Should().Be("Asignada a un ciclo futuro");
         result.InitialResultCode.Should().Be("NotDetermined");
+    }
+
+    [Fact]
+    public void Consolidate_DoesNotRepresentStartedDispatchAsScheduled()
+    {
+        var result = _policy.Consolidate(Facts(dispatchItem: true, futureCycle: true));
+
+        result.ProcessStatusCode.Should().Be("Processing");
+    }
+
+    [Fact]
+    public void Consolidate_GivesTechnicalFailurePriorityOverScheduled()
+    {
+        var result = _policy.Consolidate(Facts(technicalFailure: true, futureCycle: true));
+
+        result.ProcessStatusCode.Should().Be("TechnicalError");
+    }
+
+    [Fact]
+    public void Consolidate_GivesSuccessfulIntegrationPriorityOverScheduled()
+    {
+        var result = _policy.Consolidate(Facts(success: true, futureCycle: true));
+
+        result.ProcessStatusCode.Should().Be("Processed");
+    }
+
+    [Fact]
+    public void Consolidate_GivesFunctionalRejectionPriorityOverScheduled()
+    {
+        var result = _policy.Consolidate(Facts(functionalRejection: true, futureCycle: true));
+
+        result.ProcessStatusCode.Should().Be("Processing");
+        result.InitialResultCode.Should().Be("Rejected");
+    }
+
+    [Fact]
+    public void Consolidate_GivesReturnPriorityOverScheduled()
+    {
+        var result = _policy.Consolidate(Facts(returned: true, futureCycle: true));
+
+        result.ProcessStatusCode.Should().Be("Processed");
+        result.SubsequentSituationCode.Should().Be("Returned");
     }
 
     [Fact]

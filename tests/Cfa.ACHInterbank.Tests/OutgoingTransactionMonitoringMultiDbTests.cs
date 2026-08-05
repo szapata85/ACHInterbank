@@ -19,6 +19,8 @@ namespace Cfa.ACHInterbank.Tests;
 public sealed class OutgoingTransactionMonitoringMultiDbTests
 {
     private const string RequiredVariable = "RUN_OUTGOING_MONITOR_MULTIDB";
+    private static readonly DateTimeOffset ScenarioNow = new(2026, 8, 2, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset MonitoringNowAtUtcDateBoundary = new(2026, 8, 5, 0, 30, 0, TimeSpan.Zero);
 
     [Fact]
     [Trait("Category", "OutgoingMonitorMultiDb")]
@@ -51,7 +53,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         var id = await SeedAsync(context);
         var phase4 = await SeedPhase4Async(context);
         (await context.AchTransactions.AnyAsync(item => item.Id == id)).Should().BeTrue();
-        (await context.AchTransactions.CountAsync(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))).Should().Be(35);
+        (await context.AchTransactions.CountAsync(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))).Should().Be(37);
         (await context.ContrapartidaDispatchAttempts.CountAsync(item => item.DispatchItem.AchTransactionId == phase4.RetrySucceeded)).Should().Be(2);
         (await context.AchFileExportTransactions.CountAsync(item => item.AchTransactionId == phase4.ExactFile)).Should().Be(1);
     }
@@ -70,7 +72,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         persisted.Direction.Should().Be(AchTransactionDirection.Outgoing);
         persisted.ClassificationStatus.Should().Be(AchTransactionClassificationStatus.Determined);
         var service = new OutgoingTransactionMonitoringQueryService(context, new OutgoingTransactionMonitoringStatusPolicy(),
-            new FixedTimeProvider(persisted.CreatedAt.AddHours(1)));
+            new FixedTimeProvider(MonitoringNowAtUtcDateBoundary));
 
         var page = await service.SearchAsync(new OutgoingTransactionMonitoringQuery
         {
@@ -103,12 +105,16 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         {
             FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), PageSize = 50
         });
-        phase4.TotalItems.Should().Be(35);
+        phase4.TotalItems.Should().Be(37);
         phase4.Items.Should().OnlyContain(item => !item.TransactionExternalId.Contains("HISTORICA"));
         phase4.Items.Where(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))
             .Should().OnlyContain(item => item.MaskedDestinationAccount == "******7890");
         phase4.Items.Single(item => item.Id == ids.FutureCycle).ProcessStatusCode.Should().Be("Scheduled");
         phase4.Items.Single(item => item.Id == ids.FutureCycle).NextExpectedStepDisplayName.Should().Contain("fecha prevista");
+        var futureDetail = await service.GetDetailAsync(ids.FutureCycle, includeTechnicalDetail: false);
+        futureDetail!.Summary.ProcessStatusCode.Should().Be("Scheduled");
+        phase4.Items.Single(item => item.Id == ids.AchSpecialDateCycle).ProcessStatusCode.Should().Be("Scheduled");
+        phase4.Items.Single(item => item.Id == ids.CenitSpecialDateCycle).ProcessStatusCode.Should().Be("Scheduled");
         phase4.Items.Single(item => item.Id == ids.PendingResponse).InitialResultCode.Should().Be("PendingResponse");
         phase4.Items.Single(item => item.Id == ids.Accepted).InitialResultCode.Should().Be("Accepted");
         phase4.Items.Single(item => item.Id == ids.Rejected).InitialResultCode.Should().Be("Rejected");
@@ -128,7 +134,10 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         {
             FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), ProcessStatus = "Scheduled", PageSize = 10
         });
-        scheduled.Items.Should().ContainSingle(item => item.Id == ids.FutureCycle);
+        scheduled.Items.Select(item => item.Id).Should().BeEquivalentTo([
+            ids.FutureCycle,
+            ids.AchSpecialDateCycle,
+            ids.CenitSpecialDateCycle]);
         var pending = await service.SearchAsync(new OutgoingTransactionMonitoringQuery
         {
             FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), InitialResult = "PendingResponse", PageSize = 10
@@ -258,7 +267,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
             .SingleOrDefaultAsync();
         if (existing.HasValue) return existing.Value;
 
-        var now = new DateTimeOffset(2026, 8, 2, 10, 0, 0, TimeSpan.Zero);
+        var now = ScenarioNow.AddHours(-2);
         var configuration = new ClearingHouseConfig { TimeZoneId = "America/Bogota" };
         context.Add(configuration);
         await context.SaveChangesAsync();
@@ -323,12 +332,13 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         if (existing.Count > 0)
             return ScenarioIds.From(existing.ToDictionary(item => item.TransactionExternalId, item => item.Id));
 
-        var now = new DateTimeOffset(2026, 8, 2, 12, 0, 0, TimeSpan.Zero);
+        var now = ScenarioNow;
         var configuration = await context.Set<ClearingHouseConfig>().OrderBy(item => item.Id).FirstAsync();
-        var house = new ClearingHouse { Name = "Camara UAT Fase 4", Code = "UATF4", OriginCode = "UATF4", ClearingHouseId = configuration.Id };
+        var house = new ClearingHouse { Name = "ACH Colombia UAT Fase 4", Code = "UATACH", OriginCode = "UATACH", ClearingHouseId = configuration.Id };
+        var cenitHouse = new ClearingHouse { Name = "CENIT UAT Fase 4", Code = "UATCENIT", OriginCode = "UATCENIT", ClearingHouseId = configuration.Id };
         var source = Institution("CFA local UAT", true, "10001", "101");
         var destination = Institution("Entidad destino sintetica", false, "10002", "102");
-        context.AddRange(house, source, destination);
+        context.AddRange(house, cenitHouse, source, destination);
         await context.SaveChangesAsync();
         var cycle = new AchCycle
         {
@@ -340,14 +350,29 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         {
             Id = "UAT-F4-CYCLE-20260805", CycleName = "Ciclo futuro UAT Fase 4", ProcessingDate = new DateTime(2026, 8, 5),
             StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(12), CutoffTime = TimeSpan.FromHours(11),
-            ClearingHouseId = house.Id, OperationalStatus = AchCycleOperationalStatus.Open
+            ClearingHouseId = house.Id, OperationalStatus = AchCycleOperationalStatus.Open,
+            OriginalProcessingDate = new DateTime(2026, 8, 3), CalendarDeferralReason = "Festivo nacional"
+        };
+        var achSpecialDateCycle = new AchCycle
+        {
+            Id = "UAT-F4-ACH-SPECIAL-20260805", CycleName = "Ciclo diferido por fecha especial ACH", ProcessingDate = new DateTime(2026, 8, 5),
+            StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(12), CutoffTime = TimeSpan.FromHours(11),
+            ClearingHouseId = house.Id, OperationalStatus = AchCycleOperationalStatus.Scheduled,
+            OriginalProcessingDate = new DateTime(2026, 8, 4), CalendarDeferralReason = "Fecha especial no operativa de ACH Colombia"
+        };
+        var cenitSpecialDateCycle = new AchCycle
+        {
+            Id = "UAT-F4-CENIT-SPECIAL-20260805", CycleName = "Ciclo diferido por fecha especial CENIT", ProcessingDate = new DateTime(2026, 8, 5),
+            StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(12), CutoffTime = TimeSpan.FromHours(11),
+            ClearingHouseId = cenitHouse.Id, OperationalStatus = AchCycleOperationalStatus.Scheduled,
+            OriginalProcessingDate = new DateTime(2026, 8, 4), CalendarDeferralReason = "Fecha especial no operativa de CENIT"
         };
         var batch = new AchBatch
         {
             AchCycleId = cycle.Id, ServiceClassCode = "220", CompanyName = "CFA", CompanyIdentification = "UATF4",
             OriginOrOdfi = "00000001", EffectiveEntryDate = new DateTime(2026, 8, 2), BatchSequenceNumber = 1, CompanyEntryDescriptionId = 1
         };
-        context.AddRange(cycle, futureCycle, batch);
+        context.AddRange(cycle, futureCycle, achSpecialDateCycle, cenitSpecialDateCycle, batch);
         await context.SaveChangesAsync();
 
         AchTransaction Tx(string suffix, string trace, string cycleId, int minute) => Phase4Transaction(
@@ -361,10 +386,13 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         var technical = Tx("07-ERROR-TECNICO", "900000000000007", cycle.Id, 6);
         var retry = Tx("08-REINTENTO", "900000000000008", cycle.Id, 7);
         var exactFile = Tx("11-ARCHIVO-EXACTO", "900000000000011", cycle.Id, 8);
+        var achSpecialDate = Tx("12-ACH-FECHA-ESPECIAL", "900000000000012", achSpecialDateCycle.Id, 9);
+        var cenitSpecialDate = Tx("13-CENIT-FECHA-ESPECIAL", "900000000000013", cenitSpecialDateCycle.Id, 10);
         var historical = Transaction("UAT-F4-MON-SAL-HISTORICA-NO-DETERMINADA", "900000000009999", AchTransactionDirection.Unknown,
-            AchTransactionClassificationStatus.Unknown, source.Id, destination.Id, cycle.Id, batch.Id, now.AddMinutes(9));
-        var fillers = Enumerable.Range(1, 25).Select(index => Tx($"PAG-{index:00}", $"900000000001{index:00}", cycle.Id, 10 + index)).ToArray();
-        context.AchTransactions.AddRange([future, pending, accepted, rejected, returned, withoutFile, technical, retry, exactFile, historical, .. fillers]);
+            AchTransactionClassificationStatus.Unknown, source.Id, destination.Id, cycle.Id, batch.Id, now.AddMinutes(11));
+        var fillers = Enumerable.Range(1, 25).Select(index => Tx($"PAG-{index:00}", $"900000000001{index:00}", cycle.Id, 12 + index)).ToArray();
+        context.AchTransactions.AddRange([future, pending, accepted, rejected, returned, withoutFile, technical, retry, exactFile,
+            achSpecialDate, cenitSpecialDate, historical, .. fillers]);
         await context.SaveChangesAsync();
 
         context.AchTransactionStateEvents.AddRange(
@@ -385,7 +413,8 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         AddDispatch(context, retry, cycle, house, batch,
             [Attempt(1, technical: true, code: "TIMEOUT", started: now.UtcDateTime.AddMinutes(28)), Attempt(2, success: true, code: "00", started: now.UtcDateTime.AddMinutes(29))]);
         await context.SaveChangesAsync();
-        return new ScenarioIds(future.Id, pending.Id, accepted.Id, rejected.Id, returned.Id, withoutFile.Id, technical.Id, retry.Id, exactFile.Id);
+        return new ScenarioIds(future.Id, pending.Id, accepted.Id, rejected.Id, returned.Id, withoutFile.Id, technical.Id, retry.Id,
+            exactFile.Id, achSpecialDate.Id, cenitSpecialDate.Id);
     }
 
     private static AchTransaction Phase4Transaction(string externalId, string trace, int sourceId, int destinationId, string cycleId, int batchId, DateTimeOffset createdAt)
@@ -441,12 +470,13 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         };
 
     private sealed record ScenarioIds(int FutureCycle, int PendingResponse, int Accepted, int Rejected, int AcceptedReturned,
-        int WithoutFile, int TechnicalFailure, int RetrySucceeded, int ExactFile)
+        int WithoutFile, int TechnicalFailure, int RetrySucceeded, int ExactFile, int AchSpecialDateCycle, int CenitSpecialDateCycle)
     {
         public static ScenarioIds From(IReadOnlyDictionary<string, int> ids) => new(
             ids["UAT-F4-MON-SAL-01-FUTURO"], ids["UAT-F4-MON-SAL-02-PENDIENTE"], ids["UAT-F4-MON-SAL-03-ACEPTADA"],
             ids["UAT-F4-MON-SAL-04-RECHAZADA"], ids["UAT-F4-MON-SAL-05-DEVUELTA"], ids["UAT-F4-MON-SAL-06-SIN-ARCHIVO"],
-            ids["UAT-F4-MON-SAL-07-ERROR-TECNICO"], ids["UAT-F4-MON-SAL-08-REINTENTO"], ids["UAT-F4-MON-SAL-11-ARCHIVO-EXACTO"]);
+            ids["UAT-F4-MON-SAL-07-ERROR-TECNICO"], ids["UAT-F4-MON-SAL-08-REINTENTO"], ids["UAT-F4-MON-SAL-11-ARCHIVO-EXACTO"],
+            ids["UAT-F4-MON-SAL-12-ACH-FECHA-ESPECIAL"], ids["UAT-F4-MON-SAL-13-CENIT-FECHA-ESPECIAL"]);
     }
 
     private static FinancialInstitution Institution(string name, bool source, string routing, string transit)
@@ -530,7 +560,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
             if (Provider == DatabaseProvider.SqlServer) options.UseSqlServer(_connectionString, sql => sql.MigrationsAssembly("Cfa.ACHInterbank.Persistence.Migrations.SqlServer"));
             else options.UseNpgsql(_connectionString);
             options.ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning));
-            return new AchDbContext(options.Options);
+            return new AchDbContext(options.Options, timeProvider: new FixedTimeProvider(ScenarioNow));
         }
 
         public async ValueTask DisposeAsync()
