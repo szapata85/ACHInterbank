@@ -19,9 +19,15 @@ using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
 
-public class OfficialNachaGenerationTableDrivenTests
+public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNachaGenerationFixture>
 {
     private static readonly string[] OfficialRecordCodes = ["1", "5", "6", "7", "8", "9"];
+    private readonly OfficialNachaGenerationFixture _fixture;
+
+    public OfficialNachaGenerationTableDrivenTests(OfficialNachaGenerationFixture fixture)
+    {
+        _fixture = fixture;
+    }
 
     [Fact]
     public async Task OfficialNachaGeneration_ShouldUsePublishedAchProfile()
@@ -55,7 +61,7 @@ public class OfficialNachaGenerationTableDrivenTests
     [Fact]
     public async Task OfficialNachaGeneration_ShouldNotFallbackToLegacy_WhenProfileMissing()
     {
-        await using var context = CreateContext();
+        await using var context = await CreateContextAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -1055,22 +1061,9 @@ public class OfficialNachaGenerationTableDrivenTests
         };
     }
 
-    private static async Task<AchDbContext> SeedAsync()
-    {
-        var context = CreateContext();
-        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
-        return context;
-    }
+    private Task<AchDbContext> SeedAsync() => _fixture.CreateSeededContextAsync();
 
-    private static AchDbContext CreateContext()
-    {
-        var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        var context = new AchDbContext(options);
-        context.Database.EnsureCreated();
-        return context;
-    }
+    private Task<AchDbContext> CreateContextAsync() => _fixture.CreateEmptyContextAsync();
 
     private static async Task<CfgLayoutField> LoadFieldAsync(AchDbContext context, string profileCode, string recordCode, string fieldCode)
     {
