@@ -72,6 +72,39 @@ export interface SchedulerTask {
   endAt?: string | null;
   synchronizationStatus: string;
   lastSynchronizationError?: string | null;
+  category: string;
+  processType: string;
+  soapService?: string | null;
+  usesCycleSchedule: boolean;
+  canEditSchedule: boolean;
+  operationalContexts: SchedulerOperationalContext[];
+}
+
+export interface SchedulerOperationalContext {
+  cycleConfigId: number;
+  clearingHouseCode: string;
+  clearingHouseName: string;
+  cycleName: string;
+  windowDescription: string;
+  cutoffDescription: string;
+  nextValidWindowUtc?: string | null;
+  nextValidWindowEndUtc?: string | null;
+  status: string;
+}
+
+export interface SchedulerTechnicalInfo {
+  taskCode: string;
+  handlerCode: string;
+  soapService?: string | null;
+  jobName: string;
+  jobGroup: string;
+  cronExpression?: string | null;
+  timeZoneId: string;
+  misfirePolicy: number;
+  requestsRecovery: boolean;
+  allowsConcurrentExecution: boolean;
+  parameters: Record<string, string>;
+  triggerKeys: string[];
 }
 
 export interface SchedulerExecution {

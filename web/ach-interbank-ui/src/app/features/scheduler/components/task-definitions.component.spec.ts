@@ -1,207 +1,169 @@
-import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { of, Subject, throwError } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SchedulerTask } from '../models/task-definition.model';
 import { TaskDefinitionsService } from '../services/task-definitions.service';
-import { TaskDefinitionsComponent } from './task-definitions.component';
+import {
+  SchedulerManualExecutionDialogComponent,
+  SchedulerScheduleDialogComponent,
+  TaskDefinitionsComponent
+} from './task-definitions.component';
+
+const task: SchedulerTask = {
+  taskCode: 'CONTRAPARTIDA_DISPATCH',
+  name: 'Despachar débitos originados por CFA',
+  description: 'Evalúa y envía únicamente los débitos elegibles.',
+  category: 'Integración SOAP',
+  processType: 'Movimiento monetario débito',
+  soapService: 'Proc_Contrapartidas',
+  status: 'Activa', clearingHouse: 'ACH Colombia y CENIT',
+  scheduleDescription: 'Gobernada por ciclos', cronExpression: null, timeZoneId: 'America/Bogota',
+  misfirePolicy: 0, misfireDescription: 'Omitir y continuar.', lastExecutionUtc: null,
+  nextExecutionUtc: '2026-08-07T12:30:00Z', lastResult: 'Succeeded', lastDurationMilliseconds: 120,
+  lastSchedulerInstance: 'api-01', currentState: 'En espera', manualExecutionEnabled: true,
+  requestsRecovery: false, allowsConcurrentExecution: false, periodicityType: 1, n: 5, minute: null,
+  timeOfDay: null, weeklyDay: null, monthDay: null, onlyBusinessDays: true, startAt: null, endAt: null,
+  synchronizationStatus: 'Synchronized', lastSynchronizationError: null, usesCycleSchedule: true,
+  canEditSchedule: false,
+  operationalContexts: [{
+    cycleConfigId: 1, clearingHouseCode: 'ACHCOL', clearingHouseName: 'ACH Colombia', cycleName: 'Ciclo 1',
+    windowDescription: '19:01 a 08:30', cutoffDescription: '08:30', nextValidWindowUtc: '2026-08-07T00:01:00Z',
+    nextValidWindowEndUtc: '2026-08-07T13:30:00Z', status: 'Programada'
+  }]
+};
+
+function serviceSpy(): jasmine.SpyObj<TaskDefinitionsService> {
+  const service = jasmine.createSpyObj<TaskDefinitionsService>('TaskDefinitionsService', [
+    'getOverview', 'getSchedulerTasks', 'getHistory', 'executeNow', 'pause', 'resume',
+    'updateSchedule', 'previewSchedule', 'getTechnicalInfo'
+  ]);
+  service.getOverview.and.returnValue(of({ totalInstances: 1, activeInstances: 1, offlineInstances: 0,
+    runningJobs: 0, upcomingExecutions: 1, recentFailures: 0, recentMisfires: 0,
+    schedulerName: 'interno', persistentStore: true, clustered: true, pendingSynchronizations: 0 }));
+  service.getSchedulerTasks.and.returnValue(of([task]));
+  service.getHistory.and.returnValue(of({ items: [], page: 1, pageSize: 25, total: 0 }));
+  service.previewSchedule.and.returnValue(of({ description: 'Cada 5 minutos', nextExecutionsUtc: [
+    '2026-08-07T12:05:00Z','2026-08-07T12:10:00Z','2026-08-07T12:15:00Z','2026-08-07T12:20:00Z','2026-08-07T12:25:00Z'
+  ] }));
+  return service;
+}
 
 describe('TaskDefinitionsComponent', () => {
   let fixture: ComponentFixture<TaskDefinitionsComponent>;
   let component: TaskDefinitionsComponent;
   let service: jasmine.SpyObj<TaskDefinitionsService>;
-
-  const task: SchedulerTask = {
-    taskCode: 'ACH_CYCLE_SCHEDULER',
-    name: 'Programador de ciclos',
-    description: 'Programa los ciclos operativos',
-    status: 'Activa',
-    clearingHouse: null,
-    scheduleDescription: 'Lunes a viernes a las 6:30 a. m.',
-    cronExpression: '0 30 6 ? * MON-FRI',
-    timeZoneId: 'America/Bogota',
-    misfirePolicy: 0,
-    misfireDescription: 'Omitir la ejecucion perdida.',
-    lastExecutionUtc: null,
-    nextExecutionUtc: '2026-07-21T11:30:00Z',
-    lastResult: 'Succeeded',
-    lastDurationMilliseconds: 120,
-    lastSchedulerInstance: 'achinterbank-api-01',
-    currentState: 'En espera',
-    manualExecutionEnabled: true,
-    requestsRecovery: false,
-    allowsConcurrentExecution: false,
-    periodicityType: 6,
-    n: null,
-    minute: null,
-    timeOfDay: '06:30',
-    weeklyDay: 1,
-    monthDay: 1,
-    onlyBusinessDays: true,
-    startAt: null,
-    endAt: null,
-    synchronizationStatus: 'Pending',
-    lastSynchronizationError: null
-  };
+  let dialog: jasmine.SpyObj<MatDialog>;
 
   beforeEach(async () => {
-    service = jasmine.createSpyObj<TaskDefinitionsService>('TaskDefinitionsService', [
-      'getOverview', 'getSchedulerTasks', 'getInstances', 'getHistory', 'executeNow',
-      'pause', 'resume', 'updateSchedule', 'previewSchedule'
-    ]);
-    service.getOverview.and.returnValue(of({
-      totalInstances: 2, activeInstances: 2, offlineInstances: 0, runningJobs: 0,
-      upcomingExecutions: 1, recentFailures: 0, recentMisfires: 0,
-      schedulerName: 'ACHInterbankScheduler', persistentStore: true, clustered: true,
-      pendingSynchronizations: 0
-    }));
-    service.getSchedulerTasks.and.returnValue(of([task]));
-    service.getInstances.and.returnValue(of([{
-      instanceId: 'instance-1', instanceName: 'api-01', hostName: 'servidor-01',
-      startedAtUtc: '2026-07-21T11:00:00Z', lastHeartbeatUtc: '2026-07-21T11:30:00Z',
-      status: 'Online', isCurrentInstance: true, currentlyExecutingJobs: 0, version: 'test'
-    }]));
-    service.getHistory.and.returnValue(of({ items: [{
-      executionId: 'execution-1', taskCode: task.taskCode, jobName: 'job', jobGroup: 'group',
-      triggerName: 'trigger', triggerType: 'Recovery', fireInstanceId: 'fire', schedulerInstanceId: 'instance-1',
-      schedulerInstanceName: 'api-01', requestedByUserId: null, requestedByUserName: 'admin', requestReason: 'test',
-      idempotencyKey: null, correlationId: 'correlation-1', scheduledFireTimeUtc: null, actualFireTimeUtc: null,
-      startedAtUtc: '2026-07-21T11:00:00Z', finishedAtUtc: null, durationMilliseconds: 100, status: 4,
-      isRecovery: true, refireCount: 0, misfireDetected: true, resultSummary: 'ok', errorCode: null,
-      errorSummary: null
-    } as any], page: 1, pageSize: 25, total: 1 }));
-
+    service = serviceSpy();
+    dialog = jasmine.createSpyObj<MatDialog>('MatDialog', ['open']);
+    dialog.open.and.returnValue({ afterClosed: () => of(undefined) } as any);
     await TestBed.configureTestingModule({
-      imports: [TaskDefinitionsComponent],
+      imports: [TaskDefinitionsComponent, NoopAnimationsModule],
       providers: [
         { provide: TaskDefinitionsService, useValue: service },
         { provide: AuthService, useValue: { hasPermission: () => true } },
         { provide: NotificationService, useValue: { success: jasmine.createSpy(), error: jasmine.createSpy() } }
       ]
+    }).overrideComponent(TaskDefinitionsComponent, {
+      add: { providers: [{ provide: MatDialog, useValue: dialog }] }
     }).compileComponents();
-
     fixture = TestBed.createComponent(TaskDefinitionsComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
 
-  it('muestra el tablero, la tarea y la programacion legible', () => {
+  it('presenta nombres humanizados, español y contexto operativo sin exponer códigos técnicos', () => {
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toMatch(/Administraci.n de tareas programadas/);
-    expect(text).toContain('Programador de ciclos');
-    expect(text).toContain('Lunes a viernes a las 6:30 a. m.');
-    expect(text).toContain('Almacenamiento persistente');
-    expect(text).toContain('Tareas en ejecución');
-    expect(text).toContain('Ejecuciones perdidas recientes');
-    expect(text).toContain('Omitir la ejecución perdida');
-    expect(text).toContain('Última señal de actividad');
-    expect(text).toContain('Identificador de instancia');
-    expect(text).toContain('Servidor');
-    expect(text).toContain('Identificador de correlación');
-    expect(text).toContain('Recuperación');
+    expect(text).toContain('Tareas programadas');
+    expect(text).toContain('Despachar débitos originados por CFA');
+    expect(text).toContain('Cámara compensadora');
+    expect(text).toContain('Gobernada por ciclos');
+    expect(text).toContain('Ventana: 19:01 a 08:30');
+    expect(text).not.toContain('CONTRAPARTIDA_DISPATCH');
+    expect(text).not.toContain('Proc_Contrapartidas');
     expect(text).not.toContain('Synchronized');
-    expect(text).not.toContain('Online');
-    expect(text).not.toContain('Recovery');
-    expect(text).not.toContain('Succeeded');
-    expect(text).not.toContain('[object Object]');
   });
 
-  it('traduce estados, activadores y valores desconocidos sin exponer inglés crudo', () => {
-    expect(component.synchronizationStatusLabel('Synchronized')).toBe('Sincronizada');
-    expect(component.instanceStatusLabel('Online')).toBe('En línea');
-    expect(component.instanceStatusLabel('Offline')).toBe('Desconectada');
-    expect(component.triggerTypeLabel('Recovery')).toBe('Recuperación');
-    expect(component.triggerTypeLabel('Misfire')).toBe('Ejecución perdida');
-    expect(component.synchronizationStatusLabel('Unexpected')).toBe('Estado de sincronización no reconocido');
-    expect(component.taskResultLabel('Succeeded')).toBe('Exitosa');
-    expect(component.taskResultLabel('Unexpected')).toBe('Resultado no reconocido');
-  });
-
-  it('muestra los textos traducidos en los diálogos', () => {
-    component.openManual(task);
-    component.openSchedule(task);
-    component.showDetail(task);
-    fixture.detectChanges();
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Identificador de solicitud');
-    expect(text).toContain('Acción ante una ejecución perdida');
-    expect(text).toContain('Expresión cron');
-    expect(text).toContain('Recuperación automática');
-    expect(text).not.toContain('DoNothing');
-    expect(text).not.toContain('FireAndProceed');
-  });
-
-  it('exige motivo y evita doble envio mientras la solicitud esta en curso', () => {
-    const pending = new Subject<{ outcome: number; executionId: string; message: string }>();
-    service.executeNow.and.returnValue(pending.asObservable());
-    component.openManual(task);
-    component.executeNow();
-    expect(service.executeNow).not.toHaveBeenCalled();
-
-    component.manualForm.patchValue({ reason: 'Reproceso autorizado por Operaciones' });
-    component.executeNow();
-    component.executeNow();
-
-    expect(service.executeNow).toHaveBeenCalledTimes(1);
-    expect(component.submittingManual).toBeTrue();
-    pending.next({ outcome: 0, executionId: crypto.randomUUID(), message: 'Aceptada' });
-    pending.complete();
-  });
-
-  it('presenta errores de tareas sin convertirlos en una lista vacía válida', () => {
+  it('distingue ausencia de tareas y filtros sin coincidencias', () => {
     component.tasks = [];
-    component.tasksLoaded = false;
-    service.getSchedulerTasks.and.returnValue(throwError(() => new HttpErrorResponse({
-      status: 409,
-      error: { message: 'La tarea ya tiene una ejecucion activa.' }
-    })));
-
-    component.load();
-
-    expect(component.tasksError).toBe('La tarea ya tiene una ejecucion activa.');
-    expect(component.tasksError).not.toContain('[object Object]');
-    expect(component.tasksLoaded).toBeFalse();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Todavía no hay tareas programadas disponibles.');
+    component.tasks = [task];
+    component.filterForm.controls.search.setValue('sin coincidencia');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('No encontramos tareas que coincidan con los filtros seleccionados.');
   });
 
-  it('conserva tareas e instancias cuando falla únicamente el historial', () => {
-    service.getHistory.and.returnValue(throwError(() => new HttpErrorResponse({
-      status: 503,
-      error: { title: 'Historial temporalmente no disponible' }
-    })));
+  it('abre ejecución manual con datos funcionales y sin flujo directo al handler', () => {
+    component.openManual(task);
+    expect(dialog.open).toHaveBeenCalledWith(SchedulerManualExecutionDialogComponent, jasmine.objectContaining({
+      disableClose: true, restoreFocus: true, data: { task }
+    }));
+  });
 
+  it('muestra el estado de error empresarial', () => {
+    service.getSchedulerTasks.and.returnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
     component.load();
     fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('No fue posible consultar las tareas.');
+  });
+});
 
-    expect(component.tasks).toEqual([task]);
-    expect(component.instances).toHaveSize(1);
-    expect(component.tasksLoaded).toBeTrue();
-    expect(component.instancesLoaded).toBeTrue();
-    expect(component.historyError).toBe('Historial temporalmente no disponible');
+describe('SchedulerManualExecutionDialogComponent', () => {
+  let fixture: ComponentFixture<SchedulerManualExecutionDialogComponent>;
+  let component: SchedulerManualExecutionDialogComponent;
+  let service: jasmine.SpyObj<TaskDefinitionsService>;
+  let ref: jasmine.SpyObj<MatDialogRef<SchedulerManualExecutionDialogComponent>>;
+
+  beforeEach(async () => {
+    service = serviceSpy();
+    ref = jasmine.createSpyObj('MatDialogRef', ['close']);
+    await TestBed.configureTestingModule({ imports: [SchedulerManualExecutionDialogComponent, NoopAnimationsModule], providers: [
+      { provide: TaskDefinitionsService, useValue: service }, { provide: MatDialogRef, useValue: ref },
+      { provide: MAT_DIALOG_DATA, useValue: { task } }
+    ] }).compileComponents();
+    fixture = TestBed.createComponent(SchedulerManualExecutionDialogComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('exige motivo, muestra mat-error y evita doble envío', () => {
+    component.form.controls.reason.markAsTouched(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('El motivo es obligatorio.');
+    const pending = new Subject<any>(); service.executeNow.and.returnValue(pending);
+    component.form.controls.reason.setValue('Ejecución extraordinaria autorizada');
+    component.submit(); component.submit();
+    expect(service.executeNow).toHaveBeenCalledTimes(1);
+    pending.next({ outcome: 0, executionId: 'seguimiento', message: 'Solicitud aceptada' }); pending.complete();
+    expect(ref.close).toHaveBeenCalled();
+  });
+
+  it('presenta conflictos 409 como condición operativa', () => {
+    service.executeNow.and.returnValue(throwError(() => new HttpErrorResponse({ status: 409, error: { message: 'La tarea ya está en ejecución y no puede iniciarse nuevamente hasta que finalice.' } })));
+    component.form.controls.reason.setValue('Ejecución extraordinaria autorizada'); component.submit(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('La tarea ya está en ejecución');
+  });
+});
+
+describe('SchedulerScheduleDialogComponent', () => {
+  it('ofrece el constructor visual y cinco próximas ejecuciones', async () => {
+    const service = serviceSpy(); const ref = jasmine.createSpyObj('MatDialogRef', ['close']);
+    const editable = { ...task, usesCycleSchedule: false, canEditSchedule: true };
+    await TestBed.configureTestingModule({ imports: [SchedulerScheduleDialogComponent, NoopAnimationsModule], providers: [
+      { provide: TaskDefinitionsService, useValue: service }, { provide: MatDialogRef, useValue: ref },
+      { provide: MAT_DIALOG_DATA, useValue: { task: editable, canViewTechnical: true } }
+    ] }).compileComponents();
+    const fixture = TestBed.createComponent(SchedulerScheduleDialogComponent); fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Programador de ciclos');
-    expect(text).toContain('api-01');
-    expect(text).toContain('No se pudo cargar el historial');
-  });
-
-  it('distingue HTTP 429, respeta Retry-After y bloquea la recarga inmediata', () => {
-    service.getHistory.and.returnValue(throwError(() => new HttpErrorResponse({
-      status: 429,
-      headers: new HttpHeaders({ 'Retry-After': '3' })
-    })));
-
-    component.load();
-
-    expect(component.historyError).toContain('límite de solicitudes');
-    expect(component.historyError).toContain('3 segundos');
-    expect(component.reloadBlocked).toBeTrue();
-  });
-
-  it('distingue una sesión no autorizada', () => {
-    service.getOverview.and.returnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
-
-    component.load();
-
-    expect(component.overviewError).toContain('sesión no está autorizada');
+    expect(fixture.componentInstance.options.map(x => x.label)).toContain('Cada cierto número de minutos');
+    expect(fixture.componentInstance.options.map(x => x.label)).toContain('Una vez al año');
+    expect(text).toContain('Todas las horas corresponden a la hora de Colombia.');
+    expect(text).toContain('Programación avanzada');
+    expect(fixture.componentInstance.preview?.nextExecutionsUtc).toHaveSize(5);
   });
 });

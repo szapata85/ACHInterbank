@@ -24,7 +24,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
 {
 
     [Fact]
-    public async Task ExecuteAsync_ReturnsNoElementsSummary_WhenQueueIsEmpty()
+    public async Task ExecuteAsync_ReturnsOperationalEvaluation_WhenQueueIsEmpty()
     {
         await using var context = BuildContext();
         var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
@@ -40,7 +40,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var result = await sut.ExecuteAsync(50, "tester");
 
         Assert.Equal(0, result.Picked);
-        Assert.Contains("Sin elementos en cola", result.Summary);
+        Assert.Contains("no encontró registros elegibles", result.Summary);
         soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -720,7 +720,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_SetsRetryPending_WhenTechnicalErrorOccurs()
+    public async Task ExecuteAsync_BlocksUncertainResponseUntilReconciliation_WhenTechnicalErrorOccurs()
     {
         await using var context = BuildContext();
         SeedDispatchItem(context);
@@ -759,10 +759,11 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
         var result = await sut.ExecuteAsync(50, "tester");
 
-        Assert.Equal(1, result.RetryPending);
+        Assert.Equal(0, result.RetryPending);
+        Assert.Equal(1, result.Blocked);
         var queue = await context.IncomingNachaDispatchQueue.FirstAsync();
-        Assert.Equal(IncomingNachaDispatchQueueStatus.RetryPending, queue.QueueStatus);
-        Assert.NotNull(queue.NextAttemptAtUtc);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, queue.QueueStatus);
+        Assert.Null(queue.NextAttemptAtUtc);
         var execution = await context.IncomingNachaIntegrationExecution.FirstAsync();
         Assert.Equal("Proc_Transacciones", execution.SoapMethodName);
         Assert.Equal("Live", execution.ExecutionMode);
@@ -771,6 +772,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.False(execution.IsSuccessful);
         Assert.False(execution.IsFunctionalRejection);
         Assert.True(execution.IsTechnicalFailure);
+        Assert.False(execution.RetryAllowed);
+        Assert.True(execution.RequiresManualReview);
         Assert.Contains("timeout", execution.TechnicalException, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<METODO>", execution.RequestPayloadXml, StringComparison.OrdinalIgnoreCase);
     }

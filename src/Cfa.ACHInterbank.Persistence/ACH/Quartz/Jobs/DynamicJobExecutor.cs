@@ -285,7 +285,8 @@ public class DynamicJobExecutor
         TaskDefinition task,
         CancellationToken cancellationToken)
     {
-        var maxRetries = task.RetryOnFailure ? Math.Max(task.MaxRetries ?? 0, 0) : 0;
+        var isSoapTask = SchedulerTaskCatalog.ByHandlerCode(task.Code)?.SoapService is not null;
+        var maxRetries = task.RetryOnFailure && !isSoapTask ? Math.Max(task.MaxRetries ?? 0, 0) : 0;
         var maxAttempts = maxRetries + 1;
         var backoff = TimeSpan.FromSeconds(Math.Max(task.RetryBackoffSeconds, 0));
         Exception? lastException = null;

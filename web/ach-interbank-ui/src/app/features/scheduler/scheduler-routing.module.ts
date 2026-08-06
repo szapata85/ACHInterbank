@@ -11,7 +11,7 @@ export const SCHEDULER_ROUTES: Routes = [
     data: {
       permissions: ['Scheduler.View'],
       breadcrumb: 'Tareas programadas',
-      title: 'Administración de tareas programadas'
+      title: 'Tareas programadas'
     }
   },
   {

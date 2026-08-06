@@ -59,4 +59,5 @@ public static class P1Policies
     public const string SchedulerManageSchedule = "P1.SchedulerManageSchedule";
     public const string SchedulerPauseResume = "P1.SchedulerPauseResume";
     public const string SchedulerViewInstances = "P1.SchedulerViewInstances";
+    public const string SchedulerViewTechnical = "P1.SchedulerViewTechnical";
 }

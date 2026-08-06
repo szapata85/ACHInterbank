@@ -1,6 +1,7 @@
 using System.Reflection;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -329,5 +330,62 @@ public class SchedulerSyncServiceTests
         contents.Should().OnlyContain(c => !c.Contains("RescheduleJob"));
         contents.Should().OnlyContain(c => !c.Contains("shifted:"));
         contents.Should().Contain(c => c.Contains("ShiftToNextBusinessDay"));
+    }
+
+    [Fact]
+    public async Task CycleGovernedTask_ShouldCreateIndependentTriggers_AndUpdateOnlyChangedCycle()
+    {
+        var dbName = nameof(CycleGovernedTask_ShouldCreateIndependentTriggers_AndUpdateOnlyChangedCycle);
+        await using (var db = new AchDbContext(BuildOptions(dbName)))
+        {
+            db.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 11, ClearingHouseId = 1, TimeZoneId = "America/Bogota" });
+            db.ClearingHouses.Add(new ClearingHouse { Id = 1, Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "001", IsActive = true, ClearingHouseId = 11 });
+            db.ClearingHouseCycleConfigs.AddRange(
+                new ClearingHouseCycleConfig { Id = 101, ClearingHouseId = 1, CycleName = "Ciclo 1", StartTime = new(8, 0, 0), EndTime = new(9, 0, 0), CutoffTime = new(9, 0, 0), IsActive = true, EffectiveFrom = DateTime.UtcNow.AddYears(-1) },
+                new ClearingHouseCycleConfig { Id = 102, ClearingHouseId = 1, CycleName = "Ciclo 2", StartTime = new(10, 0, 0), EndTime = new(11, 0, 0), CutoffTime = new(11, 0, 0), IsActive = true, EffectiveFrom = DateTime.UtcNow.AddYears(-1) });
+            db.TaskDefinitions.Add(new TaskDefinition { Id = 20, Code = "AchContrapartidasByCycle", Name = "Interna", Status = TaskStatusEnum.Enabled, ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning, PeriodicityType = PeriodicityTypeEnum.EveryNMinutes, N = 5 });
+            await db.SaveChangesAsync();
+        }
+
+        var persistedTriggers = new Dictionary<TriggerKey, ITrigger>();
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(x => x.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync((IJobDetail?)null);
+        scheduler.Setup(x => x.AddJob(It.IsAny<IJobDetail>(), true, true, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        scheduler.Setup(x => x.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => persistedTriggers.Values.ToArray());
+        scheduler.Setup(x => x.CheckExists(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        scheduler.Setup(x => x.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .Callback<ITrigger, CancellationToken>((trigger, _) => persistedTriggers[trigger.Key] = trigger)
+            .ReturnsAsync(DateTimeOffset.UtcNow);
+        scheduler.Setup(x => x.UnscheduleJob(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TriggerKey key, CancellationToken _) => persistedTriggers.Remove(key));
+
+        var service = BuildService(dbName, scheduler.Object);
+        await service.SynchronizeTaskAsync(20);
+        persistedTriggers.Keys.Should().BeEquivalentTo(new[]
+        {
+            new TriggerKey("trg:20:cycle:101:part:1", "db-tasks"),
+            new TriggerKey("trg:20:cycle:102:part:1", "db-tasks")
+        });
+        persistedTriggers.Values.Should().OnlyContain(trigger =>
+            trigger.JobDataMap["CycleConfigId"] is string
+            && trigger.JobDataMap["ClearingHouseId"] is string);
+
+        scheduler.Invocations.Clear();
+        await using (var db = new AchDbContext(BuildOptions(dbName)))
+        {
+            var changed = await db.ClearingHouseCycleConfigs.SingleAsync(x => x.Id == 101);
+            changed.StartTime = new TimeSpan(8, 15, 0);
+            await db.SaveChangesAsync();
+        }
+
+        await service.SynchronizeTaskAsync(20);
+        scheduler.Verify(x => x.UnscheduleJob(
+            It.Is<TriggerKey>(key => key.Name == "trg:20:cycle:101:part:1"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(x => x.UnscheduleJob(
+            It.Is<TriggerKey>(key => key.Name == "trg:20:cycle:102:part:1"),
+            It.IsAny<CancellationToken>()), Times.Never);
+        scheduler.Verify(x => x.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -45,7 +45,38 @@ public sealed record SchedulerTaskDto(
     DateTimeOffset? StartAt,
     DateTimeOffset? EndAt,
     string SynchronizationStatus,
-    string? LastSynchronizationError);
+    string? LastSynchronizationError,
+    string Category,
+    string ProcessType,
+    string? SoapService,
+    bool UsesCycleSchedule,
+    bool CanEditSchedule,
+    IReadOnlyList<SchedulerOperationalContextDto> OperationalContexts);
+
+public sealed record SchedulerOperationalContextDto(
+    int CycleConfigId,
+    string ClearingHouseCode,
+    string ClearingHouseName,
+    string CycleName,
+    string WindowDescription,
+    string CutoffDescription,
+    DateTimeOffset? NextValidWindowUtc,
+    DateTimeOffset? NextValidWindowEndUtc,
+    string Status);
+
+public sealed record SchedulerTechnicalInfoDto(
+    string TaskCode,
+    string HandlerCode,
+    string? SoapService,
+    string JobName,
+    string JobGroup,
+    string? CronExpression,
+    string TimeZoneId,
+    SchedulerMisfirePolicy MisfirePolicy,
+    bool RequestsRecovery,
+    bool AllowsConcurrentExecution,
+    IReadOnlyDictionary<string, string> Parameters,
+    IReadOnlyList<string> TriggerKeys);
 
 public sealed record SchedulerExecutionDto(
     Guid ExecutionId,

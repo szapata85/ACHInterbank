@@ -18,6 +18,7 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
     public static readonly Guid SchedulerManageSchedulePermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd04");
     public static readonly Guid SchedulerPauseResumePermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd05");
     public static readonly Guid SchedulerViewInstancesPermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd06");
+    public static readonly Guid SchedulerViewTechnicalPermissionId = Guid.Parse("d1445236-b093-4d6f-8b09-821599d4dd07");
     public static readonly Guid ClearingHousesViewPermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000001");
     public static readonly Guid ClearingHousesCreatePermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000002");
     public static readonly Guid ClearingHousesUpdatePermissionId = Guid.Parse("c1ea0001-5b98-4d95-a100-000000000003");
@@ -83,6 +84,7 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
             new Permission { Id = ClearingHousesManageCyclesPermissionId, Name = "ClearingHouses.ManageCycles", Description = "Administrar ciclos por cámara" },
             new Permission { Id = ClearingHousesManageSpecialDatesPermissionId, Name = "ClearingHouses.ManageSpecialDates", Description = "Administrar fechas especiales por cámara" },
             new Permission { Id = SchedulerPauseResumePermissionId, Name = "Scheduler.PauseResume", Description = "Pausar y reanudar tareas" },
-            new Permission { Id = SchedulerViewInstancesPermissionId, Name = "Scheduler.ViewInstances", Description = "Consultar instancias del clúster" });
+            new Permission { Id = SchedulerViewInstancesPermissionId, Name = "Scheduler.ViewInstances", Description = "Consultar instancias del clúster" },
+            new Permission { Id = SchedulerViewTechnicalPermissionId, Name = "Scheduler.Technical.View", Description = "Consultar información técnica de tareas programadas" });
     }
 }

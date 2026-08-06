@@ -7,6 +7,7 @@ public interface ISchedulerAdminService
     Task<SchedulerOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SchedulerTaskDto>> GetTasksAsync(CancellationToken cancellationToken = default);
     Task<SchedulerTaskDto?> GetTaskAsync(string taskCode, CancellationToken cancellationToken = default);
+    Task<SchedulerTechnicalInfoDto?> GetTechnicalInfoAsync(string taskCode, CancellationToken cancellationToken = default);
     Task<SchedulerPagedResult<SchedulerExecutionDto>> GetHistoryAsync(string? taskCode, SchedulerHistoryQuery query, CancellationToken cancellationToken = default);
     Task<SchedulerExecutionDto?> GetExecutionAsync(Guid executionId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SchedulerInstanceDto>> GetInstancesAsync(CancellationToken cancellationToken = default);

@@ -392,6 +392,8 @@ public static class DependencyInjectionService
                 policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.PauseResume));
             options.AddPolicy(P1Policies.SchedulerViewInstances,
                 policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.ViewInstances));
+            options.AddPolicy(P1Policies.SchedulerViewTechnical,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.ViewTechnical));
 
             foreach (var permission in FineGrainedPermissions.AllPermissions)
             {

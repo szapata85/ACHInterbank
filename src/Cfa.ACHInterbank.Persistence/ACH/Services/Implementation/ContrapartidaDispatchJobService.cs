@@ -306,10 +306,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 parseResult = new ProcContrapartidasParsedResponse(
                     IsSuccess: false,
                     IsSoapFault: false,
-                    IsRetryable: true,
+                    IsRetryable: false,
                     IsFunctionalRejection: false,
                     ErrorCode: "SOAP_EXCEPTION",
-                    ErrorMessage: ex.Message,
+                    ErrorMessage: "La respuesta del servicio es incierta y requiere conciliación antes de reenviar.",
                     RawResponse: technicalException,
                     ResponseCode: "SOAP_EXCEPTION",
                     ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>());
@@ -701,10 +701,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 parseResult = new ProcContrapartidasParsedResponse(
                     IsSuccess: false,
                     IsSoapFault: false,
-                    IsRetryable: true,
+                    IsRetryable: false,
                     IsFunctionalRejection: false,
                     ErrorCode: "SOAP_EXCEPTION",
-                    ErrorMessage: ex.Message,
+                    ErrorMessage: "La respuesta del servicio es incierta y requiere conciliación antes de reenviar.",
                     RawResponse: technicalException,
                     ResponseCode: "SOAP_EXCEPTION",
                     ItemResults: new Dictionary<int, ProcContrapartidasParsedItemResponse>());
@@ -1213,6 +1213,16 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
 
     private OperationalCycleWindow ValidateCycleOperationalWindow(AchCycle cycle, DateTimeOffset nowInstant)
     {
+        if (cycle.ClearingHouse is null || !cycle.ClearingHouse.IsActive)
+        {
+            throw new InvalidOperationException($"Cámara inactiva o no disponible para {cycle.Id}.");
+        }
+
+        if (cycle.OperationalStatus != AchCycleOperationalStatus.Open)
+        {
+            throw new InvalidOperationException($"El ciclo {cycle.Id} no se encuentra abierto.");
+        }
+
         if (cycle.ClearingHouseCycleConfig is not null)
         {
             if (!cycle.ClearingHouseCycleConfig.IsActive)

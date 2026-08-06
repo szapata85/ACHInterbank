@@ -1,8 +1,10 @@
 ﻿using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.Scheduler;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -121,7 +123,7 @@ public class SchedulerSyncService : BackgroundService
                 return;
             }
 
-            await ScheduleOrUpdateTaskAsync(scheduler, task, cancellationToken);
+            await ScheduleOrUpdateTaskAsync(scheduler, db, task, cancellationToken);
             await MarkSynchronizationSucceededAsync(db, task, cancellationToken);
         }
         catch (Exception ex)
@@ -131,8 +133,19 @@ public class SchedulerSyncService : BackgroundService
         }
     }
 
-    private async Task ScheduleOrUpdateTaskAsync(IScheduler scheduler, TaskDefinition task, CancellationToken cancellationToken)
+    private async Task ScheduleOrUpdateTaskAsync(
+        IScheduler scheduler,
+        AchDbContext db,
+        TaskDefinition task,
+        CancellationToken cancellationToken)
     {
+        var catalog = SchedulerTaskCatalog.ByHandlerCode(task.Code);
+        if (catalog?.UsesCycleSchedule == true)
+        {
+            await ScheduleOrUpdateCycleGovernedTaskAsync(scheduler, db, task, catalog, cancellationToken);
+            return;
+        }
+
         var jobKey = GetJobKey(task.Id);
         var triggerKey = GetTriggerKey(task.Id);
 
@@ -169,6 +182,124 @@ public class SchedulerSyncService : BackgroundService
             await scheduler.PauseJob(jobKey, cancellationToken);
         }
         _logger.LogInformation("Task {Id}/{Code} sincronizada con éxito.", task.Id, task.Code);
+    }
+
+    private async Task ScheduleOrUpdateCycleGovernedTaskAsync(
+        IScheduler scheduler,
+        AchDbContext db,
+        TaskDefinition task,
+        SchedulerTaskCatalogEntry catalog,
+        CancellationToken cancellationToken)
+    {
+        var jobKey = GetJobKey(task.Id);
+        var jobType = GetJobTypeForConcurrencyPolicy(task.ConcurrencyPolicy);
+        var existingJob = await scheduler.GetJobDetail(jobKey, cancellationToken);
+        if (existingJob is not null && existingJob.JobType != jobType)
+        {
+            await scheduler.DeleteJob(jobKey, cancellationToken);
+        }
+
+        var job = JobBuilder.Create(jobType)
+            .WithIdentity(jobKey)
+            .UsingJobData("TaskId", task.Id.ToString(CultureInfo.InvariantCulture))
+            .UsingJobData("TaskCode", task.Code)
+            .RequestRecovery(task.RequestsRecovery)
+            .StoreDurably()
+            .Build();
+        await scheduler.AddJob(job, true, true, cancellationToken);
+
+        var today = DateTime.UtcNow.Date;
+        var configurations = await db.ClearingHouseCycleConfigs.AsNoTracking()
+            .Include(x => x.ClearingHouse)
+                .ThenInclude(x => x.ClearingHouseConfig)
+            .Where(x => x.IsActive
+                && x.ClearingHouse.IsActive
+                && x.EffectiveFrom.Date <= today
+                && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= today))
+            .ToListAsync(cancellationToken);
+
+        var expected = configurations
+            .SelectMany(config => BuildCycleTriggers(task, catalog, config, jobKey))
+            .ToDictionary(x => x.Key, x => x);
+        var current = (await scheduler.GetTriggersOfJob(jobKey, cancellationToken))
+            .Where(x => x.Key.Name.StartsWith($"trg:{task.Id}:cycle:", StringComparison.Ordinal))
+            .ToDictionary(x => x.Key, x => x);
+
+        var legacyTrigger = GetTriggerKey(task.Id);
+        if (await scheduler.CheckExists(legacyTrigger, cancellationToken))
+        {
+            await scheduler.UnscheduleJob(legacyTrigger, cancellationToken);
+        }
+
+        foreach (var trigger in expected.Values)
+        {
+            var fingerprint = trigger.JobDataMap.GetString("ScheduleFingerprint");
+            if (current.TryGetValue(trigger.Key, out var existing)
+                && string.Equals(existing.JobDataMap.GetString("ScheduleFingerprint"), fingerprint, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (current.ContainsKey(trigger.Key))
+            {
+                await scheduler.UnscheduleJob(trigger.Key, cancellationToken);
+            }
+            await scheduler.ScheduleJob(trigger, cancellationToken);
+        }
+
+        foreach (var orphan in current.Keys.Where(x => !expected.ContainsKey(x)))
+        {
+            await scheduler.UnscheduleJob(orphan, cancellationToken);
+        }
+
+        if (task.Paused)
+        {
+            await scheduler.PauseJob(jobKey, cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "Tarea {TaskCode} alineada con {CycleCount} ciclos activos mediante {TriggerCount} activadores derivados.",
+            catalog.TaskCode,
+            configurations.Count,
+            expected.Count);
+    }
+
+    private static IReadOnlyList<ITrigger> BuildCycleTriggers(
+        TaskDefinition task,
+        SchedulerTaskCatalogEntry catalog,
+        ClearingHouseCycleConfig config,
+        JobKey jobKey)
+    {
+        var parts = config.StartTime <= config.EndTime
+            ? new[] { (config.StartTime, config.EndTime) }
+            : new[]
+            {
+                (config.StartTime, new TimeSpan(23, 59, 59)),
+                (TimeSpan.Zero, config.EndTime)
+            };
+        var triggers = new List<ITrigger>(parts.Length);
+        for (var index = 0; index < parts.Length; index++)
+        {
+            var (start, end) = parts[index];
+            var fingerprint = $"{config.Id}|{config.StartTime:c}|{config.EndTime:c}|{catalog.MinimumIntervalMinutes}|{config.ClearingHouse.ClearingHouseConfig.TimeZoneId}|{index}";
+            var schedule = DailyTimeIntervalScheduleBuilder.Create()
+                .StartingDailyAt(new TimeOfDay(start.Hours, start.Minutes, start.Seconds))
+                .EndingDailyAt(new TimeOfDay(end.Hours, end.Minutes, end.Seconds))
+                .WithIntervalInMinutes(catalog.MinimumIntervalMinutes)
+                .OnEveryDay()
+                .InTimeZone(TimeZoneInfo.FindSystemTimeZoneById(config.ClearingHouse.ClearingHouseConfig.TimeZoneId))
+                .WithMisfireHandlingInstructionDoNothing();
+            triggers.Add(TriggerBuilder.Create()
+                .WithIdentity($"trg:{task.Id}:cycle:{config.Id}:part:{index + 1}", DynamicGroup)
+                .ForJob(jobKey)
+                .UsingJobData("CycleConfigId", config.Id.ToString(CultureInfo.InvariantCulture))
+                .UsingJobData("ClearingHouseId", config.ClearingHouseId.ToString(CultureInfo.InvariantCulture))
+                .UsingJobData("ScheduleFingerprint", fingerprint)
+                .WithSchedule(schedule)
+                .Build());
+        }
+
+        return triggers;
     }
 
     private async Task DeleteTaskJobAsync(IScheduler scheduler, int taskId, CancellationToken cancellationToken)
@@ -272,6 +403,12 @@ public class SchedulerSyncService : BackgroundService
                 return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.MonthlyOnDayAndHourAndMinute(task.MonthDay!.Value, task.TimeOfDay!.Value.Hour, task.TimeOfDay.Value.Minute).InTimeZone(tz), task.MisfirePolicy)).Build();
             case PeriodicityTypeEnum.Cron:
                 return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder.CronSchedule(task.CronExpression!).InTimeZone(tz), task.MisfirePolicy)).Build();
+            case PeriodicityTypeEnum.Yearly:
+                if (!task.StartAt.HasValue) return null;
+                var local = TimeZoneInfo.ConvertTime(task.StartAt.Value, tz);
+                return tb.WithSchedule(ApplyCronMisfire(CronScheduleBuilder
+                    .CronSchedule($"{local.Second} {local.Minute} {local.Hour} {local.Day} {local.Month} ?")
+                    .InTimeZone(tz), task.MisfirePolicy)).Build();
             default:
                 return null;
         }
@@ -296,7 +433,7 @@ public class SchedulerSyncService : BackgroundService
 
         try
         {
-            await ScheduleOrUpdateTaskAsync(scheduler, task, cancellationToken);
+            await ScheduleOrUpdateTaskAsync(scheduler, db, task, cancellationToken);
             await MarkSynchronizationSucceededAsync(db, task, cancellationToken);
         }
         catch (Exception ex)

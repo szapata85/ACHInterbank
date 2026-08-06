@@ -115,6 +115,86 @@ public sealed class SchedulerAdministrationTests
         PolicyOf(nameof(SchedulerController.UpdateSchedule)).Should().Be(P1Policies.SchedulerManageSchedule);
         PolicyOf(nameof(SchedulerController.Pause)).Should().Be(P1Policies.SchedulerPauseResume);
         PolicyOf(nameof(SchedulerController.GetInstances)).Should().Be(P1Policies.SchedulerViewInstances);
+        PolicyOf(nameof(SchedulerController.GetTechnicalInfo)).Should().Be(P1Policies.SchedulerViewTechnical);
+    }
+
+    [Fact]
+    public async Task CycleGovernedSchedule_ShouldRejectSecondSourceOfOperationalHours()
+    {
+        var scheduler = new Mock<IScheduler>();
+        await using var fixture = await SchedulerFixture.CreateAsync(scheduler);
+        fixture.Db.TaskDefinitions.Add(new TaskDefinition
+        {
+            Id = 2,
+            Code = "AchContrapartidasByCycle",
+            Name = "Interna",
+            Status = TaskStatusEnum.Enabled,
+            PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+            N = 5
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var action = () => fixture.Service.UpdateScheduleAsync(new SchedulerScheduleUpdateCommand(
+            "CONTRAPARTIDA_DISPATCH",
+            new SchedulerScheduleUpdateRequest(1, 10, null, null, null, null, null,
+                "America/Bogota", SchedulerMisfirePolicy.DoNothing, true, null, null),
+            "admin", "administrador"));
+
+        await action.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*depende del ciclo de compensación*");
+    }
+
+    [Fact]
+    public async Task SoapTaskManualExecution_ShouldTriggerExistingQuartzJobForSafeEvaluation()
+    {
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(x => x.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        scheduler.Setup(x => x.TriggerJob(It.IsAny<JobKey>(), It.IsAny<JobDataMap>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        await using var fixture = await SchedulerFixture.CreateAsync(scheduler);
+        fixture.Db.TaskDefinitions.Add(new TaskDefinition
+        {
+            Id = 2,
+            Code = "AchContrapartidasByCycle",
+            Name = "Interna",
+            Status = TaskStatusEnum.Enabled,
+            ManualExecutionEnabled = true,
+            ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+            PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+            N = 5
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ExecuteNowAsync(new ExecuteSchedulerTaskCommand(
+            "CONTRAPARTIDA_DISPATCH", "Evaluación extraordinaria autorizada", Guid.NewGuid(), "user", "operador", "corr"));
+
+        result.Outcome.Should().Be(ManualExecutionOutcome.Accepted);
+        result.ExecutionId.Should().NotBeNull();
+        scheduler.Verify(x => x.TriggerJob(
+            It.Is<JobKey>(key => key.Name == "job:2" && key.Group == "db-tasks"),
+            It.Is<JobDataMap>(data => data.GetString("TriggerType") == "Manual"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Tasks_ShouldUseCentralHumanizedMetadata()
+    {
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(x => x.GetTriggersOfJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<ITrigger>());
+        await using var fixture = await SchedulerFixture.CreateAsync(scheduler);
+        var definition = await fixture.Db.TaskDefinitions.SingleAsync();
+        definition.PeriodicityType = PeriodicityTypeEnum.Cron;
+        definition.CronExpression = "0 30 0 1 1 ? *";
+        await fixture.Db.SaveChangesAsync();
+
+        var tasks = await fixture.Service.GetTasksAsync();
+
+        tasks.Should().ContainSingle();
+        tasks[0].Name.Should().Be("Preparar ciclos operativos");
+        tasks[0].Description.Should().Contain("configuración vigente");
+        tasks[0].TaskCode.Should().Be("ACH_CYCLE_SCHEDULER");
+        tasks[0].ScheduleDescription.Should().Be("Una vez al año, el 1 de enero a las 00:30");
+        tasks[0].ScheduleDescription.Should().NotContain("0 30 0 1 1 ? *");
     }
 
     [Fact]

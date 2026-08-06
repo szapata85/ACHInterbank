@@ -187,6 +187,7 @@ public static class FineGrainedPermissions
         public const string ManageSchedule = "Scheduler.ManageSchedule";
         public const string PauseResume = "Scheduler.PauseResume";
         public const string ViewInstances = "Scheduler.ViewInstances";
+        public const string ViewTechnical = "Scheduler.Technical.View";
     }
 
     public static IReadOnlyList<string> AllPermissions { get; } =
@@ -214,6 +215,7 @@ public static class FineGrainedPermissions
         Integrations.Read, Integrations.ManageMappings, Integrations.Validate, Integrations.Publish, Integrations.Compare,
         RegulatoryCatalogs.Read,
         Maintenance.Seed, Maintenance.RunAdminTask,
-        Scheduler.View, Scheduler.HistoryView, Scheduler.Execute, Scheduler.ManageSchedule, Scheduler.PauseResume, Scheduler.ViewInstances
+        Scheduler.View, Scheduler.HistoryView, Scheduler.Execute, Scheduler.ManageSchedule, Scheduler.PauseResume, Scheduler.ViewInstances,
+        Scheduler.ViewTechnical
     ];
 }

@@ -38,6 +38,16 @@ public sealed class SchedulerController : ControllerBase
         return task is null ? NotFound() : Ok(task);
     }
 
+    [HttpGet("tasks/{taskCode}/technical")]
+    [Authorize(Policy = P1Policies.SchedulerViewTechnical)]
+    public async Task<ActionResult<SchedulerTechnicalInfoDto>> GetTechnicalInfo(
+        string taskCode,
+        CancellationToken cancellationToken)
+    {
+        var task = await _service.GetTechnicalInfoAsync(taskCode, cancellationToken);
+        return task is null ? NotFound() : Ok(task);
+    }
+
     [HttpGet("history")]
     [Authorize(Policy = P1Policies.SchedulerHistoryView)]
     public async Task<ActionResult<SchedulerPagedResult<SchedulerExecutionDto>>> GetHistory(
@@ -75,7 +85,7 @@ public sealed class SchedulerController : ControllerBase
     {
         if (request.RequestId == Guid.Empty)
         {
-            ModelState.AddModelError(nameof(request.RequestId), "El Request ID es obligatorio.");
+            ModelState.AddModelError(nameof(request.RequestId), "El identificador de solicitud es obligatorio.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length < 10 || request.Reason.Trim().Length > 500)

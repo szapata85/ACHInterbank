@@ -51,6 +51,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly TimeProvider _timeProvider;
     private readonly IIncomingNachaAchResultResolver? _achResultResolver;
     private readonly ICycleCalendarGuard _calendarGuard;
+    private readonly IOperationalCycleWindowResolver _windowResolver;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -68,7 +69,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
         TimeProvider? timeProvider = null,
         IIncomingNachaAchResultResolver? achResultResolver = null,
-        ICycleCalendarGuard? calendarGuard = null)
+        ICycleCalendarGuard? calendarGuard = null,
+        IOperationalCycleWindowResolver? windowResolver = null)
     {
         _context = context;
         _mapper = mapper;
@@ -86,6 +88,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _timeProvider = timeProvider ?? OperationalTimeProvider.SystemBogota;
         _achResultResolver = achResultResolver;
         _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context, timeProvider: _timeProvider);
+        _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -132,6 +135,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
 
         if (ids.Count == 0)
         {
+            var waitingForWindow = await _context.IncomingNachaDispatchQueue.AsNoTracking()
+                .CountAsync(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.WaitingWindow, ct);
             return new IncomingNachaPostProcessingRunResult(
                 0,
                 0,
@@ -140,11 +145,17 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 0,
                 waitingWindowResolution.Blocked,
                 waitingWindowResolution.Released,
-                "Sin elementos en cola.");
+                waitingForWindow > 0
+                    ? "La tarea fue evaluada, pero no puede realizar despachos en este momento porque el ciclo no se encuentra dentro de su ventana operativa."
+                    : "La tarea fue evaluada y no encontró registros elegibles.");
         }
 
         var queues = await _context.IncomingNachaDispatchQueue
             .Include(x => x.AchTransaction).ThenInclude(x => x.AchCycle)
+                .ThenInclude(x => x.ClearingHouse)
+                    .ThenInclude(x => x!.ClearingHouseConfig)
+            .Include(x => x.AchTransaction).ThenInclude(x => x.AchCycle)
+                .ThenInclude(x => x.ClearingHouseCycleConfig)
             .Where(x => ids.Contains(x.Id))
             .ToListAsync(ct);
         var ingestions = await _context.IncomingNachaFileIngestions
@@ -165,6 +176,31 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
 
         foreach (var queue in queues)
         {
+            var priorSuccess = await _context.IncomingNachaIntegrationExecution.AsNoTracking()
+                .AnyAsync(x => x.DispatchQueueId == queue.Id && x.IsSuccessful, ct);
+            if (priorSuccess)
+            {
+                queue.QueueStatus = IncomingNachaDispatchQueueStatus.Confirmed;
+                queue.NextAttemptAtUtc = null;
+                AddAutomaticEvent(queue, "DispatchAlreadyConfirmed", "Skipped", "La operación ya tiene una respuesta funcional exitosa; no se reenvió.");
+                confirmed++;
+                continue;
+            }
+
+            var operationalDecision = EvaluateOperationalWindow(queue.AchTransaction.AchCycle, nowUtcOffset);
+            if (!operationalDecision.CanDispatch)
+            {
+                queue.QueueStatus = operationalDecision.WaitForWindow
+                    ? IncomingNachaDispatchQueueStatus.WaitingWindow
+                    : IncomingNachaDispatchQueueStatus.Blocked;
+                queue.NextAttemptAtUtc = operationalDecision.NextWindowUtc?.UtcDateTime;
+                queue.LastErrorCode = operationalDecision.Code;
+                queue.LastErrorMessage = operationalDecision.Reason;
+                AddAutomaticEvent(queue, "DispatchWindowGuard", operationalDecision.WaitForWindow ? "Deferred" : "Blocked", operationalDecision.Reason, operationalDecision.Code);
+                if (operationalDecision.WaitForWindow) waitingWindow++; else blocked++;
+                continue;
+            }
+
             if (!calendarDecisions.TryGetValue(queue.AchTransaction.AchCycleId, out var calendarDecision))
             {
                 calendarDecision = await _calendarGuard.EnsureExecutableAsync(queue.AchTransaction.AchCycle, ct);
@@ -408,16 +444,14 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.ResponseMessage = ex.Message;
                 execution.FinishedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
                 execution.IsSuccess = false;
-                execution.IsRetryable = true;
+                execution.IsRetryable = false;
                 execution.SoapResponseCode = queue.LastErrorCode;
                 execution.SoapResponseDescription = ex.Message;
                 execution.SoapTechnicalStatus = TechnicalStatusTechnicalException;
                 execution.IsSuccessful = false;
                 execution.IsFunctionalRejection = false;
                 execution.IsTechnicalFailure = true;
-                execution.ProcessingStatus = queue.AttemptCount < _resilienceOptions.MaxAttempts
-                    ? IncomingNachaIndividualProcessingStatus.RetryPending
-                    : IncomingNachaIndividualProcessingStatus.TechnicalFailed;
+                execution.ProcessingStatus = IncomingNachaIndividualProcessingStatus.TechnicalFailed;
                 execution.BusinessOutcome = IncomingNachaBusinessOutcome.NotProcessed;
                 execution.ResultCode = string.Empty;
                 execution.ResultDescription = string.Empty;
@@ -425,26 +459,16 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 execution.TechnicalErrorMessage = ex.Message;
                 execution.TransportStatus = IntegrationTransportStatus.Failed;
                 execution.BusinessStatus = IntegrationResponseBusinessStatus.Unknown;
-                execution.RetryAllowed = true;
-                execution.RequiresManualReview = false;
+                execution.RetryAllowed = false;
+                execution.RequiresManualReview = true;
                 execution.ProcessedAtUtc = execution.FinishedAtUtc;
                 execution.TechnicalException = BuildTechnicalException(ex);
                 execution.DurationMs = CalculateDurationMs(execution.StartedAtUtc, execution.FinishedAtUtc.Value);
 
-                if (queue.AttemptCount < _resilienceOptions.MaxAttempts)
-                {
-                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.RetryPending;
-                    queue.NextAttemptAtUtc = ComputeNextAttemptUtc(nowUtc, queue.AttemptCount);
-                    AddAutomaticEvent(queue, "IntegrationTechnicalFailed", "RetryPending", $"Excepción técnica. Reintento programado para {queue.NextAttemptAtUtc:O}.", queue.LastErrorCode);
-                    retryPending++;
-                }
-                else
-                {
-                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.FailedFinal;
-                    queue.NextAttemptAtUtc = null;
-                    AddAutomaticEvent(queue, "MaxAttemptsExceeded", "FailedFinal", "Excepción técnica con política de reintentos agotada.", queue.LastErrorCode);
-                    failedFinal++;
-                }
+                queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+                queue.NextAttemptAtUtc = null;
+                AddAutomaticEvent(queue, "IntegrationOutcomeUncertain", "Blocked", "La respuesta del servicio es incierta y requiere conciliación antes de reenviar.", queue.LastErrorCode);
+                blocked++;
             }
         }
 
@@ -572,6 +596,50 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
 
         return (released, blocked);
     }
+
+    private OperationalDispatchDecision EvaluateOperationalWindow(AchCycle cycle, DateTimeOffset now)
+    {
+        if (cycle.ClearingHouse is null || !cycle.ClearingHouse.IsActive)
+        {
+            return new(false, false, null, "CLEARING_HOUSE_INACTIVE", "La cámara compensadora está inactiva.");
+        }
+
+        if (cycle.OperationalStatus != AchCycleOperationalStatus.Open)
+        {
+            return new(false, false, null, "CYCLE_NOT_OPEN", "El ciclo no se encuentra abierto.");
+        }
+
+        if (cycle.ClearingHouseCycleConfig is { } config)
+        {
+            if (!config.IsActive)
+                return new(false, false, null, "CYCLE_CONFIG_INACTIVE", "La configuración del ciclo está inactiva.");
+            if (cycle.ProcessingDate.Date < config.EffectiveFrom.Date
+                || config.EffectiveTo.HasValue && cycle.ProcessingDate.Date > config.EffectiveTo.Value.Date)
+                return new(false, false, null, "CYCLE_CONFIG_NOT_EFFECTIVE", "La configuración del ciclo no está vigente para la fecha operativa.");
+        }
+
+        var window = _windowResolver.Resolve(
+            cycle.ProcessingDate,
+            cycle.StartTime,
+            cycle.EndTime,
+            ClearingHouseOperationalTimeZone.Resolve(cycle),
+            now);
+        return window.Status switch
+        {
+            OperationalCycleWindowStatus.Inside => new(true, false, null, string.Empty, string.Empty),
+            OperationalCycleWindowStatus.Before => new(false, true, window.StartInstant, "WAITING_OPERATIONAL_WINDOW",
+                $"El ciclo aún no se encuentra dentro de su ventana operativa. Próxima ventana: {window.LocalStart:yyyy-MM-dd HH:mm} a {window.LocalEnd:HH:mm} ({window.TimeZoneId})."),
+            _ => new(false, false, null, "OPERATIONAL_WINDOW_CLOSED",
+                "La tarea fue evaluada, pero no puede realizar despachos en este momento porque el ciclo no se encuentra dentro de su ventana operativa.")
+        };
+    }
+
+    private sealed record OperationalDispatchDecision(
+        bool CanDispatch,
+        bool WaitForWindow,
+        DateTimeOffset? NextWindowUtc,
+        string Code,
+        string Reason);
 
     private static string Hash(string payload)
     {

@@ -9,6 +9,7 @@ import {
   SchedulerSchedulePreview,
   SchedulerScheduleRequest,
   SchedulerTask,
+  SchedulerTechnicalInfo,
   TaskDefinitionDto
 } from '../models/task-definition.model';
 
@@ -44,6 +45,10 @@ export class TaskDefinitionsService {
 
   getSchedulerTasks() {
     return this.api.get<SchedulerTask[]>(`${this.schedulerPath}/tasks`);
+  }
+
+  getTechnicalInfo(taskCode: string) {
+    return this.api.get<SchedulerTechnicalInfo>(`${this.schedulerPath}/tasks/${encodeURIComponent(taskCode)}/technical`);
   }
 
   getInstances() {

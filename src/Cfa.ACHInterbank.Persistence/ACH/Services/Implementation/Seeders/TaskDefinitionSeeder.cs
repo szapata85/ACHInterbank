@@ -20,13 +20,13 @@ public class TaskDefinitionSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
-        _context.ChangeTracker.AutoDetectChangesEnabled = false;
         if (!_context.TaskDefinitions.Any(t => t.Code == "AchCycleSeeder"))
         {
             _context.TaskDefinitions.Add(new TaskDefinition
             {
                 Code = "AchCycleSeeder",
-                Name = "Seed ciclos ACH y CENIT",
+                Name = "Actualizar ciclos de compensación",
+                Description = "Verifica y actualiza la programación de los ciclos de ACH Colombia y CENIT.",
                 PeriodicityType = PeriodicityTypeEnum.Cron,
                 CronExpression = "0 30 0 1 1 ? *",
                 TimeZoneId = "America/Bogota",
@@ -39,7 +39,9 @@ public class TaskDefinitionSeeder : IDbSeeder
             _context.TaskDefinitions.Add(new TaskDefinition
             {
                 Code = "AchCycleScheduler",
-                Name = "Generar ciclos diarios",
+                Name = "Preparar ciclos operativos",
+                Description = "Crea los ciclos operativos diarios a partir de la configuración vigente de cada cámara.",
+                ManualExecutionEnabled = true,
                 PeriodicityType = PeriodicityTypeEnum.DailyAtTime,
                 TimeOfDayTicks = new TimeOnly(2, 0).Ticks,
                 TimeZoneId = "America/Bogota",
@@ -53,7 +55,8 @@ public class TaskDefinitionSeeder : IDbSeeder
             bankHolidaySeedTask = new TaskDefinition
             {
                 Code = "SeedBankHolidays",
-                Name = "Sembrar festivos (Ley Emiliani)",
+                Name = "Actualizar días festivos",
+                Description = "Mantiene actualizado el calendario de días no laborables utilizado por los procesos ACH.",
                 PeriodicityType = PeriodicityTypeEnum.Cron,
                 CronExpression = "0 10 0 1 1 ? *",
                 TimeZoneId = "America/Bogota",
@@ -90,7 +93,11 @@ public class TaskDefinitionSeeder : IDbSeeder
             _context.TaskDefinitions.Add(new TaskDefinition
             {
                 Code = "AchContrapartidasByCycle",
-                Name = "Enviar contrapartidas por ciclo y cámara",
+                Name = "Despachar débitos originados por CFA",
+                Description = "Evalúa y envía mediante Proc_Contrapartidas los movimientos débito elegibles del ciclo vigente.",
+                ManualExecutionEnabled = true,
+                RetryOnFailure = false,
+                ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
                 PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
                 N = 5,
                 TimeZoneId = "America/Bogota",
@@ -103,7 +110,11 @@ public class TaskDefinitionSeeder : IDbSeeder
             _context.TaskDefinitions.Add(new TaskDefinition
             {
                 Code = "IncomingNachaPostProcessing",
-                Name = "Procesamiento posterior NACHA entrante a Proc_Transacciones",
+                Name = "Procesar créditos recibidos",
+                Description = "Evalúa entradas NACHA-M y envía mediante Proc_Transacciones únicamente los créditos elegibles.",
+                ManualExecutionEnabled = true,
+                RetryOnFailure = false,
+                ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
                 PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
                 N = 3,
                 TimeZoneId = "America/Bogota",
@@ -115,7 +126,8 @@ public class TaskDefinitionSeeder : IDbSeeder
             _context.TaskDefinitions.Add(new TaskDefinition
             {
                 Code = "ach-response-reprocess-dispatcher",
-                Name = "Dispatcher de reprocesos de respuestas ACH",
+                Name = "Procesar respuestas diferenciales",
+                Description = "Procesa de forma idempotente solicitudes autorizadas de reproceso de respuestas ACH, sin movimientos monetarios.",
                 PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
                 N = 1,
                 TimeZoneId = "America/Bogota",
@@ -124,6 +136,31 @@ public class TaskDefinitionSeeder : IDbSeeder
             });
         }
         await _context.SaveChangesAsync();
-        _context.ChangeTracker.AutoDetectChangesEnabled = true;
+
+        var metadata = new Dictionary<string, (string Name, string Description, bool? Manual, bool Monetary)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["AchCycleSeeder"] = ("Actualizar ciclos de compensación", "Verifica y actualiza la programación de los ciclos de ACH Colombia y CENIT.", false, false),
+            ["AchCycleScheduler"] = ("Preparar ciclos operativos", "Crea los ciclos operativos diarios a partir de la configuración vigente de cada cámara.", true, false),
+            ["SeedBankHolidays"] = ("Actualizar días festivos", "Mantiene actualizado el calendario de días no laborables utilizado por los procesos ACH.", true, false),
+            ["AchTacitAcceptanceJob"] = ("Aplicar aceptación tácita", "Evalúa las prenotificaciones cuyo plazo finalizó y aplica las reglas operativas vigentes.", false, false),
+            ["AchContrapartidasByCycle"] = ("Despachar débitos originados por CFA", "Evalúa y envía los movimientos débito elegibles del ciclo vigente.", true, true),
+            ["IncomingNachaPostProcessing"] = ("Procesar créditos recibidos", "Evalúa entradas NACHA-M y envía únicamente los movimientos crédito elegibles.", true, true),
+            ["ach-response-reprocess-dispatcher"] = ("Procesar respuestas diferenciales", "Procesa de forma idempotente solicitudes autorizadas de reproceso de respuestas ACH, sin movimientos monetarios.", true, false)
+        };
+        var persisted = _context.TaskDefinitions.Where(x => metadata.Keys.Contains(x.Code)).ToList();
+        foreach (var task in persisted)
+        {
+            var values = metadata[task.Code];
+            task.Name = values.Name;
+            task.Description = values.Description;
+            if (values.Manual.HasValue) task.ManualExecutionEnabled = values.Manual.Value;
+            if (values.Monetary)
+            {
+                task.RetryOnFailure = false;
+                task.ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning;
+            }
+        }
+
+        await _context.SaveChangesAsync();
     }
 }

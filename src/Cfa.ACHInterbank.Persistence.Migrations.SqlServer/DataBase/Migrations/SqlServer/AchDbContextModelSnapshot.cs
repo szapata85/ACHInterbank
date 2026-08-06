@@ -2241,6 +2241,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                             Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd06"),
                             Description = "Consultar instancias del clúster",
                             Name = "Scheduler.ViewInstances"
+                        },
+                        new
+                        {
+                            Id = new Guid("d1445236-b093-4d6f-8b09-821599d4dd07"),
+                            Description = "Consultar información técnica de tareas programadas",
+                            Name = "Scheduler.Technical.View"
                         });
                 });
 
@@ -2375,6 +2381,11 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         {
                             RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
                             PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd06")
+                        },
+                        new
+                        {
+                            RoleId = new Guid("1f8602da-6415-43f8-b61d-cb396f8577f1"),
+                            PermissionId = new Guid("d1445236-b093-4d6f-8b09-821599d4dd07")
                         },
                         new
                         {
