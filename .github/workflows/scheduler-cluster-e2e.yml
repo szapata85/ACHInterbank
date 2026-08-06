@@ -1,6 +1,49 @@
 name: Scheduler Cluster E2E
+run-name: "Scheduler Cluster E2E · ${{ github.event_name }} · ${{ github.ref_name }}"
 
 on:
+  push:
+    paths: &scheduler_paths
+      - '.github/workflows/scheduler-cluster-e2e.yml'
+      - 'scripts/ci/scheduler-cluster/**'
+      - 'docker-compose.scheduler-cluster.yml'
+      - 'docker-compose.scheduler-cluster.sqlserver.yml'
+      - 'src/Cfa.ACHInterbank.Api/Controllers/SchedulerController.cs'
+      - 'src/Cfa.ACHInterbank.Api/Controllers/TaskDefinitionsController.cs'
+      - 'src/Cfa.ACHInterbank.Application/Scheduler/**'
+      - 'src/Cfa.ACHInterbank.Application/JobsQuartz/**'
+      - 'src/Cfa.ACHInterbank.Domain/Entities/SchedulerTask/**'
+      - 'src/Cfa.ACHInterbank.Domain/Models/ACH/ClearingHouseCycleConfig.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Models/ACH/BankHolidayModel.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Entities/ACH/Dtos/ClearingHouseCycleConfigDtos.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Entities/ACH/Dtos/BankHolidayDto.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Scheduler/**'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Quartz/**'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/OperationalCalendarService.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/OperationalCycleWindowResolver.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ContrapartidaDispatchJobService.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/IncomingNachaPostProcessingOrchestrator.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/TaskDefinitionSeeder.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/ClearingHouseCycleConfigSeeder.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/BankHolidaySeeder.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/SchedulerTask/**'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/BankHolidayConfiguration.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/PermissionConfiguration.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/RolePermissionConfiguration.cs'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/**/*Scheduler*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/**/*Quartz*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/**/*Scheduler*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/**/*Quartz*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/Scheduler*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/Quartz*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/AchCycleSchedulerTests.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/AchContrapartidasByCycleHandlerTests.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/ContrapartidaDispatchJobServiceTests.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/IncomingNachaPostProcessingOrchestratorTests.cs'
+      - 'web/ach-interbank-ui/src/app/features/scheduler/**'
+      - 'web/ach-interbank-ui/e2e/scheduler-cluster.spec.ts'
+  pull_request:
+    paths: *scheduler_paths
   workflow_dispatch:
   workflow_call:
 
@@ -30,6 +73,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Publish execution context
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          {
+            echo '## Contexto de ejecución'
+            echo "- Evento: ${EVENT_NAME}"
+            echo "- Rama: ${REF_NAME}"
+            echo "- Commit: ${HEAD_SHA}"
+            if [[ "${EVENT_NAME}" == 'push' ]]; then echo "- Commit anterior: ${PUSH_BEFORE}"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-node@v6
         with:

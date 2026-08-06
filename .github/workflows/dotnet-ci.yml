@@ -1,9 +1,22 @@
 name: dotnet-ci
+run-name: "Dotnet CI · ${{ github.event_name }} · ${{ github.ref_name }}"
 
 on:
   push:
     branches: ["**"]
+    paths: &dotnet_paths
+      - '.github/workflows/dotnet-ci.yml'
+      - 'src/**'
+      - 'tests/**'
+      - 'ACHInterbank.sln'
+      - '**/*.csproj'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - 'NuGet.config'
+      - '.config/dotnet-tools.json'
   pull_request:
+    paths: *dotnet_paths
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -55,6 +68,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Publish execution context
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          {
+            echo '## Contexto de ejecución'
+            echo "- Evento: ${EVENT_NAME}"
+            echo "- Rama: ${REF_NAME}"
+            echo "- Commit: ${HEAD_SHA}"
+            if [[ "${EVENT_NAME}" == 'push' ]]; then echo "- Commit anterior: ${PUSH_BEFORE}"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5

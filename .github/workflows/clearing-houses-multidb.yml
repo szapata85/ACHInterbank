@@ -1,26 +1,53 @@
-name: clearing-houses-multidb
+name: Clearing Houses Multi-DB
+run-name: "Clearing Houses Multi-DB · ${{ github.event_name }} · ${{ github.ref_name }}"
 
 on:
   push:
     paths:
       - '.github/workflows/clearing-houses-multidb.yml'
-      - 'src/**/ClearingHouse*'
-      - 'src/**/PaymentRail*'
-      - 'src/**/Migrations/**'
-      - 'tests/**/ClearingHouse*'
-      - 'tests/**/PaymentRail*'
-      - 'tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj'
-      - 'ACHInterbank.sln'
+      - 'src/Cfa.ACHInterbank.Api/Controllers/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Application/ACH/**/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Application/ACH/Implementation/PaymentRails/**'
+      - 'src/Cfa.ACHInterbank.Application/ACH/Interfaces/IClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Models/ACH/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Entities/ACH/Dtos/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/*ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/**/*ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/**/*PaymentRail*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/**/*ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/**/*PaymentRail*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/**/ClearingHouse*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/**/PaymentRail*.cs'
+      - 'web/ach-interbank-ui/e2e/clearing-houses-*.spec.ts'
+      - 'web/ach-interbank-ui/src/app/features/clearing-houses/**'
+      - 'web/ach-interbank-ui/src/app/features/catalogs/**/clearing-house-*.ts'
+      - 'web/ach-interbank-ui/src/app/features/transactions/**/clearing-house-*/**'
+      - 'web/ach-interbank-ui/src/app/features/transactions/**/cycle-config-management/**'
   pull_request:
     paths:
       - '.github/workflows/clearing-houses-multidb.yml'
-      - 'src/**/ClearingHouse*'
-      - 'src/**/PaymentRail*'
-      - 'src/**/Migrations/**'
-      - 'tests/**/ClearingHouse*'
-      - 'tests/**/PaymentRail*'
-      - 'tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj'
-      - 'ACHInterbank.sln'
+      - 'src/Cfa.ACHInterbank.Api/Controllers/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Application/ACH/**/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Application/ACH/Implementation/PaymentRails/**'
+      - 'src/Cfa.ACHInterbank.Application/ACH/Interfaces/IClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Models/ACH/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Domain/Entities/ACH/Dtos/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/Configuration/*ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/**/*ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer/DataBase/Migrations/SqlServer/**/*PaymentRail*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/**/*ClearingHouse*.cs'
+      - 'src/Cfa.ACHInterbank.Persistence/DataBase/Migrations/Postgres/**/*PaymentRail*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/**/ClearingHouse*.cs'
+      - 'tests/Cfa.ACHInterbank.Tests/**/PaymentRail*.cs'
+      - 'web/ach-interbank-ui/e2e/clearing-houses-*.spec.ts'
+      - 'web/ach-interbank-ui/src/app/features/clearing-houses/**'
+      - 'web/ach-interbank-ui/src/app/features/catalogs/**/clearing-house-*.ts'
+      - 'web/ach-interbank-ui/src/app/features/transactions/**/clearing-house-*/**'
+      - 'web/ach-interbank-ui/src/app/features/transactions/**/cycle-config-management/**'
   workflow_dispatch:
 
 env:
@@ -35,6 +62,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Publish execution context
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          {
+            echo '## Contexto de ejecución'
+            echo "- Evento: ${EVENT_NAME}"
+            echo "- Rama: ${REF_NAME}"
+            echo "- Commit: ${HEAD_SHA}"
+            if [[ "${EVENT_NAME}" == 'push' ]]; then echo "- Commit anterior: ${PUSH_BEFORE}"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
