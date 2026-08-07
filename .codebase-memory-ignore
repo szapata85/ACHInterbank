@@ -1,0 +1,17 @@
+@'
+node_modules/
+vendor/
+.git/
+.idea/
+.vscode/
+bin/
+obj/
+out/
+dist/
+build/
+*.exe
+*.dll
+*.pdb
+*.log
+*.zip
+'@ | Out-File -FilePath .codebase-memory-ignore -Encoding utf8
