@@ -215,6 +215,8 @@ No se ejecutaron pruebas: la evidencia estática y documental fue suficiente y e
 
 ## 20. Brechas encontradas
 
+> **JOB 2 (unificación inbound): CERRADA en la base `70926559a894e63815f8b79ccd09795075e99bda`.** La Ruta A (`AchIncomingReturnIngestionService`), la Ruta B (`IncomingNachaPostParseProcessor` + linker) y el parser convergen en `AchStateTransitionService`; no queda una asignación directa inbound de `AchTransaction.State` fuera de ese mecanismo. Las pruebas focalizadas verifican estado, causal, evento único y ausencia de duplicación funcional. La idempotencia DB-first/multinodo permanece en JOB 3.
+
 | ID | Brecha | Severidad | Categoría | Evidencia | Riesgo | Acción recomendada |
 |---|---|---|---|---|---|---|
 | B1 | Dos rutas incoming con auditoría/semántica distinta; Ruta A cambia estado sin state event. | CRÍTICA | Persistencia | matriz incoming §§2,4,8; `IngestAsync` | falsa trazabilidad | Unificar aplicación en transición auditada. |

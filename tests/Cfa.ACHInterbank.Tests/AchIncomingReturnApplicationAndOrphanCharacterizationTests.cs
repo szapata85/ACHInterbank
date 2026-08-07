@@ -42,6 +42,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, ev.ToState);
         Assert.Equal(AchStateEventSourceEnum.Epr, ev.Source);
         Assert.Equal("R01", ev.ReasonCode);
+        Assert.Equal("R01", (await c.AchTransactions.SingleAsync(x => x.Id == 10)).ReturnReasonCode);
         using var payload = JsonDocument.Parse(ev.PayloadJson!);
         Assert.Equal("IncomingReturnApplied", payload.RootElement.GetProperty("eventType").GetString());
     }
@@ -205,9 +206,11 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         var sut = new IncomingNachaPostParseProcessor(c, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, stateTransition);
 
         await sut.ProcessAsync(ingestionId, "tester", CancellationToken.None);
+        await sut.ProcessAsync(ingestionId, "tester", CancellationToken.None);
 
         var updated = await c.AchTransactions.SingleAsync(x => x.Id == tx.Id);
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, updated.State);
+        Assert.Equal("R01", updated.ReturnReasonCode);
         var ev = await c.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == tx.Id);
         Assert.Equal(AchTransferStateEnum.Pending, ev.FromState);
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, ev.ToState);
