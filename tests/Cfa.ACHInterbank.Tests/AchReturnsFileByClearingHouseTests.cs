@@ -35,21 +35,22 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldGenerateReturnFile_ForCenitClearingHouse()
+    public async Task GenerateReturnsFileAsync_ShouldBlockPhysicalReturnOut_ForCenitClearingHouse()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7001, "CENIT", "CENIT", 101, "CEN-C1");
-        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
-        {
-            [101] = new(true, "R01", 7001, "Credit", "Pending", [])
-        });
+        var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
+        var lockService = new Mock<IAchReturnGenerationLockService>(MockBehavior.Strict);
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: lockService.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C1", [new ReturnSelectionItemDto(101, "R01")]), CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C1", [new ReturnSelectionItemDto(101, "R01")]), CancellationToken.None));
 
-        Assert.NotNull(response);
-        var generated = await context.Set<AchReturnGenerated>().SingleAsync(x => x.OriginalTransactionId == 101);
-        Assert.Equal("CEN-C1", generated.ReturnCycleId);
+        Assert.Contains("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", ex.Message, StringComparison.Ordinal);
+        Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 101));
+        Assert.False(await context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 101));
+        Assert.Equal(AchTransferStateEnum.Pending, await context.AchTransactions.Where(x => x.Id == 101).Select(x => x.State).SingleAsync());
+        eligibility.Verify(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        lockService.Verify(x => x.AcquireAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -70,17 +71,21 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldPassCenitClearingHouseContextToEligibility()
+    public async Task EvaluateOutgoingReturnAsync_ShouldUseCenitClearingHouseContext()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7001, "CENIT", "CENIT", 301, "CEN-C2");
-        var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
-        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.Is<AchReturnEligibilityRequest>(r => r.TransactionId == 301), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnEligibilityResult(true, "R01", 7001, "Credit", "Pending", []));
+        var catalog = new Mock<IAchRegulatoryCatalogService>(MockBehavior.Strict);
+        catalog.Setup(x => x.ValidateReturnCodeAsync(7001, "R01", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync((true, null));
+        catalog.Setup(x => x.ValidateReturnPolicyAsync(7001, TransactionTypeEnum.Credit, "R01", It.IsAny<DateTime>(), It.IsAny<DateTime>(), true, "Pending", It.IsAny<CancellationToken>())).ReturnsAsync((true, null));
+        var sut = new AchReturnEligibilityService(context, catalog.Object);
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C2", [new ReturnSelectionItemDto(301, "R01")]), CancellationToken.None);
-        eligibility.VerifyAll();
+        var result = await sut.EvaluateOutgoingReturnAsync(new AchReturnEligibilityRequest(301, "R01", DateTime.UtcNow.Date, true), CancellationToken.None);
+
+        Assert.True(result.IsEligible);
+        Assert.Equal(7001, result.ClearingHouseId);
+        Assert.Equal("Credit", result.TransactionType);
+        catalog.VerifyAll();
     }
 
     [Fact]
@@ -98,19 +103,24 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldReject_WhenEligibilityRejectsCrossClearingHouseReason()
+    public async Task EvaluateOutgoingReturnAsync_ShouldRejectCrossClearingHouseReason_ForCenitContext()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7001, "CENIT", "CENIT", 401, "CEN-C3");
-        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
-        {
-            [401] = new(false, "R99", 7001, "Credit", "Pending", [new AchReturnEligibilityFailure("RETURN_CODE_REJECTED", "La causal no pertenece a la cámara de la transacción.")])
-        });
+        var catalog = new Mock<IAchRegulatoryCatalogService>(MockBehavior.Strict);
+        catalog.Setup(x => x.ValidateReturnCodeAsync(7001, "R99", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "La causal no pertenece a la cámara de la transacción."));
+        var sut = new AchReturnEligibilityService(context, catalog.Object);
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C3", [new ReturnSelectionItemDto(401, "R99")]), CancellationToken.None));
-        Assert.Contains("no pertenece a la cámara", ex.Message, StringComparison.OrdinalIgnoreCase);
+        var result = await sut.EvaluateOutgoingReturnAsync(new AchReturnEligibilityRequest(401, "R99", DateTime.UtcNow.Date, true), CancellationToken.None);
+
+        Assert.False(result.IsEligible);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("RETURN_CODE_REJECTED", failure.Code);
+        Assert.Contains("no pertenece a la cámara", failure.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(7001, result.ClearingHouseId);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 401));
+        catalog.VerifyAll();
     }
 
     [Fact]
@@ -122,16 +132,20 @@ public class AchReturnsFileByClearingHouseTests
 
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [501] = new(true, "R01", 7001, "Credit", "Pending", []),
             [502] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C4", [new ReturnSelectionItemDto(501, "R01")]), CancellationToken.None);
+        var cenitEx = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C4", [new ReturnSelectionItemDto(501, "R01")]), CancellationToken.None));
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C4", [new ReturnSelectionItemDto(502, "DEV14")]), CancellationToken.None);
 
-        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 501));
+        Assert.Contains("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", cenitEx.Message, StringComparison.Ordinal);
+        Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 501));
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 502));
+        Assert.Equal(AchTransferStateEnum.Pending, await context.AchTransactions.Where(x => x.Id == 501).Select(x => x.State).SingleAsync());
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, await context.AchTransactions.Where(x => x.Id == 502).Select(x => x.State).SingleAsync());
+        Assert.False(await context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 501));
+        Assert.True(await context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 502));
     }
 
     [Fact]
@@ -386,27 +400,20 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_Golden_NachaRecords_CenitRail_CurrentLayout()
+    public async Task GenerateReturnsFileAsync_CenitRail_ShouldRejectUnhomologatedPhysicalLayout()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7001, "CENIT", "CENIT", 605, "CEN-RLAY-1");
-        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
-        {
-            [605] = new(true, "R01", 7001, "Credit", "Pending", [])
-        });
-
+        var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-RLAY-1", [new ReturnSelectionItemDto(605, "R01")]), CancellationToken.None);
 
-        var content = Encoding.UTF8.GetString(response.Content);
-        var records = SplitRecords(content);
-        AssertRecordTypes(records);
-        AssertBlockPadding(records);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-RLAY-1", [new ReturnSelectionItemDto(605, "R01")]), CancellationToken.None));
 
-        var r5 = records.First(r => r[0] == '5');
-        Assert.Contains("DEVOLUCIONES", r5);
-        Assert.Contains("RETORNO", r5);
-        Assert.Contains("R01", string.Concat(records.Where(r => r[0] == '7')));
+        Assert.Contains("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", ex.Message, StringComparison.Ordinal);
+        Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 605));
+        Assert.False(await context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 605));
+        Assert.Equal(AchTransferStateEnum.Pending, await context.AchTransactions.Where(x => x.Id == 605).Select(x => x.State).SingleAsync());
+        eligibility.Verify(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

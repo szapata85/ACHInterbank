@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -19,7 +20,6 @@ public class AchReturnsUatEndToEndTests
 {
     [Theory]
     [InlineData(7002, "ACHCOL", "ACH Colombia", 101, "ACH-CYCLE-UAT", "DEV14", TransactionTypeEnum.Debit, "27", 3200)]
-    [InlineData(7001, "CENIT", "CENIT", 201, "CEN-CYCLE-UAT", "R01", TransactionTypeEnum.Credit, "22", 4100)]
     public async Task GenerateReturnsFileAsync_ShouldUseOfficialReturnPolicy_AndPersistUatArtifacts(
         int clearingHouseId,
         string clearingHouseCode,
@@ -63,7 +63,7 @@ public class AchReturnsUatEndToEndTests
         Assert.Equal(1, response.TotalReturns);
         Assert.Equal(expectedReturnFileName, await harness.Context.Set<AchReturnGenerated>().Where(x => x.OriginalTransactionId == transactionId).Select(x => x.FileName).SingleAsync());
         Assert.Equal(transactionType, await harness.Context.AchTransactions.Where(x => x.Id == transactionId).Select(x => x.Type).SingleAsync());
-        Assert.Equal(AchTransferStateEnum.Pending, await harness.Context.AchTransactions.Where(x => x.Id == transactionId).Select(x => x.State).SingleAsync());
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, await harness.Context.AchTransactions.Where(x => x.Id == transactionId).Select(x => x.State).SingleAsync());
         Assert.Equal(1, await harness.Context.AchReturnsGenerated.CountAsync(x => x.OriginalTransactionId == transactionId));
         Assert.Equal(1, await harness.Context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == transactionId));
         Assert.Equal(0, await harness.Context.AchReturnOfReturnGeneratedFileAudits.CountAsync());
@@ -75,9 +75,15 @@ public class AchReturnsUatEndToEndTests
 
         var stateEvent = await harness.Context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == transactionId);
         Assert.Equal(AchTransferStateEnum.Pending, stateEvent.FromState);
-        Assert.Equal(AchTransferStateEnum.Pending, stateEvent.ToState);
-        Assert.Equal(AchStateEventSourceEnum.System, stateEvent.Source);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, stateEvent.ToState);
+        Assert.Equal(AchStateEventSourceEnum.Epr, stateEvent.Source);
         Assert.Contains("ReturnFileGenerated", stateEvent.PayloadJson, StringComparison.Ordinal);
+        using (var payload = JsonDocument.Parse(stateEvent.PayloadJson))
+        {
+            Assert.True(payload.RootElement.GetProperty("stateChanged").GetBoolean());
+            Assert.Equal("Pending", payload.RootElement.GetProperty("previousState").GetString());
+            Assert.Equal("ReturnedByEpr", payload.RootElement.GetProperty("newState").GetString());
+        }
 
         var returnNameContext = new ExternalFileNameContext
         {
@@ -123,8 +129,42 @@ public class AchReturnsUatEndToEndTests
         Assert.Contains(returnReasonCode, fileContent, StringComparison.Ordinal);
 
         var original = await harness.Context.AchTransactions.AsNoTracking().SingleAsync(x => x.Id == transactionId);
-        Assert.Equal(AchTransferStateEnum.Pending, original.State);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, original.State);
         Assert.Equal(amount, original.Amount);
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_CenitUat_ShouldRemainBlockedWithoutSideEffects()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedUatFixtureAsync(harness.Context);
+        SeedReturnScenario(
+            harness.Context,
+            7001,
+            "CENIT",
+            "CENIT",
+            201,
+            "CEN-CYCLE-UAT",
+            TransactionTypeEnum.Credit,
+            "22",
+            4100m);
+
+        var fixedNow = new DateTimeOffset(2026, 06, 06, 10, 30, 00, TimeSpan.Zero);
+        var sut = BuildReturnsService(
+            harness.Context,
+            fixedNow,
+            BuildEligibilityService(harness.Context),
+            BuildOfficialReturnOutPolicy(harness.Context));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(
+            new GenerateReturnsFileRequest("CEN-CYCLE-UAT", [new ReturnSelectionItemDto(201, "R01")]),
+            CancellationToken.None));
+
+        Assert.Contains("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", ex.Message, StringComparison.Ordinal);
+        Assert.False(await harness.Context.AchReturnsGenerated.AnyAsync(x => x.OriginalTransactionId == 201));
+        Assert.False(await harness.Context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 201));
+        Assert.Equal(AchTransferStateEnum.Pending, await harness.Context.AchTransactions.Where(x => x.Id == 201).Select(x => x.State).SingleAsync());
+        Assert.False(await harness.Context.ExternalFileSequences.AnyAsync(x => x.ClearingHouseId == 7001));
     }
 
     [Fact]
@@ -161,7 +201,17 @@ public class AchReturnsUatEndToEndTests
 
         Assert.Equal(1, await harness.Context.AchReturnsGenerated.CountAsync(x => x.OriginalTransactionId == 301));
         Assert.Equal(1, await harness.Context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 301));
-        Assert.Equal(AchTransferStateEnum.Pending, await harness.Context.AchTransactions.Where(x => x.Id == 301).Select(x => x.State).SingleAsync());
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, await harness.Context.AchTransactions.Where(x => x.Id == 301).Select(x => x.State).SingleAsync());
+        var stateEvent = await harness.Context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 301);
+        Assert.Equal(AchTransferStateEnum.Pending, stateEvent.FromState);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, stateEvent.ToState);
+        Assert.Equal(AchStateEventSourceEnum.Epr, stateEvent.Source);
+        using (var payload = JsonDocument.Parse(stateEvent.PayloadJson))
+        {
+            Assert.True(payload.RootElement.GetProperty("stateChanged").GetBoolean());
+            Assert.Equal("Pending", payload.RootElement.GetProperty("previousState").GetString());
+            Assert.Equal("ReturnedByEpr", payload.RootElement.GetProperty("newState").GetString());
+        }
         Assert.Equal(1, await harness.Context.ExternalFileSequences.CountAsync(x => x.ClearingHouseId == 7002 && x.ScopeCode == "ACH_RETURN_EXTERNAL_NAME"));
     }
 

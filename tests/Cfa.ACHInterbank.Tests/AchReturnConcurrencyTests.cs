@@ -18,10 +18,10 @@ public class AchReturnConcurrencyTests
         var lockSvc = new Mock<IAchReturnGenerationLockService>();
         lockSvc.Setup(x => x.AcquireAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new TestReturnGenerationLockService.NoOpForMock());
         var eligibility = new Mock<IAchReturnEligibilityService>();
-        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(new AchReturnEligibilityResult(true, "R01", 7, "Credit", "Pending", []));
+        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(new AchReturnEligibilityResult(true, "DEV14", 7002, "Debit", "Pending", []));
         var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: lockSvc.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
 
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01")]), CancellationToken.None);
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "DEV14")]), CancellationToken.None);
         lockSvc.Verify(x => x.AcquireAsync(It.Is<IReadOnlyCollection<int>>(ids => ids.Count == 1 && ids.Contains(10)), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -31,7 +31,7 @@ public class AchReturnConcurrencyTests
         await using var ctx = BuildContext(); Seed(ctx);
         var lockSvc = new Mock<IAchReturnGenerationLockService>();
         var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: Mock.Of<IAchReturnEligibilityService>(), returnGenerationLockService: lockSvc.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01"), new ReturnSelectionItemDto(10, "R01")]), CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "DEV14"), new ReturnSelectionItemDto(10, "DEV14")]), CancellationToken.None));
         lockSvc.Verify(x => x.AcquireAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -87,13 +87,13 @@ public class AchReturnConcurrencyTests
     {
         await using var ctx = BuildContext(); Seed(ctx);
         var eligibility = new Mock<IAchReturnEligibilityService>();
-        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(new AchReturnEligibilityResult(true, "R01", 7, "Credit", "Pending", []));
+        eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(new AchReturnEligibilityResult(true, "DEV14", 7002, "Debit", "Pending", []));
         var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new AchReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "DEV14")]), CancellationToken.None);
         Assert.NotNull(response);
         Assert.Single(ctx.Set<AchReturnGenerated>());
     }
 
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-    static void Seed(AchDbContext c){ c.ClearingHouses.Add(new ClearingHouse{Id=7,Name="CH",Code="CENIT",OriginCode="000101006"}); c.AchCycles.Add(new AchCycle{Id="C1",CycleName="C1",ProcessingDate=DateTime.UtcNow.Date,CutoffTime=new TimeSpan(8,0,0),ClearingHouseId=7}); c.AchTransactions.Add(new AchTransaction{Id=10,AchCycleId="C1",Type=TransactionTypeEnum.Credit,State=AchTransferStateEnum.Pending,EffectiveEntryDate=DateTime.UtcNow.Date,TransactionCode="22",TraceNumber="123",ReceivingDFI="12345678",OriginatingDFI="12345678",Amount=100,Reference="R",SourceAccountNumber="1",DestinationAccountNumber="2"}); c.SaveChanges(); }
+    static void Seed(AchDbContext c){ c.ClearingHouses.Add(new ClearingHouse{Id=7002,Name="ACH Colombia",Code="ACH",OriginCode="000101006"}); c.AchCycles.Add(new AchCycle{Id="C1",CycleName="C1",ProcessingDate=DateTime.UtcNow.Date,CutoffTime=new TimeSpan(8,0,0),ClearingHouseId=7002}); c.AchTransactions.Add(new AchTransaction{Id=10,AchCycleId="C1",Type=TransactionTypeEnum.Debit,State=AchTransferStateEnum.Pending,EffectiveEntryDate=DateTime.UtcNow.Date,TransactionCode="27",TraceNumber="123",ReceivingDFI="12345678",OriginatingDFI="12345678",Amount=100,Reference="R",SourceAccountNumber="1",DestinationAccountNumber="2"}); c.SaveChanges(); }
 }
