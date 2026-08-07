@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -10,16 +9,17 @@ public static class AchIncomingEventIdentityPolicy
         int clearingHouseId,
         int transactionId,
         string? originalTrace,
-        string? returnReasonCode,
-        DateTime effectiveDate)
+        string? returnReasonCode)
     {
         var canonical = string.Join('|',
-            "incoming-return-v1",
+            // File name, ingestion and receipt/operational dates are transport
+            // metadata. They must not change the identity of the same return
+            // replayed in another file.
+            "incoming-return-v2",
             clearingHouseId,
             transactionId,
             (originalTrace ?? string.Empty).Trim(),
-            (returnReasonCode ?? string.Empty).Trim().ToUpperInvariant(),
-            effectiveDate.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            (returnReasonCode ?? string.Empty).Trim().ToUpperInvariant());
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
     }
 }

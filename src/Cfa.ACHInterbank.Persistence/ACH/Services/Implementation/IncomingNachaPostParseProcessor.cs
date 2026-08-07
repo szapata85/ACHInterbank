@@ -330,8 +330,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 ingestion.ResolvedClearingHouseId!.Value,
                 link.AchTransactionId.Value,
                 classification.OriginalTraceRef,
-                classification.ReturnReasonCode!,
-                ingestion.OperationalDate ?? ingestion.ReceivedAtUtc ?? DateTime.UtcNow);
+                classification.ReturnReasonCode!);
 
             var transition = await _stateTransitionService.TransitionAsync(
                 new AchStateTransitionRequest(

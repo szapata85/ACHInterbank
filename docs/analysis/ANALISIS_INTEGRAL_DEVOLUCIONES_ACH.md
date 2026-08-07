@@ -162,7 +162,7 @@ Claves existentes: `TransactionExternalId` (canónico técnico), `TraceNumber`, 
 
 ## 12. Idempotencia y duplicados
 
-Intraarchivo: `HashSet` de clave de duplicado en Ruta A. Archivo: hash+tamaño en Ruta B. Salida: existencia de `AchReturnGenerated` y `ReturnGenerationLockService`. ROR expone `IsUniquePerTransaction` desde policy. Falta una clave duradera por devolución aplicada (original+cámara+causal+traza/registro+versión normativa) y protección de huérfana multiarchivo/concurrencia. Por ello no puede demostrarse aún la garantía “una devolución válida → una sola afectación funcional”.
+Intraarchivo: `HashSet` de clave de duplicado en Ruta A. Archivo: hash+tamaño en Ruta B. Para la aplicación inbound, JOB 3 establece una clave duradera `incoming-return-v2` sobre original+cámara+causal+traza, persistida en `AchTransactionStateEvent` y protegida por `UX_AchTransactionStateEvents_IdempotencyKey`; nombre de archivo, ingestion y fecha de recepción no forman parte de la identidad. La transición y el evento funcional son atómicos, y la colisión única esperable se trata como replay idempotente.
 
 ## 13. Integraciones SOAP
 
@@ -217,10 +217,12 @@ No se ejecutaron pruebas: la evidencia estática y documental fue suficiente y e
 
 > **JOB 2 (unificación inbound): CERRADA en la base `70926559a894e63815f8b79ccd09795075e99bda`.** La Ruta A (`AchIncomingReturnIngestionService`), la Ruta B (`IncomingNachaPostParseProcessor` + linker) y el parser convergen en `AchStateTransitionService`; no queda una asignación directa inbound de `AchTransaction.State` fuera de ese mecanismo. Las pruebas focalizadas verifican estado, causal, evento único y ausencia de duplicación funcional. La idempotencia DB-first/multinodo permanece en JOB 3.
 
+> **JOB 3 (idempotencia DB-first inbound): PARCIAL en esta base.** La identidad funcional persistente vive en `AchTransactionStateEvent.IdempotencyKey`; su índice único filtrado y sus migraciones son compatibles con SQL Server y PostgreSQL. La misma devolución es estable entre archivos y fechas de transporte, dos `DbContext` producen un solo evento, y las colisiones únicas esperables se convierten en replay idempotente. La validación focalizada relacional se realizó con SQLite; falta ejecución provider-specific SQL Server/PostgreSQL y concurrencia real sobre esos proveedores para declarar B2 CERRADA.
+
 | ID | Brecha | Severidad | Categoría | Evidencia | Riesgo | Acción recomendada |
 |---|---|---|---|---|---|---|
 | B1 | Dos rutas incoming con auditoría/semántica distinta; Ruta A cambia estado sin state event. | CRÍTICA | Persistencia | matriz incoming §§2,4,8; `IngestAsync` | falsa trazabilidad | Unificar aplicación en transición auditada. |
-| B2 | Idempotencia no DB-first por registro/huérfana/multiarchivo/multinodo. | CRÍTICA | Idempotencia | matriz incoming §§7,10; rutas A/B | doble afectación | Clave funcional persistida y concurrencia transaccional. |
+| B2 | Idempotencia no DB-first por registro/huérfana/multiarchivo/multinodo. | CRÍTICA | Idempotencia | JOB 3; `AchTransactionStateEvent.IdempotencyKey` + índice único | doble afectación | **PARCIAL**: identidad funcional persistida, atomicidad y colisión única controlada; falta evidencia runtime SQL Server/PostgreSQL. |
 | B3 | Salida no actualiza original ni evento y mezcla reglas históricas hardcodeadas. | CRÍTICA | Funcional | auditoría devoluciones §3 | estado/contabilidad inconsistente | Definir lifecycle de salida y policy por cámara. |
 | B4 | Homologación normativa incompleta por cámara, flujo, plazo, ROR y naming. | CRÍTICA | Normativa | matriz causales §§2,8,9 | archivo/reverso no conforme | Cierre documental firmado y tests contractuales. |
 | B5 | Naming, DFI y ciclos de salida no totalmente gobernados por perfil/policy. | ALTA | NACHA | auditoría devoluciones §2 | rechazo externo | Resolver por `nacha-config`/policy vigente. |

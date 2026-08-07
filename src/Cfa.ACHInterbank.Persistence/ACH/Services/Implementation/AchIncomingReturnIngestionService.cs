@@ -247,11 +247,10 @@ public class AchIncomingReturnIngestionService(
 }
 """;
                     var semanticKey = AchIncomingEventIdentityPolicy.BuildReturnKey(
-                        transactionId,
                         eventClearingHouseId,
+                        transactionId,
                         originalTraceNumber,
-                        returnReasonCode,
-                        request.ReceivedAtUtc.Date);
+                        returnReasonCode);
                     var transition = await transitionPolicy.TransitionAsync(new AchStateTransitionRequest(
                         transactionId,
                         AchTransferStateEnum.ReturnedByEpr,
