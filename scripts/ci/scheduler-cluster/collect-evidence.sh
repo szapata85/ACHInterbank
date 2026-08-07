@@ -5,7 +5,7 @@ mkdir -p "$evidence"
 cp -R web/ach-interbank-ui/playwright-report "$evidence/" 2>/dev/null || true
 cp -R web/ach-interbank-ui/test-results "$evidence/" 2>/dev/null || true
 find web/ach-interbank-ui/test-results -name 'scheduler-desktop.png' -exec cp {} "$evidence/scheduler-desktop.png" \; 2>/dev/null || true
-find web/ach-interbank-ui/test-results -name 'scheduler-mobile-view-only.png' -exec cp {} "$evidence/scheduler-mobile-view-only.png" \; 2>/dev/null || true
+find web/ach-interbank-ui/test-results -name 'scheduler-mobile-tasks.png' -exec cp {} "$evidence/scheduler-mobile-tasks.png" \; 2>/dev/null || true
 docker compose -f "$compose_file" logs --no-color achinterbank-api-01 > "$evidence/api-01-scheduler.log" || true
 docker compose -f "$compose_file" logs --no-color achinterbank-api-02 > "$evidence/api-02-scheduler.log" || true
 
@@ -16,10 +16,10 @@ docker compose -f "$compose_file" logs --no-color achinterbank-api-02 > "$eviden
   else
     echo "scheduler-desktop.png: absent because the scenario did not reach the final success capture"
   fi
-  if [[ -s "$evidence/scheduler-mobile-view-only.png" ]]; then
-    echo "scheduler-mobile-view-only.png: present"
+  if [[ -s "$evidence/scheduler-mobile-tasks.png" ]]; then
+    echo "scheduler-mobile-tasks.png: present"
   else
-    echo "scheduler-mobile-view-only.png: absent because the scenario did not reach the final success capture"
+    echo "scheduler-mobile-tasks.png: absent because the scenario did not reach the final success capture"
   fi
 } > "$evidence/playwright-outcome.txt"
 
@@ -32,7 +32,7 @@ fi
   echo 'No se generó scheduler-junit.xml para una ejecución exitosa'
   exit 1
 }
-[[ -s "$evidence/scheduler-desktop.png" && -s "$evidence/scheduler-mobile-view-only.png" ]] || {
+[[ -s "$evidence/scheduler-desktop.png" && -s "$evidence/scheduler-mobile-tasks.png" ]] || {
   echo 'Una ejecución exitosa no produjo las capturas finales requeridas'
   exit 1
 }
@@ -53,7 +53,7 @@ const tests = Number(attributes.tests ?? -1);
 const failures = Number(attributes.failures ?? 0);
 const errors = Number(attributes.errors ?? 0);
 const skipped = Number(attributes.skipped ?? 0);
-if (tests !== 4 || failures !== 0 || errors !== 0 || skipped !== 0) {
+if (tests !== 5 || failures !== 0 || errors !== 0 || skipped !== 0) {
   console.error(`Resultado JUnit inesperado: tests=${tests}, failures=${failures}, errors=${errors}, skipped=${skipped}`);
   process.exit(1);
 }
