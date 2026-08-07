@@ -200,4 +200,22 @@ Expected result:
 - `RegistrarRespuestaTransaccion` is non-monetary and must not move money.
 - `None`, duplicates and `ManualReviewRequired` must not execute SOAP.
 
+## Uso obligatorio de Codebase Memory
+
+Para tareas de análisis, corrección, implementación, refactorización o pruebas en este repositorio:
+
+- Consultar primero el servidor MCP `codebase-memory` antes de realizar búsquedas amplias o modificar código.
+- Reutilizar la indexación existente. No ejecutar `index_repository` salvo solicitud expresa del usuario o ausencia comprobada del índice.
+- Usar `get_architecture` solamente cuando la tarea requiera comprender componentes o capas arquitectónicas.
+- Usar `search_graph` para localizar clases, métodos, controladores, servicios, entidades, componentes, rutas y pruebas.
+- Usar `trace_path` para analizar llamadas, dependencias, callers, callees y flujos afectados.
+- Usar `get_code_snippet` para consultar la implementación de símbolos concretos.
+- Usar `search_code` para búsquedas textuales, configuraciones, documentación o información insuficiente en el grafo.
+- Usar `get_graph_schema` y `query_graph` únicamente cuando se necesiten relaciones estructurales complejas.
+- Limitar las consultas MCP al alcance específico de la tarea. No explorar componentes no relacionados.
+- Utilizar `rg`, búsquedas de archivos o lectura manual como respaldo cuando el MCP no tenga información suficiente.
+- Antes de modificar código, identificar brevemente los componentes, dependencias, integraciones y pruebas afectadas.
+- En el resultado final, mencionar de forma breve qué herramientas de `codebase-memory` fueron utilizadas.
+- No asumir comportamientos basándose únicamente en nombres de archivos o símbolos.
+
 
