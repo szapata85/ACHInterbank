@@ -229,4 +229,35 @@ Codebase Memory analiza archivos versionados del repositorio. No conoce cambios 
 
 Después de sincronizar, se deben utilizar las herramientas de Codebase Memory apropiadas, como `get_architecture`, `search_code`, `search_graph`, `query_graph`, `trace_path` o `get_code_snippet`, antes de recurrir a búsquedas manuales extensas.
 
+### Uso eficiente después de la sincronización
+
+Después de sincronizar el repositorio, se debe consultar primero `codebase-memory` antes de realizar búsquedas amplias o modificar código.
+
+Las consultas deben limitarse estrictamente al alcance de la tarea:
+
+- Usar `get_architecture` únicamente cuando sea necesario comprender capas, módulos o componentes generales.
+- Usar `search_graph` para localizar clases, métodos, controladores, servicios, entidades, componentes, rutas, pruebas y sus relaciones estructurales.
+- Usar `trace_path` para seguir llamadas, dependencias, callers, callees y flujos afectados.
+- Usar `get_code_snippet` para recuperar únicamente la implementación de símbolos concretos.
+- Usar `search_code` para búsquedas textuales, configuraciones, documentación o información que no esté disponible en el grafo.
+- Usar `get_graph_schema` y `query_graph` únicamente cuando se necesiten relaciones estructurales complejas.
+- No explorar módulos, carpetas o componentes que no estén relacionados con la tarea.
+- Limitar la cantidad de consultas MCP y formularlas de manera precisa.
+- Utilizar `rg`, búsquedas de archivos y lectura manual como respaldo cuando Codebase Memory no entregue información suficiente.
+- Leer directamente solo los archivos concretos que deban validarse o modificarse.
+- No leer archivos completos cuando un fragmento o símbolo específico sea suficiente.
+- Antes de modificar código, identificar brevemente los componentes, dependencias, integraciones y pruebas afectadas.
+- No asumir comportamientos basándose únicamente en nombres de archivos, clases, métodos o símbolos.
+- En el resultado final, mencionar brevemente qué herramientas de `codebase-memory` fueron utilizadas.
+- Si Codebase Memory no está disponible o presenta errores, informarlo y continuar con búsquedas locales estrictamente delimitadas.
+
+El flujo esperado para tareas relevantes es:
+
+1. Sincronizar el índice de forma incremental.
+2. Consultar el grafo con herramientas específicas para la tarea.
+3. Leer únicamente los archivos o fragmentos necesarios.
+4. Implementar el cambio solicitado.
+5. Ejecutar únicamente las validaciones relacionadas con el alcance.
+6. Informar de manera breve las herramientas utilizadas y los resultados obtenidos.
+
 
