@@ -35,7 +35,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldNotChangeOriginalTransactionState_CurrentBehavior()
+    public async Task GenerateReturnsFileAsync_ShouldTransitionOriginalTransactionToReturnedByEpr()
     {
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 1002, cycleId: "ACH-CHAR-2", state: AchTransferStateEnum.Pending);
@@ -45,7 +45,10 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-2", [new ReturnSelectionItemDto(1002, "DEV14")]), CancellationToken.None);
 
         var reloaded = await context.AchTransactions.SingleAsync(x => x.Id == 1002);
-        Assert.Equal(initialState, reloaded.State);
+        Assert.Equal(AchTransferStateEnum.Pending, initialState);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, reloaded.State);
+        Assert.Equal("DEV14", reloaded.ReturnReasonCode);
+        Assert.Equal("091000020000001", reloaded.OriginalTraceRef);
     }
 
     [Fact]
@@ -61,8 +64,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
 
         var evt = await context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 1003);
         Assert.Equal(AchTransferStateEnum.Pending, evt.FromState);
-        Assert.Equal(AchTransferStateEnum.Pending, evt.ToState);
-        Assert.Equal(AchStateEventSourceEnum.System, evt.Source);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, evt.ToState);
+        Assert.Equal(AchStateEventSourceEnum.Epr, evt.Source);
         Assert.Equal("DEV14", evt.ReasonCode);
         Assert.Contains("ReturnFileGenerated", evt.PayloadJson, StringComparison.Ordinal);
         Assert.Contains("outbound-return", evt.PayloadJson, StringComparison.Ordinal);
@@ -151,6 +154,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         Assert.Contains(events, x => x.AchTransactionId == 2002);
         Assert.All(events, x =>
         {
+            Assert.Equal(AchTransferStateEnum.ReturnedByEpr, x.ToState);
             Assert.Contains("ReturnFileGenerated", x.PayloadJson, StringComparison.Ordinal);
             Assert.Contains("outbound-return", x.PayloadJson, StringComparison.Ordinal);
         });
@@ -210,14 +214,14 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         Assert.Equal("ReturnFileGenerated", root.GetProperty("eventType").GetString());
         Assert.Equal("AchReturnsService.GenerateReturnsFileAsync", root.GetProperty("source").GetString());
         Assert.Equal("outbound-return", root.GetProperty("generationMode").GetString());
-        Assert.False(root.GetProperty("stateChanged").GetBoolean());
+        Assert.True(root.GetProperty("stateChanged").GetBoolean());
 
         Assert.Equal(2005, root.GetProperty("originalTransactionId").GetInt32());
         Assert.Equal("EXT-2005", root.GetProperty("transactionExternalId").GetString());
         Assert.Equal("REF-2005", root.GetProperty("reference").GetString());
         Assert.Equal("Debit", root.GetProperty("transactionType").GetString());
         Assert.Equal("Pending", root.GetProperty("previousState").GetString());
-        Assert.Equal("Pending", root.GetProperty("newState").GetString());
+        Assert.Equal("ReturnedByEpr", root.GetProperty("newState").GetString());
 
         Assert.Equal("DEV14", root.GetProperty("returnReasonCode").GetString());
         Assert.Equal("ACH-CHAR-PAYLOAD-1", root.GetProperty("returnCycleId").GetString());
@@ -249,7 +253,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldCreateAuditEventWithoutChangingTransactionState()
+    public async Task GenerateReturnsFileAsync_ShouldCreateAuditedLifecycleTransition()
     {
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 2006, cycleId: "ACH-CHAR-STATE-1", state: AchTransferStateEnum.Pending);
@@ -262,9 +266,11 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         var after = await context.AchTransactions.SingleAsync(x => x.Id == 2006);
         var evt = await context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 2006);
 
-        Assert.Equal(AchTransferStateEnum.Pending, after.State);
-        Assert.Equal(beforeChangedAt, after.StateChangedAtUtc);
-        Assert.Equal(evt.FromState, evt.ToState);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, after.State);
+        Assert.NotEqual(beforeChangedAt, after.StateChangedAtUtc);
+        Assert.Equal(AchTransferStateEnum.Pending, evt.FromState);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, evt.ToState);
+        Assert.Equal(AchStateEventSourceEnum.Epr, evt.Source);
     }
 
     [Fact]

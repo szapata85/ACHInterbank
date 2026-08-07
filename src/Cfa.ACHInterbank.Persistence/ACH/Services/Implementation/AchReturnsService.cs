@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +30,8 @@ public class AchReturnsService(
     INachaRecordConfigProvider? nachaRecordConfigProvider = null,
     INachaRecordFieldValidator? nachaRecordFieldValidator = null,
     IAchCauseCodePolicy? causeCodePolicy = null,
-    ILogger<AchReturnsService>? logger = null) : IAchReturnsService
+    ILogger<AchReturnsService>? logger = null,
+    IAchStateTransitionService? stateTransitionService = null) : IAchReturnsService
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
@@ -46,7 +48,9 @@ public class AchReturnsService(
     private readonly INachaRecordFieldValidator? _nachaRecordFieldValidator = nachaRecordFieldValidator;
     private readonly IAchCauseCodePolicy? _causeCodePolicy = causeCodePolicy;
     private readonly ILogger<AchReturnsService> _logger = logger ?? NullLogger<AchReturnsService>.Instance;
-    private const int MaxCyclesForReturn = 4;
+    // The canonical service is deliberately used even by legacy composition roots that
+    // have not yet supplied it through DI.  This keeps a single audited transition path.
+    private readonly IAchStateTransitionService _stateTransitionService = stateTransitionService ?? new AchStateTransitionService(context);
     private const string ImmediateDestinationAchColombia = "000101006";
     private static readonly HashSet<string> CreditTransactionCodes = new(StringComparer.Ordinal)
     {
@@ -91,7 +95,7 @@ public class AchReturnsService(
                 isEligible = false;
                 message = "No fue posible validar la antigüedad por ciclo.";
             }
-            else if ((selectedCycleOrder - txCycleOrder) > MaxCyclesForReturn)
+            else if (IsAchColombia(cycle.ClearingHouse?.Code) && (selectedCycleOrder - txCycleOrder) > 4)
             {
                 isEligible = false;
                 message = "La transacción supera el máximo de 4 ciclos para devolución.";
@@ -144,6 +148,11 @@ public class AchReturnsService(
                 .FirstOrDefaultAsync(ct)
             : null;
 
+        if (!IsAchColombia(cycle.ClearingHouse?.Code))
+        {
+            throw new InvalidOperationException("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED: la generación física CENIT permanece bloqueada hasta homologación técnica de layout, DFI, correlación y naming.");
+        }
+
         var selectedIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
         await using var generationLock = await _returnGenerationLockService.AcquireAsync(selectedIds, ct);
 
@@ -190,7 +199,7 @@ public class AchReturnsService(
                 throw new InvalidOperationException($"La transacción {tx.Id} no es elegible para devolución porque ya corresponde a un retorno o reverso.");
             }
 
-            if (!cycleOrder.TryGetValue(tx.AchCycleId, out var txCycleOrder) || (selectedCycleOrder - txCycleOrder) > MaxCyclesForReturn)
+            if (!cycleOrder.TryGetValue(tx.AchCycleId, out var txCycleOrder) || (selectedCycleOrder - txCycleOrder) > 4)
             {
                 throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
             }
@@ -356,17 +365,16 @@ public class AchReturnsService(
             row.FileName = fileName;
         }
 
-        var stateEvents = generatedRows.Select(row =>
+        context.Set<AchReturnGenerated>().AddRange(generatedRows);
+        await using var databaseTransaction = context.Database.IsRelational()
+            ? await context.Database.BeginTransactionAsync(ct)
+            : null;
+        try
         {
-            var originalTx = transactions.First(t => t.Id == row.OriginalTransactionId);
-            return new AchTransactionStateEvent
+            foreach (var row in generatedRows)
             {
-                AchTransactionId = row.OriginalTransactionId,
-                FromState = originalTx.State,
-                ToState = originalTx.State,
-                Source = Domain.Entities.Transactions.Enums.AchStateEventSourceEnum.System,
-                ReasonCode = row.ReturnReasonCode,
-                PayloadJson = BuildReturnFileGeneratedPayload(
+                var originalTx = transactions.First(t => t.Id == row.OriginalTransactionId);
+                var payload = BuildReturnFileGeneratedPayload(
                     originalTx,
                     row,
                     cycle,
@@ -374,13 +382,34 @@ public class AchReturnsService(
                     lines.Count,
                     generatedRows.Count,
                     now,
-                    fileContent)
-            };
-        }).ToList();
+                    fileContent,
+                    AchTransferStateEnum.ReturnedByEpr);
 
-        context.Set<AchReturnGenerated>().AddRange(generatedRows);
-        context.AchTransactionStateEvents.AddRange(stateEvents);
-        await context.SaveChangesAsync(ct);
+                await _stateTransitionService.TransitionAsync(new AchStateTransitionRequest(
+                    row.OriginalTransactionId,
+                    AchTransferStateEnum.ReturnedByEpr,
+                    AchStateEventSourceEnum.Epr,
+                    row.ReturnReasonCode,
+                    payload,
+                    row.OriginalSequenceNumber,
+                    now,
+                    $"outbound-return-v1:{row.OriginalTransactionId}",
+                    cycle.ClearingHouseId), ct);
+            }
+
+            if (databaseTransaction is not null)
+            {
+                await databaseTransaction.CommitAsync(ct);
+            }
+        }
+        catch
+        {
+            if (databaseTransaction is not null)
+            {
+                await databaseTransaction.RollbackAsync(ct);
+            }
+            throw;
+        }
 
         return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), lines.Count, generatedRows.Count);
     }
@@ -394,7 +423,8 @@ public class AchReturnsService(
         int recordCount,
         int returnCount,
         DateTime createdAtUtc,
-        string fileContent)
+        string fileContent,
+        AchTransferStateEnum newState)
     {
         var payload = new
         {
@@ -402,13 +432,13 @@ public class AchReturnsService(
             eventType = "ReturnFileGenerated",
             source = $"{nameof(AchReturnsService)}.{nameof(GenerateReturnsFileAsync)}",
             generationMode = "outbound-return",
-            stateChanged = false,
+            stateChanged = true,
             originalTransactionId = generatedRow.OriginalTransactionId,
             transactionExternalId = originalTx.TransactionExternalId,
             reference = originalTx.Reference,
             transactionType = originalTx.Type.ToString(),
             previousState = originalTx.State.ToString(),
-            newState = originalTx.State.ToString(),
+            newState = newState.ToString(),
             returnReasonCode = generatedRow.ReturnReasonCode,
             returnCycleId = generatedRow.ReturnCycleId,
             clearingHouseId = cycle.ClearingHouseId,
@@ -444,6 +474,10 @@ public class AchReturnsService(
         var hash = System.Security.Cryptography.SHA256.HashData(bytes);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+
+    private static bool IsAchColombia(string? clearingHouseCode)
+        => string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(clearingHouseCode, "ACHCOLOMBIA", StringComparison.OrdinalIgnoreCase);
 
 
 
