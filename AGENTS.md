@@ -260,4 +260,12 @@ El flujo esperado para tareas relevantes es:
 5. Ejecutar únicamente las validaciones relacionadas con el alcance.
 6. Informar de manera breve las herramientas utilizadas y los resultados obtenidos.
 
+## Normativa ACH Colombia vigente
+
+La referencia normativa canónica vigente para ACH Colombia es `docs/normativa/md/ACH-Colombia-V35.md`, correspondiente a ACH Colombia Versión 35 (abril de 2026). V32 y anteriores son únicamente referencias históricas o comparativas.
+
+Antes de analizar o modificar funcionalidades de ACH Colombia, NACHA-M, ciclos, créditos, débitos, prenotificaciones, devoluciones, devoluciones por operador, causales, archivos, límites o seguridad, debe consultarse primero V35. Si el código, la documentación o el comportamiento existente contradicen V35, debe reportarse la discrepancia y usarse V35 como autoridad normativa; no deben inventarse reglas no soportadas por ella.
+
+Para devoluciones deben revisarse especialmente las secciones 6.6, 6.7 y los anexos aplicables de V35. Debe contemplarse la causal D33 cuando corresponda normativamente.
+
 
