@@ -5,11 +5,14 @@ import { NotificationService } from '../../../core/services/notification.service
 import { BrandingSettings } from '../../../core/models/branding.model';
 import { finalize } from 'rxjs/operators';
 import { Subscription } from 'rxjs';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 @Component({
   selector: 'app-branding-settings',
   standalone: true,
-  imports: [SharedModule],
+  imports: [SharedModule, MatButtonModule, MatCardModule, MatProgressSpinnerModule],
   templateUrl: './branding-settings.component.html',
   styleUrls: ['./branding-settings.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

@@ -1,8 +1,18 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, TemplateRef, ViewChild, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
 import { Router } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTableModule } from '@angular/material/table';
 import { NotificationService } from '../../../core/services/notification.service';
-import { TableColumn } from '../../../shared/components/table.component';
 import { RolesApiService, UsersApiService } from '../services/users-api.service';
 import { RoleSummary, UserFilter, UserSummary } from '../models/user.model';
 import { SharedModule } from '../../../shared/shared.module';
@@ -14,7 +24,21 @@ import { RouterModule } from '@angular/router';
   styleUrls: ['./users-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [SharedModule, RouterModule]
+  imports: [
+    SharedModule,
+    RouterModule,
+    MatButtonModule,
+    MatCardModule,
+    MatChipsModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatMenuModule,
+    MatPaginatorModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
+    MatTableModule
+  ]
 })
 export class UsersListComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
@@ -24,9 +48,6 @@ export class UsersListComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  @ViewChild('rowActions', { static: true }) rowActionsTemplate!: TemplateRef<any>;
-  @ViewChild('headerActions', { static: true }) headerActionsTemplate!: TemplateRef<any>;
-
   readonly filterForm = this.fb.group({
     search: [''],
     roleId: [''],
@@ -34,14 +55,7 @@ export class UsersListComponent implements OnInit {
     pageSize: [10]
   });
 
-  columns: TableColumn[] = [
-    { key: 'userName', label: 'Usuario' },
-    { key: 'fullName', label: 'Nombre' },
-    { key: 'email', label: 'Email' },
-    { key: 'phoneNumber', label: 'Teléfono' },
-    { key: 'rolesText', label: 'Roles' },
-    { key: 'statusText', label: 'Estado' }
-  ];
+  readonly displayedColumns = ['fullName', 'userName', 'email', 'roles', 'status', 'actions'];
 
   users: UserSummary[] = [];
   roles: RoleSummary[] = [];
@@ -50,6 +64,7 @@ export class UsersListComponent implements OnInit {
   hasLoaded = false;
   loadError: string | null = null;
   confirmUser: UserSummary | null = null;
+  isUpdatingStatus = false;
 
   ngOnInit(): void {
     this.loadRoles();
@@ -90,8 +105,13 @@ export class UsersListComponent implements OnInit {
     });
   }
 
-  changePage(page: number): void {
-    this.filterForm.patchValue({ page });
+  changePage(event: PageEvent): void {
+    this.filterForm.patchValue({ page: event.pageIndex + 1, pageSize: event.pageSize });
+    this.loadUsers();
+  }
+
+  clearFilters(): void {
+    this.filterForm.patchValue({ search: '', roleId: '', page: 1 });
     this.loadUsers();
   }
 
@@ -121,13 +141,13 @@ export class UsersListComponent implements OnInit {
     }
     this.usersApi.deactivateUser(this.confirmUser.id).subscribe({
       next: () => {
-        this.notifications.success('Usuario desactivado');
+        this.notifications.success('El usuario fue desactivado correctamente.');
         this.confirmUser = null;
         this.loadUsers();
         this.cdr.markForCheck();
       },
       error: () => {
-        this.notifications.error('No fue posible desactivar al usuario');
+        this.notifications.error('No fue posible desactivar el usuario. Inténtalo nuevamente.');
         this.confirmUser = null;
         this.cdr.markForCheck();
       }

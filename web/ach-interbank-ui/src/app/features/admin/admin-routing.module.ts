@@ -21,7 +21,12 @@ const routes: Routes = [
       {
         path: '',
         component: UsersListComponent,
-        data: { breadcrumb: 'Usuarios', title: 'Gestión de usuarios' }
+        data: { breadcrumb: 'Usuarios', title: 'Administración de usuarios' }
+      },
+      {
+        path: 'list',
+        component: UsersListComponent,
+        data: { breadcrumb: 'Administrar usuarios', title: 'Administración de usuarios' }
       },
       { path: 'new', component: UserFormComponent, data: { breadcrumb: 'Nuevo usuario', title: 'Crear usuario' } },
       {
@@ -32,7 +37,7 @@ const routes: Routes = [
       {
         path: ':id/roles',
         component: UserRolesComponent,
-        data: { breadcrumb: 'Roles y permisos', title: 'Asignar roles' }
+        data: { breadcrumb: 'Perfiles de acceso', title: 'Administrar perfiles de acceso' }
       },
       {
         path: 'branding',

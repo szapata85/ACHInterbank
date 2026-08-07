@@ -1,16 +1,5 @@
-<div class="card" *ngIf="user">
-  <h2>Roles para {{ user.userName }}</h2>
-
-  <div class="roles">
-    <label *ngFor="let role of roles">
-      <input type="checkbox" [checked]="selectedRoleIds.has(role.id)" (change)="toggleRole(role)" />
-      <span class="role-name">{{ role.name }}</span>
-      <small class="description">{{ role.description || 'Sin descripción' }}</small>
-    </label>
-  </div>
-
-  <div class="actions">
-    <button type="button" routerLink="/users">Cancelar</button>
-    <button type="button" class="btn btn-primary" (click)="save()">Guardar</button>
-  </div>
-</div>
+<section class="user-roles-page" *ngIf="user; else loading" aria-labelledby="roles-title">
+  <header class="page-heading"><div><h1 id="roles-title">Perfiles de acceso</h1><p>Define los perfiles que puede utilizar {{ user.userName }}.</p></div></header>
+  <mat-card><mat-card-content><div class="roles" role="group" aria-describedby="roles-help"><p id="roles-help">Selecciona al menos un perfil de acceso.</p><mat-checkbox *ngFor="let role of roles" [checked]="selectedRoleIds.has(role.id)" (change)="toggleRole(role)"><strong>{{ role.name }}</strong><span>{{ role.description || 'Sin descripción disponible.' }}</span></mat-checkbox></div><div class="actions"><button mat-button type="button" routerLink="/users/list" [disabled]="saving">Cancelar</button><button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="saving"><mat-spinner *ngIf="saving" diameter="18"></mat-spinner><span>{{ saving ? 'Guardando...' : 'Guardar perfiles' }}</span></button></div></mat-card-content></mat-card>
+</section>
+<ng-template #loading><div class="loading-state" aria-live="polite"><mat-spinner diameter="36"></mat-spinner><span>Cargando información del usuario...</span></div></ng-template>

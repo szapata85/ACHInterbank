@@ -197,6 +197,39 @@ public class NavigationMenuNachaConfigTests
             && x.PermissionId == PermissionConfiguration.ReadAchPermissionId));
     }
 
+    [Fact]
+    public async Task UsersMenuSeeder_ShouldCreateOneAuthorizedManageUsersEntryAndPreserveExistingChildren()
+    {
+        await using var context = BuildContext();
+        context.MenuItems.AddRange(
+            new MenuItem { Id = MenuItemConfiguration.UsersId, MenuId = MenuConfiguration.MainMenuId, Label = "Usuarios", Route = "/users", Icon = "group", Order = 2, IsActive = false },
+            new MenuItem { Id = MenuItemConfiguration.BrandingId, MenuId = MenuConfiguration.MainMenuId, ParentId = MenuItemConfiguration.UsersId, Label = "Identidad y colores", Route = "/users/branding", Icon = "palette", Order = 2, Exact = true, IsActive = true },
+            new MenuItem { Id = MenuItemConfiguration.PasswordRulesId, MenuId = MenuConfiguration.MainMenuId, ParentId = MenuItemConfiguration.UsersId, Label = "Reglas de contraseña", Route = "/users/password-rules", Icon = "policy", Order = 3, Exact = true, IsActive = true });
+        await context.SaveChangesAsync();
+
+        var seeder = new UsersMenuSeeder(context);
+        await seeder.SeedAsync();
+        await seeder.SeedAsync();
+
+        var users = await context.MenuItems.SingleAsync(item => item.Id == MenuItemConfiguration.UsersId);
+        var management = Assert.Single(await context.MenuItems
+            .Where(item => item.ParentId == users.Id && item.Route == "/users/list")
+            .ToListAsync());
+
+        Assert.True(users.IsActive);
+        Assert.Equal("Administrar usuarios", management.Label);
+        Assert.Equal("manage_accounts", management.Icon);
+        Assert.Equal(1, management.Order);
+        Assert.True(management.Exact);
+        Assert.True(management.IsActive);
+        Assert.True(await context.MenuItemRoles.AnyAsync(item => item.MenuItemId == users.Id && item.RoleId == RoleConfiguration.AdminRoleId));
+        Assert.True(await context.MenuItemPermissions.AnyAsync(item => item.MenuItemId == users.Id && item.PermissionId == PermissionConfiguration.ManageUsersPermissionId));
+        Assert.True(await context.MenuItemRoles.AnyAsync(item => item.MenuItemId == management.Id && item.RoleId == RoleConfiguration.AdminRoleId));
+        Assert.True(await context.MenuItemPermissions.AnyAsync(item => item.MenuItemId == management.Id && item.PermissionId == PermissionConfiguration.ManageUsersPermissionId));
+        Assert.Contains(await context.MenuItems.ToListAsync(), item => item.Id == MenuItemConfiguration.BrandingId && item.ParentId == users.Id);
+        Assert.Contains(await context.MenuItems.ToListAsync(), item => item.Id == MenuItemConfiguration.PasswordRulesId && item.ParentId == users.Id);
+    }
+
     private static MenuItem MenuItem(int id, string label, string route, Permission permission, int? parentId = null)
     {
         return new MenuItem

@@ -4,6 +4,11 @@ import { RolesApiService, UsersApiService } from '../services/users-api.service'
 import { RoleSummary, UserSummary } from '../models/user.model';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { NotificationService } from '../../../core/services/notification.service';
 
 @Component({
   selector: 'app-user-roles',
@@ -11,7 +16,7 @@ import { RouterModule } from '@angular/router';
   styleUrls: ['./user-roles.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [SharedModule, RouterModule]
+  imports: [SharedModule, RouterModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatProgressSpinnerModule]
 })
 export class UserRolesComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
@@ -19,10 +24,12 @@ export class UserRolesComponent implements OnInit {
   private readonly usersApi = inject(UsersApiService);
   private readonly rolesApi = inject(RolesApiService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly notifications = inject(NotificationService);
 
   roles: RoleSummary[] = [];
   user?: UserSummary;
   selectedRoleIds = new Set<string>();
+  saving = false;
 
   ngOnInit(): void {
     const userId = this.route.snapshot.paramMap.get('id');
@@ -51,13 +58,28 @@ export class UserRolesComponent implements OnInit {
   }
 
   save(): void {
-    if (!this.user) {
+    if (!this.user || this.saving) {
       return;
     }
 
-    this.usersApi.assignRoles(this.user.id, Array.from(this.selectedRoleIds)).subscribe(() => {
-      this.cdr.markForCheck();
-      this.router.navigate(['/users']);
+    if (this.selectedRoleIds.size === 0) {
+      this.notifications.error('Selecciona al menos un perfil de acceso.');
+      return;
+    }
+
+    this.saving = true;
+    this.usersApi.assignRoles(this.user.id, Array.from(this.selectedRoleIds)).subscribe({
+      next: () => {
+        this.saving = false;
+        this.notifications.success('Los perfiles de acceso se actualizaron correctamente.');
+        this.cdr.markForCheck();
+        this.router.navigate(['/users/list']);
+      },
+      error: () => {
+        this.saving = false;
+        this.notifications.error('No fue posible actualizar los perfiles de acceso. Inténtalo nuevamente.');
+        this.cdr.markForCheck();
+      }
     });
   }
 }

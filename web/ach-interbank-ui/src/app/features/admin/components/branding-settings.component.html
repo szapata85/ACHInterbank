@@ -1,5 +1,6 @@
-<div class="card">
-  <h2>Identidad y colores</h2>
+<mat-card class="card">
+  <mat-card-content>
+  <h1>Identidad visual</h1>
   <p class="description">
     Personaliza los logos, fondos y botones de la aplicación para el acceso público y el portal autenticado. Las
     imágenes pueden ser PNG o SVG, y los colores aceptan cualquier valor compatible con CSS (hexadecimal, rgb,
@@ -146,6 +147,10 @@
 
   <div class="actions">
     <button type="button" (click)="reset()">Restaurar</button>
-    <button type="button" class="btn btn-primary" (click)="save()">Guardar cambios</button>
+    <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving">
+      <mat-spinner *ngIf="isSaving" diameter="18"></mat-spinner>
+      <span>{{ isSaving ? 'Guardando...' : 'Guardar cambios' }}</span>
+    </button>
   </div>
-</div>
+  </mat-card-content>
+</mat-card>

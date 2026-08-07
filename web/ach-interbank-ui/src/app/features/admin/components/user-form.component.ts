@@ -6,6 +6,14 @@ import { RoleSummary, SaveUserRequest, UserSummary } from '../models/user.model'
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
 import { PasswordRulesService, PasswordRules } from '../../../core/services/password-rules.service';
+import { NotificationService } from '../../../core/services/notification.service';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { catchError, map, of } from 'rxjs';
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -16,7 +24,7 @@ const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
   styleUrls: ['./user-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [SharedModule, RouterModule]
+  imports: [SharedModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule]
 })
 export class UserFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
@@ -25,11 +33,13 @@ export class UserFormComponent implements OnInit {
   private readonly usersApi = inject(UsersApiService);
   private readonly rolesApi = inject(RolesApiService);
   private readonly passwordRulesService = inject(PasswordRulesService);
+  private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
   roles: RoleSummary[] = [];
   isEdit = false;
   userId: string | null = null;
+  saving = false;
 
   passwordRules: PasswordRules = this.passwordRulesService.getRulesSnapshot();
 
@@ -43,7 +53,7 @@ export class UserFormComponent implements OnInit {
     }),
     phoneNumber: [''],
     password: [''],
-    roleIds: this.fb.control<string[]>([])
+    roleIds: this.fb.control<string[]>([], Validators.required)
   });
 
   ngOnInit(): void {
@@ -83,7 +93,7 @@ export class UserFormComponent implements OnInit {
   }
 
   save(): void {
-    if (this.form.invalid || this.form.pending) {
+    if (this.saving || this.form.invalid || this.form.pending) {
       this.form.markAllAsTouched();
       this.form.updateValueAndValidity();
       return;
@@ -95,9 +105,21 @@ export class UserFormComponent implements OnInit {
       ? this.usersApi.updateUser(this.userId, payload)
       : this.usersApi.createUser(payload);
 
-    request$.subscribe(() => {
-      this.cdr.markForCheck();
-      this.router.navigate(['/users']);
+    this.saving = true;
+    this.cdr.markForCheck();
+    request$.subscribe({
+      next: () => {
+        this.saving = false;
+        this.form.markAsPristine();
+        this.notifications.success(this.isEdit ? 'Los cambios se guardaron correctamente.' : 'Usuario creado correctamente.');
+        this.cdr.markForCheck();
+        this.router.navigate(['/users/list']);
+      },
+      error: () => {
+        this.saving = false;
+        this.notifications.error('No fue posible guardar los cambios. Revisa la información e inténtalo nuevamente.');
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -107,9 +129,9 @@ export class UserFormComponent implements OnInit {
       return null;
     }
     if (control.hasError('required')) {
-      return 'Campo obligatorio';
+      return 'Ingresa el nombre de usuario.';
     }
-    return 'Dato inválido';
+    return 'Ingresa un nombre de usuario válido.';
   }
 
   get emailError(): string | null {
@@ -118,15 +140,15 @@ export class UserFormComponent implements OnInit {
       return null;
     }
     if (control.hasError('required')) {
-      return 'Campo obligatorio';
+      return 'Ingresa un correo electrónico.';
     }
     if (control.hasError('email') || control.hasError('pattern')) {
-      return 'Formato de correo inválido';
+      return 'Ingresa un correo electrónico válido.';
     }
     if (control.hasError('invalidEmailDomain')) {
       return 'El dominio del correo no es válido';
     }
-    return 'Dato inválido';
+    return 'Revisa el correo electrónico ingresado.';
   }
 
   get passwordError(): string | null {
@@ -135,12 +157,12 @@ export class UserFormComponent implements OnInit {
       return null;
     }
     if (control.hasError('required')) {
-      return 'Campo obligatorio';
+      return 'Ingresa una contraseña.';
     }
     if (control.hasError('weakPassword')) {
-      return 'La contraseña no cumple las reglas';
+      return 'La contraseña debe cumplir las reglas configuradas.';
     }
-    return 'Dato inválido';
+    return 'Revisa la contraseña ingresada.';
   }
 
   onEmailBlur(): void {
