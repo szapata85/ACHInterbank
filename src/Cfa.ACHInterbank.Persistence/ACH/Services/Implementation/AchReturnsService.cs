@@ -477,6 +477,7 @@ public class AchReturnsService(
 
     private static bool IsAchColombia(string? clearingHouseCode)
         => string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(clearingHouseCode, "ACHCOL", StringComparison.OrdinalIgnoreCase)
            || string.Equals(clearingHouseCode, "ACHCOLOMBIA", StringComparison.OrdinalIgnoreCase);
 
 
