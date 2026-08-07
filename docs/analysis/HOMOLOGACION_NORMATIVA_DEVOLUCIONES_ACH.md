@@ -204,3 +204,66 @@ La clasificación CENIT es parcial, no plena, porque la operación/plazo/ROR est
 - Externa oficial: Banco de la República, Manual Operativo CENIT y DSP-152 Anexo 2, URLs en la sección 3, consultados el 2026-08-07.
 - Interna: análisis base B4/B5 y matrices de auditoría enumeradas en sección 3; usadas únicamente para identificar AS-IS y brechas.
 - Se buscaron publicaciones oficiales de ACH Colombia sobre manual, devolución y NACHA-M. No se obtuvo documento público oficial adicional con ROR/layout; se detuvo la búsqueda conforme al criterio del JOB.
+
+## Revalidación ACH Colombia V35
+
+Esta sección supersede exclusivamente las conclusiones ACH Colombia anteriores de este documento. Las conclusiones CENIT no se modifican.
+
+### 1. Versión utilizada y vigencia
+
+Fuente principal: `docs/normativa/md/ACH-Colombia-V35.md`, *Manual de Servicio ACH Transferencias Interbancarias para Entidad Participante*, código DDS-DIS-MAN-004, **Versión 35, abril de 2026**. El propio manual identifica versión/fecha, responsables y fechas de elaboración, revisión y aprobación, e indica que la última versión aprobada reside en el módulo documental BSC. Para este JOB V35 reemplaza las referencias locales V31/V32 usadas en B4. La vigencia queda **CONFIRMADA documentalmente en la fuente local controlada**; no se mantiene como pendiente.
+
+### 2. Delta contra B4
+
+| Tema | Conclusión anterior | V35 | Cambio | Estado nuevo |
+|---|---|---|---|---|
+| Vigencia | V31/V32 y vigencia externa pendiente | V35, abril 2026, manual identificado y aprobado | Reemplaza la referencia anterior | CONFIRMADO |
+| Devolución recibida/originada | Núcleo confirmado; campos finos parciales | Receptor genera hacia Originador; 6.6 define formato completo | Cierra evidencia de archivo, Addenda, secuencia y roles | CONFIRMADO |
+| Naming ordinario | Base conocida; `.RET` y flujo no separados | `RRRRTTT.ZZZ.1`; `.RET` se evidencia para retornos/salidas y operador, no como regla general ordinaria | Se restringe `.RET` al flujo demostrado | MODIFICADO |
+| Layout y Addenda | Parcial | Registros 1/5/6/7/8/9; Addenda 99 obligatoria; valores originales preservados según excepciones | Cierra layout relevante | CONFIRMADO |
+| Correlación | `OriginalTraceRef` pendiente | Addenda 7 campo 4: secuencia original de 15 posiciones, coincide con campo 11 original | Sustituye el nombre interno por referencia normativa | CONFIRMADO |
+| DFI | Pendiente por campo | Detalle campo 3 = originador original; Addenda campo 6 = receptor original | Cierra roles ACH Colombia | CONFIRMADO |
+| Parcialidad | Pendiente para transacción | Valor monetario original; prenotificación cero; débito sin pagos parciales | Separa entrada monetaria de rechazo parcial de archivo | CONFIRMADO |
+| Plazos/ciclos | Cuatro ciclos confirmado, alcance parcial | Máximo cuatro ciclos; crédito tardío bajo calidad, débito tardío no permitido; reclamo: primer ciclo hábil siguiente | Precisa alcance | CONFIRMADO |
+| Causales | Catálogo parcial y Dxx no siempre separado | Anexo 9 explicita R29-R35; Anexo 3 explicita D28/D29 y separa operador | Amplía y clasifica diferencias | MODIFICADO |
+| ROR participante | Pendiente externa | D28 es devolución por operador: “Devolución de una devolución” | Evita interpretar operador como ROR | NUEVO |
+
+### 3. Resultado ACH Colombia
+
+- **Devolución recibida: HOMOLOGADA.** V35 demuestra dirección, causal, layout, Addenda, correlación y preservación.
+- **Devolución originada: HOMOLOGADA.** V35 demuestra originador, destino, causal, plazo, ciclo, importe y formato.
+- **ROR: NO APLICA** como flujo ROR originado por participantes dentro de V35. D28 pertenece a Devolución por Operador y no habilita un ROR de participante.
+
+### 4. Return of Return
+
+V35 no establece participante originador, receptor, causal propia, cantidad máxima, plazo, ciclo, crédito/débito, prenotificación, layout, Addenda ni naming para un ROR de participante. El Anexo 3 sí define D28 “Devolución de una devolución” y D29 “Devolución débito tardía” como causales de **Devolución por Operador**. Tratamiento: clasificar D28 como operador, no modelarlo como ROR ACH Colombia. Resultado: **NO APLICA**.
+
+### 5. Naming, layout, Addenda, correlación y DFI
+
+La norma exige `RRRRTTT.ZZZ.1`: RRRR Ruta, TTT Tránsito y ZZZ consecutivo diario desde 1, relacionado con el identificador de archivo. El ejemplo `.RET` aparece para retornos/salidas y la ficha 6.7 gobierna Devolución por Operador; no se generaliza `.RET` a devolución ordinaria. La ordinaria usa 1/5/6/7/8/9, Addenda 99 obligatoria, una devolución por transacción y secuencia nueva.
+
+La fuente oficial de correlación es Registro Adenda 7, campo 4, longitud 15, coincidente con campo 11 del Detalle original. `OriginalTraceRef` queda como nombre interno, no normativo. Se preservan header de lote, detalle y control de lote salvo excepciones; la Addenda original no se retorna.
+
+### 6. Parcialidad, plazos, ciclos y causales
+
+La devolución monetaria conserva el valor original; la prenotificación usa cero. En débito no se aceptan pagos parciales: si no cubre el total, procede R01/R09. Esto es distinto del rechazo/devolución parcial de archivo por operador.
+
+`MaxCyclesForReturn = 4` conserva respaldo **solo para ACH Colombia**, desde la original según el flujo; crédito tardío puede enviarse bajo calidad y débito tardío no puede enviarse/compensarse. La solicitud del usuario Receptor tiene la regla adicional del primer ciclo del siguiente día hábil. El Anexo 23, 60 días hábiles, es plazo de solución REV/DEV, no ventana de envío.
+
+Diferencias relevantes: explicitud de R30, R31, R32, R33 y R35 en Anexo 9, y D28/D29 en Anexo 3. D28 es operatoria; no es ROR. No se modifica catálogo ni implementación.
+
+### 7. Reevaluación B4 y B4.1
+
+- **B4 global: PARCIALMENTE CERRADA.** Se cierran las brechas ACH Colombia documentales; las brechas técnicas quedan fuera de este JOB.
+- **ACH Colombia — devolución recibida: HOMOLOGADA.**
+- **ACH Colombia — devolución originada: HOMOLOGADA.**
+- **ACH Colombia — ROR: NO APLICA.**
+- CENIT conserva exactamente sus estados y pendientes anteriores.
+
+**B4.1 — NO necesario** para los pendientes ACH Colombia revisados: no sobreviven preguntas externas normativas bloqueantes, altas o medias derivadas de V35.
+
+### 8. Impacto sobre JOBs siguientes
+
+- **HABILITADOS:** JOB 2, JOB 3 y JOB 6 ROR.
+- **PARCIALMENTE HABILITADOS:** JOB 4, JOB 5, JOB 7 y JOB 8; pueden avanzar, pero sus ajustes técnicos y validación integral no se implementan aquí.
+- **BLOQUEADOS:** ninguno por evidencia normativa ACH Colombia V35.
