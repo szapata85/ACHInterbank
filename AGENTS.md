@@ -202,6 +202,26 @@ Expected result:
 
 ## Sincronización obligatoria de Codebase Memory
 
+### Proyectos Codebase Memory de ACHInterbank
+
+Este repositorio utiliza dos proyectos Codebase Memory MCP con responsabilidades diferentes:
+
+- **`ACHInterbank`**: proyecto principal para código fuente, arquitectura, dependencias, relaciones, pruebas y demás componentes técnicos del repositorio.
+- **`ACHInterbank-normativa`**: proyecto documental cuya raíz es `docs/normativa/md`, destinado a normativa ACH Colombia, CENIT y demás documentación normativa Markdown almacenada en esa carpeta.
+
+Reglas obligatorias:
+
+1. Para investigar código, arquitectura, clases, servicios, pruebas, dependencias o rutas de ejecución, consultar primero `ACHInterbank`.
+2. Para investigar normativa almacenada bajo `docs/normativa/md`, consultar `ACHInterbank-normativa`.
+3. Cuando una decisión funcional dependa simultáneamente de implementación y normativa —por ejemplo NACHA-M, devoluciones, respuestas diferenciales, cámaras compensadoras, ACH Colombia o CENIT— consultar ambos proyectos antes de modificar código:
+   - `ACHInterbank` para determinar el comportamiento implementado.
+   - `ACHInterbank-normativa` para determinar el respaldo normativo disponible.
+4. La ausencia de una norma en el grafo principal `ACHInterbank` no debe interpretarse como ausencia del documento. Antes de concluir que falta normativa, consultar `ACHInterbank-normativa`.
+5. No ejecutar repetidamente `index_repository` sobre el proyecto principal intentando incorporar `docs/normativa/md`, porque esa documentación dispone de su proyecto Codebase Memory dedicado.
+6. Si se agregan o modifican archivos bajo `docs/normativa/md`, sincronizar o reindexar `ACHInterbank-normativa` cuando sea necesario para que el nuevo contenido quede recuperable.
+7. No duplicar normativa dentro de `src/`, `tests/` u otras carpetas únicamente para conseguir que Codebase Memory la indexe.
+8. La recuperación de una norma mediante Codebase Memory no constituye por sí sola homologación funcional. Código, normativa, pruebas y evidencia de homologación deben evaluarse según el alcance del trabajo correspondiente.
+
 Antes de realizar análisis estructurales, búsquedas de arquitectura, trazabilidad de dependencias o modificaciones relevantes sobre ACHInterbank, se debe ejecutar `index_repository` sobre la raíz del repositorio.
 
 Esta operación debe tratarse como una sincronización incremental:
