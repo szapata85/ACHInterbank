@@ -1,0 +1,5 @@
+!docs/
+docs/**
+!docs/normativa/
+!docs/normativa/md/
+!docs/normativa/md/**
