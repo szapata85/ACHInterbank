@@ -30,7 +30,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
         var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -63,7 +63,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var mappingTraceWriter = new Mock<IIntegrationMappingTraceWriter>();
         await new IntegrationCatalogBootstrapper(context).EnsureAsync();
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -143,7 +143,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -173,7 +173,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
         var mappingTraceWriter = new Mock<IIntegrationMappingTraceWriter>();
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -224,7 +224,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -263,7 +263,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(FailedProcTransaccionesReadiness());
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -303,7 +303,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
             .Setup(x => x.ProcessCycleAsync("C1", 1, "tester", 50, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ContrapartidaCycleDispatchResult("C1", 1, 1, 0, 1, 0, 1, "Proc_Contrapartidas dry-run."));
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -362,7 +362,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 [],
                 ["Fallback requerido."]));
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -430,7 +430,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 MappingSnapshotHash = "HASH-READY"
             });
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -458,7 +458,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
         var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -494,7 +494,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         operationResolver.Setup(x => x.ResolveAsync(It.IsAny<AchTransaction>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProcTransaccionesOperation());
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -550,7 +550,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 mappingVersion: 7,
                 mappingSnapshotHash: "HASH-RESOLUTION"));
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -600,7 +600,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 mappingVersion: null,
                 mappingSnapshotHash: "HASH-RESOLUTION"));
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -650,7 +650,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
                 mappingVersion: resolution.MappingVersion,
                 mappingSnapshotHash: null));
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -696,7 +696,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         readiness.Setup(x => x.EvaluateAsync(It.IsAny<TransactionIntegrationOperationResult>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(BuildReadiness(mappingSetId, 7, "HASH-MATCH"));
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -748,7 +748,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -792,7 +792,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -868,7 +868,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -916,7 +916,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var operationResolver = BuildProcTransaccionesOperationResolver();
         var readiness = BuildProcTransaccionesReadinessService(mappingIdentity.MappingSetId, mappingIdentity.Version, mappingIdentity.SnapshotHash);
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -962,7 +962,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         soap.Setup(client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
 
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -1011,7 +1011,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
         var soap = new Mock<IWscfaachSoapClient>();
         soap.Setup(client => client.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("<Envelope><Body><Proc_TransaccionesResponse><RTAACH>00</RTAACH><RTALOC>OK</RTALOC></Proc_TransaccionesResponse></Body></Envelope>");
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -1049,7 +1049,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
         var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
         var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -1086,7 +1086,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
         var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
         var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -1119,7 +1119,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
 
         var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
         var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
-        var sut = new IncomingNachaPostProcessingOrchestrator(
+        var sut = CreateOrchestrator(
             context,
             mapper.Object,
             new ProcTransaccionesResponseParser(),
@@ -1137,6 +1137,43 @@ public class IncomingNachaPostProcessingOrchestratorTests
         Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "DispatchWindowExpired"));
         soap.Verify(x => x.ProcTransaccionesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    private static IncomingNachaPostProcessingOrchestrator CreateOrchestrator(
+        AchDbContext context,
+        IProcTransaccionesRequestMapper mapper,
+        IProcTransaccionesResponseParser parser,
+        IWscfaachSoapClient soapClient,
+        IOptions<IncomingNachaDispatchResilienceOptions>? resilienceOptions = null,
+        IOptions<ProcTransaccionesDispatchOptions>? dispatchOptions = null,
+        ITransactionIntegrationOperationResolver? operationResolver = null,
+        IIntegrationMappingReadinessService? mappingReadinessService = null,
+        IIntegrationMappingTraceWriter? mappingTraceWriter = null,
+        IContrapartidaDispatchJobService? contrapartidaDispatchJobService = null,
+        ISoapIntegrationSettingsService? soapIntegrationSettingsService = null,
+        IIncomingNachaLocalLivePreparationService? localLivePreparationService = null,
+        IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
+        TimeProvider? timeProvider = null,
+        IIncomingNachaAchResultResolver? achResultResolver = null,
+        ICycleCalendarGuard? calendarGuard = null,
+        IOperationalCycleWindowResolver? windowResolver = null)
+        => new(
+            context,
+            mapper,
+            parser,
+            soapClient,
+            resilienceOptions,
+            dispatchOptions,
+            operationResolver,
+            mappingReadinessService,
+            mappingTraceWriter,
+            contrapartidaDispatchJobService,
+            soapIntegrationSettingsService,
+            localLivePreparationService,
+            responseCatalogResolver,
+            timeProvider ?? TestSupport.TestClock.Create(),
+            achResultResolver,
+            calendarGuard,
+            windowResolver);
 
     private static void SeedDispatchItem(AchDbContext context)
     {
@@ -1193,13 +1230,13 @@ public class IncomingNachaPostProcessingOrchestratorTests
             Id = "C1",
             CycleName = "c1",
             ClearingHouseId = 1,
-            ProcessingDate = DateTime.Today,
+            ProcessingDate = TestSupport.TestClock.OperationalDate,
             StartTime = TimeSpan.Zero,
             EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = new TimeSpan(23, 0, 0)
         };
         context.AchCycles.Add(cycle);
-        context.AchBatches.Add(new AchBatch { Id = 1, AchCycleId = "C1", CompanyEntryDescriptionId = companyEntryDescriptionId, EffectiveEntryDate = DateTime.Today });
+        context.AchBatches.Add(new AchBatch { Id = 1, AchCycleId = "C1", CompanyEntryDescriptionId = companyEntryDescriptionId, EffectiveEntryDate = TestSupport.TestClock.OperationalDate });
         var tx = new AchTransaction
         {
             Id = 100,
@@ -1219,7 +1256,7 @@ public class IncomingNachaPostProcessingOrchestratorTests
             CompanyIdentification = "I",
             AchCycleId = "C1",
             AchBatchId = 1,
-            EffectiveEntryDate = DateTime.Today
+            EffectiveEntryDate = TestSupport.TestClock.OperationalDate
         };
         context.AchTransactions.Add(tx);
         context.EntryDetails.Add(new EntryDetail
@@ -1246,11 +1283,11 @@ public class IncomingNachaPostProcessingOrchestratorTests
             AchTransactionId = tx.Id,
             AchCycleId = "C1",
             ClearingHouseId = 1,
-            OperationalDate = DateTime.Today,
+            OperationalDate = TestSupport.TestClock.OperationalDate,
             QueueStatus = IncomingNachaDispatchQueueStatus.Queued,
             Priority = 100,
             IdempotencyDispatchKey = Guid.NewGuid().ToString("N"),
-            NextAttemptAtUtc = DateTime.UtcNow.AddMinutes(-1)
+            NextAttemptAtUtc = TestSupport.TestClock.UtcNow.UtcDateTime.AddMinutes(-1)
         });
         context.SaveChanges();
     }
