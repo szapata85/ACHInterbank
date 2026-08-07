@@ -8,6 +8,7 @@ import { permissionGuard } from '../../core/guards/permission.guard';
 import { BrandingSettingsComponent } from './components/branding-settings.component';
 import { PasswordRulesSettingsComponent } from './components/password-rules-settings.component';
 import { LoginLockoutSettingsComponent } from './components/login-lockout-settings.component';
+import { pendingUserChangesGuard } from './guards/pending-user-changes.guard';
 
 const routes: Routes = [
   {
@@ -28,10 +29,11 @@ const routes: Routes = [
         component: UsersListComponent,
         data: { breadcrumb: 'Administrar usuarios', title: 'Administración de usuarios' }
       },
-      { path: 'new', component: UserFormComponent, data: { breadcrumb: 'Nuevo usuario', title: 'Crear usuario' } },
+      { path: 'new', component: UserFormComponent, canDeactivate: [pendingUserChangesGuard], data: { breadcrumb: 'Nuevo usuario', title: 'Crear usuario' } },
       {
         path: ':id/edit',
         component: UserFormComponent,
+        canDeactivate: [pendingUserChangesGuard],
         data: { breadcrumb: 'Editar usuario', title: 'Editar usuario' }
       },
       {
@@ -42,7 +44,7 @@ const routes: Routes = [
       {
         path: 'branding',
         component: BrandingSettingsComponent,
-        data: { breadcrumb: 'Identidad visual', title: 'Identidad y colores' }
+        data: { breadcrumb: 'Identidad visual', title: 'Identidad visual' }
       },
       {
         path: 'password-rules',
@@ -52,7 +54,7 @@ const routes: Routes = [
       {
         path: 'login-lockout',
         component: LoginLockoutSettingsComponent,
-        data: { breadcrumb: 'Bloqueo de acceso', title: 'Bloqueo por intentos fallidos' }
+        data: { breadcrumb: 'Bloqueo de acceso', title: 'Bloqueo de acceso' }
       }
     ]
   }

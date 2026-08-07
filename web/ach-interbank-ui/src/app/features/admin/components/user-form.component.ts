@@ -15,6 +15,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { catchError, map, of } from 'rxjs';
+import { UserPresentationService } from '../services/user-presentation.service';
 
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
@@ -34,6 +35,7 @@ export class UserFormComponent implements OnInit {
   private readonly rolesApi = inject(RolesApiService);
   private readonly passwordRulesService = inject(PasswordRulesService);
   private readonly notifications = inject(NotificationService);
+  private readonly presentation = inject(UserPresentationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
   roles: RoleSummary[] = [];
@@ -175,6 +177,14 @@ export class UserFormComponent implements OnInit {
   get passwordStrength(): number {
     const value = this.form.get('password')?.value ?? '';
     return this.calculatePasswordStrength(value);
+  }
+
+  hasPendingChanges(): boolean {
+    return this.form.dirty && !this.saving;
+  }
+
+  roleLabel(role: RoleSummary): string {
+    return this.presentation.roleLabel(role);
   }
 
   get passwordStrengthLabel(): string {

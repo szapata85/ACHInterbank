@@ -1,6 +1,6 @@
 <mat-card class="card">
   <mat-card-content>
-  <h1>Identidad visual</h1>
+  <h2>Identidad visual</h2>
   <p class="description">
     Personaliza los logos, fondos y botones de la aplicación para el acceso público y el portal autenticado. Las
     imágenes pueden ser PNG o SVG, y los colores aceptan cualquier valor compatible con CSS (hexadecimal, rgb,
@@ -23,7 +23,7 @@
           <p class="panel-title">Acceso público</p>
           <small>Logo y color de fondo para la pantalla de inicio de sesión.</small>
         </div>
-        <button type="button" class="btn btn-outline" (click)="removeLogo('public')">Quitar</button>
+        <button mat-stroked-button type="button" (click)="removeLogo('public')">Quitar logo</button>
       </header>
 
       <div class="current">
@@ -38,8 +38,8 @@
         </ng-template>
       </div>
 
-      <label class="upload">
-        <input type="file" accept="image/*" (change)="onFileSelected($event, 'public')" />
+      <label class="upload" for="public-logo-input">
+        <input id="public-logo-input" type="file" accept="image/png,image/svg+xml" (change)="onFileSelected($event, 'public')" />
         <span>Seleccionar imagen</span>
       </label>
 
@@ -55,7 +55,7 @@
           Fondo
           <input type="color" [value]="publicBackgroundInput" (input)="changeBackground($event, 'public')" />
         </label>
-        <button type="button" class="btn btn-outline" (click)="clearBackground('public')">Usar color por defecto</button>
+        <button mat-stroked-button type="button" (click)="clearBackground('public')">Usar color por defecto</button>
       </div>
 
       <div class="background-preview" [style.background]="publicBackgroundPreview"></div>
@@ -67,7 +67,7 @@
           <p class="panel-title">Portal interno</p>
           <small>Logo y color de fondo para el panel privado.</small>
         </div>
-        <button type="button" class="btn btn-outline" (click)="removeLogo('private')">Quitar</button>
+        <button mat-stroked-button type="button" (click)="removeLogo('private')">Quitar logo</button>
       </header>
 
       <div class="current">
@@ -82,8 +82,8 @@
         </ng-template>
       </div>
 
-      <label class="upload">
-        <input type="file" accept="image/*" (change)="onFileSelected($event, 'private')" />
+      <label class="upload" for="private-logo-input">
+        <input id="private-logo-input" type="file" accept="image/png,image/svg+xml" (change)="onFileSelected($event, 'private')" />
         <span>Seleccionar imagen</span>
       </label>
 
@@ -99,7 +99,7 @@
           Fondo
           <input type="color" [value]="privateBackgroundInput" (input)="changeBackground($event, 'private')" />
         </label>
-        <button type="button" class="btn btn-outline" (click)="clearBackground('private')">Usar color por defecto</button>
+        <button mat-stroked-button type="button" (click)="clearBackground('private')">Usar color por defecto</button>
       </div>
 
       <div class="background-preview" [style.background]="privateBackgroundPreview"></div>
@@ -109,7 +109,7 @@
           Fondo del menú lateral
           <input type="color" [value]="sidebarBackgroundInput" (input)="changeBackground($event, 'sidebar')" />
         </label>
-        <button type="button" class="btn btn-outline" (click)="clearBackground('sidebar')">Usar color por defecto</button>
+        <button mat-stroked-button type="button" (click)="clearBackground('sidebar')">Usar color por defecto</button>
       </div>
 
       <div class="background-preview background-preview--sidebar" [style.background]="sidebarBackgroundPreview"></div>
@@ -122,7 +122,7 @@
         <p class="panel-title">Botones principales</p>
         <small>Define el color base de los botones destacados en toda la aplicación.</small>
       </div>
-      <button type="button" class="btn btn-outline" (click)="clearButtonColor()">Usar color por defecto</button>
+      <button mat-stroked-button type="button" (click)="clearButtonColor()">Usar color por defecto</button>
     </header>
 
     <div class="button-controls">
@@ -134,7 +134,8 @@
       <div class="button-preview">
         <button
           type="button"
-          class="btn btn-primary"
+          mat-flat-button
+          color="primary"
           [style.--color-primary]="buttonColorPreview"
           [style.--color-primary-hover]="buttonColorPreview"
         >
@@ -146,7 +147,7 @@
   </section>
 
   <div class="actions">
-    <button type="button" (click)="reset()">Restaurar</button>
+    <button mat-stroked-button type="button" (click)="reset()">Restaurar</button>
     <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving">
       <mat-spinner *ngIf="isSaving" diameter="18"></mat-spinner>
       <span>{{ isSaving ? 'Guardando...' : 'Guardar cambios' }}</span>

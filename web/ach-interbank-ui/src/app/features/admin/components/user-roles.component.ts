@@ -9,6 +9,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NotificationService } from '../../../core/services/notification.service';
+import { UserPresentationService } from '../services/user-presentation.service';
 
 @Component({
   selector: 'app-user-roles',
@@ -25,6 +26,7 @@ export class UserRolesComponent implements OnInit {
   private readonly rolesApi = inject(RolesApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly notifications = inject(NotificationService);
+  private readonly presentation = inject(UserPresentationService);
 
   roles: RoleSummary[] = [];
   user?: UserSummary;
@@ -55,6 +57,10 @@ export class UserRolesComponent implements OnInit {
     } else {
       this.selectedRoleIds.add(role.id);
     }
+  }
+
+  roleLabel(role: RoleSummary): string {
+    return this.presentation.roleLabel(role);
   }
 
   save(): void {

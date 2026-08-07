@@ -15,6 +15,7 @@ import { MatTableModule } from '@angular/material/table';
 import { NotificationService } from '../../../core/services/notification.service';
 import { RolesApiService, UsersApiService } from '../services/users-api.service';
 import { RoleSummary, UserFilter, UserSummary } from '../models/user.model';
+import { UserPresentationService } from '../services/user-presentation.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
 
@@ -47,6 +48,7 @@ export class UsersListComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly presentation = inject(UserPresentationService);
 
   readonly filterForm = this.fb.group({
     search: [''],
@@ -133,6 +135,10 @@ export class UsersListComponent implements OnInit {
 
   confirmDisable(user: UserSummary): void {
     this.confirmUser = user;
+  }
+
+  roleLabel(role: RoleSummary): string {
+    return this.presentation.roleLabel(role);
   }
 
   disableUser(): void {
