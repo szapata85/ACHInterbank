@@ -88,6 +88,7 @@ services:
     environment:
       <<: *api-environment
       Database__ApplyMigrations: "true"
+      Database__ApplySeed: "true"
       Quartz__InstanceName: achinterbank-api-01
     ports:
       - "127.0.0.1:${SCHEDULER_SQL_API_01_PORT:-8451}:8080"
