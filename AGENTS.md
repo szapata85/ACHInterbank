@@ -200,22 +200,33 @@ Expected result:
 - `RegistrarRespuestaTransaccion` is non-monetary and must not move money.
 - `None`, duplicates and `ManualReviewRequired` must not execute SOAP.
 
-## Uso obligatorio de Codebase Memory
+## Sincronización obligatoria de Codebase Memory
 
-Para tareas de análisis, corrección, implementación, refactorización o pruebas en este repositorio:
+Antes de realizar análisis estructurales, búsquedas de arquitectura, trazabilidad de dependencias o modificaciones relevantes sobre ACHInterbank, se debe ejecutar `index_repository` sobre la raíz del repositorio.
 
-- Consultar primero el servidor MCP `codebase-memory` antes de realizar búsquedas amplias o modificar código.
-- Reutilizar la indexación existente. No ejecutar `index_repository` salvo solicitud expresa del usuario o ausencia comprobada del índice.
-- Usar `get_architecture` solamente cuando la tarea requiera comprender componentes o capas arquitectónicas.
-- Usar `search_graph` para localizar clases, métodos, controladores, servicios, entidades, componentes, rutas y pruebas.
-- Usar `trace_path` para analizar llamadas, dependencias, callers, callees y flujos afectados.
-- Usar `get_code_snippet` para consultar la implementación de símbolos concretos.
-- Usar `search_code` para búsquedas textuales, configuraciones, documentación o información insuficiente en el grafo.
-- Usar `get_graph_schema` y `query_graph` únicamente cuando se necesiten relaciones estructurales complejas.
-- Limitar las consultas MCP al alcance específico de la tarea. No explorar componentes no relacionados.
-- Utilizar `rg`, búsquedas de archivos o lectura manual como respaldo cuando el MCP no tenga información suficiente.
-- Antes de modificar código, identificar brevemente los componentes, dependencias, integraciones y pruebas afectadas.
-- En el resultado final, mencionar de forma breve qué herramientas de `codebase-memory` fueron utilizadas.
-- No asumir comportamientos basándose únicamente en nombres de archivos o símbolos.
+Esta operación debe tratarse como una sincronización incremental:
+
+- La primera ejecución puede construir el índice completo.
+- Las ejecuciones posteriores deben actualizar archivos nuevos, modificados, renombrados o eliminados.
+- No se debe eliminar el índice existente ni forzar una reconstrucción completa, salvo que exista evidencia de corrupción, inconsistencia o desactualización del grafo.
+- Si no existen cambios, la sincronización puede finalizar sin reprocesamiento significativo.
+
+Se debe volver a ejecutar `index_repository`, como mínimo, después de:
+
+- cambiar de rama;
+- ejecutar `git pull`;
+- integrar un merge significativo;
+- incorporar módulos o funcionalidades completas;
+- agregar o modificar componentes, rutas o servicios del SPA;
+- agregar o modificar controladores, handlers, servicios, entidades o configuraciones del backend;
+- agregar o modificar entidades de EF Core, configuraciones, migraciones o scripts SQL;
+- mover, renombrar o eliminar archivos o directorios;
+- modificar pruebas, proyectos, Docker Compose o infraestructura versionada;
+- reiniciar, reinstalar o actualizar Codebase Memory MCP;
+- detectar que las búsquedas no encuentran código creado o modificado recientemente.
+
+Codebase Memory analiza archivos versionados del repositorio. No conoce cambios aplicados directamente sobre SQL Server o PostgreSQL cuando dichos cambios no están representados mediante entidades, configuraciones, migraciones, scripts u otros archivos del proyecto.
+
+Después de sincronizar, se deben utilizar las herramientas de Codebase Memory apropiadas, como `get_architecture`, `search_code`, `search_graph`, `query_graph`, `trace_path` o `get_code_snippet`, antes de recurrir a búsquedas manuales extensas.
 
 
