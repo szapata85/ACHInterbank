@@ -326,7 +326,7 @@ La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpu
 | RET-GAP-014 | Diferencial | CENIT | Respuesta | Differential por cámara | ❓ NO DETERMINABLE | processor genérico, sin contrato CENIT demostrado | normativa, perfil, mapping, fixture, E2E | inferencia entre cámaras | ALTA | norma CENIT | DIFF.CENIT.ANALYSIS |
 | RET-GAP-015 | Simulador | Ambas | In | normal/return/differential | 🟡 PARCIAL — residual identificado | generate-only + metadata | renderer UAT hardcoded; perfil real no demostrado | falsa confianza UAT | MEDIA | perfiles aprobados | UAT.SIM.PROFILES |
 | RET-GAP-016 | B4 | CENIT | In | Return In integral | 🟠 IMPLEMENTADA SIN EVIDENCIA SUFICIENTE | pipeline genérico + causas | E2E provider-specific con fixture homologado | retorno perdido/mal causalizado | ALTA | fixture/norma | CENIT.RETURNIN.E2E |
-| RET-GAP-017 | B5 | ACHCOL | Out | transmisión/acuse/conciliación | ⚪ NO IMPLEMENTADA | generación termina en archivo | hito posterior y lifecycle asociado | estado prematuro | ALTA | RET-GAP-004/003 | RET.OUTBOUND.ACCEPTANCE |
+| RET-GAP-017 | B5 | ACHCOL | Out | transmisión/acuse/conciliación | 🔴 ABIERTA — CONTRATO DE TRANSPORTE NO DETERMINABLE | `RET.OUTBOUND.ACCEPTANCE.1`: V35 2.4.2 demuestra SFTP/MFT/GoAnywhere a nivel ACH, pero el repositorio no contiene port, adapter, configuración ni decisión versionada que vincule ACHInterbank con el SFTP administrado por CFA; tampoco existe ACK correlacionable | obtener contrato aplicativo-canal, ownership del depósito, identidad del artefacto `.RET.env`, resultado de transporte, idempotencia/correlación y manejo de resultado desconocido; ACK/aceptación permanece bloqueado hasta contrato externo explícito | inventar canal o confundir entrega con aceptación | ALTA | RET-GAP-004/003 cerradas + evidencia externa del canal | RET.OUTBOUND.TRANSPORT.CONTRACT.1 |
 | RET-GAP-018 | Operación | Ambas | Ambas | dashboard/read-model por EntryDetail | 🟡 PARCIAL — residual identificado | read store y command center | reconstrucción unificada y alertas | investigación lenta | MEDIA | taxonomía | RET.OPS.OBSERVABILITY |
 | RET-GAP-019 | Causalidad V35 | ACHCOL | Out | Solicitud `DEV14` frente a causal física Addenda 99 | 🔴 ABIERTA — BLOQUEADA POR DECISIÓN NORMATIVA | V35 2.7.6/6.6/Anexos 7 y 9; `DEV14` externo demostrado; ausencia de mapping único; falla cerrada Opción C | Fuente primaria ACH Colombia que vincule `DEV14` con una causal física o defina los atributos y la matriz determinística de resolución | devolución no generable o causal incorrecta | ALTA | evidencia normativa externa | RET.ACH.OUT.CAUSAL.V35.EVIDENCE |
 
@@ -419,12 +419,13 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 1. `RET.OUT.PROVIDERS.1`: ✅ completado; evidencia outbound real SQL Server/PostgreSQL y garantía DB multinodo.
 2. `RET.ACH.OUT.CAUSAL.V35.EVIDENCE`: obtener de ACH Colombia la regla primaria que vincule `DEV14` con la causal física Rxx o la matriz contextual determinística; no implementar mientras falte.
-3. `RET.OUTBOUND.ACCEPTANCE.1`: transmisión, acuse, lifecycle posterior y conciliación ACH.
-4. `RET.ORPHAN.E2E.1`: cierre manual y apply/reprocess seguro de huérfanas.
-5. `RET.RECONCILIATION.1`: matriz SOAP/ledger/retry/conciliación.
-6. `CENIT.STA.HOMOLOGATION.1`: adquirir/validar Manual STA y contrato técnico; sin implementación por analogía.
-7. Solo después: perfil, provider tests, UAT y homologación CENIT.
-8. Differential se trabaja en una secuencia independiente por cámara.
+3. `RET.OUTBOUND.ACCEPTANCE.1`: ✅ characterization completada; `TRANSPORT_GATE=NO-GO` y `ACK_GATE=NO-GO`, sin implementación por falta de contrato aplicativo-canal.
+4. `RET.OUTBOUND.TRANSPORT.CONTRACT.1`: obtener la decisión técnica versionada y el contrato operativo del canal ReturnOut ACH Colombia antes de implementar dispatch.
+5. `RET.ORPHAN.E2E.1`: cierre manual y apply/reprocess seguro de huérfanas.
+6. `RET.RECONCILIATION.1`: matriz SOAP/ledger/retry/conciliación.
+7. `CENIT.STA.HOMOLOGATION.1`: adquirir/validar Manual STA y contrato técnico; sin implementación por analogía.
+8. Solo después: perfil, provider tests, UAT y homologación CENIT.
+9. Differential se trabaja en una secuencia independiente por cámara.
 
 ### Evaluación de JOB 4.1
 
@@ -432,13 +433,13 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ## 27. Próximo JOB único
 
-### RET.ACH.OUT.CAUSAL.V35.EVIDENCE — Evidencia causal física V35
+### RET.OUTBOUND.TRANSPORT.CONTRACT.1 — Contrato aplicativo-canal ReturnOut ACH Colombia
 
-- **Objetivo:** obtener una fuente primaria de ACH Colombia que determine la causal física aplicable a `DEV14`, o que defina los atributos y la matriz contextual necesarios para resolverla sin inferencia.
-- **RET-GAP que mantiene bloqueada:** RET-GAP-019.
-- **Evidencia faltante:** circular, manual complementario, anexo o decisión formal que enlace la solicitud de débito no consentido con una causal del Anexo 9 y distinga, cuando aplique, ausencia de autorización, revocación y receptor corporativo.
-- **Restricciones:** no reabrir Opción C ni RET-GAP-003; no truncar `DEV14`; no elegir `R07`, `R10`, `R12`, `R29` ni otra causal por similitud; no implementar transmisión, acuse, CENIT o Differential.
-- **Tests futuros mínimos:** regla contextual soportada por la nueva fuente, causal Rxx renderizable, contexto insuficiente fail-closed, Rxx directo sin transformación y no-regresión de Opción C/CENIT.
+- **Objetivo:** obtener y versionar la decisión técnica que demuestre cómo ACHInterbank entrega el ReturnOut al SFTP administrado por CFA que consume el MFT de ACH Colombia, sin asumir que el aplicativo opera GoAnywhere ni inventar un cliente SFTP.
+- **RET-GAP que mantiene bloqueada:** RET-GAP-017.
+- **Evidencia faltante:** ownership del depósito; frontera y ruta lógica del canal; relación entre el `.RET` canónico y el sobre CryptoVault `.RET.env`; identidad/hash e idempotency/correlation key; semántica de entrega completada; timeout, retry y `unknown outcome`; consulta o reconciliación técnica disponible; y, si existe, contrato separado de ACK/rechazo con formato y correlación.
+- **Restricciones:** no implementar adapter, credenciales, endpoint, ACK, aceptación ni retry externo antes de recibir el contrato; no equiparar transporte con aceptación; no modificar `AchTransaction.State`.
+- **Tests futuros mínimos:** contract test del canal aprobado, mismo artefacto/hash en retry, claim DB-first multinodo, crash window/unknown y ACK solo si su contrato queda demostrado.
 - **Modelo recomendado:** `gpt-5.6-sol`.
 - **Reasoning recomendado:** `medium`.
 
