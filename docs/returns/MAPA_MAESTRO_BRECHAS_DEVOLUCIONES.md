@@ -158,7 +158,7 @@ Residual crítico:
 
 1. No existe prueba SQL Server ReturnOut equivalente y la UAT PostgreSQL sigue siendo condicional; no constituye evidencia provider-specific vigente.
 2. El lock es `ConcurrentDictionary<int, SemaphoreSlim>` y solo coordina un proceso.
-3. El catálogo/policy histórico admite `DEV14`, pero V35 6.6 limita el campo físico Addenda 99 a tres caracteres y remite al Anexo 9 (Rxx). Opción C lo rechaza sin truncar; falta definir el workflow/mapeo normativo de la solicitud DEV14 hacia una causal física aplicable.
+3. `DEV14` es una solicitud oficial externa de devolución de una transacción débito ACH no consentida (V35 2.7.6 y Anexo 7), no una causal física de Addenda 99. V35 6.6 exige allí una causal de tres caracteres del Anexo 9, pero no define una traducción única desde `DEV14`: `R07`, `R10`, `R12` y `R29` describen hechos/contextos diferentes que la intención general de no consentimiento no permite distinguir. Opción C lo rechaza sin truncar. `RET-GAP-019` permanece bloqueada hasta obtener una regla primaria ACH Colombia que determine la causal física a partir del contexto requerido.
 4. Falta evidencia multinodo, aceptación externa, transmisión, acuse y conciliación.
 
 RET-GAP-004 queda cerrado técnicamente. El perfil es canónico y ejecutable dentro del aplicativo, pero `IsHomologated=false`: las pruebas internas no constituyen homologación externa con ACH Colombia.
@@ -328,7 +328,7 @@ La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpu
 | RET-GAP-016 | B4 | CENIT | In | Return In integral | 🟠 IMPLEMENTADA SIN EVIDENCIA SUFICIENTE | pipeline genérico + causas | E2E provider-specific con fixture homologado | retorno perdido/mal causalizado | ALTA | fixture/norma | CENIT.RETURNIN.E2E |
 | RET-GAP-017 | B5 | ACHCOL | Out | transmisión/acuse/conciliación | ⚪ NO IMPLEMENTADA | generación termina en archivo | hito posterior y lifecycle asociado | estado prematuro | ALTA | RET-GAP-004/003 | RET.OUTBOUND.ACCEPTANCE |
 | RET-GAP-018 | Operación | Ambas | Ambas | dashboard/read-model por EntryDetail | 🟡 PARCIAL — residual identificado | read store y command center | reconstrucción unificada y alertas | investigación lenta | MEDIA | taxonomía | RET.OPS.OBSERVABILITY |
-| RET-GAP-019 | Causalidad V35 | ACHCOL | Out | Solicitud `DEV14` frente a causal física Addenda 99 | 🟡 PARCIAL — residual identificado | V35 6.6/Anexo 9; policy histórico; falla cerrada Opción C | Definir workflow/mapeo normativo sin truncar ni inferir una Rxx arbitraria | devolución no generable o causal incorrecta | ALTA | decisión funcional/normativa | RET.ACH.OUT.CAUSAL.V35 |
+| RET-GAP-019 | Causalidad V35 | ACHCOL | Out | Solicitud `DEV14` frente a causal física Addenda 99 | 🔴 ABIERTA — BLOQUEADA POR DECISIÓN NORMATIVA | V35 2.7.6/6.6/Anexos 7 y 9; `DEV14` externo demostrado; ausencia de mapping único; falla cerrada Opción C | Fuente primaria ACH Colombia que vincule `DEV14` con una causal física o defina los atributos y la matriz determinística de resolución | devolución no generable o causal incorrecta | ALTA | evidencia normativa externa | RET.ACH.OUT.CAUSAL.V35.EVIDENCE |
 
 ## 23. Grafo de dependencias
 
@@ -355,7 +355,7 @@ flowchart TD
   CPROF --> SIM
 ```
 
-Con RET-GAP-003 y RET-GAP-004 cerrados, la primera dependencia interna accionable es RET-GAP-019: cerrar el contrato funcional `DEV14` frente a la causal física Rxx antes del UAT integral de no consentimiento. Después corresponde RET-GAP-017 para transmisión, acuse y lifecycle posterior al archivo. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
+Con RET-GAP-003 y RET-GAP-004 cerrados, RET-GAP-019 queda bloqueada por evidencia normativa externa: V35 no enlaza `DEV14` con una única causal física Rxx ni declara una matriz determinística de contexto. El siguiente JOB debe obtener esa evidencia antes del UAT integral de no consentimiento. RET-GAP-017 permanece posterior y fuera de este cierre. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
 
 ## 24. CENIT RETURN UNBLOCK GATE
 
@@ -418,7 +418,7 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 ## 26. Secuencia recomendada de JOBs
 
 1. `RET.OUT.PROVIDERS.1`: ✅ completado; evidencia outbound real SQL Server/PostgreSQL y garantía DB multinodo.
-2. `RET.ACH.OUT.CAUSAL.V35.1`: resolver el contrato `DEV14` -> causal física Rxx sin inferencia ni truncamiento.
+2. `RET.ACH.OUT.CAUSAL.V35.EVIDENCE`: obtener de ACH Colombia la regla primaria que vincule `DEV14` con la causal física Rxx o la matriz contextual determinística; no implementar mientras falte.
 3. `RET.OUTBOUND.ACCEPTANCE.1`: transmisión, acuse, lifecycle posterior y conciliación ACH.
 4. `RET.ORPHAN.E2E.1`: cierre manual y apply/reprocess seguro de huérfanas.
 5. `RET.RECONCILIATION.1`: matriz SOAP/ledger/retry/conciliación.
@@ -432,14 +432,14 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ## 27. Próximo JOB único
 
-### RET.ACH.OUT.CAUSAL.V35.1 — Contrato causal físico V35
+### RET.ACH.OUT.CAUSAL.V35.EVIDENCE — Evidencia causal física V35
 
-- **Objetivo:** resolver explícitamente el contrato `DEV14` -> causal física Rxx conforme V35, sin truncar ni inferir una causal arbitraria.
-- **RET-GAP que cierra:** RET-GAP-019.
-- **Por qué va primero:** la persistencia provider-specific ya está demostrada; la causal física bloquea el UAT real de no consentimiento antes de transmitir/aceptar el artefacto.
-- **Restricciones:** no reabrir Opción C ni RET-GAP-003; no implementar transmisión, acuse, CENIT o Differential.
-- **Tests futuros mínimos:** decisión funcional soportada normativamente, causal Rxx renderizable, DEV14 fail-closed hasta decisión, y no-regresión de Opción C/CENIT.
+- **Objetivo:** obtener una fuente primaria de ACH Colombia que determine la causal física aplicable a `DEV14`, o que defina los atributos y la matriz contextual necesarios para resolverla sin inferencia.
+- **RET-GAP que mantiene bloqueada:** RET-GAP-019.
+- **Evidencia faltante:** circular, manual complementario, anexo o decisión formal que enlace la solicitud de débito no consentido con una causal del Anexo 9 y distinga, cuando aplique, ausencia de autorización, revocación y receptor corporativo.
+- **Restricciones:** no reabrir Opción C ni RET-GAP-003; no truncar `DEV14`; no elegir `R07`, `R10`, `R12`, `R29` ni otra causal por similitud; no implementar transmisión, acuse, CENIT o Differential.
+- **Tests futuros mínimos:** regla contextual soportada por la nueva fuente, causal Rxx renderizable, contexto insuficiente fail-closed, Rxx directo sin transformación y no-regresión de Opción C/CENIT.
 - **Modelo recomendado:** `gpt-5.6-sol`.
-- **Reasoning recomendado:** `high`.
+- **Reasoning recomendado:** `medium`.
 
 Este mapa no homologa devoluciones. El soporte productivamente seguro permanece condicionado a los gates por cámara y dirección descritos arriba.
