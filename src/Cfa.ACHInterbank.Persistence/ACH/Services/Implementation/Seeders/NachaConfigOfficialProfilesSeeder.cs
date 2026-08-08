@@ -63,6 +63,23 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Prefix: "ACH_PRENOTE"));
 
         await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0",
+            Name: "Perfil canónico ACH Colombia salida devolución V35",
+            Description: "Perfil table-driven canónico de ReturnOut ACH Colombia. Implementación técnica V35; homologación externa pendiente.",
+            ClearingHouseCode: "ACH",
+            FlowTypeCode: "DEVOLUCION",
+            NormativeSource: "ACH Colombia Manual de Servicio V35, sección 6.6",
+            NormativeVersion: "V35",
+            ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.6",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "",
+            RoutingDestination: "000101006",
+            ImmediateDestinationName: "ACH COLOMBIA",
+            ImmediateOriginName: "",
+            Prefix: "ACH_RETURN_OUT_V35"));
+
+        await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
             Name: "Perfil oficial CENIT salida original",
             Description: "Perfil oficial UAT/local table-driven para CENIT. Fuente normativa pendiente de homologacion formal: CENIT/DSP-152 placeholder.",
@@ -152,18 +169,21 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             var sequence = 10;
             foreach (var recordCode in RecordCodes)
             {
+                var isReturnOutV35 = IsReturnOutV35(spec);
                 var variant = await EnsureVariantAsync(
                     profile,
                     spec,
                     recordCode,
                     sequence,
                     catalog,
-                    recordCode == "7" && !spec.IsPlaceholder ? AchColOfficialNachaLayout.Type7CreditVariant : null,
+                    isReturnOutV35
+                        ? AchColReturnOutV35Layout.Variant(recordCode)
+                        : recordCode == "7" && !spec.IsPlaceholder ? AchColOfficialNachaLayout.Type7CreditVariant : null,
                     isDefault: true,
                     selectionPredicateJson: null);
                 await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
 
-                if (recordCode == "7" && !spec.IsPlaceholder)
+                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35)
                 {
                     await EnsureVariantAsync(
                         profile,
@@ -341,7 +361,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
             if (!spec.IsPlaceholder)
             {
-                var descriptor = AchColOfficialNachaLayout.Field(recordCode, field.Code, variant.VariantCode);
+                var descriptor = IsReturnOutV35(spec)
+                    ? AchColReturnOutV35Layout.Field(recordCode, field.Code)
+                    : AchColOfficialNachaLayout.Field(recordCode, field.Code, variant.VariantCode);
                 await EnsureExecutableRuleAsync(layoutField, descriptor, catalog);
             }
         }
@@ -419,6 +441,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
     private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode, string variantCode)
     {
+        if (IsReturnOutV35(profile))
+        {
+            return AchColReturnOutV35Layout.ForRecord(recordCode)
+                .Select(BuildReturnOutV35Field)
+                .ToList();
+        }
+
         if (!profile.IsPlaceholder)
         {
             return BuildAchColFields(profile, recordCode, variantCode);
@@ -434,6 +463,40 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             "9" => BuildRecord9(),
             _ => []
         };
+    }
+
+    private static bool IsReturnOutV35(ProfileSpec profile)
+        => string.Equals(profile.ClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+           && string.Equals(profile.FlowTypeCode, "DEVOLUCION", StringComparison.OrdinalIgnoreCase)
+           && string.Equals(profile.NormativeVersion, "V35", StringComparison.OrdinalIgnoreCase);
+
+    private static FieldSpec BuildReturnOutV35Field(AchColOfficialFieldDescriptor descriptor)
+    {
+        var constant = (descriptor.RecordCode, descriptor.FieldCode) switch
+        {
+            (_, "RECORDTYPE") => descriptor.RecordCode,
+            ("1", "PRIORITYCODE") => "01",
+            ("1", "RECORDSIZE") => "106",
+            ("1", "BLOCKINGFACTOR") => "10",
+            ("1", "FORMATCODE") => "1",
+            ("5", "ORIGINATORSTATUSCODE") => "1",
+            ("6", "ADDENDARECORDINDICATOR") => "1",
+            ("7", "ADDENDATYPE") => "99",
+            _ => null
+        };
+
+        if (constant is not null)
+        {
+            return new FieldSpec(descriptor.FieldCode, descriptor.FieldCode, descriptor.StartPosition, descriptor.Length,
+                descriptor.PadChar, descriptor.Justification, descriptor.Format, "CONSTANTE", constant, null, null, null, null);
+        }
+
+        var calculation = descriptor.DataType == NachaFieldDataType.Reserved
+            ? "Filler"
+            : descriptor.FieldCode;
+        return new FieldSpec(descriptor.FieldCode, descriptor.FieldCode, descriptor.StartPosition, descriptor.Length,
+            descriptor.PadChar, descriptor.Justification, descriptor.Format, "EXPRESION", null, null, null,
+            JsonSerializer.Serialize(new { source = "runtime", calculationType = calculation }), null);
     }
 
     private static IReadOnlyList<FieldSpec> BuildAchColFields(ProfileSpec profile, string recordCode, string variantCode)

@@ -95,6 +95,201 @@ public class NachaFileBuilder : INachaFileBuilder
         _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context);
     }
 
+    public async Task<NachaReturnOutBuildResult> BuildReturnOutAsync(
+        NachaReturnOutBuildRequest request,
+        CancellationToken ct = default)
+    {
+        if (request.Batches.Count == 0 || request.Batches.Any(batch => batch.Entries.Count == 0))
+        {
+            throw new NachaGenerationException("NACHA_RETURN_OUT_EMPTY", "ReturnOut requiere al menos un lote y una entrada.");
+        }
+
+        if (_configResolver is null)
+        {
+            throw new NachaGenerationException("NACHA_PROFILE_NOT_PUBLISHED", "Resolver NACHA Opción C no registrado. No se habilita fallback legacy.");
+        }
+
+        var recordCodes = new[] { "1", "5", "6", "7", "8", "9" };
+        var resolutionRequest = new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "DEVOLUCION",
+            DirectionCode = "SALIDA",
+            ProcessDateUtc = request.CreatedAtUtc,
+            RecordCodes = recordCodes,
+            RequireHomologated = false,
+            SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Flow"] = "RETURN_OUT",
+                ["NormativeVersion"] = "V35"
+            }
+        };
+        var resolution = await _configResolver.ResolveAsync(resolutionRequest, ct);
+        if (resolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous)
+        {
+            throw new NachaGenerationException("NACHA_PROFILE_AMBIGUOUS", "Existe más de un perfil ACH/DEVOLUCION/SALIDA aplicable.");
+        }
+
+        if (!resolution.Success || resolution.Profile is null)
+        {
+            throw new NachaGenerationException("NACHA_PROFILE_NOT_PUBLISHED", "No existe perfil NACHA-M publicado/vigente para ACH/DEVOLUCION/SALIDA.");
+        }
+
+        if (resolution.UsedFallback)
+        {
+            throw new NachaGenerationException("NACHA_LEGACY_GENERATION_DISABLED", "ReturnOut ACH no permite fallback físico legacy.");
+        }
+
+        var normativeVersion = resolution.Profile.Tags
+            .FirstOrDefault(tag => string.Equals(tag.TagKey, "NormativeVersion", StringComparison.OrdinalIgnoreCase))?.TagValue;
+        if (!string.Equals(normativeVersion, "V35", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NachaGenerationException("NACHA_RETURN_OUT_V35_PROFILE_REQUIRED", "El perfil ReturnOut seleccionado no declara NormativeVersion=V35.");
+        }
+
+        var audit = new NachaGenerationAuditResult
+        {
+            Mode = "TABLE_DRIVEN",
+            ClearingHouseCode = "ACH",
+            ClearingHouseName = "ACH Colombia",
+            ProfileId = resolution.Profile.Id,
+            ProfileCode = resolution.Profile.ProfileCode,
+            ProfileVersion = $"{resolution.Profile.VersionMajor}.{resolution.Profile.VersionMinor}",
+            ProfileStatus = resolution.Profile.Status?.Code,
+            EffectiveDate = request.CreatedAtUtc,
+            LegacyFallbackUsed = false,
+            Phase = "RETURN_OUT_V35",
+            CorrelationId = $"RETURN-OUT-{request.CreatedAtUtc:yyyyMMddHHmmss}"
+        };
+        audit.Trace.AddRange(resolution.Trace);
+        audit.Trace.Add($"ReturnOutOptionC:Profile={resolution.Profile.ProfileCode};Flow=DEVOLUCION;Direction=SALIDA;LegacyFallbackUsed=false");
+        audit.NewEngineRecordCodes.AddRange(recordCodes);
+
+        foreach (var recordCode in recordCodes)
+        {
+            ValidateOfficialLayout(recordCode, RequireOfficialLayout(resolution, recordCode), audit);
+        }
+
+        var batchTotals = request.Batches.Select(CalculateReturnOutBatchTotals).ToList();
+        var entryAddendaCount = batchTotals.Sum(total => total.EntryAddendaCount);
+        var entryHash = batchTotals.Aggregate(0L, (current, total) => (current + total.EntryHash) % 10_000_000_000L);
+        var totalDebit = batchTotals.Sum(total => total.TotalDebit);
+        var totalCredit = batchTotals.Sum(total => total.TotalCredit);
+        var recordsBeforePadding = 2 + request.Batches.Sum(batch => 2 + (batch.Entries.Count * 2));
+        var blockCount = (int)Math.Ceiling(recordsBeforePadding / (decimal)AchColReturnOutV35Layout.BlockingFactor);
+        var paddingCount = (blockCount * AchColReturnOutV35Layout.BlockingFactor) - recordsBeforePadding;
+
+        var sb = new StringBuilder(recordsBeforePadding * AchColReturnOutV35Layout.RecordLength);
+        var lineNumber = 1;
+        var recordCount = 0;
+        recordCount += AppendOfficialRecords(sb, "1", [ReturnOutValues(
+            ("ImmediateDestination", request.ImmediateDestination),
+            ("ImmediateOrigin", request.ImmediateOrigin),
+            ("FileCreationDate", request.CreatedAtUtc),
+            ("FileCreationTime", request.CreatedAtUtc),
+            ("FileIdModifier", request.FileIdModifier),
+            ("ImmediateDestinationName", request.ImmediateDestinationName),
+            ("ImmediateOriginName", request.ImmediateOriginName),
+            ("ReferenceCode", request.ReferenceCode))], RequireOfficialLayout(resolution, "1"), audit, ref lineNumber);
+
+        for (var batchIndex = 0; batchIndex < request.Batches.Count; batchIndex++)
+        {
+            var batch = request.Batches[batchIndex];
+            var totals = batchTotals[batchIndex];
+            recordCount += AppendOfficialRecords(sb, "5", [ReturnOutValues(
+                ("ServiceClassCode", batch.ServiceClassCode), ("CompanyName", batch.CompanyName),
+                ("CompanyDiscretionaryData", batch.CompanyDiscretionaryData), ("CompanyIdentification", batch.CompanyIdentification),
+                ("StandardEntryClassCode", batch.StandardEntryClassCode), ("CompanyEntryDescription", batch.CompanyEntryDescription),
+                ("CompanyDescriptiveDate", batch.CompanyDescriptiveDate), ("EffectiveEntryDate", batch.EffectiveEntryDate),
+                ("SettlementDate", batch.SettlementDate), ("OriginatingDfi", batch.OriginatingDfi), ("BatchNumber", batch.BatchNumber))],
+                RequireOfficialLayout(resolution, "5"), audit, ref lineNumber);
+
+            foreach (var entry in batch.Entries)
+            {
+                recordCount += AppendOfficialRecords(sb, "6", [ReturnOutValues(
+                    ("TransactionCode", entry.TransactionCode), ("ReceivingDfi", entry.ReceivingDfi), ("CheckDigit", entry.CheckDigit),
+                    ("DfiAccountNumber", entry.AccountNumber), ("Amount", entry.Amount),
+                    ("IndividualIdentification", entry.IndividualIdentification), ("IndividualName", entry.IndividualName),
+                    ("DiscretionaryData", entry.DiscretionaryData), ("TraceNumber", entry.NewTraceNumber))],
+                    RequireOfficialLayout(resolution, "6"), audit, ref lineNumber);
+                recordCount += AppendOfficialRecords(sb, "7", [ReturnOutValues(
+                    ("ReturnReasonCode", entry.ReturnReasonCode), ("OriginalTraceNumber", entry.OriginalTraceNumber),
+                    ("DateOfDeath", entry.DeathDate), ("OriginalReceivingDfi", entry.OriginalReceivingDfi),
+                    ("AdditionalInformation", entry.AdditionalInformation), ("AddendaSequenceNumber", entry.AddendaSequenceNumber))],
+                    RequireOfficialLayout(resolution, "7"), audit, ref lineNumber);
+            }
+
+            recordCount += AppendOfficialRecords(sb, "8", [ReturnOutValues(
+                ("ServiceClassCode", batch.ServiceClassCode), ("EntryAddendaCount", totals.EntryAddendaCount),
+                ("EntryHash", totals.EntryHash), ("TotalDebitAmount", totals.TotalDebit), ("TotalCreditAmount", totals.TotalCredit),
+                ("CompanyIdentification", batch.CompanyIdentification), ("OriginatingDfi", batch.OriginatingDfi), ("BatchNumber", batch.BatchNumber))],
+                RequireOfficialLayout(resolution, "8"), audit, ref lineNumber);
+        }
+
+        recordCount += AppendOfficialRecords(sb, "9", [ReturnOutValues(
+            ("BatchCount", request.Batches.Count), ("BlockCount", blockCount), ("EntryAddendaCount", entryAddendaCount),
+            ("EntryHash", entryHash), ("TotalDebitAmount", totalDebit), ("TotalCreditAmount", totalCredit))],
+            RequireOfficialLayout(resolution, "9"), audit, ref lineNumber);
+
+        var paddingRecord = BuildPaddingRecord(RequireOfficialLayout(resolution, "9"));
+        for (var i = 0; i < paddingCount; i++)
+        {
+            sb.Append(paddingRecord);
+            recordCount++;
+        }
+
+        var content = sb.ToString();
+        if (recordCount != blockCount * AchColReturnOutV35Layout.BlockingFactor
+            || content.Length != recordCount * AchColReturnOutV35Layout.RecordLength)
+        {
+            throw new NachaGenerationException("NACHA_RECORD_COUNT_MISMATCH", "ReturnOut no cumple bloques de 10 registros de 106 caracteres.");
+        }
+
+        audit.TotalRecords = recordCount;
+        audit.TotalFields = audit.FieldTraceEntries.Count;
+        audit.FileHash = Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(content)));
+        audit.FileIdModifier = new NachaFileIdModifierAudit { DailySequence = 0, ResolvedValue = request.FileIdModifier };
+        audit.FileTotals = new NachaFileControlTotalsAudit
+        {
+            BatchCount = request.Batches.Count,
+            BlockCount = blockCount,
+            EntryAddendaCount = entryAddendaCount,
+            EntryHash = entryHash,
+            TotalDebitAmountInCents = DecimalToCents(totalDebit),
+            TotalCreditAmountInCents = DecimalToCents(totalCredit),
+            PhysicalRecordCountBeforePadding = recordsBeforePadding,
+            PaddingRecordCount = paddingCount,
+            PhysicalRecordCountAfterPadding = recordCount
+        };
+        if (request.PersistAudit)
+        {
+            await PersistGenerationAuditAsync(audit, resolution.Profile.Id, ct, request.CreatedAtUtc);
+        }
+
+        return new NachaReturnOutBuildResult(content, recordCount, resolution.Profile.ProfileCode, normativeVersion!, false);
+    }
+
+    private static IReadOnlyDictionary<string, object?> ReturnOutValues(params (string Key, object? Value)[] values)
+        => values.ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase);
+
+    private static ReturnOutBatchTotals CalculateReturnOutBatchTotals(NachaReturnOutBatch batch)
+    {
+        var hash = batch.Entries.Aggregate(0L, (current, entry) =>
+            (current + long.Parse(entry.ReceivingDfi, CultureInfo.InvariantCulture)) % 10_000_000_000L);
+        var debit = batch.Entries.Where(entry => entry.TransactionCode is "26" or "36" or "56").Sum(entry => entry.Amount);
+        var credit = batch.Entries.Where(entry => entry.TransactionCode is "21" or "31" or "51").Sum(entry => entry.Amount);
+        if (batch.Entries.Any(entry => entry.TransactionCode is not ("21" or "31" or "51" or "26" or "36" or "56")))
+        {
+            throw new NachaGenerationException("NACHA_ALLOWED_VALUE_INVALID", "Código de transacción ReturnOut fuera de V35.");
+        }
+
+        return new ReturnOutBatchTotals(batch.Entries.Count * 2, hash, debit, credit);
+    }
+
+    private static long DecimalToCents(decimal amount) => checked((long)decimal.Round(amount * 100m, 0, MidpointRounding.AwayFromZero));
+
+    private sealed record ReturnOutBatchTotals(int EntryAddendaCount, long EntryHash, decimal TotalDebit, decimal TotalCredit);
+
     // ─────────────────────────────────────────────────────────────────────────────
     // MÉTODO PRINCIPAL: Generar archivo NACHA-M por lotes
     // ─────────────────────────────────────────────────────────────────────────────
@@ -2205,7 +2400,9 @@ public class NachaFileBuilder : INachaFileBuilder
                 AchColOfficialNachaLayout.RecordLength);
         }
 
-        var expectedFields = AchColOfficialNachaLayout.ForVariant(recordCode, layout.VariantCode);
+        var expectedFields = AchColReturnOutV35Layout.IsVariant(layout.VariantCode)
+            ? AchColReturnOutV35Layout.ForRecord(recordCode)
+            : AchColOfficialNachaLayout.ForVariant(recordCode, layout.VariantCode);
         var actualFields = layout.Fields.Where(field => field.IsEnabled).ToList();
         foreach (var expected in expectedFields)
         {
@@ -2322,7 +2519,9 @@ public class NachaFileBuilder : INachaFileBuilder
         var rules = field.Rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.Order).ToList();
         if (string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase) && rules.Count == 0)
         {
-            var descriptor = AchColOfficialNachaLayout.Field(recordCode, field.FieldCode, field.LayoutVariant?.VariantCode);
+            var descriptor = AchColReturnOutV35Layout.IsVariant(field.LayoutVariant?.VariantCode)
+                ? AchColReturnOutV35Layout.Field(recordCode, field.FieldCode)
+                : AchColOfficialNachaLayout.Field(recordCode, field.FieldCode, field.LayoutVariant?.VariantCode);
             throw BuildFieldRuleException("NACHA_REQUIRED_RULE_MISSING", descriptor, "CfgFieldRule ejecutable ausente.");
         }
 

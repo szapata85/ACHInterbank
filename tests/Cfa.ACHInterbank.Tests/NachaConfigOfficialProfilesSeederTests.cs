@@ -108,8 +108,11 @@ public class NachaConfigOfficialProfilesSeederTests
         var profiles = await LoadOfficialProfilesAsync(context);
 
         profiles.Should().OnlyContain(x => x.Tags.Any(t => t.TagKey == "NormativeSource" && !string.IsNullOrWhiteSpace(t.TagValue)));
-        profiles.Where(x => x.ClearingHouse.Code == "ACH")
+        profiles.Where(x => x.ClearingHouse.Code == "ACH" && x.ProfileCode != "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0")
             .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue == "MAN-004 V32"));
+        profiles.Single(x => x.ProfileCode == "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0").Tags
+            .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35")
+            .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("sección 6.6"));
         profiles.Where(x => x.ClearingHouse.Code == "CENIT")
             .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue.Contains("CENIT/DSP-152")));
     }

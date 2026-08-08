@@ -25,7 +25,7 @@ public class AchReturnsServiceEligibilityIntegrationTests
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchReturnEligibilityResult(true, "DEV14", 7002, "Debit", "Pending", []));
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(1, "DEV14")]), CancellationToken.None);
 
         eligibility.Verify(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -44,7 +44,7 @@ public class AchReturnsServiceEligibilityIntegrationTests
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchReturnEligibilityResult(false, "DEV14", 7002, "Debit", "Pending", [new AchReturnEligibilityFailure("RETURN_POLICY_REJECTED", "Política no permite retorno.")]));
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(1, "DEV14")]), CancellationToken.None));
         Assert.Equal("Política no permite retorno.", ex.Message);

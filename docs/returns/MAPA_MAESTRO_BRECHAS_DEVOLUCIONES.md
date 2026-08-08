@@ -147,17 +147,21 @@ Residual: operación de huérfanas, matriz return-to-SOAP/ledger/conciliación y
 
 Implementado:
 
-- elegibilidad, causal, máximo de cuatro ciclos, DFI invertido, monto/prenote, Addenda 99, controles, naming policy;
+- elegibilidad, causal, máximo de cuatro ciclos, DFI invertido, monto/prenote, Addenda 99, controles y naming policy V35 `RRRRTTT.ZZZ.1`;
+- perfil explícito `OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0` para `ACH + DEVOLUCION + SALIDA`;
+- resolución de records, variants, fields, sources y reglas ejecutables mediante Opción C, con records 1/5/6/7/8/9 de 106 caracteres y padding por bloques de diez;
+- falla cerrada si el perfil falta, es ambiguo, no está publicado o no declara V35; no existe fallback hacia `NachaRecordConfigProvider`;
 - `AchReturnGenerated` y transición `Pending -> ReturnedByEpr` en una transacción relacional;
 - idempotency key `outbound-return-v1:{transactionId}` e índice único de archivo generado.
 
 Residual crítico:
 
-1. El render físico sigue en `AchReturnsService` y `NachaRecordConfigProvider`, no en Opción C.
-2. La configuración usada se autodeclara `IsProductiveApproved=false`.
-3. No existe prueba SQL Server ReturnOut equivalente; la UAT PostgreSQL es condicional y conserva assertions históricas `Pending -> Pending`, por lo que no constituye evidencia vigente.
-4. El lock es `ConcurrentDictionary<int, SemaphoreSlim>` y solo coordina un proceso.
-5. Falta evidencia multinodo, aceptación externa, transmisión, acuse y conciliación.
+1. No existe prueba SQL Server ReturnOut equivalente y la UAT PostgreSQL sigue siendo condicional; no constituye evidencia provider-specific vigente.
+2. El lock es `ConcurrentDictionary<int, SemaphoreSlim>` y solo coordina un proceso.
+3. El catálogo/policy histórico admite `DEV14`, pero V35 6.6 limita el campo físico Addenda 99 a tres caracteres y remite al Anexo 9 (Rxx). Opción C lo rechaza sin truncar; falta definir el workflow/mapeo normativo de la solicitud DEV14 hacia una causal física aplicable.
+4. Falta evidencia multinodo, aceptación externa, transmisión, acuse y conciliación.
+
+RET-GAP-004 queda cerrado técnicamente. El perfil es canónico y ejecutable dentro del aplicativo, pero `IsHomologated=false`: las pruebas internas no constituyen homologación externa con ACH Colombia.
 
 ## 8. Return In — CENIT
 
@@ -215,7 +219,7 @@ generación ReturnOut ACH exitosa
  -> causal + originalTrace + payload + state event
 ```
 
-No está completamente cerrado porque faltan renderer canónico aprobado, carrera provider-specific outbound, multinodo y lifecycle posterior a transmisión/acuse/conciliación. CENIT no participa del escenario exitoso por el guard.
+No está completamente cerrado porque faltan carrera provider-specific outbound, multinodo y lifecycle posterior a transmisión/acuse/conciliación. CENIT no participa del escenario exitoso por el guard.
 
 ## 14. Causalidad y trazabilidad por EntryDetail
 
@@ -240,7 +244,7 @@ El filename normativo no debe reemplazar las identidades funcionales anteriores.
 
 Incoming B2 está cerrado en SQL Server/PostgreSQL. Outbound agrupa `AchReturnGenerated` y transición/evento en una transacción relacional y dispone del índice único `UX_AchReturnGenerated_OriginalTransaction_Reason_Cycle`, pero la evidencia de carrera real se limita a SQLite.
 
-La clase `AchReturnsPostgresUatEndToEndTests` retorna sin ejecutar si el harness no está habilitado, incluye un caso CENIT hoy bloqueado y todavía afirma `Pending -> Pending`. No existe `AchReturnsSqlServer...`. Por tanto, no puede elevarse la evidencia outbound a provider-specific ni multinodo.
+La clase `AchReturnsPostgresUatEndToEndTests` retorna sin ejecutar si el harness no está habilitado e incluye un caso CENIT hoy bloqueado. Su contrato ACH ya preserva `Pending -> ReturnedByEpr`, pero no existe ejecución PostgreSQL obligatoria ni `AchReturnsSqlServer...`. Por tanto, no puede elevarse la evidencia outbound a provider-specific ni multinodo.
 
 ## 17. Naming
 
@@ -249,7 +253,7 @@ Se mantienen separados:
 - **Idempotencia técnica:** hash + tamaño y claves funcionales persistidas.
 - **Nombre externo:** cumplimiento normativo por cámara/flujo.
 
-ACH Colombia V35 demuestra `RRRRTTT.ZZZ.1` y la relación de `ZZZ` con el tipo 1. El servicio usa `IExternalFileNamePolicy`, pero el contenido físico previo al naming sigue siendo provisional/no aprobado. CENIT solo demuestra la regla de conteo en el campo 6 de rechazo y remite el resto al Manual STA; naming, secuencia y reset siguen no determinables.
+ACH Colombia V35 demuestra `RRRRTTT.ZZZ.1` y la relación de `ZZZ` con el tipo 1. ReturnOut usa `IExternalFileNamePolicy`; el policy reserva la secuencia, resuelve el `FileIdModifier`, valida su correlación con el registro 1 y el servicio vuelve a renderizar el artefacto final mediante el mismo perfil Opción C. CENIT solo demuestra la regla de conteo en el campo 6 de rechazo y remite el resto al Manual STA; naming, secuencia y reset siguen no determinables.
 
 ## 18. SOAP, ledger y conciliación
 
@@ -292,13 +296,14 @@ Una deficiencia de pantalla no invalida el motor; tampoco una pantalla existente
 
 - JOB 4: 13 pruebas focalizadas de lifecycle/generación.
 - JOB 4.CI.2: 2176 passed, 0 failed, 9 skipped, 2185 total.
+- RET.ACH.OUT.OPTIONC.1: contract V35 Opción C 4/4; servicio/lifecycle/CENIT 38/38; caracterización ampliada 45/45; naming V35 45/45; suite backend final 2180 passed, 0 failed, 9 skipped, 2189 total.
 - Incoming B2: carreras reales SQL Server/PostgreSQL documentadas en JOB 3.1.
 - Outbound: cobertura SQLite/construcción; harness PostgreSQL condicional y obsoleto; sin carrera SQL Server ni multinodo.
 - CENIT físico: tests vigentes prueban el guard y cero side effects, no generación.
 - Differential: tests de processor/use case, sin homologación E2E por cámara.
 - Simulador: evidencia sintética; no certificación.
 
-No se ejecutaron tests en este análisis porque ningún resultado local cambiaría las clasificaciones críticas anteriores.
+La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpuCount=1`; el TRX quedó en `TestResults/dotnet-tests.trx`.
 
 ## 22. RET-GAP — mapa maestro residual
 
@@ -307,7 +312,7 @@ No se ejecutaron tests en este análisis porque ningún resultado local cambiar�
 | RET-GAP-001 | B1 | Ambas | In | Convergencia de aplicación/auditoría | ✅ CERRADA Y DEMOSTRADA | JOB 2 + transición canónica | Ninguna dentro de B1 | — | — | — | No reabrir |
 | RET-GAP-002 | B2 | Ambas | In | Idempotencia DB-first | ✅ CERRADA Y DEMOSTRADA | JOB 3.1 SQL Server/PostgreSQL | Ninguna para aplicación incoming correlacionada | — | — | — | No reabrir |
 | RET-GAP-003 | B3 | ACHCOL | Out | Lifecycle `ReturnedByEpr` | 🟡 PARCIAL — residual identificado | JOB 4/4.CI.2, `outbound-return-v1` | Provider real outbound, multinodo y lifecycle post-archivo | doble generación/estado inconsistente | CRÍTICA | RET-GAP-004 | Provider proof posterior |
-| RET-GAP-004 | B4/B5 | ACHCOL | Out | Perfil/render físico V35 | 🟡 PARCIAL — residual identificado | V35, naming policy, config validator | Render hardcoded fuera de Opción C; `IsProductiveApproved=false` | archivo normativamente inválido | CRÍTICA | Perfil V35 aprobado | **RET.ACH.OUT.OPTIONC.1** |
+| RET-GAP-004 | B4/B5 | ACHCOL | Out | Perfil/render físico V35 | ✅ CERRADA Y DEMOSTRADA | `OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0`, Opción C, contract tests V35, naming `RRRRTTT.ZZZ.1`, no-fallback | Ninguna dentro de la canonicalización física; homologación externa continúa separada | — | — | — | No reabrir |
 | RET-GAP-005 | B4/B5 | CENIT | Out | Contrato técnico STA | 🔴 BLOQUEADA DELIBERADAMENTE | Reglamento/Annex A/B; guard | Manual STA, layout, DFI, correlación, naming, secuencia/reset | levantar guard sin norma | CRÍTICA | Evidencia externa STA | CENIT.STA.HOMOLOGATION |
 | RET-GAP-006 | B5 | CENIT | Out | Perfil/parser/generator soportado | ⚪ NO IMPLEMENTADA | guard antes del generador | Implementación Opción C solo después de RET-GAP-005 | generación inválida | CRÍTICA | RET-GAP-005 | CENIT.RETURNOUT.OPTIONC |
 | RET-GAP-007 | B6 | Ambas | In | Huérfanas/manual | 🟡 PARCIAL — residual identificado | orphan service + events | Link manual no demuestra apply/reprocess atómico | devolución perdida o aplicada mal | ALTA | workflow aprobado | RET.ORPHAN.E2E |
@@ -322,13 +327,16 @@ No se ejecutaron tests en este análisis porque ningún resultado local cambiar�
 | RET-GAP-016 | B4 | CENIT | In | Return In integral | 🟠 IMPLEMENTADA SIN EVIDENCIA SUFICIENTE | pipeline genérico + causas | E2E provider-specific con fixture homologado | retorno perdido/mal causalizado | ALTA | fixture/norma | CENIT.RETURNIN.E2E |
 | RET-GAP-017 | B5 | ACHCOL | Out | transmisión/acuse/conciliación | ⚪ NO IMPLEMENTADA | generación termina en archivo | hito posterior y lifecycle asociado | estado prematuro | ALTA | RET-GAP-004/003 | RET.OUTBOUND.ACCEPTANCE |
 | RET-GAP-018 | Operación | Ambas | Ambas | dashboard/read-model por EntryDetail | 🟡 PARCIAL — residual identificado | read store y command center | reconstrucción unificada y alertas | investigación lenta | MEDIA | taxonomía | RET.OPS.OBSERVABILITY |
+| RET-GAP-019 | Causalidad V35 | ACHCOL | Out | Solicitud `DEV14` frente a causal física Addenda 99 | 🟡 PARCIAL — residual identificado | V35 6.6/Anexo 9; policy histórico; falla cerrada Opción C | Definir workflow/mapeo normativo sin truncar ni inferir una Rxx arbitraria | devolución no generable o causal incorrecta | ALTA | decisión funcional/normativa | RET.ACH.OUT.CAUSAL.V35 |
 
 ## 23. Grafo de dependencias
 
 ```mermaid
 flowchart TD
-  V35[ACH V35] --> AOP[RET-GAP-004: ReturnOut ACH en Opción C]
+  V35[ACH V35] --> AOP[RET-GAP-004 cerrado: ReturnOut ACH en Opción C]
   AOP --> APROV[RET-GAP-003: SQL Server/PostgreSQL + multinodo]
+  V35 --> ACAUSE[RET-GAP-019: DEV14 a causal física Rxx]
+  ACAUSE --> AUAT
   APROV --> AACK[RET-GAP-017: transmisión/acuse/lifecycle]
   AACK --> RECON[RET-GAP-008/009: SOAP, ledger y conciliación]
   RECON --> AUAT[UAT/E2E/homologación ACH]
@@ -346,7 +354,7 @@ flowchart TD
   CPROF --> SIM
 ```
 
-La primera dependencia interna accionable es RET-GAP-004. La primera dependencia externa para CENIT es RET-GAP-005. Probar proveedores antes de cerrar RET-GAP-004 certificaría la ruta física provisional equivocada.
+Con RET-GAP-004 cerrado, la primera dependencia interna accionable vuelve a ser RET-GAP-003: evidencia provider-specific y garantía de concurrencia outbound. RET-GAP-019 es una rama funcional paralela que debe cerrarse antes del UAT integral de no consentimiento, pero no impide probar la persistencia del ReturnOut normativo Rxx. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
 
 ## 24. CENIT RETURN UNBLOCK GATE
 
@@ -408,8 +416,8 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ## 26. Secuencia recomendada de JOBs
 
-1. `RET.ACH.OUT.OPTIONC.1`: reemplazar el renderer/config provisional de ReturnOut ACH por perfiles Opción C V35, sin tocar CENIT.
-2. `RET.OUT.PROVIDERS.1`: evidencia outbound real SQL Server/PostgreSQL y carrera multinodo o garantía DB equivalente.
+1. `RET.OUT.PROVIDERS.1`: evidencia outbound real SQL Server/PostgreSQL y carrera multinodo o garantía DB equivalente.
+2. `RET.ACH.OUT.CAUSAL.V35.1`: resolver el contrato `DEV14` -> causal física Rxx sin inferencia ni truncamiento.
 3. `RET.OUTBOUND.ACCEPTANCE.1`: transmisión, acuse, lifecycle posterior y conciliación ACH.
 4. `RET.ORPHAN.E2E.1`: cierre manual y apply/reprocess seguro de huérfanas.
 5. `RET.RECONCILIATION.1`: matriz SOAP/ledger/retry/conciliación.
@@ -419,17 +427,17 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ### Evaluación de JOB 4.1
 
-**REEMPLAZADO.** La evidencia provider-specific sigue siendo necesaria, pero ya no es el siguiente paso. Antes debe cerrarse RET-GAP-004: el renderer físico ACH ReturnOut no usa la arquitectura oficial Opción C y su configuración declara `IsProductiveApproved=false`. JOB 4.1 se recupera después como `RET.OUT.PROVIDERS.1`.
+**RATIFICADO COMO `RET.OUT.PROVIDERS.1`.** RET-GAP-004 ya no bloquea la evidencia provider-specific: el archivo físico ACH ReturnOut nace exclusivamente del perfil Opción C V35. Continúan pendientes SQL Server, PostgreSQL y la garantía de carrera/multinodo de RET-GAP-003.
 
 ## 27. Próximo JOB único
 
-### RET.ACH.OUT.OPTIONC.1 — Canonicalización de ReturnOut ACH Colombia en Opción C
+### RET.OUT.PROVIDERS.1 — Evidencia outbound real SQL Server/PostgreSQL
 
-- **Objetivo:** hacer que el contenido físico ReturnOut ACH Colombia se resuelva y renderice exclusivamente mediante el perfil Opción C alineado con V35, conservando elegibilidad, causal, naming, lifecycle, idempotencia y el guard CENIT.
-- **RET-GAP que cierra:** RET-GAP-004.
-- **Por qué va primero:** cualquier prueba provider-specific actual certificaría un `CurrentLayout` hardcoded y explícitamente no aprobado. La canonicalización precede a atomicidad real, UAT y homologación.
-- **Restricciones:** no habilitar CENIT; no copiar ACH hacia CENIT; no declarar homologación solo por tests; no modificar differential/ROR.
-- **Tests futuros mínimos:** golden/contract V35 desde perfil Opción C, DFI/traza/Addenda/controles/naming, ausencia de fallback hardcoded, lifecycle/idempotencia preservados y guard CENIT sin side effects.
+- **Objetivo:** demostrar en SQL Server y PostgreSQL que ReturnOut ACH Opción C persiste una sola generación/transición/evento ante retry y carrera, y determinar la garantía multinodo efectiva.
+- **RET-GAP que cierra:** residual provider-specific/multinodo de RET-GAP-003.
+- **Por qué va primero:** RET-GAP-004 está cerrado; la siguiente incertidumbre crítica es la atomicidad real del lifecycle outbound, no el layout.
+- **Restricciones:** usar causales Rxx válidas del Anexo 9; no resolver RET-GAP-019 por inferencia; no habilitar CENIT ni transmisión/acuse.
+- **Tests futuros mínimos:** misma transacción, dos contextos/instancias, retry, unicidad `AchReturnGenerated`, una transición `ReturnedByEpr`, un evento y rollback coherente por proveedor.
 - **Modelo recomendado:** `gpt-5.6-sol`.
 - **Reasoning recomendado:** `high`.
 

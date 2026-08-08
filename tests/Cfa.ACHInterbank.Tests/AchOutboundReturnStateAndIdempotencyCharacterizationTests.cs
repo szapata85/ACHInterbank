@@ -174,7 +174,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
             context,
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
-            returnGenerationLockService: new TestReturnGenerationLockService());
+            returnGenerationLockService: new TestReturnGenerationLockService(),
+            nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-FAIL-1", [new ReturnSelectionItemDto(2003, "DEV14")]), CancellationToken.None));
 
@@ -274,7 +275,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldKeepNachaOutputUnchanged_WhenStateEventAuditIsCreated()
+    public async Task GenerateReturnsFileAsync_ShouldKeepOptionCOutputIntact_WhenStateEventAuditIsCreated()
     {
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 2007, cycleId: "ACH-CHAR-NACHA-1");
@@ -282,15 +283,10 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         var sut = BuildSut(context, 2007, "DEV14");
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-NACHA-1", [new ReturnSelectionItemDto(2007, "DEV14")]), CancellationToken.None);
 
-        var content = System.Text.Encoding.UTF8.GetString(response.Content);
-        Assert.Contains("A094101", content, StringComparison.Ordinal);
-        Assert.Contains("DEV14", content, StringComparison.Ordinal);
-        Assert.Contains('1', content);
-        Assert.Contains('5', content);
-        Assert.Contains('6', content);
-        Assert.Contains('7', content);
-        Assert.Contains('8', content);
-        Assert.Contains('9', content);
+        var records = System.Text.Encoding.UTF8.GetString(response.Content).Chunk(106).Select(x => new string(x)).ToArray();
+        Assert.Equal(10, records.Length);
+        Assert.Equal(new[] { '1', '5', '6', '7', '8', '9' }, records.Take(6).Select(x => x[0]).ToArray());
+        Assert.All(records, record => Assert.Equal(106, record.Length));
         Assert.Equal(1, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 2007));
     }
 
@@ -313,7 +309,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
             returnGenerationLockService: lockService ?? new TestReturnGenerationLockService(),
-            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(),
+            nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
     }
 
     private static AchReturnsService BuildSut(AchDbContext context, int txId, string reasonCode, IAchReturnGenerationLockService? lockService = null)
@@ -327,7 +324,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
             returnGenerationLockService: lockService ?? new TestReturnGenerationLockService(),
-            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(),
+            nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
     }
 
     private static async Task<(bool Succeeded, Exception? Error)> ExecuteIgnoringFailureAsync(Func<Task> action)

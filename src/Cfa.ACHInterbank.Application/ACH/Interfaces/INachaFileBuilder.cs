@@ -7,6 +7,14 @@
 public interface INachaFileBuilder
 {
     /// <summary>
+    /// Genera ReturnOut ACH Colombia mediante el perfil Opción C DEVOLUCION/SALIDA.
+    /// La ausencia o invalidez del perfil produce error; esta ruta no tiene fallback legacy.
+    /// </summary>
+    Task<Cfa.ACHInterbank.Application.ACH.Models.NachaReturnOutBuildResult> BuildReturnOutAsync(
+        Cfa.ACHInterbank.Application.ACH.Models.NachaReturnOutBuildRequest request,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Genera un archivo NACHA-M a partir de un conjunto de lotes específicos.
     /// </summary>
     /// <param name="batchIds">Lista de identificadores de lotes a exportar.</param>

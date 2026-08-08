@@ -9,7 +9,7 @@ internal static class ExternalFileNameSupport
     private const string AchScopeCode = "ACH_EXTERNAL_NAME";
     private const string ReturnOutScopeCode = "ACH_RETURN_EXTERNAL_NAME";
     private static readonly Regex AchRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.(?<cycle>[1-9]\d*)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.RET$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ReturnRegex = new(@"^(?<route>\d{4})(?<transit>\d{3})\.(?<seq>\d{3})\.1$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex PositiveCycleRegex = new(@"(?<!\d)(?<cycle>\d+)(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static ExternalFileNameComponents Parse(ExternalFileNameContext context, string externalFileName)
@@ -166,7 +166,7 @@ internal static class ExternalFileNameSupport
         }
 
         var normalizedOriginCode = originCode[^7..];
-        return $"{normalizedOriginCode}.{sequence:D3}.RET";
+        return $"{normalizedOriginCode}.{sequence:D3}.1";
     }
 
     public static string GetSequenceScopeCode(ExternalFileNameContext context)

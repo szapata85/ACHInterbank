@@ -33,13 +33,13 @@ internal sealed record AchColOfficialFieldDescriptor(
     IReadOnlyCollection<string>? AllowedValues = null,
     NachaFieldSensitivity Sensitivity = NachaFieldSensitivity.None,
     string Severity = "ERROR",
-    string NormativeSection = "MAN-004 V32, ficha técnica")
+    string NormativeSection = "MAN-004 V32, ficha técnica",
+    string NormativeSource = "DDS-DIS-MAN-004",
+    string NormativeVersion = "V32")
 {
     public int EndPosition => StartPosition + Length - 1;
     public string OverflowPolicy => "REJECT";
     public string Normalizer => "NONE";
-    public string NormativeSource => "DDS-DIS-MAN-004";
-    public string NormativeVersion => "V32";
 }
 
 /// <summary>

@@ -30,6 +30,107 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Fact]
+    public async Task ReturnOutAchV35_ShouldRenderProfileVariantsFieldsRulesAndControls()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var result = await setup.Sut.BuildReturnOutAsync(BuildReturnOutRequest(), CancellationToken.None);
+        var records = SplitRecords(result.Content);
+
+        result.ProfileCode.Should().Be("OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0");
+        result.NormativeVersion.Should().Be("V35");
+        result.LegacyFallbackUsed.Should().BeFalse();
+        records.Should().HaveCount(10);
+        records.Should().OnlyContain(record => record.Length == 106);
+        records.Take(6).Select(record => record[0]).Should().Equal('1', '5', '6', '7', '8', '9');
+        records[0].Substring(35, 1).Should().Be("C");
+        records[0].Substring(36, 3).Should().Be("106");
+        records[0].Substring(39, 2).Should().Be("10");
+        records[2].Substring(1, 2).Should().Be("26");
+        records[2].Substring(3, 8).Should().Be("12345678");
+        records[2].Substring(29, 18).Should().Be("000000000000123450");
+        records[2].Substring(87, 15).Should().Be("876543210000001");
+        records[3].Substring(1, 2).Should().Be("99");
+        records[3].Substring(3, 3).Should().Be("R01");
+        records[3].Substring(6, 15).Should().Be("123456780000099");
+        records[3].Substring(21, 8).Should().Be("20260807");
+        records[3].Substring(29, 8).Should().Be("87654321");
+        records[3].Substring(81, 15).Should().Be("876543210000001");
+        records[4].Substring(4, 6).Should().Be("000002");
+        records[5].Substring(1, 6).Should().Be("000001");
+        records[5].Substring(7, 6).Should().Be("000001");
+        setup.LegacyRenderer.VerifyNoOtherCalls();
+        setup.LegacyRecordProvider.VerifyNoOtherCalls();
+        setup.Loader.Verify(x => x.LoadLayoutsAsync(It.IsAny<CancellationToken>()), Times.Never);
+        setup.Loader.Verify(x => x.LoadDefinitionsAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReturnOutAchV35_Prenote_ShouldRenderZeroAmount()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var request = BuildReturnOutRequest();
+        var entry = request.Batches[0].Entries[0] with { Amount = 0m, TransactionCode = "21" };
+
+        var result = await setup.Sut.BuildReturnOutAsync(request with
+        {
+            Batches = [request.Batches[0] with { ServiceClassCode = "220", Entries = [entry] }]
+        }, CancellationToken.None);
+
+        SplitRecords(result.Content)[2].Substring(29, 18).Should().Be("000000000000000000");
+    }
+
+    [Fact]
+    public async Task ReturnOutAchV35_WhenProfileInactive_ShouldFailClosedWithoutLegacyFallback()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles.SingleAsync(x => x.ProfileCode == "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0");
+        profile.StatusId = await context.CatConfigStatuses.Where(x => x.Code == "INACTIVO").Select(x => x.Id).SingleAsync();
+        await context.SaveChangesAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var ex = await Assert.ThrowsAsync<NachaGenerationException>(() =>
+            setup.Sut.BuildReturnOutAsync(BuildReturnOutRequest(), CancellationToken.None));
+
+        ex.Code.Should().Be("NACHA_PROFILE_NOT_PUBLISHED");
+        setup.LegacyRenderer.VerifyNoOtherCalls();
+        setup.LegacyRecordProvider.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ReturnOutAchV35_WhenCauseIsNotInAnnex9_ShouldFailClosed()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var request = BuildReturnOutRequest();
+        var invalidEntry = request.Batches[0].Entries[0] with { ReturnReasonCode = "DEV14" };
+
+        var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildReturnOutAsync(request with
+        {
+            Batches = [request.Batches[0] with { Entries = [invalidEntry] }]
+        }, CancellationToken.None));
+
+        ex.Code.Should().Be("NACHA_ALLOWED_VALUE_INVALID");
+        setup.LegacyRenderer.VerifyNoOtherCalls();
+        setup.LegacyRecordProvider.VerifyNoOtherCalls();
+    }
+
+    private static NachaReturnOutBuildRequest BuildReturnOutRequest()
+    {
+        var entry = new NachaReturnOutEntry(
+            1, "26", "12345678", "0", "123456789", 1234.50m, "900123", "PERSONA UAT", "R",
+            "876543210000001", "R01", "123456780000099", "20260807", "87654321", "CAUSAL UAT", "876543210000001");
+        var batch = new NachaReturnOutBatch(
+            "225", "USUARIO UAT", string.Empty, "9001234567", "PPD", "RETURN", new DateTime(2026, 8, 7),
+            new DateTime(2026, 8, 7), string.Empty, "87654321", 1, [entry]);
+        return new NachaReturnOutBuildRequest(
+            new DateTime(2026, 8, 7, 14, 30, 0, DateTimeKind.Utc), "C", "000101006", "876543210",
+            "ACH COLOMBIA", "CFA", "RETURN", [batch], PersistAudit: false);
+    }
+
+    [Fact]
     public async Task OfficialNachaGeneration_ShouldUsePublishedAchProfile()
     {
         await using var context = await SeedAsync();

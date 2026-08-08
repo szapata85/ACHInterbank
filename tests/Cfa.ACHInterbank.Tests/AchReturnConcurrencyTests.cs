@@ -19,7 +19,7 @@ public class AchReturnConcurrencyTests
         lockSvc.Setup(x => x.AcquireAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>())).ReturnsAsync(new TestReturnGenerationLockService.NoOpForMock());
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(new AchReturnEligibilityResult(true, "DEV14", 7002, "Debit", "Pending", []));
-        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: lockSvc.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: lockSvc.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "DEV14")]), CancellationToken.None);
         lockSvc.Verify(x => x.AcquireAsync(It.Is<IReadOnlyCollection<int>>(ids => ids.Count == 1 && ids.Contains(10)), It.IsAny<CancellationToken>()), Times.Once);
@@ -30,7 +30,7 @@ public class AchReturnConcurrencyTests
     {
         await using var ctx = BuildContext(); Seed(ctx);
         var lockSvc = new Mock<IAchReturnGenerationLockService>();
-        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: Mock.Of<IAchReturnEligibilityService>(), returnGenerationLockService: lockSvc.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: Mock.Of<IAchReturnEligibilityService>(), returnGenerationLockService: lockSvc.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "DEV14"), new ReturnSelectionItemDto(10, "DEV14")]), CancellationToken.None));
         lockSvc.Verify(x => x.AcquireAsync(It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -88,7 +88,7 @@ public class AchReturnConcurrencyTests
         await using var ctx = BuildContext(); Seed(ctx);
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(new AchReturnEligibilityResult(true, "DEV14", 7002, "Debit", "Pending", []));
-        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new AchReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new AchReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "DEV14")]), CancellationToken.None);
         Assert.NotNull(response);
         Assert.Single(ctx.Set<AchReturnGenerated>());

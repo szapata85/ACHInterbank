@@ -26,7 +26,7 @@ public class AchReturnsFileByClearingHouseTests
             [100] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-NOPOL", [new ReturnSelectionItemDto(100, "DEV14")]), CancellationToken.None));
 
@@ -41,7 +41,7 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7001, "CENIT", "CENIT", 101, "CEN-C1");
         var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
         var lockService = new Mock<IAchReturnGenerationLockService>(MockBehavior.Strict);
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: lockService.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: lockService.Object, externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C1", [new ReturnSelectionItemDto(101, "R01")]), CancellationToken.None));
 
@@ -63,7 +63,7 @@ public class AchReturnsFileByClearingHouseTests
             [201] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C1", [new ReturnSelectionItemDto(201, "DEV14")]), CancellationToken.None);
 
         Assert.NotNull(response);
@@ -97,7 +97,7 @@ public class AchReturnsFileByClearingHouseTests
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.Is<AchReturnEligibilityRequest>(r => r.TransactionId == 302), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchReturnEligibilityResult(true, "DEV14", 7002, "Debit", "Pending", []));
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C2", [new ReturnSelectionItemDto(302, "DEV14")]), CancellationToken.None);
         eligibility.VerifyAll();
     }
@@ -135,7 +135,7 @@ public class AchReturnsFileByClearingHouseTests
             [502] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         var cenitEx = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C4", [new ReturnSelectionItemDto(501, "R01")]), CancellationToken.None));
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C4", [new ReturnSelectionItemDto(502, "DEV14")]), CancellationToken.None);
 
@@ -170,25 +170,27 @@ public class AchReturnsFileByClearingHouseTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ExternalFileNamePolicyResult
             {
-                ExternalFileName = "RET_PROVISIONAL_ACH-C5.RET",
+                ExternalFileName = "0101006.001.1",
+                Components = new ExternalFileNameComponents { FullName = "0101006.001.1", FileIdModifier = 'A' },
                 Validation = new ExternalFileNameValidationResult
                 {
-                    Disposition = ExternalFileValidationDisposition.Warning,
-                    Issues = [new ExternalFileNameValidationIssue { RuleCode = "RETURN_NAMING_PROVISIONAL", Message = "warning", Disposition = ExternalFileValidationDisposition.Warning }]
+                    Disposition = ExternalFileValidationDisposition.Passed
                 }
             });
 
+        var builder = ReturnOutNachaFileBuilderFactory.Create();
         var sut = new AchReturnsService(
             context,
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
             returnGenerationLockService: new TestReturnGenerationLockService(),
-            externalFileNamePolicy: policy.Object);
+            externalFileNamePolicy: policy.Object,
+            nachaFileBuilder: builder);
 
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C5", [new ReturnSelectionItemDto(601, "DEV14")]), CancellationToken.None);
 
-        Assert.Equal("RET_PROVISIONAL_ACH-C5.RET", response.FileName);
-        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 601 && x.FileName == "RET_PROVISIONAL_ACH-C5.RET"));
+        Assert.Equal("0101006.001.1", response.FileName);
+        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 601 && x.FileName == "0101006.001.1"));
         policy.VerifyAll();
     }
 
@@ -212,25 +214,32 @@ public class AchReturnsFileByClearingHouseTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ExternalFileNamePolicyResult
             {
-                ExternalFileName = "RETURN_POLICY_GOLDEN.RET",
+                ExternalFileName = "0101006.002.1",
+                Components = new ExternalFileNameComponents { FullName = "0101006.002.1", FileIdModifier = 'B' },
                 Validation = new ExternalFileNameValidationResult
                 {
-                    Disposition = ExternalFileValidationDisposition.Warning,
-                    Issues = [new ExternalFileNameValidationIssue { RuleCode = "RETURN_NAMING_PROVISIONAL", Message = "warning", Disposition = ExternalFileValidationDisposition.Warning }]
+                    Disposition = ExternalFileValidationDisposition.Passed
                 }
             });
 
+        var builder = ReturnOutNachaFileBuilderFactory.Create();
         var sut = new AchReturnsService(
             context,
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
             returnGenerationLockService: new TestReturnGenerationLockService(),
-            externalFileNamePolicy: policy.Object);
+            externalFileNamePolicy: policy.Object,
+            nachaFileBuilder: builder);
 
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-GOLD-1", [new ReturnSelectionItemDto(602, "DEV14")]), CancellationToken.None);
 
-        Assert.Equal("RETURN_POLICY_GOLDEN.RET", response.FileName);
-        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 602 && x.FileName == "RETURN_POLICY_GOLDEN.RET"));
+        Assert.Equal("0101006.002.1", response.FileName);
+        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 602 && x.FileName == "0101006.002.1"));
+        var finalRequest = Mock.Get(builder).Invocations
+            .Where(x => x.Method.Name == nameof(INachaFileBuilder.BuildReturnOutAsync))
+            .Select(x => (NachaReturnOutBuildRequest)x.Arguments[0])
+            .Last();
+        Assert.Equal("B", finalRequest.FileIdModifier);
         policy.VerifyAll();
     }
 
@@ -261,7 +270,8 @@ public class AchReturnsFileByClearingHouseTests
             regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
             returnEligibilityService: eligibility.Object,
             returnGenerationLockService: new TestReturnGenerationLockService(),
-            externalFileNamePolicy: policy.Object);
+            externalFileNamePolicy: policy.Object,
+            nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-GOLD-2", [new ReturnSelectionItemDto(603, "DEV14")]), CancellationToken.None));
 
@@ -271,7 +281,7 @@ public class AchReturnsFileByClearingHouseTests
 
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldResolveNachaRecordConfig_ForReturnOut()
+    public async Task GenerateReturnsFileAsync_ShouldDelegateReturnOutRenderingToOptionCBuilder()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 606, "ACH-CFG-1");
@@ -280,19 +290,16 @@ public class AchReturnsFileByClearingHouseTests
             [606] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
-        var provider = new Mock<INachaRecordConfigProvider>(MockBehavior.Strict);
-        provider.Setup(x => x.Resolve(7002, "ACH", NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound))
-            .Returns(new NachaRecordConfigProvider().Resolve(7002, "ACH", NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound));
-
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaRecordConfigProvider: provider.Object);
+        var builder = ReturnOutNachaFileBuilderFactory.Create();
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: builder);
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-1", [new ReturnSelectionItemDto(606, "DEV14")]), CancellationToken.None);
 
         Assert.NotNull(response);
-        provider.VerifyAll();
+        Mock.Get(builder).Verify(x => x.BuildReturnOutAsync(It.IsAny<NachaReturnOutBuildRequest>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_CurrentLayout_ShouldRemainUnchanged_WhenUsingNachaRecordConfig()
+    public async Task GenerateReturnsFileAsync_OptionC_ShouldIgnoreLegacyNachaRecordConfig()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 607, "ACH-CFG-2");
@@ -301,25 +308,18 @@ public class AchReturnsFileByClearingHouseTests
             [607] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
-        var provider = new Mock<INachaRecordConfigProvider>();
-        provider.Setup(x => x.Resolve(It.IsAny<int>(), It.IsAny<string?>(), NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound))
-            .Returns(new NachaRecordConfigProvider().Resolve(7002, "ACH", NachaRecordFlow.ReturnOut, NachaRecordDirection.Outbound));
-
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaRecordConfigProvider: provider.Object);
+        var builder = ReturnOutNachaFileBuilderFactory.Create();
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: builder);
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-2", [new ReturnSelectionItemDto(607, "DEV14")]), CancellationToken.None);
 
         var content = Encoding.UTF8.GetString(response.Content);
         var records = SplitRecords(content);
         AssertRecordTypes(records);
-        var r1 = records.First(r => r[0] == '1');
-        var r5 = records.First(r => r[0] == '5');
-        Assert.Contains("A094101", r1);
-        Assert.Contains("DEVOLUCIONES", r5);
-        Assert.Contains("RETORNO", r5);
+        Mock.Get(builder).Verify(x => x.BuildReturnOutAsync(It.IsAny<NachaReturnOutBuildRequest>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_CurrentLayout_Type1_ShouldKeepRecordSizeBlockingFactorFormatCode()
+    public async Task GenerateReturnsFileAsync_OptionC_Type1_ShouldKeep106Characters()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 608, "ACH-CFG-3");
@@ -328,20 +328,18 @@ public class AchReturnsFileByClearingHouseTests
             [608] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-3", [new ReturnSelectionItemDto(608, "DEV14")]), CancellationToken.None);
 
         var content = Encoding.UTF8.GetString(response.Content);
         var records = SplitRecords(content);
         var r1 = records.First(r => r[0] == '1');
         Assert.Equal(106, r1.Length);
-        Assert.Contains("A094101", r1);
-        Assert.DoesNotContain("A094106", r1);
     }
 
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_CurrentLayout_Type1_ShouldKeepRecordTypeOne()
+    public async Task GenerateReturnsFileAsync_OptionC_Type1_ShouldKeepRecordTypeOne()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 609, "ACH-CFG-4");
@@ -350,19 +348,17 @@ public class AchReturnsFileByClearingHouseTests
             [609] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-4", [new ReturnSelectionItemDto(609, "DEV14")]), CancellationToken.None);
 
         var records = SplitRecords(Encoding.UTF8.GetString(response.Content));
         var r1 = records.First(r => r[0] == '1');
         Assert.Equal('1', r1[0]);
-        Assert.Contains("A094101", r1);
         Assert.Equal(106, r1.Length);
-        Assert.DoesNotContain("A094106", r1);
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_Golden_NachaRecords_AchRail_CurrentLayout()
+    public async Task GenerateReturnsFileAsync_OptionC_ShouldPreserveRecordStructureAndPadding()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 604, "ACH-RLAY-1");
@@ -371,7 +367,7 @@ public class AchReturnsFileByClearingHouseTests
             [604] = new(true, "DEV14", 7002, "Debit", "Pending", [])
         });
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-RLAY-1", [new ReturnSelectionItemDto(604, "DEV14")]), CancellationToken.None);
 
         var content = Encoding.UTF8.GetString(response.Content);
@@ -379,24 +375,11 @@ public class AchReturnsFileByClearingHouseTests
         AssertRecordTypes(records);
         AssertBlockPadding(records);
 
-        var r1 = records.First(r => r[0] == '1');
-        var r5 = records.First(r => r[0] == '5');
         var r6 = records.Where(r => r[0] == '6').ToList();
         var r7 = records.Where(r => r[0] == '7').ToList();
-        var r8 = records.First(r => r[0] == '8');
-        var r9 = records.First(r => r[0] == '9');
-
-        Assert.Contains("ACH-RET", r1);
-        Assert.Contains("ACH Colombia", r1);
-        Assert.Contains("DEVOLUCIONES", r5);
-        Assert.Contains("RETORNO", r5);
-        Assert.Contains("DEV14", string.Concat(r7));
-
-        Assert.Equal(r6.Count + r7.Count, ParseInt(r8, 4, 6));
-        Assert.Equal(r6.Count + r7.Count, ParseInt(r9, 13, 8));
-        Assert.Equal(1, ParseInt(r9, 1, 6));
-        Assert.Equal(records.Count / 10, ParseInt(r9, 7, 6));
-        Assert.Equal(ComputeEntryHashFromType6(r6), ParseLong(r8, 10, 10));
+        Assert.Single(r6);
+        Assert.Single(r7);
+        Assert.All(records, record => Assert.Equal(106, record.Length));
     }
 
     [Fact]
@@ -405,7 +388,7 @@ public class AchReturnsFileByClearingHouseTests
         await using var context = BuildContext();
         SeedScenario(context, 7001, "CENIT", "CENIT", 605, "CEN-RLAY-1");
         var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-RLAY-1", [new ReturnSelectionItemDto(605, "R01")]), CancellationToken.None));
 
@@ -432,7 +415,7 @@ public class AchReturnsFileByClearingHouseTests
             It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchCauseCodePolicyResult(true, AchCauseCodeRail.AchColombia, AchCauseCodeKind.ReturnReason, true, [new("NORMATIVE_PENDING", "pending", AchCauseCodePolicySeverity.Warning)]));
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object);
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object, nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-1", [new ReturnSelectionItemDto(701, "DEV14")]), CancellationToken.None);
 
         Assert.NotNull(response.Content);
@@ -450,7 +433,7 @@ public class AchReturnsFileByClearingHouseTests
         causePolicy.Setup(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchCauseCodePolicyResult(false, AchCauseCodeRail.AchColombia, AchCauseCodeKind.ReturnReason, true, [new("RAIL_MISMATCH_OR_NOT_CONFIGURED", "mismatch", AchCauseCodePolicySeverity.Error)]));
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object);
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object, nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-2", [new ReturnSelectionItemDto(702, "R01")]), CancellationToken.None));
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 702));
     }
@@ -468,7 +451,7 @@ public class AchReturnsFileByClearingHouseTests
         causePolicy.Setup(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchCauseCodePolicyResult(false, AchCauseCodeRail.AchColombia, AchCauseCodeKind.Unknown, true, [new("FLOW_MISMATCH", "invalid", AchCauseCodePolicySeverity.Error)]));
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object);
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object, nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-3", [new ReturnSelectionItemDto(703, reason)]), CancellationToken.None));
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 703));
     }

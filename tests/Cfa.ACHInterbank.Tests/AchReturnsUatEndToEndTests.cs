@@ -121,12 +121,10 @@ public class AchReturnsUatEndToEndTests
         Assert.Contains(sequences, row => row.ScopeCode == "ACH_RETURN_EXTERNAL_NAME" && row.LastValue == 2);
         Assert.Contains(sequences, row => row.ScopeCode == "ACH_EXTERNAL_NAME" && row.LastValue == 1);
 
-        var fileContent = Encoding.UTF8.GetString(response.Content);
-        Assert.Contains("ACH-RET", fileContent, StringComparison.Ordinal);
-        Assert.DoesNotContain("A094106", fileContent, StringComparison.Ordinal);
-        Assert.Contains("DEVOLUCIONES", fileContent, StringComparison.Ordinal);
-        Assert.Contains("RETORNO", fileContent, StringComparison.Ordinal);
-        Assert.Contains(returnReasonCode, fileContent, StringComparison.Ordinal);
+        var records = Encoding.UTF8.GetString(response.Content).Chunk(106).Select(x => new string(x)).ToArray();
+        Assert.Equal(10, records.Length);
+        Assert.Equal(new[] { '1', '5', '6', '7', '8', '9' }, records.Take(6).Select(x => x[0]).ToArray());
+        Assert.All(records, record => Assert.Equal(106, record.Length));
 
         var original = await harness.Context.AchTransactions.AsNoTracking().SingleAsync(x => x.Id == transactionId);
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, original.State);
@@ -238,7 +236,7 @@ public class AchReturnsUatEndToEndTests
     }
 
     private static string BuildExpectedReturnFileName(string originCode, int sequence)
-        => $"{originCode}.{sequence:D3}.RET";
+        => $"{originCode}.{sequence:D3}.1";
 
     private static AchReturnsService BuildReturnsService(
         AchDbContext context,
@@ -253,8 +251,7 @@ public class AchReturnsUatEndToEndTests
             eligibilityService,
             new TestReturnGenerationLockService(),
             externalFileNamePolicy: externalFileNamePolicy,
-            nachaRecordConfigProvider: new NachaRecordConfigProvider(),
-            nachaRecordFieldValidator: new NachaRecordFieldValidator());
+            nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
     }
 
     private static IAchReturnEligibilityService BuildEligibilityService(AchDbContext context)

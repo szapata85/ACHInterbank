@@ -114,7 +114,7 @@ public class AchPreproductionCertificationTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_MatchesGoldenMasterForDev14Return()
+    public async Task GenerateReturnsFileAsync_UsesCanonicalReturnOutBuilderAndOfficialName()
     {
         using var connection = CreateOpenConnection();
         using var context = CreateContext(connection);
@@ -124,17 +124,17 @@ public class AchPreproductionCertificationTests
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AchReturnEligibilityRequest req, CancellationToken _) => new AchReturnEligibilityResult(true, req.ReturnReasonCode.Trim().ToUpperInvariant(), 1, "Debit", "Pending", []));
-        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context), eligibility.Object, new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create("2345678.001.RET"));
+        var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context), eligibility.Object, new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create("2345678.001.1"), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest("cycle-ret", [new ReturnSelectionItemDto(501, "DEV14")]),
             CancellationToken.None);
 
-        var expected = BuildExpectedReturnGoldenMaster(fixedNow.UtcDateTime);
-        Assert.Contains("A094101ACH-RET", expected, StringComparison.Ordinal);
-
-        Assert.Equal("2345678.001.RET", response.FileName);
-        Assert.Equal(expected, Encoding.UTF8.GetString(response.Content));
+        Assert.Equal("2345678.001.1", response.FileName);
+        var records = Encoding.UTF8.GetString(response.Content).Chunk(106).Select(x => new string(x)).ToArray();
+        Assert.Equal(10, records.Length);
+        Assert.Equal(new[] { '1', '5', '6', '7', '8', '9' }, records.Take(6).Select(x => x[0]).ToArray());
+        Assert.All(records, record => Assert.Equal(106, record.Length));
     }
 
     [Fact]
@@ -495,28 +495,6 @@ public class AchPreproductionCertificationTests
         return string.Concat(records);
     }
 
-    private static string BuildExpectedReturnGoldenMaster(DateTime nowUtc)
-    {
-        const string newSequence = "765432100000001";
-        const string originalTrace = "123456780000501";
-        var records = new List<string>
-        {
-            BuildReturnHeader(nowUtc),
-            BuildReturnBatchHeader(nowUtc),
-            BuildReturnEntryDetail(),
-            BuildReturnAddenda(originalTrace, newSequence),
-            BuildReturnBatchControl(),
-            BuildReturnFileControl()
-        };
-
-        while (records.Count < 10)
-        {
-            records.Add(new string('9', 106));
-        }
-
-        return string.Concat(records);
-    }
-
     private static string BuildNachaFileHeader()
     {
         var buffer = CreateRecord('1');
@@ -625,93 +603,6 @@ public class AchPreproductionCertificationTests
         Write(buffer, 22, Num("76543210", 10));
         Write(buffer, 32, type is TransactionTypeEnum.Debit or TransactionTypeEnum.Reversal or TransactionTypeEnum.Return ? Num(((long)(amount * 100)).ToString(), 18) : new string('0', 18));
         Write(buffer, 50, type is TransactionTypeEnum.Debit or TransactionTypeEnum.Reversal or TransactionTypeEnum.Return ? new string('0', 18) : Num(((long)(amount * 100)).ToString(), 18));
-        return new string(buffer);
-    }
-
-    private static string BuildReturnHeader(DateTime nowUtc)
-    {
-        var buffer = CreateRecord('1');
-        Write(buffer, 2, Num("01", 2));
-        Write(buffer, 4, Num("000101006", 9));
-        Write(buffer, 13, Num("12345678", 9));
-        Write(buffer, 22, nowUtc.ToString("yyMMdd"));
-        Write(buffer, 28, nowUtc.ToString("HHmm"));
-        Write(buffer, 32, "A");
-        Write(buffer, 33, "094101");
-        Write(buffer, 39, Alpha("ACH-RET", 23));
-        Write(buffer, 62, "ACH Colombia".PadRight(23));
-        Write(buffer, 85, Alpha("RET", 22));
-        return new string(buffer);
-    }
-
-    private static string BuildReturnBatchHeader(DateTime nowUtc)
-    {
-        var buffer = CreateRecord('5');
-        Write(buffer, 2, "225");
-        Write(buffer, 5, Alpha("DEVOLUCIONES", 16));
-        Write(buffer, 21, Alpha(string.Empty, 20));
-        Write(buffer, 41, Alpha("BANCORET", 10));
-        Write(buffer, 51, "PPD");
-        Write(buffer, 54, Alpha("RETORNO", 10));
-        Write(buffer, 64, nowUtc.ToString("yyyyMMdd"));
-        Write(buffer, 72, nowUtc.ToString("yyyyMMdd"));
-        Write(buffer, 80, "000");
-        Write(buffer, 83, "1");
-        Write(buffer, 84, Num("12345678", 8));
-        Write(buffer, 92, "0000001");
-        return new string(buffer);
-    }
-
-    private static string BuildReturnEntryDetail()
-    {
-        var buffer = CreateRecord('6');
-        Write(buffer, 2, "27");
-        Write(buffer, 4, "12345678");
-        Write(buffer, 12, "0");
-        Write(buffer, 13, Alpha("111122223333", 17));
-        Write(buffer, 30, Num("320000", 18));
-        Write(buffer, 48, Alpha("900123456", 15));
-        Write(buffer, 63, Alpha("EMPRESA DEMO", 22));
-        Write(buffer, 85, Alpha("R", 2));
-        Write(buffer, 87, "1");
-        Write(buffer, 88, "765432100000001");
-        return new string(buffer);
-    }
-
-    private static string BuildReturnAddenda(string originalTrace, string newSequence)
-    {
-        var buffer = CreateRecord('7');
-        Write(buffer, 2, "99");
-        Write(buffer, 4, Alpha("DEV14", 5));
-        Write(buffer, 9, Num(originalTrace, 15));
-        Write(buffer, 82, Num(newSequence, 15));
-        Write(buffer, 100, "0000001");
-        return new string(buffer);
-    }
-
-    private static string BuildReturnBatchControl()
-    {
-        var buffer = CreateRecord('8');
-        Write(buffer, 2, "225");
-        Write(buffer, 5, "000002");
-        Write(buffer, 11, Num("12345678", 10));
-        Write(buffer, 21, Num("320000", 18));
-        Write(buffer, 39, new string('0', 18));
-        Write(buffer, 57, Alpha("BANCORET", 10));
-        Write(buffer, 92, Num("12345678", 8));
-        Write(buffer, 100, "0000001");
-        return new string(buffer);
-    }
-
-    private static string BuildReturnFileControl()
-    {
-        var buffer = CreateRecord('9');
-        Write(buffer, 2, "000001");
-        Write(buffer, 8, "000001");
-        Write(buffer, 14, "00000002");
-        Write(buffer, 22, Num("12345678", 10));
-        Write(buffer, 32, Num("320000", 18));
-        Write(buffer, 50, new string('0', 18));
         return new string(buffer);
     }
 

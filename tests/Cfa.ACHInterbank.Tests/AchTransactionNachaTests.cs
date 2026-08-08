@@ -872,7 +872,7 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ReturnAddenda_UsesGoldenPositions()
+    public async Task GenerateReturnsFileAsync_ReturnAddenda_DelegatesV35SemanticsToOptionC()
     {
         using var connection = CreateOpenConnection();
 
@@ -930,45 +930,37 @@ public class AchTransactionNachaTests
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AchReturnEligibilityRequest req, CancellationToken _) => new AchReturnEligibilityResult(true, req.ReturnReasonCode.Trim().ToUpperInvariant(), 1, "Credit", "Pending", []));
-        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var builder = ReturnOutNachaFileBuilderFactory.Create();
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: builder);
         var response = await service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(
                 cycleId,
                 [new ReturnSelectionItemDto(persistedTransactionId, "R01")]),
             CancellationToken.None);
 
-        var records = ChunkRecords(System.Text.Encoding.UTF8.GetString(response.Content));
-        var addendaRecord = records.Single(record => record.StartsWith("7"));
-        var batchHeader = records.Single(record => record.StartsWith("5"));
-        var batchControl = records.Single(record => record.StartsWith("8"));
-        var fileControl = records.First(record => record.StartsWith("9"));
+        var requests = Mock.Get(builder).Invocations
+            .Where(x => x.Method.Name == nameof(INachaFileBuilder.BuildReturnOutAsync))
+            .Select(x => (NachaReturnOutBuildRequest)x.Arguments[0])
+            .ToArray();
+        var entry = requests[^1].Batches.Single().Entries.Single();
 
-        Assert.Equal("99", addendaRecord.Substring(1, 2));
-        Assert.Equal("R01", addendaRecord.Substring(3, 5).Trim());
-        Assert.Equal("123456780000123", addendaRecord.Substring(8, 15));
-        Assert.Equal(15, addendaRecord.Substring(81, 15).Trim().Length);
-        Assert.Equal(7, addendaRecord.Substring(99, 7).Trim().Length);
+        Assert.Equal(2, requests.Length);
+        Assert.Equal("21", entry.TransactionCode);
+        Assert.Equal("R01", entry.ReturnReasonCode);
+        Assert.Equal("123456780000123", entry.OriginalTraceNumber);
+        Assert.Equal("76543210", entry.OriginalReceivingDfi);
+        Assert.StartsWith("76543210", entry.NewTraceNumber, StringComparison.Ordinal);
+        Assert.Equal(1200m, entry.Amount);
+        var records = ChunkRecords(System.Text.Encoding.UTF8.GetString(response.Content));
         Assert.Equal(10, records.Count);
         Assert.Equal(106 * records.Count, response.Content.Length);
         Assert.DoesNotContain('\n', System.Text.Encoding.UTF8.GetString(response.Content));
         Assert.DoesNotContain('\r', System.Text.Encoding.UTF8.GetString(response.Content));
-        Assert.Equal("220", batchHeader.Substring(1, 3));
-        Assert.Equal(batchHeader.Substring(1, 3), batchControl.Substring(1, 3));
-        Assert.Equal(batchHeader.Substring(40, 10), batchControl.Substring(56, 10));
-        Assert.Equal(batchHeader.Substring(83, 8), batchControl.Substring(91, 8));
-        Assert.Equal(batchHeader.Substring(91, 7), batchControl.Substring(99, 7));
-        Assert.Equal("      ", batchControl.Substring(85, 6));
-        Assert.Equal("000000000000000000", batchControl.Substring(20, 18));
-        Assert.Equal("000000000000120000", batchControl.Substring(38, 18));
-        Assert.Equal("000001", fileControl.Substring(1, 6));
-        Assert.Equal("000001", fileControl.Substring(7, 6));
-        Assert.Equal("00000002", fileControl.Substring(13, 8));
-        Assert.Equal(new string(' ', 39), fileControl.Substring(67, 39));
         Assert.All(records.Skip(6), record => Assert.Equal(new string('9', 106), record));
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_WithDev14_PreservesFiveCharacterReasonCode()
+    public async Task GenerateReturnsFileAsync_WithFiveCharacterReasonCode_FailsClosedAtOptionCBoundary()
     {
         using var connection = CreateOpenConnection();
 
@@ -1026,21 +1018,19 @@ public class AchTransactionNachaTests
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AchReturnEligibilityRequest req, CancellationToken _) => new AchReturnEligibilityResult(true, req.ReturnReasonCode.Trim().ToUpperInvariant(), 1, "Credit", "Pending", []));
-        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
-        var response = await service.GenerateReturnsFileAsync(
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        builder.Setup(x => x.BuildReturnOutAsync(It.IsAny<NachaReturnOutBuildRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("NACHA_ALLOWED_VALUE_INVALID"));
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: new AchRegulatoryCatalogService(executionContext), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: builder.Object);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(
                 cycleId,
                 [new ReturnSelectionItemDto(persistedTransactionId, "DEV14")]),
-            CancellationToken.None);
+            CancellationToken.None));
 
-        var records = ChunkRecords(System.Text.Encoding.UTF8.GetString(response.Content));
-        var addendaRecord = records.Single(record => record.StartsWith("7"));
-
-        Assert.Equal("99", addendaRecord.Substring(1, 2));
-        Assert.Equal("DEV14", addendaRecord.Substring(3, 5));
-        Assert.Equal("123456780000456", addendaRecord.Substring(8, 15));
-        Assert.Equal(15, addendaRecord.Substring(81, 15).Trim().Length);
-        Assert.Equal(7, addendaRecord.Substring(99, 7).Trim().Length);
+        Assert.Contains("NACHA_ALLOWED_VALUE_INVALID", ex.Message, StringComparison.Ordinal);
+        Assert.False(await executionContext.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == persistedTransactionId));
+        Assert.False(await executionContext.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == persistedTransactionId));
     }
 
     [Fact]
@@ -1103,7 +1093,7 @@ public class AchTransactionNachaTests
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchReturnEligibilityResult(false, "R01", 1, "Credit", "Pending", [new AchReturnEligibilityFailure("RETURN_CODE_REJECTED", "La causal R01 no está permitida para Credit.")]));
 
-        var service = new AchReturnsService(executionContext, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create());
+        var service = new AchReturnsService(executionContext, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateReturnsFileAsync(
             new GenerateReturnsFileRequest(cycleId, [new ReturnSelectionItemDto(persistedTransactionId, "R01")]),

@@ -34,8 +34,8 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                 issues.Add(Hard(
                     "RETURN_NAME_PATTERN",
                     "RETURN_PATTERN_INVALID",
-                    "Regla HARD BLOCK RET: patron requerido RRRRTTT.ZZZ.RET.",
-                    "ACH V32 6.1.10.1 / RET"));
+                    "Regla HARD BLOCK RET: patrón requerido RRRRTTT.ZZZ.1.",
+                    "ACH V35 6.6 / RET"));
             }
             else
             {
@@ -45,7 +45,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                         "RETURN_DAILY_LIMIT",
                         "RETURN_SEQUENCE_RANGE",
                         "Regla HARD BLOCK RET: secuencia ZZZ debe estar entre 001 y 036.",
-                        "ACH V32 6.1.10.1 / RET"));
+                        "ACH V35 6.6 / RET"));
                 }
                 else
                 {
@@ -57,7 +57,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                             "RETURN_ZZZ_R1",
                             "RETURN_IDENTIFIER_MISMATCH",
                             "Regla HARD BLOCK RET: ZZZ no corresponde al campo 7 del Registro 1.",
-                            "ACH V32 6.1.10.1 / RET"));
+                            "ACH V35 6.6 / RET"));
                     }
                 }
             }
@@ -71,7 +71,7 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
                         "RETURN_DUPLICATE_NAME",
                         "RETURN_DUPLICATE",
                         "Regla HARD BLOCK RET: archivo duplicado.",
-                        "ACH V32 6.1.10.1 / RET"));
+                        "ACH V35 6.6 / RET"));
                 }
             }
         }

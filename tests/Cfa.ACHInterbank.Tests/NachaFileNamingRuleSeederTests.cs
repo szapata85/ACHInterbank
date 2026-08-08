@@ -86,7 +86,7 @@ public class NachaFileNamingRuleSeederTests
             Direction = ExternalFileDirection.Outbound
         });
 
-        Assert.Equal("8765321.001.RET", result.FullName);
+        Assert.Equal("8765321.001.1", result.FullName);
         Assert.Equal("8765321", result.Prefix);
         Assert.Equal(1, result.ExternalSequence);
     }
