@@ -78,7 +78,7 @@ public class AchReturnsUatEndToEndTests
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, stateEvent.ToState);
         Assert.Equal(AchStateEventSourceEnum.Epr, stateEvent.Source);
         Assert.Contains("ReturnFileGenerated", stateEvent.PayloadJson, StringComparison.Ordinal);
-        using (var payload = JsonDocument.Parse(stateEvent.PayloadJson))
+        using (var payload = JsonDocument.Parse(stateEvent.PayloadJson!))
         {
             Assert.True(payload.RootElement.GetProperty("stateChanged").GetBoolean());
             Assert.Equal("Pending", payload.RootElement.GetProperty("previousState").GetString());
@@ -194,7 +194,7 @@ public class AchReturnsUatEndToEndTests
         var first = await sut.GenerateReturnsFileAsync(request, CancellationToken.None);
         Assert.Equal(expectedReturnFileName, first.FileName);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(request, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(request, CancellationToken.None));
         Assert.Contains("ya cuenta con una devoluci", ex.Message, StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(1, await harness.Context.AchReturnsGenerated.CountAsync(x => x.OriginalTransactionId == 301));
@@ -204,7 +204,7 @@ public class AchReturnsUatEndToEndTests
         Assert.Equal(AchTransferStateEnum.Pending, stateEvent.FromState);
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, stateEvent.ToState);
         Assert.Equal(AchStateEventSourceEnum.Epr, stateEvent.Source);
-        using (var payload = JsonDocument.Parse(stateEvent.PayloadJson))
+        using (var payload = JsonDocument.Parse(stateEvent.PayloadJson!))
         {
             Assert.True(payload.RootElement.GetProperty("stateChanged").GetBoolean());
             Assert.Equal("Pending", payload.RootElement.GetProperty("previousState").GetString());

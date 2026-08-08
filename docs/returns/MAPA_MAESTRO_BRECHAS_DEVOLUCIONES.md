@@ -297,8 +297,9 @@ Una deficiencia de pantalla no invalida el motor; tampoco una pantalla existente
 - JOB 4: 13 pruebas focalizadas de lifecycle/generación.
 - JOB 4.CI.2: 2176 passed, 0 failed, 9 skipped, 2185 total.
 - RET.ACH.OUT.OPTIONC.1: contract V35 Opción C 4/4; servicio/lifecycle/CENIT 38/38; caracterización ampliada 45/45; naming V35 45/45; suite backend final 2180 passed, 0 failed, 9 skipped, 2189 total.
+- RET.OUT.PROVIDERS.1: categoría `OutboundReturnMultiDb` 4/4 sobre SQL Server y PostgreSQL reales; cada provider ejecuta RACE A-H, rollback de claim/lifecycle, batch solapado, retry, prenotificación y migración UP/DOWN, además del hard-fail con duplicados históricos conservados. Suite backend CI final: 2181 passed, 0 failed, 9 skipped, 2190 total.
 - Incoming B2: carreras reales SQL Server/PostgreSQL documentadas en JOB 3.1.
-- Outbound: cobertura SQLite/construcción; harness PostgreSQL condicional y obsoleto; sin carrera SQL Server ni multinodo.
+- Outbound: garantía DB multinodo demostrada con locks in-memory neutralizados, contexts/scopes/servicios independientes, claim único por transacción y reserva relacional del trace diario por participante.
 - CENIT físico: tests vigentes prueban el guard y cero side effects, no generación.
 - Differential: tests de processor/use case, sin homologación E2E por cámara.
 - Simulador: evidencia sintética; no certificación.
@@ -311,7 +312,7 @@ La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpu
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | RET-GAP-001 | B1 | Ambas | In | Convergencia de aplicación/auditoría | ✅ CERRADA Y DEMOSTRADA | JOB 2 + transición canónica | Ninguna dentro de B1 | — | — | — | No reabrir |
 | RET-GAP-002 | B2 | Ambas | In | Idempotencia DB-first | ✅ CERRADA Y DEMOSTRADA | JOB 3.1 SQL Server/PostgreSQL | Ninguna para aplicación incoming correlacionada | — | — | — | No reabrir |
-| RET-GAP-003 | B3 | ACHCOL | Out | Lifecycle `ReturnedByEpr` | 🟡 PARCIAL — residual identificado | JOB 4/4.CI.2, `outbound-return-v1` | Provider real outbound, multinodo y lifecycle post-archivo | doble generación/estado inconsistente | CRÍTICA | RET-GAP-004 | Provider proof posterior |
+| RET-GAP-003 | B3 | ACHCOL | Out | Lifecycle `ReturnedByEpr`, atomicidad y concurrencia DB | ✅ CERRADA Y DEMOSTRADA | JOB 4/4.CI.2 + RET.OUT.PROVIDERS.1: SQL Server/PostgreSQL, RACE A-H, DB-first claim, trace sequence relacional, migration UP/DOWN | Ninguna dentro de generación/persistencia ReturnOut; transmisión/acuse permanece en RET-GAP-017 | — | — | RET-GAP-004 cerrada | No reabrir |
 | RET-GAP-004 | B4/B5 | ACHCOL | Out | Perfil/render físico V35 | ✅ CERRADA Y DEMOSTRADA | `OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0`, Opción C, contract tests V35, naming `RRRRTTT.ZZZ.1`, no-fallback | Ninguna dentro de la canonicalización física; homologación externa continúa separada | — | — | — | No reabrir |
 | RET-GAP-005 | B4/B5 | CENIT | Out | Contrato técnico STA | 🔴 BLOQUEADA DELIBERADAMENTE | Reglamento/Annex A/B; guard | Manual STA, layout, DFI, correlación, naming, secuencia/reset | levantar guard sin norma | CRÍTICA | Evidencia externa STA | CENIT.STA.HOMOLOGATION |
 | RET-GAP-006 | B5 | CENIT | Out | Perfil/parser/generator soportado | ⚪ NO IMPLEMENTADA | guard antes del generador | Implementación Opción C solo después de RET-GAP-005 | generación inválida | CRÍTICA | RET-GAP-005 | CENIT.RETURNOUT.OPTIONC |
@@ -334,7 +335,7 @@ La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpu
 ```mermaid
 flowchart TD
   V35[ACH V35] --> AOP[RET-GAP-004 cerrado: ReturnOut ACH en Opción C]
-  AOP --> APROV[RET-GAP-003: SQL Server/PostgreSQL + multinodo]
+  AOP --> APROV[RET-GAP-003 cerrado: SQL Server/PostgreSQL + garantía DB multinodo]
   V35 --> ACAUSE[RET-GAP-019: DEV14 a causal física Rxx]
   ACAUSE --> AUAT
   APROV --> AACK[RET-GAP-017: transmisión/acuse/lifecycle]
@@ -354,7 +355,7 @@ flowchart TD
   CPROF --> SIM
 ```
 
-Con RET-GAP-004 cerrado, la primera dependencia interna accionable vuelve a ser RET-GAP-003: evidencia provider-specific y garantía de concurrencia outbound. RET-GAP-019 es una rama funcional paralela que debe cerrarse antes del UAT integral de no consentimiento, pero no impide probar la persistencia del ReturnOut normativo Rxx. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
+Con RET-GAP-003 y RET-GAP-004 cerrados, la primera dependencia interna accionable es RET-GAP-019: cerrar el contrato funcional `DEV14` frente a la causal física Rxx antes del UAT integral de no consentimiento. Después corresponde RET-GAP-017 para transmisión, acuse y lifecycle posterior al archivo. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
 
 ## 24. CENIT RETURN UNBLOCK GATE
 
@@ -416,7 +417,7 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ## 26. Secuencia recomendada de JOBs
 
-1. `RET.OUT.PROVIDERS.1`: evidencia outbound real SQL Server/PostgreSQL y carrera multinodo o garantía DB equivalente.
+1. `RET.OUT.PROVIDERS.1`: ✅ completado; evidencia outbound real SQL Server/PostgreSQL y garantía DB multinodo.
 2. `RET.ACH.OUT.CAUSAL.V35.1`: resolver el contrato `DEV14` -> causal física Rxx sin inferencia ni truncamiento.
 3. `RET.OUTBOUND.ACCEPTANCE.1`: transmisión, acuse, lifecycle posterior y conciliación ACH.
 4. `RET.ORPHAN.E2E.1`: cierre manual y apply/reprocess seguro de huérfanas.
@@ -427,17 +428,17 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ### Evaluación de JOB 4.1
 
-**RATIFICADO COMO `RET.OUT.PROVIDERS.1`.** RET-GAP-004 ya no bloquea la evidencia provider-specific: el archivo físico ACH ReturnOut nace exclusivamente del perfil Opción C V35. Continúan pendientes SQL Server, PostgreSQL y la garantía de carrera/multinodo de RET-GAP-003.
+**COMPLETADO COMO `RET.OUT.PROVIDERS.1`.** SQL Server y PostgreSQL reales demostraron la garantía DB-first de concurrencia sin depender del semaphore local. RET-GAP-003 queda cerrado dentro de generación/persistencia; no incluye transmisión, acuse ni conciliación.
 
 ## 27. Próximo JOB único
 
-### RET.OUT.PROVIDERS.1 — Evidencia outbound real SQL Server/PostgreSQL
+### RET.ACH.OUT.CAUSAL.V35.1 — Contrato causal físico V35
 
-- **Objetivo:** demostrar en SQL Server y PostgreSQL que ReturnOut ACH Opción C persiste una sola generación/transición/evento ante retry y carrera, y determinar la garantía multinodo efectiva.
-- **RET-GAP que cierra:** residual provider-specific/multinodo de RET-GAP-003.
-- **Por qué va primero:** RET-GAP-004 está cerrado; la siguiente incertidumbre crítica es la atomicidad real del lifecycle outbound, no el layout.
-- **Restricciones:** usar causales Rxx válidas del Anexo 9; no resolver RET-GAP-019 por inferencia; no habilitar CENIT ni transmisión/acuse.
-- **Tests futuros mínimos:** misma transacción, dos contextos/instancias, retry, unicidad `AchReturnGenerated`, una transición `ReturnedByEpr`, un evento y rollback coherente por proveedor.
+- **Objetivo:** resolver explícitamente el contrato `DEV14` -> causal física Rxx conforme V35, sin truncar ni inferir una causal arbitraria.
+- **RET-GAP que cierra:** RET-GAP-019.
+- **Por qué va primero:** la persistencia provider-specific ya está demostrada; la causal física bloquea el UAT real de no consentimiento antes de transmitir/aceptar el artefacto.
+- **Restricciones:** no reabrir Opción C ni RET-GAP-003; no implementar transmisión, acuse, CENIT o Differential.
+- **Tests futuros mínimos:** decisión funcional soportada normativamente, causal Rxx renderizable, DEV14 fail-closed hasta decisión, y no-regresión de Opción C/CENIT.
 - **Modelo recomendado:** `gpt-5.6-sol`.
 - **Reasoning recomendado:** `high`.
 

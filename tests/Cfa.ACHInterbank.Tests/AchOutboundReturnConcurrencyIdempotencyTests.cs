@@ -34,7 +34,7 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
 
         await sutA.GenerateReturnsFileAsync(request, CancellationToken.None);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() =>
             sutB.GenerateReturnsFileAsync(request, CancellationToken.None));
 
         Assert.Contains("devolución registrada", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -81,7 +81,7 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldAllowSameTransactionDifferentReason_OnlyAsCurrentBusinessRule()
+    public async Task GenerateReturnsFileAsync_ShouldRejectSameTransactionWithDifferentReason_PerV35Invariant()
     {
         await using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
@@ -93,7 +93,7 @@ public class AchOutboundReturnConcurrencyIdempotencyTests
         await sut.GenerateReturnsFileAsync(request, CancellationToken.None);
 
         var secondReasonRequest = new GenerateReturnsFileRequest("ACH-SQL-3", [new ReturnSelectionItemDto(9103, "R01")]);
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(secondReasonRequest, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(secondReasonRequest, CancellationToken.None));
 
         Assert.Contains("ya cuenta con una devolución registrada", ex.Message, StringComparison.OrdinalIgnoreCase);
     }

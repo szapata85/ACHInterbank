@@ -181,7 +181,7 @@ public class AchReturnsPostgresUatEndToEndTests
         var first = await sut.GenerateReturnsFileAsync(request, CancellationToken.None);
         Assert.Equal(expectedReturnFileName, first.FileName);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(request, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(request, CancellationToken.None));
         Assert.Contains("ya cuenta con una devoluci", ex.Message, StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(expectedReturnFileName, await harness.Context.AchReturnsGenerated.Where(x => x.OriginalTransactionId == 301).Select(x => x.FileName).SingleAsync());

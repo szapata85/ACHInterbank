@@ -80,7 +80,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         var sut = BuildSut(context, 1004, "DEV14");
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-4", [new ReturnSelectionItemDto(1004, "DEV14")]), CancellationToken.None);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-4", [new ReturnSelectionItemDto(1004, "DEV14")]), CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-4", [new ReturnSelectionItemDto(1004, "DEV14")]), CancellationToken.None));
         Assert.Contains("ya cuenta con una devolución registrada", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, await context.Set<AchReturnGenerated>().CountAsync(x => x.OriginalTransactionId == 1004));
     }
@@ -114,13 +114,30 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         var target = entityType!.GetIndexes().FirstOrDefault(i =>
             i.Properties.Select(p => p.Name).SequenceEqual(new[]
             {
-                nameof(AchReturnGenerated.OriginalTransactionId),
-                nameof(AchReturnGenerated.ReturnReasonCode),
-                nameof(AchReturnGenerated.ReturnCycleId)
+                nameof(AchReturnGenerated.OriginalTransactionId)
             }));
 
         Assert.NotNull(target);
         Assert.True(target!.IsUnique);
+
+        var traceTarget = entityType.GetIndexes().FirstOrDefault(i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(new[]
+            {
+                nameof(AchReturnGenerated.SequenceDate),
+                nameof(AchReturnGenerated.NewSequenceNumber)
+            }));
+        Assert.NotNull(traceTarget);
+        Assert.True(traceTarget!.IsUnique);
+
+        var sequenceType = context.Model.FindEntityType(typeof(AchReturnTraceSequence));
+        Assert.NotNull(sequenceType);
+        var counterScope = sequenceType!.GetIndexes().Single(i =>
+            i.Properties.Select(p => p.Name).SequenceEqual(new[]
+            {
+                nameof(AchReturnTraceSequence.ParticipantDfi),
+                nameof(AchReturnTraceSequence.SequenceDate)
+            }));
+        Assert.True(counterScope.IsUnique);
     }
 
     [Fact]
@@ -192,7 +209,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         var sut = BuildSut(context, 2004, "DEV14");
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "DEV14")]), CancellationToken.None);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "DEV14")]), CancellationToken.None));
+        await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "DEV14")]), CancellationToken.None));
 
         Assert.Equal(1, await context.Set<AchReturnGenerated>().CountAsync(x => x.OriginalTransactionId == 2004));
         Assert.Equal(1, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 2004));

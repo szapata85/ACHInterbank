@@ -47,7 +47,7 @@ jobs:
       - name: Test
         run: >-
           dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
-          -c Release --no-build --filter 'Category!=ClearingHouseMultiDb&Category!=OutgoingMonitorMultiDb'
+          -c Release --no-build --filter 'Category!=ClearingHouseMultiDb&Category!=OutgoingMonitorMultiDb&Category!=OutboundReturnMultiDb'
           --logger "trx;LogFileName=dotnet-tests.trx" --results-directory TestResults
           -- RunConfiguration.MaxCpuCount=1
 
@@ -168,3 +168,108 @@ jobs:
       - name: Stop database services
         if: always()
         run: docker rm -f outgoing-monitor-sqlserver outgoing-monitor-postgres || true
+
+  outbound-return-multidb:
+    name: ReturnOut concurrency (SQL Server + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUN_OUTBOUND_RETURN_MULTIDB: 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.300'
+
+      - name: Start isolated database services
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql_password="ReturnOutSql$(openssl rand -hex 12)!9"
+          pg_password="ReturnOutPg$(openssl rand -hex 12)!9"
+          sql_connection="Server=127.0.0.1,1433;Database=master;User Id=sa;Password=${sql_password};Encrypt=True;TrustServerCertificate=True;Connect Timeout=15"
+          pg_connection="Host=127.0.0.1;Port=5433;Database=achinterbank_test;Username=ach_test;Password=${pg_password};Timeout=15;Command Timeout=30"
+          echo "::add-mask::${sql_password}"
+          echo "::add-mask::${pg_password}"
+          echo "::add-mask::${sql_connection}"
+          echo "::add-mask::${pg_connection}"
+          docker run -d --name outbound-return-sqlserver \
+            -e ACCEPT_EULA=Y -e MSSQL_PID=Developer -e MSSQL_SA_PASSWORD="${sql_password}" \
+            -p 1433:1433 \
+            mcr.microsoft.com/mssql/server@sha256:2cd0aec4a3bfc3cf9205bed3f7922f4c6208f7c767dc62edcee308d0fd7d56d0
+          docker run -d --name outbound-return-postgres \
+            -e POSTGRES_DB=achinterbank_test -e POSTGRES_USER=ach_test -e POSTGRES_PASSWORD="${pg_password}" \
+            -p 5433:5432 \
+            postgres@sha256:eb4759788a2182f08257135e61a34f2cfc3c2914079f3465d64ee62350f4d081
+          echo "OUTBOUND_RETURN_SQLSERVER_CONNECTION_STRING=${sql_connection}" >> "$GITHUB_ENV"
+          echo "OUTBOUND_RETURN_POSTGRES_CONNECTION_STRING=${pg_connection}" >> "$GITHUB_ENV"
+          echo "OUTBOUND_RETURN_SQLSERVER_PASSWORD=${sql_password}" >> "$GITHUB_ENV"
+
+      - name: Wait for database services
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..40}; do
+            sql_ready=false
+            pg_ready=false
+            if docker exec outbound-return-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$OUTBOUND_RETURN_SQLSERVER_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1; then sql_ready=true; fi
+            if docker exec outbound-return-postgres pg_isready -U ach_test -d achinterbank_test >/dev/null 2>&1; then pg_ready=true; fi
+            if [[ "$sql_ready" == true && "$pg_ready" == true ]]; then exit 0; fi
+            sleep 5
+          done
+          echo 'SQL Server o PostgreSQL no quedó disponible dentro del tiempo máximo.' >&2
+          exit 1
+
+      - name: Restore
+        run: dotnet restore tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+
+      - name: Build once
+        run: dotnet build tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-restore --maxcpucount:1
+
+      - name: Verify focused discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj \
+            -c Release --no-build --no-restore --filter 'Category=OutboundReturnMultiDb' \
+            --list-tests > outbound-return-tests.txt
+          discovered="$(grep -c 'OutboundReturnMultiDbTests\.' outbound-return-tests.txt)"
+          test "$discovered" -eq 4
+
+      - name: Run ReturnOut multi-database tests
+        run: >-
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+          -c Release --no-build --no-restore --filter 'Category=OutboundReturnMultiDb'
+          --logger 'trx;LogFileName=outbound-return-multidb.trx'
+          --results-directory TestResults/OutboundReturn
+          -- RunConfiguration.MaxCpuCount=1
+
+      - name: Verify exact multi-database execution
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          trx='TestResults/OutboundReturn/outbound-return-multidb.trx'
+          test -f "$trx"
+          result_count="$(grep -o '<UnitTestResult ' "$trx" | wc -l)"
+          test "$result_count" -eq 4
+          if grep -q 'outcome="Skipped"' "$trx"; then
+            echo 'OutboundReturnMultiDb no permite pruebas omitidas.' >&2
+            exit 1
+          fi
+
+      - name: Upload ReturnOut multi-database results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outbound-return-multidb-results
+          path: TestResults/OutboundReturn
+          if-no-files-found: error
+
+      - name: Stop database services
+        if: always()
+        run: docker rm -f outbound-return-sqlserver outbound-return-postgres || true

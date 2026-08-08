@@ -343,8 +343,8 @@ public class HistConfigChangeConfiguration : IEntityTypeConfiguration<HistConfig
         builder.Property(x => x.EntityName).HasMaxLength(120).IsRequired();
         builder.Property(x => x.EntityId).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ChangeType).HasMaxLength(40).IsRequired();
-        builder.Property(x => x.BeforeJson).HasMaxLength(16000);
-        builder.Property(x => x.AfterJson).HasMaxLength(16000);
+        builder.Property(x => x.BeforeJson);
+        builder.Property(x => x.AfterJson);
         builder.Property(x => x.ChangedBy).HasMaxLength(120).IsRequired();
         builder.Property(x => x.CorrelationId).HasMaxLength(120);
 

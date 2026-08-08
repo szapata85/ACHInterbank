@@ -99,6 +99,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<BulkIngestionAttempt> BulkIngestionAttempts => Set<BulkIngestionAttempt>();
     public DbSet<ReturnReason> ReturnReasons => Set<ReturnReason>();
     public DbSet<AchReturnGenerated> AchReturnsGenerated => Set<AchReturnGenerated>();
+    public DbSet<AchReturnTraceSequence> AchReturnTraceSequences => Set<AchReturnTraceSequence>();
     public DbSet<AchFileExport> AchFileExports => Set<AchFileExport>();
     public DbSet<AchFileExportTransaction> AchFileExportTransactions => Set<AchFileExportTransaction>();
     public DbSet<ContrapartidaDispatchBatch> ContrapartidaDispatchBatches => Set<ContrapartidaDispatchBatch>();

@@ -3746,13 +3746,20 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasMaxLength(5)
                         .HasColumnType("character varying(5)");
 
+                    b.Property<DateOnly>("SequenceDate")
+                        .HasColumnType("date");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("OriginalTransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchReturnGenerated_OriginalTransaction");
 
                     b.HasIndex("ReturnCycleId");
 
-                    b.HasIndex("OriginalTransactionId", "ReturnReasonCode", "ReturnCycleId")
+                    b.HasIndex("SequenceDate", "NewSequenceNumber")
                         .IsUnique()
-                        .HasDatabaseName("UX_AchReturnGenerated_OriginalTransaction_Reason_Cycle");
+                        .HasDatabaseName("UX_AchReturnGenerated_SequenceDate_Trace");
 
                     b.ToTable("AchReturnsGenerated", (string)null);
                 });
@@ -3967,6 +3974,40 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("ClearingHouseId", "TransactionType", "Direction", "FlowType", "IsActive");
 
                     b.ToTable("AchReturnPolicies", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnTraceSequence", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("LastAssignedValue")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ParticipantDfi")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<DateOnly>("SequenceDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParticipantDfi", "SequenceDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchReturnTraceSequence_Participant_Date");
+
+                    b.ToTable("AchReturnTraceSequences", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AchReturnTraceSequence_LastAssignedValue", "\"LastAssignedValue\" >= 0 AND \"LastAssignedValue\" <= 6999999");
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", b =>
@@ -7104,12 +7145,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("AfterJson")
-                        .HasMaxLength(16000)
-                        .HasColumnType("character varying(16000)");
+                        .HasColumnType("text");
 
                     b.Property<string>("BeforeJson")
-                        .HasMaxLength(16000)
-                        .HasColumnType("character varying(16000)");
+                        .HasColumnType("text");
 
                     b.Property<string>("ChangeType")
                         .IsRequired()

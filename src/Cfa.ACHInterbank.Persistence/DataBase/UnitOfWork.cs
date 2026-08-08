@@ -25,7 +25,7 @@ public sealed class UnitOfWork : IUnitOfWork
         {
             return await _dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        catch (DbUpdateException ex) when (RelationalDatabaseExceptionClassifier.IsUniqueViolation(ex))
         {
             _dbContext.ChangeTracker.Clear();
             throw new IdempotentWriteConflictException(ex);
@@ -35,14 +35,5 @@ public sealed class UnitOfWork : IUnitOfWork
             _dbContext.ChangeTracker.Clear();
             throw new ConcurrentStateWriteConflictException(ex);
         }
-    }
-
-    private static bool IsUniqueViolation(DbUpdateException exception)
-    {
-        var message = exception.InnerException?.Message ?? exception.Message;
-        return message.Contains("unique", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("2601", StringComparison.OrdinalIgnoreCase)
-            || message.Contains("2627", StringComparison.OrdinalIgnoreCase);
     }
 }

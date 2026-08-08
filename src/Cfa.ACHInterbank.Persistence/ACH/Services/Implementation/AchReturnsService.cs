@@ -31,7 +31,8 @@ public class AchReturnsService(
     IAchCauseCodePolicy? causeCodePolicy = null,
     ILogger<AchReturnsService>? logger = null,
     IAchStateTransitionService? stateTransitionService = null,
-    INachaFileBuilder? nachaFileBuilder = null) : IAchReturnsService
+    INachaFileBuilder? nachaFileBuilder = null,
+    IAchReturnTraceSequenceService? returnTraceSequenceService = null) : IAchReturnsService
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
@@ -50,6 +51,8 @@ public class AchReturnsService(
     // have not yet supplied it through DI.  This keeps a single audited transition path.
     private readonly IAchStateTransitionService _stateTransitionService = stateTransitionService ?? new AchStateTransitionService(context);
     private readonly INachaFileBuilder? _nachaFileBuilder = nachaFileBuilder;
+    private readonly IAchReturnTraceSequenceService _returnTraceSequenceService = returnTraceSequenceService
+        ?? new AchReturnTraceSequenceService(context);
     private const string ImmediateDestinationAchColombia = "000101006";
     public async Task<IReadOnlyList<ReturnEligibleTransactionDto>> GetTransactionsByCycleAsync(string cycleId, CancellationToken ct = default)
     {
@@ -167,21 +170,22 @@ public class AchReturnsService(
 
         var alreadyReturnedTransactions = await context.Set<AchReturnGenerated>()
             .AsNoTracking()
+            .Where(r => selectedIds.Contains(r.OriginalTransactionId))
             .Select(r => r.OriginalTransactionId)
             .ToHashSetAsync(ct);
 
+        if (alreadyReturnedTransactions.Count > 0)
+        {
+            throw new AchReturnAlreadyGeneratedException(alreadyReturnedTransactions);
+        }
+
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var generatedRows = new List<AchReturnGenerated>();
-        var semanticEntries = new Dictionary<int, NachaReturnOutEntry>();
+        var transactionsById = transactions.ToDictionary(tx => tx.Id);
+        var prepared = new List<PreparedReturn>(request.Items.Count);
 
         foreach (var item in request.Items)
         {
-            var tx = transactions.First(t => t.Id == item.TransactionId);
-
-            if (alreadyReturnedTransactions.Contains(tx.Id))
-            {
-                throw new InvalidOperationException($"La transacción {tx.Id} ya cuenta con una devolución registrada.");
-            }
+            var tx = transactionsById[item.TransactionId];
 
             if (tx.Type is Domain.Entities.Transactions.Enums.TransactionTypeEnum.Return or Domain.Entities.Transactions.Enums.TransactionTypeEnum.Reversal)
             {
@@ -235,42 +239,18 @@ public class AchReturnsService(
             }
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
-            var newSequence = await GenerateNewReturnSequenceAsync(tx.ReceivingDFI, now.Date, ct);
             var originalSequence = NormalizeDigits(tx.TraceNumber, 15);
             var receiverEntity = NormalizeDigits(tx.OriginatingDFI, 8);
             var originEntity = NormalizeDigits(tx.ReceivingDFI, 8);
             var returnTransactionCode = ResolveV35ReturnTransactionCode(tx.TransactionCode);
-            semanticEntries[tx.Id] = new NachaReturnOutEntry(
-                tx.Id,
-                returnTransactionCode,
-                receiverEntity,
-                DigitoChequeoHelper.CalcularDigitoChequeo(receiverEntity).ToString(),
-                tx.DestinationAccountNumber,
-                amount,
-                tx.RecipientIdNumber,
-                tx.CompanyName,
-                tx.DiscretionaryData,
-                newSequence,
+            prepared.Add(new PreparedReturn(
+                tx,
                 reasonCode,
+                amount,
                 originalSequence,
-                string.Empty,
-                NormalizeDigits(tx.ReceivingDFI, 8),
-                string.Empty,
-                newSequence);
-
-            generatedRows.Add(new AchReturnGenerated
-            {
-                OriginalTransactionId = tx.Id,
-                ReturnCycleId = request.CycleId,
-                ReturnReasonCode = reasonCode,
-                Amount = amount,
-                NewSequenceNumber = newSequence,
-                OriginalSequenceNumber = originalSequence,
-                ReceiverEntityCode = receiverEntity,
-                OriginatorEntityCode = originEntity,
-                FileName = string.Empty,
-                GeneratedAtUtc = now
-            });
+                receiverEntity,
+                originEntity,
+                returnTransactionCode));
 
             CompareReturnShadow(
                 cycle.ClearingHouseId,
@@ -286,51 +266,125 @@ public class AchReturnsService(
         {
             throw new InvalidOperationException("RETURN_OUT_ACH_OPTION_C_REQUIRED: INachaFileBuilder es requerido; no existe fallback hardcoded.");
         }
-
-        var provisionalFileName = $"RET_{request.CycleId}_{now:yyyyMMddHHmmss}.RET";
-        var semanticBatches = transactions
-            .GroupBy(tx => tx.AchBatchId)
-            .OrderBy(group => group.Key)
-            .Select((group, index) => BuildReturnOutBatch(group, semanticEntries, index + 1, now))
-            .ToList();
-        var returnParticipant = semanticBatches.Select(batch => batch.OriginatingDfi).Distinct(StringComparer.Ordinal).Single();
-        var immediateOrigin = returnParticipant + DigitoChequeoHelper.CalcularDigitoChequeo(returnParticipant).ToString();
-        var optionCRequest = new NachaReturnOutBuildRequest(
-            now,
-            "A",
-            ImmediateDestinationAchColombia,
-            immediateOrigin,
-            "ACH COLOMBIA",
-            cycle.ClearingHouse?.Name ?? "CFA",
-            "RETURN",
-            semanticBatches,
-            PersistAudit: false);
-        var provisionalArtifact = await _nachaFileBuilder.BuildReturnOutAsync(optionCRequest, ct);
-        var namingResult = await ResolveReturnExternalFileNameAsync(cycle, request, provisionalFileName, provisionalArtifact.Content, ct);
-        var fileIdModifier = namingResult.Components.FileIdModifier?.ToString()
-            ?? throw new InvalidOperationException("RETURN_FILENAME_FILE_ID_REQUIRED: la política no asignó identificador ZZZ.");
-        var finalArtifact = await _nachaFileBuilder.BuildReturnOutAsync(optionCRequest with
+        if (_externalFileNamePolicy is null)
         {
-            FileIdModifier = fileIdModifier,
-            PersistAudit = true
-        }, ct);
-        var fileContent = finalArtifact.Content;
-        var fileName = namingResult.ExternalFileName;
-
-        foreach (var row in generatedRows)
-        {
-            row.FileName = fileName;
+            throw new InvalidOperationException("RETURN_FILENAME_POLICY_REQUIRED: No existe política oficial de naming para ReturnOut.");
         }
 
-        context.Set<AchReturnGenerated>().AddRange(generatedRows);
+        prepared = prepared
+            .OrderBy(item => item.Transaction.AchBatchId)
+            .ThenBy(item => item.Transaction.Id)
+            .ToList();
+        var participantCodes = prepared
+            .Select(item => item.OriginEntity)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (participantCodes.Length != 1)
+        {
+            throw new InvalidOperationException("RETURN_TRACE_PARTICIPANT_SCOPE_INVALID: un archivo ReturnOut debe pertenecer a un único participante generador.");
+        }
+
+        var sequenceDate = DateOnly.FromDateTime(cycle.ProcessingDate.Date);
+        var generatedRows = new List<AchReturnGenerated>(prepared.Count);
+        var semanticEntries = new Dictionary<int, NachaReturnOutEntry>(prepared.Count);
         await using var databaseTransaction = context.Database.IsRelational()
+            && context.Database.CurrentTransaction is null
             ? await context.Database.BeginTransactionAsync(ct)
             : null;
         try
         {
+            var sequenceRange = await _returnTraceSequenceService.ReserveRangeAsync(
+                participantCodes[0],
+                sequenceDate,
+                prepared.Count,
+                now,
+                ct);
+
+            for (var index = 0; index < prepared.Count; index++)
+            {
+                var item = prepared[index];
+                var newSequence = $"{item.OriginEntity}{sequenceRange.StartValue + index:0000000}";
+                semanticEntries[item.Transaction.Id] = new NachaReturnOutEntry(
+                    item.Transaction.Id,
+                    item.ReturnTransactionCode,
+                    item.ReceiverEntity,
+                    DigitoChequeoHelper.CalcularDigitoChequeo(item.ReceiverEntity).ToString(),
+                    item.Transaction.DestinationAccountNumber,
+                    item.Amount,
+                    item.Transaction.RecipientIdNumber,
+                    item.Transaction.CompanyName,
+                    item.Transaction.DiscretionaryData,
+                    newSequence,
+                    item.ReasonCode,
+                    item.OriginalSequence,
+                    string.Empty,
+                    item.OriginEntity,
+                    string.Empty,
+                    newSequence);
+
+                generatedRows.Add(new AchReturnGenerated
+                {
+                    OriginalTransactionId = item.Transaction.Id,
+                    ReturnCycleId = request.CycleId,
+                    ReturnReasonCode = item.ReasonCode,
+                    Amount = item.Amount,
+                    NewSequenceNumber = newSequence,
+                    OriginalSequenceNumber = item.OriginalSequence,
+                    ReceiverEntityCode = item.ReceiverEntity,
+                    OriginatorEntityCode = item.OriginEntity,
+                    FileName = string.Empty,
+                    SequenceDate = sequenceDate,
+                    GeneratedAtUtc = now
+                });
+            }
+
+            context.Set<AchReturnGenerated>().AddRange(generatedRows);
+            if (context.Database.IsRelational())
+            {
+                await context.SaveChangesAsync(ct);
+            }
+
+            var provisionalFileName = $"RET_{request.CycleId}_{now:yyyyMMddHHmmss}.RET";
+            var semanticBatches = prepared
+                .Select(item => item.Transaction)
+                .GroupBy(tx => tx.AchBatchId)
+                .OrderBy(group => group.Key)
+                .Select((group, index) => BuildReturnOutBatch(group, semanticEntries, index + 1, now))
+                .ToList();
+            var returnParticipant = participantCodes[0];
+            var immediateOrigin = returnParticipant + DigitoChequeoHelper.CalcularDigitoChequeo(returnParticipant).ToString();
+            var optionCRequest = new NachaReturnOutBuildRequest(
+                now,
+                "A",
+                ImmediateDestinationAchColombia,
+                immediateOrigin,
+                "ACH COLOMBIA",
+                cycle.ClearingHouse?.Name ?? "CFA",
+                "RETURN",
+                semanticBatches,
+                PersistAudit: false);
+            var provisionalArtifact = await _nachaFileBuilder.BuildReturnOutAsync(optionCRequest, ct);
+            var namingResult = await ResolveReturnExternalFileNameAsync(cycle, request, provisionalFileName, provisionalArtifact.Content, ct);
+            var fileIdModifier = namingResult.Components.FileIdModifier?.ToString()
+                ?? throw new InvalidOperationException("RETURN_FILENAME_FILE_ID_REQUIRED: la política no asignó identificador ZZZ.");
+            var finalArtifact = await _nachaFileBuilder.BuildReturnOutAsync(optionCRequest with
+            {
+                FileIdModifier = fileIdModifier,
+                PersistAudit = true
+            }, ct);
+            var fileContent = finalArtifact.Content;
+            var fileName = namingResult.ExternalFileName;
+
             foreach (var row in generatedRows)
             {
-                var originalTx = transactions.First(t => t.Id == row.OriginalTransactionId);
+                row.FileName = fileName;
+            }
+
+            await context.SaveChangesAsync(ct);
+
+            foreach (var row in generatedRows)
+            {
+                var originalTx = transactionsById[row.OriginalTransactionId];
                 var payload = BuildReturnFileGeneratedPayload(
                     originalTx,
                     row,
@@ -342,7 +396,7 @@ public class AchReturnsService(
                     fileContent,
                     AchTransferStateEnum.ReturnedByEpr);
 
-                await _stateTransitionService.TransitionAsync(new AchStateTransitionRequest(
+                var transition = await _stateTransitionService.TransitionAsync(new AchStateTransitionRequest(
                     row.OriginalTransactionId,
                     AchTransferStateEnum.ReturnedByEpr,
                     AchStateEventSourceEnum.Epr,
@@ -352,24 +406,52 @@ public class AchReturnsService(
                     now,
                     $"outbound-return-v1:{row.OriginalTransactionId}",
                     cycle.ClearingHouseId), ct);
+                if (transition.WasDuplicate)
+                {
+                    throw new AchReturnAlreadyGeneratedException([row.OriginalTransactionId]);
+                }
             }
 
             if (databaseTransaction is not null)
             {
                 await databaseTransaction.CommitAsync(ct);
             }
+
+            return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), finalArtifact.RecordCount, generatedRows.Count);
         }
-        catch
+        catch (Exception ex)
         {
             if (databaseTransaction is not null)
             {
-                await databaseTransaction.RollbackAsync(ct);
+                await databaseTransaction.RollbackAsync(CancellationToken.None);
             }
+
+            if (ex is DbUpdateException && RelationalDatabaseExceptionClassifier.IsUniqueViolation(ex))
+            {
+                context.ChangeTracker.Clear();
+                var conflictingIds = await context.Set<AchReturnGenerated>()
+                    .AsNoTracking()
+                    .Where(row => selectedIds.Contains(row.OriginalTransactionId))
+                    .Select(row => row.OriginalTransactionId)
+                    .ToListAsync(CancellationToken.None);
+                if (conflictingIds.Count > 0)
+                {
+                    throw new AchReturnAlreadyGeneratedException(conflictingIds);
+                }
+            }
+
             throw;
         }
-
-        return new GenerateReturnsFileResponse(fileName, "text/plain", Encoding.UTF8.GetBytes(fileContent), finalArtifact.RecordCount, generatedRows.Count);
     }
+
+    private sealed record PreparedReturn(
+        AchTransaction Transaction,
+        string ReasonCode,
+        decimal Amount,
+        string OriginalSequence,
+        string ReceiverEntity,
+        string OriginEntity,
+        string ReturnTransactionCode);
 
 
     private static string BuildReturnFileGeneratedPayload(
@@ -647,24 +729,6 @@ public class AchReturnsService(
             .ToList();
 
         return cycles.Select((id, index) => new { id, index }).ToDictionary(x => x.id, x => x.index, StringComparer.OrdinalIgnoreCase);
-    }
-
-    private async Task<string> GenerateNewReturnSequenceAsync(string receivingDfi, DateTime day, CancellationToken ct)
-    {
-        var entityCode = NormalizeDigits(receivingDfi, 8);
-
-        var last = await context.Set<AchReturnGenerated>()
-            .AsNoTracking()
-            .Where(r => r.GeneratedAtUtc.Date == day && r.NewSequenceNumber.StartsWith(entityCode))
-            .Select(r => r.NewSequenceNumber)
-            .ToListAsync(ct);
-
-        var next = last
-            .Select(s => int.TryParse(s[^7..], out var n) ? n : 0)
-            .DefaultIfEmpty(0)
-            .Max() + 1;
-
-        return $"{entityCode}{next:0000000}";
     }
 
     private static string NormalizeDigits(string? value, int length)

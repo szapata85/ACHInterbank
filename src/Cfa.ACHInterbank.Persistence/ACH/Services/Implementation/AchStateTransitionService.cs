@@ -117,7 +117,8 @@ public class AchStateTransitionService : IAchStateTransitionService
             await _context.SaveChangesAsync(ct);
             return new AchStateTransitionResult(transaction, true, false);
         }
-        catch (DbUpdateException ex) when (normalizedIdempotencyKey is not null && IsUniqueViolation(ex))
+        catch (DbUpdateException ex) when (normalizedIdempotencyKey is not null
+                                           && RelationalDatabaseExceptionClassifier.IsUniqueViolation(ex))
         {
             _context.ChangeTracker.Clear();
 
@@ -137,24 +138,6 @@ public class AchStateTransitionService : IAchStateTransitionService
                 .FirstAsync(x => x.Id == request.TransactionId, ct);
             return new AchStateTransitionResult(existingTransaction, false, true);
         }
-    }
-
-    private static bool IsUniqueViolation(DbUpdateException exception)
-    {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            var message = current.Message;
-            if (message.Contains("unique", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("2601", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("2627", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("23505", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static bool RepresentsSameEvent(AchTransactionStateEvent existing, AchStateTransitionRequest request)

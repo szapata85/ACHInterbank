@@ -28,9 +28,25 @@ public class AchReturnsController(IAchReturnsService service) : ControllerBase
     [HttpPost("generate-file")]
     [Authorize(Policy = P0Policies.ReturnsGenerateFile)]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> GenerateFile([FromBody] GenerateReturnsFileRequest request, CancellationToken ct)
     {
-        var response = await service.GenerateReturnsFileAsync(request, ct);
-        return File(response.Content, response.ContentType, response.FileName);
+        try
+        {
+            var response = await service.GenerateReturnsFileAsync(request, ct);
+            return File(response.Content, response.ContentType, response.FileName);
+        }
+        catch (AchReturnAlreadyGeneratedException ex)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "La devolución ya fue generada",
+                Detail = ex.Message
+            };
+            problem.Extensions["errorCode"] = AchReturnAlreadyGeneratedException.ErrorCode;
+            problem.Extensions["transactionIds"] = ex.TransactionIds;
+            return Conflict(problem);
+        }
     }
 }

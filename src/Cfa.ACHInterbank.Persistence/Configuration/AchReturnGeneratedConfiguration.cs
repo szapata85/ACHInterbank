@@ -30,8 +30,12 @@ public class AchReturnGeneratedConfiguration : IEntityTypeConfiguration<AchRetur
             .HasForeignKey(x => x.ReturnCycleId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(x => new { x.OriginalTransactionId, x.ReturnReasonCode, x.ReturnCycleId })
+        builder.HasIndex(x => x.OriginalTransactionId)
             .IsUnique()
-            .HasDatabaseName("UX_AchReturnGenerated_OriginalTransaction_Reason_Cycle");
+            .HasDatabaseName("UX_AchReturnGenerated_OriginalTransaction");
+
+        builder.HasIndex(x => new { x.SequenceDate, x.NewSequenceNumber })
+            .IsUnique()
+            .HasDatabaseName("UX_AchReturnGenerated_SequenceDate_Trace");
     }
 }
