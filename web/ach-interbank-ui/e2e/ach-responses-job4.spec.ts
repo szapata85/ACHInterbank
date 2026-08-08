@@ -25,6 +25,7 @@ test.describe.serial('JOB 4 - dominio productivo de respuestas ACH', () => {
 
     const token = await login(page);
     const headers = auth(token);
+    await allowReprocessDispatcherOnNonBusinessDay(page, headers);
     const housesResponse = await page.request.get(`${api}/clearing-houses?search=ACHCOL`, { headers });
     expect(housesResponse.ok()).toBeTruthy();
     const housesPayload = await housesResponse.json();
@@ -137,9 +138,11 @@ test.describe.serial('JOB 4 - dominio productivo de respuestas ACH', () => {
     const schedulerHistory = await (await page.request.get(
       `${api}/api/scheduler/tasks/ach-response-reprocess-dispatcher/history?page=1&pageSize=20`,
       { headers })).json();
-    expect(schedulerHistory.items.some((x: { taskCode: string; requestReason?: string }) =>
+    const schedulerExecution = schedulerHistory.items.find((x: { taskCode: string; requestReason?: string; status: string }) =>
       x.taskCode === 'ach-response-reprocess-dispatcher'
-      && x.requestReason === 'Certificación runtime JOB 4 desde el mecanismo manual existente')).toBeTruthy();
+      && x.requestReason === 'Certificación runtime JOB 4 desde el mecanismo manual existente');
+    expect(schedulerExecution).toBeTruthy();
+    expect(schedulerExecution.status).not.toBe('Skipped');
 
     const audit = await (await page.request.get(`${api}/api/ach/responses/${orphanResponseId}/audit`, { headers })).json();
     expect(audit.some((x: { action: string }) => x.action === 'ReprocessRequested')).toBeTruthy();
@@ -181,6 +184,33 @@ async function login(page: Page): Promise<string> {
 
 function auth(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}`, 'X-Correlation-ID': crypto.randomUUID() };
+}
+
+async function allowReprocessDispatcherOnNonBusinessDay(page: Page, headers: Record<string, string>): Promise<void> {
+  const taskResponse = await page.request.get(`${api}/api/scheduler/tasks/ach-response-reprocess-dispatcher`, { headers });
+  expect(taskResponse.ok(), await taskResponse.text()).toBeTruthy();
+  const task = await taskResponse.json();
+  if (!task.onlyBusinessDays) return;
+
+  const update = await page.request.put(`${api}/api/scheduler/tasks/ach-response-reprocess-dispatcher/schedule`, {
+    headers,
+    data: {
+      periodicityType: task.periodicityType,
+      n: task.n,
+      minute: task.minute,
+      timeOfDay: task.timeOfDay,
+      weeklyDay: task.weeklyDay,
+      monthDay: task.monthDay,
+      cronExpression: task.cronExpression,
+      timeZoneId: task.timeZoneId,
+      misfirePolicy: task.misfirePolicy,
+      onlyBusinessDays: false,
+      startAt: task.startAt,
+      endAt: task.endAt
+    }
+  });
+  expect(update.ok(), await update.text()).toBeTruthy();
+  expect((await update.json()).onlyBusinessDays).toBe(false);
 }
 
 function mappingPayload(clearingHouseId: number, externalCode: string, expectedVersion: string, priority: number, reason: string) {

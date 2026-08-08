@@ -72,6 +72,27 @@ public class QuartzTaskCalendarEvaluatorTests
     }
 
     [Fact]
+    public void QuartzTaskCalendarEvaluator_ShouldSkipFixedSaturdayOnlyForBusinessDays()
+    {
+        var options = BuildOptions(nameof(QuartzTaskCalendarEvaluator_ShouldSkipFixedSaturdayOnlyForBusinessDays));
+        using var db = new AchDbContext(options);
+        var evaluator = new QuartzTaskCalendarEvaluator();
+        var saturdayInBogota = new DateTimeOffset(2026, 8, 8, 15, 0, 0, TimeSpan.Zero);
+
+        evaluator.Evaluate(
+            new TaskDefinition { CalendarPolicy = CalendarPolicyEnum.OnlyBusinessDays, TimeZoneId = "America/Bogota" },
+            db,
+            saturdayInBogota,
+            NullLogger.Instance).ShouldSkip.Should().BeTrue();
+
+        evaluator.Evaluate(
+            new TaskDefinition { CalendarPolicy = CalendarPolicyEnum.IgnoreCalendar, TimeZoneId = "America/Bogota" },
+            db,
+            saturdayInBogota,
+            NullLogger.Instance).ShouldRun.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task DynamicJob_ShouldSkipHoliday_WhenCalendarPolicySkipHolidays()
     {
         var databaseName = nameof(DynamicJob_ShouldSkipHoliday_WhenCalendarPolicySkipHolidays);
