@@ -1,0 +1,126 @@
+<main class="orphan-page" aria-labelledby="orphan-title">
+  <ui-migas-pan [items]="[
+    { etiqueta: 'Inicio', ruta: '/dashboard' },
+    { etiqueta: 'Seguimiento de archivos NACHA-M', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: 'Devoluciones sin relación' }
+  ]"></ui-migas-pan>
+
+  <header class="page-hero">
+    <div>
+      <p class="eyebrow">Resolución operativa controlada</p>
+      <h1 id="orphan-title">Devoluciones recibidas sin relación</h1>
+      <p>Investigue la devolución, compare sus datos con una transacción originada y confirme explícitamente la relación.</p>
+    </div>
+    <button mat-stroked-button type="button" routerLink="/incoming-nacha-command-center">
+      <mat-icon aria-hidden="true">arrow_back</mat-icon> Volver al seguimiento
+    </button>
+  </header>
+
+  <mat-card>
+    <mat-card-header><mat-card-title>Buscar devoluciones pendientes</mat-card-title></mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="searchForm" class="search-row" (ngSubmit)="loadOrphans()">
+        <mat-form-field appearance="outline">
+          <mat-label>Archivo, causal o número de rastreo</mat-label>
+          <input matInput formControlName="search" autocomplete="off">
+        </mat-form-field>
+        <button mat-flat-button color="primary" type="submit" [disabled]="loading">
+          <mat-icon aria-hidden="true">search</mat-icon> Buscar
+        </button>
+      </form>
+      <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Consultando devoluciones"></mat-progress-bar>
+      <ui-estado-error *ngIf="error && !loading" titulo="No fue posible consultar" [mensaje]="error" (reintentar)="loadOrphans()"></ui-estado-error>
+      <ui-estado-vacio *ngIf="!loading && !error && orphans.length === 0" titulo="No hay devoluciones pendientes"
+                       mensaje="No se encontraron devoluciones recibidas sin relación."></ui-estado-vacio>
+
+      <div class="table-wrap" *ngIf="orphans.length > 0">
+        <table mat-table [dataSource]="orphans">
+          <ng-container matColumnDef="archivo"><th mat-header-cell *matHeaderCellDef>Archivo</th><td mat-cell *matCellDef="let row">{{ row.fileName }}</td></ng-container>
+          <ng-container matColumnDef="fecha"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let row">{{ row.receivedAtUtc | date:'dd/MM/yyyy HH:mm':'UTC' }}</td></ng-container>
+          <ng-container matColumnDef="valor"><th mat-header-cell *matHeaderCellDef>Valor</th><td mat-cell *matCellDef="let row">{{ row.amount | currency:'COP':'symbol-narrow':'1.0-2' }}</td></ng-container>
+          <ng-container matColumnDef="causal"><th mat-header-cell *matHeaderCellDef>Causal</th><td mat-cell *matCellDef="let row"><strong>{{ row.returnReasonCode }}</strong><small>{{ row.returnReasonDescription }}</small></td></ng-container>
+          <ng-container matColumnDef="rastreo"><th mat-header-cell *matHeaderCellDef>Rastreo original</th><td mat-cell *matCellDef="let row">{{ row.originalTraceNumber }}</td></ng-container>
+          <ng-container matColumnDef="estado"><th mat-header-cell *matHeaderCellDef>Estado</th><td mat-cell *matCellDef="let row"><span class="status-warning">{{ row.resolutionStatus }}</span></td></ng-container>
+          <ng-container matColumnDef="accion"><th mat-header-cell *matHeaderCellDef>Acción</th><td mat-cell *matCellDef="let row"><button mat-stroked-button type="button" (click)="selectOrphan(row)">Investigar</button></td></ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns" [class.selected-row]="selected?.id === row.id"></tr>
+        </table>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <section *ngIf="selected as orphan" class="resolution-section" aria-labelledby="resolution-title">
+    <mat-card>
+      <mat-card-header><mat-card-title id="resolution-title">Devolución recibida</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <dl class="detail-grid">
+          <div><dt>Estado</dt><dd>{{ orphan.resolutionStatus }}</dd></div>
+          <div><dt>Cámara</dt><dd>{{ orphan.clearingHouseId }}</dd></div>
+          <div><dt>Fecha operativa</dt><dd>{{ orphan.operationalDate | date:'dd/MM/yyyy':'UTC' }}</dd></div>
+          <div><dt>Valor</dt><dd>{{ orphan.amount | currency:'COP':'symbol-narrow':'1.0-2' }}</dd></div>
+          <div><dt>Causal</dt><dd>{{ orphan.returnReasonCode }} · {{ orphan.returnReasonDescription }}</dd></div>
+          <div><dt>Rastreo original</dt><dd>{{ orphan.originalTraceNumber }}</dd></div>
+          <div><dt>Cuenta receptora</dt><dd>{{ orphan.accountNumberMasked }}</dd></div>
+          <div><dt>Entidad originadora</dt><dd>{{ orphan.originInstitution }}</dd></div>
+          <div><dt>Entidad receptora</dt><dd>{{ orphan.destinationInstitution }}</dd></div>
+        </dl>
+        <p class="resolved-message" *ngIf="orphan.resolutionStatus === 'Resuelta'">
+          Relacionada con la transacción {{ orphan.resolvedAchTransactionId }} por {{ orphan.resolvedBy }}.
+        </p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card *ngIf="orphan.resolutionStatus !== 'Resuelta'">
+      <mat-card-header><mat-card-title>Transacciones candidatas</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <p>La lista es una ayuda de investigación. La asociación sólo ocurre después de su confirmación.</p>
+        <mat-progress-bar *ngIf="candidateLoading" mode="indeterminate" aria-label="Consultando candidatos"></mat-progress-bar>
+        <ui-estado-error *ngIf="candidateError" titulo="No fue posible consultar candidatos" [mensaje]="candidateError" (reintentar)="loadCandidates()"></ui-estado-error>
+        <ui-estado-vacio *ngIf="!candidateLoading && !candidateError && candidates.length === 0" titulo="Sin candidatos compatibles"
+                         mensaje="Ajuste la búsqueda o investigue la transacción antes de intentar relacionarla."></ui-estado-vacio>
+        <div class="table-wrap" *ngIf="candidates.length > 0">
+          <table mat-table [dataSource]="candidates">
+            <ng-container matColumnDef="seleccion"><th mat-header-cell *matHeaderCellDef>Seleccionar</th><td mat-cell *matCellDef="let row"><mat-radio-button [value]="row.achTransactionId" [checked]="resolutionForm.controls.candidateId.value === row.achTransactionId" [disabled]="!row.isCompatible" (change)="resolutionForm.controls.candidateId.setValue(row.achTransactionId)" [aria-label]="'Seleccionar transacción ' + row.achTransactionId"></mat-radio-button></td></ng-container>
+            <ng-container matColumnDef="transaccion"><th mat-header-cell *matHeaderCellDef>Transacción</th><td mat-cell *matCellDef="let row">{{ row.achTransactionId }}</td></ng-container>
+            <ng-container matColumnDef="rastreo"><th mat-header-cell *matHeaderCellDef>Rastreo</th><td mat-cell *matCellDef="let row">{{ row.traceNumber }}</td></ng-container>
+            <ng-container matColumnDef="fecha"><th mat-header-cell *matHeaderCellDef>Fecha</th><td mat-cell *matCellDef="let row">{{ row.effectiveEntryDate | date:'dd/MM/yyyy':'UTC' }}</td></ng-container>
+            <ng-container matColumnDef="valor"><th mat-header-cell *matHeaderCellDef>Valor</th><td mat-cell *matCellDef="let row">{{ row.amount | currency:'COP':'symbol-narrow':'1.0-2' }}</td></ng-container>
+            <ng-container matColumnDef="estado"><th mat-header-cell *matHeaderCellDef>Estado</th><td mat-cell *matCellDef="let row">{{ row.state }}</td></ng-container>
+            <ng-container matColumnDef="compatibilidad"><th mat-header-cell *matHeaderCellDef>Validación</th><td mat-cell *matCellDef="let row"><span [class]="row.isCompatible ? 'status-success' : 'status-error'">{{ row.isCompatible ? 'Compatible' : row.incompatibilityReasons.join(' ') }}</span></td></ng-container>
+            <tr mat-header-row *matHeaderRowDef="candidateColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: candidateColumns"></tr>
+          </table>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card *ngIf="orphan.resolutionStatus !== 'Resuelta' && selectedCandidate() as candidate">
+      <mat-card-header><mat-card-title>Confirmar relación</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <div class="comparison">
+          <article><span>Devolución recibida</span><strong>{{ orphan.returnReasonCode }} · {{ orphan.amount | currency:'COP':'symbol-narrow':'1.0-2' }}</strong><small>Rastreo {{ orphan.originalTraceNumber }}</small></article>
+          <mat-icon aria-hidden="true">compare_arrows</mat-icon>
+          <article><span>Transacción seleccionada</span><strong>#{{ candidate.achTransactionId }} · {{ candidate.amount | currency:'COP':'symbol-narrow':'1.0-2' }}</strong><small>Rastreo {{ candidate.traceNumber }}</small></article>
+        </div>
+        <form [formGroup]="resolutionForm" (ngSubmit)="resolve()" class="resolution-form">
+          <mat-form-field appearance="outline">
+            <mat-label>Justificación de la relación</mat-label>
+            <textarea matInput rows="3" formControlName="justification" maxlength="500"></textarea>
+            <mat-error *ngIf="resolutionForm.controls.justification.hasError('required')">La justificación es obligatoria.</mat-error>
+            <mat-error *ngIf="resolutionForm.controls.justification.hasError('minlength')">Escriba al menos 8 caracteres.</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Comentario adicional</mat-label>
+            <textarea matInput rows="2" formControlName="comment" maxlength="500"></textarea>
+            <mat-error *ngIf="resolutionForm.controls.comment.hasError('maxlength')">Máximo 500 caracteres.</mat-error>
+          </mat-form-field>
+          <mat-checkbox formControlName="confirmed">Confirmo que revisé cámara, valor, fechas, cuenta, causal y números de rastreo.</mat-checkbox>
+          <mat-error class="checkbox-error" *ngIf="resolutionForm.controls.confirmed.touched && resolutionForm.controls.confirmed.invalid">Debe confirmar la revisión antes de continuar.</mat-error>
+          <button mat-flat-button color="primary" type="submit" [disabled]="resolving">
+            <mat-icon aria-hidden="true">link</mat-icon>{{ resolving ? 'Relacionando…' : 'Confirmar relación' }}
+          </button>
+        </form>
+      </mat-card-content>
+    </mat-card>
+  </section>
+</main>

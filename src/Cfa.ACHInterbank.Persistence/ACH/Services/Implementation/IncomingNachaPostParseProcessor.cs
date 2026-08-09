@@ -196,6 +196,56 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         await _dispatchPlanner.PlanForIngestionAsync(ingestionId, executedBy, ct);
     }
 
+    public async Task<IncomingNachaLinkedReturnApplicationResult> ApplyLinkedReturnAsync(
+        Guid incomingNachaTransactionLinkId,
+        string executedBy,
+        CancellationToken ct = default)
+    {
+        var link = await _context.IncomingNachaTransactionLinks
+            .FirstOrDefaultAsync(x => x.Id == incomingNachaTransactionLinkId, ct)
+            ?? throw new KeyNotFoundException("No existe la relación de devolución indicada.");
+
+        if (link.LinkType != IncomingNachaLinkType.Manual || !link.IsFinal || !link.AchTransactionId.HasValue)
+        {
+            throw new InvalidOperationException("La devolución no tiene una relación manual final válida.");
+        }
+
+        var classification = await _context.IncomingNachaEntryClassifications
+            .FirstOrDefaultAsync(x => x.IncomingNachaFileIngestionId == link.IncomingNachaFileIngestionId
+                && x.EntryDetailId == link.EntryDetailId
+                && x.AddendaRecordId == link.AddendaRecordId, ct)
+            ?? throw new InvalidOperationException("No existe clasificación para la devolución indicada.");
+
+        if (classification.FunctionalClass is not (IncomingNachaFunctionalClass.Devolucion
+            or IncomingNachaFunctionalClass.RechazadaOperador
+            or IncomingNachaFunctionalClass.RetornoEpr))
+        {
+            throw new InvalidOperationException("La entrada seleccionada no corresponde a una devolución entrante aplicable.");
+        }
+
+        var ingestion = await _context.IncomingNachaFileIngestions
+            .FirstAsync(x => x.Id == link.IncomingNachaFileIngestionId, ct);
+        var entry = await _context.EntryDetails
+            .FirstAsync(x => x.EntryDetailID == link.EntryDetailId, ct);
+        var addenda = link.AddendaRecordId.HasValue
+            ? await _context.AddendaRecords.FirstOrDefaultAsync(x => x.AddendaID == link.AddendaRecordId.Value, ct)
+            : null;
+        var manualLink = new IncomingNachaLinkingResult
+        {
+            LinkType = IncomingNachaLinkType.Manual,
+            AchTransactionId = link.AchTransactionId,
+            IsFinal = true,
+            ConfidenceScore = 1m,
+            EvidenceJson = link.EvidenceJson
+        };
+
+        await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
+            "LinkingManualExitoso", "Ok", "Relación manual confirmada; la devolución continúa por el pipeline oficial.",
+            new { incomingNachaTransactionLinkId, link.AchTransactionId }, executedBy, ct);
+
+        return await ApplyBusinessEffectsAsync(ingestion, entry, addenda, classification, manualLink, executedBy, ct);
+    }
+
     private static object BuildUnresolvedIncomingReturnEvidence(
         IncomingNachaFileIngestion ingestion,
         EntryDetail entry,
@@ -269,7 +319,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         }
     }
 
-    private async Task ApplyBusinessEffectsAsync(
+    private async Task<IncomingNachaLinkedReturnApplicationResult> ApplyBusinessEffectsAsync(
         IncomingNachaFileIngestion ingestion,
         EntryDetail entry,
         AddendaRecord? addenda,
@@ -280,7 +330,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
     {
         if (!link.AchTransactionId.HasValue)
         {
-            return;
+            return new(false, false, true, null, "MissingTransaction", "La devolución no tiene una transacción relacionada.");
         }
 
         if (classification.FunctionalClass == IncomingNachaFunctionalClass.Prenotificacion)
@@ -323,7 +373,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
                     "TransicionBloqueada", "Bloqueado", route.Reason,
                     new { classification.ReturnReasonCode, route.Reason, route.Source }, executedBy, ct);
-                return;
+                return new(false, false, true, null, "TransitionBlocked", route.Reason);
             }
 
             var idempotencyKey = AchIncomingEventIdentityPolicy.BuildReturnKey(
@@ -354,13 +404,25 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
                     "EventoDuplicadoIgnorado", "Duplicado", "La novedad ya había sido aplicada y no produjo efectos adicionales.",
                     new { idempotencyKey, classification.ReturnReasonCode, classification.OriginalTraceRef }, executedBy, ct);
-                return;
+                var existingEventId = await _context.AchTransactionStateEvents.AsNoTracking()
+                    .Where(x => x.IdempotencyKey == idempotencyKey)
+                    .Select(x => (long?)x.Id)
+                    .SingleOrDefaultAsync(ct);
+                return new(false, true, false, existingEventId, "AlreadyApplied", "La devolución ya había sido aplicada.");
             }
 
             await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
                 "TransicionDisparada", "Ok", "Transición de estado aplicada para devolución entrante.",
                 new { route.TargetState, route.Source, classification.ReturnReasonCode, classification.OriginalTraceRef, route.Reason }, executedBy, ct);
+
+            var stateEventId = await _context.AchTransactionStateEvents.AsNoTracking()
+                .Where(x => x.IdempotencyKey == idempotencyKey)
+                .Select(x => (long?)x.Id)
+                .SingleOrDefaultAsync(ct);
+            return new(true, false, false, stateEventId, "Applied", "La devolución fue aplicada por el pipeline oficial.");
         }
+
+        return new(false, false, classification.RequiresManualResolution, null, "NoReturnEffect", "La clasificación no requiere aplicación de devolución.");
     }
 
     private static bool IsAddendaForEntry(EntryDetail entry, AddendaRecord addenda)

@@ -26,5 +26,8 @@ public sealed record IncomingNachaOrphanManualResolutionResult(
     bool IsResolved,
     string Status,
     Guid? ProcessingEventId,
-    Guid? AchTransactionStateEventId,
-    string Message);
+    long? AchTransactionStateEventId,
+    string Message)
+{
+    public bool IsIdempotentReplay { get; init; }
+}

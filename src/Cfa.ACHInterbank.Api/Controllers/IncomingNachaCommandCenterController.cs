@@ -15,10 +15,14 @@ public class IncomingNachaCommandCenterController : ControllerBase
     private static IActionResult MapInvalidOperation(InvalidOperationException ex)
         => new ObjectResult(new { message = ex.Message }) { StatusCode = StatusCodes.Status409Conflict };
     private readonly IIncomingNachaCommandCenterService _service;
+    private readonly IIncomingNachaOrphanManualResolutionService _orphanResolutionService;
 
-    public IncomingNachaCommandCenterController(IIncomingNachaCommandCenterService service)
+    public IncomingNachaCommandCenterController(
+        IIncomingNachaCommandCenterService service,
+        IIncomingNachaOrphanManualResolutionService orphanResolutionService)
     {
         _service = service;
+        _orphanResolutionService = orphanResolutionService;
     }
 
     [EndpointSummary("Panel consolidado de observabilidad de inbound NACHA-M")]
@@ -95,6 +99,78 @@ public class IncomingNachaCommandCenterController : ControllerBase
     [ProducesResponseType(typeof(IReadOnlyList<IncomingNachaAddendaDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAddendas(Guid ingestionId, int entryDetailId, CancellationToken ct)
         => Ok(await _service.GetAddendasAsync(ingestionId, entryDetailId, ct));
+
+    [EndpointSummary("Consulta devoluciones entrantes pendientes de relación")]
+    [EndpointDescription("Lista devoluciones conservadas sin correlación inequívoca. Es una consulta sin efectos funcionales.")]
+    [HttpGet("orphans")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
+    [ProducesResponseType(typeof(IncomingNachaPageResult<IncomingNachaOrphanDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetOrphans([FromQuery] IncomingNachaOrphanQuery query, CancellationToken ct)
+        => Ok(await _service.GetOrphansAsync(query, ct));
+
+    [EndpointSummary("Consulta el detalle de una devolución entrante sin relación")]
+    [HttpGet("orphans/{linkId:guid}")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
+    [ProducesResponseType(typeof(IncomingNachaOrphanDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOrphan(Guid linkId, CancellationToken ct)
+    {
+        var result = await _service.GetOrphanAsync(linkId, ct);
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    [EndpointSummary("Consulta candidatos controlados para relacionar una devolución")]
+    [HttpGet("orphans/{linkId:guid}/candidates")]
+    [Authorize(Policy = P1Policies.CommandCenterRead)]
+    [ProducesResponseType(typeof(IReadOnlyList<IncomingNachaOrphanCandidateDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetOrphanCandidates(Guid linkId, [FromQuery] string? search, CancellationToken ct)
+    {
+        try
+        {
+            return Ok(await _service.GetOrphanCandidatesAsync(linkId, search, ct));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    [EndpointSummary("Relaciona y aplica una devolución entrante huérfana")]
+    [EndpointDescription("Confirma una relación manual explícita y entrega la devolución al pipeline oficial. La operación es idempotente para el mismo vínculo y transacción.")]
+    [HttpPost("orphans/{linkId:guid}/resolve")]
+    [Authorize(Policy = "CanManageAch")]
+    [ProducesResponseType(typeof(IncomingNachaOrphanManualResolutionResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ResolveOrphan(
+        Guid linkId,
+        [FromBody] IncomingNachaOrphanResolveRequestDto request,
+        CancellationToken ct)
+    {
+        var result = await _orphanResolutionService.ResolveAsync(new IncomingNachaOrphanManualResolutionRequest
+        {
+            IncomingNachaTransactionLinkId = linkId,
+            ResolutionAction = IncomingNachaOrphanResolutionAction.LinkToTransaction,
+            ResolvedAchTransactionId = request.AchTransactionId,
+            ResolutionReason = request.Justification,
+            Comment = request.Comment,
+            CorrelationId = request.CorrelationId,
+            ResolvedBy = User?.Identity?.Name ?? "operador.ach"
+        }, ct);
+
+        if (result.IsResolved)
+        {
+            return Ok(result);
+        }
+
+        return result.Status switch
+        {
+            "NotFound" or "TransactionNotFound" => NotFound(new { message = result.Message, result.Status }),
+            "Invalid" => BadRequest(new { message = result.Message, result.Status }),
+            _ => Conflict(new { message = result.Message, result.Status })
+        };
+    }
 
     [EndpointSummary("Vista operativa de dispatch queue inbound NACHA-M")]
     [EndpointDescription("Qué consulta: lista elementos de cola con estado de despacho, prioridad, intentos y errores para control operativo. Quién lo usa: operación ACH, soporte de turnos y tecnología durante incidentes de procesamiento. Permiso requerido: CanReadAch. Tipo: consulta (solo lectura). Impacto operacional: permite decidir si corresponde retry, unblock, requeue o mark-failed-final, sin ejecutar acciones por sí misma. Auditoría/trazabilidad: deja evidencia de consulta previa a intervención manual. Riesgos: interpretar mal la máquina de estados puede gatillar acciones incorrectas en pasos posteriores. Errores esperados: 400 solicitud inválida; 401 no autenticado; 403 no autorizado; 500 error no controlado. Relación NACHA-M inbound: refleja el estado del tránsito de mensajes entrantes hacia ejecución operativa ACH/CENIT. Advertencia: no modifica archivos originales ni reglas regulatorias, solo expone lectura de estado.")]

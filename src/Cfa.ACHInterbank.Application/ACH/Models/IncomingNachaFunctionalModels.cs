@@ -35,3 +35,11 @@ public sealed class IncomingNachaLinkingContext
     public DateTime? OperationalDate { get; init; }
     public IncomingNachaFunctionalClass FunctionalClass { get; init; }
 }
+
+public sealed record IncomingNachaLinkedReturnApplicationResult(
+    bool Applied,
+    bool WasDuplicate,
+    bool RequiresManualResolution,
+    long? AchTransactionStateEventId,
+    string Status,
+    string Message);

@@ -13,6 +13,9 @@ public interface IIncomingNachaCommandCenterService
     Task<IncomingNachaPageResult<IncomingNachaBatchDto>> GetBatchesAsync(Guid ingestionId, IncomingNachaBatchQuery query, CancellationToken ct = default);
     Task<IncomingNachaPageResult<IncomingNachaTransactionDto>> GetTransactionsAsync(Guid ingestionId, IncomingNachaTransactionQuery query, CancellationToken ct = default);
     Task<IReadOnlyList<IncomingNachaAddendaDto>> GetAddendasAsync(Guid ingestionId, int entryDetailId, CancellationToken ct = default);
+    Task<IncomingNachaPageResult<IncomingNachaOrphanDto>> GetOrphansAsync(IncomingNachaOrphanQuery query, CancellationToken ct = default);
+    Task<IncomingNachaOrphanDto?> GetOrphanAsync(Guid linkId, CancellationToken ct = default);
+    Task<IReadOnlyList<IncomingNachaOrphanCandidateDto>> GetOrphanCandidatesAsync(Guid linkId, string? search, CancellationToken ct = default);
 
     Task<IncomingNachaManualActionResultDto> RetryManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default);
     Task<IncomingNachaManualActionResultDto> UnblockManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default);

@@ -12,10 +12,16 @@
       <p>Consulte el estado de validación, procesamiento y resultado de los archivos recibidos de las cámaras compensadoras.</p>
       <small *ngIf="lastUpdatedAt">Última actualización: {{ lastUpdatedAt | dateFormat }}</small>
     </div>
-    <button mat-flat-button color="primary" type="button" (click)="refresh()" [disabled]="loading">
-      <mat-icon aria-hidden="true">refresh</mat-icon>
-      Actualizar información
-    </button>
+    <div class="hero-actions">
+      <button mat-stroked-button type="button" routerLink="/incoming-nacha-command-center/orphan-resolution">
+        <mat-icon aria-hidden="true">link_off</mat-icon>
+        Resolver devoluciones sin relación
+      </button>
+      <button mat-flat-button color="primary" type="button" (click)="refresh()" [disabled]="loading">
+        <mat-icon aria-hidden="true">refresh</mat-icon>
+        Actualizar información
+      </button>
+    </div>
   </header>
 
   <section class="operational-kpis" aria-label="Resumen operativo">

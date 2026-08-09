@@ -5,6 +5,7 @@ import { NachaOperationalFileDetailComponent } from '../nacha-operational/pages/
 import { IncomingNachaObservabilityPageComponent } from './pages/incoming-nacha-observability-page.component';
 import { IncomingNachaQueueDetailPageComponent } from './pages/incoming-nacha-queue-detail-page.component';
 import { IncomingNachaQueuePageComponent } from './pages/incoming-nacha-queue-page.component';
+import { IncomingNachaOrphansPageComponent } from './pages/incoming-nacha-orphans-page.component';
 
 @NgModule({
   imports: [
@@ -13,7 +14,8 @@ import { IncomingNachaQueuePageComponent } from './pages/incoming-nacha-queue-pa
     NachaOperationalFileDetailComponent,
     IncomingNachaObservabilityPageComponent,
     IncomingNachaQueuePageComponent,
-    IncomingNachaQueueDetailPageComponent
+    IncomingNachaQueueDetailPageComponent,
+    IncomingNachaOrphansPageComponent
   ]
 })
 export class IncomingNachaCommandCenterModule {}

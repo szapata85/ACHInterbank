@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using System.Data.Common;
+using System.Text.Json;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Moq;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -101,6 +104,16 @@ public sealed class AchIncomingReturnDbFirstIdempotencyTests
     public Task SameReturn_ConcurrentIndependentContexts_IsIdempotent_OnPostgreSql()
         => AssertConcurrentProviderScenarioAsync(ProviderKind.PostgreSql);
 
+    [FinancialIntegrityFact(FinancialPersistenceMigrationTests.PersistenceProvider.SqlServer)]
+    [Trait("Category", "IncomingOrphanManualClaim")]
+    public Task ManualOrphanResolution_ConcurrentIndependentContexts_AppliesOnce_OnSqlServer()
+        => AssertConcurrentManualOrphanScenarioAsync(ProviderKind.SqlServer);
+
+    [FinancialIntegrityFact(FinancialPersistenceMigrationTests.PersistenceProvider.PostgreSql)]
+    [Trait("Category", "IncomingOrphanManualClaim")]
+    public Task ManualOrphanResolution_ConcurrentIndependentContexts_AppliesOnce_OnPostgreSql()
+        => AssertConcurrentManualOrphanScenarioAsync(ProviderKind.PostgreSql);
+
     private static async Task AssertConcurrentProviderScenarioAsync(ProviderKind provider)
     {
         await using var fixture = await ProviderDatabaseFixture.CreateAsync(provider);
@@ -150,6 +163,170 @@ public sealed class AchIncomingReturnDbFirstIdempotencyTests
         var transaction = await verify.AchTransactions.SingleAsync(x => x.Id == seeded.TransactionId);
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, transaction.State);
         Assert.Equal("R01", transaction.ReturnReasonCode);
+    }
+
+    private static async Task AssertConcurrentManualOrphanScenarioAsync(ProviderKind provider)
+    {
+        await using var fixture = await ProviderDatabaseFixture.CreateAsync(provider);
+        int transactionId;
+        Guid linkId;
+        int returnCodeId;
+        await using (var setup = fixture.CreateContext())
+        {
+            setup.AuditEnabled = false;
+            await setup.Database.MigrateAsync();
+            var seeded = await SeedProviderAsync(setup);
+            transactionId = seeded.TransactionId;
+            (linkId, returnCodeId) = await SeedProviderOrphanAsync(setup, transactionId, seeded.ClearingHouseId);
+        }
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        var attempts = Enumerable.Range(0, 2).Select(_ => Task.Run(async () =>
+        {
+            await using var context = fixture.CreateContext();
+            context.AuditEnabled = false;
+            return await BuildManualResolver(context, returnCodeId).ResolveAsync(new IncomingNachaOrphanManualResolutionRequest
+            {
+                IncomingNachaTransactionLinkId = linkId,
+                ResolutionAction = IncomingNachaOrphanResolutionAction.LinkToTransaction,
+                ResolvedAchTransactionId = transactionId,
+                ResolutionReason = "Validación concurrente controlada",
+                Comment = "Misma devolución y misma transacción",
+                ResolvedBy = "provider.uat",
+                CorrelationId = "RET-ORPHAN-PROVIDER"
+            }, timeout.Token);
+        }, timeout.Token)).ToArray();
+
+        var results = await Task.WhenAll(attempts);
+        Assert.All(results, x => Assert.True(x.IsResolved));
+        Assert.Single(results, x => x.Status == "Applied");
+        Assert.Single(results, x => x.Status == "AlreadyApplied" && x.IsIdempotentReplay);
+
+        await using var verify = fixture.CreateContext();
+        var link = await verify.IncomingNachaTransactionLinks.SingleAsync(x => x.Id == linkId);
+        Assert.True(link.IsFinal);
+        Assert.Equal(IncomingNachaLinkType.Manual, link.LinkType);
+        Assert.Equal(transactionId, link.AchTransactionId);
+        Assert.Equal(1, await verify.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == transactionId));
+        Assert.Equal(1, await verify.IncomingNachaProcessingEvents.CountAsync(x => x.EventType == "OrphanManualResolution"));
+        var transaction = await verify.AchTransactions.SingleAsync(x => x.Id == transactionId);
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, transaction.State);
+        Assert.Equal("R01", transaction.ReturnReasonCode);
+    }
+
+    private static IncomingNachaOrphanManualResolutionService BuildManualResolver(AchDbContext context, int returnCodeId)
+    {
+        var resultResolver = new Mock<IIncomingNachaAchResultResolver>();
+        resultResolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaAchResultRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IncomingNachaAchResultResolution(
+                true, returnCodeId, "R01", "Fondos insuficientes", IncomingNachaBusinessOutcome.Returned, "Resolved"));
+        var processor = new IncomingNachaPostParseProcessor(
+            context,
+            Mock.Of<IIncomingNachaFunctionalClassifier>(),
+            Mock.Of<IIncomingNachaTransactionLinker>(),
+            Mock.Of<IIncomingNachaPrenotificationResolver>(),
+            Mock.Of<IIncomingNachaDispatchPlanner>(),
+            Mock.Of<IAchRegulatoryCatalogService>(),
+            new AchStateTransitionService(context),
+            resultResolver: resultResolver.Object);
+        return new IncomingNachaOrphanManualResolutionService(context, processor);
+    }
+
+    private static async Task<(Guid LinkId, int ReturnCodeId)> SeedProviderOrphanAsync(
+        AchDbContext context,
+        int transactionId,
+        int clearingHouseId)
+    {
+        var transaction = await context.AchTransactions.SingleAsync(x => x.Id == transactionId);
+        var ingestionId = Guid.NewGuid();
+        var headerId = $"ORPH{Guid.NewGuid():N}"[..20];
+        var ingestion = new IncomingNachaFileIngestion
+        {
+            Id = ingestionId,
+            FileName = $"orphan-{Guid.NewGuid():N}.OUT",
+            FileHashSha256 = Convert.ToHexString(Guid.NewGuid().ToByteArray()).PadRight(64, '0'),
+            FileSize = 1060,
+            ContentType = "text/plain",
+            UploadedBy = "provider.uat",
+            CorrelationId = Guid.NewGuid().ToString("N"),
+            Notes = "RET.ORPHAN.E2E.1",
+            ResolvedClearingHouseId = clearingHouseId,
+            ResolvedAchCycleId = transaction.AchCycleId,
+            OperationalDate = DateTime.UtcNow.Date,
+            ReceivedAtUtc = DateTime.UtcNow
+        };
+        var header = new NachaHeader { NachaID = headerId, IncomingNachaFileIngestionId = ingestionId };
+        var entry = new EntryDetail
+        {
+            TransactionCode = "21",
+            AccountNumber = transaction.DestinationAccountNumber,
+            Amount = transaction.Amount,
+            RecipIdNumber = transaction.RecipientIdNumber,
+            RecipUserName = "Usuario controlado",
+            SequenceNumber = "000101000000999",
+            NachaID = headerId
+        };
+        context.AddRange(ingestion, header, entry);
+        await context.SaveChangesAsync();
+        var addenda = new AddendaRecord
+        {
+            CodeTypeAddendumRecord = "99",
+            ReturnReasonCode = "R01",
+            OriginalTraceNumber = transaction.TraceNumber,
+            EntryDetailSequenceNumber = "0000999",
+            EntryDetailId = entry.EntryDetailID,
+            NachaID = headerId
+        };
+        context.AddendaRecords.Add(addenda);
+        var returnCode = new AchReturnCode
+        {
+            ClearingHouseId = clearingHouseId,
+            Code = "R01",
+            FlowType = AchReturnFlowType.Return,
+            Description = "Fondos insuficientes",
+            BusinessOutcome = IncomingNachaBusinessOutcome.Returned,
+            AppliesToCredit = true,
+            AppliesToReturn = true,
+            RequiresAddenda = true,
+            EffectiveFrom = DateTime.UtcNow.Date.AddYears(-1),
+            IsActive = true,
+            RegulatorySource = "provider test"
+        };
+        context.AchReturnCodes.Add(returnCode);
+        await context.SaveChangesAsync();
+        var classification = new IncomingNachaEntryClassification
+        {
+            IncomingNachaFileIngestionId = ingestionId,
+            EntryDetailId = entry.EntryDetailID,
+            AddendaRecordId = addenda.AddendaID,
+            FunctionalClass = IncomingNachaFunctionalClass.Devolucion,
+            EligibilityStatus = IncomingNachaEligibilityStatus.Bloqueada,
+            RequiresLink = true,
+            RequiresManualResolution = true,
+            OriginalTraceRef = transaction.TraceNumber,
+            ReturnReasonCode = "R01",
+            BusinessMeaning = "Devolución huérfana",
+            ClassificationEvidenceJson = "{}"
+        };
+        var link = new IncomingNachaTransactionLink
+        {
+            IncomingNachaFileIngestionId = ingestionId,
+            EntryDetailId = entry.EntryDetailID,
+            AddendaRecordId = addenda.AddendaID,
+            LinkType = IncomingNachaLinkType.Ambiguous,
+            ConfidenceScore = .3m,
+            IsFinal = false,
+            LinkedBy = "sistema",
+            EvidenceJson = JsonSerializer.Serialize(new
+            {
+                resolutionStatus = "Unresolved",
+                resolutionReason = "Ambiguous",
+                candidateTransactionIds = new[] { transactionId }
+            })
+        };
+        context.AddRange(classification, link);
+        await context.SaveChangesAsync();
+        return (link.Id, returnCode.Id);
     }
 
     private static DbContextOptions<AchDbContext> Options(SqliteConnection connection)

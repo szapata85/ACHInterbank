@@ -128,7 +128,7 @@ No hay conexión demostrada entre este flujo y un sustituto de ReturnOut. `Regis
 
 ## 6. Return In — ACH Colombia
 
-**Estado: 🟡 PARCIAL — residual identificado.**
+**Estado: 🟠 PARCIAL — resolución operativa demostrada; admisión física bloqueada.**
 
 Implementado y demostrado:
 
@@ -138,8 +138,12 @@ Implementado y demostrado:
 - transición auditada;
 - replay funcional DB-first y carrera real SQL Server/PostgreSQL;
 - preservación de archivo, hash, detalle, traza, causal y eventos.
+- consulta, investigación, selección explícita y resolución manual de huérfanas con autorización `CanManageAch`;
+- aplicación posterior mediante el mismo `IncomingNachaPostParseProcessor`, causal catalogada, evento de estado y auditoría del operador;
+- idempotencia de replay y claim relacional concurrente demostrados en SQL Server/PostgreSQL;
+- SPA Angular Material y escenario Playwright LIVE sobre API, SPA y SQL Server reales.
 
-Residual: operación de huérfanas, matriz return-to-SOAP/ledger/conciliación y UAT externo completo. No corresponde reabrir B1/B2.
+Residual de `RET-GAP-007`: el upload Return In ACH Colombia falla cerrado con `ProfileNotFound` porque no existe un perfil publicado/homologado `OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0`. Por ello aún no se demuestra la cadena física completa archivo → parser → huérfana; el E2E demuestra el gate real y, desde evidencia parseada persistida, toda la resolución posterior. La matriz return-to-SOAP/ledger/conciliación permanece separada en RET-GAP-008/009. No corresponde reabrir B1/B2.
 
 ## 7. Return Out — ACH Colombia
 
@@ -316,7 +320,7 @@ La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpu
 | RET-GAP-004 | B4/B5 | ACHCOL | Out | Perfil/render físico V35 | ✅ CERRADA Y DEMOSTRADA | `OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0`, Opción C, contract tests V35, naming `RRRRTTT.ZZZ.1`, no-fallback | Ninguna dentro de la canonicalización física; homologación externa continúa separada | — | — | — | No reabrir |
 | RET-GAP-005 | B4/B5 | CENIT | Out | Contrato técnico STA | 🔴 BLOQUEADA DELIBERADAMENTE | Reglamento/Annex A/B; guard | Manual STA, layout, DFI, correlación, naming, secuencia/reset | levantar guard sin norma | CRÍTICA | Evidencia externa STA | CENIT.STA.HOMOLOGATION |
 | RET-GAP-006 | B5 | CENIT | Out | Perfil/parser/generator soportado | ⚪ NO IMPLEMENTADA | guard antes del generador | Implementación Opción C solo después de RET-GAP-005 | generación inválida | CRÍTICA | RET-GAP-005 | CENIT.RETURNOUT.OPTIONC |
-| RET-GAP-007 | B6 | Ambas | In | Huérfanas/manual | 🟡 PARCIAL — residual identificado | orphan service + events | Link manual no demuestra apply/reprocess atómico | devolución perdida o aplicada mal | ALTA | workflow aprobado | RET.ORPHAN.E2E |
+| RET-GAP-007 | B6 | ACHCOL demostrado aguas abajo; CENIT no homologado | In | Huérfanas/manual | 🟠 PARCIAL — workflow operativo downstream demostrado | `RET.ORPHAN.E2E.1`: endpoints + SPA + pipeline oficial + SQL Server/PostgreSQL + Playwright LIVE + evidencia DB | Falta perfil publicado/homologado `OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0`; el upload real falla cerrado con `ProfileNotFound`, por lo que no existe evidencia archivo → parser → huérfana completa | habilitar un perfil inferido o declarar E2E con una fila sembrada | ALTA | perfil Return In ACH Colombia aprobado | RET.RETURNIN.PROFILE.HOMOLOGATION.1 |
 | RET-GAP-008 | B7 | Ambas | In/Out | Matriz return-SOAP-retry-conciliación | ❓ NO DETERMINABLE | guard no monetario, dispatch/readiness | Política normativa y E2E por escenario | doble/no movimiento | CRÍTICA | RET-GAP-009 + norma | RET.RECONCILIATION |
 | RET-GAP-009 | B8 | Ambas | In/Out | Ledger/conciliación separado | ⚪ NO IMPLEMENTADA | no se halló ledger Return específico | Asiento, reconciliation gate y auditoría | descuadre financiero | CRÍTICA | contrato contable | RET.LEDGER |
 | RET-GAP-010 | B9 | Ambas | Ambas | Taxonomía rechazo/return/differential/técnico | 🟡 PARCIAL — residual identificado | classifiers, catalogs, response processor | Read-model/event contract unificado | operación confusa | MEDIA | RET-GAP-008 | RET.TAXONOMY |
@@ -421,7 +425,7 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 2. `RET.ACH.OUT.CAUSAL.V35.EVIDENCE`: obtener de ACH Colombia la regla primaria que vincule `DEV14` con la causal física Rxx o la matriz contextual determinística; no implementar mientras falte.
 3. `RET.OUTBOUND.ACCEPTANCE.1`: ✅ characterization completada; `TRANSPORT_GATE=NO-GO` y `ACK_GATE=NO-GO`, sin implementación por falta de contrato aplicativo-canal.
 4. `RET.OUTBOUND.TRANSPORT.CONTRACT.1`: obtener la decisión técnica versionada y el contrato operativo del canal ReturnOut ACH Colombia antes de implementar dispatch.
-5. `RET.ORPHAN.E2E.1`: cierre manual y apply/reprocess seguro de huérfanas.
+5. `RET.ORPHAN.E2E.1`: 🟠 resolución manual, apply/reprocess e idempotencia downstream demostrados; cierre bloqueado por perfil Return In ACH Colombia ausente.
 6. `RET.RECONCILIATION.1`: matriz SOAP/ledger/retry/conciliación.
 7. `CENIT.STA.HOMOLOGATION.1`: adquirir/validar Manual STA y contrato técnico; sin implementación por analogía.
 8. Solo después: perfil, provider tests, UAT y homologación CENIT.
@@ -433,14 +437,14 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ## 27. Próximo JOB único
 
-### RET.OUTBOUND.TRANSPORT.CONTRACT.1 — Contrato aplicativo-canal ReturnOut ACH Colombia
+### RET.RETURNIN.PROFILE.HOMOLOGATION.1 — Perfil entrante de devoluciones ACH Colombia
 
-- **Objetivo:** obtener y versionar la decisión técnica que demuestre cómo ACHInterbank entrega el ReturnOut al SFTP administrado por CFA que consume el MFT de ACH Colombia, sin asumir que el aplicativo opera GoAnywhere ni inventar un cliente SFTP.
-- **RET-GAP que mantiene bloqueada:** RET-GAP-017.
-- **Evidencia faltante:** ownership del depósito; frontera y ruta lógica del canal; relación entre el `.RET` canónico y el sobre CryptoVault `.RET.env`; identidad/hash e idempotency/correlation key; semántica de entrega completada; timeout, retry y `unknown outcome`; consulta o reconciliación técnica disponible; y, si existe, contrato separado de ACK/rechazo con formato y correlación.
-- **Restricciones:** no implementar adapter, credenciales, endpoint, ACK, aceptación ni retry externo antes de recibir el contrato; no equiparar transporte con aceptación; no modificar `AchTransaction.State`.
-- **Tests futuros mínimos:** contract test del canal aprobado, mismo artefacto/hash en retry, claim DB-first multinodo, crash window/unknown y ACK solo si su contrato queda demostrado.
+- **Objetivo:** obtener, versionar y publicar el perfil oficial de lectura `OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0` para ACH Colombia, respaldado por V35 y evidencia de homologación, de modo que el upload real pueda producir la evidencia parseada que consume el workflow ya demostrado.
+- **RET-GAP que mantiene bloqueada:** RET-GAP-007.
+- **Evidencia faltante:** definición aprobada de records/variants/fields de Return In, selección inequívoca por cámara/dirección/tipo de archivo, estado publicado y fixture homologado que atraviese upload → parser → clasificación → huérfana.
+- **Restricciones:** no crear fallback, no inferir el perfil desde ReturnOut, no relajar `ProfileNotFound`, no habilitar generación CENIT y no usar una fila sembrada como homologación del parser.
+- **Tests futuros mínimos:** contract tests del perfil V35, upload real del fixture homologado y repetición Playwright del escenario completo sin seed post-parser.
 - **Modelo recomendado:** `gpt-5.6-sol`.
-- **Reasoning recomendado:** `medium`.
+- **Reasoning recomendado:** `high`.
 
 Este mapa no homologa devoluciones. El soporte productivamente seguro permanece condicionado a los gates por cámara y dirección descritos arriba.

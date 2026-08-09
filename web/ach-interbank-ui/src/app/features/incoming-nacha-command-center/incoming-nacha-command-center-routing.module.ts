@@ -6,6 +6,7 @@ import { NachaOperationalFileDetailComponent } from '../nacha-operational/pages/
 import { IncomingNachaObservabilityPageComponent } from './pages/incoming-nacha-observability-page.component';
 import { IncomingNachaQueueDetailPageComponent } from './pages/incoming-nacha-queue-detail-page.component';
 import { IncomingNachaQueuePageComponent } from './pages/incoming-nacha-queue-page.component';
+import { IncomingNachaOrphansPageComponent } from './pages/incoming-nacha-orphans-page.component';
 
 const routes: Routes = [
   {
@@ -31,6 +32,12 @@ const routes: Routes = [
     component: IncomingNachaObservabilityPageComponent,
     canActivate: [permissionGuard],
     data: { permissions: ['CanReadAch'], breadcrumb: 'Indicadores operativos', title: 'Indicadores operativos NACHA-M' }
+  },
+  {
+    path: 'orphan-resolution',
+    component: IncomingNachaOrphansPageComponent,
+    canActivate: [permissionGuard],
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Devoluciones sin relación', title: 'Resolver devoluciones sin relación' }
   },
   {
     path: 'queue',

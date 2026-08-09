@@ -6,6 +6,10 @@ import {
   IncomingNachaIngestionListItem,
   IncomingNachaManualActionRequest,
   IncomingNachaManualActionResult,
+  IncomingNachaOrphan,
+  IncomingNachaOrphanCandidate,
+  IncomingNachaOrphanResolveRequest,
+  IncomingNachaOrphanResolutionResult,
   IncomingNachaObservabilitySummary,
   IncomingNachaPageResult,
   IncomingNachaQueueDetail,
@@ -37,6 +41,23 @@ export class IncomingNachaCommandCenterApiService {
 
   getQueueDetail(queueId: string): Observable<IncomingNachaQueueDetail> {
     return this.api.get<IncomingNachaQueueDetail>(`${this.basePath}/queue/${queueId}`);
+  }
+
+  getOrphans(params: Record<string, string | number> = {}): Observable<IncomingNachaPageResult<IncomingNachaOrphan>> {
+    return this.api.get<IncomingNachaPageResult<IncomingNachaOrphan>>(`${this.basePath}/orphans`, { params });
+  }
+
+  getOrphan(linkId: string): Observable<IncomingNachaOrphan> {
+    return this.api.get<IncomingNachaOrphan>(`${this.basePath}/orphans/${linkId}`);
+  }
+
+  getOrphanCandidates(linkId: string, search = ''): Observable<IncomingNachaOrphanCandidate[]> {
+    const params = search.trim() ? { search: search.trim() } : {};
+    return this.api.get<IncomingNachaOrphanCandidate[]>(`${this.basePath}/orphans/${linkId}/candidates`, { params });
+  }
+
+  resolveOrphan(linkId: string, payload: IncomingNachaOrphanResolveRequest): Observable<IncomingNachaOrphanResolutionResult> {
+    return this.api.post<IncomingNachaOrphanResolutionResult>(`${this.basePath}/orphans/${linkId}/resolve`, payload);
   }
 
   retry(queueId: string, payload: IncomingNachaManualActionRequest): Observable<IncomingNachaManualActionResult> {

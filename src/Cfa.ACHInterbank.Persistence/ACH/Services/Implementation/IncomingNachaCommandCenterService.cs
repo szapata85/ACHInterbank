@@ -980,6 +980,226 @@ public class IncomingNachaCommandCenterService : IIncomingNachaCommandCenterServ
         return normalized.Length <= 8 ? "Información protegida" : $"Información protegida · …{normalized[^4..]}";
     }
 
+    public async Task<IncomingNachaPageResult<IncomingNachaOrphanDto>> GetOrphansAsync(
+        IncomingNachaOrphanQuery query,
+        CancellationToken ct = default)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        var rows = _context.IncomingNachaTransactionLinks.AsNoTracking()
+            .Where(x => !x.IsFinal
+                && (x.LinkType == IncomingNachaLinkType.NotFound
+                    || x.LinkType == IncomingNachaLinkType.Ambiguous
+                    || x.LinkType == IncomingNachaLinkType.NoResuelto));
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var search = query.Search.Trim();
+            rows = rows.Where(x => x.Ingestion.FileName.Contains(search)
+                || (x.EntryDetail != null && (x.EntryDetail.SequenceNumber ?? string.Empty).Contains(search))
+                || (x.AddendaRecord != null && (x.AddendaRecord.OriginalTraceNumber ?? string.Empty).Contains(search))
+                || (x.AddendaRecord != null && (x.AddendaRecord.ReturnReasonCode ?? string.Empty).Contains(search)));
+        }
+
+        var total = await rows.CountAsync(ct);
+        var links = await rows
+            .Include(x => x.Ingestion)
+            .Include(x => x.EntryDetail).ThenInclude(x => x!.BatchHeader)
+            .Include(x => x.AddendaRecord)
+            .OrderBy(x => x.LinkedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return new IncomingNachaPageResult<IncomingNachaOrphanDto>(
+            await BuildOrphanDtosAsync(links, ct), page, pageSize, total);
+    }
+
+    public async Task<IncomingNachaOrphanDto?> GetOrphanAsync(Guid linkId, CancellationToken ct = default)
+    {
+        var link = await _context.IncomingNachaTransactionLinks.AsNoTracking()
+            .Include(x => x.Ingestion)
+            .Include(x => x.EntryDetail).ThenInclude(x => x!.BatchHeader)
+            .Include(x => x.AddendaRecord)
+            .FirstOrDefaultAsync(x => x.Id == linkId, ct);
+        if (link is null)
+        {
+            return null;
+        }
+
+        return (await BuildOrphanDtosAsync([link], ct)).Single();
+    }
+
+    public async Task<IReadOnlyList<IncomingNachaOrphanCandidateDto>> GetOrphanCandidatesAsync(
+        Guid linkId,
+        string? search,
+        CancellationToken ct = default)
+    {
+        var link = await _context.IncomingNachaTransactionLinks.AsNoTracking()
+            .Include(x => x.Ingestion)
+            .Include(x => x.EntryDetail)
+            .FirstOrDefaultAsync(x => x.Id == linkId, ct)
+            ?? throw new KeyNotFoundException("No existe la devolución huérfana indicada.");
+        if (link.EntryDetail is null)
+        {
+            return [];
+        }
+
+        var classification = await _context.IncomingNachaEntryClassifications.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.IncomingNachaFileIngestionId == link.IncomingNachaFileIngestionId
+                && x.EntryDetailId == link.EntryDetailId
+                && x.AddendaRecordId == link.AddendaRecordId, ct)
+            ?? throw new InvalidOperationException("La devolución no conserva su clasificación funcional.");
+        var candidateIds = ExtractOrphanCandidateIds(link.EvidenceJson);
+        var account = link.EntryDetail.AccountNumber?.Trim();
+        var candidates = _context.AchTransactions.AsNoTracking()
+            .Include(x => x.AchCycle)
+            .Where(x => x.Amount == link.EntryDetail.Amount.GetValueOrDefault());
+
+        if (link.Ingestion.ResolvedClearingHouseId.HasValue)
+        {
+            var clearingHouseId = link.Ingestion.ResolvedClearingHouseId.Value;
+            candidates = candidates.Where(x => x.AchCycle.ClearingHouseId == clearingHouseId);
+        }
+        if (!string.IsNullOrWhiteSpace(account))
+        {
+            candidates = candidates.Where(x => x.DestinationAccountNumber == account);
+        }
+        if (candidateIds.Length > 0)
+        {
+            candidates = candidates.Where(x => candidateIds.Contains(x.Id));
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim();
+            var hasId = int.TryParse(normalizedSearch, out var transactionId);
+            candidates = candidates.Where(x => (hasId && x.Id == transactionId)
+                || x.TraceNumber.Contains(normalizedSearch)
+                || x.TransactionExternalId.Contains(normalizedSearch));
+        }
+
+        var transactions = await candidates
+            .OrderByDescending(x => x.TraceNumber == classification.OriginalTraceRef)
+            .ThenByDescending(x => x.EffectiveEntryDate)
+            .Take(20)
+            .ToListAsync(ct);
+
+        return transactions.Select(transaction =>
+        {
+            var incompatibilities = IncomingNachaOrphanCompatibilityPolicy.Evaluate(
+                link.Ingestion, link.EntryDetail, classification, transaction, candidateIds);
+            return new IncomingNachaOrphanCandidateDto(
+                transaction.Id,
+                transaction.TraceNumber,
+                transaction.Amount,
+                transaction.EffectiveEntryDate,
+                transaction.State.ToString(),
+                MaskValue(transaction.DestinationAccountNumber, 4),
+                MaskInstitution(transaction.OriginatingDFI),
+                MaskInstitution(transaction.ReceivingDFI),
+                incompatibilities.Count == 0,
+                incompatibilities);
+        }).ToList();
+    }
+
+    private async Task<IReadOnlyList<IncomingNachaOrphanDto>> BuildOrphanDtosAsync(
+        IReadOnlyList<IncomingNachaTransactionLink> links,
+        CancellationToken ct)
+    {
+        if (links.Count == 0)
+        {
+            return [];
+        }
+
+        var ingestionIds = links.Select(x => x.IncomingNachaFileIngestionId).Distinct().ToArray();
+        var entryIds = links.Where(x => x.EntryDetailId.HasValue).Select(x => x.EntryDetailId!.Value).Distinct().ToArray();
+        var classifications = await _context.IncomingNachaEntryClassifications.AsNoTracking()
+            .Where(x => ingestionIds.Contains(x.IncomingNachaFileIngestionId) && entryIds.Contains(x.EntryDetailId))
+            .ToListAsync(ct);
+        var classificationByEntry = classifications
+            .GroupBy(x => new { x.IncomingNachaFileIngestionId, x.EntryDetailId, x.AddendaRecordId })
+            .ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.CreatedAt).First());
+        var reasonCodes = classifications.Select(x => x.ReturnReasonCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToArray();
+        var clearingHouseIds = links.Where(x => x.Ingestion.ResolvedClearingHouseId.HasValue)
+            .Select(x => x.Ingestion.ResolvedClearingHouseId!.Value).Distinct().ToArray();
+        var descriptions = await _context.AchReturnCodes.AsNoTracking()
+            .Where(x => clearingHouseIds.Contains(x.ClearingHouseId) && reasonCodes.Contains(x.Code) && x.IsActive)
+            .OrderByDescending(x => x.EffectiveFrom)
+            .ToListAsync(ct);
+
+        return links.Select(link =>
+        {
+            IncomingNachaEntryClassification? classification = null;
+            if (link.EntryDetailId.HasValue)
+            {
+                classificationByEntry.TryGetValue(new
+                {
+                    link.IncomingNachaFileIngestionId,
+                    EntryDetailId = link.EntryDetailId.Value,
+                    link.AddendaRecordId
+                }, out classification);
+            }
+            var returnCode = classification?.ReturnReasonCode ?? link.AddendaRecord?.ReturnReasonCode ?? string.Empty;
+            var description = descriptions.FirstOrDefault(x => x.ClearingHouseId == link.Ingestion.ResolvedClearingHouseId
+                && string.Equals(x.Code, returnCode, StringComparison.OrdinalIgnoreCase))?.Description ?? string.Empty;
+            return new IncomingNachaOrphanDto(
+                link.Id,
+                link.IncomingNachaFileIngestionId,
+                link.Ingestion.FileName,
+                link.Ingestion.ReceivedAtUtc ?? link.LinkedAtUtc,
+                link.Ingestion.ResolvedClearingHouseId,
+                link.Ingestion.ResolvedAchCycleId ?? string.Empty,
+                link.Ingestion.OperationalDate,
+                link.EntryDetailId ?? 0,
+                link.AddendaRecordId,
+                link.EntryDetail?.Amount ?? 0m,
+                link.EntryDetail?.SequenceNumber ?? string.Empty,
+                classification?.OriginalTraceRef ?? link.AddendaRecord?.OriginalTraceNumber ?? string.Empty,
+                returnCode,
+                description,
+                MaskValue(link.EntryDetail?.AccountNumber, 4),
+                MaskName(link.EntryDetail?.RecipUserName),
+                MaskInstitution(link.EntryDetail?.BatchHeader?.OriginParticipantEntityCode),
+                MaskInstitution(link.EntryDetail?.ReceivingParticipantEntityCode),
+                link.LinkType,
+                ExtractOrphanCandidateIds(link.EvidenceJson),
+                link.AchTransactionId,
+                link.IsFinal ? "Resuelta" : "Sin relación",
+                link.IsFinal ? link.LinkedBy : string.Empty,
+                link.IsFinal ? link.LinkedAtUtc : null);
+        }).ToList();
+    }
+
+    private static int[] ExtractOrphanCandidateIds(string? evidenceJson)
+    {
+        if (string.IsNullOrWhiteSpace(evidenceJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(evidenceJson);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("candidateTransactionIds", out var values)
+                || values.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            return values.EnumerateArray()
+                .Where(x => x.ValueKind == JsonValueKind.Number && x.TryGetInt32(out _))
+                .Select(x => x.GetInt32())
+                .Distinct()
+                .ToArray();
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
     public Task<IncomingNachaManualActionResultDto> RetryManualAsync(Guid queueId, IncomingNachaManualActionRequest request, string performedBy, CancellationToken ct = default)
         => ApplyManualActionAsync(queueId, request, performedBy, IncomingNachaDispatchEvent.ManualRetry, (q, req) =>
         {

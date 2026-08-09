@@ -125,6 +125,62 @@ export interface IncomingNachaManualActionResult {
   message: string;
 }
 
+export interface IncomingNachaOrphan {
+  id: string;
+  ingestionId: string;
+  fileName: string;
+  receivedAtUtc: string;
+  clearingHouseId?: number | null;
+  achCycleId: string;
+  operationalDate?: string | null;
+  entryDetailId: number;
+  addendaRecordId?: number | null;
+  amount: number;
+  traceNumber: string;
+  originalTraceNumber: string;
+  returnReasonCode: string;
+  returnReasonDescription: string;
+  accountNumberMasked: string;
+  recipientNameMasked: string;
+  originInstitution: string;
+  destinationInstitution: string;
+  linkType: string;
+  candidateTransactionIds: number[];
+  resolvedAchTransactionId?: number | null;
+  resolutionStatus: string;
+  resolvedBy: string;
+  resolvedAtUtc?: string | null;
+}
+
+export interface IncomingNachaOrphanCandidate {
+  achTransactionId: number;
+  traceNumber: string;
+  amount: number;
+  effectiveEntryDate: string;
+  state: string;
+  accountNumberMasked: string;
+  originInstitution: string;
+  destinationInstitution: string;
+  isCompatible: boolean;
+  incompatibilityReasons: string[];
+}
+
+export interface IncomingNachaOrphanResolveRequest {
+  achTransactionId: number;
+  justification: string;
+  comment: string;
+  correlationId: string;
+}
+
+export interface IncomingNachaOrphanResolutionResult {
+  isResolved: boolean;
+  status: string;
+  processingEventId?: string | null;
+  achTransactionStateEventId?: number | null;
+  message: string;
+  isIdempotentReplay: boolean;
+}
+
 export interface IncomingNachaPipelineHealth {
   totalIngestions: number;
   totalQueueItems: number;

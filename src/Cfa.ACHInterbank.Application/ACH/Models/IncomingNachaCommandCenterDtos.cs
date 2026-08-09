@@ -293,6 +293,59 @@ public sealed record IncomingNachaAddendaDto(
     string OriginalTraceNumber,
     string PaymentInformation);
 
+public sealed class IncomingNachaOrphanQuery
+{
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+    public string? Search { get; set; }
+}
+
+public sealed record IncomingNachaOrphanDto(
+    Guid Id,
+    Guid IngestionId,
+    string FileName,
+    DateTime ReceivedAtUtc,
+    int? ClearingHouseId,
+    string AchCycleId,
+    DateTime? OperationalDate,
+    int EntryDetailId,
+    int? AddendaRecordId,
+    decimal Amount,
+    string TraceNumber,
+    string OriginalTraceNumber,
+    string ReturnReasonCode,
+    string ReturnReasonDescription,
+    string AccountNumberMasked,
+    string RecipientNameMasked,
+    string OriginInstitution,
+    string DestinationInstitution,
+    IncomingNachaLinkType LinkType,
+    IReadOnlyList<int> CandidateTransactionIds,
+    int? ResolvedAchTransactionId,
+    string ResolutionStatus,
+    string ResolvedBy,
+    DateTime? ResolvedAtUtc);
+
+public sealed record IncomingNachaOrphanCandidateDto(
+    int AchTransactionId,
+    string TraceNumber,
+    decimal Amount,
+    DateTime EffectiveEntryDate,
+    string State,
+    string AccountNumberMasked,
+    string OriginInstitution,
+    string DestinationInstitution,
+    bool IsCompatible,
+    IReadOnlyList<string> IncompatibilityReasons);
+
+public sealed class IncomingNachaOrphanResolveRequestDto
+{
+    public int AchTransactionId { get; set; }
+    public string Justification { get; set; } = string.Empty;
+    public string Comment { get; set; } = string.Empty;
+    public string CorrelationId { get; set; } = string.Empty;
+}
+
 public sealed record IncomingNachaProcessingEventDto(
     Guid Id,
     string EventType,

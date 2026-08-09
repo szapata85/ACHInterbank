@@ -131,6 +131,13 @@
   text-transform: uppercase;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .65rem;
+}
+
 .operational-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -286,7 +293,8 @@ table.mat-mdc-table { width: 100%; min-width: 1460px; }
 @media (max-width: 760px) {
   .nacha-command-center, .nacha-file-detail { gap: 0.9rem; }
   .page-hero { flex-direction: column; padding: 1rem; }
-  .page-hero > button { width: 100%; }
+  .hero-actions { width: 100%; flex-direction: column; }
+  .hero-actions button { width: 100%; }
   .operational-kpis { grid-template-columns: 1fr 1fr; gap: 0.55rem; }
   .operational-kpis article { min-height: 78px; padding: 0.75rem; }
   .filters-grid, .transaction-filters { grid-template-columns: 1fr; }
