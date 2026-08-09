@@ -108,7 +108,8 @@ public class NachaConfigOfficialProfilesSeederTests
         var profiles = await LoadOfficialProfilesAsync(context);
 
         profiles.Should().OnlyContain(x => x.Tags.Any(t => t.TagKey == "NormativeSource" && !string.IsNullOrWhiteSpace(t.TagValue)));
-        profiles.Where(x => x.ClearingHouse.Code == "ACH" && x.ProfileCode != "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0")
+        profiles.Where(x => x.ClearingHouse.Code == "ACH"
+                            && !x.Tags.Any(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35"))
             .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue == "MAN-004 V32"));
         profiles.Single(x => x.ProfileCode == "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0").Tags
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35")
@@ -247,6 +248,95 @@ public class NachaConfigOfficialProfilesSeederTests
         result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
     }
 
+    [Fact]
+    public async Task IncomingAchColombiaReturnProfile_ShouldBePublishedHomologatedAndVersioned()
+    {
+        await using var context = await SeedAsync();
+        var profile = await LoadProfileAsync(context, "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0");
+
+        profile.Should().NotBeNull();
+        profile!.ClearingHouse.Code.Should().Be("ACH");
+        profile.FlowType.Code.Should().Be("RETORNO");
+        profile.Direction.Code.Should().Be("ENTRADA");
+        profile.Status.Code.Should().Be("PUBLICADO");
+        profile.VersionMajor.Should().Be(1);
+        profile.VersionMinor.Should().Be(0);
+        profile.Tags.Should().Contain(tag => tag.TagKey == "IsHomologated" && tag.TagValue == "true");
+        profile.Tags.Should().Contain(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == "V35");
+        profile.Records.Select(record => record.RecordCode.Code).Should().BeEquivalentTo(RequiredRecords);
+
+        var type7Variants = profile.LayoutVariants.Where(variant => variant.RecordCode.Code == "7").ToList();
+        type7Variants.Should().HaveCount(3);
+        type7Variants.Should().ContainSingle(variant =>
+            variant.SelectionPredicateJson != null
+            && variant.SelectionPredicateJson.Contains("AddendaType", StringComparison.Ordinal)
+            && variant.Fields.Any(field => field.FieldCode == "RETURNREASONCODE")
+            && variant.Fields.Any(field => field.FieldCode == "ORIGINALTRACENUMBER"));
+    }
+
+    [Fact]
+    public async Task IncomingAchColombiaReturnProfile_ShouldResolveRealDifferentialDiscriminators()
+    {
+        await using var context = await SeedAsync();
+        var resolver = new NachaConfigResolver(context);
+
+        var result = await resolver.ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "RETORNO",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = new DateTime(2026, 7, 27, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = RequiredRecords,
+            SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["MessageType"] = "DifferentialResponse",
+                ["AddendaType"] = "99"
+            },
+            RequireHomologated = true
+        });
+
+        result.Success.Should().BeTrue(string.Join(" | ", result.Trace));
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileSelected);
+        result.Profile!.ProfileCode.Should().Be("OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0");
+        result.Profile.VersionMajor.Should().Be(1);
+        result.Profile.VersionMinor.Should().Be(0);
+        result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
+    }
+
+    [Fact]
+    public async Task IncomingAchColombiaReturnProfile_SeedShouldBeIdempotent()
+    {
+        await using var context = await SeedAsync();
+        var before = await SnapshotProfileCardinalityAsync(context, "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0");
+
+        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+
+        var after = await SnapshotProfileCardinalityAsync(context, "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0");
+        after.Should().Be(before);
+        (await context.CfgProfiles.CountAsync(profile =>
+            profile.ProfileCode == "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task NonReturnDimensions_ShouldNotSelectIncomingReturnProfile()
+    {
+        await using var context = await SeedAsync();
+        var resolver = new NachaConfigResolver(context);
+
+        var result = await resolver.ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = new DateTime(2026, 7, 27, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = RequiredRecords,
+            RequireHomologated = true
+        });
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileNotFound);
+    }
+
     [Theory]
     [InlineData("ACH", "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V1_0")]
     [InlineData("CENIT", "OFFICIAL_CENIT_SALIDA_PRENOTIFICACION_V1_0")]
@@ -289,6 +379,8 @@ public class NachaConfigOfficialProfilesSeederTests
     {
         return await context.CfgProfiles
             .Include(x => x.ClearingHouse)
+            .Include(x => x.FlowType)
+            .Include(x => x.Direction)
             .Include(x => x.Status)
             .Include(x => x.Tags)
             .Include(x => x.Records)
@@ -307,6 +399,8 @@ public class NachaConfigOfficialProfilesSeederTests
     {
         return await context.CfgProfiles
             .Include(x => x.ClearingHouse)
+            .Include(x => x.FlowType)
+            .Include(x => x.Direction)
             .Include(x => x.Status)
             .Include(x => x.Tags)
             .Include(x => x.Records)
@@ -318,6 +412,21 @@ public class NachaConfigOfficialProfilesSeederTests
                     .ThenInclude(x => x.SourceDefinition)
                         .ThenInclude(x => x.DataSourceType)
             .FirstOrDefaultAsync(x => x.ProfileCode == profileCode);
+    }
+
+    private static async Task<(int Profiles, int Records, int Variants, int Fields)> SnapshotProfileCardinalityAsync(
+        AchDbContext context,
+        string profileCode)
+    {
+        var profileId = await context.CfgProfiles
+            .Where(profile => profile.ProfileCode == profileCode)
+            .Select(profile => profile.Id)
+            .SingleAsync();
+        return (
+            await context.CfgProfiles.CountAsync(profile => profile.Id == profileId),
+            await context.CfgProfileRecords.CountAsync(record => record.ProfileId == profileId),
+            await context.CfgLayoutVariants.CountAsync(variant => variant.ProfileId == profileId),
+            await context.CfgLayoutFields.CountAsync(field => field.LayoutVariant.ProfileId == profileId));
     }
 
     private static void AssertFieldsForAllRecords(CfgProfile profile)

@@ -11,7 +11,7 @@ const cfaCertificatePath = resolve(fixtureRoot, 'CFA.pfx');
 const pfxPasswordPath = resolve(fixtureRoot, 'pass.txt');
 const encryptedFilePath = resolve(
   fixtureRoot,
-  'archivo_prueba/0001283.001.20260723.1.OUT.env'
+  'archivo_prueba/ACH Colombia/0001283.001.20260727.1.OUT.env'
 );
 const evidenceDirectory = resolve(
   process.cwd(),

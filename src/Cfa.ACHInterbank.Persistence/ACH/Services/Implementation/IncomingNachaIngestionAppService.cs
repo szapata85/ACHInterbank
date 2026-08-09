@@ -94,41 +94,33 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 throw new ArgumentException("ParentIngestionId debe corresponder a la ingesta canónica original del archivo.");
             }
 
-            var latestParentResultIsReprocessable = await _context.IncomingNachaFileProcessingResults
+            var effectiveCandidate = SelectEffectiveCandidate(candidatesByFingerprint, canonicalCandidate);
+            var latestEffectiveResultIsReprocessable = await _context.IncomingNachaFileProcessingResults
                 .AsNoTracking()
-                .Where(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value)
+                .Where(x => x.IncomingNachaFileIngestionId == effectiveCandidate.Id)
                 .OrderByDescending(x => x.AttemptNumber)
                 .ThenByDescending(x => x.StartedAtUtc)
                 .Select(x => (bool?)x.IsReprocessable)
                 .FirstOrDefaultAsync(ct);
-            if (latestParentResultIsReprocessable == false)
+            if (latestEffectiveResultIsReprocessable == false)
             {
-                throw new ArgumentException("La ingesta base no está autorizada para reproceso.");
+                throw new ArgumentException("La última ejecución efectiva del archivo no está autorizada para reproceso.");
             }
 
+            var ingestionIds = candidatesByFingerprint.Select(x => x.Id).ToArray();
             var hasPersistedProcessing = await _context.NachaHeaders.AsNoTracking()
-                    .AnyAsync(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value, ct)
+                    .AnyAsync(x => x.IncomingNachaFileIngestionId.HasValue
+                                   && ingestionIds.Contains(x.IncomingNachaFileIngestionId.Value), ct)
                 || await _context.IncomingNachaTransactionLinks.AsNoTracking()
-                    .AnyAsync(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value, ct)
+                    .AnyAsync(x => ingestionIds.Contains(x.IncomingNachaFileIngestionId), ct)
                 || await _context.IncomingNachaEntryClassifications.AsNoTracking()
-                    .AnyAsync(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value, ct)
+                    .AnyAsync(x => ingestionIds.Contains(x.IncomingNachaFileIngestionId), ct)
                 || await _context.IncomingNachaDispatchQueue.AsNoTracking()
-                    .AnyAsync(x => x.IncomingNachaFileIngestionId == parentIngestionId.Value, ct);
+                    .AnyAsync(x => ingestionIds.Contains(x.IncomingNachaFileIngestionId), ct);
             if (hasPersistedProcessing)
             {
                 throw new ArgumentException(
                     "El reproceso de la ingesta base está bloqueado porque ya existe persistencia canónica o despacho asociado.");
-            }
-
-            var alreadyReprocessed = await _context.IncomingNachaFileIngestions.AsNoTracking()
-                .AnyAsync(x => x.IsReprocess
-                               && x.ParentIngestionId == parentIngestionId.Value
-                               && x.FileHashSha256 == fileHash
-                               && x.FileSize == fileBytes.LongLength, ct);
-
-            if (alreadyReprocessed)
-            {
-                throw new ArgumentException("Ya existe un reproceso registrado para este archivo y ParentIngestionId.");
             }
         }
 
@@ -488,10 +480,11 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             return BuildResponse(ingestion, null, [issue.Message]);
         }
 
+        NachaConfigResolutionResult? profileResolution = null;
         if (IsDifferentialCandidate(records))
         {
             var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct);
-            var profileResolution = await _profileResolver.ResolveAsync(new NachaConfigResolutionRequest
+            profileResolution = await _profileResolver.ResolveAsync(new NachaConfigResolutionRequest
             {
                 ClearingHouseCode = ToConfigClearingHouseCode(clearingHouseCode),
                 FlowTypeCode = "RETORNO",
@@ -562,26 +555,12 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 return BuildResponse(ingestion, null, [diagnostic], profileResolution);
             }
 
-            // El parser actual aún usa descriptores estáticos. Un perfil diferencial publicado no
-            // puede habilitarse hasta que el parser consuma exactamente el snapshot seleccionado.
-            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Bloqueado;
-            ingestion.ParsingStatus = IncomingNachaParsingStatus.NoEjecutado;
-            ingestion.Notes = "DIFFERENTIAL_TABLE_DRIVEN_PARSER_NOT_ENABLED";
-            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Rejected);
-            _context.IncomingNachaFileProcessingResults.Add(new IncomingNachaFileProcessingResult
-            {
-                IncomingNachaFileIngestionId = ingestion.Id,
-                AttemptNumber = 1,
-                StartedAtUtc = UtcNow,
-                FinishedAtUtc = UtcNow,
-                OutcomeStatus = IncomingNachaProcessingOutcomeStatus.Fallido,
-                FailureStage = "ParserDiferencialTableDriven",
-                ErrorCount = 1,
-                ParserErrorsJson = JsonSerializer.Serialize(new[] { "DIFFERENTIAL_TABLE_DRIVEN_PARSER_NOT_ENABLED" }),
-                IsReprocessable = true
-            });
-            await _context.SaveChangesAsync(ct);
-            return BuildResponse(ingestion, null, ["DIFFERENTIAL_TABLE_DRIVEN_PARSER_NOT_ENABLED"], profileResolution);
+        }
+
+        if (profileResolution?.Profile is { } selectedProfile)
+        {
+            ingestion.ProfileCode = selectedProfile.ProfileCode;
+            ingestion.ProfileVersion = $"{selectedProfile.VersionMajor}.{selectedProfile.VersionMinor}";
         }
 
         ingestion.IngestionStatus = IncomingNachaIngestionStatus.ListoParaParseo;
@@ -650,62 +629,81 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         _context.IncomingNachaFileProcessingResults.Add(processingResult);
         await _context.SaveChangesAsync(ct);
 
-        await using var persistenceTransaction = _context.Database.IsRelational()
-            ? await _context.Database.BeginTransactionAsync(ct)
-            : null;
+        var usesRelationalTransaction = _context.Database.IsRelational();
         try
         {
-            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.ValidatingContent);
-            var parseResult = await _parserService.ParseAndSaveDetailedAsync(
-                new MemoryStream(processingFileBytes),
-                processingFileName,
-                new NachaParseRequest
-                {
-                    IncomingNachaFileIngestionId = ingestion.Id,
-                    ResolvedAchCycleId = ingestion.ResolvedAchCycleId,
-                    ResolvedClearingHouseId = ingestion.ResolvedClearingHouseId,
-                    OperationalDate = ingestion.OperationalDate,
-                    CorrelationId = correlationId
-                },
-                ct);
-
-            processingResult.TotalBatches = parseResult.TotalBatches;
-            processingResult.TotalEntries = parseResult.TotalEntries;
-            processingResult.TotalAddendas = parseResult.TotalAddendas;
-            processingResult.WarningCount = parseResult.WarningCount;
-            processingResult.ErrorCount = parseResult.ErrorCount;
-            processingResult.ValidCount = Math.Max(0, parseResult.TotalEntries - parseResult.ErrorCount);
-            processingResult.InvalidCount = parseResult.ErrorCount;
-            processingResult.ParserWarningsJson = JsonSerializer.Serialize(parseResult.Failures.Select(x => x.Reason));
-            processingResult.ParserErrorsJson = JsonSerializer.Serialize(parseResult.Failures.Select(x => x.Reason));
-            processingResult.OutcomeStatus = parseResult.ErrorCount > 0
-                ? IncomingNachaProcessingOutcomeStatus.ExitosoConAdvertencias
-                : IncomingNachaProcessingOutcomeStatus.Exitoso;
-            processingResult.IsReprocessable = parseResult.ErrorCount > 0;
-            processingResult.FinishedAtUtc = UtcNow;
-
-            ingestion.IngestionStatus = IncomingNachaIngestionStatus.Completado;
-            ingestion.ParsingStatus = parseResult.ErrorCount > 0
-                ? IncomingNachaParsingStatus.ExitosoConAdvertencias
-                : IncomingNachaParsingStatus.Exitoso;
-
-            var executedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "sistema" : request.RequestedBy.Trim();
-            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Persisting);
-            await _postParseProcessor.ProcessAsync(ingestion.Id, executedBy, ct);
-
-            IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Persisted);
-            await _context.SaveChangesAsync(ct);
-            if (persistenceTransaction is not null)
+            var executionStrategy = _context.Database.CreateExecutionStrategy();
+            return await executionStrategy.ExecuteAsync(async () =>
             {
-                await persistenceTransaction.CommitAsync(ct);
-            }
-            return BuildResponse(ingestion, processingResult, parseResult.Failures.Select(x => x.Reason).ToList());
+                await using var persistenceTransaction = usesRelationalTransaction
+                    ? await _context.Database.BeginTransactionAsync(ct)
+                    : null;
+                try
+                {
+                    IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.ValidatingContent);
+                    var parseResult = await _parserService.ParseAndSaveDetailedAsync(
+                        new MemoryStream(processingFileBytes),
+                        processingFileName,
+                        new NachaParseRequest
+                        {
+                            IncomingNachaFileIngestionId = ingestion.Id,
+                            SelectedProfileId = profileResolution?.Profile?.Id,
+                            SelectedProfileCode = profileResolution?.Profile?.ProfileCode,
+                            ResolvedAchCycleId = ingestion.ResolvedAchCycleId,
+                            ResolvedClearingHouseId = ingestion.ResolvedClearingHouseId,
+                            OperationalDate = ingestion.OperationalDate,
+                            CorrelationId = correlationId
+                        },
+                        ct);
+
+                    processingResult.TotalBatches = parseResult.TotalBatches;
+                    processingResult.TotalEntries = parseResult.TotalEntries;
+                    processingResult.TotalAddendas = parseResult.TotalAddendas;
+                    processingResult.WarningCount = parseResult.WarningCount;
+                    processingResult.ErrorCount = parseResult.ErrorCount;
+                    processingResult.ValidCount = Math.Max(0, parseResult.TotalEntries - parseResult.ErrorCount);
+                    processingResult.InvalidCount = parseResult.ErrorCount;
+                    processingResult.ParserWarningsJson = JsonSerializer.Serialize(parseResult.Failures.Select(x => x.Reason));
+                    processingResult.ParserErrorsJson = JsonSerializer.Serialize(parseResult.Failures.Select(x => x.Reason));
+                    processingResult.OutcomeStatus = parseResult.ErrorCount > 0
+                        ? IncomingNachaProcessingOutcomeStatus.ExitosoConAdvertencias
+                        : IncomingNachaProcessingOutcomeStatus.Exitoso;
+                    processingResult.IsReprocessable = parseResult.ErrorCount > 0;
+                    processingResult.FinishedAtUtc = UtcNow;
+
+                    ingestion.IngestionStatus = IncomingNachaIngestionStatus.Completado;
+                    ingestion.ParsingStatus = parseResult.ErrorCount > 0
+                        ? IncomingNachaParsingStatus.ExitosoConAdvertencias
+                        : IncomingNachaParsingStatus.Exitoso;
+
+                    var executedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "sistema" : request.RequestedBy.Trim();
+                    IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Persisting);
+                    await _postParseProcessor.ProcessAsync(ingestion.Id, executedBy, ct);
+
+                    IncomingNachaStageTransitions.MoveTo(ingestion, IncomingNachaIngestionStage.Persisted);
+                    await _context.SaveChangesAsync(ct);
+                    if (persistenceTransaction is not null)
+                    {
+                        await persistenceTransaction.CommitAsync(ct);
+                    }
+
+                    return BuildResponse(ingestion, processingResult, parseResult.Failures.Select(x => x.Reason).ToList(), profileResolution);
+                }
+                catch
+                {
+                    if (persistenceTransaction is not null)
+                    {
+                        await persistenceTransaction.RollbackAsync(CancellationToken.None);
+                    }
+
+                    throw;
+                }
+            });
         }
         catch (Exception ex)
         {
-            if (persistenceTransaction is not null)
+            if (usesRelationalTransaction)
             {
-                await persistenceTransaction.RollbackAsync(CancellationToken.None);
                 _context.ChangeTracker.Clear();
                 ingestion = await _context.IncomingNachaFileIngestions
                     .SingleAsync(x => x.Id == ingestion.Id, CancellationToken.None);
@@ -727,7 +725,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
 
             // El estado terminal de auditoría debe persistirse aun si el cliente canceló la solicitud.
             await _context.SaveChangesAsync(CancellationToken.None);
-            return BuildResponse(ingestion, processingResult, new[] { ex.Message });
+            return BuildResponse(ingestion, processingResult, new[] { ex.Message }, profileResolution);
         }
         }
         catch (ManagedDigitalEnvelopeException ex)

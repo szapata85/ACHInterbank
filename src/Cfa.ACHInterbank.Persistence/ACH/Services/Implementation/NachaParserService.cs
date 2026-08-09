@@ -82,7 +82,17 @@ public class NachaParserService : INachaParserService
                 .Where(x => x.IsActive)
                 .ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase, ct);
 
-            var lines = await ReadPhysicalRecordsAsync(nachaStream, ct);
+            var profileReader = request?.SelectedProfileId is int selectedProfileId
+                ? await NachaProfileRecordReader.LoadAsync(_context, selectedProfileId, ct)
+                : null;
+            if (profileReader is not null
+                && !string.IsNullOrWhiteSpace(request?.SelectedProfileCode)
+                && !string.Equals(profileReader.ProfileCode, request.SelectedProfileCode, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("NACHA_PROFILE_SNAPSHOT_MISMATCH: la identidad del perfil seleccionado cambió antes del parser.");
+            }
+
+            var lines = await ReadPhysicalRecordsAsync(nachaStream, ct, profileReader);
 
             var clearingHouseOrigins = await _context.ClearingHouses
                 .AsNoTracking()
@@ -127,7 +137,7 @@ public class NachaParserService : INachaParserService
                 switch (recordType)
                 {
                     case '1':
-                        currentHeader = ParseFileHeaderLinq([line], clearingHouseMap, fileName, request).FirstOrDefault();
+                        currentHeader = ParseFileHeaderLinq([line], clearingHouseMap, fileName, request, profileReader).FirstOrDefault();
                         if (currentHeader is null)
                         {
                             break;
@@ -172,7 +182,7 @@ public class NachaParserService : INachaParserService
 
                         lastEntry = null;
                         lastEntryAccepted = false;
-                        currentBatch = ParseBatchHeaderLinq([line]).FirstOrDefault();
+                        currentBatch = ParseBatchHeaderLinq([line], profileReader).FirstOrDefault();
                         if (currentBatch is not null)
                         {
                             currentBatchMetrics = new BatchRuntimeMetrics();
@@ -188,7 +198,7 @@ public class NachaParserService : INachaParserService
                             ThrowTechnical("ACHCOL-T6-T7-ORDER: una entrada T6 declaró adenda y no fue seguida inmediatamente por su T7.");
                         }
 
-                        var entry = ParseEntryDetailLinq([line]).FirstOrDefault();
+                        var entry = ParseEntryDetailLinq([line], profileReader).FirstOrDefault();
                         if (entry is null)
                         {
                             break;
@@ -203,7 +213,15 @@ public class NachaParserService : INachaParserService
 
                         await ValidateEntrySequencePolicyAsync(entry, currentBatch, currentHeader, lastConsecutiveByBatch, seenSequenceNumbers, ct);
 
-                        var (isValid, failureReason) = await ValidateEntryAsync(entry, currentBatch, failures, ct);
+                        var isReturnEntry = profileReader is not null
+                                            && lineIndex + 1 < lines.Count
+                                            && profileReader.IsReturnAddenda(lines[lineIndex + 1]);
+                        var (isValid, failureReason) = await ValidateEntryAsync(
+                            entry,
+                            currentBatch,
+                            isReturnEntry,
+                            failures,
+                            ct);
                         lastEntry = entry;
                         lastEntryAccepted = isValid;
                         lastEntryAwaitingAddenda = string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal);
@@ -220,7 +238,7 @@ public class NachaParserService : INachaParserService
                             ThrowTechnical("ACHCOL-T6-T7-ORDER: se recibió T7 sin un T6 inmediatamente asociado que declare adenda.");
                         }
 
-                        var addenda = ParseAddendaLinq([line], lastEntry).FirstOrDefault();
+                        var addenda = ParseAddendaLinq([line], lastEntry, profileReader).FirstOrDefault();
                         if (addenda is not null)
                         {
                             addenda.NachaID = currentHeader?.NachaID;
@@ -242,7 +260,7 @@ public class NachaParserService : INachaParserService
                             ThrowTechnical("ACHCOL-T6-T7-ORDER: el lote cerró sin el T7 declarado por la última entrada T6.");
                         }
 
-                        var batchControl = ParseBatchControlLinq([line]).FirstOrDefault();
+                        var batchControl = ParseBatchControlLinq([line], profileReader).FirstOrDefault();
                         if (batchControl is not null)
                         {
                             ValidateCurrentBatchControl(currentBatch, currentBatchMetrics, batchControl);
@@ -260,7 +278,7 @@ public class NachaParserService : INachaParserService
 
                         if (!fileControlEncountered)
                         {
-                            var fileControl = ParseFileControlLinq([line]).FirstOrDefault();
+                            var fileControl = ParseFileControlLinq([line], profileReader).FirstOrDefault();
                             if (fileControl is not null)
                             {
                                 fileControls.Add(fileControl);
@@ -598,15 +616,20 @@ public class NachaParserService : INachaParserService
         return line.Length == 106 && line.All(character => character == '9');
     }
 
-    private List<NachaHeader> ParseFileHeaderLinq(List<string> line, Dictionary<string, int> clearingHouseMap, string FileName, NachaParseRequest? request)
+    private List<NachaHeader> ParseFileHeaderLinq(
+        List<string> line,
+        Dictionary<string, int> clearingHouseMap,
+        string FileName,
+        NachaParseRequest? request,
+        NachaProfileRecordReader? profileReader)
     {
         int? cycleNumber = CenitOfficialFileNameParser.ExtractCycleNumberFromFileName(FileName);
 
         return line.Select(a =>
         {
-            string immediateOrigin = AchColOfficialNachaLayout.Read(a, "1", "IMMEDIATEORIGIN").Trim();
+            string immediateOrigin = ReadField(profileReader, a, "1", "IMMEDIATEORIGIN").Trim();
             int? clearingHouseId = request?.ResolvedClearingHouseId ?? (clearingHouseMap.TryGetValue(immediateOrigin, out var chId) ? chId : null);
-            string fileCreationDate = AchColOfficialNachaLayout.Read(a, "1", "FILECREATIONDATE");
+            string fileCreationDate = ReadField(profileReader, a, "1", "FILECREATIONDATE");
             DateTime? processingDate = ParseNachaProcessingDate(fileCreationDate);
 
             IQueryable<AchCycle> cycleQuery = _context.AchCycles
@@ -649,19 +672,19 @@ public class NachaParserService : INachaParserService
             return new NachaHeader
             {
                 NachaID = HashHelper.GenerateHashSha1(
-                    $"{AchColOfficialNachaLayout.Read(a, "1", "IMMEDIATEDESTINATION").Trim()}{immediateOrigin}{fileCreationDate.Trim()}{AchColOfficialNachaLayout.Read(a, "1", "FILECREATIONTIME").Trim()}"),
-                PriorityCode = AchColOfficialNachaLayout.Read(a, "1", "PRIORITYCODE"),
-                ImmediateDestination = AchColOfficialNachaLayout.Read(a, "1", "IMMEDIATEDESTINATION").Trim(),
+                    $"{ReadField(profileReader, a, "1", "IMMEDIATEDESTINATION").Trim()}{immediateOrigin}{fileCreationDate.Trim()}{ReadField(profileReader, a, "1", "FILECREATIONTIME").Trim()}"),
+                PriorityCode = ReadField(profileReader, a, "1", "PRIORITYCODE"),
+                ImmediateDestination = ReadField(profileReader, a, "1", "IMMEDIATEDESTINATION").Trim(),
                 ImmediateOrigin = immediateOrigin,
                 FileCreationDate = fileCreationDate,
-                FileCreationTime = AchColOfficialNachaLayout.Read(a, "1", "FILECREATIONTIME"),
-                FileIdModifier = AchColOfficialNachaLayout.Read(a, "1", "FILEIDMODIFIER"),
-                RecordSize = AchColOfficialNachaLayout.Read(a, "1", "RECORDSIZE"),
-                BlockingFactor = AchColOfficialNachaLayout.Read(a, "1", "BLOCKINGFACTOR"),
-                FormatCode = AchColOfficialNachaLayout.Read(a, "1", "FORMATCODE"),
-                ImmediateDestinationName = AchColOfficialNachaLayout.Read(a, "1", "IMMEDIATEDESTINATIONNAME").Trim(),
-                ImmediateOriginName = AchColOfficialNachaLayout.Read(a, "1", "IMMEDIATEORIGINNAME").Trim(),
-                ReferenceCode = AchColOfficialNachaLayout.Read(a, "1", "REFERENCECODE").Trim(),
+                FileCreationTime = ReadField(profileReader, a, "1", "FILECREATIONTIME"),
+                FileIdModifier = ReadField(profileReader, a, "1", "FILEIDMODIFIER"),
+                RecordSize = ReadField(profileReader, a, "1", "RECORDSIZE"),
+                BlockingFactor = ReadField(profileReader, a, "1", "BLOCKINGFACTOR"),
+                FormatCode = ReadField(profileReader, a, "1", "FORMATCODE"),
+                ImmediateDestinationName = ReadField(profileReader, a, "1", "IMMEDIATEDESTINATIONNAME").Trim(),
+                ImmediateOriginName = ReadField(profileReader, a, "1", "IMMEDIATEORIGINNAME").Trim(),
+                ReferenceCode = ReadField(profileReader, a, "1", "REFERENCECODE").Trim(),
                 ClearingHouseId = clearingHouseId,
                 CycleNumber = cycleNumber ?? 0,
                 AchCycleId = achCycleId,
@@ -691,7 +714,7 @@ public class NachaParserService : INachaParserService
         return null;
     }
 
-    private List<BatchHeader> ParseBatchHeaderLinq(List<string> line)
+    private List<BatchHeader> ParseBatchHeaderLinq(List<string> line, NachaProfileRecordReader? profileReader)
     {
         return line.Select(a =>
         {
@@ -700,14 +723,14 @@ public class NachaParserService : INachaParserService
                 throw new InvalidOperationException("El Registro Tipo 5 debe iniciar con '5' y tener longitud fija de 106 caracteres.");
             }
 
-            var rawCompensationDate = AchColOfficialNachaLayout.Read(a, "5", "SETTLEMENTDATE");
+            var rawCompensationDate = ReadField(profileReader, a, "5", "SETTLEMENTDATE");
             var compensationValidation = BatchHeaderType5JulianDateValidator.ValidateAndFormat(rawCompensationDate);
             if (!compensationValidation.IsValid)
             {
                 throw new InvalidOperationException(compensationValidation.ErrorMessage ?? "Error Fatal 65: la Fecha de Compensación Juliana contiene caracteres no numéricos.");
             }
 
-            var rawBatchNumber = AchColOfficialNachaLayout.Read(a, "5", "BATCHNUMBER");
+            var rawBatchNumber = ReadField(profileReader, a, "5", "BATCHNUMBER");
             if (!rawBatchNumber.All(char.IsDigit))
             {
                 throw new InvalidOperationException("Error Fatal ID 5: el Número de Lote del registro tipo 5 (posiciones 92-98) debe ser numérico de 7 dígitos.");
@@ -715,57 +738,75 @@ public class NachaParserService : INachaParserService
 
             return new BatchHeader
             {
-                ServiceClassCode = AchColOfficialNachaLayout.Read(a, "5", "SERVICECLASSCODE"),
-                CompanyName = AchColOfficialNachaLayout.Read(a, "5", "COMPANYNAME").Trim(),
-                DiscretionaryData = AchColOfficialNachaLayout.Read(a, "5", "COMPANYDISCRETIONARYDATA").Trim(),
-                CompanyId = AchColOfficialNachaLayout.Read(a, "5", "COMPANYIDENTIFICATION").Trim(),
-                StandardEntryClassCode = AchColOfficialNachaLayout.Read(a, "5", "STANDARDENTRYCLASSCODE").Trim(),
-                CompanyEntryDescription = AchColOfficialNachaLayout.Read(a, "5", "COMPANYENTRYDESCRIPTION").Trim(),
-                DescriptiveDate = AchColOfficialNachaLayout.Read(a, "5", "COMPANYDESCRIPTIVEDATE").Trim(),
-                EffectiveEntryDate = AchColOfficialNachaLayout.Read(a, "5", "EFFECTIVEENTRYDATE").Trim(),
+                ServiceClassCode = ReadField(profileReader, a, "5", "SERVICECLASSCODE"),
+                CompanyName = ReadField(profileReader, a, "5", "COMPANYNAME").Trim(),
+                DiscretionaryData = ReadField(profileReader, a, "5", "COMPANYDISCRETIONARYDATA").Trim(),
+                CompanyId = ReadField(profileReader, a, "5", "COMPANYIDENTIFICATION").Trim(),
+                StandardEntryClassCode = ReadField(profileReader, a, "5", "STANDARDENTRYCLASSCODE").Trim(),
+                CompanyEntryDescription = ReadField(profileReader, a, "5", "COMPANYENTRYDESCRIPTION").Trim(),
+                DescriptiveDate = ReadField(profileReader, a, "5", "COMPANYDESCRIPTIVEDATE").Trim(),
+                EffectiveEntryDate = ReadField(profileReader, a, "5", "EFFECTIVEENTRYDATE").Trim(),
                 CompensationDate = compensationValidation.FormattedValue.Trim(),
-                OriginUserStatusCode = AchColOfficialNachaLayout.Read(a, "5", "ORIGINATORSTATUSCODE").Trim(),
-                OriginParticipantEntityCode = AchColOfficialNachaLayout.Read(a, "5", "ORIGINATINGDFI").Trim(),
+                OriginUserStatusCode = ReadField(profileReader, a, "5", "ORIGINATORSTATUSCODE").Trim(),
+                OriginParticipantEntityCode = ReadField(profileReader, a, "5", "ORIGINATINGDFI").Trim(),
                 BatchNumber = int.Parse(rawBatchNumber)
             };
         }).ToList();
     }
 
-    private List<EntryDetail> ParseEntryDetailLinq(List<string> line)
+    private List<EntryDetail> ParseEntryDetailLinq(List<string> line, NachaProfileRecordReader? profileReader)
     {
         return line.Select(a => new EntryDetail
         {
-            TransactionCode = AchColOfficialNachaLayout.Read(a, "6", "TRANSACTIONCODE").Trim(),
-            ReceivingParticipantEntityCode = AchColOfficialNachaLayout.Read(a, "6", "RECEIVINGDFI").Trim(),
-            CheckDigit = AchColOfficialNachaLayout.Read(a, "6", "CHECKDIGIT").Trim(),
-            AccountNumber = AchColOfficialNachaLayout.Read(a, "6", "DFIACCOUNTNUMBER").TrimEnd(),
-            Amount = Convert.ToDecimal(AchColOfficialNachaLayout.Read(a, "6", "AMOUNT"), CultureInfo.InvariantCulture) / 100,
-            RecipIdNumber = AchColOfficialNachaLayout.Read(a, "6", "INDIVIDUALIDENTIFICATION").TrimEnd(),
-            RecipUserName = AchColOfficialNachaLayout.Read(a, "6", "INDIVIDUALNAME"),
-            DiscreData = AchColOfficialNachaLayout.Read(a, "6", "DISCRETIONARYDATA"),
-            AddendumIndicator = AchColOfficialNachaLayout.Read(a, "6", "ADDENDARECORDINDICATOR").Trim(),
-            SequenceNumber = AchColOfficialNachaLayout.Read(a, "6", "TRACENUMBER").Trim()
+            TransactionCode = ReadField(profileReader, a, "6", "TRANSACTIONCODE").Trim(),
+            ReceivingParticipantEntityCode = ReadField(profileReader, a, "6", "RECEIVINGDFI").Trim(),
+            CheckDigit = ReadField(profileReader, a, "6", "CHECKDIGIT").Trim(),
+            AccountNumber = ReadField(profileReader, a, "6", "DFIACCOUNTNUMBER").TrimEnd(),
+            Amount = Convert.ToDecimal(ReadField(profileReader, a, "6", "AMOUNT"), CultureInfo.InvariantCulture) / 100,
+            RecipIdNumber = ReadField(profileReader, a, "6", "INDIVIDUALIDENTIFICATION").TrimEnd(),
+            RecipUserName = ReadField(profileReader, a, "6", "INDIVIDUALNAME"),
+            DiscreData = ReadField(profileReader, a, "6", "DISCRETIONARYDATA"),
+            AddendumIndicator = ReadField(profileReader, a, "6", "ADDENDARECORDINDICATOR").Trim(),
+            SequenceNumber = ReadField(profileReader, a, "6", "TRACENUMBER").Trim()
         }).ToList();
     }
 
-    private List<AddendaRecord> ParseAddendaLinq(List<string> line, EntryDetail? associatedEntry = null)
+    private List<AddendaRecord> ParseAddendaLinq(
+        List<string> line,
+        EntryDetail? associatedEntry,
+        NachaProfileRecordReader? profileReader)
     {
         return line.Select(a =>
         {
-            var addendaType = a.Substring(1, 2).Trim();
+            var addendaType = ReadField(profileReader, a, "7", "ADDENDATYPE").Trim();
             if (addendaType == "99")
             {
+                if (profileReader is null)
+                {
+                    return new AddendaRecord
+                    {
+                        CodeTypeAddendumRecord = addendaType,
+                        BusinessType = "Return",
+                        IdUserOrig = a.Substring(3, 5).Trim(),
+                        InvoiceOrAccountNumber = a.Substring(8, 15).Trim(),
+                        InfofromOriginator = a.Substring(81, 15).Trim(),
+                        ReturnReasonCode = a.Substring(3, 5).Trim(),
+                        OriginalTraceNumber = a.Substring(8, 15).Trim(),
+                        NewTraceNumber = a.Substring(81, 15).Trim(),
+                        EntryDetailSequenceNumber = a.Substring(99, 7).Trim()
+                    };
+                }
+
+                var addendaSequence = ReadField(profileReader, a, "7", "ADDENDASEQUENCENUMBER").Trim();
                 return new AddendaRecord
                 {
                     CodeTypeAddendumRecord = addendaType,
                     BusinessType = "Return",
-                    IdUserOrig = a.Substring(3, 5).Trim(),
-                    InvoiceOrAccountNumber = a.Substring(8, 15).Trim(),
-                    InfofromOriginator = a.Substring(81, 15).Trim(),
-                    ReturnReasonCode = a.Substring(3, 5).Trim(),
-                    OriginalTraceNumber = a.Substring(8, 15).Trim(),
-                    NewTraceNumber = a.Substring(81, 15).Trim(),
-                    EntryDetailSequenceNumber = a.Substring(99, 7).Trim()
+                    InfofromOriginator = ReadField(profileReader, a, "7", "ADDITIONALINFORMATION").TrimEnd(),
+                    ReturnReasonCode = ReadField(profileReader, a, "7", "RETURNREASONCODE").Trim(),
+                    OriginalTraceNumber = ReadField(profileReader, a, "7", "ORIGINALTRACENUMBER").Trim(),
+                    NewTraceNumber = addendaSequence,
+                    EntryDetailSequenceNumber = GetEntrySequenceSuffix(addendaSequence)
                 };
             }
 
@@ -778,50 +819,54 @@ public class NachaParserService : INachaParserService
             var variant = businessType == "Debit"
                 ? AchColOfficialNachaLayout.Type7DebitVariant
                 : AchColOfficialNachaLayout.Type7CreditVariant;
+            var selectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["BusinessType"] = businessType
+            };
 
             return new AddendaRecord
             {
-                CodeTypeAddendumRecord = AchColOfficialNachaLayout.Read(a, "7", "ADDENDATYPE", variant).Trim(),
+                CodeTypeAddendumRecord = ReadField(profileReader, a, "7", "ADDENDATYPE", variant, selectionContext).Trim(),
                 BusinessType = businessType,
                 IdUserOrig = businessType == "Credit"
-                    ? AchColOfficialNachaLayout.Read(a, "7", "ORIGINATORIDENTIFICATION", variant).Trim()
+                    ? ReadField(profileReader, a, "7", "ORIGINATORIDENTIFICATION", variant, selectionContext).Trim()
                     : null,
                 CollectorId = businessType == "Debit"
-                    ? AchColOfficialNachaLayout.Read(a, "7", "COLLECTORID", variant).Trim()
+                    ? ReadField(profileReader, a, "7", "COLLECTORID", variant, selectionContext).Trim()
                     : null,
                 ReceiverCustomerCode = businessType == "Debit"
-                    ? AchColOfficialNachaLayout.Read(a, "7", "RECEIVERCUSTOMERCODE", variant).Trim()
+                    ? ReadField(profileReader, a, "7", "RECEIVERCUSTOMERCODE", variant, selectionContext).Trim()
                     : null,
                 ServiceDescription = businessType == "Debit"
-                    ? AchColOfficialNachaLayout.Read(a, "7", "SERVICEDESCRIPTION", variant).Trim()
+                    ? ReadField(profileReader, a, "7", "SERVICEDESCRIPTION", variant, selectionContext).Trim()
                     : null,
                 PurposeOfTransaction = businessType == "Credit"
-                    ? AchColOfficialNachaLayout.Read(a, "7", "PURPOSE", variant).Trim()
+                    ? ReadField(profileReader, a, "7", "PURPOSE", variant, selectionContext).Trim()
                     : null,
                 InvoiceOrAccountNumber = businessType == "Credit"
-                    ? AchColOfficialNachaLayout.Read(a, "7", "REFERENCE", variant).Trim()
+                    ? ReadField(profileReader, a, "7", "REFERENCE", variant, selectionContext).Trim()
                     : null,
-                AddendumSequence = AchColOfficialNachaLayout.Read(a, "7", "SEQUENCENUMBER", variant).Trim(),
-                EntryDetailSequenceNumber = AchColOfficialNachaLayout.Read(a, "7", "TRACESUFFIX", variant).Trim()
+                AddendumSequence = ReadField(profileReader, a, "7", "SEQUENCENUMBER", variant, selectionContext).Trim(),
+                EntryDetailSequenceNumber = ReadField(profileReader, a, "7", "TRACESUFFIX", variant, selectionContext).Trim()
             };
         }).ToList();
     }
 
 
-    private List<BatchControl> ParseBatchControlLinq(List<string> line)
+    private List<BatchControl> ParseBatchControlLinq(List<string> line, NachaProfileRecordReader? profileReader)
     {
         return line.Select(a => new BatchControl
         {
-            BatchTranClassCode = AchColOfficialNachaLayout.Read(a, "8", "SERVICECLASSCODE"),
-            EntryAddendaCount = int.Parse(AchColOfficialNachaLayout.Read(a, "8", "ENTRYADDENDACOUNT"), CultureInfo.InvariantCulture),
-            EntryHash = long.Parse(AchColOfficialNachaLayout.Read(a, "8", "ENTRYHASH"), CultureInfo.InvariantCulture),
-            TotalDebitAmount = Convert.ToDecimal(AchColOfficialNachaLayout.Read(a, "8", "TOTALDEBITAMOUNT"), CultureInfo.InvariantCulture) / 100,
-            TotalCreditAmount = Convert.ToDecimal(AchColOfficialNachaLayout.Read(a, "8", "TOTALCREDITAMOUNT"), CultureInfo.InvariantCulture) / 100,
-            IdUserOrig = AchColOfficialNachaLayout.Read(a, "8", "COMPANYIDENTIFICATION").Trim(),
-            CodAutMessage = AchColOfficialNachaLayout.Read(a, "8", "MESSAGEAUTHENTICATIONCODE"),
-            Reserved = AchColOfficialNachaLayout.Read(a, "8", "RESERVED"),
-            IdOrigEntity = AchColOfficialNachaLayout.Read(a, "8", "ORIGINATINGDFI"),
-            BatchNumber = AchColOfficialNachaLayout.Read(a, "8", "BATCHNUMBER"),
+            BatchTranClassCode = ReadField(profileReader, a, "8", "SERVICECLASSCODE"),
+            EntryAddendaCount = int.Parse(ReadField(profileReader, a, "8", "ENTRYADDENDACOUNT"), CultureInfo.InvariantCulture),
+            EntryHash = long.Parse(ReadField(profileReader, a, "8", "ENTRYHASH"), CultureInfo.InvariantCulture),
+            TotalDebitAmount = Convert.ToDecimal(ReadField(profileReader, a, "8", "TOTALDEBITAMOUNT"), CultureInfo.InvariantCulture) / 100,
+            TotalCreditAmount = Convert.ToDecimal(ReadField(profileReader, a, "8", "TOTALCREDITAMOUNT"), CultureInfo.InvariantCulture) / 100,
+            IdUserOrig = ReadField(profileReader, a, "8", "COMPANYIDENTIFICATION").Trim(),
+            CodAutMessage = ReadField(profileReader, a, "8", "MESSAGEAUTHENTICATIONCODE"),
+            Reserved = ReadField(profileReader, a, "8", "RESERVED"),
+            IdOrigEntity = ReadField(profileReader, a, "8", "ORIGINATINGDFI"),
+            BatchNumber = ReadField(profileReader, a, "8", "BATCHNUMBER"),
         }).ToList();
     }
 
@@ -893,17 +938,17 @@ public class NachaParserService : INachaParserService
         return string.Empty;
     }
 
-    private List<FileControl> ParseFileControlLinq(List<string> line)
+    private List<FileControl> ParseFileControlLinq(List<string> line, NachaProfileRecordReader? profileReader)
     {
         return line.Take(1).Select(a => new FileControl
         {
-            BatchCount = int.Parse(AchColOfficialNachaLayout.Read(a, "9", "BATCHCOUNT"), CultureInfo.InvariantCulture),
-            BlockCount = int.Parse(AchColOfficialNachaLayout.Read(a, "9", "BLOCKCOUNT"), CultureInfo.InvariantCulture),
-            EntryAddendaCount = int.Parse(AchColOfficialNachaLayout.Read(a, "9", "ENTRYADDENDACOUNT"), CultureInfo.InvariantCulture),
-            EntryHash = long.Parse(AchColOfficialNachaLayout.Read(a, "9", "ENTRYHASH"), CultureInfo.InvariantCulture),
-            TotalDebitAmount = Convert.ToDecimal(AchColOfficialNachaLayout.Read(a, "9", "TOTALDEBITAMOUNT"), CultureInfo.InvariantCulture) / 100,
-            TotalCreditAmount = Convert.ToDecimal(AchColOfficialNachaLayout.Read(a, "9", "TOTALCREDITAMOUNT"), CultureInfo.InvariantCulture) / 100,
-            Reserved = AchColOfficialNachaLayout.Read(a, "9", "RESERVED")
+            BatchCount = int.Parse(ReadField(profileReader, a, "9", "BATCHCOUNT"), CultureInfo.InvariantCulture),
+            BlockCount = int.Parse(ReadField(profileReader, a, "9", "BLOCKCOUNT"), CultureInfo.InvariantCulture),
+            EntryAddendaCount = int.Parse(ReadField(profileReader, a, "9", "ENTRYADDENDACOUNT"), CultureInfo.InvariantCulture),
+            EntryHash = long.Parse(ReadField(profileReader, a, "9", "ENTRYHASH"), CultureInfo.InvariantCulture),
+            TotalDebitAmount = Convert.ToDecimal(ReadField(profileReader, a, "9", "TOTALDEBITAMOUNT"), CultureInfo.InvariantCulture) / 100,
+            TotalCreditAmount = Convert.ToDecimal(ReadField(profileReader, a, "9", "TOTALCREDITAMOUNT"), CultureInfo.InvariantCulture) / 100,
+            Reserved = ReadField(profileReader, a, "9", "RESERVED")
         }).ToList();
     }
 
@@ -984,6 +1029,7 @@ public class NachaParserService : INachaParserService
     private async Task<(bool IsValid, string? FailureReason)> ValidateEntryAsync(
         EntryDetail entry,
         BatchHeader? batch,
+        bool isReturnEntry,
         List<NachaValidationFailure> failures,
         CancellationToken ct)
     {
@@ -1029,6 +1075,13 @@ public class NachaParserService : INachaParserService
             return (false, reason);
         }
 
+        if (isReturnEntry && !ReturnCodes.Contains(code))
+        {
+            const string reason = "La adenda de devolución no corresponde a un código de transacción de devolución.";
+            failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
+            return (false, reason);
+        }
+
         var checkDigitValidationReason = await ValidateType6CheckDigitAsync(entry, ct);
         if (checkDigitValidationReason is not null)
         {
@@ -1041,6 +1094,13 @@ public class NachaParserService : INachaParserService
         {
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, receiverNameValidationReason));
             return (false, receiverNameValidationReason);
+        }
+
+        // Una devolución entrante conserva los datos de la operación original. La relación
+        // funcional se resuelve después por OriginalTraceNumber en el post-procesamiento.
+        if (isReturnEntry)
+        {
+            return (true, null);
         }
 
         var requiresIdentityValidation = isDebit || ShouldValidateCreditIdentity(entry.DiscreData);
@@ -1096,7 +1156,10 @@ public class NachaParserService : INachaParserService
         return (true, null);
     }
 
-    internal static async Task<List<string>> ReadPhysicalRecordsAsync(Stream nachaStream, CancellationToken ct)
+    internal static async Task<List<string>> ReadPhysicalRecordsAsync(
+        Stream nachaStream,
+        CancellationToken ct,
+        NachaProfileRecordReader? profileReader = null)
     {
         ArgumentNullException.ThrowIfNull(nachaStream);
 
@@ -1121,19 +1184,20 @@ public class NachaParserService : INachaParserService
             ThrowTechnical("ACHCOL-PHYSICAL-NO-LINE-ENDINGS: el archivo contiene CR/LF.");
         }
 
-        if (bytes.Any(value => value > 0x7F))
+        if (bytes.Any(value => !IsAchColombiaAcceptedByte(value)))
         {
-            ThrowTechnical("ACHCOL-PHYSICAL-ASCII-REPERTOIRE: el archivo contiene bytes fuera del repertorio permitido.");
+            ThrowTechnical("ACHCOL-PHYSICAL-ASCII-REPERTOIRE: el archivo contiene bytes fuera de la tabla de caracteres aceptados por ACH Colombia V35.");
         }
 
-        if (bytes.Length % AchColOfficialNachaLayout.RecordLength != 0)
+        var recordLength = profileReader?.RecordLength ?? AchColOfficialNachaLayout.RecordLength;
+        if (bytes.Length % recordLength != 0)
         {
             ThrowTechnical("ACHCOL-PHYSICAL-RECORD-LENGTH: existen bytes residuales; cada registro debe tener 106 bytes.");
         }
 
-        var content = Encoding.ASCII.GetString(bytes);
-        var lines = Enumerable.Range(0, bytes.Length / AchColOfficialNachaLayout.RecordLength)
-            .Select(index => content.Substring(index * AchColOfficialNachaLayout.RecordLength, AchColOfficialNachaLayout.RecordLength))
+        var content = Encoding.Latin1.GetString(bytes);
+        var lines = Enumerable.Range(0, bytes.Length / recordLength)
+            .Select(index => content.Substring(index * recordLength, recordLength))
             .ToList();
 
         if (lines[0][0] != '1')
@@ -1141,18 +1205,48 @@ public class NachaParserService : INachaParserService
             ThrowTechnical("ACHCOL-T1-RECORD-TYPE: el primer registro debe ser tipo 1.");
         }
 
-        var declaredLength = AchColOfficialNachaLayout.Read(lines[0], "1", "RECORDSIZE");
-        if (!string.Equals(declaredLength, "106", StringComparison.Ordinal))
+        var declaredLength = ReadField(profileReader, lines[0], "1", "RECORDSIZE");
+        if (!int.TryParse(declaredLength, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedRecordLength)
+            || parsedRecordLength != recordLength)
         {
-            ThrowTechnical("ACHCOL-T1-RECORD-SIZE: el tamaño declarado debe ser 106.");
+            ThrowTechnical($"ACHCOL-T1-RECORD-SIZE: el tamaño declarado debe ser {recordLength}.");
         }
 
-        if (lines.Count % AchColOfficialNachaLayout.BlockingFactor != 0)
+        var declaredBlockingFactor = ReadField(profileReader, lines[0], "1", "BLOCKINGFACTOR");
+        if (!int.TryParse(declaredBlockingFactor, NumberStyles.None, CultureInfo.InvariantCulture, out var blockingFactor)
+            || blockingFactor <= 0
+            || lines.Count % blockingFactor != 0)
         {
             ThrowTechnical("ACHCOL-PHYSICAL-BLOCKING-FACTOR: el archivo no ocupa bloques exactos de 10 registros.");
         }
 
         return lines;
+    }
+
+    private static bool IsAchColombiaAcceptedByte(byte value)
+        => value == (byte)' '
+           || value is >= (byte)'0' and <= (byte)'9'
+           || value is >= (byte)'A' and <= (byte)'Z'
+           || value is >= (byte)'a' and <= (byte)'z'
+           || value is (byte)'.' or (byte)',' or (byte)';' or (byte)':' or (byte)'-'
+               or (byte)'*' or (byte)'/' or (byte)'&' or (byte)'#' or (byte)'$'
+               or (byte)'%' or (byte)'='
+           || value is 0xD1 or 0xF1;
+
+    private static string ReadField(
+        NachaProfileRecordReader? profileReader,
+        string record,
+        string recordCode,
+        string fieldCode,
+        string? legacyVariantCode = null,
+        IReadOnlyDictionary<string, string>? selectionContext = null)
+    {
+        if (profileReader is not null)
+        {
+            return profileReader.Read(record, recordCode, fieldCode, selectionContext);
+        }
+
+        return AchColOfficialNachaLayout.Read(record, recordCode, fieldCode, legacyVariantCode);
     }
 
     private bool IsLocalLiveProcTransaccionesPreparationEnabled()

@@ -80,6 +80,26 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Prefix: "ACH_RETURN_OUT_V35"));
 
         await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0",
+            Name: "Perfil oficial ACH Colombia entrada devolución V35",
+            Description: "Perfil table-driven para respuestas diferenciales entrantes de ACH Colombia con addenda de devolución tipo 99.",
+            ClearingHouseCode: "ACH",
+            FlowTypeCode: "RETORNO",
+            NormativeSource: "ACH Colombia Manual de Servicio V35, secciones 6.6 y 6.7",
+            NormativeVersion: "V35",
+            ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.6-6.7",
+            IsPlaceholder: false,
+            IsHomologated: true,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "ACH COLOMBIA",
+            ImmediateOriginName: "",
+            Prefix: "ACH_RETURN_IN_V35",
+            DirectionCode: "ENTRADA",
+            VersionMinor: 0,
+            IncludeReturnAddenda99: true));
+
+        await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
             Name: "Perfil oficial CENIT salida original",
             Description: "Perfil oficial UAT/local table-driven para CENIT. Fuente normativa pendiente de homologacion formal: CENIT/DSP-152 placeholder.",
@@ -143,14 +163,14 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profile.Description = spec.Description;
             profile.ClearingHouseId = catalog.ClearingHouses[spec.ClearingHouseCode];
             profile.FlowTypeId = catalog.FlowTypes[spec.FlowTypeCode];
-            profile.DirectionId = catalog.Directions["SALIDA"];
+            profile.DirectionId = catalog.Directions[spec.DirectionCode];
             profile.ServiceClassId = null;
             profile.ContextPriority = 10;
             profile.EffectiveFrom = EffectiveFrom;
             profile.EffectiveTo = null;
             profile.StatusId = catalog.Statuses["PUBLICADO"];
             profile.VersionMajor = 1;
-            profile.VersionMinor = spec.IsPlaceholder ? 0 : 1;
+            profile.VersionMinor = spec.VersionMinor;
             profile.PublishedAt = PublishedAt;
             profile.PublishedBy = spec.IsPlaceholder ? "system-phase-6b1" : "system-nacha-execution-2";
             profile.RowVersion = BuildRowVersion(spec.Prefix);
@@ -194,6 +214,19 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                         AchColOfficialNachaLayout.Type7DebitVariant,
                         isDefault: false,
                         selectionPredicateJson: JsonSerializer.Serialize(new { BusinessType = "DEBIT" }));
+
+                    if (spec.IncludeReturnAddenda99)
+                    {
+                        await EnsureVariantAsync(
+                            profile,
+                            spec,
+                            recordCode,
+                            sequence + 2,
+                            catalog,
+                            $"{spec.Prefix}_R7_ADDENDA_99",
+                            isDefault: false,
+                            selectionPredicateJson: JsonSerializer.Serialize(new { AddendaType = "99" }));
+                    }
                 }
 
                 sequence += 10;
@@ -361,7 +394,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
             if (!spec.IsPlaceholder)
             {
-                var descriptor = IsReturnOutV35(spec)
+                var descriptor = UsesReturnV35Layout(spec, recordCode, variant.VariantCode)
                     ? AchColReturnOutV35Layout.Field(recordCode, field.Code)
                     : AchColOfficialNachaLayout.Field(recordCode, field.Code, variant.VariantCode);
                 await EnsureExecutableRuleAsync(layoutField, descriptor, catalog);
@@ -441,7 +474,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
     private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode, string variantCode)
     {
-        if (IsReturnOutV35(profile))
+        if (UsesReturnV35Layout(profile, recordCode, variantCode))
         {
             return AchColReturnOutV35Layout.ForRecord(recordCode)
                 .Select(BuildReturnOutV35Field)
@@ -470,6 +503,12 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
            && string.Equals(profile.FlowTypeCode, "DEVOLUCION", StringComparison.OrdinalIgnoreCase)
            && string.Equals(profile.NormativeVersion, "V35", StringComparison.OrdinalIgnoreCase);
 
+    private static bool UsesReturnV35Layout(ProfileSpec profile, string recordCode, string variantCode)
+        => IsReturnOutV35(profile)
+           || (profile.IncludeReturnAddenda99
+               && string.Equals(recordCode, "7", StringComparison.OrdinalIgnoreCase)
+               && variantCode.EndsWith("_ADDENDA_99", StringComparison.OrdinalIgnoreCase));
+
     private static FieldSpec BuildReturnOutV35Field(AchColOfficialFieldDescriptor descriptor)
     {
         var constant = (descriptor.RecordCode, descriptor.FieldCode) switch
@@ -485,7 +524,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             _ => null
         };
 
-        if (constant is not null)
+        if (!string.IsNullOrWhiteSpace(constant))
         {
             return new FieldSpec(descriptor.FieldCode, descriptor.FieldCode, descriptor.StartPosition, descriptor.Length,
                 descriptor.PadChar, descriptor.Justification, descriptor.Format, "CONSTANTE", constant, null, null, null, null);
@@ -522,7 +561,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             _ => null
         };
 
-        if (constant is not null)
+        if (!string.IsNullOrWhiteSpace(constant))
         {
             return new FieldSpec(
                 code,
@@ -787,7 +826,10 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         string RoutingDestination,
         string ImmediateDestinationName,
         string ImmediateOriginName,
-        string Prefix);
+        string Prefix,
+        string DirectionCode = "SALIDA",
+        int VersionMinor = 1,
+        bool IncludeReturnAddenda99 = false);
 
     private sealed record CatalogIds(
         IReadOnlyDictionary<string, int> ClearingHouses,

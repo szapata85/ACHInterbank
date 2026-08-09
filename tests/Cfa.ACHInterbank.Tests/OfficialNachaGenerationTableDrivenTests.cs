@@ -954,6 +954,45 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         residualException.Message.Should().Contain("ACHCOL-PHYSICAL-RECORD-LENGTH");
     }
 
+    [Theory]
+    [InlineData(0xD1, 'Ñ')]
+    [InlineData(0xF1, 'ñ')]
+    public async Task ParserPhysicalReader_ShouldAcceptNormativeAchColombiaEnye(int encodedValue, char expected)
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var bytes = Encoding.Latin1.GetBytes(content);
+        var entryOffset = Enumerable.Range(0, bytes.Length / 106)
+            .Select(index => index * 106)
+            .First(offset => bytes[offset] == (byte)'6');
+        bytes[entryOffset + 62] = (byte)encodedValue;
+
+        await using var stream = new MemoryStream(bytes);
+        var records = await NachaParserService.ReadPhysicalRecordsAsync(stream, CancellationToken.None);
+
+        records.Single(record => record[0] == '6')[62].Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ParserPhysicalReader_ShouldRejectCharacterOutsideNormativeAchColombiaTable()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var bytes = Encoding.Latin1.GetBytes(content);
+        var entryOffset = Enumerable.Range(0, bytes.Length / 106)
+            .Select(index => index * 106)
+            .First(offset => bytes[offset] == (byte)'6');
+        bytes[entryOffset + 62] = (byte)'@';
+
+        await using var stream = new MemoryStream(bytes);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => NachaParserService.ReadPhysicalRecordsAsync(stream, CancellationToken.None));
+
+        exception.Message.Should().Contain("ACHCOL-PHYSICAL-ASCII-REPERTOIRE");
+    }
+
     [Fact]
     public async Task AchColOfficial_ShouldRoundTripThroughProductParserWithSyntheticData()
     {
@@ -1003,6 +1042,55 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         parsedAddenda.AddendumSequence.Should().Be("0001");
         parsedAddenda.EntryDetailSequenceNumber.Should().Be(parsedEntry.SequenceNumber![^7..]);
         parsedBatchControl.BatchNumber.Should().Be("0000001");
+    }
+
+    [Fact]
+    public async Task AchColIncomingReturnProfile_ShouldPersistReturnWithoutLocalRecipientIdentity()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        var setup = CreateOfficialSut(context, "ACH Colombia", model);
+        var generated = await setup.Sut.BuildReturnOutAsync(BuildReturnOutRequest(), CancellationToken.None);
+        var profile = await context.CfgProfiles
+            .AsNoTracking()
+            .SingleAsync(x => x.ProfileCode == "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0");
+
+        model.Cycle.ClearingHouse!.OriginCode = "000101006";
+        context.AchCycles.Add(model.Cycle);
+        await context.SaveChangesAsync();
+        (await context.Customers
+                .AsNoTracking()
+                .AnyAsync(customer => customer.DocumentNumber == "900123"
+                                      && customer.Accounts.Any(account => account.AccountNumber == "123456789")))
+            .Should().BeFalse();
+
+        var parser = new NachaParserService(
+            context,
+            Mock.Of<ILogger<NachaParserService>>(),
+            Mock.Of<IAchStateTransitionService>());
+        await using var stream = new MemoryStream(Encoding.Latin1.GetBytes(generated.Content));
+        var result = await parser.ParseAndSaveDetailedAsync(
+            stream,
+            "0001283.001.20260807.1.OUT",
+            new NachaParseRequest
+            {
+                ResolvedClearingHouseId = model.Cycle.ClearingHouseId,
+                ResolvedAchCycleId = model.Cycle.Id,
+                OperationalDate = model.Cycle.ProcessingDate,
+                CorrelationId = "incoming-return-profile-roundtrip",
+                SelectedProfileId = profile.Id,
+                SelectedProfileCode = profile.ProfileCode
+            },
+            CancellationToken.None);
+
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(1);
+        result.TotalAddendas.Should().Be(1);
+        var parsedAddenda = await context.AddendaRecords.AsNoTracking().SingleAsync();
+        parsedAddenda.ReturnReasonCode.Should().Be("R01");
+        parsedAddenda.OriginalTraceNumber.Should().Be("123456780000099");
+        parsedAddenda.NewTraceNumber.Should().Be("876543210000001");
+        parsedAddenda.AddendumSequence.Should().BeNullOrEmpty();
     }
 
     private static OfficialSut CreateOfficialSut(
