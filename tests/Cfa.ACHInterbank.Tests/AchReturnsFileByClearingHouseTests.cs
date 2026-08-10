@@ -71,6 +71,38 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
+    public async Task GeneratedReturnArtifact_CanBeRebuiltByteForByte_ForDispatchRetry()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 202, "ACH-C1-REBUILD");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [202] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+        });
+        var builder = ReturnOutNachaFileBuilderFactory.Create();
+        var sut = new AchReturnsService(
+            context,
+            regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(),
+            returnEligibilityService: eligibility.Object,
+            returnGenerationLockService: new TestReturnGenerationLockService(),
+            externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(),
+            nachaFileBuilder: builder);
+        var generated = await sut.GenerateReturnsFileAsync(
+            new GenerateReturnsFileRequest("ACH-C1-REBUILD", [new ReturnSelectionItemDto(202, "DEV14")]),
+            CancellationToken.None);
+        var identifierMap = new Mock<INachaFileIdentifierMapService>();
+        identifierMap.Setup(x => x.ResolveIdentifierAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync('A');
+        var rebuilder = new AchOutboundReturnArtifactService(context, builder, identifierMap.Object);
+
+        var rebuilt = await rebuilder.BuildAsync(generated.FileName);
+
+        Assert.Equal(generated.Content, rebuilt.Content);
+        Assert.Equal(generated.TotalRecords, rebuilt.RecordCount);
+        Assert.Equal(generated.TotalReturns, rebuilt.ReturnCount);
+        Assert.Equal([202], rebuilt.TransactionIds);
+    }
+
+    [Fact]
     public async Task EvaluateOutgoingReturnAsync_ShouldUseCenitClearingHouseContext()
     {
         await using var context = BuildContext();

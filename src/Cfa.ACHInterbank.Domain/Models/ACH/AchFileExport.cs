@@ -24,4 +24,6 @@ public class AchFileExport : AuditableEntity
     public DateTime? AcknowledgedAtUtc { get; set; }
     public string? AcknowledgementCode { get; set; }
     public ICollection<AchFileExportTransaction> Transactions { get; set; } = new List<AchFileExportTransaction>();
+    public ICollection<AchFileTransmissionAttempt> TransmissionAttempts { get; set; } = new List<AchFileTransmissionAttempt>();
+    public ICollection<AchFileTransportResult> TransportResults { get; set; } = new List<AchFileTransportResult>();
 }

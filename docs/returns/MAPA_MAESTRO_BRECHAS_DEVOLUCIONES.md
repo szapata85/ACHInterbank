@@ -166,7 +166,7 @@ Residual crítico:
 1. No existe prueba SQL Server ReturnOut equivalente y la UAT PostgreSQL sigue siendo condicional; no constituye evidencia provider-specific vigente.
 2. El lock es `ConcurrentDictionary<int, SemaphoreSlim>` y solo coordina un proceso.
 3. `DEV14` es una solicitud oficial externa de devolución de una transacción débito ACH no consentida (V35 2.7.6 y Anexo 7), no una causal física de Addenda 99. V35 6.6 exige allí una causal de tres caracteres del Anexo 9, pero no define una traducción única desde `DEV14`: `R07`, `R10`, `R12` y `R29` describen hechos/contextos diferentes que la intención general de no consentimiento no permite distinguir. Opción C lo rechaza sin truncar. `RET-GAP-019` permanece bloqueada hasta obtener una regla primaria ACH Colombia que determine la causal física a partir del contexto requerido.
-4. Falta evidencia multinodo, aceptación externa, transmisión, acuse y conciliación.
+4. Falta evidencia de aceptación externa y conciliación; transmisión y acuse aplicativo se cerraron en RET-GAP-017.
 
 RET-GAP-004 queda cerrado técnicamente. El perfil es canónico y ejecutable dentro del aplicativo, pero `IsHomologated=false`: las pruebas internas no constituyen homologación externa con ACH Colombia.
 
@@ -226,7 +226,7 @@ generación ReturnOut ACH exitosa
  -> causal + originalTrace + payload + state event
 ```
 
-No está completamente cerrado porque faltan carrera provider-specific outbound, multinodo y lifecycle posterior a transmisión/acuse/conciliación. CENIT no participa del escenario exitoso por el guard.
+No está completamente cerrado porque faltan carrera provider-specific outbound, multinodo y conciliación. El lifecycle de transmisión/acuse ACH Colombia se cerró en RET-GAP-017. CENIT no participa del escenario exitoso por el guard.
 
 ## 14. Causalidad y trazabilidad por EntryDetail
 
@@ -335,7 +335,7 @@ El contrato externo queda definido sólo a nivel conceptual y bloqueado a nivel 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | RET-GAP-001 | B1 | Ambas | In | Convergencia de aplicación/auditoría | ✅ CERRADA Y DEMOSTRADA | JOB 2 + transición canónica | Ninguna dentro de B1 | — | — | — | No reabrir |
 | RET-GAP-002 | B2 | Ambas | In | Idempotencia DB-first | ✅ CERRADA Y DEMOSTRADA | JOB 3.1 SQL Server/PostgreSQL | Ninguna para aplicación incoming correlacionada | — | — | — | No reabrir |
-| RET-GAP-003 | B3 | ACHCOL | Out | Lifecycle `ReturnedByEpr`, atomicidad y concurrencia DB | ✅ CERRADA Y DEMOSTRADA | JOB 4/4.CI.2 + RET.OUT.PROVIDERS.1: SQL Server/PostgreSQL, RACE A-H, DB-first claim, trace sequence relacional, migration UP/DOWN | Ninguna dentro de generación/persistencia ReturnOut; transmisión/acuse permanece en RET-GAP-017 | — | — | RET-GAP-004 cerrada | No reabrir |
+| RET-GAP-003 | B3 | ACHCOL | Out | Lifecycle `ReturnedByEpr`, atomicidad y concurrencia DB | ✅ CERRADA Y DEMOSTRADA | JOB 4/4.CI.2 + RET.OUT.PROVIDERS.1: SQL Server/PostgreSQL, RACE A-H, DB-first claim, trace sequence relacional, migration UP/DOWN | Ninguna dentro de generación/persistencia ReturnOut; transmisión/acuse cerrados en RET-GAP-017 | — | — | RET-GAP-004 cerrada | No reabrir |
 | RET-GAP-004 | B4/B5 | ACHCOL | Out | Perfil/render físico V35 | ✅ CERRADA Y DEMOSTRADA | `OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0`, Opción C, contract tests V35, naming `RRRRTTT.ZZZ.1`, no-fallback | Ninguna dentro de la canonicalización física; homologación externa continúa separada | — | — | — | No reabrir |
 | RET-GAP-005 | B4/B5 | CENIT | Out | Contrato técnico STA | 🔴 BLOQUEADA DELIBERADAMENTE | Reglamento/Annex A/B; guard | Manual STA, layout, DFI, correlación, naming, secuencia/reset | levantar guard sin norma | CRÍTICA | Evidencia externa STA | CENIT.STA.HOMOLOGATION |
 | RET-GAP-006 | B5 | CENIT | Out | Perfil/parser/generator soportado | ⚪ NO IMPLEMENTADA | guard antes del generador | Implementación Opción C solo después de RET-GAP-005 | generación inválida | CRÍTICA | RET-GAP-005 | CENIT.RETURNOUT.OPTIONC |
@@ -349,7 +349,7 @@ El contrato externo queda definido sólo a nivel conceptual y bloqueado a nivel 
 | RET-GAP-014 | Diferencial | CENIT | Respuesta | Differential por cámara | ❓ NO DETERMINABLE | processor genérico, sin contrato CENIT demostrado | normativa, perfil, mapping, fixture, E2E | inferencia entre cámaras | ALTA | norma CENIT | DIFF.CENIT.ANALYSIS |
 | RET-GAP-015 | Simulador | Ambas | In | normal/return/differential | 🟡 PARCIAL — Return ACHCOL demostrado | generate-only + metadata; devolución ACHCOL con Opción C y E2E físico | diferencial no-return y CENIT continúan sin generador homologado | falsa confianza si se extrapola el happy path | MEDIA | perfiles aprobados por escenario | UAT.SIM.PROFILES |
 | RET-GAP-016 | B4 | CENIT | In | Return In integral | 🟠 IMPLEMENTADA SIN EVIDENCIA SUFICIENTE | pipeline genérico + causas | E2E provider-specific con fixture homologado | retorno perdido/mal causalizado | ALTA | fixture/norma | CENIT.RETURNIN.E2E |
-| RET-GAP-017 | B5 | ACHCOL | Out | transmisión/acuse/conciliación | 🔴 ABIERTA — CONTRATO DE TRANSPORTE NO DETERMINABLE | `RET.OUTBOUND.ACCEPTANCE.1`: V35 2.4.2 demuestra SFTP/MFT/GoAnywhere a nivel ACH, pero el repositorio no contiene port, adapter, configuración ni decisión versionada que vincule ACHInterbank con el SFTP administrado por CFA; tampoco existe ACK correlacionable | obtener contrato aplicativo-canal, ownership del depósito, identidad del artefacto `.RET.env`, resultado de transporte, idempotencia/correlación y manejo de resultado desconocido; ACK/aceptación permanece bloqueado hasta contrato externo explícito | inventar canal o confundir entrega con aceptación | ALTA | RET-GAP-004/003 cerradas + evidencia externa del canal | RET.OUTBOUND.TRANSPORT.CONTRACT.1 |
+| RET-GAP-017 | B5 | ACHCOL | Out | transmisión y acuse/resultado | ✅ CERRADA Y DEMOSTRADA | Contrato `RET-GAP-017`; reconstrucción persistida byte por byte; sobre digital; dispatch transaccional; handoff atómico CFA; resultado correlacionado; lifecycle e idempotencia; SQL Server/PostgreSQL; tests focalizados/E2E | Ninguna dentro de la frontera aplicativa; homologación externa ACH Colombia permanece separada | confundir handoff técnico con homologación externa | — | RET-GAP-004/003 cerradas | No reabrir |
 | RET-GAP-018 | Operación | Ambas | Ambas | dashboard/read-model por EntryDetail | 🟡 PARCIAL — residual identificado | read store y command center | reconstrucción unificada y alertas | investigación lenta | MEDIA | taxonomía | RET.OPS.OBSERVABILITY |
 | RET-GAP-019 | Causalidad V35 | ACHCOL | Out | Solicitud `DEV14` frente a causal física Addenda 99 | 🔴 ABIERTA — BLOQUEADA POR DECISIÓN NORMATIVA | V35 2.7.6/6.6/Anexos 7 y 9; `DEV14` externo demostrado; ausencia de mapping único; falla cerrada Opción C | Fuente primaria ACH Colombia que vincule `DEV14` con una causal física o defina los atributos y la matriz determinística de resolución | devolución no generable o causal incorrecta | ALTA | evidencia normativa externa | RET.ACH.OUT.CAUSAL.V35.EVIDENCE |
 
@@ -361,7 +361,7 @@ flowchart TD
   AOP --> APROV[RET-GAP-003 cerrado: SQL Server/PostgreSQL + garantía DB multinodo]
   V35 --> ACAUSE[RET-GAP-019: DEV14 a causal física Rxx]
   ACAUSE --> AUAT
-  APROV --> AACK[RET-GAP-017: transmisión/acuse/lifecycle]
+  APROV --> AACK[RET-GAP-017 cerrado: transmisión/acuse/lifecycle]
   AACK --> RECON[RET-GAP-008/009: SOAP, ledger y conciliación]
   RECON --> AUAT[UAT/E2E/homologación ACH]
 
@@ -378,7 +378,7 @@ flowchart TD
   CPROF --> SIM
 ```
 
-Con RET-GAP-003 y RET-GAP-004 cerrados, RET-GAP-019 queda bloqueada por evidencia normativa externa: V35 no enlaza `DEV14` con una única causal física Rxx ni declara una matriz determinística de contexto. El siguiente JOB debe obtener esa evidencia antes del UAT integral de no consentimiento. RET-GAP-017 permanece posterior y fuera de este cierre. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
+Con RET-GAP-003, RET-GAP-004 y RET-GAP-017 cerrados, RET-GAP-019 queda bloqueada por evidencia normativa externa: V35 no enlaza `DEV14` con una única causal física Rxx ni declara una matriz determinística de contexto. El siguiente JOB debe obtener esa evidencia antes del UAT integral de no consentimiento. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
 
 ## 24. CENIT RETURN UNBLOCK GATE
 

@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Dtos;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.External.Notifications;
 using Cfa.ACHInterbank.External.Connections.RespuestaTransaccionesAch;
@@ -30,6 +31,8 @@ public static class DependencyInjectionService
             configuration.GetSection(WsAxonEndpointSecurityOptions.SectionName));
         services.Configure<ControlledLocalSoapTransportOptions>(
             configuration.GetSection(ControlledLocalSoapTransportOptions.SectionName));
+        services.Configure<AchOutboundReturnTransportOptions>(
+            configuration.GetSection(AchOutboundReturnTransportOptions.SectionName));
 
         var resilienceSection = configuration.GetSection("Resilience:Soap");
         var timeoutSeconds = resilienceSection.GetValue<int?>("TimeoutSeconds") ?? 15;

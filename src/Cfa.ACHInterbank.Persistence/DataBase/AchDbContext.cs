@@ -102,6 +102,8 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<AchReturnTraceSequence> AchReturnTraceSequences => Set<AchReturnTraceSequence>();
     public DbSet<AchFileExport> AchFileExports => Set<AchFileExport>();
     public DbSet<AchFileExportTransaction> AchFileExportTransactions => Set<AchFileExportTransaction>();
+    public DbSet<AchFileTransmissionAttempt> AchFileTransmissionAttempts => Set<AchFileTransmissionAttempt>();
+    public DbSet<AchFileTransportResult> AchFileTransportResults => Set<AchFileTransportResult>();
     public DbSet<ContrapartidaDispatchBatch> ContrapartidaDispatchBatches => Set<ContrapartidaDispatchBatch>();
     public DbSet<ContrapartidaDispatchItem> ContrapartidaDispatchItems => Set<ContrapartidaDispatchItem>();
     public DbSet<ContrapartidaDispatchAttempt> ContrapartidaDispatchAttempts => Set<ContrapartidaDispatchAttempt>();
