@@ -1,4 +1,10 @@
-﻿# POLÍTICA ACTIVA — LIVE LOCAL CONTROLADO
+﻿# Codex System Overrides
+
+- Output Constraints: Never explain code unless explicitly asked.
+- Return only raw unified diffs or minimal block modifications.
+- Eliminate all conversational preambles, explanations, and post-summaries.
+
+# POLÍTICA ACTIVA — LIVE LOCAL CONTROLADO
 
 Esta sección reemplaza y deja sin efecto cualquier instrucción anterior o posterior que:
 
