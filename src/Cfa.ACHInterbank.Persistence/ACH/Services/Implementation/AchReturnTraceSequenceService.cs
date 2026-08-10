@@ -184,6 +184,7 @@ public sealed class AchReturnTraceSequenceService(AchDbContext context) : IAchRe
 
         var ambientTransaction = context.Database.CurrentTransaction?.GetDbTransaction();
         DbTransaction? ownedTransaction = null;
+        var ownedTransactionCommitted = false;
         try
         {
             if (ambientTransaction is null && ownsSerializableTransaction)
@@ -191,32 +192,37 @@ public sealed class AchReturnTraceSequenceService(AchDbContext context) : IAchRe
                 ownedTransaction = await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             }
 
-            await using var command = connection.CreateCommand();
-            command.Transaction = ambientTransaction ?? ownedTransaction;
-            command.CommandText = sql;
-            AddParameter(command, "@participantDfi", participantDfi);
-            AddParameter(command, "@sequenceDate", sequenceDate);
-            AddParameter(command, "@count", count);
-            AddParameter(command, "@maximumSequence", MaximumSequence);
-            AddParameter(command, "@capturedAtUtc", capturedAtUtc);
-
-            await using var reader = await command.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct))
+            AchReturnTraceRange range;
+            await using (var command = connection.CreateCommand())
             {
-                throw SequenceLimit();
+                command.Transaction = ambientTransaction ?? ownedTransaction;
+                command.CommandText = sql;
+                AddParameter(command, "@participantDfi", participantDfi);
+                AddParameter(command, "@sequenceDate", sequenceDate);
+                AddParameter(command, "@count", count);
+                AddParameter(command, "@maximumSequence", MaximumSequence);
+                AddParameter(command, "@capturedAtUtc", capturedAtUtc);
+
+                await using var reader = await command.ExecuteReaderAsync(ct);
+                if (!await reader.ReadAsync(ct))
+                {
+                    throw SequenceLimit();
+                }
+
+                range = new AchReturnTraceRange(reader.GetInt32(0), reader.GetInt32(1));
             }
 
-            var range = new AchReturnTraceRange(reader.GetInt32(0), reader.GetInt32(1));
             if (ownedTransaction is not null)
             {
                 await ownedTransaction.CommitAsync(ct);
+                ownedTransactionCommitted = true;
             }
 
             return range;
         }
         catch
         {
-            if (ownedTransaction is not null)
+            if (ownedTransaction is not null && !ownedTransactionCommitted && ownedTransaction.Connection is not null)
             {
                 await ownedTransaction.RollbackAsync(CancellationToken.None);
             }

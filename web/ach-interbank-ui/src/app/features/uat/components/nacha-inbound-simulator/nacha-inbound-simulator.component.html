@@ -1,6 +1,6 @@
 <app-page-header
-  title="Simulador NACHA-M de entrada"
-  subtitle="UAT local · Generación controlada de archivos inbound">
+  title="Simular respuesta de otra entidad"
+  subtitle="Genere un archivo NACHA-M de entrada sobre una transacción legítima del sistema">
 </app-page-header>
 
 <section class="simulator-page" aria-label="Simulador NACHA-M de entrada">
@@ -15,14 +15,14 @@
         Generación sin transmisión automática
       </mat-chip>
     </mat-chip-set>
-    <p>El backend conserva la autoridad sobre reglas normativas, nomenclatura, consecutivos y estructura NACHA-M.</p>
+    <p>El servicio conserva la autoridad sobre reglas normativas, nombres, consecutivos y estructura NACHA-M.</p>
   </div>
 
   <mat-card appearance="outlined" class="mode-card">
     <mat-card-header>
       <mat-icon mat-card-avatar aria-hidden="true">swap_horiz</mat-icon>
-      <mat-card-title>Tipo de simulación</mat-card-title>
-      <mat-card-subtitle>Selecciona el flujo que deseas representar en UAT</mat-card-subtitle>
+      <mat-card-title>¿Qué desea simular?</mat-card-title>
+      <mat-card-subtitle>Elija si responderá sobre una transacción existente o creará una entrada nueva</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
       <mat-button-toggle-group
@@ -34,8 +34,8 @@
           (click)="requestModeChange('IncomingTransactions')">
           <mat-icon aria-hidden="true">south_west</mat-icon>
           <span>
-            <strong>Transacciones entrantes</strong>
-            <small>Entidad externa origina · CFA recibe</small>
+            <strong>Nueva transacción entrante</strong>
+            <small>Una entidad externa origina y CFA recibe</small>
           </span>
         </mat-button-toggle>
         <mat-button-toggle
@@ -43,8 +43,8 @@
           (click)="requestModeChange('DifferentialResponses')">
           <mat-icon aria-hidden="true">assignment_return</mat-icon>
           <span>
-            <strong>Respuestas diferenciales</strong>
-            <small>Respuesta correlacionada · sin movimiento directo</small>
+            <strong>Respuesta sobre una transacción</strong>
+            <small>La contraparte responde sobre una operación creada por CFA</small>
           </span>
         </mat-button-toggle>
       </mat-button-toggle-group>
@@ -86,7 +86,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Tipo de operación</mat-label>
+            <mat-label>Tipo de respuesta</mat-label>
             <mat-select formControlName="scenarioType" (selectionChange)="simulationContextChanged()">
               <mat-option *ngFor="let item of scenarios" [value]="item.value">
                 {{ item.label }}
@@ -98,7 +98,7 @@
             </mat-error>
           </mat-form-field>
 
-          <mat-form-field appearance="outline" *ngIf="isDifferentialMode()">
+          <mat-form-field appearance="outline" *ngIf="isDifferentialMode() && !isReturnScenario()">
             <mat-label>Resultado simulado</mat-label>
             <mat-select formControlName="responseMode">
               <mat-option *ngFor="let item of responseModes" [value]="item.value">
@@ -111,7 +111,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>{{ isDifferentialMode() ? 'Institución que responde' : 'Institución originadora externa' }}</mat-label>
+            <mat-label>{{ isDifferentialMode() ? 'Entidad que responde' : 'Entidad originadora externa' }}</mat-label>
             <mat-select
               formControlName="originFinancialInstitutionId"
               (selectionChange)="isDifferentialMode() && loadEligibleTransactions()"
@@ -122,7 +122,7 @@
               </mat-option>
             </mat-select>
             <mat-icon matSuffix aria-hidden="true">outbound</mat-icon>
-            <mat-hint>CFA se excluye mediante IsDefaultSource.</mat-hint>
+            <mat-hint>CFA se excluye automáticamente del catálogo de contrapartes.</mat-hint>
             <mat-error *ngIf="form.controls.originFinancialInstitutionId.hasError('required')">
               Selecciona una institución externa activa.
             </mat-error>
@@ -131,10 +131,10 @@
           <div class="destination-field" [class.destination-field--error]="!defaultDestination">
             <span class="field-label">
               <mat-icon aria-hidden="true">home_work</mat-icon>
-              Institución receptora
+              Entidad receptora
             </span>
             <strong>{{ defaultDestination?.name || 'No disponible' }}</strong>
-            <small *ngIf="defaultDestination">Resuelta desde IsDefaultSource = true; no es editable.</small>
+            <small *ngIf="defaultDestination">CFA se determina desde la configuración institucional y no es editable.</small>
             <small *ngIf="institutionCatalogError" role="alert">{{ institutionCatalogError }}</small>
           </div>
         </div>
@@ -280,12 +280,26 @@
             </mat-error>
           </mat-form-field>
 
-          <mat-form-field appearance="outline" *ngIf="isDifferentialMode()">
-            <mat-label>Causal</mat-label>
-            <input matInput type="text" formControlName="reasonCode" maxlength="20" placeholder="Ejemplo: R01" />
-            <mat-hint>Obligatoria para rechazos y devoluciones.</mat-hint>
+          <mat-form-field appearance="outline" *ngIf="isReturnScenario()">
+            <mat-label>Causal de devolución</mat-label>
+            <mat-select formControlName="reasonCode" [attr.aria-busy]="loadingReturnCodes">
+              <mat-option *ngFor="let item of applicableReturnCodes" [value]="item.code">
+                {{ item.code }} — {{ item.description }}
+              </mat-option>
+            </mat-select>
+            <mat-icon matSuffix aria-hidden="true">assignment_return</mat-icon>
+            <mat-hint>Catálogo oficial vigente para la cámara y el tipo de transacción.</mat-hint>
             <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
-              Ingresa la causal para este escenario.
+              Seleccione una causal de devolución.
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="isDifferentialMode() && !isReturnScenario() && form.controls.scenarioType.value.includes('Rejection')">
+            <mat-label>Causal del rechazo</mat-label>
+            <input matInput type="text" formControlName="reasonCode" maxlength="20" />
+            <mat-hint>Registre la causal aplicable al rechazo.</mat-hint>
+            <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
+              Ingrese la causal del rechazo.
             </mat-error>
           </mat-form-field>
 
@@ -313,6 +327,31 @@
         <div *ngIf="loadingCycles" class="inline-loading" role="status">
           <mat-spinner diameter="22"></mat-spinner>
           Consultando ciclos disponibles…
+        </div>
+
+        <div *ngIf="loadingReturnCodes" class="inline-loading" role="status">
+          <mat-spinner diameter="22"></mat-spinner>
+          Consultando causales de devolución…
+        </div>
+
+        <div *ngIf="returnCodesError && !loadingReturnCodes" class="inline-state inline-state--error" role="alert">
+          <mat-icon aria-hidden="true">rule</mat-icon>
+          <div>
+            <strong>No se pudieron cargar las causales</strong>
+            <p>{{ returnCodesError }}</p>
+          </div>
+          <button mat-stroked-button type="button" (click)="loadReturnCodes()">Reintentar</button>
+        </div>
+
+        <div
+          *ngIf="isReturnScenario() && form.controls.clearingHouseCode.value && !loadingReturnCodes && !returnCodesError && applicableReturnCodes.length === 0"
+          class="inline-state"
+          role="status">
+          <mat-icon aria-hidden="true">assignment_late</mat-icon>
+          <div>
+            <strong>Sin causales aplicables</strong>
+            <p>No hay causales de devolución vigentes para la cámara y el tipo de transacción seleccionados.</p>
+          </div>
         </div>
 
         <div *ngIf="cycleError && !loadingCycles" class="inline-state inline-state--error" role="alert">
@@ -408,7 +447,7 @@
               <td mat-cell *matCellDef="let item">{{ item.identifier }}</td>
             </ng-container>
             <ng-container matColumnDef="traceNumber">
-              <th mat-header-cell *matHeaderCellDef>Traza</th>
+              <th mat-header-cell *matHeaderCellDef>Rastreo original</th>
               <td mat-cell *matCellDef="let item"><span class="mono">{{ item.traceNumber }}</span></td>
             </ng-container>
             <ng-container matColumnDef="institution">
@@ -427,8 +466,12 @@
               <th mat-header-cell *matHeaderCellDef>Ciclo</th>
               <td mat-cell *matCellDef="let item">{{ item.cycle }}</td>
             </ng-container>
+            <ng-container matColumnDef="account">
+              <th mat-header-cell *matHeaderCellDef>Cuenta</th>
+              <td mat-cell *matCellDef="let item"><span class="mono">{{ item.accountNumberMasked }}</span></td>
+            </ng-container>
             <ng-container matColumnDef="amount">
-              <th mat-header-cell *matHeaderCellDef class="amount-cell">Monto</th>
+              <th mat-header-cell *matHeaderCellDef class="amount-cell">Valor</th>
               <td mat-cell *matCellDef="let item" class="amount-cell">
                 {{ item.amount | currency:'COP':'symbol-narrow':'1.2-2':'es-CO' }}
               </td>
@@ -480,6 +523,7 @@
         <mat-card-subtitle>Verifica la información que se enviará</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
+        <p class="operational-summary" role="status">{{ operationalSummary }}</p>
         <dl class="summary-grid">
           <div>
             <dt>Cámara</dt>
@@ -490,7 +534,7 @@
             <dd>{{ operationLabel }}</dd>
           </div>
           <div>
-            <dt>Origen externo</dt>
+            <dt>Entidad que responde</dt>
             <dd>{{ selectedOrigin?.name || 'Pendiente' }}</dd>
           </div>
           <div>
@@ -532,7 +576,7 @@
           [disabled]="!canExecute">
           <mat-spinner *ngIf="generating" diameter="18"></mat-spinner>
           <mat-icon *ngIf="!generating" aria-hidden="true">play_arrow</mat-icon>
-          {{ generating ? 'Generando…' : 'Generar archivo' }}
+          {{ generating ? 'Generando…' : 'Generar archivo NACHA-M' }}
         </button>
       </mat-card-actions>
     </mat-card>
@@ -541,8 +585,8 @@
   <mat-card *ngIf="result" appearance="outlined" class="result-card" aria-live="polite">
     <mat-card-header>
       <mat-icon mat-card-avatar aria-hidden="true">task_alt</mat-icon>
-      <mat-card-title>Simulación generada</mat-card-title>
-      <mat-card-subtitle>Archivo pendiente del flujo de carga formal</mat-card-subtitle>
+      <mat-card-title>Archivo generado correctamente</mat-card-title>
+      <mat-card-subtitle>El archivo no fue importado; usted decide cuándo cargarlo</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
       <p class="result-message">{{ result.message }}</p>
@@ -612,6 +656,10 @@
         <mat-icon aria-hidden="true">restart_alt</mat-icon>
         Nueva simulación
       </button>
+      <button mat-stroked-button type="button" (click)="goToUpload()">
+        <mat-icon aria-hidden="true">upload_file</mat-icon>
+        Ir a carga de archivos NACHA-M
+      </button>
       <button mat-flat-button color="primary" type="button" (click)="download(result.id)">
         <mat-icon aria-hidden="true">download</mat-icon>
         Descargar archivo
@@ -678,7 +726,7 @@
           </ng-container>
           <ng-container matColumnDef="scenario">
             <th mat-header-cell *matHeaderCellDef>Escenario</th>
-            <td mat-cell *matCellDef="let item">{{ item.scenarioType }}</td>
+            <td mat-cell *matCellDef="let item">{{ scenarioLabel(item.scenarioType) }}</td>
           </ng-container>
           <ng-container matColumnDef="file">
             <th mat-header-cell *matHeaderCellDef>Archivo</th>

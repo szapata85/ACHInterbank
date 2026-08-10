@@ -128,7 +128,7 @@ No hay conexión demostrada entre este flujo y un sustituto de ReturnOut. `Regis
 
 ## 6. Return In — ACH Colombia
 
-**Estado: 🟠 PARCIAL — perfil/admisión física y resolución operativa demostrados por separado.**
+**Estado: ✅ CERRADA Y DEMOSTRADA — perfil/admisión física y resolución operativa integrados por flujo normal.**
 
 Implementado y demostrado:
 
@@ -146,7 +146,7 @@ Implementado y demostrado:
 - certificados reales administrados por SPA, sobre digital original `.003` descifrado en memoria, parser genérico y persistencia física de una Return R04 huérfana;
 - reupload del mismo sobre rechazado como duplicado, con una sola ingesta canónica y una sola Return funcional.
 
-Residual de `RET-GAP-007`: `ProfileNotFound` quedó resuelto y la cadena certificado → archivo cifrado original → descifrado → perfil → parser → persistencia → Return R04 → huérfana quedó demostrada. El entorno fresco no contiene la transacción original cuyo rastreo conserva la addenda 99 y la API normal de alta genera su propio rastreo diario; por seguridad no se relajó la correlación exacta ni se creó una candidata por SQL/seed post-parser. Por ello la huérfana física no pudo enlazarse en la misma corrida al downstream ya homologado. La matriz return-to-SOAP/ledger/conciliación permanece separada en RET-GAP-008/009. No corresponde reabrir B1/B2.
+`RET-GAP-007` quedó cerrado por dos evidencias complementarias. El sobre certificado histórico `.003` conserva su R04 y produce una huérfana segura cuando su transacción histórica no existe. El escenario `RET.SIMULATOR.RETURN.E2E.1` crea una `AchTransaction` por `/transactions/create`, toma su rastreo oficial, genera mediante Opción C una devolución desde contraparte externa, no autoimporta, carga manualmente por `/transactions/nacha-upload` y demuestra parser, Addenda 99, causal catalogada, correlación exacta `Original Trace + ciclo resuelto`, lifecycle, evento, auditoría y replay sin segunda aplicación. No se usaron SQL para crear la transacción, override de rastreo ni relajación de correlación. La matriz return-to-SOAP/ledger/conciliación permanece separada en RET-GAP-008/009. No corresponde reabrir B1/B2.
 
 ## 7. Return Out — ACH Colombia
 
@@ -287,7 +287,7 @@ UploadRequired=true
 ExternalTransmission=false
 ```
 
-El usuario debe cargar el archivo en `/transactions/nacha-upload`. Residual: `BuildFile` renderiza registros con posiciones/valores internos y no usa el perfil real Opción C; diferencial además puede quedar deshabilitado por configuración. Sirve como simulador local sintético, no como evidencia de homologación por cámara.
+El usuario debe cargar el archivo en `/transactions/nacha-upload`. Para devoluciones ACH Colombia, el simulador usa `INachaFileBuilder` y el perfil Opción C V35, deriva `Original Trace` de `AchTransaction.TraceNumber`, obtiene causal/ciclo/entidades desde catálogos persistidos y genera únicamente el artefacto físico. Éxito y rechazo conservan el comportamiento existente; la respuesta diferencial no-return continúa bloqueada por `DIFFERENTIAL_GENERATOR_NOT_HOMOLOGATED` y no se presenta como homologada. CENIT Return Out permanece bloqueado.
 
 ## 20. UX, operación manual y observabilidad
 
@@ -296,6 +296,7 @@ El usuario debe cargar el archivo en `/transactions/nacha-upload`. Residual: `Bu
 - SPA: existen gestión de devoluciones, ROR, configuración NACHA y simulador.
 - Dashboard: expone decisiones/estado operativo, pero no demuestra conciliación ReturnOut ni cierre de huérfanas.
 - Simulador: genera evidencia y archivo; no importa ni transmite.
+- Simulador de devoluciones: Angular Material en español, selección de transacción/catálogo/ciclo, resumen humano, estados accesibles y cobertura Playwright desktop/móvil.
 
 Una deficiencia de pantalla no invalida el motor; tampoco una pantalla existente prueba homologación.
 
@@ -304,6 +305,7 @@ Una deficiencia de pantalla no invalida el motor; tampoco una pantalla existente
 - JOB 4: 13 pruebas focalizadas de lifecycle/generación.
 - JOB 4.CI.2: 2176 passed, 0 failed, 9 skipped, 2185 total.
 - RET.ACH.OUT.OPTIONC.1: contract V35 Opción C 4/4; servicio/lifecycle/CENIT 38/38; caracterización ampliada 45/45; naming V35 45/45; suite backend final 2180 passed, 0 failed, 9 skipped, 2189 total.
+- RET.SIMULATOR.RETURN.E2E.1: Playwright runtime 1/1; creación UI → simulador → archivo → carga manual → correlación/lifecycle → replay.
 - RET.OUT.PROVIDERS.1: categoría `OutboundReturnMultiDb` 4/4 sobre SQL Server y PostgreSQL reales; cada provider ejecuta RACE A-H, rollback de claim/lifecycle, batch solapado, retry, prenotificación y migración UP/DOWN, además del hard-fail con duplicados históricos conservados. Suite backend CI final: 2181 passed, 0 failed, 9 skipped, 2190 total.
 - Incoming B2: carreras reales SQL Server/PostgreSQL documentadas en JOB 3.1.
 - Outbound: garantía DB multinodo demostrada con locks in-memory neutralizados, contexts/scopes/servicios independientes, claim único por transacción y reserva relacional del trace diario por participante.
@@ -323,7 +325,7 @@ La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpu
 | RET-GAP-004 | B4/B5 | ACHCOL | Out | Perfil/render físico V35 | ✅ CERRADA Y DEMOSTRADA | `OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0`, Opción C, contract tests V35, naming `RRRRTTT.ZZZ.1`, no-fallback | Ninguna dentro de la canonicalización física; homologación externa continúa separada | — | — | — | No reabrir |
 | RET-GAP-005 | B4/B5 | CENIT | Out | Contrato técnico STA | 🔴 BLOQUEADA DELIBERADAMENTE | Reglamento/Annex A/B; guard | Manual STA, layout, DFI, correlación, naming, secuencia/reset | levantar guard sin norma | CRÍTICA | Evidencia externa STA | CENIT.STA.HOMOLOGATION |
 | RET-GAP-006 | B5 | CENIT | Out | Perfil/parser/generator soportado | ⚪ NO IMPLEMENTADA | guard antes del generador | Implementación Opción C solo después de RET-GAP-005 | generación inválida | CRÍTICA | RET-GAP-005 | CENIT.RETURNOUT.OPTIONC |
-| RET-GAP-007 | B6 | ACHCOL demostrado aguas abajo; CENIT no homologado | In | Huérfanas/manual | 🟠 PARCIAL — perfil físico y downstream demostrados, unión pendiente | `RET.PROFILE.ACHCOL.INBOUND.RETURN.1`: certificados SPA + sobre original `.003` + descifrado + perfil V35 + parser + BD + huérfana + replay; `RET.ORPHAN.E2E.1`: resolución/lifecycle/auditoría | Falta una transacción original local legítima con el rastreo exacto conservado por la R04 para enlazar esa misma huérfana física al downstream | sembrar por SQL, relajar rastreo o reutilizar una candidata incompatible | ALTA | importar/provisionar la transacción original mediante un flujo normal que preserve su rastreo externo | RET.RETURNIN.PHYSICAL.ORIGINAL.TX.1 |
+| RET-GAP-007 | B6 | ACHCOL demostrado aguas abajo; CENIT no homologado | In | Huérfanas/manual + happy path integrado | ✅ CERRADA Y DEMOSTRADA | Escenario A: `.003` original → R04 → huérfana segura; escenario B `RET.SIMULATOR.RETURN.E2E.1`: alta UI legítima + Opción C + carga manual + correlación exacta + lifecycle/causal/evento/auditoría + replay | Ninguna dentro del alcance ACH Colombia Return In correlacionado; transporte/ledger permanecen separados | sembrar por SQL, relajar rastreo, modificar `.003` o autoimportar | — | — | No reabrir |
 | RET-GAP-008 | B7 | Ambas | In/Out | Matriz return-SOAP-retry-conciliación | ❓ NO DETERMINABLE | guard no monetario, dispatch/readiness | Política normativa y E2E por escenario | doble/no movimiento | CRÍTICA | RET-GAP-009 + norma | RET.RECONCILIATION |
 | RET-GAP-009 | B8 | Ambas | In/Out | Ledger/conciliación separado | ⚪ NO IMPLEMENTADA | no se halló ledger Return específico | Asiento, reconciliation gate y auditoría | descuadre financiero | CRÍTICA | contrato contable | RET.LEDGER |
 | RET-GAP-010 | B9 | Ambas | Ambas | Taxonomía rechazo/return/differential/técnico | 🟡 PARCIAL — residual identificado | classifiers, catalogs, response processor | Read-model/event contract unificado | operación confusa | MEDIA | RET-GAP-008 | RET.TAXONOMY |
@@ -331,7 +333,7 @@ La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpu
 | RET-GAP-012 | B10 | CENIT | ROR | ROR R60-R74 | 🔴 BLOQUEADA DELIBERADAMENTE | Annex A; artefactos provisionales | Perfil físico/UAT/homologación CENIT | archivo inválido | CRÍTICA | RET-GAP-005/006 | Después de ReturnOut CENIT |
 | RET-GAP-013 | Diferencial | ACHCOL | Respuesta | Prenote differential | 🟠 IMPLEMENTADA SIN EVIDENCIA SUFICIENTE | processor/tests, `MovesMoney=false` | norma/perfil/fixture/E2E externo | transición incorrecta | ALTA | homologación diferencial | DIFF.ACH.HOMOLOGATION |
 | RET-GAP-014 | Diferencial | CENIT | Respuesta | Differential por cámara | ❓ NO DETERMINABLE | processor genérico, sin contrato CENIT demostrado | normativa, perfil, mapping, fixture, E2E | inferencia entre cámaras | ALTA | norma CENIT | DIFF.CENIT.ANALYSIS |
-| RET-GAP-015 | Simulador | Ambas | In | normal/return/differential | 🟡 PARCIAL — residual identificado | generate-only + metadata | renderer UAT hardcoded; perfil real no demostrado | falsa confianza UAT | MEDIA | perfiles aprobados | UAT.SIM.PROFILES |
+| RET-GAP-015 | Simulador | Ambas | In | normal/return/differential | 🟡 PARCIAL — Return ACHCOL demostrado | generate-only + metadata; devolución ACHCOL con Opción C y E2E físico | diferencial no-return y CENIT continúan sin generador homologado | falsa confianza si se extrapola el happy path | MEDIA | perfiles aprobados por escenario | UAT.SIM.PROFILES |
 | RET-GAP-016 | B4 | CENIT | In | Return In integral | 🟠 IMPLEMENTADA SIN EVIDENCIA SUFICIENTE | pipeline genérico + causas | E2E provider-specific con fixture homologado | retorno perdido/mal causalizado | ALTA | fixture/norma | CENIT.RETURNIN.E2E |
 | RET-GAP-017 | B5 | ACHCOL | Out | transmisión/acuse/conciliación | 🔴 ABIERTA — CONTRATO DE TRANSPORTE NO DETERMINABLE | `RET.OUTBOUND.ACCEPTANCE.1`: V35 2.4.2 demuestra SFTP/MFT/GoAnywhere a nivel ACH, pero el repositorio no contiene port, adapter, configuración ni decisión versionada que vincule ACHInterbank con el SFTP administrado por CFA; tampoco existe ACK correlacionable | obtener contrato aplicativo-canal, ownership del depósito, identidad del artefacto `.RET.env`, resultado de transporte, idempotencia/correlación y manejo de resultado desconocido; ACK/aceptación permanece bloqueado hasta contrato externo explícito | inventar canal o confundir entrega con aceptación | ALTA | RET-GAP-004/003 cerradas + evidencia externa del canal | RET.OUTBOUND.TRANSPORT.CONTRACT.1 |
 | RET-GAP-018 | Operación | Ambas | Ambas | dashboard/read-model por EntryDetail | 🟡 PARCIAL — residual identificado | read store y command center | reconstrucción unificada y alertas | investigación lenta | MEDIA | taxonomía | RET.OPS.OBSERVABILITY |
@@ -428,7 +430,7 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 2. `RET.ACH.OUT.CAUSAL.V35.EVIDENCE`: obtener de ACH Colombia la regla primaria que vincule `DEV14` con la causal física Rxx o la matriz contextual determinística; no implementar mientras falte.
 3. `RET.OUTBOUND.ACCEPTANCE.1`: ✅ characterization completada; `TRANSPORT_GATE=NO-GO` y `ACK_GATE=NO-GO`, sin implementación por falta de contrato aplicativo-canal.
 4. `RET.OUTBOUND.TRANSPORT.CONTRACT.1`: obtener la decisión técnica versionada y el contrato operativo del canal ReturnOut ACH Colombia antes de implementar dispatch.
-5. `RET.PROFILE.ACHCOL.INBOUND.RETURN.1`: 🟠 perfil V35, certificados, archivo cifrado original, descifrado, parser, huérfana e idempotencia de upload demostrados; falta la transacción original legítima para unir esa huérfana física al downstream ya homologado.
+5. `RET.PROFILE.ACHCOL.INBOUND.RETURN.1` + `RET.SIMULATOR.RETURN.E2E.1`: ✅ perfil V35, `.003` huérfana segura y happy path con transacción legítima, carga manual, correlación exacta, lifecycle e idempotencia demostrados.
 6. `RET.RECONCILIATION.1`: matriz SOAP/ledger/retry/conciliación.
 7. `CENIT.STA.HOMOLOGATION.1`: adquirir/validar Manual STA y contrato técnico; sin implementación por analogía.
 8. Solo después: perfil, provider tests, UAT y homologación CENIT.
@@ -440,13 +442,12 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ## 27. Próximo JOB único
 
-### RET.RETURNIN.PHYSICAL.ORIGINAL.TX.1 — Provisión legítima de la transacción original
+### RET.SIMULATOR.RETURN.E2E.1 — completado
 
-- **Objetivo:** incorporar mediante un flujo normal de aplicación la transacción original referenciada por el archivo físico R04, preservando su rastreo externo, para ejecutar la resolución de esa misma huérfana sin SQL ni seed post-parser.
-- **RET-GAP que mantiene bloqueada:** RET-GAP-007.
-- **Evidencia faltante:** candidata local con cámara, cuenta, monto y `TraceNumber`/`OriginalTraceRef` exactos, creada por un contrato operativo legítimo y auditable.
-- **Restricciones:** no insertar por SQL, no modificar el archivo original, no relajar el rastreo exacto, no agregar override UAT al alta transaccional y no usar seed post-parser.
-- **Tests futuros mínimos:** provisión idempotente de la original, resolución SPA de la huérfana física R04, lifecycle/evento/auditoría y replay sin doble aplicación.
+- **Objetivo cumplido:** una transacción creada por flujo normal se selecciona en el simulador, su rastreo se conserva como `Original Trace` y la devolución entra por carga manual al pipeline oficial.
+- **RET-GAP cerrado:** RET-GAP-007.
+- **Evidencia preservada:** el archivo histórico `.003` no fue modificado y continúa representando el escenario huérfano; el happy path usa un archivo nuevo y una transacción legítima del mismo escenario UAT.
+- **Restricciones verificadas:** sin INSERT SQL, sin override de rastreo, sin correlación aproximada, sin autoimport y sin pipeline paralelo.
 - **Modelo recomendado:** `gpt-5.6-sol`.
 - **Reasoning recomendado:** `high`.
 

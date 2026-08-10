@@ -313,7 +313,10 @@ public class NachaParserService : INachaParserService
 
             await _context.SaveChangesAsync(ct);
             var validAddendas = currentHeader?.AddendaRecords?.ToList() ?? [];
-            await ApplyReturnStateTransitionsAsync(validEntries, validAddendas, failures, ct);
+            if (request?.IncomingNachaFileIngestionId is null)
+            {
+                await ApplyReturnStateTransitionsAsync(validEntries, validAddendas, failures, ct);
+            }
         }
         catch (Exception ex)
         {
@@ -672,7 +675,7 @@ public class NachaParserService : INachaParserService
             return new NachaHeader
             {
                 NachaID = HashHelper.GenerateHashSha1(
-                    $"{ReadField(profileReader, a, "1", "IMMEDIATEDESTINATION").Trim()}{immediateOrigin}{fileCreationDate.Trim()}{ReadField(profileReader, a, "1", "FILECREATIONTIME").Trim()}"),
+                    $"{ReadField(profileReader, a, "1", "IMMEDIATEDESTINATION").Trim()}{immediateOrigin}{fileCreationDate.Trim()}{ReadField(profileReader, a, "1", "FILECREATIONTIME").Trim()}{ReadField(profileReader, a, "1", "FILEIDMODIFIER").Trim()}"),
                 PriorityCode = ReadField(profileReader, a, "1", "PRIORITYCODE"),
                 ImmediateDestination = ReadField(profileReader, a, "1", "IMMEDIATEDESTINATION").Trim(),
                 ImmediateOrigin = immediateOrigin,

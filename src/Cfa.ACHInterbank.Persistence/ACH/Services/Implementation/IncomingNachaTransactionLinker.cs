@@ -32,13 +32,13 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
         // 1) OriginalTraceRef exacto para devoluciones
         if (!string.IsNullOrWhiteSpace(originalTraceRef))
         {
-            var candidates = await _context.AchTransactions.AsNoTracking()
-                .Where(x => x.TraceNumber == originalTraceRef || x.OriginalTraceRef == originalTraceRef)
-                .Select(x => x.Id)
-                .ToListAsync(ct);
+            var exactQuery = _context.AchTransactions.AsNoTracking()
+                .Where(x => x.TraceNumber == originalTraceRef || x.OriginalTraceRef == originalTraceRef);
+            var (candidates, narrowedByCycle) = await ResolveExactCandidatesAsync(exactQuery, context, ct);
             if (candidates.Count == 1)
             {
-                return Build(IncomingNachaLinkType.ExactOriginalTraceRef, candidates[0], true, 1.00m, false, false, "ExactOriginalTraceRef", candidates, trace, originalTraceRef, recipientIdentifier);
+                var criterion = narrowedByCycle ? "ExactOriginalTraceRef+ResolvedCycle" : "ExactOriginalTraceRef";
+                return Build(IncomingNachaLinkType.ExactOriginalTraceRef, candidates[0], true, 1.00m, false, false, criterion, candidates, trace, originalTraceRef, recipientIdentifier);
             }
 
             if (candidates.Count > 1)
@@ -50,13 +50,13 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
         // 2) TraceNumber exacto y único
         if (!string.IsNullOrWhiteSpace(trace))
         {
-            var candidates = await _context.AchTransactions.AsNoTracking()
-                .Where(x => x.TraceNumber == trace)
-                .Select(x => x.Id)
-                .ToListAsync(ct);
+            var exactQuery = _context.AchTransactions.AsNoTracking()
+                .Where(x => x.TraceNumber == trace);
+            var (candidates, narrowedByCycle) = await ResolveExactCandidatesAsync(exactQuery, context, ct);
             if (candidates.Count == 1)
             {
-                return Build(IncomingNachaLinkType.ExactTrace15, candidates[0], true, 0.98m, false, false, "ExactTrace15", candidates, trace, originalTraceRef, recipientIdentifier);
+                var criterion = narrowedByCycle ? "ExactTrace15+ResolvedCycle" : "ExactTrace15";
+                return Build(IncomingNachaLinkType.ExactTrace15, candidates[0], true, 0.98m, false, false, criterion, candidates, trace, originalTraceRef, recipientIdentifier);
             }
 
             if (candidates.Count > 1)
@@ -141,6 +141,26 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
         }
 
         return Build(IncomingNachaLinkType.NotFound, null, false, 0.0m, false, true, "NotFound", [], trace, originalTraceRef, recipientIdentifier);
+    }
+
+    private static async Task<(IReadOnlyList<int> Candidates, bool NarrowedByCycle)> ResolveExactCandidatesAsync(
+        IQueryable<AchTransaction> exactQuery,
+        IncomingNachaLinkingContext context,
+        CancellationToken ct)
+    {
+        var candidates = await exactQuery.Select(x => x.Id).ToListAsync(ct);
+        if (candidates.Count <= 1 || string.IsNullOrWhiteSpace(context.ResolvedAchCycleId))
+        {
+            return (candidates, false);
+        }
+
+        var cycleCandidates = await exactQuery
+            .Where(x => x.AchCycleId == context.ResolvedAchCycleId)
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+        return cycleCandidates.Count > 0
+            ? (cycleCandidates, true)
+            : (candidates, false);
     }
 
     private static TransactionTypeEnum? ResolveExpectedTransactionType(IncomingNachaFunctionalClass functionalClass)

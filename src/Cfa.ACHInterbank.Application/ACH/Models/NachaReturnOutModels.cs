@@ -48,4 +48,7 @@ public sealed record NachaReturnOutBuildResult(
     int RecordCount,
     string ProfileCode,
     string NormativeVersion,
-    bool LegacyFallbackUsed);
+    bool LegacyFallbackUsed,
+    int BlockCount = 0,
+    int EntryAddendaCount = 0,
+    string EntryHash = "");

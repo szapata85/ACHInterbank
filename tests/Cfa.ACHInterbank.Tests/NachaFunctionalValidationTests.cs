@@ -392,6 +392,24 @@ public class NachaFunctionalValidationTests
     }
 
     [Fact]
+    public async Task ParseReturnFile_ShouldPersistDistinctHeaders_WhenOnlyFileIdModifierChanges()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+        var first = BuildReturnFile();
+        var second = first.ToCharArray();
+        second[35] = 'B';
+
+        (await ParseAsync(context, first, "1234567.001.RET")).Failures.Should().BeEmpty();
+        (await ParseAsync(context, new string(second), "1234567.002.RET")).Failures.Should().BeEmpty();
+
+        context.NachaHeaders.Should().HaveCount(2);
+        context.NachaHeaders.Select(x => x.NachaID).Should().OnlyHaveUniqueItems();
+        context.NachaHeaders.Select(x => x.FileIdModifier).Should().BeEquivalentTo("A", "B");
+    }
+
+    [Fact]
     public async Task ParseReturnFile_ShouldAssociateOriginalEntry()
     {
         using var connection = CreateOpenConnection();
@@ -429,6 +447,66 @@ public class NachaFunctionalValidationTests
 
         context.EntryDetails.Single().Amount.Should().Be(1500m);
         state.Verify(x => x.TransitionAsync(It.IsAny<int>(), It.IsAny<AchTransferStateEnum>(), It.IsAny<AchStateEventSourceEnum>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ParseReturnFile_ForOfficialIngestion_ShouldDelegateLifecycleToPostParseProcessor()
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateSqliteContext(connection);
+        SeedParserCatalog(context);
+        var cycle = new AchCycle
+        {
+            Id = "RETURN-CYCLE",
+            CycleName = "Ciclo 1",
+            ProcessingDate = DateTime.Today,
+            StartTime = TimeSpan.Zero,
+            EndTime = TimeSpan.FromHours(23),
+            CutoffTime = TimeSpan.FromHours(23),
+            ClearingHouseId = 1
+        };
+        context.AchCycles.Add(cycle);
+        context.AchTransactions.Add(new AchTransaction
+        {
+            Id = 901,
+            TraceNumber = "123456780000001",
+            TraceSequenceNumber = 1,
+            TransactionExternalId = "ORIGINAL-901",
+            Reference = "ORIGINAL-901",
+            Type = TransactionTypeEnum.Credit,
+            Amount = 1500m,
+            State = AchTransferStateEnum.Pending,
+            AchCycleId = cycle.Id,
+            AchBatchId = 1,
+            SourceInstitutionId = 1,
+            DestinationInstitutionId = 1,
+            SourceAccountNumber = "SRC",
+            DestinationAccountNumber = "DST",
+            RecipientIdNumber = "RID",
+            CompanyName = "CFA",
+            CompanyIdentification = "CFA",
+            OriginatingDFI = "12345678",
+            ReceivingDFI = "76543210",
+            TransactionCode = "22",
+            EffectiveEntryDate = DateTime.Today
+        });
+        await context.SaveChangesAsync();
+        var state = new Mock<IAchStateTransitionService>(MockBehavior.Strict);
+        var parser = new NachaParserService(context, Mock.Of<ILogger<NachaParserService>>(), state.Object);
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(BuildReturnFile()));
+
+        var result = await parser.ParseAndSaveDetailedAsync(
+            stream,
+            "1234567.001.RET",
+            new NachaParseRequest
+            {
+                CorrelationId = "official-ingestion",
+                IncomingNachaFileIngestionId = Guid.NewGuid()
+            });
+
+        result.Failures.Should().BeEmpty();
+        state.VerifyNoOtherCalls();
+        (await context.AchTransactions.SingleAsync(x => x.Id == 901)).State.Should().Be(AchTransferStateEnum.Pending);
     }
 
     [Fact]

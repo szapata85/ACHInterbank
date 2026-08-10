@@ -4,6 +4,7 @@ using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -22,15 +23,30 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
     private readonly AchDbContext _context;
     private readonly NachaInboundSimulatorOptions _options;
     private readonly INachaConfigResolver _profileResolver;
+    private readonly INachaFileBuilder? _nachaFileBuilder;
+    private readonly IAchRegulatoryCatalogService _regulatoryCatalogService;
+    private readonly IAchReturnTraceSequenceService _returnTraceSequenceService;
+    private readonly ITransactionValidator _transactionValidator;
+    private readonly TimeProvider _timeProvider;
 
     public NachaInboundSimulationService(
         AchDbContext context,
         IOptions<NachaInboundSimulatorOptions> options,
-        INachaConfigResolver? profileResolver = null)
+        INachaConfigResolver? profileResolver = null,
+        INachaFileBuilder? nachaFileBuilder = null,
+        IAchRegulatoryCatalogService? regulatoryCatalogService = null,
+        IAchReturnTraceSequenceService? returnTraceSequenceService = null,
+        ITransactionValidator? transactionValidator = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _options = options.Value;
         _profileResolver = profileResolver ?? new NachaConfigResolver(context);
+        _nachaFileBuilder = nachaFileBuilder;
+        _regulatoryCatalogService = regulatoryCatalogService ?? new AchRegulatoryCatalogService(context);
+        _returnTraceSequenceService = returnTraceSequenceService ?? new AchReturnTraceSequenceService(context);
+        _transactionValidator = transactionValidator ?? new TransactionValidator(context);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<GenerateNachaInboundSimulationResponse> GenerateAsync(GenerateNachaInboundSimulationRequest request, string userName, CancellationToken ct = default)
@@ -63,6 +79,9 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
         var clearingHouse = await ResolveClearingHouseAsync(request.ClearingHouseCode, ct);
         await EnsureCycleAvailableAsync(request.CycleCode, clearingHouse.Id, request.BusinessDate, request.ScenarioType, ct);
+        var selectedCycle = await _context.AchCycles
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == request.CycleCode, ct);
         var destination = await ResolveDestinationAsync(request.DestinationFinancialInstitutionId, request.DestinationFinancialInstitutionCode, ct);
         var origin = await ResolveOriginAsync(request.OriginFinancialInstitutionId, request.OriginFinancialInstitutionCode, ct);
         if (origin.Id == destination.Id)
@@ -82,8 +101,19 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         var entriesCount = Math.Max(1, existingReferences.Count == 0 ? request.EntriesCount : existingReferences.Count);
         var sequence = await NextDailySequenceAsync(clearingHouse.Id, origin.Id, request.BusinessDate, ct);
         var fileId = MapSequenceToFileId(sequence);
-        var fileName = BuildExternalFileName(clearingHouse, origin, request.BusinessDate, sequence);
-        var build = BuildFile(request, clearingHouse, origin, destination, existingReferences, entriesCount, sequence, fileId);
+        var fileName = BuildExternalFileName(clearingHouse, destination, request.BusinessDate, sequence);
+        var build = IsReturnScenario(request.ScenarioType)
+            ? await BuildOfficialReturnFileAsync(
+                request,
+                clearingHouse,
+                origin,
+                destination,
+                selectedCycle,
+                existingReferences,
+                sequence,
+                fileId,
+                ct)
+            : BuildFile(request, clearingHouse, origin, destination, existingReferences, entriesCount, sequence, fileId);
         var bytes = Encoding.ASCII.GetBytes(build.Content);
         var sha = Convert.ToHexString(SHA256.HashData(bytes));
         var executionId = Guid.NewGuid();
@@ -310,9 +340,10 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             return Blocked("TRANSACTION_NOT_FOUND", "Debe suministrar referencias de transacciones UAT para este escenario.", request.SimulationMode);
         }
 
+        List<AchTransaction> referencedTransactions;
         try
         {
-            await ResolveReferencesAsync(request, clearingHouse.Id, ct);
+            referencedTransactions = await ResolveReferencesAsync(request, clearingHouse.Id, ct);
         }
         catch (InvalidOperationException ex)
         {
@@ -325,6 +356,64 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
         if (request.SimulationMode == NachaSimulationMode.DifferentialResponses)
         {
+            if (IsReturnScenario(request.ScenarioType))
+            {
+                if (clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Blocked(
+                        "RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED",
+                        "La generación de devoluciones CENIT continúa bloqueada hasta contar con homologación técnica.",
+                        request.SimulationMode);
+                }
+
+                if (request.ResponseMode != InboundResponseMode.Returned)
+                {
+                    return Blocked(
+                        "RETURN_RESPONSE_MODE_INVALID",
+                        "Una devolución debe utilizar el resultado Devuelta.",
+                        request.SimulationMode);
+                }
+
+                if (_nachaFileBuilder is null)
+                {
+                    return Blocked(
+                        "RETURN_OUT_ACH_OPTION_C_REQUIRED",
+                        "El generador oficial NACHA-M Opción C no está disponible.",
+                        request.SimulationMode);
+                }
+
+                var reasonValidation = await ValidateReturnReasonAsync(
+                    clearingHouse.Id,
+                    request.ReasonCode!,
+                    request.BusinessDate,
+                    referencedTransactions,
+                    ct);
+                if (reasonValidation is not null)
+                {
+                    return reasonValidation with { SimulationMode = request.SimulationMode };
+                }
+
+                var incomingProfile = await ResolvePublishedDifferentialProfileAsync(clearingHouse, request.BusinessDate, ct);
+                if (!incomingProfile.Success)
+                {
+                    return Blocked(
+                        incomingProfile.DiagnosticCode,
+                        $"No se seleccionó el perfil oficial de devolución de entrada. {string.Join(" ", incomingProfile.Warnings)}",
+                        request.SimulationMode);
+                }
+
+                return new InboundSimulationEligibilityPreviewResponse(
+                    true,
+                    "ELIGIBLE",
+                    "La devolución es elegible. El archivo se generará con Opción C y deberá cargarse manualmente desde Carga de archivos NACHA-M.",
+                    null,
+                    request.SimulationMode,
+                    true,
+                    false,
+                    true,
+                    false);
+            }
+
             var profileResolution = await ResolvePublishedDifferentialProfileAsync(clearingHouse, request.BusinessDate, ct);
             if (!profileResolution.Success)
             {
@@ -416,6 +505,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 TransactionType = x.Type.ToString(),
                 x.EffectiveEntryDate,
                 Cycle = x.AchCycle.CycleName,
+                x.DestinationAccountNumber,
                 x.Amount,
                 State = x.State.ToString()
             })
@@ -463,6 +553,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 x.TransactionType,
                 x.EffectiveEntryDate,
                 x.Cycle,
+                MaskAccount(x.DestinationAccountNumber),
                 x.Amount,
                 x.State,
                 hasPriorResponse,
@@ -484,6 +575,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         }
 
         var transactionType = ScenarioTransactionType(request.ScenarioType);
+        var prenotificationCodes = ScenarioPrenotificationCodes(request.ScenarioType);
         var rows = await AvailableCycleQuery(
             clearingHouse.Id,
             request.ProcessingDate,
@@ -499,7 +591,9 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 x.StartTime,
                 TransactionCount = x.Transactions.Count(t =>
                     NachaExportEligibility.ExportableStates.Contains(t.State)
-                    && t.Type == transactionType)
+                    && (t.Type == transactionType
+                        || (t.Type == TransactionTypeEnum.Prenotification
+                            && prenotificationCodes.Contains(t.TransactionCode))))
             })
             .ToListAsync(ct);
 
@@ -528,6 +622,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         var dayStart = processingDate.ToDateTime(TimeOnly.MinValue);
         var dayEnd = processingDate.AddDays(1).ToDateTime(TimeOnly.MinValue);
         var transactionType = ScenarioTransactionType(scenarioType);
+        var prenotificationCodes = ScenarioPrenotificationCodes(scenarioType);
 
         return _context.AchCycles
             .AsNoTracking()
@@ -548,7 +643,9 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                 && x.ClearingHouseCycleConfig.CutoffTime == x.CutoffTime
                 && x.Transactions.Any(t =>
                     NachaExportEligibility.ExportableStates.Contains(t.State)
-                    && t.Type == transactionType));
+                    && (t.Type == transactionType
+                        || (t.Type == TransactionTypeEnum.Prenotification
+                            && prenotificationCodes.Contains(t.TransactionCode)))));
     }
 
     private async Task EnsureCycleAvailableAsync(
@@ -581,11 +678,14 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         CancellationToken ct)
     {
         var transactionType = ScenarioTransactionType(scenarioType);
+        var prenotificationCodes = ScenarioPrenotificationCodes(scenarioType);
         var transactions = await _context.AchTransactions
             .AsNoTracking()
             .Where(x => x.AchCycleId == cycleCode.Trim()
                 && NachaExportEligibility.ExportableStates.Contains(x.State)
-                && x.Type == transactionType)
+                && (x.Type == transactionType
+                    || (x.Type == TransactionTypeEnum.Prenotification
+                        && prenotificationCodes.Contains(x.TransactionCode))))
             .OrderBy(x => x.Id)
             .Take(requestedCount)
             .ToListAsync(ct);
@@ -604,12 +704,34 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             ? TransactionTypeEnum.Prenotification
             : IsDebitScenario(scenario) ? TransactionTypeEnum.Debit : TransactionTypeEnum.Credit;
 
+    private string[] ScenarioPrenotificationCodes(NachaInboundSimulationType scenario)
+    {
+        var underlyingType = scenario switch
+        {
+            NachaInboundSimulationType.IncomingDebitReturn => TransactionTypeEnum.Debit,
+            NachaInboundSimulationType.IncomingCreditReturn => TransactionTypeEnum.Credit,
+            _ => (TransactionTypeEnum?)null
+        };
+
+        return underlyingType.HasValue
+            ? Enum.GetValues<AccountTypeEnum>()
+                .Select(accountType => _transactionValidator.ResolveTransactionCode(
+                    underlyingType.Value,
+                    accountType,
+                    isPrenotification: true))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray()
+            : [];
+    }
+
     private async Task<ClearingHouse> ResolveClearingHouseAsync(string code, CancellationToken ct)
     {
         var normalized = Normalize(code);
-        var clearingHouse = await _context.ClearingHouses.FirstOrDefaultAsync(x =>
-            x.Code.ToUpper() == normalized
-            || x.Name.ToUpper().Replace(" ", "").Replace("_", "") == normalized.Replace("_", ""), ct);
+        var clearingHouse = await _context.ClearingHouses
+            .Include(x => x.ClearingHouseConfig)
+            .FirstOrDefaultAsync(x =>
+                x.Code.ToUpper() == normalized
+                || x.Name.ToUpper().Replace(" ", "").Replace("_", "") == normalized.Replace("_", ""), ct);
         return clearingHouse ?? throw new InvalidOperationException("CLEARING_HOUSE_NOT_SUPPORTED: Camara no encontrada.");
     }
 
@@ -652,12 +774,6 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         }
 
         var destination = defaults[0];
-        if (!destination.Name.Contains("Cooperativa Financiera de Antioquia", StringComparison.OrdinalIgnoreCase)
-            && !destination.Name.Contains("CFA", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("DEFAULT_DESTINATION_FINANCIAL_INSTITUTION_INVALID: La entidad default debe corresponder a CFA / Cooperativa Financiera de Antioquia.");
-        }
-
         if (requestedDestinationId.HasValue && requestedDestinationId.Value != destination.Id)
         {
             throw new InvalidOperationException("DESTINATION_FINANCIAL_INSTITUTION_MUST_BE_DEFAULT_SOURCE: La entidad destino enviada debe coincidir con FinancialInstitution.IsDefaultSource=true.");
@@ -731,6 +847,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
         var transactions = await _context.AchTransactions
             .Include(x => x.AchCycle)
+            .Include(x => x.AchBatch)
             .Include(x => x.SourceInstitution)
             .Include(x => x.DestinationInstitution)
             .Where(x => references.Contains(x.Reference)
@@ -791,6 +908,263 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
         return transactions;
     }
+
+    private async Task<InboundSimulationEligibilityPreviewResponse?> ValidateReturnReasonAsync(
+        int clearingHouseId,
+        string reasonCode,
+        DateOnly businessDate,
+        IReadOnlyList<AchTransaction> transactions,
+        CancellationToken ct)
+    {
+        var normalizedCode = reasonCode.Trim().ToUpperInvariant();
+        var businessDateTime = businessDate.ToDateTime(TimeOnly.MinValue);
+        var returnCodes = await _regulatoryCatalogService.GetReturnCodesAsync(clearingHouseId, ct);
+        foreach (var transaction in transactions)
+        {
+            var returnCode = returnCodes.SingleOrDefault(x =>
+                x.IsActive
+                && string.Equals(x.Code, normalizedCode, StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(x.FlowType, AchReturnFlowType.Any, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(x.FlowType, AchReturnFlowType.Return, StringComparison.OrdinalIgnoreCase))
+                && x.EffectiveFrom <= businessDateTime
+                && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value >= businessDateTime));
+            var appliesToTransaction = returnCode is not null && (transaction.IsPrenotification
+                ? returnCode.AppliesToPrenotification
+                : transaction.Type == TransactionTypeEnum.Debit
+                    ? returnCode.AppliesToDebit
+                    : returnCode.AppliesToCredit);
+            var withinConfiguredWindow = returnCode?.MaxDaysAllowed is not int maxDays
+                || businessDateTime.Date <= transaction.EffectiveEntryDate.Date.AddDays(maxDays);
+            if (!appliesToTransaction || !withinConfiguredWindow)
+            {
+                return Blocked(
+                    "RETURN_REASON_NOT_ALLOWED",
+                    "La causal no está permitida para la cámara, el tipo de transacción o la fecha seleccionada.",
+                    NachaSimulationMode.DifferentialResponses);
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<FileBuildResult> BuildOfficialReturnFileAsync(
+        GenerateNachaInboundSimulationRequest request,
+        ClearingHouse clearingHouse,
+        FinancialInstitution respondingInstitution,
+        FinancialInstitution receivingInstitution,
+        AchCycle selectedCycle,
+        IReadOnlyList<AchTransaction> transactions,
+        int fileSequence,
+        char fileId,
+        CancellationToken ct)
+    {
+        if (_nachaFileBuilder is null)
+        {
+            throw new InvalidOperationException("RETURN_OUT_ACH_OPTION_C_REQUIRED: INachaFileBuilder es requerido; no existe fallback físico.");
+        }
+
+        if (transactions.Count == 0)
+        {
+            throw new InvalidOperationException("TRANSACTION_NOT_FOUND: Seleccione al menos una transacción original.");
+        }
+
+        var reasonCode = request.ReasonCode!.Trim().ToUpperInvariant();
+        var returnCode = (await _regulatoryCatalogService
+                .GetReturnCodesByClearingHouseCodeAsync(clearingHouse.Code, ct))
+            .SingleOrDefault(x => x.IsActive
+                && string.Equals(x.Code, reasonCode, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("RETURN_REASON_NOT_ALLOWED: La causal no existe o no está activa en el catálogo oficial de la cámara.");
+
+        var respondingDfi = RequireDigits(
+            $"{respondingInstitution.RoutingNumber}{respondingInstitution.TransitCode}",
+            "código de la entidad que responde");
+        var sequenceRange = await _returnTraceSequenceService.ReserveRangeAsync(
+            respondingDfi,
+            request.BusinessDate,
+            transactions.Count,
+            _timeProvider.GetUtcNow().UtcDateTime,
+            ct);
+
+        var descriptionIds = transactions.Select(x => x.CompanyEntryDescriptionId).Distinct().ToArray();
+        var secByDescriptionId = await _context.CompanyEntryDescriptionCatalogs
+            .AsNoTracking()
+            .Where(x => descriptionIds.Contains(x.Id) && x.IsActive)
+            .ToDictionaryAsync(x => x.Id, x => x.StandardEntryClassCode, ct);
+        if (secByDescriptionId.Count != descriptionIds.Length)
+        {
+            throw new InvalidOperationException("RETURN_SEC_NOT_CONFIGURED: La transacción original no conserva un código SEC activo en el catálogo.");
+        }
+
+        var semanticEntries = new Dictionary<int, NachaReturnOutEntry>(transactions.Count);
+        var generatedEntries = new List<NachaInboundSimulationEntry>(transactions.Count);
+        var originalTraces = new List<string>(transactions.Count);
+        var orderedTransactions = transactions.OrderBy(x => x.AchBatchId).ThenBy(x => x.Id).ToList();
+        for (var index = 0; index < orderedTransactions.Count; index++)
+        {
+            var transaction = orderedTransactions[index];
+            var originalTrace = RequireDigits(transaction.TraceNumber, "rastreo original");
+            var originalReceivingDfi = RequireDigits(transaction.ReceivingDFI, "entidad receptora original");
+            var receivingDfi = RequireDigits(transaction.OriginatingDFI, "entidad originadora original");
+            var newTrace = $"{respondingDfi}{sequenceRange.StartValue + index:0000000}";
+            semanticEntries[transaction.Id] = new NachaReturnOutEntry(
+                transaction.Id,
+                ResolveV35ReturnTransactionCode(transaction.TransactionCode),
+                receivingDfi,
+                DigitoChequeoHelper.CalcularDigitoChequeo(receivingDfi).ToString(),
+                transaction.DestinationAccountNumber,
+                transaction.IsPrenotification ? 0m : transaction.Amount,
+                transaction.RecipientIdNumber,
+                transaction.CompanyName,
+                transaction.DiscretionaryData,
+                newTrace,
+                reasonCode,
+                originalTrace,
+                string.Empty,
+                originalReceivingDfi,
+                returnCode.Description,
+                newTrace);
+            originalTraces.Add(originalTrace);
+            generatedEntries.Add(new NachaInboundSimulationEntry
+            {
+                Reference = transaction.TransactionExternalId,
+                TransactionId = transaction.Id,
+                AccountNumberMasked = MaskAccount(transaction.DestinationAccountNumber),
+                Amount = transaction.IsPrenotification ? 0m : transaction.Amount,
+                Nature = transaction.Type.ToString(),
+                PreviousStatus = transaction.State.ToString(),
+                ExpectedStatusAfterUpload = ExpectedStatus(request.ScenarioType, request.ResponseMode),
+                ReasonCode = reasonCode,
+                IsSynthetic = false
+            });
+        }
+
+        var semanticBatches = orderedTransactions
+            .GroupBy(x => x.AchBatchId)
+            .Select((group, index) =>
+            {
+                var original = group.First();
+                var entries = group.Select(x => semanticEntries[x.Id]).ToList();
+                return new NachaReturnOutBatch(
+                    ResolveReturnServiceClassCode(entries),
+                    original.AchBatch.CompanyName,
+                    original.DiscretionaryData,
+                    original.AchBatch.CompanyIdentification,
+                    secByDescriptionId[original.CompanyEntryDescriptionId],
+                    original.AchBatch.CompanyEntryDescription,
+                    original.AchBatch.EffectiveEntryDate,
+                    request.BusinessDate.ToDateTime(TimeOnly.MinValue),
+                    string.Empty,
+                    respondingDfi,
+                    index + 1,
+                    entries);
+            })
+            .ToList();
+
+        var immediateDestinationDfi = RequireDigits(
+            $"{receivingInstitution.RoutingNumber}{receivingInstitution.TransitCode}",
+            "destino inmediato CFA");
+        var immediateDestination = immediateDestinationDfi.Length == 8
+            ? $"{immediateDestinationDfi}{DigitoChequeoHelper.CalcularDigitoChequeo(immediateDestinationDfi)}"
+            : immediateDestinationDfi;
+        var originRouting = RequireDigits(clearingHouse.OriginCode, "origen inmediato de la cámara");
+        var immediateOrigin = originRouting.Length == 8
+            ? $"{originRouting}{DigitoChequeoHelper.CalcularDigitoChequeo(originRouting)}"
+            : originRouting;
+        var createdAt = request.BusinessDate.ToDateTime(ResolveCycleHeaderTime(selectedCycle), DateTimeKind.Utc);
+        var artifact = await _nachaFileBuilder.BuildReturnOutAsync(new NachaReturnOutBuildRequest(
+            createdAt,
+            fileId.ToString(),
+            immediateDestination,
+            immediateOrigin,
+            ResolveHeaderInstitutionLabel(receivingInstitution),
+            clearingHouse.Name,
+            reasonCode,
+            semanticBatches,
+            PersistAudit: true), ct);
+
+        return new FileBuildResult(
+            artifact.Content,
+            generatedEntries,
+            $"Perfil:{artifact.ProfileCode};Registros:{artifact.RecordCount}",
+            artifact.BlockCount,
+            artifact.EntryAddendaCount,
+            artifact.EntryHash,
+            artifact.ProfileCode,
+            originalTraces);
+    }
+
+    private static TimeOnly ResolveCycleHeaderTime(AchCycle cycle)
+    {
+        var startTicks = cycle.StartTime.Ticks;
+        var endTicks = cycle.EndTime.Ticks;
+        if (endTicks < startTicks)
+        {
+            endTicks += TimeSpan.TicksPerDay;
+        }
+
+        var midpointTicks = startTicks + ((endTicks - startTicks) / 2);
+        return TimeOnly.FromTimeSpan(TimeSpan.FromTicks(midpointTicks % TimeSpan.TicksPerDay));
+    }
+
+    private static string ResolveHeaderInstitutionLabel(FinancialInstitution institution)
+    {
+        var maxLength = AchColReturnOutV35Layout
+            .Field("1", "IMMEDIATEDESTINATIONNAME")
+            .Length;
+        var name = institution.Name.Trim();
+        if (name.Length <= maxLength)
+        {
+            return name;
+        }
+
+        var officialRoutingIdentifier = RequireDigits(
+            $"{institution.RoutingNumber}{institution.TransitCode}",
+            "identificador oficial de la institución destino");
+        if (officialRoutingIdentifier.Length <= maxLength)
+        {
+            return officialRoutingIdentifier;
+        }
+
+        throw new InvalidOperationException(
+            "INSTITUTION_HEADER_LABEL_INVALID: La institución destino no tiene un nombre o identificador oficial compatible con el perfil NACHA-M.");
+    }
+
+    private static string RequireDigits(string? value, string field)
+    {
+        var normalized = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new InvalidOperationException($"RETURN_CORRELATION_DATA_MISSING: Falta {field} en la transacción o configuración seleccionada.");
+        }
+
+        return normalized;
+    }
+
+    private static string MaskAccount(string? account)
+    {
+        var normalized = account?.Trim() ?? string.Empty;
+        return normalized.Length <= 4 ? "****" : $"****{normalized[^4..]}";
+    }
+
+    private static string ResolveReturnServiceClassCode(IEnumerable<NachaReturnOutEntry> entries)
+    {
+        var materialized = entries.ToList();
+        var hasCredits = materialized.Any(entry => entry.TransactionCode is "21" or "31" or "51");
+        var hasDebits = materialized.Any(entry => entry.TransactionCode is "26" or "36" or "56");
+        return hasCredits && hasDebits ? "200" : hasCredits ? "220" : "225";
+    }
+
+    private static string ResolveV35ReturnTransactionCode(string originalTransactionCode)
+        => originalTransactionCode switch
+        {
+            "21" or "22" or "23" => "21",
+            "31" or "32" or "33" => "31",
+            "51" or "52" or "53" => "51",
+            "26" or "27" or "28" => "26",
+            "36" or "37" or "38" => "36",
+            "55" or "56" or "57" => "56",
+            _ => throw new InvalidOperationException($"RETURN_OUT_ACH_V35_TRANSACTION_CODE_UNSUPPORTED: {originalTransactionCode} no identifica una cuenta admitida por V35 6.6.")
+        };
 
     private async Task<int> NextDailySequenceAsync(int clearingHouseId, int originId, DateOnly date, CancellationToken ct)
     {
@@ -967,13 +1341,13 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             _ => throw new InvalidOperationException("DAILY_SEQUENCE_EXHAUSTED: Secuencia fuera de rango 001-036.")
         };
 
-    private static string BuildExternalFileName(
+    private string BuildExternalFileName(
         ClearingHouse clearingHouse,
-        FinancialInstitution origin,
+        FinancialInstitution receivingInstitution,
         DateOnly businessDate,
         int sequence)
     {
-        var routingDigits = new string($"{origin.RoutingNumber}{origin.TransitCode}".Where(char.IsDigit).ToArray())
+        var routingDigits = new string($"{receivingInstitution.RoutingNumber}{receivingInstitution.TransitCode}".Where(char.IsDigit).ToArray())
             .PadLeft(7, '0');
         var participant = routingDigits[..7];
         var baseName = $"{participant}.{sequence:000}.{businessDate:yyyyMMdd}.{sequence}";
@@ -1030,7 +1404,9 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             build.RecordsDetected, build.BlockCount, build.EntryAddendaCount, build.EntryHash, true, false, true, UploadFlow, false, "UAT")
         {
             SimulationMode = InferSimulationMode(simulation.ScenarioType),
-            Environment = "UAT"
+            Environment = "UAT",
+            ProfileCode = build.ProfileCode,
+            OriginalTraceNumbers = build.OriginalTraceNumbers ?? []
         };
 
     private static async Task WriteEvidenceAsync(string directory, NachaInboundSimulation simulation, NachaInboundSimulationMetadataDto metadata, string content, CancellationToken ct)
@@ -1039,7 +1415,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         await File.WriteAllTextAsync(Path.Combine(directory, "validation_report.md"),
             $"# Simulador NACHA-M Entrada\n\n- SimulationId: `{simulation.SimulationId}`\n- Archivo: `{simulation.FileName}`\n- SHA256: `{simulation.Sha256}`\n- generatedOnly: true\n- autoImported: false\n- uploadRequired: true\n- externalTransmission: false\n\nEl archivo fue generado por el simulador UAT/local y debe cargarse manualmente por NachaUpload.\n", ct);
         await File.WriteAllTextAsync(Path.Combine(directory, "README.md"),
-            "# Evidencia simulador NACHA-M entrada\n\nArchivo generado con datos sinteticos para UAT/local. No se importa automaticamente, no crea transacciones, no cambia estados y no transmite externamente.\n", ct);
+            "# Evidencia simulador NACHA-M entrada\n\nArchivo generado para UAT/local. Puede referenciar transacciones legítimas ya persistidas, pero no se importa automáticamente, no crea transacciones, no cambia estados y no transmite externamente.\n", ct);
         await File.WriteAllTextAsync(Path.Combine(directory, "expected_after_upload.json"),
             JsonSerializer.Serialize(simulation.Entries.Select(x => new { x.Reference, x.ExpectedStatusAfterUpload, x.ReasonCode }), new JsonSerializerOptions { WriteIndented = true }), ct);
     }
@@ -1064,6 +1440,8 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         => new(false, "BLOCKED", message, code, simulationMode, true, false, true, false);
     private static bool RequiresReason(NachaInboundSimulationType scenario)
         => scenario.ToString().Contains("Rejection", StringComparison.OrdinalIgnoreCase) || scenario.ToString().Contains("Return", StringComparison.OrdinalIgnoreCase);
+    private static bool IsReturnScenario(NachaInboundSimulationType scenario)
+        => scenario is NachaInboundSimulationType.IncomingCreditReturn or NachaInboundSimulationType.IncomingDebitReturn;
     private static bool RequiresTransactionReferences(NachaInboundSimulationType scenario)
         => scenario is NachaInboundSimulationType.IncomingCreditConfirmation or NachaInboundSimulationType.IncomingCreditRejection
             or NachaInboundSimulationType.IncomingCreditReturn or NachaInboundSimulationType.IncomingDebitConfirmation
@@ -1088,5 +1466,13 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             ? $"Prenotificacion {mode?.ToString() ?? "simulada"} tras carga NachaUpload"
             : $"Respuesta {scenario} aplicada tras carga NachaUpload";
 
-    private sealed record FileBuildResult(string Content, IReadOnlyList<NachaInboundSimulationEntry> Entries, string RecordsDetected, int BlockCount, int EntryAddendaCount, string EntryHash);
+    private sealed record FileBuildResult(
+        string Content,
+        IReadOnlyList<NachaInboundSimulationEntry> Entries,
+        string RecordsDetected,
+        int BlockCount,
+        int EntryAddendaCount,
+        string EntryHash,
+        string? ProfileCode = null,
+        IReadOnlyList<string>? OriginalTraceNumbers = null);
 }

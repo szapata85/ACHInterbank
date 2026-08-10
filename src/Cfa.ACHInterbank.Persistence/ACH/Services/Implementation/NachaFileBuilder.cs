@@ -266,7 +266,15 @@ public class NachaFileBuilder : INachaFileBuilder
             await PersistGenerationAuditAsync(audit, resolution.Profile.Id, ct, request.CreatedAtUtc);
         }
 
-        return new NachaReturnOutBuildResult(content, recordCount, resolution.Profile.ProfileCode, normativeVersion!, false);
+        return new NachaReturnOutBuildResult(
+            content,
+            recordCount,
+            resolution.Profile.ProfileCode,
+            normativeVersion!,
+            false,
+            blockCount,
+            entryAddendaCount,
+            entryHash.ToString("D10", System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private static IReadOnlyDictionary<string, object?> ReturnOutValues(params (string Key, object? Value)[] values)

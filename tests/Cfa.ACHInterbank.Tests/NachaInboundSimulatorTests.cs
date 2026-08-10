@@ -205,6 +205,98 @@ public class NachaInboundSimulatorTests
     }
 
     [Fact]
+    public async Task ReturnScenario_ShouldUseOptionC_AndPreserveOriginalTrace_WithoutAutoImport()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        NachaReturnOutBuildRequest? capturedRequest = null;
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        builder
+            .Setup(x => x.BuildReturnOutAsync(It.IsAny<NachaReturnOutBuildRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<NachaReturnOutBuildRequest, CancellationToken>((request, _) => capturedRequest = request)
+            .ReturnsAsync(new NachaReturnOutBuildResult(
+                new string('9', 1060),
+                10,
+                "RETURN_OUT_ACH_V35",
+                "V35",
+                false));
+        var profileResolver = new Mock<INachaConfigResolver>(MockBehavior.Strict);
+        profileResolver
+            .Setup(x => x.ResolveAsync(It.IsAny<NachaConfigResolutionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaConfigResolutionResult
+            {
+                Success = true,
+                SelectionStatus = NachaProfileSelectionStatus.ProfileSelected,
+                Profile = new Cfa.ACHInterbank.Domain.Models.ACH.Config.CfgProfile
+                {
+                    Id = 1,
+                    ProfileCode = "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0"
+                }
+            });
+        var output = CreateTempOutput();
+        var service = CreateService(context, output, builder.Object, profileResolver.Object);
+        var original = await context.AchTransactions.SingleAsync(x => x.Id == 11);
+
+        var response = await service.GenerateAsync(new GenerateNachaInboundSimulationRequest
+        {
+            SimulationMode = NachaSimulationMode.DifferentialResponses,
+            ClearingHouseCode = "ACHCOL",
+            ScenarioType = NachaInboundSimulationType.IncomingDebitReturn,
+            OriginFinancialInstitutionId = 2,
+            TransactionReferences = [original.TransactionExternalId],
+            ResponseMode = InboundResponseMode.Returned,
+            ReasonCode = "R04",
+            EntriesCount = 1,
+            BusinessDate = new DateOnly(2026, 5, 20),
+            CycleCode = "ACH-CYCLE"
+        }, "qa");
+
+        Assert.NotNull(capturedRequest);
+        var generatedEntry = Assert.Single(Assert.Single(capturedRequest!.Batches).Entries);
+        Assert.Equal(original.TraceNumber, generatedEntry.OriginalTraceNumber);
+        Assert.NotEqual(original.TraceNumber, generatedEntry.NewTraceNumber);
+        Assert.Equal("R04", generatedEntry.ReturnReasonCode);
+        Assert.True(capturedRequest.PersistAudit);
+        Assert.Equal("000101006", capturedRequest.ImmediateOrigin);
+        Assert.StartsWith("00001283", capturedRequest.ImmediateDestination, StringComparison.Ordinal);
+        Assert.Equal(TimeSpan.FromHours(13), capturedRequest.CreatedAtUtc.TimeOfDay);
+        Assert.False(response.AutoImported);
+        Assert.True(response.UploadRequired);
+        Assert.Equal(0, await context.IncomingNachaFileIngestions.CountAsync());
+        var evidence = await service.GetEvidenceAsync(response.Id);
+        Assert.NotNull(evidence);
+        Assert.Equal("RETURN_OUT_ACH_V35", evidence!.ProfileCode);
+        Assert.Equal([original.TraceNumber], evidence.OriginalTraceNumbers);
+        Assert.Matches(@"^\d{7}\.\d{3}\.\d{8}\.\d+\.OUT$", response.FileName);
+    }
+
+    [Fact]
+    public async Task CenitReturnScenario_ShouldRemainTechnicallyBlocked()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var service = CreateService(context, CreateTempOutput(), builder.Object);
+
+        var preview = await service.PreviewAsync(new InboundSimulationEligibilityPreviewRequest
+        {
+            SimulationMode = NachaSimulationMode.DifferentialResponses,
+            ClearingHouseCode = "CENIT",
+            ScenarioType = NachaInboundSimulationType.IncomingCreditReturn,
+            OriginFinancialInstitutionId = 3,
+            TransactionReferences = ["UAT-12"],
+            ResponseMode = InboundResponseMode.Returned,
+            ReasonCode = "R01",
+            BusinessDate = new DateOnly(2026, 5, 20),
+            CycleCode = "CENIT-CYCLE"
+        });
+
+        Assert.False(preview.Eligible);
+        Assert.Equal("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", preview.FunctionalCode);
+        builder.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task DisabledSimulator_ShouldBlockGeneration()
     {
         await using var context = CreateContext();
@@ -344,6 +436,34 @@ public class NachaInboundSimulatorTests
     }
 
     [Fact]
+    public async Task DebitReturnCycle_ShouldIncludeDebitPrenotificationResolvedByCanonicalTransactionCodePolicy()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var debit = await context.AchTransactions.SingleAsync(x => x.Id == 11);
+        debit.State = AchTransferStateEnum.ReturnedByOperator;
+        var prenotification = TestTransaction(14, "ACH-CYCLE", 1, TransactionTypeEnum.Prenotification, 1, 2);
+        prenotification.IsPrenotification = true;
+        prenotification.TransactionCode = new TransactionValidator(context).ResolveTransactionCode(
+            TransactionTypeEnum.Debit,
+            AccountTypeEnum.Savings,
+            isPrenotification: true);
+        context.AchTransactions.Add(prenotification);
+        await context.SaveChangesAsync();
+        var service = CreateService(context, CreateTempOutput());
+
+        var cycles = await service.ListAvailableCyclesAsync(new AvailableInboundCycleQuery
+        {
+            ClearingHouseCode = "ACHCOL",
+            ProcessingDate = new DateOnly(2026, 5, 20),
+            ScenarioType = NachaInboundSimulationType.IncomingDebitReturn
+        });
+
+        var cycle = Assert.Single(cycles);
+        Assert.Equal(1, cycle.TransactionCount);
+    }
+
+    [Fact]
     public async Task Preview_ShouldRejectCycleWithoutEligibleTransactionsOrManipulatedCode()
     {
         await using var context = CreateContext();
@@ -469,7 +589,11 @@ public class NachaInboundSimulatorTests
         CycleCode = cycleCode
     };
 
-    private static NachaInboundSimulationService CreateService(AchDbContext context, string output)
+    private static NachaInboundSimulationService CreateService(
+        AchDbContext context,
+        string output,
+        INachaFileBuilder? builder = null,
+        INachaConfigResolver? profileResolver = null)
         => new(context, Options.Create(new NachaInboundSimulatorOptions
         {
             Enabled = true,
@@ -482,7 +606,7 @@ public class NachaInboundSimulatorTests
             OutputDirectory = output,
             MaxEntriesPerSimulation = 10,
             AllowedClearingHouses = ["ACHCOL", "CENIT"]
-        }));
+        }), profileResolver: profileResolver, nachaFileBuilder: builder);
 
     private static string CreateTempOutput()
     {
@@ -556,6 +680,23 @@ public class NachaInboundSimulatorTests
         context.FinancialInstitutions.AddRange(cfa, ach, cenit);
         context.SaveChanges();
 
+        context.AchReturnCodes.Add(new AchReturnCode
+        {
+            Id = 1,
+            ClearingHouseId = 1,
+            Code = "R04",
+            FlowType = AchReturnFlowType.Return,
+            Description = "Número de cuenta inválido",
+            AppliesToDebit = true,
+            AppliesToCredit = true,
+            RequiresAddenda = true,
+            MaxDaysAllowed = 1,
+            EffectiveFrom = new DateTime(2026, 1, 1),
+            IsActive = true,
+            RegulatorySource = "ACH Colombia V35"
+        });
+        context.SaveChanges();
+
         context.AchTransactions.AddRange(
             TestTransaction(10, "ACH-CYCLE", 1, TransactionTypeEnum.Credit, 1, 2),
             TestTransaction(11, "ACH-CYCLE", 1, TransactionTypeEnum.Debit, 1, 2),
@@ -589,6 +730,7 @@ public class NachaInboundSimulatorTests
         Reference = $"UAT-{id}",
         TransactionExternalId = $"UAT-{id}",
         Type = type,
+        TransactionCode = type == TransactionTypeEnum.Debit ? "27" : "22",
         Amount = 1000,
         State = AchTransferStateEnum.Pending,
         AchCycleId = cycleId,

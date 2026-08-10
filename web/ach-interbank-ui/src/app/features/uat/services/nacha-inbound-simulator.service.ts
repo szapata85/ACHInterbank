@@ -34,6 +34,21 @@ export interface GenerateNachaInboundSimulationRequest {
   notes?: string | null;
 }
 
+export interface AchReturnCodeOption {
+  id: number;
+  clearingHouseId: number;
+  code: string;
+  flowType: string;
+  description: string;
+  appliesToDebit: boolean;
+  appliesToCredit: boolean;
+  appliesToPrenotification: boolean;
+  appliesToReturn: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isActive: boolean;
+}
+
 export interface DifferentialResponseEligibleTransaction {
   id: number;
   identifier: string;
@@ -44,6 +59,7 @@ export interface DifferentialResponseEligibleTransaction {
   transactionType: string;
   effectiveDate: string;
   cycle: string;
+  accountNumberMasked: string;
   amount: number;
   state: string;
   hasPriorResponse: boolean;
@@ -150,6 +166,12 @@ export class NachaInboundSimulatorService {
       `${this.basePath}/eligible-differential-transactions`,
       { params: query }
     );
+  }
+
+  returnCodes(clearingHouseCode: string) {
+    return this.api.get<AchReturnCodeOption[]>('api/regulatory-catalogs/return-codes', {
+      params: { clearingHouseCode }
+    });
   }
 
   availableCycles(params: {

@@ -56,6 +56,29 @@ public class IncomingNachaTransactionLinkerTests
         Assert.True(result.IsAmbiguous);
     }
 
+    [Fact]
+    public async Task LinkAsync_ByOriginalTrace_ShouldUseResolvedCycleToDisambiguateDailyTraceReuse()
+    {
+        using var context = BuildContext();
+        SeedTx(context, 5, trace: "555555555555555", externalId: "HISTORICAL", achCycleId: "CYCLE-OLD");
+        SeedTx(context, 6, trace: "555555555555555", externalId: "CURRENT", achCycleId: "CYCLE-CURRENT");
+        var sut = new IncomingNachaTransactionLinker(context);
+
+        var result = await sut.LinkAsync(
+            new EntryDetail { SequenceNumber = "666666666666666", Amount = 100, AccountNumber = "001", TransactionCode = "26" },
+            new AddendaRecord { OriginalTraceNumber = "555555555555555", ReturnReasonCode = "R01" },
+            new IncomingNachaLinkingContext
+            {
+                FunctionalClass = IncomingNachaFunctionalClass.Devolucion,
+                ResolvedAchCycleId = "CYCLE-CURRENT"
+            });
+
+        Assert.Equal(IncomingNachaLinkType.ExactOriginalTraceRef, result.LinkType);
+        Assert.Equal(6, result.AchTransactionId);
+        Assert.True(result.IsFinal);
+        Assert.Contains("ResolvedCycle", result.EvidenceJson);
+    }
+
 
     [Fact]
     public async Task LinkAsync_CompositeKey_AvoidsCollision_WithOperationalDimensions()

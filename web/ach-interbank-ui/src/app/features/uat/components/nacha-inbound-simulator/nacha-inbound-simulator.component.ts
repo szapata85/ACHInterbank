@@ -13,6 +13,7 @@ import {
   inject
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
@@ -48,6 +49,7 @@ import { NachaProfileOption } from '../../../clearing-houses/clearing-houses.mod
 import { NachaConfigApiService } from '../../../nacha-config-admin/services/nacha-config-api.service';
 import { NachaConfigProfileReadModel } from '../../../nacha-config-admin/models/nacha-config-admin.models';
 import {
+  AchReturnCodeOption,
   AvailableInboundCycle,
   DifferentialResponseEligibleTransaction,
   GenerateNachaInboundSimulationRequest,
@@ -119,6 +121,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   private readonly dialog = inject(MatDialog);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
 
   loadingHistory = false;
   loadingInstitutions = false;
@@ -126,6 +129,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   loadingProfiles = false;
   loadingCycles = false;
   loadingEligible = false;
+  loadingReturnCodes = false;
   generating = false;
   previewing = false;
   hasLoadedHistory = false;
@@ -137,6 +141,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   activeProfiles: NachaConfigProfileReadModel[] = [];
   availableCycles: AvailableInboundCycle[] = [];
   eligibleTransactions: DifferentialResponseEligibleTransaction[] = [];
+  returnCodes: AchReturnCodeOption[] = [];
   result: NachaInboundSimulationResult | null = null;
 
   historyError: string | null = null;
@@ -145,6 +150,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
   profileError: string | null = null;
   cycleError: string | null = null;
   eligibleError: string | null = null;
+  returnCodesError: string | null = null;
 
   eligibleTotal = 0;
   eligiblePage = 1;
@@ -163,6 +169,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
     'transactionType',
     'effectiveDate',
     'cycle',
+    'account',
     'amount',
     'state',
     'eligibility'
@@ -174,12 +181,12 @@ export class NachaInboundSimulatorComponent implements OnInit {
     { value: 'IncomingDebit', label: 'Débito entrante' }
   ];
   readonly differentialScenarios: Array<{ value: NachaInboundSimulationType; label: string }> = [
+    { value: 'IncomingDebitReturn', label: 'Devolución de débito' },
+    { value: 'IncomingCreditReturn', label: 'Devolución de crédito' },
     { value: 'IncomingCreditConfirmation', label: 'Aceptación de crédito' },
     { value: 'IncomingCreditRejection', label: 'Rechazo de crédito' },
-    { value: 'IncomingCreditReturn', label: 'Devolución de crédito' },
     { value: 'IncomingDebitConfirmation', label: 'Aceptación de débito' },
     { value: 'IncomingDebitRejection', label: 'Rechazo de débito' },
-    { value: 'IncomingDebitReturn', label: 'Devolución de débito' },
     { value: 'IncomingPrenotificationResponse', label: 'Respuesta de prenotificación' }
   ];
   readonly responseModes: Array<{ value: InboundResponseMode; label: string }> = [
@@ -191,17 +198,17 @@ export class NachaInboundSimulatorComponent implements OnInit {
   ];
 
   readonly form = this.fb.group({
-    simulationMode: this.fb.nonNullable.control<NachaSimulationMode>('IncomingTransactions'),
+    simulationMode: this.fb.nonNullable.control<NachaSimulationMode>('DifferentialResponses'),
     clearingHouseCode: this.fb.nonNullable.control('', Validators.required),
-    scenarioType: this.fb.nonNullable.control<NachaInboundSimulationType>('IncomingCredit', Validators.required),
+    scenarioType: this.fb.nonNullable.control<NachaInboundSimulationType>('IncomingDebitReturn', Validators.required),
     originFinancialInstitutionId: this.fb.control<number | null>(null, Validators.required),
     entriesCount: this.fb.nonNullable.control(1, [Validators.required, Validators.min(1), Validators.max(10)]),
-    amount: this.fb.nonNullable.control('1000.00', [Validators.required, exactMoneyValidator]),
-    referencePrefix: this.fb.nonNullable.control('UAT-IN-CRED', [Validators.required, Validators.maxLength(24)]),
+    amount: this.fb.nonNullable.control('', exactMoneyValidator),
+    referencePrefix: this.fb.nonNullable.control('', Validators.maxLength(24)),
     businessDate: this.fb.control<Date | null>(todayLocal(), Validators.required),
     cycleCode: this.fb.nonNullable.control('', Validators.required),
     pendingPrenotificationReferencesText: this.fb.nonNullable.control(''),
-    responseMode: this.fb.control<InboundResponseMode | null>(null),
+    responseMode: this.fb.control<InboundResponseMode | null>('Returned'),
     reasonCode: this.fb.nonNullable.control('', Validators.maxLength(20)),
     notes: this.fb.nonNullable.control('', Validators.maxLength(500))
   });
@@ -225,6 +232,28 @@ export class NachaInboundSimulatorComponent implements OnInit {
     return this.scenarios.find((item) => item.value === scenario)?.label ?? scenario;
   }
 
+  get applicableReturnCodes(): AchReturnCodeOption[] {
+    const debit = this.form.controls.scenarioType.value === 'IncomingDebitReturn';
+    const credit = this.form.controls.scenarioType.value === 'IncomingCreditReturn';
+    return this.returnCodes.filter((item) =>
+      item.isActive
+      && (item.flowType === 'Any' || item.flowType === 'Return')
+      && (!debit || item.appliesToDebit)
+      && (!credit || item.appliesToCredit)
+    );
+  }
+
+  get operationalSummary(): string {
+    const institution = this.selectedOrigin?.name ?? 'la entidad externa seleccionada';
+    const cycle = this.availableCycles.find((item) => item.cycleCode === this.form.controls.cycleCode.value)?.cycleName
+      ?? 'el ciclo seleccionado';
+    const reason = this.applicableReturnCodes.find((item) => item.code === this.form.controls.reasonCode.value);
+    if (this.isReturnScenario()) {
+      return `Va a simular una devolución ${reason?.code ?? ''} de ${institution} sobre ${this.simulationCount} transacción(es) originada(s) por CFA. El archivo se generará para ${cycle}.`;
+    }
+    return `Va a simular ${this.operationLabel.toLowerCase()} de ${institution} sobre ${this.simulationCount} transacción(es), para ${cycle}.`;
+  }
+
   get profileRequiredButUnavailable(): boolean {
     return !!this.selectedClearingHouse?.requiresNachaProfile
       && this.profilesCatalogLoaded
@@ -236,6 +265,8 @@ export class NachaInboundSimulatorComponent implements OnInit {
     return this.form.valid
       && !this.generating
       && !this.previewing
+      && !this.loadingReturnCodes
+      && (!this.isReturnScenario() || (!this.returnCodesError && this.applicableReturnCodes.length > 0))
       && !!this.defaultDestination
       && !this.profileRequiredButUnavailable
       && (!this.isDifferentialMode() || this.selectedTransactionIds.size > 0);
@@ -368,21 +399,57 @@ export class NachaInboundSimulatorComponent implements OnInit {
         }
       });
     this.loadAvailableCycles();
+    this.loadReturnCodes();
     if (this.isDifferentialMode()) {
       this.loadEligibleTransactions();
     }
   }
 
   simulationContextChanged(): void {
+    this.synchronizeResponseMode();
     this.configureConditionalValidators();
     this.form.controls.cycleCode.setValue('');
     this.result = null;
     this.loadAvailableCycles();
+    this.loadReturnCodes();
     if (this.isDifferentialMode()) {
       this.selectedTransactionIds.clear();
       this.selectedTransactionReferences.clear();
       this.loadEligibleTransactions();
     }
+  }
+
+  loadReturnCodes(): void {
+    const clearingHouseCode = this.form.controls.clearingHouseCode.value;
+    if (!clearingHouseCode || !this.isReturnScenario()) {
+      this.returnCodes = [];
+      this.returnCodesError = null;
+      return;
+    }
+
+    this.loadingReturnCodes = true;
+    this.returnCodesError = null;
+    this.api.returnCodes(clearingHouseCode)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.loadingReturnCodes = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: (items) => {
+          this.returnCodes = items ?? [];
+          const selected = this.form.controls.reasonCode.value;
+          if (selected && !this.applicableReturnCodes.some((item) => item.code === selected)) {
+            this.form.controls.reasonCode.setValue('');
+          }
+        },
+        error: (error: HttpErrorResponse) => {
+          this.returnCodes = [];
+          this.returnCodesError = this.errorMessage(error, 'No fue posible consultar las causales de devolución.');
+        }
+      });
   }
 
   loadAvailableCycles(): void {
@@ -584,17 +651,17 @@ export class NachaInboundSimulatorComponent implements OnInit {
   resetSimulation(): void {
     const clearingHouseCode = this.form.controls.clearingHouseCode.value;
     this.form.reset({
-      simulationMode: 'IncomingTransactions',
+      simulationMode: 'DifferentialResponses',
       clearingHouseCode,
-      scenarioType: 'IncomingCredit',
+      scenarioType: 'IncomingDebitReturn',
       originFinancialInstitutionId: null,
       entriesCount: 1,
-      amount: '1000.00',
-      referencePrefix: 'UAT-IN-CRED',
+      amount: '',
+      referencePrefix: '',
       businessDate: todayLocal(),
       cycleCode: '',
       pendingPrenotificationReferencesText: '',
-      responseMode: null,
+      responseMode: 'Returned',
       reasonCode: '',
       notes: ''
     });
@@ -605,6 +672,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
     this.eligibleTotal = 0;
     this.configureConditionalValidators();
     this.loadAvailableCycles();
+    this.loadReturnCodes();
     this.cdr.markForCheck();
   }
 
@@ -626,6 +694,10 @@ export class NachaInboundSimulatorComponent implements OnInit {
     window.open(this.api.downloadUrl(id), '_blank', 'noopener');
   }
 
+  goToUpload(): void {
+    void this.router.navigate(['/transactions/nacha-upload']);
+  }
+
   copyIdentifier(value: string | number, label: string): void {
     if (!navigator.clipboard) {
       this.notifications.warning('El portapapeles no está disponible en este navegador.');
@@ -642,6 +714,11 @@ export class NachaInboundSimulatorComponent implements OnInit {
 
   requiresPrenotificationReferences(): boolean {
     return this.form.controls.scenarioType.value === 'IncomingPrenotificationResponse';
+  }
+
+  isReturnScenario(): boolean {
+    return this.form.controls.scenarioType.value === 'IncomingCreditReturn'
+      || this.form.controls.scenarioType.value === 'IncomingDebitReturn';
   }
 
   formatProcessingDate(value: string): string {
@@ -662,9 +739,9 @@ export class NachaInboundSimulatorComponent implements OnInit {
   private applyMode(mode: NachaSimulationMode): void {
     this.form.controls.simulationMode.setValue(mode);
     this.form.controls.scenarioType.setValue(
-      mode === 'DifferentialResponses' ? 'IncomingCreditConfirmation' : 'IncomingCredit'
+      mode === 'DifferentialResponses' ? 'IncomingDebitReturn' : 'IncomingCredit'
     );
-    this.form.controls.responseMode.setValue(mode === 'DifferentialResponses' ? 'Approved' : null);
+    this.form.controls.responseMode.setValue(mode === 'DifferentialResponses' ? 'Returned' : null);
     this.form.controls.reasonCode.setValue('');
     this.form.controls.pendingPrenotificationReferencesText.setValue('');
     this.form.controls.cycleCode.setValue('');
@@ -677,6 +754,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
     this.configureConditionalValidators();
     this.form.markAsPristine();
     this.loadAvailableCycles();
+    this.loadReturnCodes();
     if (mode === 'DifferentialResponses') {
       this.loadEligibleTransactions();
     }
@@ -689,15 +767,40 @@ export class NachaInboundSimulatorComponent implements OnInit {
     const references = this.form.controls.pendingPrenotificationReferencesText;
     const scenario = this.form.controls.scenarioType.value;
     const reasonRequired = scenario.includes('Rejection') || scenario.includes('Return');
+    const incomingTransaction = !this.isDifferentialMode();
 
     reason.setValidators(reasonRequired
       ? [Validators.required, Validators.maxLength(20)]
       : [Validators.maxLength(20)]);
     response.setValidators(this.isDifferentialMode() ? Validators.required : null);
+    this.form.controls.amount.setValidators(incomingTransaction
+      ? [Validators.required, exactMoneyValidator]
+      : exactMoneyValidator);
+    this.form.controls.referencePrefix.setValidators(incomingTransaction
+      ? [Validators.required, Validators.maxLength(24)]
+      : Validators.maxLength(24));
     references.setValidators(this.requiresPrenotificationReferences() ? Validators.required : null);
     reason.updateValueAndValidity({ emitEvent: false });
     response.updateValueAndValidity({ emitEvent: false });
     references.updateValueAndValidity({ emitEvent: false });
+    this.form.controls.amount.updateValueAndValidity({ emitEvent: false });
+    this.form.controls.referencePrefix.updateValueAndValidity({ emitEvent: false });
+  }
+
+  scenarioLabel(value: string): string {
+    return [...this.incomingScenarios, ...this.differentialScenarios]
+      .find((item) => item.value === value)?.label ?? 'Respuesta de contraparte';
+  }
+
+  private synchronizeResponseMode(): void {
+    const scenario = this.form.controls.scenarioType.value;
+    this.form.controls.responseMode.setValue(
+      scenario.includes('Return') ? 'Returned'
+        : scenario.includes('Rejection') ? 'Rejected'
+          : scenario.includes('Confirmation') ? 'Approved'
+            : this.form.controls.responseMode.value
+    );
+    this.form.controls.reasonCode.setValue('');
   }
 
   private validateBeforeAction(): boolean {
@@ -725,7 +828,7 @@ export class NachaInboundSimulatorComponent implements OnInit {
       scenarioType: this.form.controls.scenarioType.value,
       originFinancialInstitutionId: this.form.controls.originFinancialInstitutionId.value ?? 0,
       entriesCount: this.form.controls.entriesCount.value,
-      amount: this.parseMoney(this.form.controls.amount.value),
+      amount: this.isDifferentialMode() ? 0 : this.parseMoney(this.form.controls.amount.value),
       referencePrefix: this.form.controls.referencePrefix.value.trim(),
       businessDate: this.toLocalDate(this.form.controls.businessDate.value) ?? '',
       cycleCode: this.form.controls.cycleCode.value,

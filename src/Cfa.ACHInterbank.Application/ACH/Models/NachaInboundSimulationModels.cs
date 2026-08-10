@@ -15,10 +15,10 @@ public class GenerateNachaInboundSimulationRequest
     public string? OriginFinancialInstitutionCode { get; set; }
     public string? DestinationFinancialInstitutionCode { get; set; }
     public int EntriesCount { get; set; } = 1;
-    public decimal Amount { get; set; } = 1000m;
-    public string ReferencePrefix { get; set; } = "UAT-IN";
-    public DateOnly BusinessDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
-    public string CycleCode { get; set; } = "Ciclo 3";
+    public decimal Amount { get; set; }
+    public string ReferencePrefix { get; set; } = string.Empty;
+    public DateOnly BusinessDate { get; set; }
+    public string CycleCode { get; set; } = string.Empty;
     public IReadOnlyList<string> PendingPrenotificationReferences { get; set; } = [];
     public IReadOnlyList<string> TransactionReferences { get; set; } = [];
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -155,6 +155,7 @@ public sealed record DifferentialResponseEligibleTransactionDto(
     string TransactionType,
     DateTime EffectiveDate,
     string Cycle,
+    string AccountNumberMasked,
     decimal Amount,
     string State,
     bool HasPriorResponse,

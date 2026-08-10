@@ -175,6 +175,7 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:743
           E2E_API_BASE_URL: http://localhost:843
+          ACH_E2E_PROVIDER: PostgreSQL
         run: npm run test:e2e:job6
 
       - name: Collect container logs

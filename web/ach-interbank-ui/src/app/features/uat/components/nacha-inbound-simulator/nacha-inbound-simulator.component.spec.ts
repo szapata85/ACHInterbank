@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog } from '@angular/material/dialog';
+import { Router } from '@angular/router';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { Subject, of, throwError } from 'rxjs';
 import { NachaInboundSimulatorComponent } from './nacha-inbound-simulator.component';
@@ -27,6 +28,7 @@ describe('NachaInboundSimulatorComponent', () => {
   let nachaConfigApi: jasmine.SpyObj<NachaConfigApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
   let dialog: jasmine.SpyObj<MatDialog>;
+  let router: jasmine.SpyObj<Router>;
 
   const officialProfile: NachaConfigProfileReadModel = {
     profileId: 11,
@@ -63,7 +65,7 @@ describe('NachaInboundSimulatorComponent', () => {
   beforeEach(async () => {
     service = jasmine.createSpyObj<NachaInboundSimulatorService>(
       'NachaInboundSimulatorService',
-      ['list', 'preview', 'generate', 'eligibleDifferentialTransactions', 'availableCycles', 'downloadUrl']
+      ['list', 'preview', 'generate', 'eligibleDifferentialTransactions', 'availableCycles', 'returnCodes', 'downloadUrl']
     );
     financialInstitutionsApi = jasmine.createSpyObj<FinancialInstitutionsApiService>(
       'FinancialInstitutionsApiService',
@@ -74,6 +76,7 @@ describe('NachaInboundSimulatorComponent', () => {
     nachaConfigApi = jasmine.createSpyObj<NachaConfigApiService>('NachaConfigApiService', ['listarPerfilesReadOnly']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'warning', 'error']);
     dialog = jasmine.createSpyObj<MatDialog>('MatDialog', ['open']);
+    router = jasmine.createSpyObj<Router>('Router', ['navigate']);
 
     service.list.and.returnValue(of([]));
     service.preview.and.returnValue(of({
@@ -99,6 +102,20 @@ describe('NachaInboundSimulatorComponent', () => {
       processingDate: '2026-05-20',
       transactionCount: 3,
       status: 'Disponible'
+    }]));
+    service.returnCodes.and.returnValue(of([{
+      id: 4,
+      clearingHouseId: 1,
+      code: 'R04',
+      flowType: 'Return',
+      description: 'Número de cuenta inválido',
+      appliesToDebit: true,
+      appliesToCredit: true,
+      appliesToPrenotification: false,
+      appliesToReturn: true,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: null,
+      isActive: true
     }]));
     service.downloadUrl.and.returnValue('/download');
 
@@ -165,7 +182,8 @@ describe('NachaInboundSimulatorComponent', () => {
         { provide: ClearingHousesService, useValue: clearingHousesService },
         { provide: NachaConfigApiService, useValue: nachaConfigApi },
         { provide: NotificationService, useValue: notifications },
-        { provide: MatDialog, useValue: dialog }
+        { provide: MatDialog, useValue: dialog },
+        { provide: Router, useValue: router }
       ]
     })
       .overrideProvider(MatDialog, { useValue: dialog })
@@ -183,11 +201,42 @@ describe('NachaInboundSimulatorComponent', () => {
   }
 
   function makeFormValid(): void {
+    component.requestModeChange('IncomingTransactions');
     component.form.patchValue({
       clearingHouseCode: 'ACHCOL',
       originFinancialInstitutionId: 2,
       cycleCode: 'ACH-20260520-C1',
-      businessDate: new Date(2026, 4, 20)
+      businessDate: new Date(2026, 4, 20),
+      amount: '1000.00',
+      referencePrefix: 'UAT'
+    });
+  }
+
+  function makeReturnFormValid(): void {
+    component.form.patchValue({
+      clearingHouseCode: 'ACHCOL',
+      originFinancialInstitutionId: 2,
+      cycleCode: 'ACH-20260520-C1',
+      businessDate: new Date(2026, 4, 20),
+      scenarioType: 'IncomingDebitReturn',
+      responseMode: 'Returned',
+      reasonCode: 'R04'
+    });
+    component.toggleTransaction({
+      id: 77,
+      identifier: 'TRX-UAT-77',
+      traceNumber: '000128300000077',
+      clearingHouse: 'ACH Colombia',
+      destinationFinancialInstitutionId: 2,
+      destinationFinancialInstitution: 'Banco UAT Externo',
+      transactionType: 'Débito',
+      effectiveDate: '2026-05-20',
+      cycle: 'Ciclo 1',
+      accountNumberMasked: '******4321',
+      amount: 100000,
+      state: 'Enviada',
+      hasPriorResponse: false,
+      eligible: true
     });
   }
 
@@ -274,6 +323,24 @@ describe('NachaInboundSimulatorComponent', () => {
     expect(component.form.controls.pendingPrenotificationReferencesText.hasError('required')).toBeTrue();
   });
 
+  it('carga y humaniza causales oficiales aplicables a la devolución', () => {
+    expect(service.returnCodes).toHaveBeenCalledWith('ACHCOL');
+    expect(component.applicableReturnCodes.map((item) => item.code)).toEqual(['R04']);
+    expect(component.applicableReturnCodes[0].description).toBe('Número de cuenta inválido');
+  });
+
+  it('genera devolución con la referencia de la transacción seleccionada y sin monto digitado', () => {
+    makeReturnFormValid();
+
+    component.executeGenerate();
+
+    const payload = service.generate.calls.mostRecent().args[0];
+    expect(payload.transactionReferences).toEqual(['TRX-UAT-77']);
+    expect(payload.reasonCode).toBe('R04');
+    expect(payload.responseMode).toBe('Returned');
+    expect(payload.amount).toBe(0);
+  });
+
   it('no ejecuta con formulario inválido', () => {
     component.form.controls.clearingHouseCode.setValue('');
     component.executeGenerate();
@@ -322,7 +389,7 @@ describe('NachaInboundSimulatorComponent', () => {
     expect(component.generating).toBeFalse();
     expect(component.result?.simulationId).toBe('SIM-UAT-91');
     expect(component.result?.sha256).toHaveSize(64);
-    expect(fixture.nativeElement.textContent).toContain('Simulación generada');
+    expect(fixture.nativeElement.textContent).toContain('Archivo generado correctamente');
     expect(fixture.nativeElement.textContent).toContain('SIM-UAT-91');
   });
 
@@ -353,9 +420,17 @@ describe('NachaInboundSimulatorComponent', () => {
     component.resetSimulation();
 
     expect(component.result).toBeNull();
-    expect(component.form.controls.simulationMode.value).toBe('IncomingTransactions');
-    expect(component.form.controls.amount.value).toBe('1000.00');
+    expect(component.form.controls.simulationMode.value).toBe('DifferentialResponses');
+    expect(component.form.controls.amount.value).toBe('');
+    expect(component.form.controls.scenarioType.value).toBe('IncomingDebitReturn');
     expect(component.selectedTransactionIds.size).toBe(0);
+  });
+
+  it('lleva a la carga manual sin invocar una importación desde el simulador', () => {
+    component.goToUpload();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/transactions/nacha-upload']);
+    expect(service.generate).not.toHaveBeenCalled();
   });
 
   it('distingue error de historial del estado vacío', () => {
