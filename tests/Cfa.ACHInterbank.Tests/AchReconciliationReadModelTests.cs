@@ -80,6 +80,19 @@ public class AchReconciliationReadModelTests
     }
 
     [Fact]
+    public async Task Reconciliation_ShouldNotProjectPersistedReturnAsExternallyReconciled()
+    {
+        using var context = BuildContext();
+        SeedAll(context);
+
+        var item = (await new AchReconciliationReadModelService(context).GetItemsAsync())
+            .Single(x => x.ReconciliationId == "return-1");
+
+        item.ReconciliationStatus.Should().Be("PendienteEvidencia");
+        item.Warning.Should().Contain("evidencia externa");
+    }
+
+    [Fact]
     public async Task Reconciliation_ShouldClassifyManualReviewWhenAmbiguous()
     {
         using var context = BuildContext();

@@ -136,6 +136,8 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<AchResponseOrphan> AchResponseOrphans => Set<AchResponseOrphan>();
     public DbSet<AchResponseReprocessAttempt> AchResponseReprocessAttempts => Set<AchResponseReprocessAttempt>();
     public DbSet<AchResponseReconciliationCase> AchResponseReconciliationCases => Set<AchResponseReconciliationCase>();
+    public DbSet<AchOperationalReconciliationSnapshot> AchOperationalReconciliationSnapshots => Set<AchOperationalReconciliationSnapshot>();
+    public DbSet<AchOperationalReconciliationDifference> AchOperationalReconciliationDifferences => Set<AchOperationalReconciliationDifference>();
     public DbSet<CatClearingHouse> CatClearingHouses => Set<CatClearingHouse>();
     public DbSet<CatFlowType> CatFlowTypes => Set<CatFlowType>();
     public DbSet<CatDirection> CatDirections => Set<CatDirection>();

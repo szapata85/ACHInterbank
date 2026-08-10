@@ -263,7 +263,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             null,
             row.OriginalTransactionId,
             row.OriginalTransaction?.State.ToString() ?? "Returned",
-            "Conciliado",
+            "PendienteEvidencia",
             false,
             true,
             false,
@@ -273,7 +273,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             "RegistrarRespuestaTransaccion",
             ToOffset(row.GeneratedAtUtc),
             null,
-            "Archivo .RET no mueve dinero directamente.");
+            "Devolucion persistida; pendiente de evidencia externa canonica. Archivo .RET no mueve dinero directamente.");
     }
 
     private static AchReconciliationItemReadModel ProjectRor(ReturnOfReturnFlow row)
@@ -292,7 +292,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             null,
             row.ReturnOfReturnTransactionId,
             row.Status,
-            row.Status.Contains("Registered", StringComparison.OrdinalIgnoreCase) ? "Pendiente" : "Conciliado",
+            "PendienteEvidencia",
             row.Status.Contains("Manual", StringComparison.OrdinalIgnoreCase),
             false,
             true,
@@ -302,7 +302,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             "RegistrarRespuestaTransaccion",
             ToOffset(row.OrchestratedAtUtc),
             row.UpdatedAt,
-            "ROR proyectado como conciliacion read-only.");
+            "ROR persistido; proyeccion provisional pendiente de evidencia externa canonica.");
 
     private static AchReconciliationItemReadModel ProjectClassification(IncomingNachaEntryClassification row, IReadOnlyList<NachaHeader> headers)
     {

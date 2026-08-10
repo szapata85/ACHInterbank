@@ -150,6 +150,7 @@ public static class DependencyInjectionService
         services.AddScoped<IAchReturnOfReturnFileGenerationService, AchReturnOfReturnFileGenerationService>();
         services.AddScoped<IAchIncomingReturnIngestionService, AchIncomingReturnIngestionService>();
         services.AddScoped<IAchReconciliationReadModelService, AchReconciliationReadModelService>();
+        services.AddScoped<IAchOperationalReconciliationService, AchOperationalReconciliationService>();
         services.AddScoped<INachaSoapIdempotencyStore, NachaSoapInMemoryIdempotencyStore>();
         services.AddScoped<INachaSoapAttemptAuditor, NachaSoapInMemoryAttemptAuditor>();
         services.AddScoped<INachaRealSoapClientAdapter, NachaBlockedRealSoapClientAdapter>();

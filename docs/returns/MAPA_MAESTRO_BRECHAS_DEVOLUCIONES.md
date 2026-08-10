@@ -315,6 +315,14 @@ Una deficiencia de pantalla no invalida el motor; tampoco una pantalla existente
 
 La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpuCount=1`; el TRX quedó en `TestResults/dotnet-tests.trx`.
 
+## 21.1. Fundación canónica de Cuadre Operativo por cámara y ciclo
+
+`RET.RECONCILIATION.CYCLE.FOUNDATION.1` implementó una verdad persistente y versionada por cámara, fecha operacional y ciclo. El snapshot separa métricas internas de evidencia externa, conserva revisiones por fingerprint, clasifica devoluciones de participante y de operador, aplica `recibidas = aplicadas + devueltas por participante` para ACH Colombia V35 2.6.2 y falla cerrado como `PendingExternalEvidence` cuando falta evidencia completa. Las diferencias conservan categoría, valor interno, valor externo, delta y fuente.
+
+La unicidad relacional protege identidad+revisión e identidad+fingerprint; la carrera concurrente reutiliza la revisión ganadora. SQL Server y PostgreSQL aplicaron sus migraciones y ejecutaron el mismo escenario funcional en bases/esquemas aislados. El servicio no depende de ledger, posting, SOAP, transporte ni respuesta diferencial. El read model dejó de presentar Return/ROR persistidos como conciliados externamente y ahora los identifica como pendientes de evidencia.
+
+Este cierre es parcial respecto de `RET-GAP-009`: existe la fundación operativa de conciliación, pero no existe contrato contable, ledger/posting, parser de planilla oficial ni homologación externa por cámara.
+
 ## 22. RET-GAP — mapa maestro residual
 
 | ID | Brecha previa | Cámara | Dirección | Capacidad | Estado demostrado | Evidencia | Brecha RESIDUAL | Riesgo | Severidad | Dependencia | Próximo JOB |
@@ -327,7 +335,7 @@ La suite final se ejecutó con el filtro CI canónico y `RunConfiguration.MaxCpu
 | RET-GAP-006 | B5 | CENIT | Out | Perfil/parser/generator soportado | ⚪ NO IMPLEMENTADA | guard antes del generador | Implementación Opción C solo después de RET-GAP-005 | generación inválida | CRÍTICA | RET-GAP-005 | CENIT.RETURNOUT.OPTIONC |
 | RET-GAP-007 | B6 | ACHCOL demostrado aguas abajo; CENIT no homologado | In | Huérfanas/manual + happy path integrado | ✅ CERRADA Y DEMOSTRADA | Escenario A: `.003` original → R04 → huérfana segura; escenario B `RET.SIMULATOR.RETURN.E2E.1`: alta UI legítima + Opción C + carga manual + correlación exacta + lifecycle/causal/evento/auditoría + replay | Ninguna dentro del alcance ACH Colombia Return In correlacionado; transporte/ledger permanecen separados | sembrar por SQL, relajar rastreo, modificar `.003` o autoimportar | — | — | No reabrir |
 | RET-GAP-008 | B7 | Ambas | In/Out | Matriz return-SOAP-retry-conciliación | ❓ NO DETERMINABLE | guard no monetario, dispatch/readiness | Política normativa y E2E por escenario | doble/no movimiento | CRÍTICA | RET-GAP-009 + norma | RET.RECONCILIATION |
-| RET-GAP-009 | B8 | Ambas | In/Out | Ledger/conciliación separado | ⚪ NO IMPLEMENTADA | no se halló ledger Return específico | Asiento, reconciliation gate y auditoría | descuadre financiero | CRÍTICA | contrato contable | RET.LEDGER |
+| RET-GAP-009 | B8 | Ambas | In/Out | Ledger/conciliación separado | 🟡 PARCIAL — fundación operativa demostrada | snapshot canónico por cámara/fecha/ciclo, diferencias auditables, fail-closed, idempotencia/concurrencia y SQL Server/PostgreSQL | contrato de evidencia externa oficial y contrato contable; ledger/posting fuera de alcance | descuadre financiero si se confunde cuadre operativo con contabilidad | CRÍTICA | contratos externo y contable | RET.RECONCILIATION.EXTERNAL.EVIDENCE.CONTRACT.1 |
 | RET-GAP-010 | B9 | Ambas | Ambas | Taxonomía rechazo/return/differential/técnico | 🟡 PARCIAL — residual identificado | classifiers, catalogs, response processor | Read-model/event contract unificado | operación confusa | MEDIA | RET-GAP-008 | RET.TAXONOMY |
 | RET-GAP-011 | B10 | ACHCOL | ROR | ROR participante | ⚫ NO APLICA / LEGACY | V35 delta | Mantener capability provisional fuera de GO | falsa habilitación | MEDIA | V35 | Retirar/aislar en JOB propio |
 | RET-GAP-012 | B10 | CENIT | ROR | ROR R60-R74 | 🔴 BLOQUEADA DELIBERADAMENTE | Annex A; artefactos provisionales | Perfil físico/UAT/homologación CENIT | archivo inválido | CRÍTICA | RET-GAP-005/006 | Después de ReturnOut CENIT |
@@ -431,10 +439,11 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 3. `RET.OUTBOUND.ACCEPTANCE.1`: ✅ characterization completada; `TRANSPORT_GATE=NO-GO` y `ACK_GATE=NO-GO`, sin implementación por falta de contrato aplicativo-canal.
 4. `RET.OUTBOUND.TRANSPORT.CONTRACT.1`: obtener la decisión técnica versionada y el contrato operativo del canal ReturnOut ACH Colombia antes de implementar dispatch.
 5. `RET.PROFILE.ACHCOL.INBOUND.RETURN.1` + `RET.SIMULATOR.RETURN.E2E.1`: ✅ perfil V35, `.003` huérfana segura y happy path con transacción legítima, carga manual, correlación exacta, lifecycle e idempotencia demostrados.
-6. `RET.RECONCILIATION.1`: matriz SOAP/ledger/retry/conciliación.
-7. `CENIT.STA.HOMOLOGATION.1`: adquirir/validar Manual STA y contrato técnico; sin implementación por analogía.
-8. Solo después: perfil, provider tests, UAT y homologación CENIT.
-9. Differential se trabaja en una secuencia independiente por cámara.
+6. `RET.RECONCILIATION.CYCLE.FOUNDATION.1`: ✅ snapshot operativo canónico, persistente, versionado, fail-closed y multi-proveedor; no cierra ledger ni RET-GAP-009 completo.
+7. `RET.RECONCILIATION.EXTERNAL.EVIDENCE.CONTRACT.1`: versionar el contrato de planilla/evidencia oficial por cámara antes de implementar parser o ingestión.
+8. `CENIT.STA.HOMOLOGATION.1`: adquirir/validar Manual STA y contrato técnico; sin implementación por analogía.
+9. Solo después: perfil, provider tests, UAT y homologación CENIT.
+10. Differential se trabaja en una secuencia independiente por cámara.
 
 ### Evaluación de JOB 4.1
 
@@ -442,13 +451,13 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ## 27. Próximo JOB único
 
-### RET.SIMULATOR.RETURN.E2E.1 — completado
+### RET.RECONCILIATION.EXTERNAL.EVIDENCE.CONTRACT.1
 
-- **Objetivo cumplido:** una transacción creada por flujo normal se selecciona en el simulador, su rastreo se conserva como `Original Trace` y la devolución entra por carga manual al pipeline oficial.
-- **RET-GAP cerrado:** RET-GAP-007.
-- **Evidencia preservada:** el archivo histórico `.003` no fue modificado y continúa representando el escenario huérfano; el happy path usa un archivo nuevo y una transacción legítima del mismo escenario UAT.
-- **Restricciones verificadas:** sin INSERT SQL, sin override de rastreo, sin correlación aproximada, sin autoimport y sin pipeline paralelo.
+- **Objetivo único:** obtener y versionar el contrato de evidencia externa oficial por cámara —identidad de planilla, fecha/ciclo, conteos, valores, posición neta, correcciones y procedencia— sin implementar parser para layouts todavía no aprobados.
+- **Motivo:** la fundación canónica ya calcula y persiste el estado interno; el siguiente bloqueo demostrable es cómo incorporar evidencia oficial sin fabricarla ni confundir `CenitNetPosition` con planilla externa.
+- **Fuera de alcance:** ledger/posting, SOAP, transporte Return Out, RET-GAP-008 y respuesta diferencial.
+- **Resultado esperado:** contrato versionado y decisión explícita por ACH Colombia/CENIT que habilite un JOB posterior de ingestión idempotente.
 - **Modelo recomendado:** `gpt-5.6-sol`.
-- **Reasoning recomendado:** `high`.
+- **Reasoning recomendado:** `medium`.
 
 Este mapa no homologa devoluciones. El soporte productivamente seguro permanece condicionado a los gates por cámara y dirección descritos arriba.
