@@ -323,6 +323,12 @@ La unicidad relacional protege identidad+revisión e identidad+fingerprint; la c
 
 Este cierre es parcial respecto de `RET-GAP-009`: existe la fundación operativa de conciliación, pero no existe contrato contable, ledger/posting, parser de planilla oficial ni homologación externa por cámara.
 
+## 21.2. Contrato de evidencia externa por cámara
+
+`RET.RECONCILIATION.EXTERNAL.EVIDENCE.CONTRACT.1` versionó el contrato conceptual en `docs/returns/EXTERNAL_RECONCILIATION_EVIDENCE_CONTRACT.md`. ACH Colombia V35 identifica la Planilla de Compensación Definitiva por participante y ciclo, pero no existe en el repositorio un ejemplar operativo ni layout físico versionado; su gate es `EXTERNAL_ARTIFACT_REQUIRED`. Para CENIT, la normativa demuestra compensación/liquidación por ciclo y archivos de salida, pero no identifica un artefacto que materialice conjuntamente totales y posición neta para conciliación; su gate es `NOT_DETERMINABLE`. `CenitNetPosition` permanece clasificado como cálculo interno y no como evidencia de cámara.
+
+El contrato externo queda definido sólo a nivel conceptual y bloqueado a nivel físico. `RET-GAP-009` continúa parcial: fundación operativa implementada; contrato externo caracterizado con artefactos pendientes; contrato contable y ledger/posting pendientes.
+
 ## 22. RET-GAP — mapa maestro residual
 
 | ID | Brecha previa | Cámara | Dirección | Capacidad | Estado demostrado | Evidencia | Brecha RESIDUAL | Riesgo | Severidad | Dependencia | Próximo JOB |
@@ -335,7 +341,7 @@ Este cierre es parcial respecto de `RET-GAP-009`: existe la fundación operativa
 | RET-GAP-006 | B5 | CENIT | Out | Perfil/parser/generator soportado | ⚪ NO IMPLEMENTADA | guard antes del generador | Implementación Opción C solo después de RET-GAP-005 | generación inválida | CRÍTICA | RET-GAP-005 | CENIT.RETURNOUT.OPTIONC |
 | RET-GAP-007 | B6 | ACHCOL demostrado aguas abajo; CENIT no homologado | In | Huérfanas/manual + happy path integrado | ✅ CERRADA Y DEMOSTRADA | Escenario A: `.003` original → R04 → huérfana segura; escenario B `RET.SIMULATOR.RETURN.E2E.1`: alta UI legítima + Opción C + carga manual + correlación exacta + lifecycle/causal/evento/auditoría + replay | Ninguna dentro del alcance ACH Colombia Return In correlacionado; transporte/ledger permanecen separados | sembrar por SQL, relajar rastreo, modificar `.003` o autoimportar | — | — | No reabrir |
 | RET-GAP-008 | B7 | Ambas | In/Out | Matriz return-SOAP-retry-conciliación | ❓ NO DETERMINABLE | guard no monetario, dispatch/readiness | Política normativa y E2E por escenario | doble/no movimiento | CRÍTICA | RET-GAP-009 + norma | RET.RECONCILIATION |
-| RET-GAP-009 | B8 | Ambas | In/Out | Ledger/conciliación separado | 🟡 PARCIAL — fundación operativa demostrada | snapshot canónico por cámara/fecha/ciclo, diferencias auditables, fail-closed, idempotencia/concurrencia y SQL Server/PostgreSQL | contrato de evidencia externa oficial y contrato contable; ledger/posting fuera de alcance | descuadre financiero si se confunde cuadre operativo con contabilidad | CRÍTICA | contratos externo y contable | RET.RECONCILIATION.EXTERNAL.EVIDENCE.CONTRACT.1 |
+| RET-GAP-009 | B8 | Ambas | In/Out | Ledger/conciliación separado | 🟡 PARCIAL — fundación operativa y contrato conceptual externo demostrados | snapshot canónico; contrato v1.0; ACH Colombia `EXTERNAL_ARTIFACT_REQUIRED`; CENIT `NOT_DETERMINABLE` | artefactos/contratos físicos por cámara, contrato contable y ledger/posting | descuadre financiero si se usa evidencia provisional, interna o incompleta | CRÍTICA | adquisición externa y contrato contable | RET.RECONCILIATION.EXTERNAL.EVIDENCE.ACQUISITION.ACHCOL.1 |
 | RET-GAP-010 | B9 | Ambas | Ambas | Taxonomía rechazo/return/differential/técnico | 🟡 PARCIAL — residual identificado | classifiers, catalogs, response processor | Read-model/event contract unificado | operación confusa | MEDIA | RET-GAP-008 | RET.TAXONOMY |
 | RET-GAP-011 | B10 | ACHCOL | ROR | ROR participante | ⚫ NO APLICA / LEGACY | V35 delta | Mantener capability provisional fuera de GO | falsa habilitación | MEDIA | V35 | Retirar/aislar en JOB propio |
 | RET-GAP-012 | B10 | CENIT | ROR | ROR R60-R74 | 🔴 BLOQUEADA DELIBERADAMENTE | Annex A; artefactos provisionales | Perfil físico/UAT/homologación CENIT | archivo inválido | CRÍTICA | RET-GAP-005/006 | Después de ReturnOut CENIT |
@@ -440,7 +446,7 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 4. `RET.OUTBOUND.TRANSPORT.CONTRACT.1`: obtener la decisión técnica versionada y el contrato operativo del canal ReturnOut ACH Colombia antes de implementar dispatch.
 5. `RET.PROFILE.ACHCOL.INBOUND.RETURN.1` + `RET.SIMULATOR.RETURN.E2E.1`: ✅ perfil V35, `.003` huérfana segura y happy path con transacción legítima, carga manual, correlación exacta, lifecycle e idempotencia demostrados.
 6. `RET.RECONCILIATION.CYCLE.FOUNDATION.1`: ✅ snapshot operativo canónico, persistente, versionado, fail-closed y multi-proveedor; no cierra ledger ni RET-GAP-009 completo.
-7. `RET.RECONCILIATION.EXTERNAL.EVIDENCE.CONTRACT.1`: versionar el contrato de planilla/evidencia oficial por cámara antes de implementar parser o ingestión.
+7. `RET.RECONCILIATION.EXTERNAL.EVIDENCE.CONTRACT.1`: ✅ contrato conceptual v1.0; ACH Colombia requiere planilla/layout operativo y CENIT no tiene artefacto de resultado determinable con las fuentes locales.
 8. `CENIT.STA.HOMOLOGATION.1`: adquirir/validar Manual STA y contrato técnico; sin implementación por analogía.
 9. Solo después: perfil, provider tests, UAT y homologación CENIT.
 10. Differential se trabaja en una secuencia independiente por cámara.
@@ -451,12 +457,12 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 
 ## 27. Próximo JOB único
 
-### RET.RECONCILIATION.EXTERNAL.EVIDENCE.CONTRACT.1
+### RET.RECONCILIATION.EXTERNAL.EVIDENCE.ACQUISITION.ACHCOL.1
 
-- **Objetivo único:** obtener y versionar el contrato de evidencia externa oficial por cámara —identidad de planilla, fecha/ciclo, conteos, valores, posición neta, correcciones y procedencia— sin implementar parser para layouts todavía no aprobados.
-- **Motivo:** la fundación canónica ya calcula y persiste el estado interno; el siguiente bloqueo demostrable es cómo incorporar evidencia oficial sin fabricarla ni confundir `CenitNetPosition` con planilla externa.
+- **Objetivo único:** obtener y versionar un ejemplar sanitizado de Planilla de Compensación Definitiva de Integra ACH y su especificación o validación formal de estructura, sin implementar parser.
+- **Motivo:** ACH Colombia V35 identifica con precisión el artefacto y sus métricas, por lo que su adquisición es el bloqueo externo más concreto y desbloqueable; CENIT permanece `NOT_DETERMINABLE`.
 - **Fuera de alcance:** ledger/posting, SOAP, transporte Return Out, RET-GAP-008 y respuesta diferencial.
-- **Resultado esperado:** contrato versionado y decisión explícita por ACH Colombia/CENIT que habilite un JOB posterior de ingestión idempotente.
+- **Resultado esperado:** artefacto B y/o contrato C sanitizado, clasificación de campos/revisiones y decisión `READY_FOR_INGESTION_DESIGN` o bloqueo explícito.
 - **Modelo recomendado:** `gpt-5.6-sol`.
 - **Reasoning recomendado:** `medium`.
 
