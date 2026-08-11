@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
@@ -322,17 +323,29 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             new AchReturnCode { Code = "DEV14", Description = "No consentimiento / retorno de débito por operador", AppliesToDebit = true, AppliesToCredit = false, AppliesToPrenotification = false, AppliesToReturn = true, RequiresAddenda = true, MaxDaysAllowed = 60, IsActive = true, RegulatorySource = "OPERADOR" }
         };
 
-        foreach (var row in rows)
+        var cenitRows = CenitIncomingReturnPolicy.CauseDefinitions.Select(cause => new AchReturnCode
         {
-            row.ClearingHouseId = string.Equals(row.RegulatorySource, "CENIT", StringComparison.OrdinalIgnoreCase)
-                ? clearingHouseIds.CenitId
-                : (string.Equals(row.RegulatorySource, "ACH", StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(row.RegulatorySource, "OPERADOR", StringComparison.OrdinalIgnoreCase))
-                    ? clearingHouseIds.AchColombiaId
-                    : throw new InvalidOperationException($"RegulatorySource no soportado para seed de devoluciones: {row.RegulatorySource}");
+            ClearingHouseId = clearingHouseIds.CenitId,
+            Code = cause.Code,
+            Description = cause.Description,
+            AppliesToDebit = cause.AppliesToDebitMonetary,
+            AppliesToCredit = cause.AppliesToCreditMonetary,
+            AppliesToPrenotification = cause.AppliesToDebitPrenotification || cause.AppliesToCreditPrenotification,
+            AppliesToReturn = true,
+            RequiresAddenda = true,
+            MaxDaysAllowed = cause.MaxCalendarDays,
+            IsActive = true,
+            EffectiveFrom = new DateTime(2023, 11, 28),
+            RegulatorySource = "CENIT"
+        }).ToList();
+
+        var achRows = rows.Where(row => !string.Equals(row.RegulatorySource, "CENIT", StringComparison.OrdinalIgnoreCase)).ToList();
+        foreach (var row in achRows)
+        {
+            row.ClearingHouseId = clearingHouseIds.AchColombiaId;
         }
 
-        return rows;
+        return cenitRows.Concat(achRows);
     }
 
     private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes((int CenitId, int AchColombiaId) clearingHouseIds)

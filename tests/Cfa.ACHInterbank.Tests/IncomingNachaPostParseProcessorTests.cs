@@ -170,10 +170,12 @@ public class IncomingNachaPostParseProcessorTests
             {
                 new() { Code = "R01", Description = "Fondos insuficientes", AppliesToReturn = true, IsActive = true, RegulatorySource = "EPR" }
             });
-
         var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object, null, resultResolver.Object);
         await sut.ProcessAsync(ingestionId, "tester");
 
+        var processingEvents = await context.IncomingNachaProcessingEvents.AsNoTracking().ToListAsync();
+        Assert.True(processingEvents.Any(e => e.EventType == "TransicionDisparada"),
+            string.Join(" | ", processingEvents.Select(e => $"{e.EventType}:{e.EventStatus}:{e.Message}")));
         state.Verify(x => x.TransitionAsync(
             It.Is<AchStateTransitionRequest>(request => request.TransactionId == 100
                 && request.ToState == AchTransferStateEnum.ReturnedByEpr
@@ -398,11 +400,14 @@ public class IncomingNachaPostParseProcessorTests
             CorrelationId = "c",
             Notes = "n",
             ResolvedClearingHouseId = 1,
+            ResolvedAchCycleId = "C2",
+            DetectedCycleNumber = 2,
+            EffectiveDate = new DateTime(2026, 8, 2),
             OperationalDate = new DateTime(2026, 8, 2)
         };
 
         var header = new NachaHeader { NachaID = "N1", IncomingNachaFileIngestionId = ingestionId };
-        var entry = new EntryDetail { EntryDetailID = 10, NachaID = "N1", SequenceNumber = "123456789012345", TransactionCode = "21", Amount = 0, AccountNumber = "001" };
+        var entry = new EntryDetail { EntryDetailID = 10, NachaID = "N1", SequenceNumber = "123456789012345", TransactionCode = "21", Amount = 100, AccountNumber = "001" };
         var addenda = new AddendaRecord { AddendaID = 20, NachaID = "N1", CodeTypeAddendumRecord = "99", ReturnReasonCode = "R01", OriginalTraceNumber = "123456789012345", EntryDetailSequenceNumber = "9012345" };
 
         context.IncomingNachaFileIngestions.Add(ingestion);
@@ -410,6 +415,12 @@ public class IncomingNachaPostParseProcessorTests
         context.EntryDetails.Add(entry);
         context.AddendaRecords.Add(addenda);
         context.ClearingHouses.Add(new ClearingHouse { Id = 1, Name = "CENIT", Code = "CENIT", OriginCode = "00010100" });
+        context.AchCycles.AddRange(
+            new AchCycle { Id = "C1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 8, 2), CutoffTime = new TimeSpan(8, 0, 0), ClearingHouseId = 1 },
+            new AchCycle { Id = "C2", CycleName = "Ciclo 2", ProcessingDate = new DateTime(2026, 8, 2), CutoffTime = new TimeSpan(10, 0, 0), ClearingHouseId = 1 },
+            new AchCycle { Id = "C3", CycleName = "Ciclo 3", ProcessingDate = new DateTime(2026, 8, 2), CutoffTime = new TimeSpan(12, 0, 0), ClearingHouseId = 1 },
+            new AchCycle { Id = "C4", CycleName = "Ciclo 4", ProcessingDate = new DateTime(2026, 8, 2), CutoffTime = new TimeSpan(14, 0, 0), ClearingHouseId = 1 },
+            new AchCycle { Id = "C5", CycleName = "Ciclo 5", ProcessingDate = new DateTime(2026, 8, 2), CutoffTime = new TimeSpan(16, 0, 0), ClearingHouseId = 1 });
         for (var transactionId = 100; transactionId <= 104; transactionId++)
         {
             context.AchTransactions.Add(new AchTransaction

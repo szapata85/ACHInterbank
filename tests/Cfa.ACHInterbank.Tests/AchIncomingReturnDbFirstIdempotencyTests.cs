@@ -220,6 +220,12 @@ public sealed class AchIncomingReturnDbFirstIdempotencyTests
         resultResolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaAchResultRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IncomingNachaAchResultResolution(
                 true, returnCodeId, "R01", "Fondos insuficientes", IncomingNachaBusinessOutcome.Returned, "Resolved"));
+        var cenitPolicy = new Mock<ICenitIncomingReturnPolicy>();
+        cenitPolicy.Setup(x => x.Evaluate(It.IsAny<CenitIncomingReturnPolicyRequest>()))
+            .Returns(new CenitIncomingReturnPolicyResult(
+                CenitIncomingReturnPolicyStatus.Allowed,
+                "IDEMPOTENCY_TEST_ALLOWED",
+                "El test aisla la concurrencia e idempotencia del provider."));
         var processor = new IncomingNachaPostParseProcessor(
             context,
             Mock.Of<IIncomingNachaFunctionalClassifier>(),
@@ -228,7 +234,8 @@ public sealed class AchIncomingReturnDbFirstIdempotencyTests
             Mock.Of<IIncomingNachaDispatchPlanner>(),
             Mock.Of<IAchRegulatoryCatalogService>(),
             new AchStateTransitionService(context),
-            resultResolver: resultResolver.Object);
+            resultResolver: resultResolver.Object,
+            cenitReturnPolicy: cenitPolicy.Object);
         return new IncomingNachaOrphanManualResolutionService(context, processor);
     }
 

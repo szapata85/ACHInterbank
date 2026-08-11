@@ -541,6 +541,25 @@ public class AchIncomingReturnIngestionServiceTests
         Assert.Equal(AchTransferStateEnum.Pending, (await c.AchTransactions.SingleAsync()).State);
     }
 
+    [Fact]
+    public async Task IngestAsync_ShouldFailClosedForCenitRawContractPendingManual()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(
+            c,
+            CatalogAllowAll(),
+            cenitRawReturnContractGate: new CenitRawReturnContractGate());
+
+        var result = await sut.IngestAsync(
+            new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow),
+            CancellationToken.None);
+
+        Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, result.Decision);
+        Assert.Contains(result.Failures, x => x.Code == "DEPENDENCIA_MANUAL_TECNICO_CENIT");
+        Assert.Equal(AchTransferStateEnum.Pending, (await c.AchTransactions.SingleAsync()).State);
+    }
+
     static string BuildType7(string reason, string originalTrace)
     {
         var chars = Enumerable.Repeat(' ', 106).ToArray();

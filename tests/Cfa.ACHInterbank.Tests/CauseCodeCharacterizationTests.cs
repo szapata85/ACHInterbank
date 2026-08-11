@@ -35,7 +35,7 @@ public class CauseCodeCharacterizationTests
         await new RegulatoryCatalogSeeder(context).SeedAsync();
 
         var cenitCodes = await context.AchReturnCodes.Where(x => x.ClearingHouseId == cenit.Id).Select(x => x.Code).ToListAsync();
-        foreach (var code in new[] { "R01", "R02", "R03", "R04", "R06", "R08", "R09", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R23" })
+        foreach (var code in new[] { "R01", "R02", "R03", "R04", "R06", "R07", "R08", "R09", "R10", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R23", "R29", "R31", "R32", "R33", "R34", "R35" })
             Assert.Contains(code, cenitCodes);
     }
 
@@ -86,10 +86,16 @@ public class CauseCodeCharacterizationTests
         await new RegulatoryCatalogSeeder(context).SeedAsync();
         var sut = new AchRegulatoryCatalogService(context);
 
-        foreach (var code in new[] { "R01", "R02", "R03", "R04", "R06", "R08", "R09", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R23" })
+        foreach (var code in new[] { "R01", "R02", "R03", "R04", "R06", "R07", "R08", "R09", "R10", "R12", "R13", "R14", "R15", "R16", "R17", "R20", "R29", "R33", "R34", "R35" })
         {
             var result = await sut.ValidateReturnCodeAsync(cenit.Id, code, TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
             Assert.True(result.IsAllowed, $"CENIT code should be allowed in current catalog: {code}");
+        }
+
+        foreach (var code in new[] { "R02", "R03", "R04", "R06", "R16", "R17", "R20", "R23", "R32", "R33", "R34", "R35" })
+        {
+            var result = await sut.ValidateReturnCodeAsync(cenit.Id, code, TransactionTypeEnum.Credit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
+            Assert.True(result.IsAllowed, $"CENIT credit code should be allowed in current catalog: {code}");
         }
     }
 

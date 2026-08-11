@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Persistence;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Microsoft.Extensions.Configuration;
@@ -120,6 +121,26 @@ public class PersistenceDependencyInjectionTests
         Assert.NotNull(descriptor);
         Assert.Equal(typeof(AchIncomingReturnIngestionService), descriptor!.ImplementationType);
         Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+    }
+
+    [Fact]
+    public void AddPersistence_RegistersCenitIncomingReturnPolicyAndRawGate_AsScoped()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Database:Provider"] = "sqlserver",
+            ["ConnectionStrings:SqlConnection"] = "Server=(localdb)\\MSSQLLocalDB;Database=AchInterbank;Trusted_Connection=True;"
+        }).Build();
+
+        services.AddPersistence(configuration);
+
+        var policy = services.Single(x => x.ServiceType == typeof(ICenitIncomingReturnPolicy));
+        Assert.Equal(typeof(CenitIncomingReturnPolicy), policy.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, policy.Lifetime);
+        var gate = services.Single(x => x.ServiceType == typeof(ICenitRawReturnContractGate));
+        Assert.Equal(typeof(CenitRawReturnContractGate), gate.ImplementationType);
+        Assert.Equal(ServiceLifetime.Scoped, gate.Lifetime);
     }
 
     [Fact]

@@ -203,7 +203,13 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         await c.SaveChangesAsync();
 
         var stateTransition = new AchStateTransitionService(c);
-        var sut = new IncomingNachaPostParseProcessor(c, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, stateTransition);
+        var cenitPolicy = new Mock<ICenitIncomingReturnPolicy>();
+        cenitPolicy.Setup(x => x.Evaluate(It.IsAny<CenitIncomingReturnPolicyRequest>()))
+            .Returns(new CenitIncomingReturnPolicyResult(
+                CenitIncomingReturnPolicyStatus.Allowed,
+                "CHARACTERIZATION_ALLOWED",
+                "El test aisla la persistencia del evento de estado."));
+        var sut = new IncomingNachaPostParseProcessor(c, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, stateTransition, cenitReturnPolicy: cenitPolicy.Object);
 
         await sut.ProcessAsync(ingestionId, "tester", CancellationToken.None);
         await sut.ProcessAsync(ingestionId, "tester", CancellationToken.None);

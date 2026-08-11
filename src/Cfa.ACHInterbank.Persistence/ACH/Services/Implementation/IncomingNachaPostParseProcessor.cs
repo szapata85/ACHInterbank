@@ -22,6 +22,8 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
     private readonly IAchStateTransitionService _stateTransitionService;
     private readonly IIncomingNachaLocalLivePreparationService? _localLivePreparationService;
     private readonly IIncomingNachaAchResultResolver _resultResolver;
+    private readonly ICenitIncomingReturnPolicy _cenitReturnPolicy;
+    private readonly ICycleNumberResolver _cycleNumberResolver;
 
     public IncomingNachaPostParseProcessor(
         AchDbContext context,
@@ -32,7 +34,9 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         IAchRegulatoryCatalogService regulatoryCatalogService,
         IAchStateTransitionService stateTransitionService,
         IIncomingNachaLocalLivePreparationService? localLivePreparationService = null,
-        IIncomingNachaAchResultResolver? resultResolver = null)
+        IIncomingNachaAchResultResolver? resultResolver = null,
+        ICenitIncomingReturnPolicy? cenitReturnPolicy = null,
+        ICycleNumberResolver? cycleNumberResolver = null)
     {
         _context = context;
         _classifier = classifier;
@@ -43,6 +47,8 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         _stateTransitionService = stateTransitionService;
         _localLivePreparationService = localLivePreparationService;
         _resultResolver = resultResolver ?? new IncomingNachaAchResultResolver(context);
+        _cenitReturnPolicy = cenitReturnPolicy ?? new CenitIncomingReturnPolicy();
+        _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
     }
 
     public async Task ProcessAsync(Guid ingestionId, string executedBy, CancellationToken ct = default)
@@ -376,6 +382,21 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 return new(false, false, true, null, "TransitionBlocked", route.Reason);
             }
 
+            var cenitPolicy = await EvaluateCenitReturnPolicyAsync(ingestion, entry, classification, link.AchTransactionId.Value, ct);
+            if (cenitPolicy is not null && !cenitPolicy.IsAllowed)
+            {
+                classification.EligibilityStatus = cenitPolicy.RequiresManualReview
+                    ? IncomingNachaEligibilityStatus.RevisionManual
+                    : IncomingNachaEligibilityStatus.Bloqueada;
+                classification.RequiresManualResolution = cenitPolicy.RequiresManualReview;
+                await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda?.AddendaID, link.AchTransactionId,
+                    "PoliticaCenitReturnInBloqueada",
+                    cenitPolicy.RequiresManualReview ? "RevisionManual" : "Bloqueado",
+                    cenitPolicy.Message,
+                    new { cenitPolicy.Code, cenitPolicy.Status, classification.ReturnReasonCode }, executedBy, ct);
+                return new(false, false, cenitPolicy.RequiresManualReview, null, cenitPolicy.Code, cenitPolicy.Message);
+            }
+
             var idempotencyKey = AchIncomingEventIdentityPolicy.BuildReturnKey(
                 ingestion.ResolvedClearingHouseId!.Value,
                 link.AchTransactionId.Value,
@@ -423,6 +444,125 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         }
 
         return new(false, false, classification.RequiresManualResolution, null, "NoReturnEffect", "La clasificación no requiere aplicación de devolución.");
+    }
+
+    private async Task<CenitIncomingReturnPolicyResult?> EvaluateCenitReturnPolicyAsync(
+        IncomingNachaFileIngestion ingestion,
+        EntryDetail entry,
+        IncomingNachaEntryClassification classification,
+        int achTransactionId,
+        CancellationToken ct)
+    {
+        if (!ingestion.ResolvedClearingHouseId.HasValue)
+        {
+            return null;
+        }
+
+        var clearingHouseCode = await _context.ClearingHouses.AsNoTracking()
+            .Where(x => x.Id == ingestion.ResolvedClearingHouseId.Value)
+            .Select(x => x.Code)
+            .SingleOrDefaultAsync(ct);
+        if (!string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var transaction = await _context.AchTransactions.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == achTransactionId, ct);
+        if (transaction is null)
+        {
+            return new CenitIncomingReturnPolicyResult(
+                CenitIncomingReturnPolicyStatus.ManualReviewRequired,
+                "CENIT_ORIGINAL_TRANSACTION_REQUIRED",
+                "No existe la transaccion original requerida por la politica CENIT Return In.");
+        }
+
+        var returnValueDate = ingestion.EffectiveDate ?? ingestion.OperationalDate;
+        if (!returnValueDate.HasValue)
+        {
+            return new CenitIncomingReturnPolicyResult(
+                CenitIncomingReturnPolicyStatus.ManualReviewRequired,
+                "CENIT_RETURN_VALUE_DATE_REQUIRED",
+                "No existe Fecha Valor normalizada para validar la devolucion CENIT.");
+        }
+
+        if (!entry.Amount.HasValue)
+        {
+            return new CenitIncomingReturnPolicyResult(
+                CenitIncomingReturnPolicyStatus.ManualReviewRequired,
+                "CENIT_RETURN_AMOUNT_REQUIRED",
+                "No existe valor normalizado para validar la devolucion CENIT.");
+        }
+
+        var returnCycleName = !string.IsNullOrWhiteSpace(ingestion.ResolvedAchCycleId)
+            ? await _context.AchCycles.AsNoTracking()
+                .Where(x => x.Id == ingestion.ResolvedAchCycleId)
+                .Select(x => x.CycleName)
+                .SingleOrDefaultAsync(ct)
+            : null;
+        var originalCycleName = !string.IsNullOrWhiteSpace(transaction.AchCycleId)
+            ? await _context.AchCycles.AsNoTracking()
+                .Where(x => x.Id == transaction.AchCycleId)
+                .Select(x => x.CycleName)
+                .SingleOrDefaultAsync(ct)
+            : null;
+        var returnCycleNumber = ingestion.DetectedCycleNumber ?? _cycleNumberResolver.Resolve(returnCycleName);
+        var cycleNames = await _context.AchCycles.AsNoTracking()
+            .Where(x => x.ClearingHouseId == ingestion.ResolvedClearingHouseId.Value
+                && x.ProcessingDate.Date == returnValueDate.Value.Date)
+            .Select(x => x.CycleName)
+            .ToListAsync(ct);
+        var lastReturnCycleNumber = cycleNames
+            .Select(_cycleNumberResolver.Resolve)
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .DefaultIfEmpty()
+            .Max();
+
+        var evidence = ParseCenitOperationalEvidence(classification.ClassificationEvidenceJson);
+        return _cenitReturnPolicy.Evaluate(new CenitIncomingReturnPolicyRequest(
+            transaction.Type,
+            classification.ReturnReasonCode ?? string.Empty,
+            transaction.EffectiveEntryDate.Date,
+            returnValueDate.Value.Date,
+            _cycleNumberResolver.Resolve(originalCycleName),
+            returnCycleNumber,
+            lastReturnCycleNumber > 0 ? lastReturnCycleNumber : null,
+            transaction.Amount,
+            entry.Amount.Value,
+            evidence.PrenotificationDirection,
+            evidence.ReturnRequestDate,
+            evidence.ImmediateReturnCycleConfirmed,
+            evidence.FundsAvailabilityRequired,
+            evidence.FundsAvailabilityConfirmed,
+            evidence.ConfirmationToOriginatorRecorded,
+            evidence.ReceiverRejectionDeadlineDate));
+    }
+
+    private static CenitIncomingReturnOperationalEvidence ParseCenitOperationalEvidence(string? evidenceJson)
+    {
+        if (string.IsNullOrWhiteSpace(evidenceJson))
+        {
+            return new();
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(evidenceJson);
+            if (!document.RootElement.TryGetProperty("cenitReturnOperationalEvidence", out var evidence))
+            {
+                return new();
+            }
+
+            return evidence.Deserialize<CenitIncomingReturnOperationalEvidence>(new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? new();
+        }
+        catch (JsonException)
+        {
+            return new();
+        }
     }
 
     private static bool IsAddendaForEntry(EntryDetail entry, AddendaRecord addenda)

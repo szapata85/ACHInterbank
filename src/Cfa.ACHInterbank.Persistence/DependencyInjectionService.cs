@@ -148,6 +148,7 @@ public static class DependencyInjectionService
         services.AddScoped<IAchReturnEligibilityService, AchReturnEligibilityService>();
         services.AddScoped<IAchReturnOfReturnEligibilityService, AchReturnOfReturnEligibilityService>();
         services.AddScoped<IAchReturnOfReturnFileGenerationService, AchReturnOfReturnFileGenerationService>();
+        services.AddScoped<ICenitIncomingReturnPolicy, CenitIncomingReturnPolicy>();
         services.AddScoped<IAchIncomingReturnIngestionService, AchIncomingReturnIngestionService>();
         services.AddScoped<IAchReconciliationReadModelService, AchReconciliationReadModelService>();
         services.AddScoped<IAchOperationalReconciliationService, AchOperationalReconciliationService>();

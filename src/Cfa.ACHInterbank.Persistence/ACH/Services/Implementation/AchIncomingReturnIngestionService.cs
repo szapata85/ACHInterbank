@@ -14,7 +14,8 @@ public class AchIncomingReturnIngestionService(
     AchDbContext context,
     IAchRegulatoryCatalogService regulatoryCatalogService,
     IAchCauseCodePolicy? causeCodePolicy = null,
-    IAchStateTransitionService? stateTransitionService = null) : IAchIncomingReturnIngestionService
+    IAchStateTransitionService? stateTransitionService = null,
+    ICenitRawReturnContractGate? cenitRawReturnContractGate = null) : IAchIncomingReturnIngestionService
 {
     public async Task<AchIncomingReturnIngestionResult> IngestAsync(AchIncomingReturnIngestionRequest request, CancellationToken cancellationToken)
     {
@@ -94,18 +95,31 @@ public class AchIncomingReturnIngestionService(
             }
             else if (!string.IsNullOrWhiteSpace(normalizedReason))
             {
+                var clearingHouseCode = originalTx.AchCycle?.ClearingHouse?.Code;
+                if (string.IsNullOrWhiteSpace(clearingHouseCode))
+                {
+                    clearingHouseCode = await context.ClearingHouses
+                        .AsNoTracking()
+                        .Where(x => x.Id == clearingHouseId.Value)
+                        .Select(x => x.Code)
+                        .FirstOrDefaultAsync(cancellationToken);
+                }
+
+                if (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+                    && cenitRawReturnContractGate is { IsHomologated: false })
+                {
+                    failures.Add(new(
+                        "DEPENDENCIA_MANUAL_TECNICO_CENIT",
+                        "La ruta raw CENIT permanece bloqueada hasta homologar el Manual Tecnico; use la frontera normalizada Return In.",
+                        "RawContent",
+                        trace));
+                    items.Add(new(trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, originalTx.Type.ToString(), originalTx.State.ToString(), true, record));
+                    auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, true));
+                    continue;
+                }
+
                 if (causeCodePolicy is not null)
                 {
-                    var clearingHouseCode = originalTx.AchCycle?.ClearingHouse?.Code;
-                    if (string.IsNullOrWhiteSpace(clearingHouseCode))
-                    {
-                        clearingHouseCode = await context.ClearingHouses
-                            .AsNoTracking()
-                            .Where(x => x.Id == clearingHouseId.Value)
-                            .Select(x => x.Code)
-                            .FirstOrDefaultAsync(cancellationToken);
-                    }
-
                     var causePolicyResult = await causeCodePolicy.EvaluateAsync(
                         new AchCauseCodePolicyRequest(
                             normalizedReason,
@@ -312,7 +326,10 @@ public class AchIncomingReturnIngestionService(
             return AchIncomingReturnIngestionDecision.RejectedTotal;
         }
 
-        var linkedRegulatoryFailures = failures.Count(x => x.Code is "INCOMING_RETURN_CODE_REJECTED" or "INCOMING_RETURN_POLICY_REJECTED");
+        var linkedRegulatoryFailures = failures.Count(x => x.Code is
+            "INCOMING_RETURN_CODE_REJECTED"
+            or "INCOMING_RETURN_POLICY_REJECTED"
+            or "DEPENDENCIA_MANUAL_TECNICO_CENIT");
         if (linkedRegulatoryFailures >= linkedReturnCount)
         {
             return AchIncomingReturnIngestionDecision.RejectedTotal;
