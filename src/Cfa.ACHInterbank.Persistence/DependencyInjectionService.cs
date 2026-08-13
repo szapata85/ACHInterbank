@@ -119,6 +119,7 @@ public static class DependencyInjectionService
             .SetApplicationName(DataProtectionKeyRingConfiguration.ApplicationName)
             .PersistKeysToDbContext<AchDbContext>();
         services.AddHostedService<DataProtectionKeyRingStartupValidator>();
+        services.AddHostedService<DatabaseInitializationHostedService>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<IAchTransactionClassificationPolicy, AchTransactionClassificationPolicy>();

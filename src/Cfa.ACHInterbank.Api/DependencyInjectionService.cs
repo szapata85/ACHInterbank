@@ -294,33 +294,6 @@ public static class DependencyInjectionService
 
         app.UseMiddleware<GlobalExceptionMiddleware>();
 
-        var applyMigrations = app.Configuration.GetValue("Database:ApplyMigrations", !IsRunningInContainer());
-        if (applyMigrations)
-        {
-            using var scope = app.Services.CreateScope();
-            AchDbContext Context = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-            try
-            {
-                EnsureLegacyPostgresTableNames(Context);
-                Context.Database.Migrate();
-            }
-            catch (PostgresException ex) when (ex.SqlState == "3D000")
-            {
-                app.Logger.LogWarning("Database does not exist. Skipping migration at startup. Create DB first or disable Database:ApplyMigrations. Detail: {Detail}", ex.MessageText);
-            }
-        }
-        else
-        {
-            app.Logger.LogInformation("Skipping database migrations. Set Database__ApplyMigrations=true to enable.");
-        }
-
-        if (app.Configuration.GetValue("Database:ApplySeed", false))
-        {
-            using var seedScope = app.Services.CreateScope();
-            DbInitializer.SeedAllAsync(seedScope.ServiceProvider).GetAwaiter().GetResult();
-            app.Logger.LogInformation("Database seed completed.");
-        }
-
         app.UseRouting();
         app.UseCors(CorsPolicyName);
 
