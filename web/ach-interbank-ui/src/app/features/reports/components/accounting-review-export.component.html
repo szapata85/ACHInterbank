@@ -1,48 +1,64 @@
-<section class="panel accounting-review-export">
-  <h3>Exportar reporte operativo de revisión</h3>
-  <p class="disclaimer">
-    Este reporte es operativo y de soporte de conciliación/revisión de terceros. NO contabiliza, no genera asientos y no reemplaza evidencia externa ni aprobación humana.
-  </p>
-  <p class="disclaimer">
-    La evidencia CUD es operacional/manual. No representa API CUD bancaria ni saldo real CUD. Liquidez simulada no equivale a saldo real CUD.
-  </p>
-
-  <form [formGroup]="form" (ngSubmit)="downloadReport()" class="grid">
-    <label>
-      Formato
-      <select formControlName="format">
-        <option *ngFor="let item of formats" [value]="item.value">{{ item.label }}</option>
-      </select>
-    </label>
-
-    <label *ngIf="isCsv">
-      Delimitador CSV
-      <input type="text" maxlength="1" formControlName="csvDelimiter" placeholder="," />
-    </label>
-
-    <label>Desde <input type="date" formControlName="dateFrom" /></label>
-    <label>Hasta <input type="date" formControlName="dateTo" /></label>
-    <label>Cámara <input type="text" formControlName="clearingHouseCode" placeholder="ACH/CENIT" /></label>
-    <label>Ciclo <input type="text" formControlName="cycleCode" /></label>
-    <label>Archivo <input type="text" formControlName="fileId" /></label>
-    <label>Hash archivo <input type="text" formControlName="fileHash" /></label>
-    <label>Transacción <input type="text" formControlName="transactionId" /></label>
-    <label>Estado <input type="text" formControlName="status" /></label>
-    <label>Causal <input type="text" formControlName="causeCode" /></label>
-
-    <div class="checks">
-      <label><input type="checkbox" formControlName="includeOutbound" /> Outbound</label>
-      <label><input type="checkbox" formControlName="includeIncoming" /> Incoming</label>
-      <label><input type="checkbox" formControlName="includeReturns" /> Devoluciones</label>
-      <label><input type="checkbox" formControlName="includeReturnOfReturn" /> Return of Return</label>
-      <label><input type="checkbox" formControlName="includeManualAuditOnly" /> Manual audit-only</label>
-      <label><input type="checkbox" formControlName="includeNetting" /> Neteo</label>
-      <label><input type="checkbox" formControlName="includeLiquidity" /> Liquidez</label>
-      <label><input type="checkbox" formControlName="includeCudEvidence" /> Evidencia CUD operacional</label>
+<mat-card class="accounting-review" appearance="outlined">
+  <mat-card-header>
+    <mat-icon mat-card-avatar aria-hidden="true">account_balance</mat-icon>
+    <mat-card-title>Generar reporte de revisión contable</mat-card-title>
+    <mat-card-subtitle>Selecciona el formato, los filtros y la evidencia que necesitas incluir.</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <div class="scope-note" role="note">
+      <mat-icon aria-hidden="true">info</mat-icon>
+      <p>Este reporte apoya la conciliación y la revisión con terceros. No contabiliza, no genera asientos y no reemplaza la aprobación humana. La evidencia CUD y la liquidez corresponden al registro operativo disponible; no representan un saldo bancario real.</p>
     </div>
 
-    <div class="actions">
-      <button type="submit" [disabled]="downloading">{{ downloading ? 'Generando...' : 'Descargar reporte' }}</button>
-    </div>
-  </form>
-</section>
+    <form [formGroup]="form" (ngSubmit)="downloadReport()" class="export-form">
+      <section class="filter-grid" aria-label="Filtros de revisión contable">
+        <mat-form-field appearance="outline">
+          <mat-label>Formato</mat-label>
+          <mat-select formControlName="format">
+            <mat-option *ngFor="let item of formats" [value]="item.value">{{ item.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field *ngIf="isCsv" appearance="outline">
+          <mat-label>Delimitador CSV</mat-label>
+          <input matInput type="text" maxlength="1" formControlName="csvDelimiter" />
+        </mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Fecha inicial</mat-label><input matInput type="date" formControlName="dateFrom" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Fecha final</mat-label><input matInput type="date" formControlName="dateTo" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Código de cámara</mat-label><input matInput type="text" formControlName="clearingHouseCode" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Código de ciclo</mat-label><input matInput type="text" formControlName="cycleCode" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Identificador de archivo</mat-label><input matInput type="text" formControlName="fileId" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Huella digital del archivo</mat-label><input matInput type="text" formControlName="fileHash" /></mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Identificador de transacción</mat-label><input matInput type="text" formControlName="transactionId" /></mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select formControlName="status">
+            <mat-option value="">Todos los estados</mat-option>
+            <mat-option *ngFor="let item of states" [value]="item.value">{{ item.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline"><mat-label>Código de causal</mat-label><input matInput type="text" formControlName="causeCode" /></mat-form-field>
+      </section>
+
+      <fieldset class="evidence-options">
+        <legend>Información incluida</legend>
+        <mat-checkbox formControlName="includeOutbound">Operaciones salientes</mat-checkbox>
+        <mat-checkbox formControlName="includeIncoming">Operaciones entrantes</mat-checkbox>
+        <mat-checkbox formControlName="includeReturns">Devoluciones</mat-checkbox>
+        <mat-checkbox formControlName="includeReturnOfReturn">Devoluciones de devoluciones</mat-checkbox>
+        <mat-checkbox formControlName="includeManualAuditOnly">Solo auditoría manual</mat-checkbox>
+        <mat-checkbox formControlName="includeNetting">Neteo</mat-checkbox>
+        <mat-checkbox formControlName="includeLiquidity">Liquidez</mat-checkbox>
+        <mat-checkbox formControlName="includeCudEvidence">Evidencia operativa CUD</mat-checkbox>
+      </fieldset>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" type="submit" [disabled]="downloading">
+          <mat-icon aria-hidden="true">download</mat-icon>
+          {{ downloading ? 'Preparando archivo…' : 'Descargar reporte' }}
+        </button>
+      </div>
+      <mat-progress-bar *ngIf="downloading" mode="indeterminate"></mat-progress-bar>
+      <p *ngIf="downloading" class="loading-message" role="status">Estamos preparando el reporte de revisión contable…</p>
+    </form>
+  </mat-card-content>
+</mat-card>

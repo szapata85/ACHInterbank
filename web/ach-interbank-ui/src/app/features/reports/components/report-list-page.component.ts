@@ -5,6 +5,20 @@ import { NotificationService } from '../../../core/services/notification.service
 import { TableColumn } from '../../../shared/components/table.component';
 import { SharedModule } from '../../../shared/shared.module';
 import { ReportsApiService } from '../services/reports-api.service';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import {
+  extractReportFileName,
+  formatReportValue,
+  REPORT_SOURCE_OPTIONS,
+  REPORT_STATE_OPTIONS,
+  validatePdfBlob
+} from '../report-presentation';
 
 type ReportKey = 'sent' | 'received' | 'returns' | 'rejections' | 'files' | 'cycles' | 'audit' | 'history';
 
@@ -18,7 +32,7 @@ interface ReportConfig {
 @Component({
   selector: 'app-report-list-page',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule],
   templateUrl: './report-list-page.component.html',
   styleUrls: ['./report-list-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -31,6 +45,7 @@ export class ReportListPageComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
 
   loading = false;
+  exporting = false;
   hasLoaded = false;
   loadError: string | null = null;
   rows: any[] = [];
@@ -38,8 +53,8 @@ export class ReportListPageComponent implements OnInit {
   page = 1;
   pageSize = 25;
 
-  readonly states = ['', 'Pending', 'ReturnedByOperator', 'ReturnedByEpr', 'AppliedTacitly', 'Certified'];
-  readonly sources = ['', 'Operator', 'Epr', 'System', 'Claims'];
+  readonly states = REPORT_STATE_OPTIONS;
+  readonly sources = REPORT_SOURCE_OPTIONS;
 
   config: ReportConfig = {
     key: 'sent',
@@ -80,7 +95,7 @@ export class ReportListPageComponent implements OnInit {
 
     (this.requestData() as any).subscribe({
       next: (response: any) => {
-        this.rows = response?.items ?? [];
+        this.rows = (response?.items ?? []).map((row: Record<string, unknown>) => this.presentRow(row));
         this.total = response?.total ?? this.rows.length;
         this.loading = false;
         this.hasLoaded = true;
@@ -89,7 +104,7 @@ export class ReportListPageComponent implements OnInit {
       error: () => {
         this.rows = [];
         this.total = 0;
-        this.loadError = 'No fue posible cargar el reporte.';
+        this.loadError = 'No pudimos consultar este reporte en este momento. Intenta nuevamente.';
         this.loading = false;
         this.hasLoaded = true;
         this.cdr.markForCheck();
@@ -106,18 +121,34 @@ export class ReportListPageComponent implements OnInit {
   }
 
   exportPdf(): void {
+    if (this.exporting) return;
+    this.exporting = true;
+    this.cdr.markForCheck();
     this.requestPdf().subscribe({
-      next: (response) => {
+      next: async (response) => {
         const blob = response.body ?? new Blob();
+        const invalidMessage = await validatePdfBlob(blob, response.headers.get('content-type'));
+        if (invalidMessage) {
+          this.notifications.error(invalidMessage);
+          this.exporting = false;
+          this.cdr.markForCheck();
+          return;
+        }
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = this.extractFileName(response.headers.get('content-disposition')) ?? `${this.config.key}.pdf`;
+        link.download = extractReportFileName(response.headers.get('content-disposition'), `${this.config.key}.pdf`);
         link.click();
         window.URL.revokeObjectURL(url);
-        this.notifications.success('PDF generado correctamente.');
+        this.notifications.success('El reporte está listo y se descargó correctamente.');
+        this.exporting = false;
+        this.cdr.markForCheck();
       },
-      error: () => this.notifications.error('No fue posible exportar el PDF.')
+      error: () => {
+        this.notifications.error('No pudimos generar el PDF en este momento. Intenta nuevamente.');
+        this.exporting = false;
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -155,38 +186,35 @@ export class ReportListPageComponent implements OnInit {
     return Number.isFinite(num) ? num : undefined;
   }
 
-  private extractFileName(contentDisposition: string | null): string | null {
-    if (!contentDisposition) return null;
-    const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(contentDisposition);
-    const fileName = match?.[1] ?? match?.[2];
-    return fileName ? decodeURIComponent(fileName) : null;
+  private presentRow(row: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, formatReportValue(key, value)]));
   }
 
   private buildConfig(key: ReportKey): ReportConfig {
     const base: Record<ReportKey, ReportConfig> = {
       sent: { key, title: 'Enviados', subtitle: 'Reporte de transacciones enviadas', columns: [
-        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID operación' }, { key: 'reference', label: 'Referencia legado' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco origen' }, { key: 'destinationBankName', label: 'Banco destino' }
+        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }
       ] },
       received: { key, title: 'Recibidos', subtitle: 'Reporte de transacciones recibidas', columns: [
-        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID operación' }, { key: 'reference', label: 'Referencia legado' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco origen' }, { key: 'destinationBankName', label: 'Banco destino' }
+        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }
       ] },
       returns: { key, title: 'Devoluciones', subtitle: 'Reporte de devoluciones ACH', columns: [
-        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID operación' }, { key: 'reference', label: 'Referencia legado' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }
+        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }
       ] },
       rejections: { key, title: 'Rechazos', subtitle: 'Reporte de rechazos ACH', columns: [
-        { key: 'transactionId', label: 'ID' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID operación' }, { key: 'reference', label: 'Referencia legado' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto', align: 'end' }, { key: 'state', label: 'Estado' }
+        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }
       ] },
       files: { key, title: 'Archivos', subtitle: 'Reporte de archivos NACHA', columns: [
         { key: 'fileName', label: 'Archivo' }, { key: 'generatedAtUtc', label: 'Fecha' }, { key: 'clearingHouseName', label: 'Cámara' }, { key: 'totalRecords', label: 'Registros', align: 'end' }, { key: 'totalTransactions', label: 'Transacciones', align: 'end' }
       ] },
       cycles: { key, title: 'Ciclos', subtitle: 'Reporte de ciclos ACH', columns: [
-        { key: 'cycleName', label: 'Nombre' }, { key: 'schedule', label: 'Horario' }, { key: 'processingDate', label: 'Fecha' }, { key: 'status', label: 'Estado' }, { key: 'totalTransactions', label: 'Tx', align: 'end' }, { key: 'totalAmount', label: 'Monto', align: 'end' }
+        { key: 'cycleName', label: 'Nombre' }, { key: 'schedule', label: 'Horario' }, { key: 'processingDate', label: 'Fecha' }, { key: 'status', label: 'Estado' }, { key: 'totalTransactions', label: 'Transacciones' }, { key: 'totalAmount', label: 'Monto' }
       ] },
       audit: { key, title: 'Auditoría', subtitle: 'Traza operativa por usuario/acción/entidad', columns: [
-        { key: 'user', label: 'Usuario' }, { key: 'action', label: 'Acción' }, { key: 'entity', label: 'Entidad' }, { key: 'entityId', label: 'ID Entidad' }, { key: 'dateUtc', label: 'Fecha UTC' }
+        { key: 'user', label: 'Usuario' }, { key: 'action', label: 'Acción' }, { key: 'entity', label: 'Entidad' }, { key: 'entityId', label: 'Identificador de entidad' }, { key: 'dateUtc', label: 'Fecha y hora' }
       ] },
       history: { key, title: 'Histórico', subtitle: 'Histórico de cambios por rango de fechas', columns: [
-        { key: 'transactionId', label: 'Tx' }, { key: 'fromState', label: 'Desde' }, { key: 'toState', label: 'Hasta' }, { key: 'source', label: 'Fuente' }, { key: 'reasonCode', label: 'Causal' }, { key: 'dateUtc', label: 'Fecha UTC' }
+        { key: 'transactionId', label: 'Transacción' }, { key: 'fromState', label: 'Estado anterior' }, { key: 'toState', label: 'Estado nuevo' }, { key: 'source', label: 'Fuente' }, { key: 'reasonCode', label: 'Causal' }, { key: 'dateUtc', label: 'Fecha y hora' }
       ] }
     };
 

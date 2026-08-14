@@ -58,8 +58,8 @@ describe('ReconciliationReportComponent', () => {
     component.exportPdf();
 
     expect(api.downloadReconciliationPdf).not.toHaveBeenCalled();
-    expect(component.exportMessage).toBe('No hay informacion para exportar.');
-    expect(notifications.error).toHaveBeenCalledWith('No hay informacion para exportar.');
+    expect(component.exportMessage).toBe('Consulta primero información con resultados para descargar el PDF.');
+    expect(notifications.error).toHaveBeenCalledWith('Consulta primero información con resultados para descargar el PDF.');
   });
 
   it('ReportsPdf_ShouldShowNoDataMessage_WhenNoData', () => {
@@ -67,11 +67,10 @@ describe('ReconciliationReportComponent', () => {
 
     component.exportPdf();
 
-    expect(component.exportMessage).toBe('No hay informacion para exportar.');
+    expect(component.exportMessage).toBe('Consulta primero información con resultados para descargar el PDF.');
   });
 
   it('ReconciliationReport_ShouldGenerateNonEmptyPdf_WhenDataExists', async () => {
-    spyOn<any>(component, 'getInvalidPdfMessage').and.resolveTo(null);
     spyOn(window.URL, 'createObjectURL').and.returnValue('blob:reconciliation');
     spyOn(window.URL, 'revokeObjectURL');
     const originalCreateElement = document.createElement.bind(document);
@@ -91,13 +90,14 @@ describe('ReconciliationReportComponent', () => {
     })));
 
     component.exportPdf();
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     createElementSpy.and.callThrough();
 
     expect(api.downloadReconciliationPdf).toHaveBeenCalled();
+    expect(notifications.error).not.toHaveBeenCalled();
     expect(window.URL.createObjectURL).toHaveBeenCalled();
     expect(anchor.click).toHaveBeenCalled();
-    expect(notifications.success).toHaveBeenCalledWith('PDF exportado correctamente.');
+    expect(notifications.success).toHaveBeenCalledWith('El reporte de conciliación se descargó correctamente.');
   });
 
   it('ReportExport_ShouldNotShowSuccess_WhenPdfWasNotGenerated', async () => {
@@ -114,6 +114,6 @@ describe('ReconciliationReportComponent', () => {
     await new Promise((resolve) => setTimeout(resolve));
 
     expect(notifications.success).not.toHaveBeenCalled();
-    expect(notifications.error).toHaveBeenCalledWith('No hay informacion para exportar.');
+    expect(notifications.error).toHaveBeenCalledWith('No encontramos información para incluir en el reporte.');
   });
 });

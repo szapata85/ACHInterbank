@@ -1,38 +1,58 @@
-<app-page-header title="Conciliación" subtitle="Comparativo enviados, recibidos y devueltos"></app-page-header>
+<app-page-header title="Conciliación" subtitle="Compara operaciones enviadas, recibidas y devueltas"></app-page-header>
 
-<section class="panel">
-  <form class="filters" [formGroup]="form" (ngSubmit)="search()">
-    <input type="date" formControlName="date" />
-    <app-clearing-house-select
-      formControlName="clearingHouseId"
-      [allowAll]="true"
-      allLabel="Todas las cámaras">
-    </app-clearing-house-select>
-    <input type="text" placeholder="Ciclo" formControlName="achCycleId" />
-    <div class="actions">
-      <button type="submit">Consultar</button>
-      <button type="button" class="btn btn-primary" (click)="exportPdf()">Exportar PDF</button>
+<mat-card class="report-panel" appearance="outlined">
+  <mat-card-content>
+    <form class="filters" [formGroup]="form" (ngSubmit)="search()">
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha</mat-label>
+        <input matInput type="date" formControlName="date" />
+      </mat-form-field>
+      <div class="catalog-field">
+        <span class="field-label">Cámara compensadora</span>
+        <app-clearing-house-select formControlName="clearingHouseId" [allowAll]="true" allLabel="Todas las cámaras"></app-clearing-house-select>
+      </div>
+      <mat-form-field appearance="outline">
+        <mat-label>Identificador del ciclo</mat-label>
+        <input matInput type="text" formControlName="achCycleId" />
+      </mat-form-field>
+      <div class="actions">
+        <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="loading || exporting">
+          <mat-icon aria-hidden="true">filter_alt_off</mat-icon> Limpiar filtros
+        </button>
+        <button mat-flat-button color="primary" type="submit" [disabled]="loading || exporting">
+          <mat-icon aria-hidden="true">search</mat-icon> Consultar
+        </button>
+        <button mat-stroked-button color="primary" type="button" (click)="exportPdf()" [disabled]="loading || exporting || !hasExportableData()">
+          <mat-icon aria-hidden="true">picture_as_pdf</mat-icon> {{ exporting ? 'Generando…' : 'Descargar PDF' }}
+        </button>
+      </div>
+    </form>
+
+    <mat-progress-bar *ngIf="loading || exporting" mode="indeterminate"></mat-progress-bar>
+    <p *ngIf="loading" class="state" role="status">Estamos consultando la conciliación…</p>
+    <div *ngIf="error" class="state error" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error }}</span>
+      <button mat-stroked-button type="button" (click)="search()">Intentar nuevamente</button>
     </div>
-  </form>
+    <div *ngIf="exportMessage" class="state warning" role="status" data-testid="reconciliation-export-message">{{ exportMessage }}</div>
 
-  <div *ngIf="loading" class="state">Cargando...</div>
-  <div *ngIf="error" class="state error">{{ error }}</div>
-  <div *ngIf="exportMessage" class="state warning" data-testid="reconciliation-export-message">{{ exportMessage }}</div>
+    <section *ngIf="data" class="summary" aria-label="Totales conciliados">
+      <mat-card appearance="outlined"><mat-card-title>Enviadas</mat-card-title><mat-card-content><strong>{{ data.totals.sentCount }}</strong><span>{{ data.totals.sentAmount | currency:'COP':'symbol-narrow':'1.0-2':'es-CO' }}</span></mat-card-content></mat-card>
+      <mat-card appearance="outlined"><mat-card-title>Recibidas</mat-card-title><mat-card-content><strong>{{ data.totals.receivedCount }}</strong><span>{{ data.totals.receivedAmount | currency:'COP':'symbol-narrow':'1.0-2':'es-CO' }}</span></mat-card-content></mat-card>
+      <mat-card appearance="outlined"><mat-card-title>Devueltas</mat-card-title><mat-card-content><strong>{{ data.totals.returnedCount }}</strong><span>{{ data.totals.returnedAmount | currency:'COP':'symbol-narrow':'1.0-2':'es-CO' }}</span></mat-card-content></mat-card>
+    </section>
 
-  <div *ngIf="data" class="cards">
-    <article class="card"><h4>Enviados</h4><p>{{ data.totals.sentCount }} / {{ data.totals.sentAmount | number:'1.2-2' }}</p></article>
-    <article class="card"><h4>Recibidos</h4><p>{{ data.totals.receivedCount }} / {{ data.totals.receivedAmount | number:'1.2-2' }}</p></article>
-    <article class="card"><h4>Devueltos</h4><p>{{ data.totals.returnedCount }} / {{ data.totals.returnedAmount | number:'1.2-2' }}</p></article>
-  </div>
+    <section *ngIf="data" class="differences" aria-labelledby="differences-title">
+      <h3 id="differences-title">Diferencias encontradas</h3>
+      <dl>
+        <div><dt>Enviadas frente a recibidas</dt><dd>{{ data.differences.sentVsReceivedCountDiff }} operaciones · {{ data.differences.sentVsReceivedAmountDiff | currency:'COP':'symbol-narrow':'1.0-2':'es-CO' }}</dd></div>
+        <div><dt>Enviadas frente a devueltas</dt><dd>{{ data.differences.sentVsReturnedCountDiff }} operaciones · {{ data.differences.sentVsReturnedAmountDiff | currency:'COP':'symbol-narrow':'1.0-2':'es-CO' }}</dd></div>
+        <div><dt>Recibidas frente a devueltas</dt><dd>{{ data.differences.receivedVsReturnedCountDiff }} operaciones · {{ data.differences.receivedVsReturnedAmountDiff | currency:'COP':'symbol-narrow':'1.0-2':'es-CO' }}</dd></div>
+      </dl>
+    </section>
 
-  <div *ngIf="data" class="diffs">
-    <h4>Diferencias</h4>
-    <p>Enviados vs Recibidos: {{ data.differences.sentVsReceivedCountDiff }} / {{ data.differences.sentVsReceivedAmountDiff | number:'1.2-2' }}</p>
-    <p>Enviados vs Devueltos: {{ data.differences.sentVsReturnedCountDiff }} / {{ data.differences.sentVsReturnedAmountDiff | number:'1.2-2' }}</p>
-    <p>Recibidos vs Devueltos: {{ data.differences.receivedVsReturnedCountDiff }} / {{ data.differences.receivedVsReturnedAmountDiff | number:'1.2-2' }}</p>
-  </div>
-
-  <div *ngIf="data && !hasExportableData()" class="state empty" data-testid="reconciliation-empty-state">
-    No hay informacion para exportar.
-  </div>
-</section>
+    <div *ngIf="data && !hasExportableData()" class="state empty" data-testid="reconciliation-empty-state">
+      No encontramos información con los filtros seleccionados. Prueba cambiando los criterios de búsqueda.
+    </div>
+  </mat-card-content>
+</mat-card>

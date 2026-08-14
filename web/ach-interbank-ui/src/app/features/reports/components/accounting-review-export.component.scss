@@ -1,19 +1,12 @@
-.accounting-review-export {
-  margin-bottom: 1rem;
-}
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.75rem;
-}
-.checks {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-.actions {
-  grid-column: 1 / -1;
-}
-.disclaimer {
-  margin-bottom: 0.5rem;
-}
+:host { display: block; }
+.accounting-review mat-card-content { padding-top: 1.25rem; }
+.scope-note { display: flex; gap: .75rem; align-items: flex-start; padding: .9rem; border-radius: 8px; background: #eff6ff; color: #1e3a8a; }
+.scope-note p { margin: 0; line-height: 1.5; }
+.export-form { margin-top: 1.25rem; }
+.filter-grid { display: grid; grid-template-columns: repeat(3, minmax(190px, 1fr)); gap: .75rem 1rem; }
+.evidence-options { display: grid; grid-template-columns: repeat(4, minmax(170px, 1fr)); gap: .6rem 1rem; margin: .5rem 0 1.25rem; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 8px; }
+.evidence-options legend { padding: 0 .35rem; color: #334155; font-weight: 600; }
+.actions { display: flex; justify-content: flex-end; margin-bottom: .75rem; }
+.loading-message { color: #475569; }
+@media (max-width: 900px) { .filter-grid { grid-template-columns: repeat(2, 1fr); } .evidence-options { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .filter-grid, .evidence-options { grid-template-columns: 1fr; } .actions button { width: 100%; } }

@@ -42,7 +42,6 @@ describe('TraceabilityReportComponent', () => {
   });
 
   it('TraceabilityReport_ShouldGenerateNonEmptyPdf_WhenDataExists', async () => {
-    spyOn<any>(component, 'getInvalidPdfMessage').and.resolveTo(null);
     spyOn(window.URL, 'createObjectURL').and.returnValue('blob:traceability');
     spyOn(window.URL, 'revokeObjectURL');
     const originalCreateElement = document.createElement.bind(document);
@@ -58,12 +57,12 @@ describe('TraceabilityReportComponent', () => {
     })));
 
     component.generatePdf();
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     createElementSpy.and.callThrough();
 
     expect(window.URL.createObjectURL).toHaveBeenCalled();
     expect(anchor.click).toHaveBeenCalled();
-    expect(notifications.success).toHaveBeenCalledWith('Reporte generado correctamente');
+    expect(notifications.success).toHaveBeenCalledWith('El reporte de trazabilidad se descargó correctamente.');
   });
 
   it('TraceabilityReport_ShouldDeduplicateMultipleSelection', async () => {
@@ -92,18 +91,18 @@ describe('TraceabilityReportComponent', () => {
     fixture.detectChanges();
 
     expect(notifications.success).not.toHaveBeenCalled();
-    expect(notifications.error).toHaveBeenCalledWith('No hay informacion para exportar.');
+    expect(notifications.error).toHaveBeenCalledWith('No encontramos información para incluir en el reporte.');
     const message = fixture.nativeElement.querySelector('[data-testid="traceability-export-error"]') as HTMLElement;
-    expect(message?.textContent).toContain('No hay informacion para exportar.');
+    expect(message?.textContent).toContain('No encontramos información para incluir en el reporte.');
   });
 
   it('TraceabilityReport_ShouldKeepEventsReadable', () => {
     fixture.detectChanges();
 
     const button = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
-    const help = fixture.nativeElement.querySelector('.help') as HTMLElement;
+    const subtitle = fixture.nativeElement.querySelector('mat-card-subtitle') as HTMLElement;
 
-    expect(button.textContent?.trim()).toBe('Generar PDF');
-    expect(help.textContent).toContain('consolidado de transacciones ACH');
+    expect(button.textContent).toContain('Descargar PDF');
+    expect(subtitle.textContent).toContain('hora de Colombia');
   });
 });

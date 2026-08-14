@@ -1,48 +1,62 @@
 <app-page-header
   title="Reporte de trazabilidad ACH"
-  subtitle="Genera el PDF por filtros de estado, ciclo y rango de fechas"
+  subtitle="Genera un documento consolidado por estado, ciclo y rango de fechas"
   [actionsTemplate]="headerActions"
 ></app-page-header>
 
-<section class="toolbar">
-  <form [formGroup]="form" class="filters" (ngSubmit)="generatePdf()">
-    <label>
-      Desde (UTC)
-      <input type="date" formControlName="fromUtc" />
-    </label>
-    <label>
-      Hasta (UTC)
-      <input type="date" formControlName="toUtc" />
-    </label>
-    <label>
-      Estado
-      <select formControlName="state">
-        <option *ngFor="let item of states" [ngValue]="item.value">{{ item.label }}</option>
-      </select>
-    </label>
-    <label>
-      Ciclo ACH (selección múltiple)
-      <select formControlName="achCycleId" multiple size="5">
-        <option *ngFor="let cycle of achCycleOptions" [ngValue]="cycle.id">{{ cycle.clearingHouseName }} · {{ cycle.cycleName }}</option>
-      </select>
-      <small class="muted">Puedes seleccionar uno o varios ciclos manteniendo Ctrl/Cmd.</small>
-    </label>
-    <button type="submit" [disabled]="loading">
-      {{ loading ? 'Generando...' : 'Generar PDF' }}
-    </button>
-    <p *ngIf="exportError" class="export-error" data-testid="traceability-export-error">
-      {{ exportError }}
-    </p>
-  </form>
-</section>
+<mat-card class="report-panel" appearance="outlined">
+  <mat-card-header>
+    <mat-icon mat-card-avatar aria-hidden="true">route</mat-icon>
+    <mat-card-title>Configura el reporte</mat-card-title>
+    <mat-card-subtitle>Todos los filtros son opcionales. Las fechas se presentan en hora de Colombia.</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" class="filters" (ngSubmit)="generatePdf()">
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha inicial</mat-label>
+        <input matInput type="date" formControlName="fromUtc" />
+      </mat-form-field>
 
-<section class="help">
-  <p>
-    El archivo incluirá el consolidado de transacciones ACH con los filtros aplicados.
-  </p>
-</section>
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha final</mat-label>
+        <input matInput type="date" formControlName="toUtc" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Estado</mat-label>
+        <mat-select formControlName="state">
+          <mat-option *ngFor="let item of states" [value]="item.value">{{ item.label }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="cycle-field">
+        <mat-label>Ciclos ACH</mat-label>
+        <mat-select formControlName="achCycleId" multiple>
+          <mat-option *ngFor="let cycle of achCycleOptions" [value]="cycle.id">
+            {{ cycle.clearingHouseName }} · {{ cycle.cycleName }}
+          </mat-option>
+        </mat-select>
+        <mat-hint>Puedes seleccionar uno o varios ciclos.</mat-hint>
+      </mat-form-field>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" type="submit" [disabled]="loading">
+          <mat-icon aria-hidden="true">picture_as_pdf</mat-icon>
+          {{ loading ? 'Generando reporte…' : 'Descargar PDF' }}
+        </button>
+      </div>
+    </form>
+
+    <mat-progress-bar *ngIf="loading" mode="indeterminate"></mat-progress-bar>
+    <p *ngIf="loading" class="state" role="status">Estamos preparando el reporte de trazabilidad…</p>
+    <div *ngIf="exportError" class="state error" role="alert" data-testid="traceability-export-error">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <span>{{ exportError }}</span>
+      <button mat-stroked-button type="button" (click)="generatePdf()" [disabled]="loading">Intentar nuevamente</button>
+    </div>
+  </mat-card-content>
+</mat-card>
 
 <ng-template #headerActions>
-  <a routerLink="/reports" class="link">Volver a reportes</a>
+  <a mat-stroked-button routerLink="/reports"><mat-icon aria-hidden="true">arrow_back</mat-icon> Volver a reportes</a>
 </ng-template>
-

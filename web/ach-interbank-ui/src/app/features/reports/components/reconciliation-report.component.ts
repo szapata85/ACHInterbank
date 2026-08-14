@@ -4,11 +4,18 @@ import { RouterModule } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
 import { ReportsApiService, ReconciliationReportResponse } from '../services/reports-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { extractReportFileName, validatePdfBlob } from '../report-presentation';
 
 @Component({
   selector: 'app-reconciliation-report',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule],
   templateUrl: './reconciliation-report.component.html',
   styleUrls: ['./reconciliation-report.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -20,6 +27,7 @@ export class ReconciliationReportComponent {
   private readonly cdr = inject(ChangeDetectorRef);
 
   loading = false;
+  exporting = false;
   data: ReconciliationReportResponse | null = null;
   error: string | null = null;
   exportMessage: string | null = null;
@@ -48,7 +56,7 @@ export class ReconciliationReportComponent {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.error = 'No fue posible cargar la conciliacion.';
+        this.error = 'No pudimos consultar la conciliación en este momento. Intenta nuevamente.';
         this.loading = false;
         this.cdr.markForCheck();
       }
@@ -56,14 +64,20 @@ export class ReconciliationReportComponent {
   }
 
   exportPdf(): void {
+    if (this.exporting) {
+      return;
+    }
+
     if (!this.hasExportableData()) {
-      this.exportMessage = 'No hay informacion para exportar.';
+      this.exportMessage = 'Consulta primero información con resultados para descargar el PDF.';
       this.notifications.error(this.exportMessage);
       this.cdr.markForCheck();
       return;
     }
 
     const v = this.form.value;
+    this.exporting = true;
+    this.cdr.markForCheck();
     this.api.downloadReconciliationPdf({
       date: v.date || undefined,
       clearingHouseId: v.clearingHouseId ?? undefined,
@@ -71,10 +85,12 @@ export class ReconciliationReportComponent {
     }).subscribe({
       next: async (response) => {
         const blob = response.body ?? new Blob();
-        const invalidMessage = await this.getInvalidPdfMessage(blob);
+        const contentType = response.headers.get('content-type') ?? blob.type;
+        const invalidMessage = await validatePdfBlob(blob, contentType);
         if (invalidMessage) {
           this.exportMessage = invalidMessage;
           this.notifications.error(invalidMessage);
+          this.exporting = false;
           this.cdr.markForCheck();
           return;
         }
@@ -82,19 +98,28 @@ export class ReconciliationReportComponent {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'reconciliation.pdf';
+        link.download = extractReportFileName(response.headers.get('content-disposition'), 'conciliacion-ach.pdf');
         link.click();
         window.URL.revokeObjectURL(url);
         this.exportMessage = null;
-        this.notifications.success('PDF exportado correctamente.');
+        this.exporting = false;
+        this.notifications.success('El reporte de conciliación se descargó correctamente.');
         this.cdr.markForCheck();
       },
       error: () => {
-        this.exportMessage = 'No fue posible exportar el PDF de conciliacion.';
+        this.exporting = false;
+        this.exportMessage = 'No pudimos generar el PDF de conciliación en este momento. Intenta nuevamente.';
         this.notifications.error(this.exportMessage);
         this.cdr.markForCheck();
       }
     });
+  }
+
+  clearFilters(): void {
+    this.form.reset({ date: '', clearingHouseId: null, achCycleId: '' });
+    this.data = null;
+    this.error = null;
+    this.exportMessage = null;
   }
 
   hasExportableData(): boolean {
@@ -108,16 +133,4 @@ export class ReconciliationReportComponent {
     return totalCounts > 0 || totalAmounts > 0 || (this.data.inconsistencies?.length ?? 0) > 0;
   }
 
-  private async getInvalidPdfMessage(blob: Blob): Promise<string | null> {
-    if (blob.size === 0) {
-      return 'No hay informacion para exportar.';
-    }
-
-    if (blob.size < 512) {
-      return 'El PDF generado no contiene informacion suficiente para descargar.';
-    }
-
-    const header = await blob.slice(0, 5).text().catch(() => '');
-    return header === '%PDF-' ? null : 'El archivo generado no es un PDF valido.';
-  }
 }

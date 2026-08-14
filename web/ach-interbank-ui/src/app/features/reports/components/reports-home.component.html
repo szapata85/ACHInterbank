@@ -1,22 +1,43 @@
-<app-page-header title="Reportes ACH" subtitle="Módulo corporativo de reportes y trazabilidad"></app-page-header>
+<app-page-header
+  title="Central de Reportes ACH"
+  subtitle="Consulta, analiza y descarga información operativa desde un solo lugar">
+</app-page-header>
 
-<app-accounting-review-export></app-accounting-review-export>
+<section class="reports-intro" aria-labelledby="reports-intro-title">
+  <div>
+    <span class="eyebrow">Información operativa</span>
+    <h2 id="reports-intro-title">¿Qué necesitas consultar?</h2>
+    <p>Elige un reporte según el propósito de tu consulta. Cada opción conserva los permisos y filtros definidos para la operación.</p>
+  </div>
+  <mat-icon aria-hidden="true">analytics</mat-icon>
+</section>
 
-<section class="cards">
-  <article class="card" *ngFor="let item of [
-    {title:'Enviados',desc:'Transacciones enviadas',route:'/reports/sent'},
-    {title:'Recibidos',desc:'Transacciones recibidas',route:'/reports/received'},
-    {title:'Devoluciones',desc:'Operaciones devueltas',route:'/reports/returns'},
-    {title:'Rechazos',desc:'Operaciones rechazadas',route:'/reports/rejections'},
-    {title:'Archivos',desc:'Archivos NACHA exportados',route:'/reports/files'},
-    {title:'Ciclos',desc:'Ciclos y estado operativo',route:'/reports/cycles'},
-    {title:'Conciliación',desc:'Comparativo y diferencias',route:'/reports/reconciliation'},
-    {title:'Auditoría',desc:'Trazabilidad por usuario/acción',route:'/reports/audit'},
-    {title:'Histórico',desc:'Eventos por rango de fechas',route:'/reports/history'},
-    {title:'Trazabilidad ACH',desc:'Reporte PDF de trazabilidad',route:'/reports/traceability'}
-  ]">
-    <h3>{{ item.title }}</h3>
-    <p>{{ item.desc }}</p>
-    <a [routerLink]="item.route" class="link">Abrir</a>
-  </article>
+<section *ngFor="let group of groups" class="report-group" [attr.aria-labelledby]="group.id">
+  <header>
+    <h2 [id]="group.id">{{ group.title }}</h2>
+    <p>{{ group.description }}</p>
+  </header>
+
+  <div class="report-grid">
+    <mat-card *ngFor="let report of group.reports" class="report-card" appearance="outlined">
+      <mat-card-header>
+        <div mat-card-avatar class="report-icon"><mat-icon aria-hidden="true">{{ report.icon }}</mat-icon></div>
+        <mat-card-title>{{ report.title }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content><p>{{ report.description }}</p></mat-card-content>
+      <mat-card-actions align="end">
+        <a mat-button [routerLink]="report.route" [attr.aria-label]="'Abrir reporte de ' + report.title">
+          Abrir reporte <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+        </a>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</section>
+
+<section class="review-section" aria-labelledby="accounting-review-title">
+  <header>
+    <h2 id="accounting-review-title">Revisión contable</h2>
+    <p>Genera evidencia operativa para apoyar la conciliación y la revisión con terceros.</p>
+  </header>
+  <app-accounting-review-export></app-accounting-review-export>
 </section>

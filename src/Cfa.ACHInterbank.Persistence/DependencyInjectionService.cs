@@ -9,6 +9,7 @@ using Cfa.ACHInterbank.Application.ACHSobreDigital.Operations;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.OutgoingTransactionMonitoring;
+using Cfa.ACHInterbank.Application.Reports.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Calendar;
@@ -231,6 +232,7 @@ public static class DependencyInjectionService
         services.AddScoped<ExpressionDslEngine>();
         services.AddScoped<IExpressionDslCompiler>(sp => sp.GetRequiredService<ExpressionDslEngine>());
         services.AddScoped<IExpressionDslExecutor>(sp => sp.GetRequiredService<ExpressionDslEngine>());
+        services.AddScoped<IReportGenerator, Reports.QuestPdfReportGenerator>();
 
 
 

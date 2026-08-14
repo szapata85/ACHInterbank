@@ -5,11 +5,19 @@ import { SharedModule } from '../../../shared/shared.module';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ReportsApiService } from '../services/reports-api.service';
 import { AchCyclesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import { REPORT_STATE_OPTIONS, extractReportFileName, validatePdfBlob } from '../report-presentation';
 
 @Component({
   selector: 'app-traceability-report',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule],
   templateUrl: './traceability-report.component.html',
   styleUrls: ['./traceability-report.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -24,14 +32,7 @@ export class TraceabilityReportComponent implements OnInit {
   loading = false;
   exportError: string | null = null;
 
-  readonly states: Array<{ value: '' | 'Pending' | 'ReturnedByOperator' | 'ReturnedByEpr' | 'AppliedTacitly' | 'Certified'; label: string }> = [
-    { value: '', label: 'Todos los estados' },
-    { value: 'Pending', label: 'Pendiente' },
-    { value: 'ReturnedByOperator', label: 'Devuelto por operador' },
-    { value: 'ReturnedByEpr', label: 'Devuelto por EPR' },
-    { value: 'AppliedTacitly', label: 'Aplicado tácitamente' },
-    { value: 'Certified', label: 'Certificado' }
-  ];
+  readonly states = REPORT_STATE_OPTIONS;
 
   achCycleOptions: Array<{ id: string; cycleName: string; clearingHouseName: string }> = [];
 
@@ -83,7 +84,7 @@ export class TraceabilityReportComponent implements OnInit {
       next: async (response) => {
         const blob = response.body ?? new Blob();
         const contentType = (response.headers.get('content-type') ?? blob.type ?? '').toLowerCase();
-        const fileName = this.extractFileName(response.headers.get('content-disposition')) ?? `ACH_Traceability_${this.buildTimestamp()}.pdf`;
+        const fileName = extractReportFileName(response.headers.get('content-disposition'), `trazabilidad-ach-${this.buildTimestamp()}.pdf`);
 
         const serverErrorMessage = await this.tryExtractServerErrorMessage(blob, contentType);
         if (serverErrorMessage) {
@@ -94,7 +95,7 @@ export class TraceabilityReportComponent implements OnInit {
           return;
         }
 
-        const invalidPdfMessage = await this.getInvalidPdfMessage(blob);
+        const invalidPdfMessage = await validatePdfBlob(blob, contentType);
         if (invalidPdfMessage) {
           this.exportError = invalidPdfMessage;
           this.notifications.error(invalidPdfMessage);
@@ -113,13 +114,13 @@ export class TraceabilityReportComponent implements OnInit {
         window.URL.revokeObjectURL(url);
         this.loading = false;
         this.exportError = null;
-        this.notifications.success('Reporte generado correctamente');
+        this.notifications.success('El reporte de trazabilidad se descargó correctamente.');
         this.cdr.markForCheck();
       },
       error: (error) => {
-        const message = error?.error?.message ?? 'No fue posible generar el reporte de trazabilidad.';
-        this.exportError = String(message);
-        this.notifications.error(String(message));
+        const message = 'No pudimos generar el reporte de trazabilidad en este momento. Intenta nuevamente.';
+        this.exportError = message;
+        this.notifications.error(message);
         this.loading = false;
         this.cdr.markForCheck();
       }
@@ -149,19 +150,6 @@ export class TraceabilityReportComponent implements OnInit {
     }
   }
 
-  private async getInvalidPdfMessage(blob: Blob): Promise<string | null> {
-    if (blob.size === 0) {
-      return 'No hay informacion para exportar.';
-    }
-
-    if (blob.size < 512) {
-      return 'El PDF generado no contiene informacion suficiente para descargar.';
-    }
-
-    const header = await blob.slice(0, 5).text().catch(() => '');
-    return header === '%PDF-' ? null : 'El archivo generado no es un PDF valido.';
-  }
-
   private getDistinctAchCycleIds(): string[] {
     return Array.from(new Set((this.form.value.achCycleId ?? []).filter((value) => !!value)));
   }
@@ -169,17 +157,6 @@ export class TraceabilityReportComponent implements OnInit {
   private isInvalidDateRange(): boolean {
     const { fromUtc, toUtc } = this.form.value;
     return Boolean(fromUtc && toUtc && new Date(fromUtc) > new Date(toUtc));
-  }
-
-  private extractFileName(contentDisposition: string | null): string | null {
-    if (!contentDisposition) {
-      return null;
-    }
-
-    const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(contentDisposition);
-    const fileName = match?.[1] ?? match?.[2];
-
-    return fileName ? decodeURIComponent(fileName) : null;
   }
 
   private buildTimestamp(): string {

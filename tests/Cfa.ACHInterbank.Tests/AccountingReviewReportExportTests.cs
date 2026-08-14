@@ -6,6 +6,8 @@ using Cfa.ACHInterbank.Application.Reports.Export.Models;
 using Cfa.ACHInterbank.Application.Reports.Models;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
+using UglyToad.PdfPig;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -16,11 +18,13 @@ public class AccountingReviewReportExportTests
     {
         var exporter = new AccountingReviewReportExporter();
         var result = exporter.Export(CreateReport(), new AccountingReviewExportRequest { Format = AccountingReviewExportFormat.Pdf, RequestedBy = "qa" });
-        var pdfText = Encoding.UTF8.GetString(result.Content);
+        using var pdf = PdfDocument.Open(result.Content);
+        var pdfText = string.Join(" ", pdf.GetPages().Select(page => ContentOrderTextExtractor.GetText(page)));
 
         result.ContentType.Should().Be("application/pdf");
         result.FileName.Should().EndWith(".pdf");
-        pdfText.Should().StartWith("%PDF");
+        result.Content.Should().StartWith([0x25, 0x50, 0x44, 0x46, 0x2D]);
+        pdf.NumberOfPages.Should().BeGreaterThan(0);
         pdfText.Should().Contain("Reporte").And.Contain("No constituye asiento contable").And.Contain("mayor contable").And.Contain("libro diario").And.Contain("revisión contra terceros");
         result.BoundaryFlags.IsAccountingPosting.Should().BeFalse();
         result.BoundaryFlags.IsOfficialLedger.Should().BeFalse();
