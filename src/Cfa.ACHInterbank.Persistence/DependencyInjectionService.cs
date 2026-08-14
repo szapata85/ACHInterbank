@@ -116,11 +116,11 @@ public static class DependencyInjectionService
             }
         });
 
+        services.AddHostedService<DatabaseInitializationHostedService>();
         services.AddDataProtection()
             .SetApplicationName(DataProtectionKeyRingConfiguration.ApplicationName)
             .PersistKeysToDbContext<AchDbContext>();
         services.AddHostedService<DataProtectionKeyRingStartupValidator>();
-        services.AddHostedService<DatabaseInitializationHostedService>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddSingleton<IAchTransactionClassificationPolicy, AchTransactionClassificationPolicy>();
