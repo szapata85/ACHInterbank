@@ -739,13 +739,20 @@ public class NachaParserService : INachaParserService
                 throw new InvalidOperationException("Error Fatal ID 5: el Número de Lote del registro tipo 5 (posiciones 92-98) debe ser numérico de 7 dígitos.");
             }
 
+            var standardEntryClassCode = ReadField(profileReader, a, "5", "STANDARDENTRYCLASSCODE").Trim();
+            if (CenitReturnIn2026Layout.IsProfile(profileReader?.ProfileCode)
+                && standardEntryClassCode is not ("PPD" or "CCD"))
+            {
+                ThrowTechnical($"CENIT-2026-T5-SEC: RET-CENIT-IN-001 soporta únicamente PPD y CCD; {CenitReturnIn2026Layout.CtxScopeStatus}.");
+            }
+
             return new BatchHeader
             {
                 ServiceClassCode = ReadField(profileReader, a, "5", "SERVICECLASSCODE"),
                 CompanyName = ReadField(profileReader, a, "5", "COMPANYNAME").Trim(),
                 DiscretionaryData = ReadField(profileReader, a, "5", "COMPANYDISCRETIONARYDATA").Trim(),
                 CompanyId = ReadField(profileReader, a, "5", "COMPANYIDENTIFICATION").Trim(),
-                StandardEntryClassCode = ReadField(profileReader, a, "5", "STANDARDENTRYCLASSCODE").Trim(),
+                StandardEntryClassCode = standardEntryClassCode,
                 CompanyEntryDescription = ReadField(profileReader, a, "5", "COMPANYENTRYDESCRIPTION").Trim(),
                 DescriptiveDate = ReadField(profileReader, a, "5", "COMPANYDESCRIPTIVEDATE").Trim(),
                 EffectiveEntryDate = ReadField(profileReader, a, "5", "EFFECTIVEENTRYDATE").Trim(),
@@ -801,13 +808,47 @@ public class NachaParserService : INachaParserService
                 }
 
                 var addendaSequence = ReadField(profileReader, a, "7", "ADDENDASEQUENCENUMBER").Trim();
+                var returnReasonCode = ReadField(profileReader, a, "7", "RETURNREASONCODE").Trim();
+                var originalTraceNumber = ReadField(profileReader, a, "7", "ORIGINALTRACENUMBER").Trim();
+                var originalReceivingDfi = ReadField(profileReader, a, "7", "ORIGINALRECEIVINGDFI").Trim();
+                if (CenitReturnIn2026Layout.IsProfile(profileReader.ProfileCode)
+                    && CenitReturnIn2026Layout.IsReturnOfReturnCause(returnReasonCode))
+                {
+                    ThrowTechnical("CENIT_ROR_NOT_ORDINARY_RETURN: la devolución de una devolución requiere su contrato y flujo independientes.");
+                }
+
+                if (CenitReturnIn2026Layout.IsProfile(profileReader.ProfileCode)
+                    && !CenitReturnIn2026Layout.IsOrdinaryReturnCause(returnReasonCode))
+                {
+                    ThrowTechnical($"CENIT-2026-T7-RETURN-REASON: la causal {returnReasonCode} no pertenece al catálogo de devolución CENIT.");
+                }
+
+                if (CenitReturnIn2026Layout.IsProfile(profileReader.ProfileCode)
+                    && (originalTraceNumber.Length != 15 || !originalTraceNumber.All(char.IsDigit)))
+                {
+                    ThrowTechnical("CENIT-2026-T7-ORIGINAL-TRACE: el número de secuencia original debe contener 15 dígitos.");
+                }
+
+                if (CenitReturnIn2026Layout.IsProfile(profileReader.ProfileCode)
+                    && (originalReceivingDfi.Length != 8 || !originalReceivingDfi.All(char.IsDigit)))
+                {
+                    ThrowTechnical("CENIT-2026-T7-ORIGINAL-RECEIVING-DFI: el participante receptor original debe contener 8 dígitos.");
+                }
+
+                if (CenitReturnIn2026Layout.IsProfile(profileReader.ProfileCode)
+                    && (addendaSequence.Length != 15 || !addendaSequence.All(char.IsDigit)))
+                {
+                    ThrowTechnical("CENIT-2026-T7-ADDENDA-SEQUENCE: el número de secuencia de la adenda debe contener 15 dígitos.");
+                }
+
                 return new AddendaRecord
                 {
                     CodeTypeAddendumRecord = addendaType,
                     BusinessType = "Return",
+                    IdUserOrig = originalReceivingDfi,
                     InfofromOriginator = ReadField(profileReader, a, "7", "ADDITIONALINFORMATION").TrimEnd(),
-                    ReturnReasonCode = ReadField(profileReader, a, "7", "RETURNREASONCODE").Trim(),
-                    OriginalTraceNumber = ReadField(profileReader, a, "7", "ORIGINALTRACENUMBER").Trim(),
+                    ReturnReasonCode = returnReasonCode,
+                    OriginalTraceNumber = originalTraceNumber,
                     NewTraceNumber = addendaSequence,
                     EntryDetailSequenceNumber = GetEntrySequenceSuffix(addendaSequence)
                 };

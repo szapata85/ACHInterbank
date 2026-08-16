@@ -542,7 +542,7 @@ public class AchIncomingReturnIngestionServiceTests
     }
 
     [Fact]
-    public async Task IngestAsync_ShouldFailClosedForCenitRawContractPendingManual()
+    public async Task IngestAsync_ShouldParseCenit2026RawReturnContract()
     {
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001);
@@ -552,11 +552,33 @@ public class AchIncomingReturnIngestionServiceTests
             cenitRawReturnContractGate: new CenitRawReturnContractGate());
 
         var result = await sut.IngestAsync(
-            new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow),
+            new("f.ach", BuildCenitType7("R01", "123456780000001", "876543210000001"), DateTime.UtcNow),
+            CancellationToken.None);
+
+        Assert.Equal(AchIncomingReturnIngestionDecision.Accepted, result.Decision);
+        Assert.DoesNotContain(result.Failures, x => x.Code.Contains("DEPENDENCIA_MANUAL", StringComparison.Ordinal));
+        Assert.Contains(result.Items, x => x.ReturnReasonCode == "R01"
+                                           && x.OriginalTraceNumber == "123456780000001"
+                                           && x.TraceNumber == "876543210000001");
+        Assert.Equal(AchTransferStateEnum.ReturnedByEpr, (await c.AchTransactions.SingleAsync()).State);
+    }
+
+    [Fact]
+    public async Task IngestAsync_ShouldRejectCenitReturnOfReturnAsOrdinaryReturn()
+    {
+        await using var c = Ctx();
+        SeedTx(c, "123456780000001", 7001);
+        var sut = new AchIncomingReturnIngestionService(
+            c,
+            CatalogAllowAll(),
+            cenitRawReturnContractGate: new CenitRawReturnContractGate());
+
+        var result = await sut.IngestAsync(
+            new("f.ach", BuildCenitType7("R60", "123456780000001", "876543210000001"), DateTime.UtcNow),
             CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, result.Decision);
-        Assert.Contains(result.Failures, x => x.Code == "DEPENDENCIA_MANUAL_TECNICO_CENIT");
+        Assert.Contains(result.Failures, x => x.Code == "CENIT_ROR_NOT_ORDINARY_RETURN");
         Assert.Equal(AchTransferStateEnum.Pending, (await c.AchTransactions.SingleAsync()).State);
     }
 
@@ -566,6 +588,17 @@ public class AchIncomingReturnIngestionServiceTests
         chars[0] = '7'; chars[1] = '9'; chars[2] = '9';
         var rr = reason.PadRight(5).Take(5).ToArray(); Array.Copy(rr,0,chars,3,5);
         var tr = originalTrace.PadLeft(15,'0').TakeLast(15).ToArray(); Array.Copy(tr,0,chars,8,15);
+        return new string(chars);
+    }
+
+    static string BuildCenitType7(string reason, string originalTrace, string addendaSequence)
+    {
+        var chars = Enumerable.Repeat(' ', 106).ToArray();
+        chars[0] = '7'; chars[1] = '9'; chars[2] = '9';
+        Array.Copy(reason.PadRight(3).Take(3).ToArray(), 0, chars, 3, 3);
+        Array.Copy(originalTrace.PadLeft(15, '0').TakeLast(15).ToArray(), 0, chars, 6, 15);
+        Array.Copy("12345678".ToArray(), 0, chars, 29, 8);
+        Array.Copy(addendaSequence.PadLeft(15, '0').TakeLast(15).ToArray(), 0, chars, 81, 15);
         return new string(chars);
     }
 

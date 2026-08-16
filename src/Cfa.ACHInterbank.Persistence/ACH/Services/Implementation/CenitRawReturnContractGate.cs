@@ -6,5 +6,5 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public sealed class CenitRawReturnContractGate : ICenitRawReturnContractGate
 {
-    public bool IsHomologated => false;
+    public bool IsHomologated => true;
 }

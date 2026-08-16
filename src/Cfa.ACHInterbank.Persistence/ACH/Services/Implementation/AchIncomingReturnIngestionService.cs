@@ -42,10 +42,27 @@ public class AchIncomingReturnIngestionService(
             }
 
             var recordIndex = i + 1;
-            var reason = record.Substring(3, 5).Trim();
+            CenitReturnAddenda2026? cenitAddenda = null;
+            var isCenit2026 = cenitRawReturnContractGate is { IsHomologated: true }
+                              && CenitReturnIn2026Layout.TryParseReturnAddenda(record, out cenitAddenda);
+            var reason = isCenit2026 ? cenitAddenda!.ReturnReasonCode : record.Substring(3, 5).Trim();
             var normalizedReason = reason.Trim().ToUpperInvariant();
-            var originalTrace = record.Substring(8, 15).Trim();
-            var trace = record.Length >= 106 ? record.Substring(91, 15).Trim() : null;
+            var originalTrace = isCenit2026 ? cenitAddenda!.OriginalTraceNumber : record.Substring(8, 15).Trim();
+            var trace = isCenit2026
+                ? cenitAddenda!.AddendaSequenceNumber
+                : record.Length >= 106 ? record.Substring(91, 15).Trim() : null;
+
+            if (isCenit2026 && CenitReturnIn2026Layout.IsReturnOfReturnCause(normalizedReason))
+            {
+                failures.Add(new(
+                    "CENIT_ROR_NOT_ORDINARY_RETURN",
+                    "La adenda corresponde a una devolución de una devolución (ROR) y no puede procesarse como Return In ordinario.",
+                    "ReturnReasonCode",
+                    trace));
+                items.Add(new(trace, originalTrace, normalizedReason, null, null, null, null, false, record));
+                auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, null, null, false));
+                continue;
+            }
 
             if (string.IsNullOrWhiteSpace(normalizedReason))
             {
@@ -103,19 +120,6 @@ public class AchIncomingReturnIngestionService(
                         .Where(x => x.Id == clearingHouseId.Value)
                         .Select(x => x.Code)
                         .FirstOrDefaultAsync(cancellationToken);
-                }
-
-                if (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-                    && cenitRawReturnContractGate is { IsHomologated: false })
-                {
-                    failures.Add(new(
-                        "DEPENDENCIA_MANUAL_TECNICO_CENIT",
-                        "La ruta raw CENIT permanece bloqueada hasta homologar el Manual Tecnico; use la frontera normalizada Return In.",
-                        "RawContent",
-                        trace));
-                    items.Add(new(trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, originalTx.Type.ToString(), originalTx.State.ToString(), true, record));
-                    auditRecords.Add(BuildAuditRecord(recordIndex, record, trace, originalTrace, normalizedReason, originalTx.Id, clearingHouseId, true));
-                    continue;
                 }
 
                 if (causeCodePolicy is not null)
@@ -328,8 +332,7 @@ public class AchIncomingReturnIngestionService(
 
         var linkedRegulatoryFailures = failures.Count(x => x.Code is
             "INCOMING_RETURN_CODE_REJECTED"
-            or "INCOMING_RETURN_POLICY_REJECTED"
-            or "DEPENDENCIA_MANUAL_TECNICO_CENIT");
+            or "INCOMING_RETURN_POLICY_REJECTED");
         if (linkedRegulatoryFailures >= linkedReturnCount)
         {
             return AchIncomingReturnIngestionDecision.RejectedTotal;

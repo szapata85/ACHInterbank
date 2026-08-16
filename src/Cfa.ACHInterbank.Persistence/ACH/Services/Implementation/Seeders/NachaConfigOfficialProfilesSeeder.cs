@@ -100,6 +100,25 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             IncludeReturnAddenda99: true));
 
         await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitReturnIn2026Layout.ProfileCode,
+            Name: "Perfil CENIT entrada devolución 2026",
+            Description: "Perfil table-driven para Return In CENIT conforme al formato NACHA-M del 07-may-2026; certificación externa pendiente.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "RETORNO",
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: "2026-05-07",
+            ApprovedRuleMatrix: "7.2.1;7.3.1;Anexo 1.6;CENIT-Anexo-A",
+            IsPlaceholder: false,
+            IsHomologated: true,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CENIT",
+            ImmediateOriginName: "",
+            Prefix: "CENIT_RETURN_IN_2026",
+            DirectionCode: "ENTRADA",
+            VersionMinor: 0));
+
+        await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
             Name: "Perfil oficial CENIT salida original",
             Description: "Perfil oficial UAT/local table-driven para CENIT. Fuente normativa pendiente de homologacion formal: CENIT/DSP-152 placeholder.",
@@ -190,20 +209,23 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             foreach (var recordCode in RecordCodes)
             {
                 var isReturnOutV35 = IsReturnOutV35(spec);
+                var isCenitReturnIn2026 = IsCenitReturnIn2026(spec);
                 var variant = await EnsureVariantAsync(
                     profile,
                     spec,
                     recordCode,
                     sequence,
                     catalog,
-                    isReturnOutV35
+                    isCenitReturnIn2026
+                        ? CenitReturnIn2026Layout.Variant(recordCode)
+                        : isReturnOutV35
                         ? AchColReturnOutV35Layout.Variant(recordCode)
                         : recordCode == "7" && !spec.IsPlaceholder ? AchColOfficialNachaLayout.Type7CreditVariant : null,
                     isDefault: true,
                     selectionPredicateJson: null);
                 await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
 
-                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35)
+                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026)
                 {
                     await EnsureVariantAsync(
                         profile,
@@ -394,16 +416,19 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
             if (!spec.IsPlaceholder)
             {
-                var descriptor = UsesReturnV35Layout(spec, recordCode, variant.VariantCode)
+                var descriptor = UsesCenitReturnIn2026Layout(spec)
+                    ? CenitReturnIn2026Layout.Field(recordCode, field.Code)
+                    : UsesReturnV35Layout(spec, recordCode, variant.VariantCode)
                     ? AchColReturnOutV35Layout.Field(recordCode, field.Code)
                     : AchColOfficialNachaLayout.Field(recordCode, field.Code, variant.VariantCode);
-                await EnsureExecutableRuleAsync(layoutField, descriptor, catalog);
+                await EnsureExecutableRuleAsync(layoutField, descriptor, spec.ClearingHouseCode, catalog);
             }
         }
 
         async Task EnsureExecutableRuleAsync(
             CfgLayoutField field,
             AchColOfficialFieldDescriptor descriptor,
+            string clearingHouseCode,
             CatalogIds catalog)
         {
             var rule = field.Rules.FirstOrDefault(existing => existing.RuleCode == descriptor.RuleId);
@@ -429,7 +454,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             rule.RuleConfigJson = JsonSerializer.Serialize(new
             {
                 ruleId = descriptor.RuleId,
-                chamber = "ACHCOL",
+                chamber = clearingHouseCode,
                 recordType = descriptor.RecordCode,
                 field = descriptor.FieldCode,
                 startPosition = descriptor.StartPosition,
@@ -469,11 +494,18 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
     private static byte[] BuildRowVersion(string prefix)
     {
-        return prefix == "CENIT" ? [6, 11, 2, 1] : [6, 11, 1, 1];
+        return prefix.StartsWith("CENIT", StringComparison.OrdinalIgnoreCase) ? [6, 11, 2, 1] : [6, 11, 1, 1];
     }
 
     private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode, string variantCode)
     {
+        if (UsesCenitReturnIn2026Layout(profile))
+        {
+            return CenitReturnIn2026Layout.ForRecord(recordCode)
+                .Select(BuildReturnOutV35Field)
+                .ToList();
+        }
+
         if (UsesReturnV35Layout(profile, recordCode, variantCode))
         {
             return AchColReturnOutV35Layout.ForRecord(recordCode)
@@ -502,6 +534,12 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         => string.Equals(profile.ClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
            && string.Equals(profile.FlowTypeCode, "DEVOLUCION", StringComparison.OrdinalIgnoreCase)
            && string.Equals(profile.NormativeVersion, "V35", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCenitReturnIn2026(ProfileSpec profile)
+        => string.Equals(profile.ProfileCode, CenitReturnIn2026Layout.ProfileCode, StringComparison.Ordinal);
+
+    private static bool UsesCenitReturnIn2026Layout(ProfileSpec profile)
+        => IsCenitReturnIn2026(profile);
 
     private static bool UsesReturnV35Layout(ProfileSpec profile, string recordCode, string variantCode)
         => IsReturnOutV35(profile)

@@ -10,9 +10,15 @@ using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
 
-public class NachaConfigOfficialProfilesSeederTests
+public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNachaGenerationFixture>
 {
     private static readonly string[] RequiredRecords = ["1", "5", "6", "7", "8", "9"];
+    private readonly OfficialNachaGenerationFixture _fixture;
+
+    public NachaConfigOfficialProfilesSeederTests(OfficialNachaGenerationFixture fixture)
+    {
+        _fixture = fixture;
+    }
 
     [Fact]
     public async Task NachaConfigSeeds_ShouldCreatePublishedAchColombiaProfile()
@@ -114,8 +120,12 @@ public class NachaConfigOfficialProfilesSeederTests
         profiles.Single(x => x.ProfileCode == "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0").Tags
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35")
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("sección 6.6"));
-        profiles.Where(x => x.ClearingHouse.Code == "CENIT")
+        profiles.Where(x => x.ClearingHouse.Code == "CENIT"
+                            && x.ProfileCode != CenitReturnIn2026Layout.ProfileCode)
             .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue.Contains("CENIT/DSP-152")));
+        profiles.Single(x => x.ProfileCode == CenitReturnIn2026Layout.ProfileCode).Tags
+            .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "2026-05-07")
+            .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("Formato NACHA-M CENIT"));
     }
 
     [Fact]
@@ -304,6 +314,57 @@ public class NachaConfigOfficialProfilesSeederTests
     }
 
     [Fact]
+    public async Task IncomingCenitReturnProfile_ShouldExposeOfficial2026Contract()
+    {
+        await using var context = await SeedAsync();
+        var profile = await LoadProfileAsync(context, CenitReturnIn2026Layout.ProfileCode);
+
+        profile.Should().NotBeNull();
+        profile!.ClearingHouse.Code.Should().Be("CENIT");
+        profile.FlowType.Code.Should().Be("RETORNO");
+        profile.Direction.Code.Should().Be("ENTRADA");
+        profile.Tags.Should().Contain(tag => tag.TagKey == "IsHomologated" && tag.TagValue == "true");
+        profile.Tags.Should().Contain(tag => tag.TagKey == "IsPlaceholder" && tag.TagValue == "false");
+        profile.Records.Select(record => record.RecordCode.Code).Should().BeEquivalentTo(RequiredRecords);
+        profile.LayoutVariants.Should().HaveCount(6);
+
+        var type6 = profile.LayoutVariants.Single(variant => variant.RecordCode.Code == "6");
+        type6.Fields.Single(field => field.FieldCode == "AMOUNT").Should().Match<CfgLayoutField>(field => field.StartPosition == 30 && field.Length == 18);
+        type6.Fields.Single(field => field.FieldCode == "TRACENUMBER").Should().Match<CfgLayoutField>(field => field.StartPosition == 88 && field.Length == 15);
+
+        var type7 = profile.LayoutVariants.Single(variant => variant.RecordCode.Code == "7");
+        type7.Fields.Single(field => field.FieldCode == "RETURNREASONCODE").Should().Match<CfgLayoutField>(field => field.StartPosition == 4 && field.Length == 3);
+        type7.Fields.Single(field => field.FieldCode == "ORIGINALTRACENUMBER").Should().Match<CfgLayoutField>(field => field.StartPosition == 7 && field.Length == 15);
+        type7.Fields.Single(field => field.FieldCode == "ADDITIONALINFORMATION").Should().Match<CfgLayoutField>(field => field.StartPosition == 38 && field.Length == 44);
+        type7.Fields.Single(field => field.FieldCode == "ADDENDASEQUENCENUMBER").Should().Match<CfgLayoutField>(field => field.StartPosition == 82 && field.Length == 15);
+    }
+
+    [Fact]
+    public async Task IncomingCenitReturnProfile_ShouldResolveForReturnInOnly()
+    {
+        await using var context = await SeedAsync();
+        var resolver = new NachaConfigResolver(context);
+
+        var result = await resolver.ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            FlowTypeCode = "RETORNO",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = new DateTime(2026, 8, 15, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = RequiredRecords,
+            SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["MessageType"] = "DifferentialResponse",
+                ["AddendaType"] = "99"
+            },
+            RequireHomologated = true
+        });
+
+        result.Success.Should().BeTrue(string.Join(" | ", result.Trace));
+        result.Profile!.ProfileCode.Should().Be(CenitReturnIn2026Layout.ProfileCode);
+    }
+
+    [Fact]
     public async Task IncomingAchColombiaReturnProfile_SeedShouldBeIdempotent()
     {
         await using var context = await SeedAsync();
@@ -363,17 +424,7 @@ public class NachaConfigOfficialProfilesSeederTests
         result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
     }
 
-    private static async Task<AchDbContext> SeedAsync()
-    {
-        var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-        var context = new AchDbContext(options);
-        await context.Database.EnsureCreatedAsync();
-        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
-        return context;
-    }
+    private Task<AchDbContext> SeedAsync() => _fixture.CreateSeededContextAsync();
 
     private static async Task<List<CfgProfile>> LoadOfficialProfilesAsync(AchDbContext context)
     {

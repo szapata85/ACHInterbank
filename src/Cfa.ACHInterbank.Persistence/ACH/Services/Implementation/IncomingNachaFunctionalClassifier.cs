@@ -61,13 +61,24 @@ public class IncomingNachaFunctionalClassifier : IIncomingNachaFunctionalClassif
         else if (isReturn)
         {
             var reason = (addenda?.ReturnReasonCode ?? string.Empty).Trim().ToUpperInvariant();
-            functionalClass = reason.StartsWith("DEV", StringComparison.OrdinalIgnoreCase)
-                ? IncomingNachaFunctionalClass.RetornoEpr
-                : reason.StartsWith("R", StringComparison.OrdinalIgnoreCase)
-                    ? IncomingNachaFunctionalClass.Devolucion
-                    : IncomingNachaFunctionalClass.RechazadaOperador;
-            eligibility = IncomingNachaEligibilityStatus.PendienteResolucion;
-            meaning = "Devolución/Rechazo entrante identificado por addenda 99; requiere reconciliación obligatoria.";
+            if (CenitReturnIn2026Layout.IsReturnOfReturnCause(reason))
+            {
+                functionalClass = IncomingNachaFunctionalClass.Inconsistente;
+                eligibility = IncomingNachaEligibilityStatus.RevisionManual;
+                meaning = "Devolución de una devolución (ROR) identificada; no pertenece al flujo Return In ordinario.";
+                requiresLink = false;
+                requiresManual = true;
+            }
+            else
+            {
+                functionalClass = reason.StartsWith("DEV", StringComparison.OrdinalIgnoreCase)
+                    ? IncomingNachaFunctionalClass.RetornoEpr
+                    : reason.StartsWith("R", StringComparison.OrdinalIgnoreCase)
+                        ? IncomingNachaFunctionalClass.Devolucion
+                        : IncomingNachaFunctionalClass.RechazadaOperador;
+                eligibility = IncomingNachaEligibilityStatus.PendienteResolucion;
+                meaning = "Devolución/Rechazo entrante identificado por addenda 99; requiere reconciliación obligatoria.";
+            }
         }
         else if (isCredit)
         {
@@ -92,7 +103,7 @@ public class IncomingNachaFunctionalClassifier : IIncomingNachaFunctionalClassif
             ReturnReasonCode = addenda?.ReturnReasonCode?.Trim(),
             PrenoteStatus = prenoteStatus,
             BusinessMeaning = meaning,
-            ClassifierVersion = "v1.1.0",
+            ClassifierVersion = "v1.2.0",
             ClassificationEvidenceJson = JsonSerializer.Serialize(new
             {
                 code,
