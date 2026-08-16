@@ -26,6 +26,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
     public async Task SeedAsync()
     {
+        await EnsureReturnOfReturnFlowTypeAsync();
         var catalog = await LoadCatalogAsync();
 
         await EnsureProfileAsync(new ProfileSpec(
@@ -138,6 +139,44 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             VersionMinor: 0));
 
         await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitReturnOfReturn2026Layout.InProfileCode,
+            Name: "Perfil CENIT entrada devolución de devolución 2026",
+            Description: "Perfil table-driven ROR In CENIT conforme al formato NACHA-M del 07-may-2026; certificación externa pendiente.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: CenitReturnOfReturn2026Layout.FlowTypeCode,
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitReturnOfReturn2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "7.1.2;Anexo 1.7;Tabla 6;CENIT-Anexo-A Tabla 2",
+            IsPlaceholder: false,
+            IsHomologated: true,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CENIT",
+            ImmediateOriginName: "",
+            Prefix: "CENIT_ROR_IN_2026",
+            DirectionCode: "ENTRADA",
+            VersionMinor: 0));
+
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitReturnOfReturn2026Layout.OutProfileCode,
+            Name: "Perfil CENIT salida devolución de devolución 2026",
+            Description: "Perfil table-driven ROR Out CENIT conforme al formato NACHA-M del 07-may-2026; certificación externa pendiente.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: CenitReturnOfReturn2026Layout.FlowTypeCode,
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitReturnOfReturn2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "7.1.2;Anexo 1.7;Tabla 6;CENIT-Anexo-A Tabla 2",
+            IsPlaceholder: false,
+            IsHomologated: true,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CENIT",
+            ImmediateOriginName: "",
+            Prefix: "CENIT_ROR_OUT_2026",
+            DirectionCode: "SALIDA",
+            VersionMinor: 0));
+
+        await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
             Name: "Perfil oficial CENIT salida original",
             Description: "Perfil oficial UAT/local table-driven para CENIT. Fuente normativa pendiente de homologacion formal: CENIT/DSP-152 placeholder.",
@@ -230,13 +269,16 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 var isReturnOutV35 = IsReturnOutV35(spec);
                 var isCenitReturnIn2026 = IsCenitReturnIn2026(spec);
                 var isCenitReturnOut2026 = IsCenitReturnOut2026(spec);
+                var isCenitReturnOfReturn2026 = IsCenitReturnOfReturn2026(spec);
                 var variant = await EnsureVariantAsync(
                     profile,
                     spec,
                     recordCode,
                     sequence,
                     catalog,
-                    isCenitReturnIn2026
+                    isCenitReturnOfReturn2026
+                        ? CenitReturnOfReturn2026Layout.Variant(recordCode, spec.DirectionCode == "ENTRADA")
+                        : isCenitReturnIn2026
                         ? CenitReturnIn2026Layout.Variant(recordCode)
                         : isCenitReturnOut2026
                         ? CenitReturnOut2026Layout.Variant(recordCode)
@@ -247,7 +289,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     selectionPredicateJson: null);
                 await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
 
-                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026)
+                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026 && !isCenitReturnOfReturn2026)
                 {
                     await EnsureVariantAsync(
                         profile,
@@ -275,6 +317,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
                 sequence += 10;
             }
+
+            _context.ChangeTracker.Clear();
         }
 
         async Task EnsureTagAsync(CfgProfile profile, string key, string value)
@@ -438,7 +482,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
             if (!spec.IsPlaceholder)
             {
-                var descriptor = UsesCenitReturnIn2026Layout(spec)
+                var descriptor = UsesCenitReturnOfReturn2026Layout(spec)
+                    ? CenitReturnOfReturn2026Layout.Field(recordCode, field.Code)
+                    : UsesCenitReturnIn2026Layout(spec)
                     ? CenitReturnIn2026Layout.Field(recordCode, field.Code)
                     : UsesCenitReturnOut2026Layout(spec)
                     ? CenitReturnOut2026Layout.Field(recordCode, field.Code)
@@ -521,8 +567,35 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         return prefix.StartsWith("CENIT", StringComparison.OrdinalIgnoreCase) ? [6, 11, 2, 1] : [6, 11, 1, 1];
     }
 
+    private async Task EnsureReturnOfReturnFlowTypeAsync()
+    {
+        if (await _context.CatFlowTypes.AnyAsync(x => x.Code == CenitReturnOfReturn2026Layout.FlowTypeCode)) return;
+
+        var outboundDirectionId = await _context.CatDirections
+            .Where(x => x.Code == "SALIDA")
+            .Select(x => x.Id)
+            .SingleAsync();
+        _context.CatFlowTypes.Add(new CatFlowType
+        {
+            Code = CenitReturnOfReturn2026Layout.FlowTypeCode,
+            NameEs = "Devolución de una devolución",
+            DirectionDefaultId = outboundDirectionId,
+            IsActive = true,
+            CreatedAt = AuditTimestamp,
+            UpdatedAt = AuditTimestamp
+        });
+        await _context.SaveChangesAsync();
+    }
+
     private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode, string variantCode)
     {
+        if (UsesCenitReturnOfReturn2026Layout(profile))
+        {
+            return CenitReturnOfReturn2026Layout.ForRecord(recordCode)
+                .Select(BuildReturnOutV35Field)
+                .ToList();
+        }
+
         if (UsesCenitReturnIn2026Layout(profile))
         {
             return CenitReturnIn2026Layout.ForRecord(recordCode)
@@ -572,11 +645,18 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
     private static bool IsCenitReturnOut2026(ProfileSpec profile)
         => string.Equals(profile.ProfileCode, CenitReturnOut2026Layout.ProfileCode, StringComparison.Ordinal);
 
+    private static bool IsCenitReturnOfReturn2026(ProfileSpec profile)
+        => string.Equals(profile.ProfileCode, CenitReturnOfReturn2026Layout.InProfileCode, StringComparison.Ordinal)
+           || string.Equals(profile.ProfileCode, CenitReturnOfReturn2026Layout.OutProfileCode, StringComparison.Ordinal);
+
     private static bool UsesCenitReturnIn2026Layout(ProfileSpec profile)
         => IsCenitReturnIn2026(profile);
 
     private static bool UsesCenitReturnOut2026Layout(ProfileSpec profile)
         => IsCenitReturnOut2026(profile);
+
+    private static bool UsesCenitReturnOfReturn2026Layout(ProfileSpec profile)
+        => IsCenitReturnOfReturn2026(profile);
 
     private static bool UsesReturnV35Layout(ProfileSpec profile, string recordCode, string variantCode)
         => IsReturnOutV35(profile)

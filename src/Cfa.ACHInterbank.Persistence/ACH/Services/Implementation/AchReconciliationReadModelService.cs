@@ -288,7 +288,7 @@ public sealed class AchReconciliationReadModelService : IAchReconciliationReadMo
             row.ReasonCode,
             row.ReasonCode,
             row.ReturnOfReturnTransaction.TraceNumber,
-            row.SourceReturnTransaction.TraceNumber,
+            row.SourceReturnTransaction?.TraceNumber ?? row.OriginalTransaction?.TraceNumber ?? string.Empty,
             null,
             row.ReturnOfReturnTransactionId,
             row.Status,

@@ -26,8 +26,33 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
         CancellationToken ct = default)
     {
         var trace = (entry.SequenceNumber ?? string.Empty).Trim();
-        var originalTraceRef = (addenda?.OriginalTraceNumber ?? string.Empty).Trim();
+        var originalTraceRef = ((context.FunctionalClass == IncomingNachaFunctionalClass.DevolucionDevolucion
+            ? addenda?.NewTraceNumber
+            : addenda?.OriginalTraceNumber) ?? string.Empty).Trim();
         var recipientIdentifier = (entry.RecipIdNumber ?? string.Empty).Trim();
+
+        if (context.FunctionalClass == IncomingNachaFunctionalClass.DevolucionDevolucion
+            && !string.IsNullOrWhiteSpace(originalTraceRef))
+        {
+            var parentReturns = await _context.Set<AchReturnGenerated>()
+                .AsNoTracking()
+                .Where(x => x.NewSequenceNumber == originalTraceRef)
+                .Select(x => new { x.OriginalTransactionId, x.ReturnCycleId })
+                .ToListAsync(ct);
+            if (!string.IsNullOrWhiteSpace(context.ResolvedAchCycleId))
+            {
+                var sameCycle = parentReturns.Where(x => x.ReturnCycleId == context.ResolvedAchCycleId).ToList();
+                if (sameCycle.Count > 0) parentReturns = sameCycle;
+            }
+            if (parentReturns.Count == 1)
+                return Build(IncomingNachaLinkType.ExactOriginalTraceRef, parentReturns[0].OriginalTransactionId, true, 1m, false, false,
+                    "ExactParentReturnTraceRef", [parentReturns[0].OriginalTransactionId], trace, originalTraceRef, recipientIdentifier);
+            if (parentReturns.Count > 1)
+                return Build(IncomingNachaLinkType.Ambiguous, null, false, 0.3m, true, false,
+                    "AmbiguousParentReturnTraceRef", parentReturns.Select(x => x.OriginalTransactionId).ToArray(), trace, originalTraceRef, recipientIdentifier);
+            return Build(IncomingNachaLinkType.NotFound, null, false, 0m, false, true,
+                "ParentReturnNotFound", [], trace, originalTraceRef, recipientIdentifier);
+        }
 
         // 1) OriginalTraceRef exacto para devoluciones
         if (!string.IsNullOrWhiteSpace(originalTraceRef))
@@ -173,6 +198,7 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
             IncomingNachaFunctionalClass.Devolucion => null,
             IncomingNachaFunctionalClass.RechazadaOperador => null,
             IncomingNachaFunctionalClass.RetornoEpr => null,
+            IncomingNachaFunctionalClass.DevolucionDevolucion => TransactionTypeEnum.Return,
             _ => null
         };
     }

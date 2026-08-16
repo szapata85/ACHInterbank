@@ -122,7 +122,9 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("sección 6.6"));
         profiles.Where(x => x.ClearingHouse.Code == "CENIT"
                             && x.ProfileCode != CenitReturnIn2026Layout.ProfileCode
-                            && x.ProfileCode != CenitReturnOut2026Layout.ProfileCode)
+                            && x.ProfileCode != CenitReturnOut2026Layout.ProfileCode
+                            && x.ProfileCode != CenitReturnOfReturn2026Layout.InProfileCode
+                            && x.ProfileCode != CenitReturnOfReturn2026Layout.OutProfileCode)
             .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue.Contains("CENIT/DSP-152")));
         profiles.Single(x => x.ProfileCode == CenitReturnIn2026Layout.ProfileCode).Tags
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "2026-05-07")
@@ -130,6 +132,13 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         profiles.Single(x => x.ProfileCode == CenitReturnOut2026Layout.ProfileCode).Tags
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == CenitReturnOut2026Layout.NormativeVersion)
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("Formato NACHA-M CENIT"));
+        profiles.Where(x => x.ProfileCode == CenitReturnOfReturn2026Layout.InProfileCode
+                            || x.ProfileCode == CenitReturnOfReturn2026Layout.OutProfileCode)
+            .Should().HaveCount(2)
+            .And.OnlyContain(x => x.Tags.Any(t => t.TagKey == "NormativeVersion"
+                                                  && t.TagValue == CenitReturnOfReturn2026Layout.NormativeVersion)
+                                  && x.Tags.Any(t => t.TagKey == "NormativeSource"
+                                                     && t.TagValue.Contains("Formato NACHA-M CENIT")));
     }
 
     [Fact]

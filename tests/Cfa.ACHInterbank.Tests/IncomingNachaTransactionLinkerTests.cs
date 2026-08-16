@@ -44,6 +44,44 @@ public class IncomingNachaTransactionLinkerTests
     }
 
     [Fact]
+    public async Task LinkAsync_RorWithoutParentReturn_ShouldRemainOrphanWithRawEvidence()
+    {
+        using var context = BuildContext();
+        var entry = new EntryDetail
+        {
+            EntryDetailID = 910,
+            SequenceNumber = "123456780000910",
+            TransactionCode = "21",
+            Amount = 100m,
+            AccountNumber = "1"
+        };
+        var addenda = new AddendaRecord
+        {
+            AddendaID = 911,
+            EntryDetailId = entry.EntryDetailID,
+            BusinessType = "ReturnOfReturn",
+            ReturnReasonCode = "R60",
+            OriginalTraceNumber = "123456780000001",
+            NewTraceNumber = "876543210000999"
+        };
+        context.AddRange(entry, addenda);
+        await context.SaveChangesAsync();
+        var sut = new IncomingNachaTransactionLinker(context);
+
+        var result = await sut.LinkAsync(entry, addenda, new IncomingNachaLinkingContext
+        {
+            FunctionalClass = IncomingNachaFunctionalClass.DevolucionDevolucion,
+            ResolvedAchCycleId = "C4"
+        });
+
+        Assert.Equal(IncomingNachaLinkType.NotFound, result.LinkType);
+        Assert.True(result.IsNotFound);
+        Assert.Null(result.AchTransactionId);
+        Assert.Equal(1, await context.EntryDetails.CountAsync(x => x.EntryDetailID == entry.EntryDetailID));
+        Assert.Equal(1, await context.AddendaRecords.CountAsync(x => x.AddendaID == addenda.AddendaID));
+    }
+
+    [Fact]
     public async Task LinkAsync_Ambiguous_WhenMultipleTraceCandidates()
     {
         using var context = BuildContext();

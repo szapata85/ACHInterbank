@@ -12,7 +12,8 @@ public sealed record NachaReturnOutBuildRequest(
     bool PersistAudit = true,
     string ClearingHouseCode = "ACH",
     string ClearingHouseName = "ACH Colombia",
-    string NormativeVersion = "V35");
+    string NormativeVersion = "V35",
+    string FlowTypeCode = "DEVOLUCION");
 
 public sealed record NachaReturnOutBatch(
     string ServiceClassCode,
@@ -44,7 +45,10 @@ public sealed record NachaReturnOutEntry(
     string DeathDate,
     string OriginalReceivingDfi,
     string AdditionalInformation,
-    string AddendaSequenceNumber);
+    string AddendaSequenceNumber,
+    string SourceReturnTraceNumber = "",
+    string SourceReturnSettlementDate = "",
+    string SourceReturnReasonCode = "");
 
 public sealed record NachaReturnOutBuildResult(
     string Content,

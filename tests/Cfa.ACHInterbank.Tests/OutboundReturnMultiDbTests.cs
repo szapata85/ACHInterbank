@@ -172,6 +172,7 @@ public sealed class OutboundReturnMultiDbTests
             Request(raceI, (0, "R02")));
         AssertWinnerLoser(raceIResults);
         await fixture.AssertScenarioAsync(raceI, expectedReturns: 1, expectedEvents: 1, expectedRegistries: 1);
+        await fixture.AssertCenitRorPersistenceAsync(raceI);
     }
 
     private static async Task RunMigrationRoundTripAsync(DatabaseProvider provider)
@@ -613,7 +614,7 @@ public sealed class OutboundReturnMultiDbTests
                 ImmediateOriginName = "CENIT",
                 IncomingNachaFileIngestionId = ingestionId,
                 ClearingHouseId = _cenitClearingHouseId,
-                AchCycleId = originalCycleId
+                AchCycleId = returnCycleId
             };
             var rawBatch = new BatchHeader
             {
@@ -634,14 +635,26 @@ public sealed class OutboundReturnMultiDbTests
                 Amount = transaction.Amount,
                 NachaHeader = header
             };
+            var addenda = new AddendaRecord
+            {
+                NachaID = headerId,
+                EntryDetail = entry,
+                CodeTypeAddendumRecord = "99",
+                ReturnReasonCode = "R02",
+                OriginalTraceNumber = transaction.TraceNumber,
+                IdUserOrig = participantDfi,
+                NewTraceNumber = $"{participantDfi}0000002"
+            };
             context.IncomingNachaFileIngestions.Add(ingestion);
             context.NachaHeaders.Add(header);
             context.BatchHeaders.Add(rawBatch);
             context.EntryDetails.Add(entry);
+            context.AddendaRecords.Add(addenda);
             context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
             {
                 IncomingNachaFileIngestionId = ingestionId,
                 EntryDetail = entry,
+                AddendaRecord = addenda,
                 AchTransactionId = transaction.Id,
                 LinkType = IncomingNachaLinkType.ExactTrace15,
                 ConfidenceScore = 1m,
@@ -651,6 +664,86 @@ public sealed class OutboundReturnMultiDbTests
             await context.SaveChangesAsync();
 
             return new Scenario(originalCycleId, processingDate.Date, participantDfi, [transaction.Id], returnCycleId);
+        }
+
+        public async Task AssertCenitRorPersistenceAsync(Scenario scenario)
+        {
+            var originalId = scenario.TransactionIds.Single();
+            var targetCycleId = scenario.CycleId.EndsWith("-C1", StringComparison.Ordinal)
+                ? $"{scenario.CycleId[..^1]}4"
+                : throw new InvalidOperationException("CENIT_ROR_TEST_TARGET_CYCLE_UNRESOLVED");
+            int parentGeneratedId;
+            long parentEventId;
+            await using (var context = CreateContext())
+            {
+                parentGeneratedId = await context.AchReturnsGenerated.Where(x => x.OriginalTransactionId == originalId).Select(x => x.Id).SingleAsync();
+                parentEventId = await context.AchTransactionStateEvents.Where(x => x.AchTransactionId == originalId).Select(x => x.Id).SingleAsync();
+            }
+            var when = DateTime.SpecifyKind(scenario.ProcessingDate.AddHours(14), DateTimeKind.Utc);
+
+            async Task<CenitReturnOfReturnResult> Outbound(DateTime requestedAt)
+            {
+                await using var context = CreateContext();
+                return await CreateRorService(context).CreateOutgoingAsync(new(parentEventId, "R60", targetCycleId, requestedAt));
+            }
+            var outbound = await Task.WhenAll(Outbound(when), Outbound(when.AddMinutes(1)));
+            outbound.Should().ContainSingle(x => x.IsSuccessful && !x.WasDuplicate);
+            outbound.Should().ContainSingle(x => x.WasDuplicate);
+
+            CenitReturnOfReturnInRequest inboundRequest;
+            await using (var context = CreateContext())
+            {
+                var parent = await context.AchReturnsGenerated.AsNoTracking().SingleAsync(x => x.Id == parentGeneratedId);
+                inboundRequest = new(
+                    parent.Id,
+                    originalId,
+                    targetCycleId,
+                    "R61",
+                    "21",
+                    $"{scenario.ParticipantDfi}6000001",
+                    parent.OriginalSequenceNumber,
+                    parent.OriginatorEntityCode,
+                    parent.NewSequenceNumber,
+                    parent.SequenceDate.DayOfYear.ToString("D3"),
+                    parent.ReturnReasonCode.TrimStart('R'),
+                    parent.Amount,
+                    when.AddMinutes(2),
+                    $"multidb-ror:{Provider}:{originalId}");
+            }
+            async Task<CenitReturnOfReturnResult> Inbound(DateTime receivedAt)
+            {
+                await using var context = CreateContext();
+                return await CreateRorService(context).IngestIncomingAsync(inboundRequest with { ReceivedAtUtc = receivedAt });
+            }
+            var inbound = await Task.WhenAll(Inbound(when.AddMinutes(2)), Inbound(when.AddMinutes(3)));
+            inbound.Should().ContainSingle(x => x.IsSuccessful && !x.WasDuplicate);
+            inbound.Should().ContainSingle(x => x.WasDuplicate);
+
+            await using (var context = CreateContext())
+            {
+                var flows = await context.ReturnOfReturnFlows.AsNoTracking().Where(x => x.OriginalTransactionId == originalId).ToListAsync();
+                flows.Should().HaveCount(2);
+                flows.Should().ContainSingle(x => x.Direction == "Out" && x.ParentIncomingReturnStateEventId == parentEventId);
+                flows.Should().ContainSingle(x => x.Direction == "In" && x.ParentOutgoingReturnGeneratedId == parentGeneratedId);
+                var rorCounter = await context.AchReturnTraceSequences.AsNoTracking().SingleAsync(x =>
+                    x.ParticipantDfi == "91000001" && x.SequenceDate == DateOnly.FromDateTime(when));
+                rorCounter.LastAssignedValue.Should().Be(1);
+            }
+
+            CenitReturnOfReturnService CreateRorService(AchDbContext context)
+            {
+                var regulatory = new Mock<IAchRegulatoryCatalogService>();
+                regulatory.Setup(x => x.ValidateReturnOfReturnAsync(
+                        It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                        It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((true, null, true));
+                return new CenitReturnOfReturnService(
+                    context,
+                    regulatory.Object,
+                    new AchReturnTraceSequenceService(context),
+                    new AchReturnGenerationLockService(),
+                    new OperationalCalendarService(context));
+            }
         }
 
         public async Task<Evidence> CaptureEvidenceAsync()

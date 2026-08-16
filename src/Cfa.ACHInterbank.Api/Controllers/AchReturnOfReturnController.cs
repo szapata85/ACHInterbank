@@ -11,8 +11,29 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class AchReturnOfReturnController(
     IAchReturnOfReturnEligibilityService eligibilityService,
-    IAchReturnOfReturnFileGenerationService generationService) : ControllerBase
+    IAchReturnOfReturnFileGenerationService generationService,
+    ICenitReturnOfReturnService? cenitReturnOfReturnService = null) : ControllerBase
 {
+    [HttpPost("cenit/out")]
+    [Authorize(Policy = P0Policies.ReturnsGenerateFile)]
+    [ProducesResponseType(typeof(CenitReturnOfReturnResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(CenitReturnOfReturnResult), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateCenitOut([FromBody] CreateCenitReturnOfReturnOutRequest request, CancellationToken ct)
+    {
+        if (request is null || request.ParentIncomingReturnStateEventId <= 0 || string.IsNullOrWhiteSpace(request.ReasonCode) || string.IsNullOrWhiteSpace(request.ReturnCycleId))
+            return BadRequest(new { message = "parentIncomingReturnStateEventId, reasonCode y returnCycleId son obligatorios." });
+        if (cenitReturnOfReturnService is null)
+            return Conflict(new { message = "Servicio CENIT ROR no disponible." });
+
+        var result = await cenitReturnOfReturnService.CreateOutgoingAsync(new(
+            request.ParentIncomingReturnStateEventId,
+            request.ReasonCode,
+            request.ReturnCycleId,
+            DateTime.UtcNow,
+            request.RequestedBy,
+            request.Source), ct);
+        return result.IsSuccessful ? Ok(result) : Conflict(result);
+    }
     [HttpPost("evaluate")]
     [Authorize(Policy = P0Policies.ReturnsRead)]
     [ProducesResponseType(typeof(AchReturnOfReturnEligibilityResult), StatusCodes.Status200OK)]
@@ -111,5 +132,12 @@ public sealed record EvaluateReturnOfReturnRequest(
 
 public sealed record GenerateReturnOfReturnAuditFileRequest(
     IReadOnlyCollection<int> FlowIds,
+    string? RequestedBy = null,
+    string? Source = null);
+
+public sealed record CreateCenitReturnOfReturnOutRequest(
+    long ParentIncomingReturnStateEventId,
+    string ReasonCode,
+    string ReturnCycleId,
     string? RequestedBy = null,
     string? Source = null);

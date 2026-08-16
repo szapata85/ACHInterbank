@@ -17,12 +17,14 @@ public class AchReturnOfReturnFileGenerationService(
     IExternalFileNamePolicy? externalFileNamePolicy = null,
     INachaRecordConfigProvider? nachaRecordConfigProvider = null,
     INachaRecordFieldValidator? nachaRecordFieldValidator = null,
-    ILogger<AchReturnOfReturnFileGenerationService>? logger = null) : IAchReturnOfReturnFileGenerationService
+    ILogger<AchReturnOfReturnFileGenerationService>? logger = null,
+    INachaFileBuilder? nachaFileBuilder = null) : IAchReturnOfReturnFileGenerationService
 {
     private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
     private readonly INachaRecordConfigProvider? _nachaRecordConfigProvider = nachaRecordConfigProvider;
     private readonly INachaRecordFieldValidator? _nachaRecordFieldValidator = nachaRecordFieldValidator;
     private readonly ILogger<AchReturnOfReturnFileGenerationService> _logger = logger ?? NullLogger<AchReturnOfReturnFileGenerationService>.Instance;
+    private readonly INachaFileBuilder? _nachaFileBuilder = nachaFileBuilder;
     public async Task<AchReturnOfReturnFileGenerationResult> GenerateAsync(AchReturnOfReturnFileGenerationRequest request, CancellationToken cancellationToken)
     {
         var failures = new List<AchReturnOfReturnFileGenerationFailure>();
@@ -35,7 +37,8 @@ public class AchReturnOfReturnFileGenerationService(
         var requestedIds = request.ReturnOfReturnFlowIds.Distinct().ToArray();
         var flows = await context.ReturnOfReturnFlows
             .AsNoTracking()
-            .Include(x => x.SourceReturnTransaction).ThenInclude(x => x.AchCycle)
+            .Include(x => x.SourceReturnTransaction!).ThenInclude(x => x.AchCycle)
+            .Include(x => x.OriginalTransaction).ThenInclude(x => x!.AchCycle)
             .Include(x => x.ReturnOfReturnTransaction).ThenInclude(x => x.AchCycle)
             .Where(x => requestedIds.Contains((int)x.Id))
             .ToListAsync(cancellationToken);
@@ -50,7 +53,7 @@ public class AchReturnOfReturnFileGenerationService(
 
         foreach (var flow in flows)
         {
-            if (flow.SourceReturnTransaction is null)
+            if (flow.SourceReturnTransaction is null && flow.OriginalTransaction is null)
             {
                 failures.Add(new("SOURCE_RETURN_TRANSACTION_NOT_FOUND", $"No se encontró SourceReturnTransaction para flujo {flow.Id}."));
             }
@@ -68,7 +71,9 @@ public class AchReturnOfReturnFileGenerationService(
 
         foreach (var flow in flows)
         {
-            var sourceClearingHouseId = flow.SourceReturnTransaction?.AchCycle?.ClearingHouseId ?? 0;
+            var sourceClearingHouseId = flow.SourceReturnTransaction?.AchCycle?.ClearingHouseId
+                                        ?? flow.OriginalTransaction?.AchCycle?.ClearingHouseId
+                                        ?? 0;
             var returnOfReturnClearingHouseId = flow.ReturnOfReturnTransaction?.AchCycle?.ClearingHouseId ?? 0;
             if (sourceClearingHouseId <= 0 || returnOfReturnClearingHouseId <= 0 || sourceClearingHouseId != returnOfReturnClearingHouseId)
             {
@@ -82,7 +87,7 @@ public class AchReturnOfReturnFileGenerationService(
         }
 
         var clearingHouseIds = flows
-            .Select(x => x.ReturnOfReturnTransaction.AchCycle?.ClearingHouseId ?? x.SourceReturnTransaction.AchCycle?.ClearingHouseId ?? 0)
+            .Select(x => x.ReturnOfReturnTransaction.AchCycle?.ClearingHouseId ?? x.SourceReturnTransaction!.AchCycle?.ClearingHouseId ?? x.OriginalTransaction!.AchCycle.ClearingHouseId)
             .Distinct()
             .ToArray();
 
@@ -102,7 +107,7 @@ public class AchReturnOfReturnFileGenerationService(
             };
 
             lines.AddRange(flows.OrderBy(x => x.Id).Select(flow =>
-                $"FLOW|{flow.Id}|SRC:{flow.SourceReturnTransactionId}|ROR:{flow.ReturnOfReturnTransactionId}|REASON:{flow.ReasonCode}|SRC_TRACE:{flow.SourceReturnTransaction.TraceNumber}|ROR_TRACE:{flow.ReturnOfReturnTransaction.TraceNumber}"));
+                $"FLOW|{flow.Id}|SRC:{flow.SourceReturnTransactionId}|ROR:{flow.ReturnOfReturnTransactionId}|REASON:{flow.ReasonCode}|SRC_TRACE:{flow.SourceReturnTransaction?.TraceNumber ?? flow.OriginalTransaction?.TraceNumber}|ROR_TRACE:{flow.ReturnOfReturnTransaction.TraceNumber}"));
 
             var contentText = string.Join(Environment.NewLine, lines);
             var content = Encoding.ASCII.GetBytes(contentText);
@@ -148,7 +153,8 @@ public class AchReturnOfReturnFileGenerationService(
 
         var requestedIds = request.ReturnOfReturnFlowIds.Distinct().OrderBy(x => x).ToArray();
         var flows = await context.ReturnOfReturnFlows
-            .Include(x => x.SourceReturnTransaction).ThenInclude(x => x.AchCycle).ThenInclude(x => x.ClearingHouse)
+            .Include(x => x.SourceReturnTransaction!).ThenInclude(x => x.AchCycle).ThenInclude(x => x.ClearingHouse)
+            .Include(x => x.OriginalTransaction).ThenInclude(x => x!.AchCycle).ThenInclude(x => x.ClearingHouse)
             .Include(x => x.ReturnOfReturnTransaction).ThenInclude(x => x.AchCycle).ThenInclude(x => x.ClearingHouse)
             .Where(x => requestedIds.Contains((int)x.Id))
             .ToListAsync(cancellationToken);
@@ -184,14 +190,17 @@ public class AchReturnOfReturnFileGenerationService(
             }
         }
 
-        if (flows.Any(x => x.SourceReturnTransaction is null || x.ReturnOfReturnTransaction is null))
+        if (flows.Any(x => (x.SourceReturnTransaction is null && x.OriginalTransaction is null) || x.ReturnOfReturnTransaction is null))
         {
             failures.Add(new("RETURN_OF_RETURN_FLOW_NOT_FOUND", "No se pudo resolver la transacción origen o la transacción de devolución de devolución para todos los flujos.", nameof(request.ReturnOfReturnFlowIds)));
             return new(false, null, null, null, 0, flows.Select(x => (int)x.Id).ToArray(), failures, null, null);
         }
 
         var clearingHouseIds = flows
-            .Select(x => x.ReturnOfReturnTransaction?.AchCycle?.ClearingHouseId ?? x.SourceReturnTransaction?.AchCycle?.ClearingHouseId ?? 0)
+            .Select(x => x.ReturnOfReturnTransaction?.AchCycle?.ClearingHouseId
+                         ?? x.SourceReturnTransaction?.AchCycle?.ClearingHouseId
+                         ?? x.OriginalTransaction?.AchCycle?.ClearingHouseId
+                         ?? 0)
             .Distinct()
             .ToArray();
         if (clearingHouseIds.Any(x => x <= 0) || clearingHouseIds.Length != 1)
@@ -217,6 +226,10 @@ public class AchReturnOfReturnFileGenerationService(
         var now = request.GeneratedAtUtc;
         var clearingHouseId = clearingHouseIds[0];
         var firstCycle = flows.First().ReturnOfReturnTransaction.AchCycle;
+        if (string.Equals(firstCycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return await GenerateCenitNachaAsync(flows, request, productiveSourceValue, cancellationToken);
+        }
         var recordConfig = ResolveNachaRecordConfig(clearingHouseId, firstCycle.ClearingHouse);
         var originCode = NormalizeDigits(firstCycle.ClearingHouse?.OriginCode ?? recordConfig.Record1.ImmediateOrigin, 8);
         var provisionalFileName = $"RORNACHA_{clearingHouseId}_{now:yyyyMMddHHmmss}.ach";
@@ -227,7 +240,7 @@ public class AchReturnOfReturnFileGenerationService(
         foreach (var flow in flows.OrderBy(x => x.Id))
         {
             var tx = flow.ReturnOfReturnTransaction;
-            var original = flow.SourceReturnTransaction;
+            var original = flow.SourceReturnTransaction!;
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
             var newTrace = NormalizeDigits(tx.TraceNumber, 15);
             var originalTrace = NormalizeDigits(original.TraceNumber, 15);
@@ -289,6 +302,122 @@ public class AchReturnOfReturnFileGenerationService(
         await context.SaveChangesAsync(cancellationToken);
         return new(true, fileName, contentText, content, flows.Count, flows.Select(x => (int)x.Id).ToArray(), Array.Empty<AchReturnOfReturnFileGenerationFailure>(), audit.Id, contentSha256);
     }
+
+    private async Task<AchReturnOfReturnFileGenerationResult> GenerateCenitNachaAsync(
+        IReadOnlyList<ReturnOfReturnFlow> flows,
+        AchReturnOfReturnFileGenerationRequest request,
+        string productiveSourceValue,
+        CancellationToken ct)
+    {
+        var flowIds = flows.Select(x => (int)x.Id).ToArray();
+        if (_nachaFileBuilder is null)
+            return Failure(flowIds, "CENIT_ROR_OPTION_C_REQUIRED", "INachaFileBuilder es requerido para ROR CENIT; no existe fallback hardcodeado.");
+        if (flows.Any(x => x.Direction != "Out" || !x.ParentIncomingReturnStateEventId.HasValue))
+            return Failure(flowIds, "CENIT_ROR_OUT_PARENT_REQUIRED", "ROR Out CENIT requiere un evento Return In padre.");
+
+        var semanticEntries = new List<NachaReturnOutEntry>();
+        BatchHeader? sourceBatch = null;
+        foreach (var flow in flows.OrderBy(x => x.Id))
+        {
+            var parentEventId = flow.ParentIncomingReturnStateEventId!.Value;
+            var parentEvent = await context.AchTransactionStateEvents.AsNoTracking().SingleAsync(x => x.Id == parentEventId, ct);
+            var artifact = await context.IncomingNachaTransactionLinks
+                .Include(x => x.EntryDetail).ThenInclude(x => x!.BatchHeader)
+                .Include(x => x.AddendaRecord)
+                .Where(x => x.AchTransactionId == parentEvent.AchTransactionId
+                            && x.AddendaRecord != null
+                            && x.AddendaRecord.ReturnReasonCode == parentEvent.ReasonCode)
+                .OrderByDescending(x => x.LinkedAtUtc)
+                .FirstOrDefaultAsync(ct);
+            if (artifact?.EntryDetail?.BatchHeader is null || artifact.AddendaRecord is null)
+                return Failure(flowIds, "PARENT_INCOMING_RETURN_RAW_NOT_FOUND", $"No existe evidencia raw para el flujo {flow.Id}.");
+            if (!string.Equals(artifact.EntryDetail.BatchHeader.StandardEntryClassCode?.Trim(), "PPD", StringComparison.OrdinalIgnoreCase))
+                return Failure(flowIds, CenitReturnOfReturn2026Layout.CcdScopeStatus, "El contrato específico vigente de ROR CENIT está definido para PPD.");
+
+            sourceBatch ??= artifact.EntryDetail.BatchHeader;
+            var ror = flow.ReturnOfReturnTransaction;
+            var sourceReason = (parentEvent.ReasonCode ?? string.Empty).Trim().ToUpperInvariant();
+            semanticEntries.Add(new NachaReturnOutEntry(
+                ror.Id,
+                artifact.EntryDetail.TransactionCode?.Trim() ?? string.Empty,
+                artifact.EntryDetail.ReceivingParticipantEntityCode?.Trim() ?? string.Empty,
+                artifact.EntryDetail.CheckDigit?.Trim() ?? string.Empty,
+                artifact.EntryDetail.AccountNumber?.TrimEnd() ?? string.Empty,
+                artifact.EntryDetail.Amount ?? 0m,
+                artifact.EntryDetail.RecipIdNumber?.TrimEnd() ?? string.Empty,
+                artifact.EntryDetail.RecipUserName?.TrimEnd() ?? string.Empty,
+                artifact.EntryDetail.DiscreData?.TrimEnd() ?? string.Empty,
+                ror.TraceNumber,
+                flow.ReasonCode,
+                artifact.AddendaRecord.OriginalTraceNumber?.Trim() ?? string.Empty,
+                string.Empty,
+                artifact.AddendaRecord.IdUserOrig?.Trim() ?? string.Empty,
+                string.Empty,
+                ror.TraceNumber,
+                artifact.EntryDetail.SequenceNumber?.Trim() ?? string.Empty,
+                (artifact.EntryDetail.BatchHeader.CompensationDate ?? parentEvent.OccurredAtUtc.DayOfYear.ToString("D3")).Trim(),
+                sourceReason.TrimStart('R')));
+        }
+
+        var cycle = flows[0].ReturnOfReturnTransaction.AchCycle;
+        var clearingHouse = cycle.ClearingHouse!;
+        var participant = new string(flows[0].ReturnOfReturnTransaction.OriginatingDFI.Where(char.IsDigit).ToArray());
+        participant = participant.Length >= 8 ? participant[..8] : participant.PadLeft(8, '0');
+        var batch = new NachaReturnOutBatch(
+            ResolveServiceClassCode(semanticEntries.Select(x => x.TransactionCode)).ToString("D3"),
+            sourceBatch?.CompanyName?.TrimEnd() ?? flows[0].ReturnOfReturnTransaction.CompanyName,
+            sourceBatch?.DiscretionaryData?.TrimEnd() ?? string.Empty,
+            sourceBatch?.CompanyId?.TrimEnd() ?? flows[0].ReturnOfReturnTransaction.CompanyIdentification,
+            "PPD",
+            sourceBatch?.CompanyEntryDescription?.TrimEnd() ?? "ROR",
+            request.GeneratedAtUtc.Date,
+            request.GeneratedAtUtc.Date,
+            request.GeneratedAtUtc.DayOfYear.ToString("D3"),
+            participant,
+            1,
+            semanticEntries);
+        var build = await _nachaFileBuilder.BuildReturnOutAsync(new NachaReturnOutBuildRequest(
+            request.GeneratedAtUtc,
+            "A",
+            clearingHouse.OriginCode ?? participant,
+            participant,
+            clearingHouse.Name,
+            flows[0].ReturnOfReturnTransaction.CompanyName,
+            "ROR",
+            [batch],
+            PersistAudit: true,
+            ClearingHouseCode: "CENIT",
+            ClearingHouseName: clearingHouse.Name,
+            NormativeVersion: CenitReturnOfReturn2026Layout.NormativeVersion,
+            FlowTypeCode: CenitReturnOfReturn2026Layout.FlowTypeCode), ct);
+
+        var provisionalName = $"RORNACHA_{clearingHouse.Id}_{request.GeneratedAtUtc:yyyyMMddHHmmss}.ach";
+        var (resolved, error, fileName) = await ResolveProductiveExternalFileNameAsync(
+            clearingHouse.Id, clearingHouse, cycle, provisionalName, build.Content, request, ct);
+        if (!resolved) return Failure(flowIds, "EXTERNAL_FILENAME_VALIDATION_FAILED", error ?? "Nombre externo inválido.");
+
+        var content = Encoding.ASCII.GetBytes(build.Content);
+        var sha = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        var audit = new AchReturnOfReturnGeneratedFileAudit
+        {
+            FileName = fileName,
+            ClearingHouseId = clearingHouse.Id,
+            GeneratedAtUtc = request.GeneratedAtUtc,
+            GeneratedFlowCount = flows.Count,
+            ContentLength = content.Length,
+            ContentSha256 = sha,
+            RequestedBy = request.RequestedBy,
+            Source = productiveSourceValue,
+            CreatedAtUtc = DateTime.UtcNow,
+            Flows = flows.OrderBy(x => x.Id).Select(x => new AchReturnOfReturnGeneratedFileAuditFlow { ReturnOfReturnFlowId = x.Id }).ToList()
+        };
+        context.AchReturnOfReturnGeneratedFileAudits.Add(audit);
+        await context.SaveChangesAsync(ct);
+        return new(true, fileName, build.Content, content, flows.Count, flowIds, [], audit.Id, sha);
+    }
+
+    private static AchReturnOfReturnFileGenerationResult Failure(IReadOnlyCollection<int> flowIds, string code, string message)
+        => new(false, null, null, null, 0, flowIds, [new(code, message)], null, null);
 
 
     private void ValidateNachaRecords(int clearingHouseId, string? clearingHouseCode, NachaRecordFlow flow, NachaRailRecordConfig config, string content)

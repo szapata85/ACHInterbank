@@ -220,7 +220,8 @@ public enum IncomingNachaFunctionalClass
     EnEsperaVentana = 10,
     EnEsperaCiclo = 11,
     Ambigua = 12,
-    Inconsistente = 13
+    Inconsistente = 13,
+    DevolucionDevolucion = 14
 }
 
 public enum IncomingNachaEligibilityStatus

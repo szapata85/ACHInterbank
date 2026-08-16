@@ -112,31 +112,39 @@ public class NachaFileBuilder : INachaFileBuilder
         var recordCodes = new[] { "1", "5", "6", "7", "8", "9" };
         var clearingHouseCode = request.ClearingHouseCode.Trim().ToUpperInvariant();
         var isCenit = string.Equals(clearingHouseCode, "CENIT", StringComparison.Ordinal);
+        var isCenitRor = isCenit && string.Equals(request.FlowTypeCode, CenitReturnOfReturn2026Layout.FlowTypeCode, StringComparison.Ordinal);
+        if (isCenitRor && request.Batches.Any(batch => !string.Equals(batch.StandardEntryClassCode?.Trim(), "PPD", StringComparison.OrdinalIgnoreCase)))
+        {
+            var includesCtx = request.Batches.Any(batch => string.Equals(batch.StandardEntryClassCode?.Trim(), "CTX", StringComparison.OrdinalIgnoreCase));
+            throw new NachaGenerationException(
+                includesCtx ? CenitReturnOfReturn2026Layout.CtxScopeStatus : CenitReturnOfReturn2026Layout.CcdScopeStatus,
+                "El contrato específico de ROR CENIT vigente está definido para PPD.");
+        }
         var recordLength = isCenit ? CenitReturnOut2026Layout.RecordLength : AchColReturnOutV35Layout.RecordLength;
         var blockingFactor = isCenit ? CenitReturnOut2026Layout.BlockingFactor : AchColReturnOutV35Layout.BlockingFactor;
         var resolutionRequest = new NachaConfigResolutionRequest
         {
             ClearingHouseCode = clearingHouseCode,
-            FlowTypeCode = "DEVOLUCION",
+            FlowTypeCode = request.FlowTypeCode,
             DirectionCode = "SALIDA",
             ProcessDateUtc = request.CreatedAtUtc,
             RecordCodes = recordCodes,
             RequireHomologated = false,
             SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                ["Flow"] = "RETURN_OUT",
+                ["Flow"] = isCenitRor ? "RETURN_OF_RETURN_OUT" : "RETURN_OUT",
                 ["NormativeVersion"] = request.NormativeVersion
             }
         };
         var resolution = await _configResolver.ResolveAsync(resolutionRequest, ct);
         if (resolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous)
         {
-            throw new NachaGenerationException("NACHA_PROFILE_AMBIGUOUS", $"Existe más de un perfil {clearingHouseCode}/DEVOLUCION/SALIDA aplicable.");
+            throw new NachaGenerationException("NACHA_PROFILE_AMBIGUOUS", $"Existe más de un perfil {clearingHouseCode}/{request.FlowTypeCode}/SALIDA aplicable.");
         }
 
         if (!resolution.Success || resolution.Profile is null)
         {
-            throw new NachaGenerationException("NACHA_PROFILE_NOT_PUBLISHED", $"No existe perfil NACHA-M publicado/vigente para {clearingHouseCode}/DEVOLUCION/SALIDA.");
+            throw new NachaGenerationException("NACHA_PROFILE_NOT_PUBLISHED", $"No existe perfil NACHA-M publicado/vigente para {clearingHouseCode}/{request.FlowTypeCode}/SALIDA.");
         }
 
         if (resolution.UsedFallback)
@@ -162,11 +170,11 @@ public class NachaFileBuilder : INachaFileBuilder
             ProfileStatus = resolution.Profile.Status?.Code,
             EffectiveDate = request.CreatedAtUtc,
             LegacyFallbackUsed = false,
-            Phase = isCenit ? "CENIT_RETURN_OUT_2026" : "RETURN_OUT_V35",
+            Phase = isCenitRor ? "CENIT_RETURN_OF_RETURN_OUT_2026" : isCenit ? "CENIT_RETURN_OUT_2026" : "RETURN_OUT_V35",
             CorrelationId = $"RETURN-OUT-{request.CreatedAtUtc:yyyyMMddHHmmss}"
         };
         audit.Trace.AddRange(resolution.Trace);
-        audit.Trace.Add($"ReturnOutOptionC:Profile={resolution.Profile.ProfileCode};ClearingHouse={clearingHouseCode};Flow=DEVOLUCION;Direction=SALIDA;LegacyFallbackUsed=false");
+        audit.Trace.Add($"ReturnOutOptionC:Profile={resolution.Profile.ProfileCode};ClearingHouse={clearingHouseCode};Flow={request.FlowTypeCode};Direction=SALIDA;LegacyFallbackUsed=false");
         audit.NewEngineRecordCodes.AddRange(recordCodes);
 
         foreach (var recordCode in recordCodes)
@@ -219,7 +227,10 @@ public class NachaFileBuilder : INachaFileBuilder
                 recordCount += AppendOfficialRecords(sb, "7", [ReturnOutValues(
                     ("ReturnReasonCode", entry.ReturnReasonCode), ("OriginalTraceNumber", entry.OriginalTraceNumber),
                     ("DateOfDeath", entry.DeathDate), ("OriginalReceivingDfi", entry.OriginalReceivingDfi),
-                    ("AdditionalInformation", entry.AdditionalInformation), ("AddendaSequenceNumber", entry.AddendaSequenceNumber))],
+                    ("AdditionalInformation", entry.AdditionalInformation), ("AddendaSequenceNumber", entry.AddendaSequenceNumber),
+                    ("SourceReturnTraceNumber", entry.SourceReturnTraceNumber),
+                    ("SourceReturnSettlementDate", entry.SourceReturnSettlementDate),
+                    ("SourceReturnReasonCode", entry.SourceReturnReasonCode))],
                     RequireOfficialLayout(resolution, "7"), audit, ref lineNumber);
             }
 

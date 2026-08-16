@@ -48,7 +48,7 @@ public class AchReturnOfReturnFileGenerationServiceTests
         var result = await sut.GenerateAsync(new AchReturnOfReturnFileGenerationRequest(new[] { 130 }, DateTime.UtcNow), CancellationToken.None);
 
         Assert.False(result.IsGenerated);
-        Assert.Contains(result.Failures, x => x.Code == "RETURN_OF_RETURN_FLOW_NOT_FOUND");
+        Assert.Contains(result.Failures, x => x.Code == "SOURCE_RETURN_TRANSACTION_NOT_FOUND");
         Assert.Null(result.ContentText);
         Assert.Null(result.Content);
     }

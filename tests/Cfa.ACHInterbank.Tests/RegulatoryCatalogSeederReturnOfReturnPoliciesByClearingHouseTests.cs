@@ -21,6 +21,30 @@ public class RegulatoryCatalogSeederReturnOfReturnPoliciesByClearingHouseTests
     }
 
     [Fact]
+    public async Task Seeder_ShouldCreateExactCenitR60ThroughR74CatalogAndPolicies()
+    {
+        await using var c = await Seed();
+        var cenit = await c.ClearingHouses.SingleAsync(x => x.Code == "CENIT");
+        var expected = Enumerable.Range(60, 15).Select(value => $"R{value}").ToArray();
+        var codes = await c.AchReturnCodes
+            .Where(x => x.ClearingHouseId == cenit.Id && x.FlowType == AchReturnFlowType.ReturnOfReturn)
+            .OrderBy(x => x.Code)
+            .Select(x => new { x.Code, x.RegulatorySource })
+            .ToArrayAsync();
+
+        Assert.Equal(expected, codes.Select(x => x.Code));
+        Assert.All(codes, code => Assert.Equal("CENIT Anexo A T2", code.RegulatorySource));
+        var policies = await c.AchReturnOfReturnPolicies.Where(x => x.ClearingHouseId == cenit.Id).ToListAsync();
+        Assert.NotEmpty(policies);
+        Assert.All(policies, policy =>
+        {
+            Assert.True(policy.IsUniquePerTransaction);
+            Assert.Equal(1, policy.MaxDays);
+            Assert.Equal(expected, policy.AllowedNewReturnCodesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        });
+    }
+
+    [Fact]
     public async Task Seeder_ShouldUseOnlyOriginalReturnCodesFromSameClearingHouse()
     {
         await using var c = await Seed();

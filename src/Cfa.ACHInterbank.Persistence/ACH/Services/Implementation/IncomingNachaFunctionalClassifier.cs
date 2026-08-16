@@ -63,11 +63,20 @@ public class IncomingNachaFunctionalClassifier : IIncomingNachaFunctionalClassif
             var reason = (addenda?.ReturnReasonCode ?? string.Empty).Trim().ToUpperInvariant();
             if (CenitReturnIn2026Layout.IsReturnOfReturnCause(reason))
             {
-                functionalClass = IncomingNachaFunctionalClass.Inconsistente;
-                eligibility = IncomingNachaEligibilityStatus.RevisionManual;
-                meaning = "Devolución de una devolución (ROR) identificada; no pertenece al flujo Return In ordinario.";
-                requiresLink = false;
-                requiresManual = true;
+                if (string.Equals(addenda?.BusinessType, "ReturnOfReturn", StringComparison.Ordinal))
+                {
+                    functionalClass = IncomingNachaFunctionalClass.DevolucionDevolucion;
+                    eligibility = IncomingNachaEligibilityStatus.PendienteResolucion;
+                    meaning = "Devolución de una devolución CENIT identificada; requiere correlación con Return Out.";
+                }
+                else
+                {
+                    functionalClass = IncomingNachaFunctionalClass.Inconsistente;
+                    eligibility = IncomingNachaEligibilityStatus.RevisionManual;
+                    meaning = "Devolución de una devolución (ROR) identificada; no pertenece al flujo Return In ordinario.";
+                    requiresLink = false;
+                    requiresManual = true;
+                }
             }
             else
             {
@@ -99,18 +108,21 @@ public class IncomingNachaFunctionalClassifier : IIncomingNachaFunctionalClassif
             EligibilityStatus = eligibility,
             RequiresLink = requiresLink,
             RequiresManualResolution = requiresManual,
-            OriginalTraceRef = addenda?.OriginalTraceNumber?.Trim(),
+            OriginalTraceRef = string.Equals(addenda?.BusinessType, "ReturnOfReturn", StringComparison.Ordinal)
+                ? addenda?.NewTraceNumber?.Trim()
+                : addenda?.OriginalTraceNumber?.Trim(),
             ReturnReasonCode = addenda?.ReturnReasonCode?.Trim(),
             PrenoteStatus = prenoteStatus,
             BusinessMeaning = meaning,
-            ClassifierVersion = "v1.2.0",
+            ClassifierVersion = "v1.3.0",
             ClassificationEvidenceJson = JsonSerializer.Serialize(new
             {
                 code,
                 amount = entry.Amount,
                 addendaType = addenda?.CodeTypeAddendumRecord,
                 addendaReason = addenda?.ReturnReasonCode,
-                addendaOriginalTrace = addenda?.OriginalTraceNumber
+                addendaOriginalTrace = addenda?.OriginalTraceNumber,
+                addendaSourceReturnTrace = addenda?.NewTraceNumber
             })
         };
     }

@@ -147,7 +147,7 @@ public class AchCauseCodePolicyTests
     public async Task AchCauseCodePolicy_ShouldAllowReturnOfReturn_WhenCurrentCatalogPolicyAllows()
     {
         await using var c = await BuildContextAsync(); var (cenit, _) = await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync(); var sut = new AchCauseCodePolicy(c);
-        var r = await sut.EvaluateAsync(new("R02", AchCauseCodeFlow.ReturnOfReturn, cenit.Id, "CENIT", OriginalReasonCode: "R01"));
+        var r = await sut.EvaluateAsync(new("R60", AchCauseCodeFlow.ReturnOfReturn, cenit.Id, "CENIT", OriginalReasonCode: "R01"));
         Assert.True(r.IsAllowed);
     }
 

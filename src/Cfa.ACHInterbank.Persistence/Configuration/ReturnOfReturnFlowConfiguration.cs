@@ -11,13 +11,31 @@ public class ReturnOfReturnFlowConfiguration : IEntityTypeConfiguration<ReturnOf
         builder.ToTable("ReturnOfReturnFlows");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.ReasonCode).HasMaxLength(20).IsRequired();
+        builder.Property(x => x.Direction).HasMaxLength(10).IsRequired();
         builder.Property(x => x.Status).HasMaxLength(30).IsRequired();
         builder.HasIndex(x => x.SourceReturnTransactionId).IsUnique();
+        builder.HasIndex(x => x.ParentIncomingReturnStateEventId).IsUnique();
+        builder.HasIndex(x => x.ParentOutgoingReturnGeneratedId).IsUnique();
         builder.HasIndex(x => x.ReturnOfReturnTransactionId).IsUnique();
 
         builder.HasOne(x => x.SourceReturnTransaction)
             .WithMany()
             .HasForeignKey(x => x.SourceReturnTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ParentIncomingReturnStateEvent)
+            .WithMany()
+            .HasForeignKey(x => x.ParentIncomingReturnStateEventId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ParentOutgoingReturnGenerated)
+            .WithMany()
+            .HasForeignKey(x => x.ParentOutgoingReturnGeneratedId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.OriginalTransaction)
+            .WithMany()
+            .HasForeignKey(x => x.OriginalTransactionId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.ReturnOfReturnTransaction)

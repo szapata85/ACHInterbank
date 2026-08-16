@@ -484,10 +484,13 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         if (IsDifferentialCandidate(records))
         {
             var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct);
+            var isCenitRor = string.Equals(ToConfigClearingHouseCode(clearingHouseCode), "CENIT", StringComparison.OrdinalIgnoreCase)
+                             && IsCenitReturnOfReturnCandidate(records);
+            var flowTypeCode = isCenitRor ? CenitReturnOfReturn2026Layout.FlowTypeCode : "RETORNO";
             profileResolution = await _profileResolver.ResolveAsync(new NachaConfigResolutionRequest
             {
                 ClearingHouseCode = ToConfigClearingHouseCode(clearingHouseCode),
-                FlowTypeCode = "RETORNO",
+                FlowTypeCode = flowTypeCode,
                 DirectionCode = "ENTRADA",
                 ProcessDateUtc = ingestion.OperationalDate ?? UtcNow.Date,
                 RecordCodes = records
@@ -497,7 +500,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                     .ToArray(),
                 SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["MessageType"] = "DifferentialResponse",
+                    ["MessageType"] = isCenitRor ? "ReturnOfReturn" : "DifferentialResponse",
                     ["AddendaType"] = "99"
                 },
                 RequireHomologated = true
@@ -514,7 +517,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 EvidenceJson = JsonSerializer.Serialize(new
                 {
                     clearingHouseCode,
-                    flowType = "RETORNO",
+                    flowType = flowTypeCode,
                     direction = "ENTRADA",
                     selectionStatus = profileResolution.SelectionStatus.ToString(),
                     profileCode = profileResolution.Profile?.ProfileCode,
@@ -870,6 +873,13 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             record.Length == 106
             && record[0] == '7'
             && string.Equals(record.Substring(1, 2), "99", StringComparison.Ordinal));
+
+    private static bool IsCenitReturnOfReturnCandidate(IReadOnlyList<string> records)
+        => records.Any(record =>
+            record.Length == CenitReturnOfReturn2026Layout.RecordLength
+            && record[0] == '7'
+            && string.Equals(record.Substring(1, 2), "99", StringComparison.Ordinal)
+            && CenitReturnOfReturn2026Layout.IsCause(record.Substring(3, 3)));
 
     private static string ToConfigClearingHouseCode(string clearingHouseCode)
         => clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase)

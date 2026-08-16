@@ -24,6 +24,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
     private readonly IIncomingNachaAchResultResolver _resultResolver;
     private readonly ICenitIncomingReturnPolicy _cenitReturnPolicy;
     private readonly ICycleNumberResolver _cycleNumberResolver;
+    private readonly ICenitReturnOfReturnService? _cenitReturnOfReturnService;
 
     public IncomingNachaPostParseProcessor(
         AchDbContext context,
@@ -36,7 +37,8 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         IIncomingNachaLocalLivePreparationService? localLivePreparationService = null,
         IIncomingNachaAchResultResolver? resultResolver = null,
         ICenitIncomingReturnPolicy? cenitReturnPolicy = null,
-        ICycleNumberResolver? cycleNumberResolver = null)
+        ICycleNumberResolver? cycleNumberResolver = null,
+        ICenitReturnOfReturnService? cenitReturnOfReturnService = null)
     {
         _context = context;
         _classifier = classifier;
@@ -49,6 +51,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
         _resultResolver = resultResolver ?? new IncomingNachaAchResultResolver(context);
         _cenitReturnPolicy = cenitReturnPolicy ?? new CenitIncomingReturnPolicy();
         _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
+        _cenitReturnOfReturnService = cenitReturnOfReturnService;
     }
 
     public async Task ProcessAsync(Guid ingestionId, string executedBy, CancellationToken ct = default)
@@ -361,6 +364,44 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 prenoteResolution.RequiresManualReview ? "RevisionManual" : "Ok",
                 prenoteResolution.Message,
                 new { prenoteResolution.EvidenceJson }, executedBy, ct);
+        }
+
+        if (classification.FunctionalClass == IncomingNachaFunctionalClass.DevolucionDevolucion)
+        {
+            if (_cenitReturnOfReturnService is null || addenda is null)
+                return new(false, false, true, null, "CENIT_ROR_SERVICE_REQUIRED", "El servicio CENIT ROR no está disponible.");
+
+            var sourceReturnTrace = addenda.NewTraceNumber?.Trim() ?? string.Empty;
+            var parent = await _context.Set<AchReturnGenerated>()
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.NewSequenceNumber == sourceReturnTrace
+                                           && x.OriginalTransactionId == link.AchTransactionId.Value, ct);
+            if (parent is null)
+                return new(false, false, true, null, "CENIT_ROR_PARENT_RETURN_NOT_FOUND", "No se encontró el Return Out padre del ROR.");
+
+            var idempotencyKey = $"cenit-ror-in:{ingestion.ResolvedClearingHouseId}:{parent.Id}:{entry.SequenceNumber}:{classification.ReturnReasonCode}";
+            var result = await _cenitReturnOfReturnService.IngestIncomingAsync(new(
+                parent.Id,
+                link.AchTransactionId.Value,
+                ingestion.ResolvedAchCycleId ?? string.Empty,
+                classification.ReturnReasonCode ?? string.Empty,
+                entry.TransactionCode?.Trim() ?? string.Empty,
+                entry.SequenceNumber?.Trim() ?? string.Empty,
+                addenda.OriginalTraceNumber?.Trim() ?? string.Empty,
+                addenda.IdUserOrig?.Trim() ?? string.Empty,
+                sourceReturnTrace,
+                addenda.PurposeOfTransaction?.Trim() ?? string.Empty,
+                addenda.InvoiceOrAccountNumber?.Trim() ?? string.Empty,
+                entry.Amount ?? 0m,
+                ingestion.ReceivedAtUtc ?? DateTime.UtcNow,
+                idempotencyKey), ct);
+
+            await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda.AddendaID, link.AchTransactionId,
+                result.WasDuplicate ? "CenitRorDuplicadoIgnorado" : result.IsSuccessful ? "CenitRorAplicado" : "CenitRorBloqueado",
+                result.WasDuplicate ? "Duplicado" : result.IsSuccessful ? "Ok" : "Bloqueado",
+                result.Message,
+                new { result.Code, result.FlowId, result.ReturnOfReturnTransactionId, sourceReturnTrace }, executedBy, ct);
+            return new(result.IsSuccessful && !result.WasDuplicate, result.WasDuplicate, !result.IsSuccessful, null, result.Code, result.Message);
         }
 
         if (classification.FunctionalClass is IncomingNachaFunctionalClass.Devolucion or IncomingNachaFunctionalClass.RechazadaOperador or IncomingNachaFunctionalClass.RetornoEpr)

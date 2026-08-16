@@ -338,6 +338,36 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             EffectiveFrom = new DateTime(2023, 11, 28),
             RegulatorySource = "CENIT"
         }).ToList();
+        var cenitRorRows = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["R60"] = "Devolución de una Devolución solicitada por el Participante Receptor",
+            ["R61"] = "Devolución enviada al Participante incorrecto",
+            ["R62"] = "Número de secuencia incorrecto",
+            ["R63"] = "Valor incorrecto",
+            ["R64"] = "Número de Identificación incorrecto",
+            ["R65"] = "Código de Transacción incorrecto",
+            ["R66"] = "Identificación del Originador incorrecta",
+            ["R67"] = "Devolución duplicada",
+            ["R68"] = "Devolución extemporánea",
+            ["R69"] = "Múltiples errores",
+            ["R70"] = "Número de cuenta incorrecto",
+            ["R71"] = "Datos Discrecionales del Originador incorrectos",
+            ["R72"] = "Tipo de Servicio incorrecto",
+            ["R73"] = "Descripción de Lote incorrecta",
+            ["R74"] = "Devolución errada de una transacción crédito monetaria por la causal R32"
+        }.Select(item => new AchReturnCode
+        {
+            ClearingHouseId = clearingHouseIds.CenitId,
+            Code = item.Key,
+            FlowType = AchReturnFlowType.ReturnOfReturn,
+            Description = item.Value,
+            AppliesToReturn = true,
+            RequiresAddenda = true,
+            MaxDaysAllowed = 1,
+            IsActive = true,
+            EffectiveFrom = new DateTime(2026, 5, 7),
+            RegulatorySource = "CENIT Anexo A T2"
+        });
 
         var achRows = rows.Where(row => !string.Equals(row.RegulatorySource, "CENIT", StringComparison.OrdinalIgnoreCase)).ToList();
         foreach (var row in achRows)
@@ -345,7 +375,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             row.ClearingHouseId = clearingHouseIds.AchColombiaId;
         }
 
-        return cenitRows.Concat(achRows);
+        return cenitRows.Concat(cenitRorRows).Concat(achRows);
     }
 
     private static IEnumerable<AchFileRejectionCode> BuildFileRejectionCodes((int CenitId, int AchColombiaId) clearingHouseIds)
@@ -416,30 +446,35 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         };
 
         var result = new List<AchReturnOfReturnPolicy>();
+
+        var cenitRorCauses = FilterCodes(
+            string.Join(',', Enumerable.Range(60, 15).Select(value => $"R{value}")),
+            cenitCodes);
+        var cenitOrdinaryCauses = new[]
+        {
+            "R01", "R02", "R03", "R04", "R06", "R07", "R08", "R09", "R10", "R12",
+            "R13", "R14", "R15", "R16", "R17", "R20", "R23", "R29", "R31", "R32", "R33", "R34", "R35"
+        };
+        foreach (var originalCause in cenitOrdinaryCauses.Where(cenitCodes.Contains))
+        {
+            result.Add(new AchReturnOfReturnPolicy
+            {
+                ClearingHouseId = clearingHouseIds.CenitId,
+                OriginalReturnCode = originalCause,
+                AllowedNewReturnCodesCsv = cenitRorCauses,
+                MaxDays = 1,
+                RequiredOriginalState = "ReturnedByEpr",
+                IsUniquePerTransaction = true,
+                IsActive = true,
+                Direction = AchReturnDirection.Any,
+                FlowType = AchReturnFlowType.ReturnOfReturn,
+                EffectiveFrom = DateTime.UtcNow.Date,
+                EffectiveTo = null
+            });
+        }
+
         foreach (var rule in baseRules)
         {
-            if (cenitCodes.Contains(rule.OriginalReturnCode))
-            {
-                var allowed = FilterCodes(rule.AllowedNewReturnCodesCsv, cenitCodes);
-                if (!string.IsNullOrWhiteSpace(allowed))
-                {
-                    result.Add(new AchReturnOfReturnPolicy
-                    {
-                        ClearingHouseId = clearingHouseIds.CenitId,
-                        OriginalReturnCode = rule.OriginalReturnCode,
-                        AllowedNewReturnCodesCsv = allowed,
-                        MaxDays = rule.MaxDays,
-                        RequiredOriginalState = rule.RequiredOriginalState,
-                        IsUniquePerTransaction = rule.IsUniquePerTransaction,
-                        IsActive = rule.IsActive,
-                        Direction = AchReturnDirection.Any,
-                        FlowType = AchReturnFlowType.ReturnOfReturn,
-                        EffectiveFrom = DateTime.UtcNow.Date,
-                        EffectiveTo = null
-                    });
-                }
-            }
-
             if (achCodes.Contains(rule.OriginalReturnCode))
             {
                 var allowed = FilterCodes(rule.AllowedNewReturnCodesCsv, achCodes);

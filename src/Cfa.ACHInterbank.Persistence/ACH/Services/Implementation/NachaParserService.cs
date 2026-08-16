@@ -745,6 +745,11 @@ public class NachaParserService : INachaParserService
             {
                 ThrowTechnical($"CENIT-2026-T5-SEC: RET-CENIT-IN-001 soporta únicamente PPD y CCD; {CenitReturnIn2026Layout.CtxScopeStatus}.");
             }
+            if (CenitReturnOfReturn2026Layout.IsProfile(profileReader?.ProfileCode)
+                && standardEntryClassCode != "PPD")
+            {
+                ThrowTechnical($"CENIT-2026-ROR-T5-SEC: el contrato específico de ROR aplica a PPD; {CenitReturnOfReturn2026Layout.CcdScopeStatus}; {CenitReturnOfReturn2026Layout.CtxScopeStatus}.");
+            }
 
             return new BatchHeader
             {
@@ -811,6 +816,30 @@ public class NachaParserService : INachaParserService
                 var returnReasonCode = ReadField(profileReader, a, "7", "RETURNREASONCODE").Trim();
                 var originalTraceNumber = ReadField(profileReader, a, "7", "ORIGINALTRACENUMBER").Trim();
                 var originalReceivingDfi = ReadField(profileReader, a, "7", "ORIGINALRECEIVINGDFI").Trim();
+                if (CenitReturnOfReturn2026Layout.IsProfile(profileReader.ProfileCode))
+                {
+                    var sourceReturnTrace = ReadField(profileReader, a, "7", "SOURCERETURNTRACENUMBER").Trim();
+                    var sourceReturnDate = ReadField(profileReader, a, "7", "SOURCERETURNSETTLEMENTDATE").Trim();
+                    var sourceReturnReason = ReadField(profileReader, a, "7", "SOURCERETURNREASONCODE").Trim();
+                    if (!CenitReturnOfReturn2026Layout.TryParseAddenda(a, out _))
+                    {
+                        ThrowTechnical("CENIT-2026-ROR-T7: la adenda ROR no cumple el Anexo 1.7.");
+                    }
+
+                    return new AddendaRecord
+                    {
+                        CodeTypeAddendumRecord = addendaType,
+                        BusinessType = "ReturnOfReturn",
+                        IdUserOrig = originalReceivingDfi,
+                        InvoiceOrAccountNumber = sourceReturnReason,
+                        PurposeOfTransaction = sourceReturnDate,
+                        ReturnReasonCode = returnReasonCode,
+                        OriginalTraceNumber = originalTraceNumber,
+                        NewTraceNumber = sourceReturnTrace,
+                        AddendumSequence = addendaSequence,
+                        EntryDetailSequenceNumber = GetEntrySequenceSuffix(addendaSequence)
+                    };
+                }
                 if (CenitReturnIn2026Layout.IsProfile(profileReader.ProfileCode)
                     && CenitReturnIn2026Layout.IsReturnOfReturnCause(returnReasonCode))
                 {

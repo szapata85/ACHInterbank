@@ -10640,8 +10640,22 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<DateTime>("OrchestratedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("OriginalTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("ParentIncomingReturnStateEventId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("ParentOutgoingReturnGeneratedId")
+                        .HasColumnType("int");
 
                     b.Property<string>("ReasonCode")
                         .IsRequired()
@@ -10651,7 +10665,7 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<int>("ReturnOfReturnTransactionId")
                         .HasColumnType("int");
 
-                    b.Property<int>("SourceReturnTransactionId")
+                    b.Property<int?>("SourceReturnTransactionId")
                         .HasColumnType("int");
 
                     b.Property<string>("Status")
@@ -10666,11 +10680,22 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasIndex("CenitCycleExecutionId");
 
+                    b.HasIndex("OriginalTransactionId");
+
+                    b.HasIndex("ParentIncomingReturnStateEventId")
+                        .IsUnique()
+                        .HasFilter("[ParentIncomingReturnStateEventId] IS NOT NULL");
+
+                    b.HasIndex("ParentOutgoingReturnGeneratedId")
+                        .IsUnique()
+                        .HasFilter("[ParentOutgoingReturnGeneratedId] IS NOT NULL");
+
                     b.HasIndex("ReturnOfReturnTransactionId")
                         .IsUnique();
 
                     b.HasIndex("SourceReturnTransactionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[SourceReturnTransactionId] IS NOT NULL");
 
                     b.ToTable("ReturnOfReturnFlows", (string)null);
                 });
@@ -13521,6 +13546,21 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         .HasForeignKey("CenitCycleExecutionId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "OriginalTransaction")
+                        .WithMany()
+                        .HasForeignKey("OriginalTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionStateEvent", "ParentIncomingReturnStateEvent")
+                        .WithMany()
+                        .HasForeignKey("ParentIncomingReturnStateEventId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchReturnGenerated", "ParentOutgoingReturnGenerated")
+                        .WithMany()
+                        .HasForeignKey("ParentOutgoingReturnGeneratedId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "ReturnOfReturnTransaction")
                         .WithMany()
                         .HasForeignKey("ReturnOfReturnTransactionId")
@@ -13530,10 +13570,15 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchTransaction", "SourceReturnTransaction")
                         .WithMany()
                         .HasForeignKey("SourceReturnTransactionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("CenitCycleExecution");
+
+                    b.Navigation("OriginalTransaction");
+
+                    b.Navigation("ParentIncomingReturnStateEvent");
+
+                    b.Navigation("ParentOutgoingReturnGenerated");
 
                     b.Navigation("ReturnOfReturnTransaction");
 
