@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
@@ -162,6 +163,15 @@ public sealed class OutboundReturnMultiDbTests
             (await assertion.AchReturnsGenerated.SingleAsync(row => row.OriginalTransactionId == raceH.TransactionIds[0]))
                 .Amount.Should().Be(0m);
         }
+
+        // RACE I: CENIT usa la misma garantía DB-first en SQL Server y PostgreSQL.
+        var raceI = await fixture.SeedCenitScenarioAsync("RACE-I", new DateTime(2026, 8, 15), "81000008");
+        var raceIResults = await RunConcurrentAsync(
+            fixture,
+            Request(raceI, (0, "R02")),
+            Request(raceI, (0, "R02")));
+        AssertWinnerLoser(raceIResults);
+        await fixture.AssertScenarioAsync(raceI, expectedReturns: 1, expectedEvents: 1, expectedRegistries: 1);
     }
 
     private static async Task RunMigrationRoundTripAsync(DatabaseProvider provider)
@@ -227,7 +237,10 @@ public sealed class OutboundReturnMultiDbTests
     }
 
     private static GenerateReturnsFileRequest Request(Scenario scenario, params (int Index, string Reason)[] items)
-        => new(scenario.CycleId, items.Select(item => new ReturnSelectionItemDto(scenario.TransactionIds[item.Index], item.Reason)).ToArray());
+        => new(
+            scenario.CycleId,
+            items.Select(item => new ReturnSelectionItemDto(scenario.TransactionIds[item.Index], item.Reason)).ToArray(),
+            scenario.ReturnCycleId);
 
     private static async Task<GenerationAttempt[]> RunConcurrentAsync(
         DatabaseFixture fixture,
@@ -294,7 +307,12 @@ public sealed class OutboundReturnMultiDbTests
 
     private enum DatabaseProvider { SqlServer, PostgreSql }
 
-    private sealed record Scenario(string CycleId, DateTime ProcessingDate, string ParticipantDfi, int[] TransactionIds);
+    private sealed record Scenario(
+        string CycleId,
+        DateTime ProcessingDate,
+        string ParticipantDfi,
+        int[] TransactionIds,
+        string? ReturnCycleId = null);
     private sealed record GenerationAttempt(GenerateReturnsFileResponse? Response, Exception? Error);
     private sealed record Evidence(int GenerationAudits, int Registries);
 
@@ -351,6 +369,7 @@ public sealed class OutboundReturnMultiDbTests
         private readonly string _connectionString;
         private readonly string _adminConnectionString;
         private int _clearingHouseId;
+        private int _cenitClearingHouseId;
         private int _sourceInstitutionId;
         private int _destinationInstitutionId;
         private int _companyEntryDescriptionId;
@@ -432,7 +451,8 @@ public sealed class OutboundReturnMultiDbTests
                 externalFileNamePolicy: BuildExternalFileNamePolicy(context),
                 stateTransitionService: transition ?? new AchStateTransitionService(context),
                 nachaFileBuilder: builder ?? BuildOptionCBuilder(context),
-                returnTraceSequenceService: new AchReturnTraceSequenceService(context));
+                returnTraceSequenceService: new AchReturnTraceSequenceService(context),
+                cenitReturnPolicy: new CenitIncomingReturnPolicy());
 
         public async Task<Scenario> SeedScenarioAsync(
             string suffix,
@@ -505,6 +525,134 @@ public sealed class OutboundReturnMultiDbTests
             return new Scenario(cycleId, processingDate.Date, participantDfi, rows.Select(row => row.Id).ToArray());
         }
 
+        public async Task<Scenario> SeedCenitScenarioAsync(
+            string suffix,
+            DateTime processingDate,
+            string participantDfi)
+        {
+            await using var context = CreateContext();
+            var originalCycleId = $"CENIT-{suffix}-C1";
+            var returnCycleId = $"CENIT-{suffix}-C2";
+            for (var number = 1; number <= 4; number++)
+            {
+                context.AchCycles.Add(new AchCycle
+                {
+                    Id = $"CENIT-{suffix}-C{number}",
+                    CycleName = $"Ciclo {number}",
+                    ProcessingDate = DateTime.SpecifyKind(processingDate, DateTimeKind.Utc),
+                    StartTime = TimeSpan.FromHours(7 + number),
+                    EndTime = TimeSpan.FromHours(8 + number),
+                    CutoffTime = TimeSpan.FromHours(8 + number),
+                    ClearingHouseId = _cenitClearingHouseId
+                });
+            }
+            await context.SaveChangesAsync();
+
+            var batch = new AchBatch
+            {
+                AchCycleId = originalCycleId,
+                ServiceClassCode = "225",
+                CompanyName = "ORIGINADOR CENIT",
+                CompanyIdentification = "900000001",
+                CompanyEntryDescription = "PAGOS",
+                CompanyEntryDescriptionId = _companyEntryDescriptionId,
+                OriginOrOdfi = "91000001",
+                EffectiveEntryDate = processingDate,
+                BatchSequenceNumber = 1
+            };
+            context.AchBatches.Add(batch);
+            await context.SaveChangesAsync();
+
+            var transaction = new AchTransaction
+            {
+                Amount = 100m,
+                TransactionExternalId = $"CENIT-{suffix}-1",
+                Reference = $"REF-CENIT-{suffix}-1",
+                Type = TransactionTypeEnum.Debit,
+                TransactionCode = "27",
+                ServiceClassCode = "225",
+                CompanyEntryDescriptionId = _companyEntryDescriptionId,
+                CompanyName = "ORIGINADOR CENIT",
+                CompanyIdentification = "900000001",
+                OriginatingDFI = "91000001",
+                ReceivingDFI = participantDfi,
+                TraceNumber = "910000010000001",
+                TraceSequenceNumber = 1,
+                EffectiveEntryDate = processingDate,
+                AddendaRecordIndicator = true,
+                State = AchTransferStateEnum.Pending,
+                StateChangedAtUtc = processingDate,
+                SourceAccountNumber = "0000001111",
+                DestinationAccountNumber = "0000002222",
+                RecipientIdNumber = "100000001",
+                DiscretionaryData = string.Empty,
+                SourceInstitutionId = _sourceInstitutionId,
+                DestinationInstitutionId = _destinationInstitutionId,
+                AchCycleId = originalCycleId,
+                AchBatchId = batch.Id
+            };
+            context.AchTransactions.Add(transaction);
+            await context.SaveChangesAsync();
+
+            var ingestionId = Guid.NewGuid();
+            var headerId = $"CENIT-{suffix}-{Guid.NewGuid():N}";
+            var ingestion = new IncomingNachaFileIngestion
+            {
+                Id = ingestionId,
+                FileName = "1234567.001.20260815.1",
+                FileHashSha256 = new string('A', 64),
+                UploadedBy = "multidb-test",
+                CorrelationId = $"cenit-{suffix}"
+            };
+            var header = new NachaHeader
+            {
+                NachaID = headerId,
+                ImmediateDestination = "0987654321",
+                ImmediateOrigin = "0123456789",
+                ImmediateDestinationName = "CFA",
+                ImmediateOriginName = "CENIT",
+                IncomingNachaFileIngestionId = ingestionId,
+                ClearingHouseId = _cenitClearingHouseId,
+                AchCycleId = originalCycleId
+            };
+            var rawBatch = new BatchHeader
+            {
+                NachaID = headerId,
+                BatchNumber = 1,
+                StandardEntryClassCode = "PPD",
+                ServiceClassCode = "225"
+            };
+            var entry = new EntryDetail
+            {
+                NachaID = headerId,
+                BatchHeader = rawBatch,
+                BatchNumber = 1,
+                TransactionCode = "27",
+                SequenceNumber = transaction.TraceNumber,
+                ReceivingParticipantEntityCode = participantDfi,
+                AccountNumber = transaction.DestinationAccountNumber,
+                Amount = transaction.Amount,
+                NachaHeader = header
+            };
+            context.IncomingNachaFileIngestions.Add(ingestion);
+            context.NachaHeaders.Add(header);
+            context.BatchHeaders.Add(rawBatch);
+            context.EntryDetails.Add(entry);
+            context.IncomingNachaTransactionLinks.Add(new IncomingNachaTransactionLink
+            {
+                IncomingNachaFileIngestionId = ingestionId,
+                EntryDetail = entry,
+                AchTransactionId = transaction.Id,
+                LinkType = IncomingNachaLinkType.ExactTrace15,
+                ConfidenceScore = 1m,
+                LinkedBy = "multidb-test",
+                IsFinal = true
+            });
+            await context.SaveChangesAsync();
+
+            return new Scenario(originalCycleId, processingDate.Date, participantDfi, [transaction.Id], returnCycleId);
+        }
+
         public async Task<Evidence> CaptureEvidenceAsync()
         {
             await using var context = CreateContext();
@@ -535,7 +683,7 @@ public sealed class OutboundReturnMultiDbTests
             }
             (await context.AchTransactionStateEvents.CountAsync(row => scenario.TransactionIds.Contains(row.AchTransactionId)))
                 .Should().Be(expectedEvents);
-            (await context.ExternalFileNameRegistry.CountAsync(row => row.CycleId == scenario.CycleId))
+            (await context.ExternalFileNameRegistry.CountAsync(row => row.CycleId == (scenario.ReturnCycleId ?? scenario.CycleId)))
                 .Should().Be(expectedRegistries);
             var states = await context.AchTransactions
                 .Where(row => scenario.TransactionIds.Contains(row.Id))
@@ -684,6 +832,7 @@ public sealed class OutboundReturnMultiDbTests
             await context.SaveChangesAsync();
 
             _clearingHouseId = ach.Id;
+            _cenitClearingHouseId = cenit.Id;
             _sourceInstitutionId = source.Id;
             _destinationInstitutionId = destination.Id;
             _companyEntryDescriptionId = await context.CompanyEntryDescriptionCatalogs.Select(row => row.Id).FirstAsync();

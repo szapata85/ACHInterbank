@@ -16,8 +16,14 @@ public sealed record ReturnEligibleTransactionDto(
     bool IsEligible,
     string? ValidationMessage);
 
-public sealed record ReturnSelectionItemDto(int TransactionId, string ReturnReasonCode);
+public sealed record ReturnSelectionItemDto(
+    int TransactionId,
+    string ReturnReasonCode,
+    CenitIncomingReturnOperationalEvidence? CenitOperationalEvidence = null);
 
-public sealed record GenerateReturnsFileRequest(string CycleId, IReadOnlyList<ReturnSelectionItemDto> Items);
+public sealed record GenerateReturnsFileRequest(
+    string CycleId,
+    IReadOnlyList<ReturnSelectionItemDto> Items,
+    string? ReturnCycleId = null);
 
 public sealed record GenerateReturnsFileResponse(string FileName, string ContentType, byte[] Content, int TotalRecords, int TotalReturns);

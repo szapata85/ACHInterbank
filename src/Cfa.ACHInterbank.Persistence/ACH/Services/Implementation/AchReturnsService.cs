@@ -32,7 +32,8 @@ public class AchReturnsService(
     ILogger<AchReturnsService>? logger = null,
     IAchStateTransitionService? stateTransitionService = null,
     INachaFileBuilder? nachaFileBuilder = null,
-    IAchReturnTraceSequenceService? returnTraceSequenceService = null) : IAchReturnsService
+    IAchReturnTraceSequenceService? returnTraceSequenceService = null,
+    ICenitIncomingReturnPolicy? cenitReturnPolicy = null) : IAchReturnsService
 {
     private readonly IAchRegulatoryCatalogService _regulatoryCatalogService = regulatoryCatalogService
                                                                            ?? throw new InvalidOperationException("IAchRegulatoryCatalogService es requerido para gobernanza regulatoria de devoluciones.");
@@ -53,6 +54,7 @@ public class AchReturnsService(
     private readonly INachaFileBuilder? _nachaFileBuilder = nachaFileBuilder;
     private readonly IAchReturnTraceSequenceService _returnTraceSequenceService = returnTraceSequenceService
         ?? new AchReturnTraceSequenceService(context);
+    private readonly ICenitIncomingReturnPolicy? _cenitReturnPolicy = cenitReturnPolicy;
     private const string ImmediateDestinationAchColombia = "000101006";
     public async Task<IReadOnlyList<ReturnEligibleTransactionDto>> GetTransactionsByCycleAsync(string cycleId, CancellationToken ct = default)
     {
@@ -128,11 +130,25 @@ public class AchReturnsService(
             throw new InvalidOperationException($"La transacción {duplicateSelections.Key} está repetida en la solicitud de devolución.");
         }
 
-        var cycle = await context.AchCycles
+        var originalCycle = await context.AchCycles
             .Include(c => c.ClearingHouse)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == request.CycleId, ct)
             ?? throw new InvalidOperationException("No se encontró el ciclo de operación.");
+
+        var returnCycleId = string.IsNullOrWhiteSpace(request.ReturnCycleId) ? request.CycleId : request.ReturnCycleId.Trim();
+        var cycle = string.Equals(returnCycleId, originalCycle.Id, StringComparison.OrdinalIgnoreCase)
+            ? originalCycle
+            : await context.AchCycles
+                .Include(c => c.ClearingHouse)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == returnCycleId, ct)
+                ?? throw new InvalidOperationException("No se encontró el ciclo de devolución.");
+
+        if (cycle.ClearingHouseId != originalCycle.ClearingHouseId)
+        {
+            throw new InvalidOperationException("No se permite generar una devolución en una cámara distinta de la operación original.");
+        }
 
         var paymentRailCode = cycle.ClearingHouseId is int clearingHouseId
             ? await context.ClearingHouseConfigs
@@ -142,9 +158,16 @@ public class AchReturnsService(
                 .FirstOrDefaultAsync(ct)
             : null;
 
-        if (!IsAchColombia(cycle.ClearingHouse?.Code))
+        var isAchColombia = IsAchColombia(cycle.ClearingHouse?.Code);
+        var isCenit = IsCenit(cycle.ClearingHouse?.Code);
+        if (!isAchColombia && !isCenit)
         {
-            throw new InvalidOperationException("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED: la generación física CENIT permanece bloqueada hasta homologación técnica de layout, DFI, correlación y naming.");
+            throw new InvalidOperationException("RETURN_OUT_CLEARING_HOUSE_NOT_SUPPORTED: la cámara no dispone de un perfil Return Out implementado.");
+        }
+
+        if (isCenit && _cenitReturnPolicy is null)
+        {
+            throw new InvalidOperationException("CENIT_RETURN_POLICY_REQUIRED: la policy normativa CENIT no está registrada.");
         }
 
         var selectedIds = request.Items.Select(i => i.TransactionId).Distinct().ToList();
@@ -166,7 +189,13 @@ public class AchReturnsService(
         }
 
         var cycleOrder = await GetCycleOrderAsync(cycle.ClearingHouseId, ct);
-        cycleOrder.TryGetValue(request.CycleId, out var selectedCycleOrder);
+        cycleOrder.TryGetValue(cycle.Id, out var selectedCycleOrder);
+        var cenitCycleEvidence = isCenit
+            ? await ResolveCenitCycleEvidenceAsync(originalCycle, cycle, ct)
+            : null;
+        var cenitSources = isCenit
+            ? await LoadCenitOriginalSourcesAsync(selectedIds, ct)
+            : new Dictionary<int, CenitOriginalSource>();
 
         var alreadyReturnedTransactions = await context.Set<AchReturnGenerated>()
             .AsNoTracking()
@@ -192,7 +221,13 @@ public class AchReturnsService(
                 throw new InvalidOperationException($"La transacción {tx.Id} no es elegible para devolución porque ya corresponde a un retorno o reverso.");
             }
 
-            if (!cycleOrder.TryGetValue(tx.AchCycleId, out var txCycleOrder) || (selectedCycleOrder - txCycleOrder) > 4)
+            if (isCenit && CenitReturnIn2026Layout.IsReturnOfReturnCause(item.ReturnReasonCode))
+            {
+                throw new InvalidOperationException("CENIT_ROR_NOT_ORDINARY_RETURN: las causales R60-R74 requieren el flujo independiente de devolución de una devolución.");
+            }
+
+            if (!cycleOrder.TryGetValue(tx.AchCycleId, out var txCycleOrder)
+                || (isAchColombia && (selectedCycleOrder - txCycleOrder) > 4))
             {
                 throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
             }
@@ -201,7 +236,7 @@ public class AchReturnsService(
                 new AchReturnEligibilityRequest(
                     tx.Id,
                     item.ReturnReasonCode,
-                    now,
+                    isCenit ? cycle.ProcessingDate : now,
                     HasAddenda: true),
                 ct);
             if (!eligibility.IsEligible)
@@ -210,6 +245,10 @@ public class AchReturnsService(
             }
 
             var reasonCode = eligibility.NormalizedReasonCode!;
+            if (isCenit && CenitReturnIn2026Layout.IsReturnOfReturnCause(reasonCode))
+            {
+                throw new InvalidOperationException("CENIT_ROR_NOT_ORDINARY_RETURN: las causales R60-R74 requieren el flujo independiente de devolución de una devolución.");
+            }
             if (_causeCodePolicy is not null)
             {
                 var policyResult = await _causeCodePolicy.EvaluateAsync(
@@ -239,10 +278,40 @@ public class AchReturnsService(
             }
 
             var amount = tx.IsPrenotification ? 0m : tx.Amount;
+            CenitOriginalSource? cenitSource = null;
+            if (isCenit)
+            {
+                cenitSource = cenitSources[tx.Id];
+                var evidence = item.CenitOperationalEvidence ?? new CenitIncomingReturnOperationalEvidence();
+                var prenoteDirection = evidence.PrenotificationDirection != CenitPrenotificationDirection.Unknown
+                    ? evidence.PrenotificationDirection
+                    : ResolveCenitPrenotificationDirection(tx.TransactionCode);
+                var policyResult = _cenitReturnPolicy!.Evaluate(new CenitIncomingReturnPolicyRequest(
+                    tx.Type,
+                    reasonCode,
+                    tx.EffectiveEntryDate,
+                    cycle.ProcessingDate,
+                    cenitCycleEvidence!.OriginalCycleNumber,
+                    cenitCycleEvidence.ReturnCycleNumber,
+                    cenitCycleEvidence.LastReturnCycleNumber,
+                    tx.Amount,
+                    amount,
+                    prenoteDirection,
+                    evidence.ReturnRequestDate,
+                    evidence.ImmediateReturnCycleConfirmed,
+                    evidence.FundsAvailabilityRequired,
+                    evidence.FundsAvailabilityConfirmed,
+                    evidence.ConfirmationToOriginatorRecorded,
+                    evidence.ReceiverRejectionDeadlineDate));
+                if (!policyResult.IsAllowed)
+                {
+                    throw new InvalidOperationException($"{policyResult.Code}: {policyResult.Message}");
+                }
+            }
             var originalSequence = NormalizeDigits(tx.TraceNumber, 15);
             var receiverEntity = NormalizeDigits(tx.OriginatingDFI, 8);
             var originEntity = NormalizeDigits(tx.ReceivingDFI, 8);
-            var returnTransactionCode = ResolveV35ReturnTransactionCode(tx.TransactionCode);
+            var returnTransactionCode = ResolveReturnTransactionCode(tx.TransactionCode, isCenit);
             prepared.Add(new PreparedReturn(
                 tx,
                 reasonCode,
@@ -250,13 +319,14 @@ public class AchReturnsService(
                 originalSequence,
                 receiverEntity,
                 originEntity,
-                returnTransactionCode));
+                returnTransactionCode,
+                cenitSource?.StandardEntryClassCode ?? "PPD"));
 
             CompareReturnShadow(
                 cycle.ClearingHouseId,
                 cycle.ClearingHouse?.Code,
                 paymentRailCode,
-                request.CycleId,
+                cycle.Id,
                 tx.EffectiveEntryDate.Date,
                 $"RETURN_GENERATED:{reasonCode}",
                 legacyOperationSucceeded: true);
@@ -325,7 +395,7 @@ public class AchReturnsService(
                 generatedRows.Add(new AchReturnGenerated
                 {
                     OriginalTransactionId = item.Transaction.Id,
-                    ReturnCycleId = request.CycleId,
+                    ReturnCycleId = cycle.Id,
                     ReturnReasonCode = item.ReasonCode,
                     Amount = item.Amount,
                     NewSequenceNumber = newSequence,
@@ -344,25 +414,29 @@ public class AchReturnsService(
                 await context.SaveChangesAsync(ct);
             }
 
-            var provisionalFileName = $"RET_{request.CycleId}_{now:yyyyMMddHHmmss}.RET";
+            var provisionalFileName = $"RET_{cycle.Id}_{now:yyyyMMddHHmmss}.RET";
             var semanticBatches = prepared
-                .Select(item => item.Transaction)
-                .GroupBy(tx => tx.AchBatchId)
-                .OrderBy(group => group.Key)
+                .GroupBy(item => new { item.Transaction.AchBatchId, item.StandardEntryClassCode })
+                .OrderBy(group => group.Key.AchBatchId)
+                .ThenBy(group => group.Key.StandardEntryClassCode)
                 .Select((group, index) => BuildReturnOutBatch(group, semanticEntries, index + 1, now))
                 .ToList();
             var returnParticipant = participantCodes[0];
             var immediateOrigin = returnParticipant + DigitoChequeoHelper.CalcularDigitoChequeo(returnParticipant).ToString();
+            var header = ResolveReturnHeader(prepared, cycle, immediateOrigin, cenitSources, isCenit);
             var optionCRequest = new NachaReturnOutBuildRequest(
                 now,
                 "A",
-                ImmediateDestinationAchColombia,
-                immediateOrigin,
-                "ACH COLOMBIA",
-                cycle.ClearingHouse?.Name ?? "CFA",
+                header.ImmediateDestination,
+                header.ImmediateOrigin,
+                header.ImmediateDestinationName,
+                header.ImmediateOriginName,
                 "RETURN",
                 semanticBatches,
-                PersistAudit: false);
+                PersistAudit: false,
+                ClearingHouseCode: isCenit ? "CENIT" : "ACH",
+                ClearingHouseName: cycle.ClearingHouse?.Name ?? (isCenit ? "CENIT" : "ACH Colombia"),
+                NormativeVersion: isCenit ? CenitReturnOut2026Layout.NormativeVersion : "V35");
             var provisionalArtifact = await _nachaFileBuilder.BuildReturnOutAsync(optionCRequest, ct);
             var namingResult = await ResolveReturnExternalFileNameAsync(cycle, request, provisionalFileName, provisionalArtifact.Content, ct);
             var fileIdModifier = namingResult.Components.FileIdModifier?.ToString()
@@ -451,7 +525,26 @@ public class AchReturnsService(
         string OriginalSequence,
         string ReceiverEntity,
         string OriginEntity,
-        string ReturnTransactionCode);
+        string ReturnTransactionCode,
+        string StandardEntryClassCode);
+
+    private sealed record CenitOriginalSource(
+        string StandardEntryClassCode,
+        string ImmediateDestination,
+        string ImmediateOrigin,
+        string ImmediateDestinationName,
+        string ImmediateOriginName);
+
+    private sealed record CenitCycleEvidence(
+        int OriginalCycleNumber,
+        int ReturnCycleNumber,
+        int LastReturnCycleNumber);
+
+    private sealed record ReturnHeader(
+        string ImmediateDestination,
+        string ImmediateOrigin,
+        string ImmediateDestinationName,
+        string ImmediateOriginName);
 
 
     private static string BuildReturnFileGeneratedPayload(
@@ -519,6 +612,9 @@ public class AchReturnsService(
            || string.Equals(clearingHouseCode, "ACHCOL", StringComparison.OrdinalIgnoreCase)
            || string.Equals(clearingHouseCode, "ACHCOLOMBIA", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsCenit(string? clearingHouseCode)
+        => string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase);
+
 
 
     private async Task<ExternalFileNamePolicyResult> ResolveReturnExternalFileNameAsync(
@@ -577,15 +673,143 @@ public class AchReturnsService(
         throw new InvalidOperationException("RETURN_FILENAME_POLICY_REQUIRED: No existe política oficial de naming para ReturnOut.");
     }
 
+    private async Task<Dictionary<int, CenitOriginalSource>> LoadCenitOriginalSourcesAsync(
+        IReadOnlyCollection<int> transactionIds,
+        CancellationToken ct)
+    {
+        var rows = await context.IncomingNachaTransactionLinks
+            .AsNoTracking()
+            .Where(link => link.IsFinal
+                && link.AchTransactionId.HasValue
+                && transactionIds.Contains(link.AchTransactionId.Value)
+                && link.EntryDetail != null
+                && link.EntryDetail.NachaHeader != null
+                && link.EntryDetail.BatchHeader != null)
+            .Select(link => new
+            {
+                TransactionId = link.AchTransactionId!.Value,
+                StandardEntryClassCode = link.EntryDetail!.BatchHeader!.StandardEntryClassCode,
+                ImmediateDestination = link.EntryDetail.NachaHeader!.ImmediateDestination,
+                ImmediateOrigin = link.EntryDetail.NachaHeader.ImmediateOrigin,
+                ImmediateDestinationName = link.EntryDetail.NachaHeader.ImmediateDestinationName,
+                ImmediateOriginName = link.EntryDetail.NachaHeader.ImmediateOriginName
+            })
+            .ToListAsync(ct);
+
+        var result = new Dictionary<int, CenitOriginalSource>();
+        foreach (var transactionId in transactionIds)
+        {
+            var candidates = rows
+                .Where(row => row.TransactionId == transactionId)
+                .Select(row => new CenitOriginalSource(
+                    NormalizeCenitSec(row.StandardEntryClassCode),
+                    NormalizeDigits(row.ImmediateDestination, 10),
+                    NormalizeDigits(row.ImmediateOrigin, 10),
+                    (row.ImmediateDestinationName ?? string.Empty).Trim(),
+                    (row.ImmediateOriginName ?? string.Empty).Trim()))
+                .Distinct()
+                .ToList();
+            if (candidates.Count != 1)
+            {
+                throw new InvalidOperationException($"CENIT_RETURN_ORIGINAL_RAW_EVIDENCE_REQUIRED: la transacción {transactionId} no tiene un único registro 1/5/6 original trazable.");
+            }
+
+            result[transactionId] = candidates[0];
+        }
+
+        return result;
+    }
+
+    private async Task<CenitCycleEvidence> ResolveCenitCycleEvidenceAsync(
+        AchCycle originalCycle,
+        AchCycle returnCycle,
+        CancellationToken ct)
+    {
+        if (!ExternalFileNameSupport.TryExtractPositiveCycleNumber(originalCycle.CycleName, out var originalCycleNumber)
+            || !ExternalFileNameSupport.TryExtractPositiveCycleNumber(returnCycle.CycleName, out var returnCycleNumber))
+        {
+            throw new InvalidOperationException("CENIT_RETURN_CYCLE_EVIDENCE_REQUIRED: los ciclos CENIT no tienen numeración normalizada.");
+        }
+
+        var cycleNames = await context.AchCycles
+            .AsNoTracking()
+            .Where(item => item.ClearingHouseId == returnCycle.ClearingHouseId
+                && item.ProcessingDate.Date == returnCycle.ProcessingDate.Date)
+            .Select(item => item.CycleName)
+            .ToListAsync(ct);
+        var lastReturnCycleNumber = cycleNames
+            .Select(name => ExternalFileNameSupport.TryExtractPositiveCycleNumber(name, out var number) ? number : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+        if (lastReturnCycleNumber <= 0)
+        {
+            throw new InvalidOperationException("CENIT_RETURN_CYCLE_EVIDENCE_REQUIRED: no existe último ciclo CENIT normalizado para la fecha operacional.");
+        }
+
+        return new CenitCycleEvidence(originalCycleNumber, returnCycleNumber, lastReturnCycleNumber);
+    }
+
+    private static ReturnHeader ResolveReturnHeader(
+        IReadOnlyCollection<PreparedReturn> prepared,
+        AchCycle cycle,
+        string immediateOrigin,
+        IReadOnlyDictionary<int, CenitOriginalSource> cenitSources,
+        bool isCenit)
+    {
+        if (!isCenit)
+        {
+            return new ReturnHeader(
+                ImmediateDestinationAchColombia,
+                immediateOrigin,
+                "ACH COLOMBIA",
+                cycle.ClearingHouse?.Name ?? "CFA");
+        }
+
+        var headers = prepared
+            .Select(item => cenitSources[item.Transaction.Id])
+            .Select(source => new ReturnHeader(
+                source.ImmediateOrigin,
+                source.ImmediateDestination,
+                source.ImmediateOriginName,
+                source.ImmediateDestinationName))
+            .Distinct()
+            .ToList();
+        if (headers.Count != 1)
+        {
+            throw new InvalidOperationException("CENIT_RETURN_HEADER_SCOPE_INVALID: el archivo mezcla participantes inmediatos de archivos originales distintos.");
+        }
+
+        return headers[0];
+    }
+
+    private static string NormalizeCenitSec(string? value)
+    {
+        var sec = (value ?? string.Empty).Trim().ToUpperInvariant();
+        return sec switch
+        {
+            "PPD" or "CCD" => sec,
+            "CTX" => throw new InvalidOperationException(CenitReturnIn2026Layout.CtxScopeStatus),
+            _ => throw new InvalidOperationException($"CENIT_RETURN_SEC_NOT_SUPPORTED: SEC {sec} no está soportado por Return Out CENIT.")
+        };
+    }
+
+    private static CenitPrenotificationDirection ResolveCenitPrenotificationDirection(string transactionCode)
+        => transactionCode switch
+        {
+            "21" or "22" or "23" or "31" or "32" or "33" or "51" or "52" or "53" => CenitPrenotificationDirection.Credit,
+            "26" or "27" or "28" or "36" or "37" or "38" or "55" or "56" or "57" => CenitPrenotificationDirection.Debit,
+            _ => CenitPrenotificationDirection.Unknown
+        };
+
     private static NachaReturnOutBatch BuildReturnOutBatch(
-        IGrouping<int, AchTransaction> group,
+        IEnumerable<PreparedReturn> group,
         IReadOnlyDictionary<int, NachaReturnOutEntry> entriesByTransaction,
         int batchNumber,
         DateTime now)
     {
-        var transactions = group.OrderBy(tx => tx.Id).ToList();
-        var original = transactions[0];
-        var entries = transactions.Select(tx => entriesByTransaction[tx.Id]).ToList();
+        var prepared = group.OrderBy(item => item.Transaction.Id).ToList();
+        var original = prepared[0].Transaction;
+        var entries = prepared.Select(item => entriesByTransaction[item.Transaction.Id]).ToList();
         var serviceClassCode = ResolveReturnServiceClassCode(entries);
         var originatingDfi = entries.Select(entry => entry.NewTraceNumber[..8]).Distinct(StringComparer.Ordinal).Single();
 
@@ -594,7 +818,7 @@ public class AchReturnsService(
             original.CompanyName,
             string.Empty,
             original.CompanyIdentification,
-            "PPD",
+            prepared[0].StandardEntryClassCode,
             "RETURN",
             original.EffectiveEntryDate,
             now,
@@ -612,7 +836,7 @@ public class AchReturnsService(
         return hasCredits && hasDebits ? "200" : hasCredits ? "220" : "225";
     }
 
-    private static string ResolveV35ReturnTransactionCode(string originalTransactionCode)
+    private static string ResolveReturnTransactionCode(string originalTransactionCode, bool isCenit)
         => originalTransactionCode switch
         {
             "21" or "22" or "23" => "21",
@@ -621,7 +845,7 @@ public class AchReturnsService(
             "26" or "27" or "28" => "26",
             "36" or "37" or "38" => "36",
             "55" or "56" or "57" => "56",
-            _ => throw new InvalidOperationException($"RETURN_OUT_ACH_V35_TRANSACTION_CODE_UNSUPPORTED: {originalTransactionCode} no identifica una cuenta admitida por V35 6.6.")
+            _ => throw new InvalidOperationException($"{(isCenit ? "CENIT_RETURN_TRANSACTION_CODE_UNSUPPORTED" : "RETURN_OUT_ACH_V35_TRANSACTION_CODE_UNSUPPORTED")}: {originalTransactionCode} no identifica una cuenta admitida.")
         };
 
     private async Task<string> ResolveReturnExternalFileNameWithoutPolicyAsync(AchCycle cycle, CancellationToken ct)

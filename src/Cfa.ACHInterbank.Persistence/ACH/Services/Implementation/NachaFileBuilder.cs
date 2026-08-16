@@ -110,9 +110,13 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         var recordCodes = new[] { "1", "5", "6", "7", "8", "9" };
+        var clearingHouseCode = request.ClearingHouseCode.Trim().ToUpperInvariant();
+        var isCenit = string.Equals(clearingHouseCode, "CENIT", StringComparison.Ordinal);
+        var recordLength = isCenit ? CenitReturnOut2026Layout.RecordLength : AchColReturnOutV35Layout.RecordLength;
+        var blockingFactor = isCenit ? CenitReturnOut2026Layout.BlockingFactor : AchColReturnOutV35Layout.BlockingFactor;
         var resolutionRequest = new NachaConfigResolutionRequest
         {
-            ClearingHouseCode = "ACH",
+            ClearingHouseCode = clearingHouseCode,
             FlowTypeCode = "DEVOLUCION",
             DirectionCode = "SALIDA",
             ProcessDateUtc = request.CreatedAtUtc,
@@ -121,48 +125,48 @@ public class NachaFileBuilder : INachaFileBuilder
             SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Flow"] = "RETURN_OUT",
-                ["NormativeVersion"] = "V35"
+                ["NormativeVersion"] = request.NormativeVersion
             }
         };
         var resolution = await _configResolver.ResolveAsync(resolutionRequest, ct);
         if (resolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous)
         {
-            throw new NachaGenerationException("NACHA_PROFILE_AMBIGUOUS", "Existe más de un perfil ACH/DEVOLUCION/SALIDA aplicable.");
+            throw new NachaGenerationException("NACHA_PROFILE_AMBIGUOUS", $"Existe más de un perfil {clearingHouseCode}/DEVOLUCION/SALIDA aplicable.");
         }
 
         if (!resolution.Success || resolution.Profile is null)
         {
-            throw new NachaGenerationException("NACHA_PROFILE_NOT_PUBLISHED", "No existe perfil NACHA-M publicado/vigente para ACH/DEVOLUCION/SALIDA.");
+            throw new NachaGenerationException("NACHA_PROFILE_NOT_PUBLISHED", $"No existe perfil NACHA-M publicado/vigente para {clearingHouseCode}/DEVOLUCION/SALIDA.");
         }
 
         if (resolution.UsedFallback)
         {
-            throw new NachaGenerationException("NACHA_LEGACY_GENERATION_DISABLED", "ReturnOut ACH no permite fallback físico legacy.");
+            throw new NachaGenerationException("NACHA_LEGACY_GENERATION_DISABLED", $"ReturnOut {clearingHouseCode} no permite fallback físico legacy.");
         }
 
         var normativeVersion = resolution.Profile.Tags
             .FirstOrDefault(tag => string.Equals(tag.TagKey, "NormativeVersion", StringComparison.OrdinalIgnoreCase))?.TagValue;
-        if (!string.Equals(normativeVersion, "V35", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(normativeVersion, request.NormativeVersion, StringComparison.OrdinalIgnoreCase))
         {
-            throw new NachaGenerationException("NACHA_RETURN_OUT_V35_PROFILE_REQUIRED", "El perfil ReturnOut seleccionado no declara NormativeVersion=V35.");
+            throw new NachaGenerationException("NACHA_RETURN_OUT_PROFILE_VERSION_REQUIRED", $"El perfil ReturnOut seleccionado no declara NormativeVersion={request.NormativeVersion}.");
         }
 
         var audit = new NachaGenerationAuditResult
         {
             Mode = "TABLE_DRIVEN",
-            ClearingHouseCode = "ACH",
-            ClearingHouseName = "ACH Colombia",
+            ClearingHouseCode = clearingHouseCode,
+            ClearingHouseName = request.ClearingHouseName,
             ProfileId = resolution.Profile.Id,
             ProfileCode = resolution.Profile.ProfileCode,
             ProfileVersion = $"{resolution.Profile.VersionMajor}.{resolution.Profile.VersionMinor}",
             ProfileStatus = resolution.Profile.Status?.Code,
             EffectiveDate = request.CreatedAtUtc,
             LegacyFallbackUsed = false,
-            Phase = "RETURN_OUT_V35",
+            Phase = isCenit ? "CENIT_RETURN_OUT_2026" : "RETURN_OUT_V35",
             CorrelationId = $"RETURN-OUT-{request.CreatedAtUtc:yyyyMMddHHmmss}"
         };
         audit.Trace.AddRange(resolution.Trace);
-        audit.Trace.Add($"ReturnOutOptionC:Profile={resolution.Profile.ProfileCode};Flow=DEVOLUCION;Direction=SALIDA;LegacyFallbackUsed=false");
+        audit.Trace.Add($"ReturnOutOptionC:Profile={resolution.Profile.ProfileCode};ClearingHouse={clearingHouseCode};Flow=DEVOLUCION;Direction=SALIDA;LegacyFallbackUsed=false");
         audit.NewEngineRecordCodes.AddRange(recordCodes);
 
         foreach (var recordCode in recordCodes)
@@ -170,16 +174,16 @@ public class NachaFileBuilder : INachaFileBuilder
             ValidateOfficialLayout(recordCode, RequireOfficialLayout(resolution, recordCode), audit);
         }
 
-        var batchTotals = request.Batches.Select(CalculateReturnOutBatchTotals).ToList();
+        var batchTotals = request.Batches.Select(batch => CalculateReturnOutBatchTotals(batch, clearingHouseCode)).ToList();
         var entryAddendaCount = batchTotals.Sum(total => total.EntryAddendaCount);
         var entryHash = batchTotals.Aggregate(0L, (current, total) => (current + total.EntryHash) % 10_000_000_000L);
         var totalDebit = batchTotals.Sum(total => total.TotalDebit);
         var totalCredit = batchTotals.Sum(total => total.TotalCredit);
         var recordsBeforePadding = 2 + request.Batches.Sum(batch => 2 + (batch.Entries.Count * 2));
-        var blockCount = (int)Math.Ceiling(recordsBeforePadding / (decimal)AchColReturnOutV35Layout.BlockingFactor);
-        var paddingCount = (blockCount * AchColReturnOutV35Layout.BlockingFactor) - recordsBeforePadding;
+        var blockCount = (int)Math.Ceiling(recordsBeforePadding / (decimal)blockingFactor);
+        var paddingCount = (blockCount * blockingFactor) - recordsBeforePadding;
 
-        var sb = new StringBuilder(recordsBeforePadding * AchColReturnOutV35Layout.RecordLength);
+        var sb = new StringBuilder(recordsBeforePadding * recordLength);
         var lineNumber = 1;
         var recordCount = 0;
         recordCount += AppendOfficialRecords(sb, "1", [ReturnOutValues(
@@ -239,8 +243,8 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         var content = sb.ToString();
-        if (recordCount != blockCount * AchColReturnOutV35Layout.BlockingFactor
-            || content.Length != recordCount * AchColReturnOutV35Layout.RecordLength)
+        if (recordCount != blockCount * blockingFactor
+            || content.Length != recordCount * recordLength)
         {
             throw new NachaGenerationException("NACHA_RECORD_COUNT_MISMATCH", "ReturnOut no cumple bloques de 10 registros de 106 caracteres.");
         }
@@ -280,7 +284,7 @@ public class NachaFileBuilder : INachaFileBuilder
     private static IReadOnlyDictionary<string, object?> ReturnOutValues(params (string Key, object? Value)[] values)
         => values.ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase);
 
-    private static ReturnOutBatchTotals CalculateReturnOutBatchTotals(NachaReturnOutBatch batch)
+    private static ReturnOutBatchTotals CalculateReturnOutBatchTotals(NachaReturnOutBatch batch, string clearingHouseCode)
     {
         var hash = batch.Entries.Aggregate(0L, (current, entry) =>
             (current + long.Parse(entry.ReceivingDfi, CultureInfo.InvariantCulture)) % 10_000_000_000L);
@@ -288,7 +292,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var credit = batch.Entries.Where(entry => entry.TransactionCode is "21" or "31" or "51").Sum(entry => entry.Amount);
         if (batch.Entries.Any(entry => entry.TransactionCode is not ("21" or "31" or "51" or "26" or "36" or "56")))
         {
-            throw new NachaGenerationException("NACHA_ALLOWED_VALUE_INVALID", "Código de transacción ReturnOut fuera de V35.");
+            throw new NachaGenerationException("NACHA_ALLOWED_VALUE_INVALID", $"Código de transacción ReturnOut fuera del perfil {clearingHouseCode}.");
         }
 
         return new ReturnOutBatchTotals(batch.Entries.Count * 2, hash, debit, credit);
@@ -2390,6 +2394,61 @@ public class NachaFileBuilder : INachaFileBuilder
         {
             ValidateAchColOfficialLayoutSnapshot(recordCode, layout);
         }
+        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+                 && CenitReturnOut2026Layout.IsVariant(layout.VariantCode))
+        {
+            ValidateCenitReturnOut2026LayoutSnapshot(recordCode, layout);
+        }
+    }
+
+    private static void ValidateCenitReturnOut2026LayoutSnapshot(string recordCode, CfgLayoutVariant layout)
+    {
+        if (layout.TotalLength != CenitReturnOut2026Layout.RecordLength
+            || !CenitReturnOut2026Layout.IsVariant(layout.VariantCode))
+        {
+            throw new NachaGenerationException(
+                "NACHA_PROFILE_LAYOUT_MISMATCH",
+                "El layout publicado no coincide con el snapshot normativo CENIT 2026.");
+        }
+
+        var expectedFields = CenitReturnOut2026Layout.ForRecord(recordCode);
+        var actualFields = layout.Fields.Where(field => field.IsEnabled).ToList();
+        foreach (var expected in expectedFields)
+        {
+            var actual = actualFields.FirstOrDefault(field =>
+                string.Equals(field.FieldCode, expected.FieldCode, StringComparison.OrdinalIgnoreCase));
+            if (actual is null
+                || actual.StartPosition != expected.StartPosition
+                || actual.Length != expected.Length
+                || actual.Justification != expected.Justification
+                || actual.PadChar != expected.PadChar
+                || !string.Equals(actual.FormatMask, expected.Format, StringComparison.Ordinal)
+                || !actual.Rules.Any(rule => rule.IsEnabled
+                    && string.Equals(rule.RuleCode, expected.RuleId, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_PROFILE_LAYOUT_MISMATCH",
+                    expected,
+                    "El campo no coincide con el Manual CENIT 2026, sección 7.2.1 y Anexo 1.6.");
+            }
+
+            if (ContainsForbiddenOfficialTransformation(actual.TransformationPipelineJson)
+                || !string.IsNullOrWhiteSpace(actual.SourceDefinition?.FallbackPolicyJson))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_SILENT_TRANSFORMATION_FORBIDDEN",
+                    expected,
+                    "La ruta oficial CENIT no admite truncamiento, substring ni fallback silencioso.");
+            }
+        }
+
+        var expectedCodes = expectedFields.Select(field => field.FieldCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (actualFields.Any(field => !expectedCodes.Contains(field.FieldCode)))
+        {
+            throw new NachaGenerationException(
+                "NACHA_PROFILE_LAYOUT_MISMATCH",
+                "El layout publicado contiene campos no contemplados por el snapshot CENIT 2026.");
+        }
     }
 
     private static void ValidateAchColOfficialLayoutSnapshot(string recordCode, CfgLayoutVariant layout)
@@ -2525,9 +2584,14 @@ public class NachaFileBuilder : INachaFileBuilder
         string? clearingHouseCode)
     {
         var rules = field.Rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.Order).ToList();
-        if (string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase) && rules.Count == 0)
+        if ((string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+             || (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+                 && CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode)))
+            && rules.Count == 0)
         {
-            var descriptor = AchColReturnOutV35Layout.IsVariant(field.LayoutVariant?.VariantCode)
+            var descriptor = CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode)
+                ? CenitReturnOut2026Layout.Field(recordCode, field.FieldCode)
+                : AchColReturnOutV35Layout.IsVariant(field.LayoutVariant?.VariantCode)
                 ? AchColReturnOutV35Layout.Field(recordCode, field.FieldCode)
                 : AchColOfficialNachaLayout.Field(recordCode, field.FieldCode, field.LayoutVariant?.VariantCode);
             throw BuildFieldRuleException("NACHA_REQUIRED_RULE_MISSING", descriptor, "CfgFieldRule ejecutable ausente.");

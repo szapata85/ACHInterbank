@@ -358,14 +358,6 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         {
             if (IsReturnScenario(request.ScenarioType))
             {
-                if (clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase))
-                {
-                    return Blocked(
-                        "RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED",
-                        "La generación de devoluciones CENIT continúa bloqueada hasta contar con homologación técnica.",
-                        request.SimulationMode);
-                }
-
                 if (request.ResponseMode != InboundResponseMode.Returned)
                 {
                     return Blocked(
@@ -379,6 +371,15 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
                     return Blocked(
                         "RETURN_OUT_ACH_OPTION_C_REQUIRED",
                         "El generador oficial NACHA-M Opción C no está disponible.",
+                        request.SimulationMode);
+                }
+
+                if (clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+                    && CenitReturnIn2026Layout.IsReturnOfReturnCause(request.ReasonCode))
+                {
+                    return Blocked(
+                        "CENIT_ROR_NOT_ORDINARY_RETURN",
+                        "Las causales R60-R74 corresponden al flujo independiente de devolución de una devolución.",
                         request.SimulationMode);
                 }
 
@@ -994,6 +995,11 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         {
             throw new InvalidOperationException("RETURN_SEC_NOT_CONFIGURED: La transacción original no conserva un código SEC activo en el catálogo.");
         }
+        if (clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+            && secByDescriptionId.Values.Any(value => string.Equals(value, "CTX", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(CenitReturnIn2026Layout.CtxScopeStatus);
+        }
 
         var semanticEntries = new Dictionary<int, NachaReturnOutEntry>(transactions.Count);
         var generatedEntries = new List<NachaInboundSimulationEntry>(transactions.Count);
@@ -1008,7 +1014,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             var newTrace = $"{respondingDfi}{sequenceRange.StartValue + index:0000000}";
             semanticEntries[transaction.Id] = new NachaReturnOutEntry(
                 transaction.Id,
-                ResolveV35ReturnTransactionCode(transaction.TransactionCode),
+                ResolveReturnTransactionCode(transaction.TransactionCode, clearingHouse.Code),
                 receivingDfi,
                 DigitoChequeoHelper.CalcularDigitoChequeo(receivingDfi).ToString(),
                 transaction.DestinationAccountNumber,
@@ -1080,7 +1086,12 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             clearingHouse.Name,
             reasonCode,
             semanticBatches,
-            PersistAudit: true), ct);
+            PersistAudit: true,
+            ClearingHouseCode: clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase) ? "CENIT" : "ACH",
+            ClearingHouseName: clearingHouse.Name,
+            NormativeVersion: clearingHouse.Code.Contains("CENIT", StringComparison.OrdinalIgnoreCase)
+                ? CenitReturnOut2026Layout.NormativeVersion
+                : "V35"), ct);
 
         return new FileBuildResult(
             artifact.Content,
@@ -1154,7 +1165,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
         return hasCredits && hasDebits ? "200" : hasCredits ? "220" : "225";
     }
 
-    private static string ResolveV35ReturnTransactionCode(string originalTransactionCode)
+    private static string ResolveReturnTransactionCode(string originalTransactionCode, string clearingHouseCode)
         => originalTransactionCode switch
         {
             "21" or "22" or "23" => "21",
@@ -1163,7 +1174,7 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
             "26" or "27" or "28" => "26",
             "36" or "37" or "38" => "36",
             "55" or "56" or "57" => "56",
-            _ => throw new InvalidOperationException($"RETURN_OUT_ACH_V35_TRANSACTION_CODE_UNSUPPORTED: {originalTransactionCode} no identifica una cuenta admitida por V35 6.6.")
+            _ => throw new InvalidOperationException($"RETURN_OUT_TRANSACTION_CODE_UNSUPPORTED: {originalTransactionCode} no identifica una cuenta admitida para {clearingHouseCode}.")
         };
 
     private async Task<int> NextDailySequenceAsync(int clearingHouseId, int originId, DateOnly date, CancellationToken ct)

@@ -50,10 +50,16 @@ public sealed class AchOutboundReturnArtifactService(
         }
 
         var cycle = rows[0].ReturnCycle;
-        if (!IsAchColombia(cycle.ClearingHouse?.Code))
+        var isAchColombia = IsAchColombia(cycle.ClearingHouse?.Code);
+        var isCenit = IsCenit(cycle.ClearingHouse?.Code);
+        if (!isAchColombia && !isCenit)
         {
-            throw new InvalidOperationException("Solo ACH Colombia dispone de transporte Return Out soportado en este flujo.");
+            throw new InvalidOperationException("La cámara no dispone de artefacto Return Out soportado en este flujo.");
         }
+
+        var cenitSources = isCenit
+            ? await LoadCenitOriginalSourcesAsync(rows.Select(row => row.OriginalTransactionId).ToArray(), ct)
+            : new Dictionary<int, CenitOriginalSource>();
 
         var participantCodes = rows.Select(x => x.OriginatorEntityCode).Distinct(StringComparer.Ordinal).ToArray();
         if (participantCodes.Length != 1)
@@ -78,7 +84,7 @@ public sealed class AchOutboundReturnArtifactService(
             x => x.OriginalTransactionId,
             x => new NachaReturnOutEntry(
                 x.OriginalTransactionId,
-                ResolveV35ReturnTransactionCode(x.OriginalTransaction.TransactionCode),
+                ResolveReturnTransactionCode(x.OriginalTransaction.TransactionCode, isCenit),
                 x.ReceiverEntityCode,
                 DigitoChequeoHelper.CalcularDigitoChequeo(x.ReceiverEntityCode).ToString(),
                 x.OriginalTransaction.DestinationAccountNumber,
@@ -95,22 +101,33 @@ public sealed class AchOutboundReturnArtifactService(
                 x.NewSequenceNumber));
 
         var batches = rows
-            .GroupBy(x => x.OriginalTransaction.AchBatchId)
-            .OrderBy(x => x.Key)
-            .Select((group, index) => BuildBatch(group, entries, index + 1, createdAtUtc))
+            .GroupBy(x => new
+            {
+                x.OriginalTransaction.AchBatchId,
+                StandardEntryClassCode = isCenit ? cenitSources[x.OriginalTransactionId].StandardEntryClassCode : "PPD"
+            })
+            .OrderBy(x => x.Key.AchBatchId)
+            .ThenBy(x => x.Key.StandardEntryClassCode)
+            .Select((group, index) => BuildBatch(group, entries, group.Key.StandardEntryClassCode, index + 1, createdAtUtc))
             .ToList();
         var immediateOrigin = participantCodes[0]
             + DigitoChequeoHelper.CalcularDigitoChequeo(participantCodes[0]);
+        var header = isCenit
+            ? ResolveCenitHeader(cenitSources.Values)
+            : new ReturnHeader(ImmediateDestinationAchColombia, immediateOrigin, "ACH COLOMBIA", cycle.ClearingHouse?.Name ?? "CFA");
         var result = await nachaFileBuilder.BuildReturnOutAsync(new NachaReturnOutBuildRequest(
             createdAtUtc,
             fileIdModifier.ToString(),
-            ImmediateDestinationAchColombia,
-            immediateOrigin,
-            "ACH COLOMBIA",
-            cycle.ClearingHouse?.Name ?? "CFA",
+            header.ImmediateDestination,
+            header.ImmediateOrigin,
+            header.ImmediateDestinationName,
+            header.ImmediateOriginName,
             "RETURN",
             batches,
-            PersistAudit: false), ct);
+            PersistAudit: false,
+            ClearingHouseCode: isCenit ? "CENIT" : "ACH",
+            ClearingHouseName: cycle.ClearingHouse?.Name ?? (isCenit ? "CENIT" : "ACH Colombia"),
+            NormativeVersion: isCenit ? CenitReturnOut2026Layout.NormativeVersion : "V35"), ct);
         var content = Encoding.UTF8.GetBytes(result.Content);
 
         return new AchOutboundReturnArtifact(
@@ -124,9 +141,106 @@ public sealed class AchOutboundReturnArtifactService(
             Convert.ToHexString(SHA256.HashData(content)));
     }
 
+    private async Task<Dictionary<int, CenitOriginalSource>> LoadCenitOriginalSourcesAsync(
+        IReadOnlyCollection<int> transactionIds,
+        CancellationToken ct)
+    {
+        var rows = await context.IncomingNachaTransactionLinks
+            .AsNoTracking()
+            .Where(link => link.IsFinal
+                && link.AchTransactionId.HasValue
+                && transactionIds.Contains(link.AchTransactionId.Value)
+                && link.EntryDetail != null
+                && link.EntryDetail.NachaHeader != null
+                && link.EntryDetail.BatchHeader != null)
+            .Select(link => new
+            {
+                TransactionId = link.AchTransactionId!.Value,
+                Sec = link.EntryDetail!.BatchHeader!.StandardEntryClassCode,
+                Destination = link.EntryDetail.NachaHeader!.ImmediateDestination,
+                Origin = link.EntryDetail.NachaHeader.ImmediateOrigin,
+                DestinationName = link.EntryDetail.NachaHeader.ImmediateDestinationName,
+                OriginName = link.EntryDetail.NachaHeader.ImmediateOriginName
+            })
+            .ToListAsync(ct);
+
+        var result = new Dictionary<int, CenitOriginalSource>();
+        foreach (var transactionId in transactionIds)
+        {
+            var candidates = rows.Where(row => row.TransactionId == transactionId)
+                .Select(row => new CenitOriginalSource(
+                    NormalizeCenitSec(row.Sec),
+                    NormalizeDigits(row.Destination, 10),
+                    NormalizeDigits(row.Origin, 10),
+                    (row.DestinationName ?? string.Empty).Trim(),
+                    (row.OriginName ?? string.Empty).Trim()))
+                .Distinct()
+                .ToList();
+            if (candidates.Count != 1)
+            {
+                throw new InvalidOperationException($"CENIT_RETURN_ORIGINAL_RAW_EVIDENCE_REQUIRED: la transacción {transactionId} no tiene un único registro 1/5/6 original trazable.");
+            }
+
+            result[transactionId] = candidates[0];
+        }
+
+        return result;
+    }
+
+    private static ReturnHeader ResolveCenitHeader(IEnumerable<CenitOriginalSource> sources)
+    {
+        var headers = sources
+            .Select(source => new ReturnHeader(
+                source.ImmediateOrigin,
+                source.ImmediateDestination,
+                source.ImmediateOriginName,
+                source.ImmediateDestinationName))
+            .Distinct()
+            .ToList();
+        return headers.Count == 1
+            ? headers[0]
+            : throw new InvalidOperationException("CENIT_RETURN_HEADER_SCOPE_INVALID: el archivo mezcla participantes inmediatos de archivos originales distintos.");
+    }
+
+    private static string NormalizeCenitSec(string? value)
+    {
+        var sec = (value ?? string.Empty).Trim().ToUpperInvariant();
+        return sec switch
+        {
+            "PPD" or "CCD" => sec,
+            "CTX" => throw new InvalidOperationException(CenitReturnIn2026Layout.CtxScopeStatus),
+            _ => throw new InvalidOperationException($"CENIT_RETURN_SEC_NOT_SUPPORTED: SEC {sec} no está soportado por Return Out CENIT.")
+        };
+    }
+
+    private static string NormalizeDigits(string? value, int length)
+    {
+        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (digits.Length > length)
+        {
+            digits = digits[^length..];
+        }
+
+        return digits.PadLeft(length, '0');
+    }
+
+    private sealed record CenitOriginalSource(
+        string StandardEntryClassCode,
+        string ImmediateDestination,
+        string ImmediateOrigin,
+        string ImmediateDestinationName,
+        string ImmediateOriginName);
+
+    private sealed record ReturnHeader(
+        string ImmediateDestination,
+        string ImmediateOrigin,
+        string ImmediateDestinationName,
+        string ImmediateOriginName);
+
     private static NachaReturnOutBatch BuildBatch(
-        IGrouping<int, AchReturnGenerated> group,
+        IEnumerable<AchReturnGenerated> group,
         IReadOnlyDictionary<int, NachaReturnOutEntry> entriesByTransaction,
+        string standardEntryClassCode,
         int batchNumber,
         DateTime createdAtUtc)
     {
@@ -139,7 +253,7 @@ public sealed class AchOutboundReturnArtifactService(
             original.CompanyName,
             string.Empty,
             original.CompanyIdentification,
-            "PPD",
+            standardEntryClassCode,
             "RETURN",
             original.EffectiveEntryDate,
             createdAtUtc,
@@ -157,7 +271,7 @@ public sealed class AchOutboundReturnArtifactService(
         return hasCredits && hasDebits ? "200" : hasCredits ? "220" : "225";
     }
 
-    private static string ResolveV35ReturnTransactionCode(string originalTransactionCode)
+    private static string ResolveReturnTransactionCode(string originalTransactionCode, bool isCenit)
         => originalTransactionCode switch
         {
             "21" or "22" or "23" => "21",
@@ -166,11 +280,14 @@ public sealed class AchOutboundReturnArtifactService(
             "26" or "27" or "28" => "26",
             "36" or "37" or "38" => "36",
             "55" or "56" or "57" => "56",
-            _ => throw new InvalidOperationException($"RETURN_OUT_ACH_V35_TRANSACTION_CODE_UNSUPPORTED: {originalTransactionCode} no identifica una cuenta admitida por V35 6.6.")
+            _ => throw new InvalidOperationException($"{(isCenit ? "CENIT_RETURN_TRANSACTION_CODE_UNSUPPORTED" : "RETURN_OUT_ACH_V35_TRANSACTION_CODE_UNSUPPORTED")}: {originalTransactionCode} no identifica una cuenta admitida.")
         };
 
     private static bool IsAchColombia(string? code)
         => string.Equals(code, "ACH", StringComparison.OrdinalIgnoreCase)
            || string.Equals(code, "ACHCOL", StringComparison.OrdinalIgnoreCase)
            || string.Equals(code, "ACHCOLOMBIA", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCenit(string? code)
+        => string.Equals(code, "CENIT", StringComparison.OrdinalIgnoreCase);
 }

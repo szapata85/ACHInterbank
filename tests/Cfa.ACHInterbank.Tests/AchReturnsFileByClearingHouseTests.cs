@@ -35,7 +35,7 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldBlockPhysicalReturnOut_ForCenitClearingHouse()
+    public async Task GenerateReturnsFileAsync_ShouldRequireCenitPolicy_ForCenitClearingHouse()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7001, "CENIT", "CENIT", 101, "CEN-C1");
@@ -45,7 +45,7 @@ public class AchReturnsFileByClearingHouseTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C1", [new ReturnSelectionItemDto(101, "R01")]), CancellationToken.None));
 
-        Assert.Contains("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("CENIT_RETURN_POLICY_REQUIRED", ex.Message, StringComparison.Ordinal);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 101));
         Assert.False(await context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 101));
         Assert.Equal(AchTransferStateEnum.Pending, await context.AchTransactions.Where(x => x.Id == 101).Select(x => x.State).SingleAsync());
@@ -171,7 +171,7 @@ public class AchReturnsFileByClearingHouseTests
         var cenitEx = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C4", [new ReturnSelectionItemDto(501, "R01")]), CancellationToken.None));
         await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C4", [new ReturnSelectionItemDto(502, "DEV14")]), CancellationToken.None);
 
-        Assert.Contains("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", cenitEx.Message, StringComparison.Ordinal);
+        Assert.Contains("CENIT_RETURN_POLICY_REQUIRED", cenitEx.Message, StringComparison.Ordinal);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 501));
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 502));
         Assert.Equal(AchTransferStateEnum.Pending, await context.AchTransactions.Where(x => x.Id == 501).Select(x => x.State).SingleAsync());
@@ -415,7 +415,7 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_CenitRail_ShouldRejectUnhomologatedPhysicalLayout()
+    public async Task GenerateReturnsFileAsync_CenitRail_ShouldRequireNormativePolicy()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7001, "CENIT", "CENIT", 605, "CEN-RLAY-1");
@@ -424,7 +424,7 @@ public class AchReturnsFileByClearingHouseTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-RLAY-1", [new ReturnSelectionItemDto(605, "R01")]), CancellationToken.None));
 
-        Assert.Contains("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("CENIT_RETURN_POLICY_REQUIRED", ex.Message, StringComparison.Ordinal);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 605));
         Assert.False(await context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 605));
         Assert.Equal(AchTransferStateEnum.Pending, await context.AchTransactions.Where(x => x.Id == 605).Select(x => x.State).SingleAsync());

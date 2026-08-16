@@ -271,7 +271,7 @@ public class NachaInboundSimulatorTests
     }
 
     [Fact]
-    public async Task CenitReturnScenario_ShouldRemainTechnicallyBlocked()
+    public async Task CenitReturnScenario_ShouldRequireNormativeCauseCatalog()
     {
         await using var context = CreateContext();
         Seed(context);
@@ -292,7 +292,7 @@ public class NachaInboundSimulatorTests
         });
 
         Assert.False(preview.Eligible);
-        Assert.Equal("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", preview.FunctionalCode);
+        Assert.Equal("RETURN_REASON_NOT_ALLOWED", preview.FunctionalCode);
         builder.VerifyNoOtherCalls();
     }
 

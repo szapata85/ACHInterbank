@@ -158,7 +158,7 @@ public class AchReturnsUatEndToEndTests
             new GenerateReturnsFileRequest("CEN-CYCLE-UAT", [new ReturnSelectionItemDto(201, "R01")]),
             CancellationToken.None));
 
-        Assert.Contains("RETURN_OUT_CENIT_TECHNICAL_HOMOLOGATION_REQUIRED", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("CENIT_RETURN_POLICY_REQUIRED", ex.Message, StringComparison.Ordinal);
         Assert.False(await harness.Context.AchReturnsGenerated.AnyAsync(x => x.OriginalTransactionId == 201));
         Assert.False(await harness.Context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 201));
         Assert.Equal(AchTransferStateEnum.Pending, await harness.Context.AchTransactions.Where(x => x.Id == 201).Select(x => x.State).SingleAsync());

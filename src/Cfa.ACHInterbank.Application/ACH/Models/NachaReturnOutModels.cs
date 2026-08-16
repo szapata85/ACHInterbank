@@ -9,7 +9,10 @@ public sealed record NachaReturnOutBuildRequest(
     string ImmediateOriginName,
     string ReferenceCode,
     IReadOnlyList<NachaReturnOutBatch> Batches,
-    bool PersistAudit = true);
+    bool PersistAudit = true,
+    string ClearingHouseCode = "ACH",
+    string ClearingHouseName = "ACH Colombia",
+    string NormativeVersion = "V35");
 
 public sealed record NachaReturnOutBatch(
     string ServiceClassCode,

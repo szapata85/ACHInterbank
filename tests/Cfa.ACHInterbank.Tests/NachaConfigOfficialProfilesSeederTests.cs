@@ -121,10 +121,14 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35")
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("sección 6.6"));
         profiles.Where(x => x.ClearingHouse.Code == "CENIT"
-                            && x.ProfileCode != CenitReturnIn2026Layout.ProfileCode)
+                            && x.ProfileCode != CenitReturnIn2026Layout.ProfileCode
+                            && x.ProfileCode != CenitReturnOut2026Layout.ProfileCode)
             .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue.Contains("CENIT/DSP-152")));
         profiles.Single(x => x.ProfileCode == CenitReturnIn2026Layout.ProfileCode).Tags
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "2026-05-07")
+            .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("Formato NACHA-M CENIT"));
+        profiles.Single(x => x.ProfileCode == CenitReturnOut2026Layout.ProfileCode).Tags
+            .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == CenitReturnOut2026Layout.NormativeVersion)
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("Formato NACHA-M CENIT"));
     }
 

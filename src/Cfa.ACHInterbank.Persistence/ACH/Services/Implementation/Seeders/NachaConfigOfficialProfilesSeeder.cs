@@ -119,6 +119,25 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             VersionMinor: 0));
 
         await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitReturnOut2026Layout.ProfileCode,
+            Name: "Perfil CENIT salida devolución 2026",
+            Description: "Perfil table-driven para Return Out CENIT conforme al formato NACHA-M del 07-may-2026; certificación externa pendiente.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "DEVOLUCION",
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitReturnOut2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "7.2.1;Anexo 1.6;Tabla 6;CENIT-Anexo-A",
+            IsPlaceholder: false,
+            IsHomologated: true,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CENIT",
+            ImmediateOriginName: "",
+            Prefix: "CENIT_RETURN_OUT_2026",
+            DirectionCode: "SALIDA",
+            VersionMinor: 0));
+
+        await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
             Name: "Perfil oficial CENIT salida original",
             Description: "Perfil oficial UAT/local table-driven para CENIT. Fuente normativa pendiente de homologacion formal: CENIT/DSP-152 placeholder.",
@@ -210,6 +229,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             {
                 var isReturnOutV35 = IsReturnOutV35(spec);
                 var isCenitReturnIn2026 = IsCenitReturnIn2026(spec);
+                var isCenitReturnOut2026 = IsCenitReturnOut2026(spec);
                 var variant = await EnsureVariantAsync(
                     profile,
                     spec,
@@ -218,6 +238,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     catalog,
                     isCenitReturnIn2026
                         ? CenitReturnIn2026Layout.Variant(recordCode)
+                        : isCenitReturnOut2026
+                        ? CenitReturnOut2026Layout.Variant(recordCode)
                         : isReturnOutV35
                         ? AchColReturnOutV35Layout.Variant(recordCode)
                         : recordCode == "7" && !spec.IsPlaceholder ? AchColOfficialNachaLayout.Type7CreditVariant : null,
@@ -225,7 +247,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     selectionPredicateJson: null);
                 await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
 
-                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026)
+                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026)
                 {
                     await EnsureVariantAsync(
                         profile,
@@ -418,6 +440,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             {
                 var descriptor = UsesCenitReturnIn2026Layout(spec)
                     ? CenitReturnIn2026Layout.Field(recordCode, field.Code)
+                    : UsesCenitReturnOut2026Layout(spec)
+                    ? CenitReturnOut2026Layout.Field(recordCode, field.Code)
                     : UsesReturnV35Layout(spec, recordCode, variant.VariantCode)
                     ? AchColReturnOutV35Layout.Field(recordCode, field.Code)
                     : AchColOfficialNachaLayout.Field(recordCode, field.Code, variant.VariantCode);
@@ -506,6 +530,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 .ToList();
         }
 
+        if (UsesCenitReturnOut2026Layout(profile))
+        {
+            return CenitReturnOut2026Layout.ForRecord(recordCode)
+                .Select(BuildReturnOutV35Field)
+                .ToList();
+        }
+
         if (UsesReturnV35Layout(profile, recordCode, variantCode))
         {
             return AchColReturnOutV35Layout.ForRecord(recordCode)
@@ -538,8 +569,14 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
     private static bool IsCenitReturnIn2026(ProfileSpec profile)
         => string.Equals(profile.ProfileCode, CenitReturnIn2026Layout.ProfileCode, StringComparison.Ordinal);
 
+    private static bool IsCenitReturnOut2026(ProfileSpec profile)
+        => string.Equals(profile.ProfileCode, CenitReturnOut2026Layout.ProfileCode, StringComparison.Ordinal);
+
     private static bool UsesCenitReturnIn2026Layout(ProfileSpec profile)
         => IsCenitReturnIn2026(profile);
+
+    private static bool UsesCenitReturnOut2026Layout(ProfileSpec profile)
+        => IsCenitReturnOut2026(profile);
 
     private static bool UsesReturnV35Layout(ProfileSpec profile, string recordCode, string variantCode)
         => IsReturnOutV35(profile)
