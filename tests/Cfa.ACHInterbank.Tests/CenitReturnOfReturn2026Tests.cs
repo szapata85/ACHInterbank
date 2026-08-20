@@ -280,6 +280,10 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
 
         response.ParsingStatus.Should().Be(IncomingNachaParsingStatus.Exitoso);
         response.SelectedProfileCode.Should().Be(CenitReturnOfReturn2026Layout.InProfileCode);
+        var persistedIngestion = await context.IncomingNachaFileIngestions.SingleAsync(x => x.Id == response.IngestionId);
+        persistedIngestion.OperationalDate.Should().Be(new DateTime(2026, 8, 16));
+        persistedIngestion.ReceivedAtUtc.Should().NotBeNull();
+        persistedIngestion.ReceivedAtUtc!.Value.Date.Should().NotBe(persistedIngestion.OperationalDate!.Value.Date);
         var classification = await context.IncomingNachaEntryClassifications.SingleAsync();
         classification.FunctionalClass.Should().Be(IncomingNachaFunctionalClass.DevolucionDevolucion);
         var link = await context.IncomingNachaTransactionLinks.SingleAsync(x => x.EntryDetailId != 30);
@@ -287,6 +291,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         var flow = await context.ReturnOfReturnFlows.SingleAsync();
         flow.Direction.Should().Be("In");
         flow.ParentOutgoingReturnGeneratedId.Should().Be(2001);
+        flow.OrchestratedAtUtc.Date.Should().Be((persistedIngestion.EffectiveDate ?? persistedIngestion.OperationalDate)!.Value.Date);
 
         await postParse.ProcessAsync(response.IngestionId, "ret-cenit-ror-001-replay", CancellationToken.None);
         context.ReturnOfReturnFlows.Should().ContainSingle();

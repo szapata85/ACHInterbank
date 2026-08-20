@@ -380,6 +380,10 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 return new(false, false, true, null, "CENIT_ROR_PARENT_RETURN_NOT_FOUND", "No se encontró el Return Out padre del ROR.");
 
             var idempotencyKey = $"cenit-ror-in:{ingestion.ResolvedClearingHouseId}:{parent.Id}:{entry.SequenceNumber}:{classification.ReturnReasonCode}";
+            var rorBusinessDate = ingestion.EffectiveDate
+                                  ?? ingestion.OperationalDate
+                                  ?? ingestion.ReceivedAtUtc
+                                  ?? DateTime.UtcNow;
             var result = await _cenitReturnOfReturnService.IngestIncomingAsync(new(
                 parent.Id,
                 link.AchTransactionId.Value,
@@ -393,7 +397,7 @@ public class IncomingNachaPostParseProcessor : IIncomingNachaPostParseProcessor
                 addenda.PurposeOfTransaction?.Trim() ?? string.Empty,
                 addenda.InvoiceOrAccountNumber?.Trim() ?? string.Empty,
                 entry.Amount ?? 0m,
-                ingestion.ReceivedAtUtc ?? DateTime.UtcNow,
+                rorBusinessDate,
                 idempotencyKey), ct);
 
             await AddEventAsync(ingestion.Id, entry.EntryDetailID, addenda.AddendaID, link.AchTransactionId,

@@ -333,6 +333,19 @@ describe('TransactionCreateComponent', () => {
     expect(component.destinationAccountSearchControl.value).toBe('');
   });
 
+  it('prenotificacion conserva la cuenta destino manual cuando termina la carga retardada de terceros', fakeAsync(() => {
+    component.form.get('isPrenotification')?.setValue(true);
+    component.form.get('sourceAccountNumber')?.setValue('1234567890');
+    component.form.get('destinationAccountNumber')?.setValue('9876543210');
+
+    tick(300);
+
+    expect(component.form.get('destinationAccountNumber')?.value).toBe('9876543210');
+    expect(component.activeDestinationAccounts).toEqual([]);
+    expect(component.destinationAccountOptions).toEqual([]);
+    expect(txApi.getActiveThirdParties).not.toHaveBeenCalled();
+  }));
+
   it('elimina Referencia legado del FormGroup y de la interfaz visible', () => {
     fixture.detectChanges();
 

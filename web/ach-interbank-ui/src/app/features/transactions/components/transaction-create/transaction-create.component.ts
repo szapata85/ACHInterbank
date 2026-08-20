@@ -1086,7 +1086,16 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     const selectedIsPrenotification = Boolean(this.form.get('isPrenotification')?.value);
     const sourceAccountNumber = String(this.form.get('sourceAccountNumber')?.value ?? '').trim();
 
-    if (selectedIsPrenotification || !sourceAccountNumber) {
+    if (selectedIsPrenotification) {
+      this.activeDestinationAccounts = [];
+      this.filteredDestinationAccounts = [];
+      this.destinationAccountOptions = [];
+      this.filteredDestinationAccountSearchOptions = [];
+      this.cdr.markForCheck();
+      return;
+    }
+
+    if (!sourceAccountNumber) {
       this.activeDestinationAccounts = [];
       this.filteredDestinationAccounts = [];
       this.destinationAccountOptions = [];
