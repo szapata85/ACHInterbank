@@ -103,7 +103,7 @@ public class NotificarRespuestaAchUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ShouldMarkTechnicalErrorAndPendingRetry_WhenGatewayThrows()
+    public async Task ExecuteAsync_ShouldRequireManualReview_AndBlockReplay_WhenGatewayTimesOut()
     {
         var sut = BuildSut(out var attemptRepo, out var gateway, out var uow, out _);
         var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
@@ -113,10 +113,33 @@ public class NotificarRespuestaAchUseCaseTests
         var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
 
         Assert.True(result.ErrorTecnico);
-        Assert.Equal(AchResponseNotificationStatus.ErrorTecnico, attempt.EstadoNotificacion);
-        Assert.Equal(AchResponseProcessingStatus.PendienteReintento, attempt.AchResponse!.EstadoProcesamiento);
+        Assert.Equal(AchResponseNotificationStatus.RequiereRevisionManual, attempt.EstadoNotificacion);
+        Assert.Equal(AchResponseProcessingStatus.RequiereRevisionManual, attempt.AchResponse!.EstadoProcesamiento);
         Assert.False(string.IsNullOrWhiteSpace(attempt.ErrorTecnico));
         Assert.NotNull(attempt.RequestPayload);
+        Assert.Contains("ResultadoDesconocido", attempt.ResponsePayload!);
+        uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        var replay = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(replay.YaProcesada);
+        gateway.Verify(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldKeepRetryPending_WhenGatewayFailsBeforeKnownDelivery()
+    {
+        var sut = BuildSut(out var attemptRepo, out var gateway, out var uow, out _);
+        var attempt = BuildAttempt(AchResponseNotificationStatus.Pendiente);
+        attemptRepo.Setup(x => x.FindByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(attempt);
+        gateway.Setup(x => x.RegistrarRespuestaAsync(It.IsAny<RegistrarRespuestaAchCommand>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("endpoint configuration invalid"));
+
+        var result = await sut.ExecuteAsync(new NotificarRespuestaAchCommand(1, null));
+
+        Assert.True(result.ErrorTecnico);
+        Assert.Equal(AchResponseNotificationStatus.ErrorTecnico, attempt.EstadoNotificacion);
+        Assert.Equal(AchResponseProcessingStatus.PendienteReintento, attempt.AchResponse!.EstadoProcesamiento);
         Assert.Contains("ErrorTecnico", attempt.ResponsePayload!);
         uow.Verify(x => x.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

@@ -135,17 +135,26 @@ public sealed class NotificarRespuestaAchUseCase : INotificarRespuestaAchUseCase
 
             return new(true, true, false, result.ExisteError, false, attempt.EstadoNotificacion, response.EstadoProcesamiento, result.CodigoError, result.DescripcionError, null, null);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
+            var deliveryOutcomeUnknown = ex is TimeoutException or TaskCanceledException;
             attempt.ResponsePayload = JsonSerializer.Serialize(new
             {
-                technicalStatus = "ErrorTecnico",
+                technicalStatus = deliveryOutcomeUnknown ? "ResultadoDesconocido" : "ErrorTecnico",
                 exceptionType = ex.GetType().Name
             });
-            attempt.EstadoNotificacion = AchResponseNotificationStatus.ErrorTecnico;
+            attempt.EstadoNotificacion = deliveryOutcomeUnknown
+                ? AchResponseNotificationStatus.RequiereRevisionManual
+                : AchResponseNotificationStatus.ErrorTecnico;
             attempt.ErrorTecnico = ex.Message;
             attempt.FechaEnvio = DateTime.UtcNow;
-            response.EstadoProcesamiento = AchResponseProcessingStatus.PendienteReintento;
+            response.EstadoProcesamiento = deliveryOutcomeUnknown
+                ? AchResponseProcessingStatus.RequiereRevisionManual
+                : AchResponseProcessingStatus.PendienteReintento;
             response.FechaActualizacion = DateTime.UtcNow;
             await _attemptRepository.UpdateAsync(attempt, cancellationToken);
             await _responseRepository.UpdateAsync(response, cancellationToken);

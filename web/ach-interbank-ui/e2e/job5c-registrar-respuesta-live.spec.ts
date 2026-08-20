@@ -6,6 +6,7 @@ const api = (process.env['ACH_API_URL'] ?? 'http://localhost:843').replace(/\/+$
 const username = process.env['ACH_USER'] ?? 'admin';
 const password = process.env['ACH_PASS'] ?? '';
 const correlationId = process.env['JOB5C_SOAP_CORRELATION_ID'] ?? '';
+const verifyExisting = process.env['JOB5C_VERIFY_EXISTING'] === 'true';
 
 test.use({ trace: 'off', screenshot: 'off', video: 'off' });
 
@@ -17,6 +18,10 @@ test.describe.serial('JOB 5C - RegistrarRespuestaTransaccion Live local controla
     expect(correlationId, 'JOB5C_SOAP_CORRELATION_ID es obligatorio.').toMatch(/^JOB5C-LIVE-[A-Z0-9-]+$/);
     const token = await loginThroughUi(page);
     const headers = { Authorization: `Bearer ${token}`, 'X-Correlation-ID': correlationId };
+    if (verifyExisting) {
+      await verifyExistingResponseWithoutRedispatch(page, headers);
+      return;
+    }
     await ensureAchColombiaApprovedPrenoteMapping(page, headers);
     const technicalSource = await prepareSyntheticCorrelatedPrenotification(page, headers);
     const idTransaccion = technicalSource.trace;
@@ -59,6 +64,15 @@ test.describe.serial('JOB 5C - RegistrarRespuestaTransaccion Live local controla
         motivo: processed.motivo ?? null
       })}`);
     }
+    console.log(`DIFF_RESP_PROCESS=${JSON.stringify({
+      procesada: processed.procesada,
+      duplicada: processed.duplicada,
+      existeHomologacion: processed.existeHomologacion,
+      permiteNotificacion: processed.permiteNotificacion,
+      intentoPendienteCreado: processed.intentoPendienteCreado,
+      estadoProcesamiento: processed.estadoProcesamiento,
+      motivo: processed.motivo ?? null
+    })}`);
     expect(processResponse.ok(), `HTTP ${processResponse.status()}`).toBeTruthy();
     expect(processed.procesada).toBe(true);
     expect(processed.duplicada).toBe(false);
@@ -126,11 +140,7 @@ test.describe.serial('JOB 5C - RegistrarRespuestaTransaccion Live local controla
     expect(detailAfter.notificationAttempts).toHaveLength(1);
     expect(detailAfter.notificationAttempts[0].estadoNotificacion).toBe(firstSend.estadoNotificacion);
 
-    await page.goto(`${ui}/ach-responses/${processed.achResponseId}`);
-    await expect(page.getByRole('heading', { name: /Detalle respuesta ACH/i })).toBeVisible();
-    expect(await page.locator('body').innerText()).not.toContain('[object Object]');
-    await page.goto(`${ui}/ach/reconciliation`);
-    await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH', exact: true })).toBeVisible();
+    await verifyResponseUi(page, processed.achResponseId);
     expect(await page.locator('body').innerText()).not.toContain('[object Object]');
 
     console.log(`JOB5C_SOAP_RESULT=${JSON.stringify({
@@ -138,9 +148,7 @@ test.describe.serial('JOB 5C - RegistrarRespuestaTransaccion Live local controla
       responseId: processed.achResponseId,
       attemptId: attempt.id,
       technicalSource: {
-        simulationId: technicalSource.simulationId,
-        fileName: technicalSource.maskedFileName,
-        ingestionId: technicalSource.ingestionId,
+        source: 'TransactionalPayload',
         transactionId: technicalSource.transactionId,
         trace: mask(technicalSource.trace)
       },
@@ -168,6 +176,79 @@ test.describe.serial('JOB 5C - RegistrarRespuestaTransaccion Live local controla
     })}`);
   });
 });
+
+async function verifyExistingResponseWithoutRedispatch(
+  page: Page,
+  headers: Record<string, string>
+): Promise<void> {
+  const searchResponse = await page.request.get(
+    `${api}/api/ach/responses?correlationId=${encodeURIComponent(correlationId)}&pageNumber=1&pageSize=10`,
+    { headers });
+  expect(searchResponse.ok(), await safeProblem(searchResponse)).toBeTruthy();
+  const search = await searchResponse.json() as {
+    items: Array<{ id: string; estadoProcesamiento: string; correlationId?: string }>;
+  };
+  expect(search.items).toHaveLength(1);
+  expect(search.items[0].estadoProcesamiento).toBe('Notificada');
+  expect(search.items[0].correlationId).toBe(correlationId);
+
+  const detail = await getDetail(page, headers, search.items[0].id);
+  expect(detail.notificationAttempts).toHaveLength(1);
+  expect(detail.notificationAttempts[0].estadoNotificacion).toBe('Exitosa');
+
+  const eventReplayResponse = await page.request.post(`${api}/api/ach/responses/process`, {
+    headers,
+    data: {
+      tipoRespuesta: detail.tipoRespuesta,
+      idTransaccion: detail.idTransaccion,
+      codigoCamaraCompensacion: detail.codigoCamaraCompensacion,
+      codigoEntidadOrigen: detail.codigoEntidadOrigen,
+      codigoEntidadDestino: detail.codigoEntidadDestino,
+      codigoEstadoExterno: detail.codigoEstadoExterno,
+      codigoCausalExterna: null,
+      descripcionCausalExterna: null,
+      idCanal: 1,
+      nombreCanal: 'JOB5C-LOCAL',
+      idTransaccionServicioExterno: 950501,
+      fechaRecepcion: detail.fechaRecepcion,
+      correlationId
+    }
+  });
+  expect(eventReplayResponse.ok(), await safeProblem(eventReplayResponse)).toBeTruthy();
+  const eventReplay = await eventReplayResponse.json() as {
+    achResponseId: string;
+    procesada: boolean;
+    duplicada: boolean;
+    intentoPendienteCreado: boolean;
+  };
+  expect(eventReplay.achResponseId).toBe(search.items[0].id);
+  expect(eventReplay.procesada).toBe(true);
+  expect(eventReplay.duplicada).toBe(true);
+  expect(eventReplay.intentoPendienteCreado).toBe(false);
+
+  const replayResponse = await page.request.post(`${api}/api/ach/responses/notifications/send`, {
+    headers,
+    data: { notificationAttemptId: detail.notificationAttempts[0].id, correlationId }
+  });
+  expect(replayResponse.ok(), await safeProblem(replayResponse)).toBeTruthy();
+  const replay = await replayResponse.json() as { procesada: boolean; yaProcesada: boolean; estadoNotificacion: string };
+  expect(replay.procesada).toBe(true);
+  expect(replay.yaProcesada).toBe(true);
+  expect(replay.estadoNotificacion).toBe('Exitosa');
+  const detailAfterReplay = await getDetail(page, headers, search.items[0].id);
+  expect(detailAfterReplay.estadoProcesamiento).toBe('Notificada');
+  expect(detailAfterReplay.duplicateReceiptCount).toBeGreaterThanOrEqual(1);
+  expect(detailAfterReplay.notificationAttempts).toHaveLength(1);
+  await verifyResponseUi(page, search.items[0].id);
+}
+
+async function verifyResponseUi(page: Page, responseId: string): Promise<void> {
+  await page.goto(`${ui}/ach-responses/${responseId}`);
+  await expect(page.getByRole('heading', { name: 'Detalle respuesta ACH', exact: true, level: 1 })).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toContain('[object Object]');
+  await page.goto(`${ui}/ach/reconciliation`);
+  await expect(page.getByRole('heading', { name: 'Consola de conciliación ACH', exact: true })).toBeVisible();
+}
 
 async function loginThroughUi(page: Page): Promise<string> {
   expect(password, 'ACH_PASS es obligatorio para la prueba Live local.').not.toBe('');
@@ -197,174 +278,87 @@ async function prepareSyntheticCorrelatedPrenotification(
   headers: Record<string, string>
 ): Promise<{
   trace: string;
-  simulationId: string;
-  maskedFileName: string;
-  ingestionId: string;
   transactionId: number;
 }> {
-  const businessDate = new Date().toISOString().slice(0, 10);
   const housesResponse = await page.request.get(`${api}/clearing-houses?search=ACHCOL`, { headers });
   expect(housesResponse.ok(), await safeProblem(housesResponse)).toBeTruthy();
   const housesPayload = await housesResponse.json();
   const houses = Array.isArray(housesPayload) ? housesPayload : housesPayload.items;
   const achColombia = houses.find((item: { code?: string }) => item.code === 'ACHCOL') as { id: number } | undefined;
   expect(achColombia?.id).toBeGreaterThan(0);
-  const configsResponse = await page.request.get(
-    `${api}/clearing-house-cycle-configs/current?clearingHouseId=${achColombia!.id}&effectiveAt=${businessDate}T00:00:00Z`,
-    { headers });
-  expect(configsResponse.ok(), await safeProblem(configsResponse)).toBeTruthy();
-  const configs = await configsResponse.json() as Array<{
-    id: number;
-    cycleName: string;
-    startTime: string;
-    endTime: string;
-    cutoffTime: string;
-  }>;
-  const cycleConfig = configs.find(config => config.cycleName === 'Ciclo 1');
-  expect(cycleConfig?.id).toBeGreaterThan(0);
-
-  const cycleResponse = await page.request.get(
-    `${api}/api/ach-cycles?clearingHouseId=${achColombia!.id}&processingDate=${businessDate}`,
-    { headers });
-  expect(cycleResponse.ok(), await safeProblem(cycleResponse)).toBeTruthy();
-  const cycles = await cycleResponse.json() as Array<{ id: string; cycleName?: string }>;
-  let operationalCycle = cycles.find(cycle => cycle.cycleName === 'Ciclo 1');
-  if (!operationalCycle) {
-    const createCycleResponse = await page.request.post(`${api}/api/ach-cycles`, {
-      headers,
-      data: {
-        cycleName: 'Ciclo 1',
-        processingDate: `${businessDate}T00:00:00Z`,
-        startTime: cycleConfig!.startTime,
-        endTime: cycleConfig!.endTime,
-        cutoffTime: cycleConfig!.cutoffTime,
-        rescheduleOnHoliday: false,
-        clearingHouseId: achColombia!.id,
-        clearingHouseCycleConfigId: cycleConfig!.id
-      }
-    });
-    expect(createCycleResponse.status(), await safeProblem(createCycleResponse)).toBe(201);
-    operationalCycle = await createCycleResponse.json() as { id: string; cycleName?: string };
-  }
-  expect(operationalCycle!.id).toBeTruthy();
-
+  await ensureOpenAchColombiaCycle(page, headers, achColombia!.id);
   const institutionsResponse = await page.request.get(`${api}/financial-institutions`, { headers });
   expect(institutionsResponse.ok(), await safeProblem(institutionsResponse)).toBeTruthy();
-  const institutions = await institutionsResponse.json() as Array<{ id: number; isDefaultSource: boolean; status: number | string }>;
-  const cfa = institutions.find(item => item.isDefaultSource);
-  const external = institutions.find(item =>
-    !item.isDefaultSource && (item.status === 1 || item.status === 'Active'));
-  expect(cfa?.id).toBeGreaterThan(0);
+  const institutions = await institutionsResponse.json() as Array<{
+    id: number;
+    name: string;
+    isDefaultSource: boolean;
+    status: number | string;
+  }>;
+  let external = institutions.find(item => item.name === 'DIFF RESP LOCAL INSTITUTION');
+  if (!external) {
+    const institutionResponse = await page.request.post(`${api}/financial-institutions`, {
+      headers,
+      data: {
+        id: 0,
+        name: 'DIFF RESP LOCAL INSTITUTION',
+        isDefaultSource: false,
+        routingNumber: '9919',
+        transitCode: '9001',
+        checkDigit: '0',
+        status: 1
+      }
+    });
+    expect(institutionResponse.ok(), await safeProblem(institutionResponse)).toBeTruthy();
+    external = await institutionResponse.json() as typeof external;
+  }
   expect(external?.id).toBeGreaterThan(0);
+
+  const preferencesResponse = await page.request.get(
+    `${api}/institution-clearing-house-preferences`,
+    { headers });
+  expect(preferencesResponse.ok(), await safeProblem(preferencesResponse)).toBeTruthy();
+  const preferences = await preferencesResponse.json() as Array<{
+    id: number;
+    financialInstitutionId: number;
+    clearingHouseId: number;
+    isDefault: boolean;
+    priority: number;
+    isActive: boolean;
+  }>;
+  const achColombiaPreference = preferences.find(item =>
+    item.financialInstitutionId === external!.id && item.clearingHouseId === achColombia!.id);
+  if (!achColombiaPreference) {
+    const preferenceResponse = await page.request.post(
+      `${api}/institution-clearing-house-preferences`,
+      {
+        headers,
+        data: {
+          id: 0,
+          financialInstitutionId: external!.id,
+          clearingHouseId: achColombia!.id,
+          isDefault: true,
+          priority: 1,
+          isActive: true
+        }
+      });
+    expect(preferenceResponse.ok(), await safeProblem(preferenceResponse)).toBeTruthy();
+  } else if (!achColombiaPreference.isDefault
+      || achColombiaPreference.priority !== 1
+      || !achColombiaPreference.isActive) {
+    const preferenceResponse = await page.request.put(
+      `${api}/institution-clearing-house-preferences/${achColombiaPreference.id}`,
+      { headers, data: { isDefault: true, priority: 1, isActive: true } });
+    expect(preferenceResponse.ok(), await safeProblem(preferenceResponse)).toBeTruthy();
+  }
 
   const descriptionsResponse = await page.request.get(`${api}/transactions/company-entry-descriptions`, { headers });
   expect(descriptionsResponse.ok(), await safeProblem(descriptionsResponse)).toBeTruthy();
   const descriptions = await descriptionsResponse.json() as Array<{ id: number; isActive?: boolean }>;
   const description = descriptions.find(item => item.isActive !== false);
   expect(description?.id).toBeGreaterThan(0);
-  const seedExternalId = `${correlationId}-CREDIT-SEED`;
-  const cycleTransactionsResponse = await page.request.get(
-    `${api}/api/transactions?achCycleName=Ciclo%201&effectiveDate=${businessDate}&clearingHouseId=${achColombia!.id}`,
-    { headers });
-  expect(cycleTransactionsResponse.ok(), await safeProblem(cycleTransactionsResponse)).toBeTruthy();
-  const cycleTransactions = await cycleTransactionsResponse.json() as Array<{ transactionExternalId?: string }>;
-  if (!cycleTransactions.some(transaction => transaction.transactionExternalId === seedExternalId)) {
-    const seedResponse = await page.request.post(`${api}/api/transactions`, {
-      headers,
-      data: {
-        amount: 1,
-        transactionExternalId: seedExternalId,
-        reference: `J5C-CREDIT-${correlationId.slice(-3)}`,
-        type: 1,
-        accountType: 1,
-        isPrenotification: false,
-        destinationInstitutionId: external!.id,
-        sourceAccountNumber: '7700000000003001',
-        destinationAccountNumber: '8800000000003002',
-        recipientIdNumber: '900000021',
-        recipientName: 'JOB5C CREDIT SEED',
-        requiresIdentityValidation: false,
-        companyName: 'JOB5C SYNTH',
-        companyIdentification: '900000022',
-        companyEntryDescriptionId: description!.id,
-        sourcePersonType: 'PJ',
-        recipientPersonType: 'PJ',
-        addendas: [{ addendaType: '05', information: 'JOB5C CREDIT SEED SINTETICO' }]
-      }
-    });
-    expect(seedResponse.status(), await safeProblem(seedResponse)).toBe(201);
-  }
-
-  const generateResponse = await page.request.post(`${api}/api/uat/nacha-inbound-simulator/generate`, {
-    headers,
-    data: {
-      simulationMode: 'IncomingTransactions',
-      clearingHouseCode: 'ACHCOL',
-      scenarioType: 'IncomingCredit',
-      originFinancialInstitutionId: external!.id,
-      destinationFinancialInstitutionId: cfa!.id,
-      entriesCount: 1,
-      amount: 1,
-      referencePrefix: 'JOB5C-SYN',
-      businessDate,
-      cycleCode: operationalCycle!.id,
-      pendingPrenotificationReferences: [],
-      transactionReferences: [],
-      responseMode: null,
-      reasonCode: null,
-      notes: 'JOB5C SOAP technical source'
-    }
-  });
-  if (!generateResponse.ok()) {
-    const problem = await generateResponse.json() as { title?: string; detail?: string };
-    console.log(`JOB5C_SIMULATOR_BLOCKED=${JSON.stringify({
-      status: generateResponse.status(),
-      title: problem.title ?? null,
-      detail: problem.detail ?? null
-    })}`);
-  }
-  expect(generateResponse.status(), await safeProblem(generateResponse)).toBe(201);
-  const generated = await generateResponse.json() as {
-    id: number;
-    simulationId: string;
-    fileName: string;
-    downloadUrl: string;
-  };
-
-  const downloadResponse = await page.request.get(new URL(generated.downloadUrl, api).toString(), { headers });
-  expect(downloadResponse.ok(), await safeProblem(downloadResponse)).toBeTruthy();
-  const fileBuffer = await downloadResponse.body();
-  const fileText = fileBuffer.toString('utf8');
-  const records = /\r|\n/.test(fileText)
-    ? fileText.split(/\r?\n/).filter(Boolean)
-    : Array.from({ length: Math.floor(fileText.length / 106) }, (_, index) =>
-        fileText.slice(index * 106, (index + 1) * 106));
-  const entryLine = records.find(line => line.length >= 102 && line.startsWith('6'));
-  expect(entryLine, 'El simulador debe producir un registro tipo 6.').toBeTruthy();
-  const trace = entryLine!.slice(87, 102).trim();
+  const trace = `9${Date.now().toString().padStart(14, '0').slice(-14)}`;
   expect(trace).toMatch(/^\d{15}$/);
-
-  await navigateToUploadFromMenu(page);
-  await page.locator('input[type="file"]').setInputFiles({
-    name: generated.fileName,
-    mimeType: 'application/octet-stream',
-    buffer: fileBuffer
-  });
-  const uploadResponsePromise = page.waitForResponse(response =>
-    /\/NachaUpload\/upload(?:\?.*)?$/.test(response.url())
-    && response.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Cargar archivo' }).click();
-  const uploadResponse = await uploadResponsePromise;
-  expect(uploadResponse.ok(), `Synthetic technical upload HTTP ${uploadResponse.status()}`).toBeTruthy();
-  const upload = await uploadResponse.json() as {
-    ingestionId: string;
-    ingestionStatus: string;
-    parsingStatus: string;
-    totalEntries: number;
-  };
-  expect(upload.ingestionStatus).toBe('Completado');
-  expect(upload.parsingStatus).toMatch(/^Exitoso/);
-  expect(upload.totalEntries).toBe(1);
 
   const transactionResponse = await page.request.post(`${api}/api/transactions`, {
     headers,
@@ -395,20 +389,59 @@ async function prepareSyntheticCorrelatedPrenotification(
 
   return {
     trace,
-    simulationId: generated.simulationId,
-    maskedFileName: maskFileName(generated.fileName),
-    ingestionId: upload.ingestionId,
     transactionId: transaction.id
   };
 }
 
-async function navigateToUploadFromMenu(page: Page): Promise<void> {
-  const parent = page.getByRole('button', { name: /Transacciones/i }).first();
-  if (await parent.isVisible()) {
-    await parent.click();
+async function ensureOpenAchColombiaCycle(
+  page: Page,
+  headers: Record<string, string>,
+  clearingHouseId: number
+): Promise<void> {
+  const businessDate = new Date().toISOString().slice(0, 10);
+  const configResponse = await page.request.get(
+    `${api}/clearing-house-cycle-configs/current?clearingHouseId=${clearingHouseId}&effectiveAt=${businessDate}T12:00:00Z`,
+    { headers });
+  expect(configResponse.ok(), await safeProblem(configResponse)).toBeTruthy();
+  const configs = await configResponse.json() as Array<{ id: number; cycleName: string }>;
+  let config = configs.find(item => item.cycleName === 'Ciclo 0 DIFF RESP');
+  if (!config) {
+    const createConfigResponse = await page.request.post(`${api}/clearing-house-cycle-configs`, {
+      headers,
+      data: {
+        clearingHouseId,
+        cycleName: 'Ciclo 0 DIFF RESP',
+        startTime: '00:00:00',
+        endTime: '23:59:59',
+        cutoffTime: '23:58:00',
+        effectiveFrom: `${businessDate}T00:00:00Z`
+      }
+    });
+    expect(createConfigResponse.ok(), await safeProblem(createConfigResponse)).toBeTruthy();
+    config = await createConfigResponse.json() as { id: number; cycleName: string };
   }
-  await page.getByRole('link', { name: /Cargar NACHA-M/i }).click();
-  await expect(page).toHaveURL(/\/transactions\/nacha-upload$/);
+
+  const cyclesResponse = await page.request.get(
+    `${api}/api/ach-cycles?clearingHouseId=${clearingHouseId}&processingDate=${businessDate}`,
+    { headers });
+  expect(cyclesResponse.ok(), await safeProblem(cyclesResponse)).toBeTruthy();
+  const cycles = await cyclesResponse.json() as Array<{ id: string; cycleName: string }>;
+  if (cycles.some(item => item.cycleName === 'Ciclo 0 DIFF RESP')) return;
+
+  const createCycleResponse = await page.request.post(`${api}/api/ach-cycles`, {
+    headers,
+    data: {
+      cycleName: 'Ciclo 0 DIFF RESP',
+      processingDate: `${businessDate}T00:00:00Z`,
+      startTime: '00:00:00',
+      endTime: '23:59:59',
+      cutoffTime: '23:58:00',
+      rescheduleOnHoliday: false,
+      clearingHouseId,
+      clearingHouseCycleConfigId: config!.id
+    }
+  });
+  expect(createCycleResponse.status(), await safeProblem(createCycleResponse)).toBe(201);
 }
 
 async function ensureAchColombiaApprovedPrenoteMapping(
@@ -419,8 +452,52 @@ async function ensureAchColombiaApprovedPrenoteMapping(
     `${api}/api/ach/response-status-mappings?codigoCamaraCompensacion=ACHCOL&tipoRespuesta=Prenota&activo=true`,
     { headers });
   expect(existingResponse.ok(), await safeProblem(existingResponse)).toBeTruthy();
-  const existing = await existingResponse.json() as Array<{ codigoEstadoExterno?: string }>;
-  if (existing.some(item => item.codigoEstadoExterno === '00')) {
+  const existing = await existingResponse.json() as Array<{
+    id: number;
+    codigoEstadoExterno?: string;
+    codigoCausalExterna?: string | null;
+    idEstadoInterno: number;
+    idEstadoServicioExterno: number;
+    estadoInternoNombre: string;
+    causalNormalizada?: string | null;
+    descripcionCausalNormalizada?: string | null;
+    requiereCausal: boolean;
+    permiteNotificacion: boolean;
+    fechaInicioVigencia: string;
+    fechaFinVigencia?: string | null;
+    clearingHouseId: number;
+    priority: number;
+    version: string;
+  }>;
+  const approvedMapping = existing.find(item => item.codigoEstadoExterno === '00');
+  if (approvedMapping?.permiteNotificacion) return;
+
+  if (approvedMapping) {
+    const updateResponse = await page.request.put(
+      `${api}/api/ach/response-status-mappings/${approvedMapping.id}`,
+      {
+        headers,
+        data: {
+          clearingHouseId: approvedMapping.clearingHouseId,
+          responseType: 'Prenota',
+          externalCode: '00',
+          externalCause: approvedMapping.codigoCausalExterna ?? null,
+          internalStatusId: approvedMapping.idEstadoInterno,
+          externalServiceStatusId: approvedMapping.idEstadoServicioExterno,
+          internalStatusName: approvedMapping.estadoInternoNombre,
+          normalizedCause: approvedMapping.causalNormalizada ?? null,
+          normalizedDescription: approvedMapping.descripcionCausalNormalizada ?? 'Aprobada',
+          requiresCause: approvedMapping.requiereCausal,
+          allowsNotification: true,
+          priority: approvedMapping.priority,
+          effectiveFrom: approvedMapping.fechaInicioVigencia,
+          effectiveTo: approvedMapping.fechaFinVigencia ?? null,
+          isActive: true,
+          expectedVersion: approvedMapping.version,
+          reason: 'DIFF-RESP-001 habilitación local controlada de notificación'
+        }
+      });
+    expect(updateResponse.ok(), await safeProblem(updateResponse)).toBeTruthy();
     return;
   }
 
@@ -463,9 +540,4 @@ async function safeProblem(response: { status(): number; text(): Promise<string>
 
 function mask(value: string): string {
   return value.length <= 6 ? '***' : `${value.slice(0, 3)}***${value.slice(-3)}`;
-}
-
-function maskFileName(value: string): string {
-  const parts = value.split('.');
-  return `${parts[0]?.slice(0, 7) ?? '***'}.***${value.toUpperCase().endsWith('.OUT') ? '.OUT' : ''}`;
 }

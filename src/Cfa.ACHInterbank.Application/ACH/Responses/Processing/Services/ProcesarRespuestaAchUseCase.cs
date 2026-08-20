@@ -246,7 +246,8 @@ public sealed class ProcesarRespuestaAchUseCase : IProcesarRespuestaAchUseCase
     private static bool IsManualReview(string? code)
         => code is "DIFFERENTIAL_RESPONSE_PRENOTIFICATION_NOT_FOUND"
             or "DIFFERENTIAL_RESPONSE_UNMATCHED"
-            or "DIFFERENTIAL_RESPONSE_ALREADY_PROCESSED";
+            or "DIFFERENTIAL_RESPONSE_ALREADY_PROCESSED"
+            or "DIFFERENTIAL_RESPONSE_CORRELATION_AMBIGUOUS";
 
     private static void Transition(AchResponse response, AchResponseProcessingStatus target, string action,
         string reason, string correlationId, DateTime occurredAtUtc)

@@ -51,6 +51,15 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         }
 
         var match = await ResolvePrenotificationMatchAsync(command, cancellationToken);
+        if (match.CorrelationErrorCode is not null)
+        {
+            var ambiguousTrace = await WriteTraceAsync(command, response, homologation, match, null, cancellationToken);
+            return DifferentialPrenotificationResponseProcessResult.Failed(
+                match.CorrelationErrorCode,
+                match.CorrelationErrorMessage!,
+                ambiguousTrace.TraceId);
+        }
+
         if (match.Prenotification is null)
         {
             var unmatchedTrace = await WriteTraceAsync(command, response, homologation, match, null, cancellationToken);
@@ -82,23 +91,24 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
                 Message: "La prenotificacion relacionada ya no esta pendiente.");
         }
 
-        if (match.EntryDetail is null || match.NachaHeader is null)
+        if (match.EntryDetail is not null && match.NachaHeader is null)
         {
             var unmatchedTrace = await WriteTraceAsync(command, response, homologation, match, prenotification, cancellationToken);
             return DifferentialPrenotificationResponseProcessResult.Failed(
                 "DIFFERENTIAL_RESPONSE_UNMATCHED",
-                "No se encontro cruce NACHA-M desagregado suficiente para la prenotificacion.",
+                "La entrada NACHA-M correlacionada no tiene cabecera de archivo asociada.",
                 unmatchedTrace.TraceId,
                 prenotification.Id);
         }
 
         var responseClearingHouseId = response.ClearingHouseId;
         var prenotificationClearingHouseId = prenotification.AchCycle?.ClearingHouseId;
+        var nachaClearingHouseId = match.NachaHeader?.ClearingHouseId;
         if (!responseClearingHouseId.HasValue
-            || !match.NachaHeader.ClearingHouseId.HasValue
             || !prenotificationClearingHouseId.HasValue
-            || responseClearingHouseId.Value != match.NachaHeader.ClearingHouseId.Value
-            || responseClearingHouseId.Value != prenotificationClearingHouseId.Value)
+            || responseClearingHouseId.Value != prenotificationClearingHouseId.Value
+            || (nachaClearingHouseId.HasValue
+                && responseClearingHouseId.Value != nachaClearingHouseId.Value))
         {
             var mismatchTrace = await WriteTraceAsync(command, response, homologation, match, prenotification, cancellationToken);
             return DifferentialPrenotificationResponseProcessResult.Failed(
@@ -108,15 +118,16 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
                 prenotification.Id);
         }
 
-        if (!string.Equals(
-                Normalize(match.EntryDetail.AccountNumber),
-                Normalize(prenotification.DestinationAccountNumber),
-                StringComparison.Ordinal)
-            || (!string.IsNullOrWhiteSpace(match.EntryDetail.RecipIdNumber)
-                && !string.Equals(
-                    Normalize(match.EntryDetail.RecipIdNumber),
-                    Normalize(prenotification.RecipientIdNumber),
-                    StringComparison.OrdinalIgnoreCase)))
+        if (match.EntryDetail is not null
+            && (!string.Equals(
+                    Normalize(match.EntryDetail.AccountNumber),
+                    Normalize(prenotification.DestinationAccountNumber),
+                    StringComparison.Ordinal)
+                || (!string.IsNullOrWhiteSpace(match.EntryDetail.RecipIdNumber)
+                    && !string.Equals(
+                        Normalize(match.EntryDetail.RecipIdNumber),
+                        Normalize(prenotification.RecipientIdNumber),
+                        StringComparison.OrdinalIgnoreCase))))
         {
             var inconsistentTrace = await WriteTraceAsync(command, response, homologation, match, prenotification, cancellationToken);
             return DifferentialPrenotificationResponseProcessResult.Failed(
@@ -249,10 +260,19 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
     {
         var reference = Normalize(command.IdTransaccion);
 
-        var entry = await _context.EntryDetails.AsNoTracking()
+        var entries = await _context.EntryDetails.AsNoTracking()
             .Where(x => x.SequenceNumber != null && x.SequenceNumber.Trim() == reference)
             .OrderByDescending(x => x.EntryDetailID)
-            .FirstOrDefaultAsync(cancellationToken);
+            .Take(2)
+            .ToListAsync(cancellationToken);
+
+        if (entries.Count > 1)
+        {
+            return PrenotificationNachaMatch.Ambiguous(
+                "La referencia diferencial coincide con mas de una entrada NACHA-M.");
+        }
+
+        var entry = entries.SingleOrDefault();
 
         AddendaRecord? addenda = null;
         IncomingNachaTransactionLink? link = null;
@@ -266,13 +286,29 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
                 .OrderByDescending(x => x.AddendaID)
                 .FirstOrDefaultAsync(cancellationToken);
 
-            link = await _context.IncomingNachaTransactionLinks.AsNoTracking()
+            var links = await _context.IncomingNachaTransactionLinks.AsNoTracking()
                 .Where(x => x.EntryDetailId == entry.EntryDetailID && x.IsFinal)
                 .OrderByDescending(x => x.LinkedAtUtc)
-                .FirstOrDefaultAsync(cancellationToken);
+                .Take(2)
+                .ToListAsync(cancellationToken);
+
+            if (links.Count > 1)
+            {
+                return PrenotificationNachaMatch.Ambiguous(
+                    "La entrada NACHA-M tiene mas de un vinculo transaccional final.");
+            }
+
+            link = links.SingleOrDefault();
         }
 
-        var prenotification = await ResolvePrenotificationAsync(reference, link?.AchTransactionId, cancellationToken);
+        var resolution = await ResolvePrenotificationAsync(reference, link?.AchTransactionId, cancellationToken);
+        if (resolution.Ambiguous)
+        {
+            return PrenotificationNachaMatch.Ambiguous(
+                "La referencia diferencial coincide con mas de una prenotificacion original.");
+        }
+
+        var prenotification = resolution.Prenotification;
         var nachaId = entry?.NachaID;
 
         var header = string.IsNullOrWhiteSpace(nachaId)
@@ -291,7 +327,7 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         return new PrenotificationNachaMatch(prenotification, header, batchHeader, entry, addenda, batchControl, fileControl);
     }
 
-    private async Task<AchTransaction?> ResolvePrenotificationAsync(string reference, int? linkedTransactionId, CancellationToken cancellationToken)
+    private async Task<PrenotificationResolution> ResolvePrenotificationAsync(string reference, int? linkedTransactionId, CancellationToken cancellationToken)
     {
         var query = _context.AchTransactions
             .Include(x => x.SourceInstitution)
@@ -303,7 +339,7 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
             var linked = await query.FirstOrDefaultAsync(x => x.Id == linkedTransactionId.Value, cancellationToken);
             if (linked is not null)
             {
-                return linked;
+                return new PrenotificationResolution(linked, false);
             }
         }
 
@@ -318,7 +354,12 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
             .Take(2)
             .ToListAsync(cancellationToken);
 
-        return candidates.Count == 1 ? candidates[0] : null;
+        return candidates.Count switch
+        {
+            0 => new PrenotificationResolution(null, false),
+            1 => new PrenotificationResolution(candidates[0], false),
+            _ => new PrenotificationResolution(null, true)
+        };
     }
 
     private static DifferentialResponseMappingPayload BuildTracePayload(
@@ -435,7 +476,24 @@ public sealed class DifferentialPrenotificationResponseProcessor : IDifferential
         EntryDetail? EntryDetail,
         AddendaRecord? AddendaRecord,
         BatchControl? BatchControl,
-        FileControl? FileControl);
+        FileControl? FileControl,
+        string? CorrelationErrorCode = null,
+        string? CorrelationErrorMessage = null)
+    {
+        public static PrenotificationNachaMatch Ambiguous(string message)
+            => new(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "DIFFERENTIAL_RESPONSE_CORRELATION_AMBIGUOUS",
+                message);
+    }
+
+    private sealed record PrenotificationResolution(AchTransaction? Prenotification, bool Ambiguous);
 
     private sealed record DifferentialResponseMappingPayload(
         IReadOnlyDictionary<string, string> Parameters,

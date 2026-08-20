@@ -163,6 +163,43 @@ public class ProcesarRespuestaAchUseCaseTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_ShouldRequireManualReview_WhenPrenotificationCorrelationIsAmbiguous()
+    {
+        var processor = new Mock<IDifferentialPrenotificationResponseProcessor>();
+        processor.Setup(x => x.ProcessAsync(
+                It.IsAny<ProcesarRespuestaAchCommand>(),
+                It.IsAny<AchResponse>(),
+                It.IsAny<HomologarRespuestaAchResult>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DifferentialPrenotificationResponseProcessResult.Failed(
+                "DIFFERENTIAL_RESPONSE_CORRELATION_AMBIGUOUS",
+                "La referencia coincide con varias prenotificaciones."));
+        var sut = BuildUseCase(
+            out var responseRepo,
+            out var attemptRepo,
+            out var mapping,
+            out var uow,
+            out _,
+            processor.Object);
+        responseRepo.Setup(r => r.FindByIdempotencyHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AchResponse?)null);
+        mapping.Setup(m => m.HomologarAsync(It.IsAny<HomologarRespuestaAchRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(HomologarRespuestaAchResult.Success(true, 10, 20, "Aprobada", null, "Aprobada"));
+
+        var result = await sut.ExecuteAsync(BuildValidCommand() with
+        {
+            TipoRespuesta = TipoRespuestaAch.Prenota,
+            CodigoCausalExterna = null
+        });
+
+        Assert.Equal(AchResponseProcessingStatus.RequiereRevisionManual, result.EstadoProcesamiento);
+        Assert.False(result.PermiteNotificacion);
+        Assert.False(result.IntentoPendienteCreado);
+        attemptRepo.Verify(x => x.AddAsync(It.IsAny<AchResponseNotificationAttempt>(), It.IsAny<CancellationToken>()), Times.Never);
+        uow.Verify(x => x.CommitIdempotentAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ShouldUseFechaRecepcionFromCommand_WhenProvided()
     {
         var sut = BuildUseCase(out var responseRepo, out _, out var mapping, out var uow, out _);

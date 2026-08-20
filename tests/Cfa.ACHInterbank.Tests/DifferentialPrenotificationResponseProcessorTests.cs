@@ -46,6 +46,29 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
     }
 
     [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldProcessTransactionalPayload_WithoutDifferentialPhysicalFile()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        fixture.Context.IncomingNachaTransactionLinks.RemoveRange(fixture.Context.IncomingNachaTransactionLinks);
+        fixture.Context.EntryDetails.RemoveRange(fixture.Context.EntryDetails);
+        await fixture.Context.SaveChangesAsync();
+
+        var result = await fixture.Processor.ProcessAsync(
+            fixture.SuccessCommand(),
+            fixture.BuildResponse("00", null),
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+
+        Assert.True(result.Success);
+        Assert.Equal(fixture.Prenotification.Id, result.PrenotificationTransactionId);
+        Assert.True(result.TracePersisted);
+        Assert.False(result.MonetaryMovementCreated);
+        Assert.False(result.BalancesAffected);
+        Assert.Equal(AchTransferStateEnum.Certified,
+            (await fixture.Context.AchTransactions.SingleAsync(x => x.Id == fixture.Prenotification.Id)).State);
+    }
+
+    [Fact]
     public async Task RegistrarRespuestaTransaccion_ShouldRejectPendingPrenotification_WhenRejectedResponseReceived()
     {
         await using var fixture = await Fixture.CreateAsync();
@@ -176,6 +199,54 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
         Assert.Equal("DIFFERENTIAL_RESPONSE_PRENOTIFICATION_NOT_FOUND", result.ErrorCode);
         Assert.True(await fixture.Context.IntegrationMappingTraces.AnyAsync());
         Assert.Equal(AchTransferStateEnum.Pending, (await fixture.Context.AchTransactions.SingleAsync(x => x.Id == fixture.Prenotification.Id)).State);
+    }
+
+    [Fact]
+    public async Task RegistrarRespuestaTransaccion_ShouldFailClosed_WhenOriginalTransactionCorrelationIsAmbiguous()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishRegistrarRespuestaMappingAsync();
+        fixture.Context.IncomingNachaTransactionLinks.RemoveRange(fixture.Context.IncomingNachaTransactionLinks);
+        fixture.Context.AchTransactions.Add(new AchTransaction
+        {
+            Id = 902,
+            Amount = 0m,
+            Type = TransactionTypeEnum.Prenotification,
+            IsPrenotification = true,
+            TransactionCode = "28",
+            TransactionExternalId = fixture.TraceNumber,
+            Reference = fixture.TraceNumber,
+            SourceInstitutionId = fixture.Prenotification.SourceInstitutionId,
+            DestinationInstitutionId = fixture.Prenotification.DestinationInstitutionId,
+            SourceAccountNumber = fixture.Prenotification.SourceAccountNumber,
+            DestinationAccountNumber = fixture.Prenotification.DestinationAccountNumber,
+            RecipientIdNumber = fixture.Prenotification.RecipientIdNumber,
+            OriginatingDFI = fixture.Prenotification.OriginatingDFI,
+            ReceivingDFI = fixture.Prenotification.ReceivingDFI,
+            TraceNumber = fixture.TraceNumber,
+            CompanyIdentification = fixture.Prenotification.CompanyIdentification,
+            AchCycleId = fixture.Prenotification.AchCycleId,
+            AchBatchId = fixture.Prenotification.AchBatchId,
+            EffectiveEntryDate = fixture.Prenotification.EffectiveEntryDate,
+            Direction = AchTransactionDirection.Outgoing,
+            Origin = AchTransactionOrigin.Cfa,
+            ClassificationStatus = AchTransactionClassificationStatus.Determined,
+            State = AchTransferStateEnum.Pending
+        });
+        await fixture.Context.SaveChangesAsync();
+        var response = fixture.BuildResponse("00", null);
+
+        var result = await fixture.Processor.ProcessAsync(
+            fixture.SuccessCommand(),
+            response,
+            HomologarRespuestaAchResult.Success(true, 1, 1, "Aprobada", null, null));
+
+        Assert.False(result.Success);
+        Assert.Equal("DIFFERENTIAL_RESPONSE_CORRELATION_AMBIGUOUS", result.ErrorCode);
+        Assert.Null(response.AchTransactionId);
+        Assert.Empty(await fixture.Context.AchTransactionStateEvents.ToListAsync());
+        Assert.All(await fixture.Context.AchTransactions.Where(x => x.IsPrenotification).ToListAsync(),
+            transaction => Assert.Equal(AchTransferStateEnum.Pending, transaction.State));
     }
 
     [Fact]
@@ -444,6 +515,9 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
                 AchCycleId = cycle.Id,
                 AchBatchId = 1,
                 EffectiveEntryDate = cycle.ProcessingDate,
+                Direction = AchTransactionDirection.Outgoing,
+                Origin = AchTransactionOrigin.Cfa,
+                ClassificationStatus = AchTransactionClassificationStatus.Determined,
                 State = AchTransferStateEnum.Pending
             };
             Context.AchTransactions.Add(Prenotification);
