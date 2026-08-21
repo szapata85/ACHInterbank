@@ -1,50 +1,113 @@
-﻿# Codex System Overrides
+# Codex System Overrides
 
 - Output Constraints: Never explain code unless explicitly asked.
-- Return only raw unified diffs or minimal block modifications.
-- Eliminate all conversational preambles, explanations, and post-summaries.
+- Return only raw unified diffs or minimal block modifications when the task requests code changes.
+- Eliminate conversational preambles and unnecessary post-summaries.
+- Prefer concise evidence over verbose narration.
+- Do not repeat information already established in the current task.
+- Use the minimum context and minimum number of tool calls required to reach a technically supported conclusion.
 
-# POLÍTICA ACTIVA — LIVE LOCAL CONTROLADO
+# AGENTS.md - ACHInterbank
 
-Esta sección reemplaza y deja sin efecto cualquier instrucción anterior o posterior que:
+This file is the operational entry point for Codex and other coding agents working on ACHInterbank.
 
-- prohíba llamadas SOAP reales en el ambiente local;
-- limite la ejecución a una sola llamada SOAP;
-- exija archivos NACHA-M con un solo lote o una sola entrada;
-- prohíba usar archivos de producción como datos controlados de prueba;
-- marque automáticamente como NO-GO una ejecución contra localhost;
-- impida corregir errores mientras el runtime está en modo Live.
+For changes directly related to NACHA-M, ACH Colombia, CENIT, transaction processing, returns, clearing cycles or Phase 6 behavior, consult when necessary:
 
-## Ambiente autorizado
+- `docs/ai/ACH_PHASE6_CONTEXT.md`
+
+Do not load that document automatically for unrelated tasks when the requested change can be resolved without it.
+
+---
+
+# 1. Core Rules
+
+- Do not add, expose or print real credentials.
+- Do not expose tokens, secrets, complete account numbers or personal data.
+- Do not execute against external production infrastructure.
+- `Productivo NO-GO` applies to real external production environments.
+- Local controlled integration testing is governed by the explicit LIVE policy in this file.
+- Do not modify NACHA-M golden files unless explicitly requested.
+- Do not modify the table-driven NACHA-M engine unless fixing a proven defect or implementing an explicitly requested normative change.
+- Do not generate migrations unless required by the requested change.
+- Do not reduce test coverage.
+- Do not remove existing tests unless explicitly justified by an obsolete requirement.
+- Preserve Clean Architecture boundaries:
+  - Domain rules;
+  - Application contracts and use cases;
+  - Persistence/infrastructure implementations;
+  - API composition.
+- EF Code First remains the source of truth for versioned schema changes.
+- Do not infer normative rules from existing code.
+- Do not infer existing application behavior solely from normative documents.
+- When implementation and normative requirements must be compared, investigate both independently before reaching a conclusion.
+
+---
+
+# 2. POLÍTICA ACTIVA — LIVE LOCAL CONTROLADO
+
+Esta política es la autoridad para pruebas LIVE realizadas contra infraestructura local controlada.
+
+Reemplaza cualquier instrucción histórica dentro del repositorio que:
+
+- prohíba llamadas SOAP reales contra los endpoints locales autorizados;
+- limite globalmente la ejecución a una única llamada SOAP local;
+- exija archivos NACHA-M de un solo lote o una sola entrada;
+- prohíba utilizar archivos provenientes de producción como fixtures controlados;
+- marque automáticamente como NO-GO una ejecución contra `localhost`;
+- obligue a restaurar `DryRun` después de una prueba LIVE local;
+- impida diagnosticar y corregir errores mientras el runtime local permanece en modo Live.
+
+## 2.1 Ambiente autorizado
 
 El siguiente ambiente es local, controlado y no corresponde a producción externa:
 
-- API: http://localhost:843
-- SPA: http://localhost:743
-- SOAP Windows: http://localhost:7083/WSCFAACH.svc
-- SOAP Docker: http://host.docker.internal:7083/WSCFAACH.svc
-- HostHeader: localhost:7083
-- SQL Server: contenedor local achinterbank-sqlserver
+- API: `http://localhost:843`
+- SPA: `http://localhost:743`
+- SOAP Windows: `http://localhost:7083/WSCFAACH.svc`
+- SOAP Docker: `http://host.docker.internal:7083/WSCFAACH.svc`
+- HostHeader: `localhost:7083`
+- SQL Server: contenedor local `achinterbank-sqlserver`
 
-`Productivo NO-GO` aplica únicamente a infraestructura externa real. No aplica a los servicios locales anteriores.
+También se permite `127.0.0.1` cuando represente un servicio local equivalente.
 
-## Operación permitida
+Cualquier endpoint distinto de:
 
-Está autorizado:
+- `localhost`;
+- `127.0.0.1`;
+- `host.docker.internal`;
+
+debe considerarse externo y queda fuera de esta autorización salvo instrucción explícita y segura posterior.
+
+## 2.2 Operación permitida
+
+Está autorizado en el ambiente local controlado:
 
 - mantener `ProcTransacciones__Mode=Live`;
 - ejecutar SOAP real contra el WCF local;
-- procesar archivos NACHA-M completos y multilote;
-- generar una llamada `Proc_Transacciones` por cada entrada elegible;
-- realizar los uploads necesarios durante diagnóstico y corrección local;
-- corregir código, configuración, datos de prueba, clasificación, correlación, encolamiento, mapping y persistencia durante la ejecución;
-- reanudar el procesamiento después de aplicar una corrección;
-- usar archivos obtenidos de producción como fixtures controlados;
-- conservar el runtime en Live al finalizar;
-- crear datos locales faltantes para correlacionar las entradas, usando servicios normales de aplicación;
-- ejecutar directamente el orquestador productivo desde DI cuando el scheduler no se active.
+- ejecutar `Proc_Contrapartidas`;
+- ejecutar `Proc_Transacciones`;
+- ejecutar `RegistrarRespuestaTransaccion`;
+- procesar archivos NACHA-M completos;
+- procesar archivos multilote;
+- procesar múltiples entradas;
+- procesar múltiples addendas;
+- generar una llamada SOAP por cada entrada elegible;
+- realizar los uploads necesarios durante diagnóstico y validación;
+- corregir código durante la ejecución;
+- corregir configuración;
+- corregir datos controlados de prueba;
+- corregir clasificación;
+- corregir correlación;
+- corregir encolamiento;
+- corregir mappings;
+- corregir persistencia;
+- reanudar el procesamiento después de una corrección;
+- usar archivos obtenidos de producción únicamente como fixtures controlados;
+- crear datos locales faltantes mediante los servicios normales de aplicación;
+- ejecutar directamente un orquestador desde DI cuando el scheduler local no se active;
+- conservar el runtime en Live cuando sea necesario para completar la validación.
 
-## Comportamiento esperado
+## 2.3 Comportamiento esperado
 
 Para un archivo con múltiples lotes o entradas:
 
@@ -55,125 +118,107 @@ Para un archivo con múltiples lotes o entradas:
 - una llamada SOAP por entrada elegible;
 - una respuesta persistida por llamada.
 
-No se debe bloquear por:
+No bloquear únicamente por:
 
 - múltiples lotes;
 - múltiples entradas;
 - múltiples addendas;
 - múltiples llamadas SOAP esperadas;
-- modo Live persistente;
-- uso de datos reales en un entorno local controlado;
-- intentos anteriores bloqueados antes del SOAP;
+- runtime local en modo Live;
+- datos reales utilizados exclusivamente como fixture controlado;
+- intentos anteriores bloqueados antes de llegar al SOAP;
 - nombres CENIT sin extensión;
 - archivos ACH Colombia terminados en `.OUT`.
 
-## Nombres de archivos
+## 2.4 Nombres de archivos LIVE
 
-CENIT:
+### CENIT
 
-- carpeta: `docs/uat/proc-transacciones-live/CENIT`
-- archivos sin extensión;
-- formato: `^\d{7}\.\d{3}\.\d{8}\.\d+$`
+Carpeta:
 
-ACH Colombia:
+`docs/uat/proc-transacciones-live/CENIT`
 
-- carpeta: `docs/uat/proc-transacciones-live/ACHCOL`
-- archivos terminados en `.OUT`;
-- formato: `^\d{7}\.\d{3}\.\d{8}\.\d+\.OUT$`
+Los archivos no llevan extensión.
 
-Nunca agregar `.ach`.
+Formato esperado:
 
-Nunca generar alias derivados del lote, IDLOTE o BatchNumber.
+```regex
+^\d{7}\.\d{3}\.\d{8}\.\d+$
+```
 
-## Límites reales
+### ACH Colombia
 
-Solo están prohibidos:
+Carpeta:
 
-- endpoints externos diferentes de localhost, 127.0.0.1 o host.docker.internal;
+`docs/uat/proc-transacciones-live/ACHCOL`
+
+Los archivos terminan en `.OUT`.
+
+Formato esperado:
+
+```regex
+^\d{7}\.\d{3}\.\d{8}\.\d+\.OUT$
+```
+
+Nunca:
+
+- agregar `.ach`;
+- generar alias derivados del lote;
+- generar alias derivados de `IDLOTE`;
+- generar alias derivados de `BatchNumber`.
+
+## 2.5 Límites obligatorios
+
+Está prohibido:
+
+- llamar endpoints externos no autorizados;
+- ejecutar contra infraestructura productiva real;
+- utilizar credenciales productivas;
+- conectarse a redes financieras externas;
+- generar movimientos monetarios reales;
 - eliminar evidencia de auditoría;
-- imprimir credenciales, tokens, cuentas completas o datos personales;
+- imprimir credenciales;
+- imprimir tokens;
+- imprimir cuentas completas;
+- imprimir datos personales;
+- imprimir XML sensible completo;
 - volver a enviar una entrada que ya obtuvo una respuesta SOAP exitosa o funcionalmente definitiva.
 
-No existe un límite global de una llamada SOAP.
+No existe un límite global artificial de una única llamada SOAP cuando existen múltiples entradas elegibles.
 
-No existe obligación de restaurar DryRun.
+No existe obligación general de restaurar `DryRun` después de una prueba LIVE local.
 
-No existe obligación de detener la ejecución después del primer error corregible.
+No existe obligación de detener todo el flujo después del primer error corregible.
 
-Esta política tiene prioridad sobre cualquier contexto histórico contradictorio dentro del repositorio.
+La idempotencia, deduplicación y prevención de reenvíos definitivos continúan siendo obligatorias.
 
-<!-- LOCAL_CONTROLLED_SOAP_LIVE_AUTHORIZATION -->
+---
 
-## Excepción autorizada: SOAP LIVE local controlado
+# 3. Repository Map
 
-La declaración "Productivo NO-GO" aplica exclusivamente a:
+- Solution: `ACHInterbank.sln`
+- Main API: `src/Cfa.ACHInterbank.Api`
+- Application: `src/Cfa.ACHInterbank.Application`
+- Domain: `src/Cfa.ACHInterbank.Domain`
+- Persistence/infrastructure: `src/Cfa.ACHInterbank.Persistence`
+- Backend tests: `tests/Cfa.ACHInterbank.Tests`
+- NACHA golden files: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`
+- Permanent Phase 6 context: `docs/ai/ACH_PHASE6_CONTEXT.md`
 
-- endpoints externos de producción;
-- infraestructura productiva de CFA, ACH Colombia o CENIT;
-- credenciales productivas;
-- conexiones a redes financieras externas;
-- movimientos monetarios reales;
-- ejecución contra cuentas o sistemas core productivos.
+Do not explore the complete repository when the relevant component is already known.
 
-No aplica a pruebas técnicas LIVE locales expresamente autorizadas.
+---
 
-Está permitido ejecutar SOAP real contra el servicio WCF local controlado:
+# 4. Build And Test Commands
 
-- Windows: http://localhost:7083/WSCFAACH.svc
-- Docker: http://host.docker.internal:7083/WSCFAACH.svc
-- HostHeader: localhost:7083
-
-Esta llamada corresponde a una prueba local de integración y no a producción.
-
-Condiciones obligatorias:
-
-1. API, SPA, SQL Server y WCF deben estar ejecutándose localmente.
-2. No se permite ningún endpoint SOAP diferente de localhost o host.docker.internal.
-3. Los archivos autorizados pueden provenir de producción, pero se usan exclusivamente como fixtures controlados de prueba.
-4. No se deben imprimir datos personales, cuentas completas, credenciales, tokens o XML completo.
-5. Se permite corregir código, configuración, ingestión y deduplicación durante la ejecución.
-6. Se permiten hasta tres uploads mientras no exista cola con intento ni ejecución SOAP.
-7. Se permite exactamente una llamada SOAP real por autorización.
-8. Después del primer intento SOAP quedan prohibidos nuevos uploads, retries y nuevos dispatch.
-9. La API debe restaurarse a DryRun al finalizar.
-10. Toda la evidencia de ingestión, cola, request, response y log debe conservarse.
-
-La autorización local no cambia el estado Productivo NO-GO del sistema.
-<!-- /LOCAL_CONTROLLED_SOAP_LIVE_AUTHORIZATION -->
-
-# AGENTS.md - ACHInterbank
-
-Before making changes, read:
-
-- `docs/ai/ACH_PHASE6_CONTEXT.md`
-
-This file is the short entry point for Codex, OpenCode, Claude Code and other coding agents. The permanent Phase 6 NACHA-M context lives in `docs/ai/ACH_PHASE6_CONTEXT.md`.
-
-## Core Rules
-
-- Do not execute real SOAP calls.
-- Do not add real credentials.
-- Do not use real customer data.
-- Do not change production status.
-- Productivo remains NO-GO.
-- Do not modify NACHA-M golden files unless explicitly requested.
-- Do not modify the table-driven NACHA-M engine unless fixing a proven bug.
-- Do not generate migrations unless explicitly required.
-- Do not reduce test coverage.
-- Do not remove existing tests.
-- Preserve Clean Architecture boundaries: Application contracts, Domain rules, Persistence implementations, Api composition.
-- EF Code First remains the source of truth for schema changes.
-
-## Build And Test Commands
-
-Use these commands after code changes:
+Canonical backend validation:
 
 ```bash
 dotnet build ACHInterbank.sln -c Release
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
 ```
 
-For a second run after a successful build:
+After a successful build:
 
 ```bash
 dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
@@ -182,151 +227,540 @@ dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Releas
 Expected result:
 
 - Build succeeded.
-- 0 warnings.
+- 0 warnings when the repository baseline requires it.
 - 0 errors.
-- Tests passing.
+- Relevant tests passing.
 
-## Repository Map
+## Validation strategy
 
-- Main API: `src/Cfa.ACHInterbank.Api`
-- Application contracts/models: `src/Cfa.ACHInterbank.Application`
-- Domain models/rules: `src/Cfa.ACHInterbank.Domain`
-- Persistence/infrastructure: `src/Cfa.ACHInterbank.Persistence`
-- Backend tests: `tests/Cfa.ACHInterbank.Tests`
-- NACHA golden files: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`
-- Permanent AI context: `docs/ai/ACH_PHASE6_CONTEXT.md`
+Prefer the narrowest useful validation first.
 
-## Phase 6 Current Guardrails
+Order:
 
-- Fase 6B.3C/6B.3C.1 golden files are semireal, anonymized and not official certification artifacts.
-- Fase 6B.4 prepares internal incoming NACHA decisions.
-- Fase 6B.5 prepares controlled SOAP boundaries only.
-- `Proc_Contrapartidas` and `Proc_Transacciones` are monetary candidates and must remain blocked from real execution until an explicit later phase.
-- `RegistrarRespuestaTransaccion` is non-monetary and must not move money.
-- `None`, duplicates and `ManualReviewRequired` must not execute SOAP.
+1. affected unit or focal tests;
+2. affected project tests;
+3. build;
+4. broader regression suite when justified by the scope.
 
-## Sincronización obligatoria de Codebase Memory
+Do not execute the complete suite repeatedly when a focal validation is sufficient during diagnosis.
 
-### Proyectos Codebase Memory de ACHInterbank
+Before finalizing a significant change, execute the validations necessary to prove that the requested behavior works and that the affected area did not regress.
 
-Este repositorio utiliza dos proyectos Codebase Memory MCP con responsabilidades diferentes:
+---
 
-- **`ACHInterbank`**: proyecto principal para código fuente, arquitectura, dependencias, relaciones, pruebas y demás componentes técnicos del repositorio.
-- **`ACHInterbank-normativa`**: proyecto documental cuya raíz es `docs/normativa/md`, destinado a normativa ACH Colombia, CENIT y demás documentación normativa Markdown almacenada en esa carpeta.
+# 5. Phase 6 Guardrails
 
-Reglas obligatorias:
+- Fase 6B.3C/6B.3C.1 golden files are semireal, anonymized and are not official certification artifacts.
+- Fase 6B.4 covers internal incoming NACHA decisions.
+- Fase 6B.5 covers SOAP integration boundaries.
+- `Proc_Contrapartidas` and `Proc_Transacciones` may execute only against the explicitly authorized local controlled environment defined in this file.
+- They remain prohibited against real external production infrastructure.
+- `RegistrarRespuestaTransaccion` is non-monetary and must not independently move money.
+- `None`, duplicates and `ManualReviewRequired` must not produce an inappropriate SOAP dispatch.
+- A transaction with a successful or functionally definitive response must not be resent.
+- When Phase 6 historical documentation contradicts the active LIVE local policy in this file, this file governs local controlled testing.
 
-1. Para investigar código, arquitectura, clases, servicios, pruebas, dependencias o rutas de ejecución, consultar primero `ACHInterbank`.
-2. Para investigar normativa almacenada bajo `docs/normativa/md`, consultar `ACHInterbank-normativa`.
-3. Cuando una decisión funcional dependa simultáneamente de implementación y normativa —por ejemplo NACHA-M, devoluciones, respuestas diferenciales, cámaras compensadoras, ACH Colombia o CENIT— consultar ambos proyectos antes de modificar código:
-   - `ACHInterbank` para determinar el comportamiento implementado.
-   - `ACHInterbank-normativa` para determinar el respaldo normativo disponible.
-4. La ausencia de una norma en el grafo principal `ACHInterbank` no debe interpretarse como ausencia del documento. Antes de concluir que falta normativa, consultar `ACHInterbank-normativa`.
-5. No ejecutar repetidamente `index_repository` sobre el proyecto principal intentando incorporar `docs/normativa/md`, porque esa documentación dispone de su proyecto Codebase Memory dedicado.
-6. Si se agregan o modifican archivos bajo `docs/normativa/md`, sincronizar o reindexar `ACHInterbank-normativa` cuando sea necesario para que el nuevo contenido quede recuperable.
-7. No duplicar normativa dentro de `src/`, `tests/` u otras carpetas únicamente para conseguir que Codebase Memory la indexe.
-8. La recuperación de una norma mediante Codebase Memory no constituye por sí sola homologación funcional. Código, normativa, pruebas y evidencia de homologación deben evaluarse según el alcance del trabajo correspondiente.
+---
 
-Antes de realizar análisis estructurales, búsquedas de arquitectura, trazabilidad de dependencias o modificaciones relevantes sobre ACHInterbank, se debe ejecutar `index_repository` sobre la raíz del repositorio.
+# 6. Tool Responsibility Matrix
 
-Esta operación debe tratarse como una sincronización incremental:
+Use each tool only for the responsibility it solves best.
 
-- La primera ejecución puede construir el índice completo.
-- Las ejecuciones posteriores deben actualizar archivos nuevos, modificados, renombrados o eliminados.
-- No se debe eliminar el índice existente ni forzar una reconstrucción completa, salvo que exista evidencia de corrupción, inconsistencia o desactualización del grafo.
-- Si no existen cambios, la sincronización puede finalizar sin reprocesamiento significativo.
+| Need | Preferred tool |
+|---|---|
+| Code architecture | `codebase-memory` |
+| Classes, methods, dependencies | `codebase-memory` |
+| Callers / callees | `codebase-memory` |
+| Execution paths | `codebase-memory` |
+| Impact analysis | `codebase-memory` |
+| Normative documents | `local-rag` |
+| ACH Colombia rules | `local-rag` |
+| CENIT rules | `local-rag` |
+| Terminal output | `RTK` when appropriate |
+| Exact concrete file | Direct read |
+| Exact runtime evidence | Original command/output when RTK could hide evidence |
 
-Se debe volver a ejecutar `index_repository`, como mínimo, después de:
+Primary rule:
 
-- cambiar de rama;
-- ejecutar `git pull`;
-- integrar un merge significativo;
-- incorporar módulos o funcionalidades completas;
-- agregar o modificar componentes, rutas o servicios del SPA;
-- agregar o modificar controladores, handlers, servicios, entidades o configuraciones del backend;
-- agregar o modificar entidades de EF Core, configuraciones, migraciones o scripts SQL;
-- mover, renombrar o eliminar archivos o directorios;
-- modificar pruebas, proyectos, Docker Compose o infraestructura versionada;
-- reiniciar, reinstalar o actualizar Codebase Memory MCP;
-- detectar que las búsquedas no encuentran código creado o modificado recientemente.
+```text
+Normativa        -> local-rag
+Código           -> codebase-memory
+Terminal         -> RTK
+Archivo concreto -> lectura directa
+```
 
-Codebase Memory analiza archivos versionados del repositorio. No conoce cambios aplicados directamente sobre SQL Server o PostgreSQL cuando dichos cambios no están representados mediante entidades, configuraciones, migraciones, scripts u otros archivos del proyecto.
+Do not use multiple tools to answer exactly the same question unless cross-validation is technically necessary.
 
-Después de sincronizar, se deben utilizar las herramientas de Codebase Memory apropiadas, como `get_architecture`, `search_code`, `search_graph`, `query_graph`, `trace_path` o `get_code_snippet`, antes de recurrir a búsquedas manuales extensas.
+---
 
-### Uso eficiente después de la sincronización
+# 7. Codebase Memory — obligatorio para comprensión estructural
 
-Después de sincronizar el repositorio, se debe consultar primero `codebase-memory` antes de realizar búsquedas amplias o modificar código.
+The Codebase Memory project for this repository is:
 
-Las consultas deben limitarse estrictamente al alcance de la tarea:
+`ACHInterbank`
 
-- Usar `get_architecture` únicamente cuando sea necesario comprender capas, módulos o componentes generales.
-- Usar `search_graph` para localizar clases, métodos, controladores, servicios, entidades, componentes, rutas, pruebas y sus relaciones estructurales.
-- Usar `trace_path` para seguir llamadas, dependencias, callers, callees y flujos afectados.
-- Usar `get_code_snippet` para recuperar únicamente la implementación de símbolos concretos.
-- Usar `search_code` para búsquedas textuales, configuraciones, documentación o información que no esté disponible en el grafo.
-- Usar `get_graph_schema` y `query_graph` únicamente cuando se necesiten relaciones estructurales complejas.
-- No explorar módulos, carpetas o componentes que no estén relacionados con la tarea.
-- Limitar la cantidad de consultas MCP y formularlas de manera precisa.
-- Utilizar `rg`, búsquedas de archivos y lectura manual como respaldo cuando Codebase Memory no entregue información suficiente.
-- Leer directamente solo los archivos concretos que deban validarse o modificarse.
-- No leer archivos completos cuando un fragmento o símbolo específico sea suficiente.
-- Antes de modificar código, identificar brevemente los componentes, dependencias, integraciones y pruebas afectadas.
-- No asumir comportamientos basándose únicamente en nombres de archivos, clases, métodos o símbolos.
-- En el resultado final, mencionar brevemente qué herramientas de `codebase-memory` fueron utilizadas.
-- Si Codebase Memory no está disponible o presenta errores, informarlo y continuar con búsquedas locales estrictamente delimitadas.
+Its responsibility is exclusively technical knowledge of the repository:
 
-El flujo esperado para tareas relevantes es:
+- source code;
+- architecture;
+- classes;
+- methods;
+- controllers;
+- handlers;
+- services;
+- entities;
+- Angular components;
+- routes;
+- dependencies;
+- callers;
+- callees;
+- tests;
+- configuration;
+- infrastructure represented as repository files;
+- execution paths;
+- impact analysis.
 
-1. Sincronizar el índice de forma incremental.
-2. Consultar el grafo con herramientas específicas para la tarea.
-3. Leer únicamente los archivos o fragmentos necesarios.
-4. Implementar el cambio solicitado.
-5. Ejecutar únicamente las validaciones relacionadas con el alcance.
-6. Informar de manera breve las herramientas utilizadas y los resultados obtenidos.
+## 7.1 `ACHInterbank-normativa` is no longer the primary normative source
 
-## Uso coordinado de RTK y Codebase Memory
+Do not require the former Codebase Memory project:
 
-RTK y Codebase Memory tienen responsabilidades diferentes y complementarias.
+`ACHInterbank-normativa`
 
-**RTK no reemplaza Codebase Memory.**
+for normative retrieval.
 
-La responsabilidad principal de cada herramienta es:
+Normative retrieval is now the responsibility of:
 
-- **Codebase Memory**: comprensión del repositorio, arquitectura, relaciones, dependencias, trazabilidad, recuperación semántica y análisis de impacto.
-- **RTK**: reducción de ruido y consumo de contexto producido por comandos de terminal.
-- **Lectura directa**: inspección final de archivos o fragmentos concretos una vez localizado el alcance relevante.
+`local-rag`
 
-### Prioridad de herramientas
+Do not duplicate normative documents inside source folders merely to make Codebase Memory discover them.
 
-Aplicar el siguiente orden:
+Do not repeatedly reindex the primary `ACHInterbank` project in an attempt to incorporate the external Local RAG corpus.
 
-1. **Codebase Memory primero** cuando sea necesario comprender código, arquitectura, dependencias, relaciones entre componentes, callers/callees, rutas de ejecución, normativa indexada o alcance de cambios.
-2. **Lectura directa de archivos concretos** cuando Codebase Memory ya haya identificado los símbolos, archivos o fragmentos que deben inspeccionarse.
-3. **RTK para comandos de terminal** cuando exista soporte adecuado y la salida compactada sea suficiente para la tarea.
-4. **Comandos originales sin RTK** cuando sea necesaria la salida completa, RTK no soporte adecuadamente el comando o el filtrado pueda ocultar evidencia necesaria.
+## 7.2 When to synchronize Codebase Memory
 
-No sustituir una consulta de `codebase-memory` por búsquedas masivas mediante `rtk grep`, `rtk find`, `rg`, `grep`, `find` o herramientas equivalentes cuando el grafo pueda resolver la necesidad con mayor precisión.
+Treat `index_repository` as an incremental synchronization.
 
-### Uso de RTK
+Synchronize when the index may be stale, especially after:
 
-Cuando RTK esté disponible, preferirlo para comandos de terminal soportados que puedan producir salida extensa.
+- changing Git branch;
+- `git pull`;
+- significant merge;
+- adding a module;
+- adding or changing substantial SPA components or routes;
+- adding or changing backend controllers;
+- adding or changing handlers;
+- adding or changing services;
+- adding or changing entities;
+- adding or changing EF Core configurations;
+- adding or changing migrations;
+- adding or changing SQL files;
+- moving files;
+- renaming files;
+- deleting files;
+- significant test changes;
+- Docker or infrastructure changes represented in the repository;
+- reinstalling or updating Codebase Memory;
+- detecting that searches cannot find recently created or modified code.
 
-Esto aplica especialmente a:
+Do not run `index_repository` automatically before every small action.
 
-- inspección de Git;
-- diferencias entre archivos;
-- historial;
-- búsquedas textuales locales;
-- exploración de archivos;
-- compilaciones;
-- pruebas con salida extensa;
-- Docker;
-- GitHub CLI;
-- herramientas de infraestructura soportadas;
-- comandos cuyo resultado contenga una cantidad significativa de ruido repetitivo.
+Do not run it repeatedly during the same task when no repository changes occurred since the previous synchronization.
 
-Ejemplos:
+Do not delete the existing index or force a full rebuild unless there is evidence of corruption or inconsistency.
+
+## 7.3 Codebase Memory query strategy
+
+After ensuring that the index is sufficiently current, use the most specific tool possible.
+
+### `search_graph`
+
+Use for:
+
+- classes;
+- methods;
+- controllers;
+- services;
+- entities;
+- components;
+- routes;
+- tests;
+- structural relationships.
+
+### `trace_path`
+
+Use for:
+
+- callers;
+- callees;
+- dependencies;
+- execution paths;
+- transaction flows;
+- impacted components.
+
+### `get_code_snippet`
+
+Use when the specific symbol is already known.
+
+Retrieve only the implementation required.
+
+### `search_code`
+
+Use for:
+
+- literal text;
+- configuration;
+- constants;
+- documentation inside the repository;
+- SQL;
+- information unavailable in the graph.
+
+### `get_architecture`
+
+Use only when understanding broader modules or layers is necessary.
+
+Do not call it for a narrowly scoped change when the affected component is already known.
+
+### `get_graph_schema` / `query_graph`
+
+Use only for graph relationships that cannot be answered efficiently through the simpler tools.
+
+## 7.4 Codebase Memory fallback
+
+If Codebase Memory:
+
+- is unavailable;
+- returns errors;
+- has an obviously stale graph;
+- cannot locate information known to exist;
+
+then:
+
+1. report the limitation briefly;
+2. fall back to targeted local searches;
+3. keep the search scope narrow;
+4. read only the files necessary.
+
+Do not turn a Codebase Memory failure into an unrestricted repository scan.
+
+---
+
+# 8. Local RAG — fuente normativa
+
+The MCP:
+
+`local-rag`
+
+is the primary retrieval mechanism for external normative documentation.
+
+Its configured corpus is external to the repository.
+
+Do not hardcode workstation-specific absolute paths such as `C:\Users\...` into this file or application source.
+
+The Local RAG root is defined through the MCP configuration.
+
+The configured corpus is expected to separate at least:
+
+```text
+ACH-Colombia/
+CENIT/
+```
+
+This separation must be preserved during retrieval.
+
+## 8.1 Responsibility
+
+Use Local RAG for:
+
+- ACH Colombia manuals;
+- CENIT manuals;
+- NACHA-M normative requirements;
+- clearing rules;
+- credits;
+- debits;
+- prenotifications;
+- returns;
+- returns by operator;
+- return causes;
+- differential responses;
+- cycle rules;
+- file structure;
+- record fields;
+- operating windows;
+- security requirements;
+- limits;
+- normative annexes;
+- other external regulatory or clearing documentation included in the configured corpus.
+
+Do not use Local RAG for:
+
+- locating application classes;
+- callers/callees;
+- source-code architecture;
+- runtime logs;
+- repository dependency analysis.
+
+Those belong to Codebase Memory or direct inspection.
+
+---
+
+# 9. Local RAG synchronization policy
+
+Do not synchronize Local RAG before every query.
+
+Synchronize when:
+
+- new normative documents were added;
+- documents were modified;
+- documents were replaced;
+- documents were removed;
+- expected documentation cannot be found;
+- Local RAG was reinstalled;
+- its database was recreated;
+- its configuration changed;
+- there is evidence that the vector index is stale.
+
+Expected synchronization flow:
+
+1. execute `sync_start`;
+2. obtain the synchronization job identifier;
+3. query `sync_status`;
+4. continue until the job reaches `succeeded` or `failed`;
+5. validate with `status` or `list_files` when necessary.
+
+Do not repeatedly synchronize an unchanged corpus.
+
+A synchronization is an indexing operation, not a prerequisite for every normative question.
+
+---
+
+# 10. Local RAG query strategy
+
+Queries must be narrow and evidence-oriented.
+
+Prefer queries containing:
+
+- clearing house;
+- document/version when known;
+- business concept;
+- transaction direction;
+- specific process;
+- relevant field/code/cause when known.
+
+Examples:
+
+```text
+ACH Colombia V35 devolución recibida causal D33
+```
+
+```text
+ACH Colombia V35 sección devoluciones operador
+```
+
+```text
+CENIT devolución transacción débito ciclo
+```
+
+Avoid vague queries such as:
+
+```text
+devoluciones
+```
+
+when enough context exists to formulate a more precise search.
+
+## 10.1 Query workflow
+
+For a normative task:
+
+1. query the relevant corpus with `query_documents`;
+2. evaluate the highest-relevance results;
+3. refine the query when results mix unrelated subjects;
+4. use `read_chunk_neighbors` only when surrounding context is needed to interpret the rule;
+5. identify source document;
+6. identify version when available;
+7. identify section or neighboring context when available;
+8. extract only the rule needed for the task.
+
+Do not ingest complete documents into model context when a few chunks are sufficient.
+
+## 10.2 Evidence standard
+
+A normative conclusion should identify, when available:
+
+- clearing house;
+- source document;
+- version;
+- section;
+- retrieved rule;
+- whether the evidence is direct or inferred from surrounding context.
+
+Do not invent:
+
+- section numbers;
+- versions;
+- causes;
+- deadlines;
+- formats;
+- field values;
+- operational rules.
+
+If Local RAG cannot support the rule, explicitly state that normative evidence was not found.
+
+---
+
+# 11. ACH Colombia / CENIT isolation
+
+Never automatically merge rules from ACH Colombia and CENIT.
+
+## ACH Colombia-only task
+
+Search the ACH Colombia corpus first.
+
+Do not use CENIT rules as substitutes.
+
+## CENIT-only task
+
+Search the CENIT corpus first.
+
+Do not use ACH Colombia rules as substitutes.
+
+## Comparative task
+
+When comparing ACH Colombia and CENIT:
+
+1. query ACH Colombia separately;
+2. retain its evidence;
+3. query CENIT separately;
+4. retain its evidence;
+5. compare only after both retrievals are complete.
+
+The absence of a rule in one clearing house does not imply that the same rule applies from the other clearing house.
+
+---
+
+# 12. Normativa ACH Colombia vigente
+
+The canonical normative baseline for ACH Colombia is:
+
+**Versión 35 — abril de 2026**
+
+Versions V32 and earlier are historical or comparative unless the task explicitly requires an earlier version.
+
+Before modifying behavior related to:
+
+- ACH Colombia;
+- NACHA-M;
+- cycles;
+- credits;
+- debits;
+- prenotifications;
+- returns;
+- returns by operator;
+- return causes;
+- files;
+- limits;
+- security;
+
+search Local RAG for V35 first.
+
+If Local RAG contains multiple versions:
+
+1. prefer V35 for current ACH Colombia behavior;
+2. do not mix V35 and older versions without identifying the version of each rule;
+3. use older versions only for historical comparison or migration analysis.
+
+If V35 cannot be located in Local RAG, report that condition instead of silently falling back to V32.
+
+If code, tests, repository documentation or existing runtime behavior contradict V35:
+
+1. preserve the normative evidence;
+2. identify the implemented behavior independently;
+3. report the discrepancy;
+4. use V35 as the normative authority unless the task explicitly targets another version;
+5. do not invent a reconciliation rule.
+
+For returns, investigate especially:
+
+- section 6.6;
+- section 6.7;
+- applicable annexes.
+
+Consider causal `D33` only when supported by the retrieved normative evidence and applicable to the scenario.
+
+---
+
+# 13. Norma vs implementación
+
+When a functional decision depends on both normative requirements and existing implementation, use this order:
+
+1. **Local RAG**
+   - establish what the applicable rule requires.
+
+2. **Codebase Memory**
+   - establish where and how the behavior is implemented.
+
+3. **Direct file read**
+   - inspect only the concrete implementation identified.
+
+4. **Tests**
+   - identify existing evidence and affected coverage.
+
+5. **Implementation**
+   - make the minimum coherent change.
+
+The analysis should conceptually produce:
+
+```text
+Norma
+  -> comportamiento requerido
+
+Código
+  -> comportamiento implementado
+
+Gap
+  -> diferencia demostrable
+
+Acción
+  -> cambio mínimo necesario
+
+Prueba
+  -> evidencia que demuestra el comportamiento
+```
+
+Never use:
+
+```text
+el código hace X, por lo tanto la norma debe exigir X
+```
+
+Never use:
+
+```text
+la norma exige X, por lo tanto el código seguramente ya hace X
+```
+
+Both sides must be independently verified.
+
+---
+
+# 14. RTK — reducción de ruido de terminal
+
+RTK and Codebase Memory solve different problems.
+
+- **Codebase Memory**: knowledge and structure of the repository.
+- **Local RAG**: normative retrieval.
+- **RTK**: compact terminal output.
+- **Direct read**: exact inspection of already identified files.
+
+RTK does not replace Codebase Memory.
+
+RTK does not replace Local RAG.
+
+## 14.1 Use RTK when appropriate
+
+When available and supported, prefer RTK for terminal commands that may produce large noisy output.
+
+Examples:
 
 ```bash
 rtk git status
@@ -338,181 +772,380 @@ rtk docker ps
 rtk docker logs <contenedor>
 ```
 
-Para compilaciones `.NET`, cuando el wrapper instalado lo soporte:
+For `.NET`, when supported by the installed RTK version:
 
 ```bash
 rtk dotnet build ACHInterbank.sln -c Release
 ```
 
-Para runners o comandos de pruebas cuya salida sea extensa puede utilizarse el wrapper genérico de pruebas cuando resulte apropiado:
+For test runners with extensive output:
 
 ```bash
 rtk test dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
 ```
 
-Para una segunda ejecución:
+Second execution:
 
 ```bash
 rtk test dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
 ```
 
-Los comandos definidos en `Build And Test Commands` continúan siendo los comandos canónicos del proyecto.
+The canonical underlying commands remain the commands defined in `Build And Test Commands`.
 
-RTK solo actúa como capa de ejecución y compactación de salida; no debe cambiar sus argumentos, alcance ni semántica.
+RTK must not change:
 
-Si una forma RTK concreta no está soportada por la versión instalada, utilizar el comando original equivalente.
+- arguments;
+- target project;
+- test scope;
+- command semantics.
 
-### Uso eficiente de RTK
+If a specific RTK wrapper is not supported by the installed version, use the original command.
 
-RTK debe utilizarse para reducir ruido y consumo de contexto, no para ampliar innecesariamente el alcance de una investigación.
+## 14.2 Keep RTK searches narrow
 
-Las búsquedas realizadas mediante RTK deben seguir delimitándose por:
-
-- archivo;
-- carpeta;
-- patrón;
-- proyecto;
-- componente;
-- rango lógico de investigación.
-
-Preferir:
+Prefer:
 
 ```bash
 rtk grep "Proc_Transacciones" src/Cfa.ACHInterbank.Application
 ```
 
-sobre una búsqueda global del repositorio cuando ya se conoce el área relevante.
+over:
 
-Preferir Codebase Memory antes que cualquiera de las dos cuando todavía sea necesario descubrir relaciones, dependencias o rutas de ejecución.
+```bash
+rtk grep "Proc_Transacciones" .
+```
 
-### Cuándo no depender de RTK
+when the relevant area is already known.
 
-No depender exclusivamente de una salida filtrada o compactada por RTK cuando se requiera:
+Do not use RTK searches to manually reconstruct architecture that Codebase Memory can retrieve more accurately.
 
-- evidencia completa de un error;
-- análisis de una salida que pueda haber sido truncada, agrupada, deduplicada o resumida;
-- validar valores exactos producidos por una herramienta;
-- conservar evidencia técnica o de auditoría;
-- diagnosticar un fallo que no aparezca en la salida compactada;
-- verificar información sensible a líneas omitidas;
-- verificar el orden exacto de eventos;
-- revisar logs completos específicamente requeridos para determinar una causa raíz;
-- comparar literalmente una salida contra una especificación;
-- preservar evidencia necesaria para UAT o una validación formal.
+---
 
-En estos casos:
+# 15. When exact output is required
 
-1. ejecutar primero la variante compactada cuando sea útil;
-2. identificar el segmento que requiere mayor detalle;
-3. ejecutar nuevamente únicamente el comando necesario con salida completa y alcance delimitado;
-4. evitar incorporar al contexto salida completa que no sea relevante.
+Do not rely exclusively on compacted RTK output when the task requires:
 
-El uso de un comando sin RTK después de una ejecución compactada no constituye una violación de esta política cuando exista una razón técnica para necesitar evidencia completa.
+- complete error evidence;
+- exact values;
+- exact ordering;
+- audit evidence;
+- UAT evidence;
+- complete logs;
+- diagnosis of a hidden or filtered failure;
+- literal comparison against a specification;
+- proof that may depend on omitted lines.
 
-### Disponibilidad y degradación segura
+In these cases:
 
-No asumir que RTK está instalado en todos los entornos ni en las máquinas de todos los colaboradores.
+1. use RTK first when useful;
+2. identify the narrow relevant segment;
+3. rerun only the required command without RTK;
+4. capture only the necessary exact evidence.
 
-Si `rtk` no está disponible:
+Using an original command after RTK is allowed when technically justified.
 
-- no detener el trabajo únicamente por su ausencia;
-- utilizar el comando original equivalente;
-- mantener el mismo alcance reducido de búsqueda o ejecución;
-- continuar respetando la prioridad de Codebase Memory;
-- no modificar el repositorio únicamente para instalar RTK;
-- no agregar dependencias de runtime de la aplicación hacia RTK.
+---
 
-La ausencia de RTK no habilita búsquedas indiscriminadas ni lecturas masivas del repositorio.
+# 16. RTK availability
 
-### RTK no reemplaza Codebase Memory
+Do not assume RTK exists in every environment.
 
-RTK se utiliza principalmente para optimizar la salida de comandos CLI.
+If `rtk` is unavailable:
 
-Codebase Memory continúa siendo la herramienta prioritaria para:
+- do not stop the task solely because of its absence;
+- use the equivalent original command;
+- keep the same narrow scope;
+- do not modify application dependencies to install RTK;
+- do not introduce RTK as an application runtime dependency.
 
-- arquitectura;
-- relaciones estructurales;
-- dependencias;
-- búsqueda semántica del código;
-- navegación entre símbolos;
-- trazabilidad;
-- callers y callees;
-- análisis de impacto;
-- recuperación de contexto desde `ACHInterbank`;
-- recuperación de normativa desde `ACHInterbank-normativa`.
+RTK availability must not affect application behavior.
 
-No ejecutar comandos RTK para reconstruir manualmente información que Codebase Memory pueda recuperar directamente mediante:
+---
 
-- `get_architecture`;
-- `search_graph`;
-- `trace_path`;
-- `get_code_snippet`;
-- `search_code`;
-- `query_graph`.
+# 17. Direct file reading
 
-### Codebase Memory y normativa
+Direct reading is appropriate after the relevant file is known.
 
-RTK no modifica la política de separación entre los proyectos:
+Prefer:
 
-- `ACHInterbank`;
-- `ACHInterbank-normativa`.
+- one method;
+- one class;
+- one configuration section;
+- one test;
+- one relevant line range;
 
-Cuando una tarea dependa simultáneamente de implementación y normativa:
+over loading a complete large file.
 
-1. consultar `ACHInterbank` para comprender la implementación;
-2. consultar `ACHInterbank-normativa` para recuperar el respaldo normativo;
-3. utilizar lectura directa únicamente para validar el material concreto identificado;
-4. utilizar RTK solamente para las operaciones de terminal necesarias durante análisis, implementación o validación.
+Do not read entire directories or large files merely because they may contain relevant information.
 
-Una búsqueda textual con RTK dentro de `docs/normativa/md` no sustituye la obligación de consultar `ACHInterbank-normativa` cuando la decisión dependa de normativa.
+Codebase Memory should normally discover the technical target first.
 
-### Flujo combinado esperado
+Local RAG should normally discover the normative target first.
 
-Para tareas relevantes de desarrollo:
+---
 
-1. Determinar el alcance inicial de la tarea.
-2. Sincronizar incrementalmente Codebase Memory cuando corresponda.
-3. Consultar `ACHInterbank`, `ACHInterbank-normativa` o ambos según el alcance.
-4. Identificar componentes, dependencias, integraciones, archivos y pruebas afectados.
-5. Leer únicamente los símbolos, fragmentos o archivos concretos necesarios.
-6. Implementar el cambio solicitado.
-7. Ejecutar compilación, pruebas, Git, Docker y demás comandos mediante RTK cuando sea apropiado.
-8. Si la salida compactada no permite diagnosticar o demostrar el resultado, repetir únicamente el comando necesario con salida completa.
-9. Reindexar Codebase Memory cuando los cambios realizados lo requieran según las reglas de sincronización de este archivo.
-10. Informar brevemente las herramientas de Codebase Memory utilizadas y las validaciones ejecutadas.
+# 18. Context economy
 
-### Principio de economía de contexto
+The objective is:
 
-Toda herramienta debe utilizarse con el menor contexto suficiente para resolver correctamente la tarea.
+**the minimum sufficient context that preserves the evidence required for a technically correct decision.**
 
-Evitar:
+Avoid:
 
-- búsquedas globales cuando ya se conoce el componente;
-- leer archivos completos cuando basta un símbolo o fragmento;
-- ejecutar repetidamente comandos que entregan la misma evidencia;
-- recopilar logs completos cuando basta una ventana delimitada;
-- duplicar información obtenida previamente mediante Codebase Memory;
-- repetir búsquedas RTK y Codebase Memory que respondan exactamente la misma pregunta sin necesidad técnica;
-- introducir al contexto documentación no relacionada;
-- introducir código no relacionado;
-- introducir logs no relacionados;
-- introducir resultados de pruebas no relacionados con el alcance;
-- utilizar RTK como excusa para ejecutar comandos innecesariamente amplios.
+- global repository searches when the component is known;
+- loading complete documentation when a relevant chunk is enough;
+- reading complete source files when a symbol is enough;
+- querying both Codebase Memory and RTK for exactly the same fact;
+- querying Local RAG for purely technical tasks;
+- querying Codebase Memory for normative rules;
+- synchronizing Local RAG when documents have not changed;
+- synchronizing Codebase Memory repeatedly without repository changes;
+- repeating searches whose answer is already available in the current context;
+- collecting complete logs when a bounded window is enough;
+- introducing unrelated documentation;
+- introducing unrelated code;
+- introducing unrelated test output;
+- introducing unrelated runtime logs.
 
-El objetivo no es minimizar contexto a cualquier costo.
+Do not minimize context at the expense of required evidence.
 
-El objetivo es utilizar **el menor contexto suficiente que preserve la evidencia necesaria para tomar una decisión técnicamente correcta**.
+Do not maximize context merely because more information is available.
 
-RTK optimiza principalmente la salida del terminal.
+---
 
-Codebase Memory optimiza principalmente la recuperación del conocimiento estructural y semántico del repositorio.
+# 19. Task classification before tool use
 
-Ambos deben utilizarse de manera complementaria.
+Before using tools, classify the task.
 
-## Normativa ACH Colombia vigente
+## Pure technical task
 
-La referencia normativa canónica vigente para ACH Colombia es `docs/normativa/md/ACH-Colombia-V35.md`, correspondiente a ACH Colombia Versión 35 (abril de 2026). V32 y anteriores son únicamente referencias históricas o comparativas.
+Examples:
 
-Antes de analizar o modificar funcionalidades de ACH Colombia, NACHA-M, ciclos, créditos, débitos, prenotificaciones, devoluciones, devoluciones por operador, causales, archivos, límites o seguridad, debe consultarse primero V35. Si el código, la documentación o el comportamiento existente contradicen V35, debe reportarse la discrepancia y usarse V35 como autoridad normativa; no deben inventarse reglas no soportadas por ella.
+- compile error;
+- dependency injection;
+- Angular component;
+- EF configuration;
+- controller;
+- service;
+- unit test;
+- Docker configuration.
 
-Para devoluciones deben revisarse especialmente las secciones 6.6, 6.7 y los anexos aplicables de V35. Debe contemplarse la causal D33 cuando corresponda normativamente.
+Use:
+
+```text
+Codebase Memory
+-> direct read
+-> RTK/terminal
+```
+
+Do not query Local RAG unless a functional rule becomes relevant.
+
+## Pure normative task
+
+Examples:
+
+- what ACH Colombia requires;
+- allowed return causes;
+- CENIT rule;
+- version comparison.
+
+Use:
+
+```text
+Local RAG
+-> neighboring chunks only if necessary
+```
+
+Do not inspect source code unless implementation comparison is requested.
+
+## Normative + implementation task
+
+Examples:
+
+- does ACHInterbank comply with V35?;
+- is this return implemented correctly?;
+- differential response gap;
+- ACH Colombia vs current implementation.
+
+Use:
+
+```text
+Local RAG
+-> Codebase Memory
+-> direct read
+-> tests
+```
+
+## Runtime diagnosis
+
+Use:
+
+```text
+Codebase Memory when structure is unknown
+-> RTK/terminal
+-> exact output when required
+-> direct read
+```
+
+---
+
+# 20. Expected development workflow
+
+For a relevant development task:
+
+1. determine the exact requested outcome;
+2. classify the task as technical, normative, mixed or runtime;
+3. choose only the necessary tools;
+4. synchronize Codebase Memory only if its index may be stale;
+5. synchronize Local RAG only if its corpus may be stale;
+6. retrieve the minimum technical or normative context;
+7. identify affected components;
+8. identify dependencies and execution paths when necessary;
+9. identify affected tests;
+10. read only the concrete files or symbols required;
+11. implement the minimum coherent change;
+12. run focal validation;
+13. expand validation only when justified;
+14. inspect exact output if compact output is insufficient;
+15. reindex Codebase Memory when significant source changes need to become queryable in subsequent work;
+16. do not reindex Local RAG unless the normative corpus itself changed;
+17. report concise evidence.
+
+---
+
+# 21. Final response expectations
+
+For code-changing tasks, keep the final response concise.
+
+When useful, report:
+
+- status;
+- cause;
+- change;
+- affected files;
+- tests executed;
+- relevant test result;
+- Codebase Memory tools used;
+- Local RAG evidence used when normative rules affected the decision;
+- relevant runtime evidence;
+- commit or PR when one was explicitly created.
+
+Do not produce a long narrative when a concise technical summary is sufficient.
+
+For normative work, identify the document/version used.
+
+For mixed normative/implementation work, distinguish clearly between:
+
+- normative evidence;
+- implementation evidence;
+- inferred gap;
+- implemented correction.
+
+---
+
+# 22. Prohibited tool anti-patterns
+
+Do not:
+
+- run `index_repository` before every prompt;
+- run `sync_start` before every Local RAG query;
+- perform broad `rg`/`grep` searches before trying Codebase Memory when structural discovery is required;
+- use Codebase Memory as the authoritative normative store;
+- use Local RAG to infer source-code architecture;
+- run RTK and then the exact same unfiltered command without a technical reason;
+- repeatedly read the same file;
+- repeatedly retrieve the same RAG chunk;
+- load every normative document for a single rule;
+- combine ACH Colombia and CENIT evidence without separating their sources;
+- treat an older ACH Colombia version as current when V35 exists;
+- assume absence from retrieval proves absence from the corpus without refining the search;
+- make code changes before identifying the applicable normative rule when the behavior is normatively governed.
+
+---
+
+# 23. Source hierarchy
+
+For implementation truth:
+
+1. current source code;
+2. current configuration;
+3. current tests;
+4. actual local runtime evidence.
+
+For ACH Colombia normative truth:
+
+1. applicable current normative document retrieved through Local RAG;
+2. V35 for current ACH Colombia behavior;
+3. older versions only for historical or comparative analysis.
+
+For CENIT normative truth:
+
+1. applicable current CENIT document retrieved through Local RAG;
+2. older documents only when explicitly relevant.
+
+Repository documentation may provide context but must not silently override a newer applicable normative source.
+
+Runtime behavior demonstrates what the system does.
+
+Runtime behavior does not independently prove what the normative requirement is.
+
+---
+
+# 24. Guiding principle
+
+Every task should converge using the shortest evidence-preserving path:
+
+```text
+Question
+   |
+   +-- Is it normative?
+   |       |
+   |       +--> local-rag
+   |
+   +-- Is it about code structure?
+   |       |
+   |       +--> codebase-memory
+   |
+   +-- Is the concrete target known?
+   |       |
+   |       +--> direct read
+   |
+   +-- Does it require execution?
+           |
+           +--> RTK / terminal
+                    |
+                    +--> exact output only when necessary
+```
+
+For mixed functional work:
+
+```text
+Local RAG
+   |
+   v
+Normative requirement
+   |
+   +---------------------+
+                         |
+                         v
+                 Codebase Memory
+                         |
+                         v
+                 Implementation
+                         |
+                         v
+                  Norma vs código
+                         |
+                         v
+                       Gap
+                         |
+                         v
+                Minimum correction
+                         |
+                         v
+                 Focused validation
+```
+
+The goal is not to use every available tool.
+
+The goal is to use the **smallest set of tools and context that produces a verifiable, technically correct result**.
