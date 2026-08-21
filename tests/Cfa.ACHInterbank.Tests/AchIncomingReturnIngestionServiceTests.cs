@@ -33,6 +33,23 @@ public class AchIncomingReturnIngestionServiceTests
     }
 
     [Fact]
+    public async Task IngestAsync_AchColombiaType99_ShouldReadThreeCharacterReasonAndPreserveOriginalTrace()
+    {
+        await using var c = Ctx();
+        const string originalTrace = "123456780000001";
+        SeedTx(c, originalTrace, 7002);
+        var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
+
+        var result = await sut.IngestAsync(
+            new("f.ach", BuildType7("R01", originalTrace), DateTime.UtcNow),
+            CancellationToken.None);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("R01", item.ReturnReasonCode);
+        Assert.Equal(originalTrace, item.OriginalTraceNumber);
+    }
+
+    [Fact]
     public async Task IngestAsync_ShouldLinkReturnToOriginalTransaction_ByTraceNumber()
     {
         await using var c = Ctx();
@@ -49,7 +66,7 @@ public class AchIncomingReturnIngestionServiceTests
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7002);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
-        var r = await sut.IngestAsync(new("f.ach", BuildType7("DEV14", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        var r = await sut.IngestAsync(new("f.ach", BuildType7("R02", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
         Assert.Equal(7002, r.Items.First().ClearingHouseId);
     }
 
@@ -120,14 +137,14 @@ public class AchIncomingReturnIngestionServiceTests
     }
 
     [Fact]
-    public async Task IngestAsync_ShouldPreserveIncomingAlphanumericReturnReasonCode()
+    public async Task IngestAsync_ShouldNormalizeThreeCharacterReturnReasonCode()
     {
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001);
         var catalog = CatalogAllowAllMock();
         var sut = new AchIncomingReturnIngestionService(c, catalog.Object);
-        await sut.IngestAsync(new("f.ach", BuildType7("dev14", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
-        catalog.Verify(x => x.ValidateReturnCodeAsync(7001, "DEV14", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        await sut.IngestAsync(new("f.ach", BuildType7("r02", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        catalog.Verify(x => x.ValidateReturnCodeAsync(7001, "R02", TransactionTypeEnum.Credit, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -244,7 +261,7 @@ public class AchIncomingReturnIngestionServiceTests
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
-        var content = BuildType7("R01", "123456780000001") + BuildType7("DEV14", "123456780000001");
+        var content = BuildType7("R01", "123456780000001") + BuildType7("R02", "123456780000001");
         var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
         Assert.DoesNotContain(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
     }
@@ -267,7 +284,7 @@ public class AchIncomingReturnIngestionServiceTests
         await using var c = Ctx();
         var catalog = new Mock<IAchRegulatoryCatalogService>(MockBehavior.Strict);
         var sut = new AchIncomingReturnIngestionService(c, catalog.Object);
-        var content = BuildType7("R01", "000000000000000") + BuildType7(" R01 ", "000000000000000");
+        var content = BuildType7("R01", "000000000000000") + BuildType7("r01", "000000000000000");
         var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
         Assert.Contains(r.Failures, x => x.Code == "ORIGINAL_TRANSACTION_NOT_FOUND");
         Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
@@ -280,21 +297,21 @@ public class AchIncomingReturnIngestionServiceTests
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
-        var content = BuildType7("r01", "123456780000001") + BuildType7(" R01 ", "123456780000001");
+        var content = BuildType7("r01", "123456780000001") + BuildType7("R01", "123456780000001");
         var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
         Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
     }
 
     [Fact]
-    public async Task IngestAsync_ShouldPreserveDev14ForDuplicateDetection()
+    public async Task IngestAsync_ShouldNormalizeThreeCharacterReasonForDuplicateDetection()
     {
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
-        var content = BuildType7("dev14", "123456780000001") + BuildType7("DEV14", "123456780000001");
+        var content = BuildType7("r02", "123456780000001") + BuildType7("R02", "123456780000001");
         var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
         Assert.Contains(r.Failures, x => x.Code == "INCOMING_RETURN_DUPLICATE_IN_FILE");
-        Assert.Contains(r.Items, x => x.ReturnReasonCode == "DEV14");
+        Assert.Contains(r.Items, x => x.ReturnReasonCode == "R02");
     }
 
     [Fact]
@@ -586,8 +603,8 @@ public class AchIncomingReturnIngestionServiceTests
     {
         var chars = Enumerable.Repeat(' ', 106).ToArray();
         chars[0] = '7'; chars[1] = '9'; chars[2] = '9';
-        var rr = reason.PadRight(5).Take(5).ToArray(); Array.Copy(rr,0,chars,3,5);
-        var tr = originalTrace.PadLeft(15,'0').TakeLast(15).ToArray(); Array.Copy(tr,0,chars,8,15);
+        var rr = reason.PadRight(3).Take(3).ToArray(); Array.Copy(rr,0,chars,3,3);
+        var tr = originalTrace.PadLeft(15,'0').TakeLast(15).ToArray(); Array.Copy(tr,0,chars,6,15);
         return new string(chars);
     }
 

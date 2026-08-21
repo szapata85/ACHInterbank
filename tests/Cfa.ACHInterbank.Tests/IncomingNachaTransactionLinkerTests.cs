@@ -117,6 +117,40 @@ public class IncomingNachaTransactionLinkerTests
         Assert.Contains("ResolvedCycle", result.EvidenceJson);
     }
 
+    [Fact]
+    public async Task LinkAsync_ReturnWithExactOriginalTraceAndDifferentAmount_ShouldNotLink()
+    {
+        using var context = BuildContext();
+        SeedTx(context, 7, trace: "777777777777777", externalId: "ORIGINAL", amount: 100m);
+        var sut = new IncomingNachaTransactionLinker(context);
+
+        var result = await sut.LinkAsync(
+            new EntryDetail { SequenceNumber = "888888888888888", Amount = 99m, AccountNumber = "001", TransactionCode = "26" },
+            new AddendaRecord { OriginalTraceNumber = "777777777777777", ReturnReasonCode = "R01" },
+            new IncomingNachaLinkingContext { FunctionalClass = IncomingNachaFunctionalClass.Devolucion });
+
+        Assert.Equal(IncomingNachaLinkType.NotFound, result.LinkType);
+        Assert.False(result.IsFinal);
+        Assert.Null(result.AchTransactionId);
+    }
+
+    [Fact]
+    public async Task LinkAsync_ReturnWithExactOriginalTraceAndSameAmount_ShouldLink()
+    {
+        using var context = BuildContext();
+        SeedTx(context, 8, trace: "888888888888888", externalId: "ORIGINAL", amount: 100m);
+        var sut = new IncomingNachaTransactionLinker(context);
+
+        var result = await sut.LinkAsync(
+            new EntryDetail { SequenceNumber = "999999999999999", Amount = 100m, AccountNumber = "001", TransactionCode = "26" },
+            new AddendaRecord { OriginalTraceNumber = "888888888888888", ReturnReasonCode = "R01" },
+            new IncomingNachaLinkingContext { FunctionalClass = IncomingNachaFunctionalClass.Devolucion });
+
+        Assert.Equal(IncomingNachaLinkType.ExactOriginalTraceRef, result.LinkType);
+        Assert.True(result.IsFinal);
+        Assert.Equal(8, result.AchTransactionId);
+    }
+
 
     [Fact]
     public async Task LinkAsync_CompositeKey_AvoidsCollision_WithOperationalDimensions()

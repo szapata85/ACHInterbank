@@ -62,6 +62,15 @@ public class IncomingNachaTransactionLinker : IIncomingNachaTransactionLinker
             var (candidates, narrowedByCycle) = await ResolveExactCandidatesAsync(exactQuery, context, ct);
             if (candidates.Count == 1)
             {
+                if (context.FunctionalClass == IncomingNachaFunctionalClass.Devolucion
+                    && !await _context.AchTransactions
+                        .AsNoTracking()
+                        .AnyAsync(x => x.Id == candidates[0] && x.Amount == entry.Amount.GetValueOrDefault(), ct))
+                {
+                    return Build(IncomingNachaLinkType.NotFound, null, false, 0m, false, true,
+                        "OriginalTraceRefAmountMismatch", candidates, trace, originalTraceRef, recipientIdentifier);
+                }
+
                 var criterion = narrowedByCycle ? "ExactOriginalTraceRef+ResolvedCycle" : "ExactOriginalTraceRef";
                 return Build(IncomingNachaLinkType.ExactOriginalTraceRef, candidates[0], true, 1.00m, false, false, criterion, candidates, trace, originalTraceRef, recipientIdentifier);
             }

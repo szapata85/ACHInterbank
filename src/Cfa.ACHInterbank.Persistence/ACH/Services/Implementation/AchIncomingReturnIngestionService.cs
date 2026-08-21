@@ -45,9 +45,9 @@ public class AchIncomingReturnIngestionService(
             CenitReturnAddenda2026? cenitAddenda = null;
             var isCenit2026 = cenitRawReturnContractGate is { IsHomologated: true }
                               && CenitReturnIn2026Layout.TryParseReturnAddenda(record, out cenitAddenda);
-            var reason = isCenit2026 ? cenitAddenda!.ReturnReasonCode : record.Substring(3, 5).Trim();
+            var reason = isCenit2026 ? cenitAddenda!.ReturnReasonCode : record.Substring(3, 3).Trim();
             var normalizedReason = reason.Trim().ToUpperInvariant();
-            var originalTrace = isCenit2026 ? cenitAddenda!.OriginalTraceNumber : record.Substring(8, 15).Trim();
+            var originalTrace = isCenit2026 ? cenitAddenda!.OriginalTraceNumber : record.Substring(6, 15).Trim();
             var trace = isCenit2026
                 ? cenitAddenda!.AddendaSequenceNumber
                 : record.Length >= 106 ? record.Substring(91, 15).Trim() : null;
