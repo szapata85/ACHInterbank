@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.OutgoingTransactionMonitoring;
+using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -50,12 +51,40 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         else builder.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("Cfa.ACHInterbank.Persistence.Migrations.SqlServer"));
         var options = builder.Options;
         await using var context = new AchDbContext(options);
-        var id = await SeedAsync(context);
         var phase4 = await SeedPhase4Async(context);
-        (await context.AchTransactions.AnyAsync(item => item.Id == id)).Should().BeTrue();
-        (await context.AchTransactions.CountAsync(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))).Should().Be(37);
+        await EnsureRuntimeUserAsync(context);
+        (await context.AchTransactions.CountAsync(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))).Should().Be(38);
         (await context.ContrapartidaDispatchAttempts.CountAsync(item => item.DispatchItem.AchTransactionId == phase4.RetrySucceeded)).Should().Be(2);
         (await context.AchFileExportTransactions.CountAsync(item => item.AchTransactionId == phase4.ExactFile)).Should().Be(1);
+    }
+
+    private static async Task EnsureRuntimeUserAsync(AchDbContext context)
+    {
+        var username = Environment.GetEnvironmentVariable("CENIT_RETURN_E2E_USER");
+        var password = Environment.GetEnvironmentVariable("CENIT_RETURN_E2E_PASSWORD");
+        if (string.IsNullOrWhiteSpace(username) && string.IsNullOrWhiteSpace(password))
+            return;
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException("CENIT_RETURN_E2E_USER y CENIT_RETURN_E2E_PASSWORD deben configurarse juntos.");
+
+        var roleIds = await context.Roles.AsNoTracking().Select(item => item.Id).ToArrayAsync();
+        roleIds.Should().NotBeEmpty();
+        var users = new UsersService(context);
+        var existingId = await context.Users.AsNoTracking()
+            .Where(item => item.Username == username)
+            .Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync();
+        var request = new SaveUserRequest
+        {
+            UserName = username,
+            FullName = "Operador E2E CENIT",
+            Password = password,
+            RoleIds = roleIds
+        };
+        var result = existingId.HasValue
+            ? await users.UpdateAsync(existingId.Value, request)
+            : await users.CreateAsync(request);
+        result.Status.Should().Be(UserOperationStatus.Success);
     }
 
     private static async Task RunAsync(DatabaseProvider provider)
@@ -105,7 +134,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         {
             FromUtc = persisted.CreatedAt.AddDays(-1), ToUtc = persisted.CreatedAt.AddDays(1), PageSize = 50
         });
-        phase4.TotalItems.Should().Be(37);
+        phase4.TotalItems.Should().Be(38);
         phase4.Items.Should().OnlyContain(item => !item.TransactionExternalId.Contains("HISTORICA"));
         phase4.Items.Where(item => item.TransactionExternalId.StartsWith("UAT-F4-MON-SAL-"))
             .Should().OnlyContain(item => item.MaskedDestinationAccount == "******7890");
@@ -160,6 +189,19 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         exactFileDetail.Files[0].FileName.Should().Be("UAT-F4-SALIDA.001");
         exactFileDetail.Files[0].HasTransmissionEvidence.Should().BeFalse();
         exactFileDetail.TechnicalDetail.Should().NotBeNull();
+
+        var cenitTransportDetail = await service.GetDetailAsync(ids.CenitReturnTransport, includeTechnicalDetail: false);
+        cenitTransportDetail!.Summary.ClearingHouseDisplayName.Should().Contain("CENIT");
+        cenitTransportDetail.Files.Should().HaveCount(2);
+        cenitTransportDetail.Files.Should().OnlyContain(item => item.OperationDisplayName == "Devolución / Return Out");
+        var transmittedCenitFile = cenitTransportDetail.Files.Single(item => item.HasTransmissionEvidence);
+        transmittedCenitFile.TransmissionReference.Should().Be("CFA-MFT-HANDOFF:CENIT-UAT-F4");
+        transmittedCenitFile.TransportAttempts.Should().ContainSingle(item => item.StatusCode == "Succeeded");
+        transmittedCenitFile.TransportResults.Should().ContainSingle(item => item.OutcomeCode == "Accepted" && item.Applied);
+        cenitTransportDetail.Timeline.Should().Contain(item => item.StageCode == "Generation");
+        cenitTransportDetail.Timeline.Should().Contain(item => item.StageCode == "Delivery");
+        cenitTransportDetail.Timeline.Should().Contain(item => item.StageCode == "Transmission");
+        cenitTransportDetail.Timeline.Should().Contain(item => item.StageCode == "Acknowledgement");
 
         var returnedDetail = await service.GetDetailAsync(ids.AcceptedReturned, includeTechnicalDetail: false);
         returnedDetail!.Timeline.Should().Contain(item => item.StageDisplayName == "Aceptaci\u00f3n");
@@ -388,25 +430,73 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         var exactFile = Tx("11-ARCHIVO-EXACTO", "900000000000011", cycle.Id, 8);
         var achSpecialDate = Tx("12-ACH-FECHA-ESPECIAL", "900000000000012", achSpecialDateCycle.Id, 9);
         var cenitSpecialDate = Tx("13-CENIT-FECHA-ESPECIAL", "900000000000013", cenitSpecialDateCycle.Id, 10);
+        var cenitTransport = Tx("14-CENIT-RETURN-TRANSPORT", "900000000000014", cenitSpecialDateCycle.Id, 11);
         var historical = Transaction("UAT-F4-MON-SAL-HISTORICA-NO-DETERMINADA", "900000000009999", AchTransactionDirection.Unknown,
             AchTransactionClassificationStatus.Unknown, source.Id, destination.Id, cycle.Id, batch.Id, now.AddMinutes(11));
         var fillers = Enumerable.Range(1, 25).Select(index => Tx($"PAG-{index:00}", $"900000000001{index:00}", cycle.Id, 12 + index)).ToArray();
         context.AchTransactions.AddRange([future, pending, accepted, rejected, returned, withoutFile, technical, retry, exactFile,
-            achSpecialDate, cenitSpecialDate, historical, .. fillers]);
+            achSpecialDate, cenitSpecialDate, cenitTransport, historical, .. fillers]);
         await context.SaveChangesAsync();
 
         context.AchTransactionStateEvents.AddRange(
             StateEvent(accepted.Id, AchTransferStateEnum.Pending, AchTransferStateEnum.AppliedTacitly, now.UtcDateTime.AddMinutes(20)),
             StateEvent(returned.Id, AchTransferStateEnum.Pending, AchTransferStateEnum.AppliedTacitly, now.UtcDateTime.AddMinutes(21)),
-            StateEvent(returned.Id, AchTransferStateEnum.AppliedTacitly, AchTransferStateEnum.ReturnedByEpr, now.UtcDateTime.AddMinutes(22), "R01", "Fondos insuficientes en el contexto UAT"));
+            StateEvent(returned.Id, AchTransferStateEnum.AppliedTacitly, AchTransferStateEnum.ReturnedByEpr, now.UtcDateTime.AddMinutes(22), "R01", "Fondos insuficientes en el contexto UAT"),
+            StateEvent(cenitTransport.Id, AchTransferStateEnum.Pending, AchTransferStateEnum.ReturnedByEpr, now.UtcDateTime.AddMinutes(22), "R01", "Devolución CENIT controlada"));
 
         var file1 = File(cycle.Id, house.Id, "UAT-F4-SALIDA.001", 1, now.UtcDateTime.AddMinutes(23));
         var file2 = File(cycle.Id, house.Id, "UAT-F4-SALIDA.002", 2, now.UtcDateTime.AddMinutes(24));
-        context.AchFileExports.AddRange(file1, file2);
+        var cenitPlainFile = File(cenitSpecialDateCycle.Id, cenitHouse.Id, "0001122.001.2", 1, now.UtcDateTime.AddMinutes(29));
+        cenitPlainFile.ExportKind = "RETURN";
+        cenitPlainFile.IsEncrypted = false;
+        cenitPlainFile.ContentSha256 = "CENIT-UAT-F4-PLAIN-CONTENT-HASH";
+        cenitPlainFile.LifecycleStatus = AchFileExportLifecycleStatus.Generated;
+        var cenitFile = File(cenitSpecialDateCycle.Id, cenitHouse.Id, "0001122.001.2.ENV", 1, now.UtcDateTime.AddMinutes(30));
+        cenitFile.ExportKind = "RETURN";
+        cenitFile.ContentSha256 = "CENIT-UAT-F4-CONTENT-HASH";
+        cenitFile.LifecycleStatus = AchFileExportLifecycleStatus.Accepted;
+        cenitFile.TransmissionReference = "CFA-MFT-HANDOFF:CENIT-UAT-F4";
+        cenitFile.TransmittedAtUtc = now.UtcDateTime.AddMinutes(31);
+        cenitFile.AcknowledgedAtUtc = now.UtcDateTime.AddMinutes(32);
+        cenitFile.AcknowledgementCode = "ACCEPTED";
+        context.AchFileExports.AddRange(file1, file2, cenitPlainFile, cenitFile);
         await context.SaveChangesAsync();
         context.AchFileExportTransactions.AddRange(
             Membership(file1.Id, exactFile, cycle.Id, batch.Id, file1.GeneratedAtUtc),
-            Membership(file2.Id, fillers[0], cycle.Id, batch.Id, file2.GeneratedAtUtc));
+            Membership(file2.Id, fillers[0], cycle.Id, batch.Id, file2.GeneratedAtUtc),
+            Membership(cenitPlainFile.Id, cenitTransport, cenitSpecialDateCycle.Id, batch.Id, cenitPlainFile.GeneratedAtUtc),
+            Membership(cenitFile.Id, cenitTransport, cenitSpecialDateCycle.Id, batch.Id, cenitFile.GeneratedAtUtc));
+        context.AchFileTransmissionAttempts.Add(new AchFileTransmissionAttempt
+        {
+            AchFileExportId = cenitFile.Id,
+            AttemptNumber = 1,
+            IdempotencyKey = "CENIT-UAT-F4-DISPATCH",
+            Status = AchFileTransmissionAttemptStatus.Succeeded,
+            StartedAtUtc = now.UtcDateTime.AddMinutes(30),
+            CompletedAtUtc = now.UtcDateTime.AddMinutes(31),
+            ResultCode = "HANDOFF_COMMITTED",
+            ResultSummary = "Artefacto entregado al boundary local controlado.",
+            ExternalReference = cenitFile.TransmissionReference,
+            ContentSha256 = cenitFile.ContentSha256,
+            ProtectedContent = "cenit-return-out"u8.ToArray()
+        });
+        context.AchFileTransportResults.Add(new AchFileTransportResult
+        {
+            Id = Guid.Parse("6df1e4e1-55d0-4d76-8893-4e98ff2a5730"),
+            AchFileExportId = cenitFile.Id,
+            ExternalEventId = "CENIT-UAT-F4-ACK",
+            FunctionalIdentityHash = "CENIT-UAT-F4-ACK-IDENTITY",
+            FileName = cenitFile.FileName,
+            TransmissionReference = cenitFile.TransmissionReference,
+            Outcome = AchOutboundReturnOutcome.Accepted,
+            ResultCode = "ACCEPTED",
+            ResultSummary = "Resultado CENIT aceptado.",
+            OccurredAtUtc = now.UtcDateTime.AddMinutes(32),
+            ReceivedAtUtc = now.UtcDateTime.AddMinutes(32).AddSeconds(1),
+            ProcessedAtUtc = now.UtcDateTime.AddMinutes(32).AddSeconds(2),
+            CorrelationStatus = AchResponseCorrelationStatus.Matched,
+            Applied = true
+        });
         AddDispatch(context, pending, cycle, house, batch, [Attempt(1, success: true, code: "00", started: now.UtcDateTime.AddMinutes(25))]);
         AddDispatch(context, rejected, cycle, house, batch, [Attempt(1, rejection: true, code: "R01", started: now.UtcDateTime.AddMinutes(26))]);
         AddDispatch(context, technical, cycle, house, batch, [Attempt(1, technical: true, code: "TIMEOUT", started: now.UtcDateTime.AddMinutes(27))]);
@@ -414,7 +504,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
             [Attempt(1, technical: true, code: "TIMEOUT", started: now.UtcDateTime.AddMinutes(28)), Attempt(2, success: true, code: "00", started: now.UtcDateTime.AddMinutes(29))]);
         await context.SaveChangesAsync();
         return new ScenarioIds(future.Id, pending.Id, accepted.Id, rejected.Id, returned.Id, withoutFile.Id, technical.Id, retry.Id,
-            exactFile.Id, achSpecialDate.Id, cenitSpecialDate.Id);
+            exactFile.Id, achSpecialDate.Id, cenitSpecialDate.Id, cenitTransport.Id);
     }
 
     private static AchTransaction Phase4Transaction(string externalId, string trace, int sourceId, int destinationId, string cycleId, int batchId, DateTimeOffset createdAt)
@@ -470,13 +560,15 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         };
 
     private sealed record ScenarioIds(int FutureCycle, int PendingResponse, int Accepted, int Rejected, int AcceptedReturned,
-        int WithoutFile, int TechnicalFailure, int RetrySucceeded, int ExactFile, int AchSpecialDateCycle, int CenitSpecialDateCycle)
+        int WithoutFile, int TechnicalFailure, int RetrySucceeded, int ExactFile, int AchSpecialDateCycle, int CenitSpecialDateCycle,
+        int CenitReturnTransport)
     {
         public static ScenarioIds From(IReadOnlyDictionary<string, int> ids) => new(
             ids["UAT-F4-MON-SAL-01-FUTURO"], ids["UAT-F4-MON-SAL-02-PENDIENTE"], ids["UAT-F4-MON-SAL-03-ACEPTADA"],
             ids["UAT-F4-MON-SAL-04-RECHAZADA"], ids["UAT-F4-MON-SAL-05-DEVUELTA"], ids["UAT-F4-MON-SAL-06-SIN-ARCHIVO"],
             ids["UAT-F4-MON-SAL-07-ERROR-TECNICO"], ids["UAT-F4-MON-SAL-08-REINTENTO"], ids["UAT-F4-MON-SAL-11-ARCHIVO-EXACTO"],
-            ids["UAT-F4-MON-SAL-12-ACH-FECHA-ESPECIAL"], ids["UAT-F4-MON-SAL-13-CENIT-FECHA-ESPECIAL"]);
+            ids["UAT-F4-MON-SAL-12-ACH-FECHA-ESPECIAL"], ids["UAT-F4-MON-SAL-13-CENIT-FECHA-ESPECIAL"],
+            ids["UAT-F4-MON-SAL-14-CENIT-RETURN-TRANSPORT"]);
     }
 
     private static FinancialInstitution Institution(string name, bool source, string routing, string transit)

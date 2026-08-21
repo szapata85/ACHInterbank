@@ -55,4 +55,35 @@ describe('OutgoingTransactionMonitoringDetailComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Acceso no autorizado');
     expect(fixture.nativeElement.querySelector('[data-testid="outgoing-timeline"]')).toBeNull();
   });
+
+  it('muestra el transporte y acuse Return Out CENIT con etiquetas operacionales', () => {
+    fixture.detectChanges();
+    fixture.componentInstance.detail.set({
+      summary: { transactionExternalId: 'CENIT-RET-001', processStatusDisplayName: 'Procesada', createdAtUtc: '2026-08-20T10:00:00Z', lastUpdatedAtUtc: '2026-08-20T10:05:00Z', clearingHouseDisplayName: 'CENIT', cycleDisplayName: 'Ciclo 2', cycleProcessingDate: '2026-08-20T00:00:00Z', nextExpectedStepDisplayName: 'Sin pasos pendientes.', destinationInstitutionDisplayName: 'Entidad', maskedDestinationAccount: '******1234', amount: 100, initialResultDisplayName: 'Aceptada', subsequentSituationDisplayName: 'Devuelta posteriormente', requiresAttention: false },
+      classification: { directionDisplayName: 'Salida', originDisplayName: 'Originada por CFA', monetaryRouteDisplayName: 'No aplica', classificationStatusDisplayName: 'Determinada', classificationVersion: 1 },
+      integration: { wasDispatched: false, attemptCount: 0, resultDisplayName: 'No aplica' },
+      files: [{
+        fileId: 12, fileName: '0001122.001.2.ENV', operationDisplayName: 'Devolución / Return Out', artifactTypeDisplayName: 'Sobre digital preparado',
+        fileSequence: 1, includedAtUtc: '2026-08-20T10:00:00Z', generatedAtUtc: '2026-08-20T10:01:00Z', contentSha256: 'ABC123',
+        lifecycleStatusCode: 'Acknowledged', lifecycleStatusDisplayName: 'Acuse comprobado', hasTransmissionEvidence: true,
+        transmissionReference: 'CFA-MFT-HANDOFF:ABC123', transmittedAtUtc: '2026-08-20T10:03:00Z', hasAcknowledgementEvidence: true,
+        acknowledgedAtUtc: '2026-08-20T10:04:00Z', acknowledgementCode: 'ACCEPTED',
+        transportAttempts: [{ attemptNumber: 1, startedAtUtc: '2026-08-20T10:02:00Z', completedAtUtc: '2026-08-20T10:03:00Z', statusCode: 'Succeeded', statusDisplayName: 'Entregada', retryable: false, resultCode: 'HANDOFF_COMMITTED', resultDescription: 'Entregado.', transmissionReference: 'CFA-MFT-HANDOFF:ABC123' }],
+        transportResults: [{ id: '00000000-0000-0000-0000-000000000001', occurredAtUtc: '2026-08-20T10:04:00Z', receivedAtUtc: '2026-08-20T10:04:01Z', processedAtUtc: '2026-08-20T10:04:02Z', outcomeCode: 'Accepted', outcomeDisplayName: 'Aceptada', resultCode: 'ACCEPTED', resultDescription: 'Resultado aceptado.', correlationStatusDisplayName: 'Correlacionada', applied: true, requiresManualReview: false }]
+      }],
+      responses: [], returns: [], warnings: [],
+      timeline: [{ occurredAtUtc: '2026-08-20T10:04:00Z', stageCode: 'Acknowledgement', stageDisplayName: 'Acuse o resultado', title: 'Resultado de transporte recibido', description: 'Resultado aceptado.', outcomeCode: 'Accepted', outcomeDisplayName: 'Aceptada', severity: 'success', sourceType: 'AchFileTransportResult', isTechnical: false }]
+    } as never);
+    fixture.componentInstance.loading.set(false);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('CENIT');
+    expect(text).toContain('Devolución / Return Out');
+    expect(text).toContain('CFA-MFT-HANDOFF:ABC123');
+    expect(text).toContain('Número de intentos');
+    expect(text).toContain('HANDOFF_COMMITTED');
+    expect(text).toContain('Resultado aceptado');
+    expect(text).toContain('Resultado de transporte recibido');
+  });
 });

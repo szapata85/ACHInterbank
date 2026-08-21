@@ -173,6 +173,34 @@ public sealed class OutboundReturnMultiDbTests
         AssertWinnerLoser(raceIResults);
         await fixture.AssertScenarioAsync(raceI, expectedReturns: 1, expectedEvents: 1, expectedRegistries: 1);
         await fixture.AssertCenitRorPersistenceAsync(raceI);
+
+        // RACE J: callbacks terminales CENIT concurrentes conservan un único resultado efectivo.
+        var transport = await fixture.SeedCenitTransportExportAsync(raceI);
+        var callbackGate = new AsyncStartGate(2);
+        async Task<AchOutboundReturnResultProcessingResult> ProcessResult(
+            string eventId,
+            AchOutboundReturnOutcome outcome,
+            string code)
+        {
+            await callbackGate.ArriveAsync(CancellationToken.None);
+            await using var callbackContext = fixture.CreateContext();
+            var processor = new AchOutboundReturnResultProcessor(
+                callbackContext,
+                new AchFileTransmissionEvidenceRecorder(callbackContext));
+            return await processor.ProcessAsync(new AchOutboundReturnResultRequest(
+                eventId,
+                transport.FileName,
+                transport.Reference,
+                outcome,
+                code,
+                FixedNow.UtcDateTime));
+        }
+        var callbackResults = await Task.WhenAll(
+            Task.Run(() => ProcessResult("CENIT-RACE-J-ACK", AchOutboundReturnOutcome.Accepted, "ACCEPTED")),
+            Task.Run(() => ProcessResult("CENIT-RACE-J-REJECT", AchOutboundReturnOutcome.Rejected, "REJECTED")));
+        callbackResults.Should().ContainSingle(result => result.Applied);
+        callbackResults.Should().ContainSingle(result => result.RequiresManualReview && !result.Applied);
+        await fixture.AssertCenitTransportConflictAsync(transport);
     }
 
     private static async Task RunMigrationRoundTripAsync(DatabaseProvider provider)
@@ -316,6 +344,7 @@ public sealed class OutboundReturnMultiDbTests
         string? ReturnCycleId = null);
     private sealed record GenerationAttempt(GenerateReturnsFileResponse? Response, Exception? Error);
     private sealed record Evidence(int GenerationAudits, int Registries);
+    private sealed record TransportExport(int Id, string FileName, string Reference);
 
     private sealed class FixedTimeProvider : TimeProvider
     {
@@ -664,6 +693,38 @@ public sealed class OutboundReturnMultiDbTests
             await context.SaveChangesAsync();
 
             return new Scenario(originalCycleId, processingDate.Date, participantDfi, [transaction.Id], returnCycleId);
+        }
+
+        public async Task<TransportExport> SeedCenitTransportExportAsync(Scenario scenario)
+        {
+            await using var context = CreateContext();
+            var export = new AchFileExport
+            {
+                AchCycleId = scenario.ReturnCycleId!,
+                ClearingHouseId = _cenitClearingHouseId,
+                ExportKind = "RETURN",
+                FileName = $"CENIT-{Provider}-RACE-J.ENV",
+                TotalRecords = 10,
+                TotalTransactions = 1,
+                IsEncrypted = true,
+                GeneratedAtUtc = FixedNow.UtcDateTime.AddMinutes(-2),
+                LifecycleStatus = AchFileExportLifecycleStatus.Transmitted,
+                TransmissionReference = $"CFA-MFT-HANDOFF:CENIT-{Provider}-RACE-J",
+                TransmittedAtUtc = FixedNow.UtcDateTime.AddMinutes(-1)
+            };
+            context.AchFileExports.Add(export);
+            await context.SaveChangesAsync();
+            return new TransportExport(export.Id, export.FileName, export.TransmissionReference);
+        }
+
+        public async Task AssertCenitTransportConflictAsync(TransportExport transport)
+        {
+            await using var context = CreateContext();
+            var export = await context.AchFileExports.AsNoTracking().SingleAsync(item => item.Id == transport.Id);
+            export.LifecycleStatus.Should().BeOneOf(AchFileExportLifecycleStatus.Accepted, AchFileExportLifecycleStatus.Rejected);
+            (await context.AchFileTransportResults.CountAsync(item => item.AchFileExportId == transport.Id)).Should().Be(2);
+            (await context.AchFileTransportResults.CountAsync(item => item.AchFileExportId == transport.Id && item.Applied)).Should().Be(1);
+            (await context.AchFileTransportResults.CountAsync(item => item.AchFileExportId == transport.Id && item.RequiresManualReview)).Should().Be(1);
         }
 
         public async Task AssertCenitRorPersistenceAsync(Scenario scenario)

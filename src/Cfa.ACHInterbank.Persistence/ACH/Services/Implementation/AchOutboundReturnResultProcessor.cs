@@ -1,12 +1,15 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Data;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -19,12 +22,34 @@ public sealed class AchOutboundReturnResultProcessor(
         AchOutboundReturnResultRequest request,
         CancellationToken ct = default)
     {
+        const int maxConcurrencyAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var strategy = context.Database.CreateExecutionStrategy();
+                return await strategy.ExecuteAsync(() => ProcessCoreAsync(request, ct));
+            }
+            catch (Exception exception) when (attempt < maxConcurrencyAttempts && IsPersistenceConflict(exception))
+            {
+                context.ChangeTracker.Clear();
+            }
+        }
+    }
+
+    private async Task<AchOutboundReturnResultProcessingResult> ProcessCoreAsync(
+        AchOutboundReturnResultRequest request,
+        CancellationToken ct)
+    {
         Validate(request);
         var eventId = Trim(request.ExternalEventId, 128);
         var fileName = Path.GetFileName(request.FileName.Trim());
         var reference = Trim(request.TransmissionReference, 120);
         var resultCode = Trim(request.ResultCode, 60);
         var identity = ComputeIdentity(reference, fileName, request.Outcome, resultCode);
+        await using var transaction = context.Database.IsRelational()
+            ? await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+            : null;
 
         var duplicate = await context.AchFileTransportResults
             .AsNoTracking()
@@ -66,9 +91,6 @@ public sealed class AchOutboundReturnResultProcessor(
                                    || request.Outcome == AchOutboundReturnOutcome.Unknown
         };
 
-        await using var transaction = context.Database.IsRelational()
-            ? await context.Database.BeginTransactionAsync(ct)
-            : null;
         try
         {
             if (export is not null && request.Outcome != AchOutboundReturnOutcome.Unknown)
@@ -111,7 +133,7 @@ public sealed class AchOutboundReturnResultProcessor(
                 await transaction.CommitAsync(ct);
             }
         }
-        catch (DbUpdateException)
+        catch (Exception exception) when (IsPersistenceConflict(exception))
         {
             if (transaction is not null)
             {
@@ -178,6 +200,20 @@ public sealed class AchOutboundReturnResultProcessor(
     {
         var canonical = $"{reference}|{fileName}|{outcome}|{resultCode}".ToUpperInvariant();
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
+
+    private static bool IsPersistenceConflict(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is DbUpdateException
+                || current is SqlException { Number: 1205 }
+                || current is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure })
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static string Trim(string value, int maxLength)

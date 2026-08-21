@@ -129,15 +129,55 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             .Select(item => new FileRow(
                 item.AchFileExportId,
                 item.AchFileExport.FileName,
+                item.AchFileExport.ExportKind,
+                item.AchFileExport.IsEncrypted,
                 item.AchFileExport.Version,
                 item.FileSequence,
                 item.IncludedAtUtc,
                 item.AchFileExport.GeneratedAtUtc,
+                item.AchFileExport.ContentSha256,
                 item.AchFileExport.LifecycleStatus,
                 item.AchFileExport.TransmissionReference,
                 item.AchFileExport.TransmittedAtUtc,
                 item.AchFileExport.AcknowledgedAtUtc,
                 item.AchFileExport.AcknowledgementCode))
+            .ToListAsync(cancellationToken);
+
+        var fileIds = files.Select(item => item.FileId).Distinct().ToArray();
+        var transportAttempts = await _context.AchFileTransmissionAttempts
+            .AsNoTracking()
+            .Where(item => fileIds.Contains(item.AchFileExportId))
+            .OrderBy(item => item.StartedAtUtc)
+            .ThenBy(item => item.AttemptNumber)
+            .Select(item => new TransportAttemptRow(
+                item.AchFileExportId,
+                item.AttemptNumber,
+                item.StartedAtUtc,
+                item.CompletedAtUtc,
+                item.Status,
+                item.Retryable,
+                item.ResultCode,
+                item.ResultSummary,
+                item.ExternalReference))
+            .ToListAsync(cancellationToken);
+
+        var transportResults = await _context.AchFileTransportResults
+            .AsNoTracking()
+            .Where(item => item.AchFileExportId.HasValue && fileIds.Contains(item.AchFileExportId.Value))
+            .OrderBy(item => item.OccurredAtUtc)
+            .ThenBy(item => item.ReceivedAtUtc)
+            .Select(item => new TransportResultRow(
+                item.Id,
+                item.AchFileExportId!.Value,
+                item.OccurredAtUtc,
+                item.ReceivedAtUtc,
+                item.ProcessedAtUtc,
+                item.Outcome,
+                item.ResultCode,
+                item.ResultSummary,
+                item.CorrelationStatus,
+                item.Applied,
+                item.RequiresManualReview))
             .ToListAsync(cancellationToken);
 
         var responses = await _context.AchResponses
@@ -171,8 +211,12 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             .Select(item => new LiquidityRow(item.DecidedAtUtc, item.DecisionType, item.DecisionReason, item.FromCycleId, item.ToCycleId))
             .ToListAsync(cancellationToken);
 
-        var timeline = BuildTimeline(row, stateEvents, attempts, files, responses, incomingEvents, liquidityDecisions);
-        var fileDetails = files.Select(MapFileDetail).ToArray();
+        var timeline = BuildTimeline(row, stateEvents, attempts, files, transportAttempts, transportResults,
+            responses, incomingEvents, liquidityDecisions);
+        var fileDetails = files.Select(item => MapFileDetail(
+            item,
+            transportAttempts.Where(attempt => attempt.FileId == item.FileId).ToArray(),
+            transportResults.Where(result => result.FileId == item.FileId).ToArray())).ToArray();
         var returnDetails = stateEvents
             .Where(item => IsReturnState(item.ToState))
             .Select(item => new OutgoingTransactionReturnDetail(
@@ -602,6 +646,8 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
         IReadOnlyList<StateEventRow> stateEvents,
         IReadOnlyList<AttemptRow> attempts,
         IReadOnlyList<FileRow> files,
+        IReadOnlyList<TransportAttemptRow> transportAttempts,
+        IReadOnlyList<TransportResultRow> transportResults,
         IReadOnlyList<ResponseRow> responses,
         IReadOnlyList<IncomingEventRow> incomingEvents,
         IReadOnlyList<LiquidityRow> liquidityDecisions)
@@ -634,6 +680,55 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             "Incluida en archivo de salida",
             $"Archivo {item.FileName}, versión {(item.Version?.ToString() ?? "no determinada")}, posición {item.FileSequence}.",
             "Included", "Incluida", "success", "AchFileExportTransaction")));
+
+        events.AddRange(files.Select(item => Event(item.GeneratedAtUtc,
+            item.IsEncrypted ? "Preparation" : "Generation",
+            item.IsEncrypted ? "Preparación" : "Generación",
+            item.IsEncrypted ? "Artefacto preparado" : "Archivo Return Out generado",
+            $"{(item.IsEncrypted ? "Sobre digital" : "Archivo NACHA-M")} {item.FileName}.",
+            item.IsEncrypted ? "Prepared" : "Generated",
+            item.IsEncrypted ? "Preparada" : "Generada",
+            "success",
+            "AchFileExport")));
+
+        events.AddRange(transportAttempts.Select(item => Event(
+            item.CompletedAtUtc ?? item.StartedAtUtc,
+            item.Status == AchFileTransmissionAttemptStatus.Succeeded ? "Delivery" : "TransportError",
+            item.Status == AchFileTransmissionAttemptStatus.Succeeded ? "Entrega" : "Transporte",
+            item.Status == AchFileTransmissionAttemptStatus.Succeeded
+                ? $"Entrega de transporte #{item.AttemptNumber}"
+                : $"Intento de transporte #{item.AttemptNumber}",
+            SanitizeMessage(item.ResultSummary),
+            item.Status.ToString(),
+            TransportAttemptStatusDisplay(item.Status),
+            item.Status == AchFileTransmissionAttemptStatus.Succeeded ? "success" : item.Retryable ? "warning" : "error",
+            "AchFileTransmissionAttempt",
+            item.Status is AchFileTransmissionAttemptStatus.FailedRetryable or AchFileTransmissionAttemptStatus.FailedFinal)));
+
+        events.AddRange(files
+            .Where(item => HasTransmissionEvidence(item.TransmissionReference, item.TransmittedAtUtc))
+            .Select(item => Event(
+                item.TransmittedAtUtc!.Value,
+                "Transmission",
+                "Transmisión",
+                "Transmisión registrada",
+                $"El artefacto {item.FileName} quedó correlacionado con una referencia de transmisión.",
+                "Transmitted",
+                "Transmitida",
+                "success",
+                "AchFileExport")));
+
+        events.AddRange(transportResults.Select(item => Event(
+            item.OccurredAtUtc,
+            "Acknowledgement",
+            "Acuse o resultado",
+            item.Outcome == AchOutboundReturnOutcome.Unknown ? "Resultado desconocido recibido" : "Resultado de transporte recibido",
+            SanitizeMessage(item.ResultSummary),
+            item.Outcome.ToString(),
+            TransportOutcomeDisplay(item.Outcome),
+            item.Outcome == AchOutboundReturnOutcome.Rejected ? "error"
+                : item.Outcome == AchOutboundReturnOutcome.Unknown || item.RequiresManualReview ? "warning" : "success",
+            "AchFileTransportResult")));
 
         events.AddRange(stateEvents.Select(item => Event(
             item.OccurredAtUtc,
@@ -682,15 +777,73 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
             yield return "Existe una correlación que requiere revisión.";
     }
 
-    private static OutgoingTransactionFileDetail MapFileDetail(FileRow item)
+    private static OutgoingTransactionFileDetail MapFileDetail(
+        FileRow item,
+        IReadOnlyList<TransportAttemptRow> attempts,
+        IReadOnlyList<TransportResultRow> results)
     {
         var status = FileLifecycle(item.LifecycleStatus, item.TransmissionReference, item.TransmittedAtUtc);
         var transmission = HasTransmissionEvidence(item.TransmissionReference, item.TransmittedAtUtc);
         var acknowledgement = transmission && item.AcknowledgedAtUtc.HasValue && !string.IsNullOrWhiteSpace(item.AcknowledgementCode);
-        return new OutgoingTransactionFileDetail(item.FileId, item.FileName, item.Version, item.FileSequence,
-            item.IncludedAtUtc, status.Code, status.Label, transmission, transmission ? item.TransmittedAtUtc : null,
-            acknowledgement, acknowledgement ? item.AcknowledgedAtUtc : null, acknowledgement ? item.AcknowledgementCode : null);
+        return new OutgoingTransactionFileDetail(
+            item.FileId,
+            item.FileName,
+            item.ExportKind.Equals("RETURN", StringComparison.OrdinalIgnoreCase) ? "Devolución / Return Out" : "Archivo de salida",
+            item.Version,
+            item.FileSequence,
+            item.IncludedAtUtc,
+            item.GeneratedAtUtc,
+            item.IsEncrypted ? "Sobre digital preparado" : "NACHA-M",
+            EmptyToNull(item.ContentSha256),
+            status.Code,
+            status.Label,
+            transmission,
+            transmission ? item.TransmissionReference : null,
+            transmission ? item.TransmittedAtUtc : null,
+            acknowledgement,
+            acknowledgement ? item.AcknowledgedAtUtc : null,
+            acknowledgement ? item.AcknowledgementCode : null,
+            attempts.Select(attempt => new OutgoingTransactionTransportAttemptDetail(
+                attempt.AttemptNumber,
+                attempt.StartedAtUtc,
+                attempt.CompletedAtUtc,
+                attempt.Status.ToString(),
+                TransportAttemptStatusDisplay(attempt.Status),
+                attempt.Retryable,
+                attempt.ResultCode,
+                SanitizeMessage(attempt.ResultSummary),
+                EmptyToNull(attempt.ExternalReference))).ToArray(),
+            results.Select(result => new OutgoingTransactionTransportResultDetail(
+                result.Id,
+                result.OccurredAtUtc,
+                result.ReceivedAtUtc,
+                result.ProcessedAtUtc,
+                result.Outcome.ToString(),
+                TransportOutcomeDisplay(result.Outcome),
+                result.ResultCode,
+                SanitizeMessage(result.ResultSummary),
+                CorrelationDisplay(result.CorrelationStatus),
+                result.Applied,
+                result.RequiresManualReview)).ToArray());
     }
+
+    private static string TransportAttemptStatusDisplay(AchFileTransmissionAttemptStatus status) => status switch
+    {
+        AchFileTransmissionAttemptStatus.Started => "En curso",
+        AchFileTransmissionAttemptStatus.Succeeded => "Entregada",
+        AchFileTransmissionAttemptStatus.FailedRetryable => "Error de transporte; reintento permitido",
+        AchFileTransmissionAttemptStatus.FailedFinal => "Error de transporte definitivo",
+        _ => "No determinado"
+    };
+
+    private static string TransportOutcomeDisplay(AchOutboundReturnOutcome outcome) => outcome switch
+    {
+        AchOutboundReturnOutcome.Acknowledged => "Acuse recibido",
+        AchOutboundReturnOutcome.Accepted => "Aceptada",
+        AchOutboundReturnOutcome.Rejected => "Rechazada",
+        AchOutboundReturnOutcome.Unknown => "Resultado desconocido",
+        _ => "No determinado"
+    };
 
     private static (string Code, string Label) FileLifecycle(AchFileExportLifecycleStatus? lifecycle, string? reference, DateTime? transmittedAt)
     {
@@ -845,9 +998,15 @@ public sealed class OutgoingTransactionMonitoringQueryService : IOutgoingTransac
         bool IsFunctionalRejection, bool IsTechnicalFailure, bool RequiresManualReview, string ExternalResponseCode,
         string ExternalResponseMessage, string ErrorCode, string ErrorMessage, string MethodName, string ExecutionMode,
         long DurationMs, string CorrelationId);
-    private sealed record FileRow(int FileId, string FileName, int? Version, int FileSequence, DateTime IncludedAtUtc,
-        DateTime GeneratedAtUtc, AchFileExportLifecycleStatus LifecycleStatus, string? TransmissionReference,
+    private sealed record FileRow(int FileId, string FileName, string ExportKind, bool IsEncrypted, int? Version,
+        int FileSequence, DateTime IncludedAtUtc, DateTime GeneratedAtUtc, string? ContentSha256,
+        AchFileExportLifecycleStatus LifecycleStatus, string? TransmissionReference,
         DateTime? TransmittedAtUtc, DateTime? AcknowledgedAtUtc, string? AcknowledgementCode);
+    private sealed record TransportAttemptRow(int FileId, int AttemptNumber, DateTime StartedAtUtc, DateTime? CompletedAtUtc,
+        AchFileTransmissionAttemptStatus Status, bool Retryable, string ResultCode, string ResultSummary, string? ExternalReference);
+    private sealed record TransportResultRow(Guid Id, int FileId, DateTime OccurredAtUtc, DateTime ReceivedAtUtc,
+        DateTime? ProcessedAtUtc, AchOutboundReturnOutcome Outcome, string ResultCode, string ResultSummary,
+        AchResponseCorrelationStatus CorrelationStatus, bool Applied, bool RequiresManualReview);
     private sealed record ResponseRow(Guid Id, DateTime ReceivedAtUtc, TipoRespuestaAch ResponseType, string ExternalStatusCode,
         string? CauseCode, string? CauseDescription, AchResponseCorrelationStatus CorrelationStatus);
     private sealed record IncomingEventRow(DateTime OccurredAtUtc, string EventType, string EventStatus, string Message);

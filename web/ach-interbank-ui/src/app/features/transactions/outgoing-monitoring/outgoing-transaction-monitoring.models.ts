@@ -96,16 +96,49 @@ export interface OutgoingMonitoringTimelineEvent {
 export interface OutgoingMonitoringFile {
   fileId: number;
   fileName: string;
+  operationDisplayName: string;
   version?: number;
   fileSequence: number;
   includedAtUtc: string;
+  generatedAtUtc: string;
+  artifactTypeDisplayName: string;
+  contentSha256?: string;
   lifecycleStatusCode: string;
   lifecycleStatusDisplayName: string;
   hasTransmissionEvidence: boolean;
+  transmissionReference?: string;
   transmittedAtUtc?: string;
   hasAcknowledgementEvidence: boolean;
   acknowledgedAtUtc?: string;
   acknowledgementCode?: string;
+  transportAttempts: OutgoingMonitoringTransportAttempt[];
+  transportResults: OutgoingMonitoringTransportResult[];
+}
+
+export interface OutgoingMonitoringTransportAttempt {
+  attemptNumber: number;
+  startedAtUtc: string;
+  completedAtUtc?: string;
+  statusCode: string;
+  statusDisplayName: string;
+  retryable: boolean;
+  resultCode: string;
+  resultDescription: string;
+  transmissionReference?: string;
+}
+
+export interface OutgoingMonitoringTransportResult {
+  id: string;
+  occurredAtUtc: string;
+  receivedAtUtc: string;
+  processedAtUtc?: string;
+  outcomeCode: string;
+  outcomeDisplayName: string;
+  resultCode: string;
+  resultDescription: string;
+  correlationStatusDisplayName: string;
+  applied: boolean;
+  requiresManualReview: boolean;
 }
 
 export interface OutgoingMonitoringDetail {

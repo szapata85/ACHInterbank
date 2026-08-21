@@ -103,16 +103,47 @@ public sealed record OutgoingTransactionIntegrationDetail(
 public sealed record OutgoingTransactionFileDetail(
     int FileId,
     string FileName,
+    string OperationDisplayName,
     int? Version,
     int FileSequence,
     DateTime IncludedAtUtc,
+    DateTime GeneratedAtUtc,
+    string ArtifactTypeDisplayName,
+    string? ContentSha256,
     string LifecycleStatusCode,
     string LifecycleStatusDisplayName,
     bool HasTransmissionEvidence,
+    string? TransmissionReference,
     DateTime? TransmittedAtUtc,
     bool HasAcknowledgementEvidence,
     DateTime? AcknowledgedAtUtc,
-    string? AcknowledgementCode);
+    string? AcknowledgementCode,
+    IReadOnlyList<OutgoingTransactionTransportAttemptDetail> TransportAttempts,
+    IReadOnlyList<OutgoingTransactionTransportResultDetail> TransportResults);
+
+public sealed record OutgoingTransactionTransportAttemptDetail(
+    int AttemptNumber,
+    DateTime StartedAtUtc,
+    DateTime? CompletedAtUtc,
+    string StatusCode,
+    string StatusDisplayName,
+    bool Retryable,
+    string ResultCode,
+    string ResultDescription,
+    string? TransmissionReference);
+
+public sealed record OutgoingTransactionTransportResultDetail(
+    Guid Id,
+    DateTime OccurredAtUtc,
+    DateTime ReceivedAtUtc,
+    DateTime? ProcessedAtUtc,
+    string OutcomeCode,
+    string OutcomeDisplayName,
+    string ResultCode,
+    string ResultDescription,
+    string CorrelationStatusDisplayName,
+    bool Applied,
+    bool RequiresManualReview);
 
 public sealed record OutgoingTransactionResponseDetail(
     Guid Id,

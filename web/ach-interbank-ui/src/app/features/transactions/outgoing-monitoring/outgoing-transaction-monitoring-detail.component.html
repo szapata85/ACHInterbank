@@ -39,7 +39,45 @@
 
     @if (item.files.length) {
       <section><h2>Archivo de salida</h2><div class="file-grid">@for (file of item.files; track file.fileId) {
-        <mat-card data-testid="outgoing-file"><mat-card-content><h3>{{ file.fileName }}</h3><dl><div><dt>Versión</dt><dd>{{ file.version ?? 'No determinada' }}</dd></div><div><dt>Posición</dt><dd>{{ file.fileSequence }}</dd></div><div><dt>Inclusión</dt><dd>{{ file.includedAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div><div><dt>Estado comprobable</dt><dd>{{ file.lifecycleStatusDisplayName }}</dd></div><div><dt>Transmisión</dt><dd>{{ file.hasTransmissionEvidence ? 'Transmisión comprobada' : 'Sin evidencia de transmisión' }}</dd></div><div><dt>Acuse</dt><dd>{{ file.hasAcknowledgementEvidence ? 'Acuse comprobado' : 'Pendiente de información externa' }}</dd></div></dl></mat-card-content></mat-card>
+        <mat-card data-testid="outgoing-file"><mat-card-content>
+          <h3>{{ file.fileName }}</h3>
+          <dl>
+            <div><dt>Operación</dt><dd>{{ file.operationDisplayName }}</dd></div>
+            <div><dt>Artefacto</dt><dd>{{ file.artifactTypeDisplayName }}</dd></div>
+            <div><dt>Versión</dt><dd>{{ file.version ?? 'No determinada' }}</dd></div>
+            <div><dt>Posición</dt><dd>{{ file.fileSequence }}</dd></div>
+            <div><dt>Generación</dt><dd>{{ file.generatedAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div>
+            <div><dt>Inclusión</dt><dd>{{ file.includedAtUtc | date:'dd/MM/yyyy HH:mm' }}</dd></div>
+            <div><dt>Estado de generación</dt><dd>{{ file.lifecycleStatusDisplayName }}</dd></div>
+            <div><dt>Estado de entrega</dt><dd>{{ file.hasTransmissionEvidence ? 'Entregada' : 'Pendiente' }}</dd></div>
+            <div><dt>Estado de transporte</dt><dd>{{ file.hasTransmissionEvidence ? 'Transmitida' : 'Pendiente' }}</dd></div>
+            <div><dt>Referencia de transmisión</dt><dd class="breakable">{{ file.transmissionReference || 'Pendiente' }}</dd></div>
+            <div><dt>Número de intentos</dt><dd>{{ file.transportAttempts.length }}</dd></div>
+            <div><dt>Fecha de transmisión</dt><dd>{{ file.transmittedAtUtc ? (file.transmittedAtUtc | date:'dd/MM/yyyy HH:mm') : 'Pendiente' }}</dd></div>
+            <div><dt>Estado de acuse</dt><dd>{{ file.hasAcknowledgementEvidence ? 'Resultado recibido' : 'Pendiente' }}</dd></div>
+            <div><dt>Fecha de resultado</dt><dd>{{ file.acknowledgedAtUtc ? (file.acknowledgedAtUtc | date:'dd/MM/yyyy HH:mm') : 'Pendiente' }}</dd></div>
+            <div><dt>Estado final</dt><dd>{{ file.lifecycleStatusDisplayName }}</dd></div>
+            @if (file.contentSha256) { <div><dt>Identificador del contenido</dt><dd class="breakable">{{ file.contentSha256 }}</dd></div> }
+          </dl>
+
+          @if (file.transportAttempts.length) {
+            <h4>Intentos de transporte</h4>
+            <ol class="operational-list" aria-label="Intentos de transporte">
+              @for (attempt of file.transportAttempts; track attempt.attemptNumber) {
+                <li><strong>Intento {{ attempt.attemptNumber }} — {{ attempt.statusDisplayName }}</strong><span>{{ attempt.startedAtUtc | date:'dd/MM/yyyy HH:mm:ss' }}</span><p>{{ attempt.resultCode }} — {{ attempt.resultDescription }}</p></li>
+              }
+            </ol>
+          }
+
+          @if (file.transportResults.length) {
+            <h4>Acuses y resultados</h4>
+            <ol class="operational-list" aria-label="Acuses y resultados">
+              @for (result of file.transportResults; track result.id) {
+                <li><strong>{{ result.outcomeDisplayName }}</strong><span>{{ result.occurredAtUtc | date:'dd/MM/yyyy HH:mm:ss' }}</span><p>{{ result.resultCode }} — {{ result.resultDescription }}</p><small>{{ result.correlationStatusDisplayName }}{{ result.requiresManualReview ? ' · Requiere revisión' : '' }}</small></li>
+              }
+            </ol>
+          }
+        </mat-card-content></mat-card>
       }</div></section>
     } @else {
       <section class="empty-section" aria-label="Archivo de salida"><mat-icon>description</mat-icon><div><h2>Archivo de salida</h2><p>Esta transacción todavía no tiene un archivo NACHA-M asociado.</p></div></section>

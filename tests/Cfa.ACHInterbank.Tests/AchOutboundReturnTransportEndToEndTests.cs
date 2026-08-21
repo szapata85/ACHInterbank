@@ -44,29 +44,36 @@ public sealed class AchOutboundReturnTransportEndToEndTests
         }
     }
 
-    [Fact]
-    public async Task Dispatch_ThenAcceptedResult_PersistsWholeLifecycle_AndDeduplicates()
+    [Theory]
+    [InlineData(7002, "ACH", "ACH Colombia", "ACH-RET-C1", "0001122.001.1")]
+    [InlineData(2, "CENIT", "CENIT", "CENIT-RET-C2", "0001122.001.2")]
+    public async Task Dispatch_ThenAcceptedResult_PersistsWholeLifecycle_AndDeduplicates(
+        int clearingHouseId,
+        string clearingHouseCode,
+        string clearingHouseName,
+        string cycleId,
+        string fileName)
     {
         var directory = NewTemporaryDirectory();
         try
         {
             await using var context = CreateContext();
-            await SeedTransactionAsync(context);
+            await SeedTransactionAsync(context, clearingHouseId, clearingHouseCode, clearingHouseName, cycleId);
             var plain = "return-out"u8.ToArray();
             var protectedContent = "protected-return-out"u8.ToArray();
             var artifact = new AchOutboundReturnArtifact(
-                "0001122.001.1",
+                fileName,
                 plain,
                 10,
                 1,
-                "ACH-RET-C1",
-                7002,
+                cycleId,
+                clearingHouseId,
                 [901],
                 Convert.ToHexString(SHA256.HashData(plain)));
             var artifactService = new Mock<IAchOutboundReturnArtifactService>();
             artifactService.Setup(x => x.BuildAsync(artifact.FileName, It.IsAny<CancellationToken>())).ReturnsAsync(artifact);
             var envelope = new Mock<INachaExportDigitalEnvelopeService>();
-            envelope.Setup(x => x.EncryptAsync(7002, artifact.FileName, artifact.Content, "operator", It.IsAny<CancellationToken>()))
+            envelope.Setup(x => x.EncryptAsync(clearingHouseId, artifact.FileName, artifact.Content, "operator", It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new ManagedDigitalEnvelopeResult(
                     protectedContent,
                     artifact.FileName + ".ENV",
@@ -99,6 +106,8 @@ public sealed class AchOutboundReturnTransportEndToEndTests
             Assert.True(replay.WasDuplicate);
             Assert.Single(await context.AchFileTransmissionAttempts.ToListAsync());
             var transmitted = await context.AchFileExports.SingleAsync(x => x.IsEncrypted);
+            Assert.Equal(clearingHouseId, transmitted.ClearingHouseId);
+            Assert.Equal(cycleId, transmitted.AchCycleId);
             Assert.False(string.IsNullOrWhiteSpace(transmitted.TransmissionReference));
             Assert.NotNull(transmitted.TransmittedAtUtc);
 
@@ -209,15 +218,57 @@ public sealed class AchOutboundReturnTransportEndToEndTests
     }
 
     [Fact]
+    public async Task CenitRejectedResult_IsCorrelatedPersistedAndReplaySafe()
+    {
+        await using var context = CreateContext();
+        var export = new AchFileExport
+        {
+            AchCycleId = "CENIT-RET-C2",
+            ClearingHouseId = 2,
+            ExportKind = "RETURN",
+            FileName = "0001122.001.2.ENV",
+            IsEncrypted = true,
+            GeneratedAtUtc = DateTime.UtcNow.AddMinutes(-2),
+            LifecycleStatus = AchFileExportLifecycleStatus.Transmitted,
+            TransmissionReference = "CFA-MFT-HANDOFF:CENIT-REJECT",
+            TransmittedAtUtc = DateTime.UtcNow.AddMinutes(-1)
+        };
+        context.AchFileExports.Add(export);
+        await context.SaveChangesAsync();
+        var processor = new AchOutboundReturnResultProcessor(context, new AchFileTransmissionEvidenceRecorder(context));
+        var request = new AchOutboundReturnResultRequest(
+            "cenit-reject-event-1",
+            export.FileName,
+            export.TransmissionReference,
+            AchOutboundReturnOutcome.Rejected,
+            "REJECTED",
+            DateTime.UtcNow,
+            "Rechazo funcional controlado.");
+
+        var rejected = await processor.ProcessAsync(request);
+        var replay = await processor.ProcessAsync(request);
+
+        Assert.True(rejected.Applied);
+        Assert.Equal(AchResponseCorrelationStatus.Matched, rejected.CorrelationStatus);
+        Assert.Equal(AchFileExportLifecycleStatus.Rejected, rejected.LifecycleStatus);
+        Assert.True(replay.WasDuplicate);
+        Assert.Single(await context.AchFileTransportResults.ToListAsync());
+        var persisted = await context.AchFileExports.SingleAsync();
+        Assert.Equal(2, persisted.ClearingHouseId);
+        Assert.Equal(AchFileExportLifecycleStatus.Rejected, persisted.LifecycleStatus);
+        Assert.Equal("REJECTED", persisted.AcknowledgementCode);
+    }
+
+    [Fact]
     public async Task ConflictingFinalResult_IsPersistedForManualReview_AndDoesNotReverseAcceptedState()
     {
         await using var context = CreateContext();
         var export = new AchFileExport
         {
-            AchCycleId = "C1",
-            ClearingHouseId = 7002,
+            AchCycleId = "CENIT-RET-C2",
+            ClearingHouseId = 2,
             ExportKind = "RETURN",
-            FileName = "0001122.001.1.ENV",
+            FileName = "0001122.001.2.ENV",
             IsEncrypted = true,
             GeneratedAtUtc = DateTime.UtcNow,
             LifecycleStatus = AchFileExportLifecycleStatus.Accepted,
@@ -261,21 +312,26 @@ public sealed class AchOutboundReturnTransportEndToEndTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private static async Task SeedTransactionAsync(AchDbContext context)
+    private static async Task SeedTransactionAsync(
+        AchDbContext context,
+        int clearingHouseId = 7002,
+        string clearingHouseCode = "ACH",
+        string clearingHouseName = "ACH Colombia",
+        string cycleId = "ACH-RET-C1")
     {
-        context.ClearingHouses.Add(new ClearingHouse { Id = 7002, Code = "ACH", Name = "ACH Colombia", OriginCode = "0001122" });
+        context.ClearingHouses.Add(new ClearingHouse { Id = clearingHouseId, Code = clearingHouseCode, Name = clearingHouseName, OriginCode = "0001122" });
         context.AchCycles.Add(new AchCycle
         {
-            Id = "ACH-RET-C1",
+            Id = cycleId,
             CycleName = "Ciclo 1",
             ProcessingDate = DateTime.UtcNow.Date,
             CutoffTime = TimeSpan.FromHours(8),
-            ClearingHouseId = 7002
+            ClearingHouseId = clearingHouseId
         });
         context.AchTransactions.Add(new AchTransaction
         {
             Id = 901,
-            AchCycleId = "ACH-RET-C1",
+            AchCycleId = cycleId,
             Type = TransactionTypeEnum.Credit,
             State = AchTransferStateEnum.ReturnedByEpr,
             EffectiveEntryDate = DateTime.UtcNow.Date,
