@@ -10,7 +10,6 @@ Esta sección reemplaza y deja sin efecto cualquier instrucción anterior o post
 
 - prohíba llamadas SOAP reales en el ambiente local;
 - limite la ejecución a una sola llamada SOAP;
-- obligue a restaurar DryRun al finalizar;
 - exija archivos NACHA-M con un solo lote o una sola entrada;
 - prohíba usar archivos de producción como datos controlados de prueba;
 - marque automáticamente como NO-GO una ejecución contra localhost;
