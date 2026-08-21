@@ -285,7 +285,230 @@ El flujo esperado para tareas relevantes es:
 5. Ejecutar únicamente las validaciones relacionadas con el alcance.
 6. Informar de manera breve las herramientas utilizadas y los resultados obtenidos.
 
+## Uso coordinado de RTK y Codebase Memory
+
+RTK y Codebase Memory tienen responsabilidades diferentes y complementarias.
+
+**RTK no reemplaza Codebase Memory.**
+
+La responsabilidad principal de cada herramienta es:
+
+- **Codebase Memory**: comprensión del repositorio, arquitectura, relaciones, dependencias, trazabilidad, recuperación semántica y análisis de impacto.
+- **RTK**: reducción de ruido y consumo de contexto producido por comandos de terminal.
+- **Lectura directa**: inspección final de archivos o fragmentos concretos una vez localizado el alcance relevante.
+
+### Prioridad de herramientas
+
+Aplicar el siguiente orden:
+
+1. **Codebase Memory primero** cuando sea necesario comprender código, arquitectura, dependencias, relaciones entre componentes, callers/callees, rutas de ejecución, normativa indexada o alcance de cambios.
 2. **Lectura directa de archivos concretos** cuando Codebase Memory ya haya identificado los símbolos, archivos o fragmentos que deben inspeccionarse.
+3. **RTK para comandos de terminal** cuando exista soporte adecuado y la salida compactada sea suficiente para la tarea.
+4. **Comandos originales sin RTK** cuando sea necesaria la salida completa, RTK no soporte adecuadamente el comando o el filtrado pueda ocultar evidencia necesaria.
+
+No sustituir una consulta de `codebase-memory` por búsquedas masivas mediante `rtk grep`, `rtk find`, `rg`, `grep`, `find` o herramientas equivalentes cuando el grafo pueda resolver la necesidad con mayor precisión.
+
+### Uso de RTK
+
+Cuando RTK esté disponible, preferirlo para comandos de terminal soportados que puedan producir salida extensa.
+
+Esto aplica especialmente a:
+
+- inspección de Git;
+- diferencias entre archivos;
+- historial;
+- búsquedas textuales locales;
+- exploración de archivos;
+- compilaciones;
+- pruebas con salida extensa;
+- Docker;
+- GitHub CLI;
+- herramientas de infraestructura soportadas;
+- comandos cuyo resultado contenga una cantidad significativa de ruido repetitivo.
+
+Ejemplos:
+
+```bash
+rtk git status
+rtk git diff
+rtk git log -n 10
+rtk grep "<patrón>" .
+rtk find "<patrón>" .
+rtk docker ps
+rtk docker logs <contenedor>
+```
+
+Para compilaciones `.NET`, cuando el wrapper instalado lo soporte:
+
+```bash
+rtk dotnet build ACHInterbank.sln -c Release
+```
+
+Para runners o comandos de pruebas cuya salida sea extensa puede utilizarse el wrapper genérico de pruebas cuando resulte apropiado:
+
+```bash
+rtk test dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
+```
+
+Para una segunda ejecución:
+
+```bash
+rtk test dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
+```
+
+Los comandos definidos en `Build And Test Commands` continúan siendo los comandos canónicos del proyecto.
+
+RTK solo actúa como capa de ejecución y compactación de salida; no debe cambiar sus argumentos, alcance ni semántica.
+
+Si una forma RTK concreta no está soportada por la versión instalada, utilizar el comando original equivalente.
+
+### Uso eficiente de RTK
+
+RTK debe utilizarse para reducir ruido y consumo de contexto, no para ampliar innecesariamente el alcance de una investigación.
+
+Las búsquedas realizadas mediante RTK deben seguir delimitándose por:
+
+- archivo;
+- carpeta;
+- patrón;
+- proyecto;
+- componente;
+- rango lógico de investigación.
+
+Preferir:
+
+```bash
+rtk grep "Proc_Transacciones" src/Cfa.ACHInterbank.Application
+```
+
+sobre una búsqueda global del repositorio cuando ya se conoce el área relevante.
+
+Preferir Codebase Memory antes que cualquiera de las dos cuando todavía sea necesario descubrir relaciones, dependencias o rutas de ejecución.
+
+### Cuándo no depender de RTK
+
+No depender exclusivamente de una salida filtrada o compactada por RTK cuando se requiera:
+
+- evidencia completa de un error;
+- análisis de una salida que pueda haber sido truncada, agrupada, deduplicada o resumida;
+- validar valores exactos producidos por una herramienta;
+- conservar evidencia técnica o de auditoría;
+- diagnosticar un fallo que no aparezca en la salida compactada;
+- verificar información sensible a líneas omitidas;
+- verificar el orden exacto de eventos;
+- revisar logs completos específicamente requeridos para determinar una causa raíz;
+- comparar literalmente una salida contra una especificación;
+- preservar evidencia necesaria para UAT o una validación formal.
+
+En estos casos:
+
+1. ejecutar primero la variante compactada cuando sea útil;
+2. identificar el segmento que requiere mayor detalle;
+3. ejecutar nuevamente únicamente el comando necesario con salida completa y alcance delimitado;
+4. evitar incorporar al contexto salida completa que no sea relevante.
+
+El uso de un comando sin RTK después de una ejecución compactada no constituye una violación de esta política cuando exista una razón técnica para necesitar evidencia completa.
+
+### Disponibilidad y degradación segura
+
+No asumir que RTK está instalado en todos los entornos ni en las máquinas de todos los colaboradores.
+
+Si `rtk` no está disponible:
+
+- no detener el trabajo únicamente por su ausencia;
+- utilizar el comando original equivalente;
+- mantener el mismo alcance reducido de búsqueda o ejecución;
+- continuar respetando la prioridad de Codebase Memory;
+- no modificar el repositorio únicamente para instalar RTK;
+- no agregar dependencias de runtime de la aplicación hacia RTK.
+
+La ausencia de RTK no habilita búsquedas indiscriminadas ni lecturas masivas del repositorio.
+
+### RTK no reemplaza Codebase Memory
+
+RTK se utiliza principalmente para optimizar la salida de comandos CLI.
+
+Codebase Memory continúa siendo la herramienta prioritaria para:
+
+- arquitectura;
+- relaciones estructurales;
+- dependencias;
+- búsqueda semántica del código;
+- navegación entre símbolos;
+- trazabilidad;
+- callers y callees;
+- análisis de impacto;
+- recuperación de contexto desde `ACHInterbank`;
+- recuperación de normativa desde `ACHInterbank-normativa`.
+
+No ejecutar comandos RTK para reconstruir manualmente información que Codebase Memory pueda recuperar directamente mediante:
+
+- `get_architecture`;
+- `search_graph`;
+- `trace_path`;
+- `get_code_snippet`;
+- `search_code`;
+- `query_graph`.
+
+### Codebase Memory y normativa
+
+RTK no modifica la política de separación entre los proyectos:
+
+- `ACHInterbank`;
+- `ACHInterbank-normativa`.
+
+Cuando una tarea dependa simultáneamente de implementación y normativa:
+
+1. consultar `ACHInterbank` para comprender la implementación;
+2. consultar `ACHInterbank-normativa` para recuperar el respaldo normativo;
+3. utilizar lectura directa únicamente para validar el material concreto identificado;
+4. utilizar RTK solamente para las operaciones de terminal necesarias durante análisis, implementación o validación.
+
+Una búsqueda textual con RTK dentro de `docs/normativa/md` no sustituye la obligación de consultar `ACHInterbank-normativa` cuando la decisión dependa de normativa.
+
+### Flujo combinado esperado
+
+Para tareas relevantes de desarrollo:
+
+1. Determinar el alcance inicial de la tarea.
+2. Sincronizar incrementalmente Codebase Memory cuando corresponda.
+3. Consultar `ACHInterbank`, `ACHInterbank-normativa` o ambos según el alcance.
+4. Identificar componentes, dependencias, integraciones, archivos y pruebas afectados.
+5. Leer únicamente los símbolos, fragmentos o archivos concretos necesarios.
+6. Implementar el cambio solicitado.
+7. Ejecutar compilación, pruebas, Git, Docker y demás comandos mediante RTK cuando sea apropiado.
+8. Si la salida compactada no permite diagnosticar o demostrar el resultado, repetir únicamente el comando necesario con salida completa.
+9. Reindexar Codebase Memory cuando los cambios realizados lo requieran según las reglas de sincronización de este archivo.
+10. Informar brevemente las herramientas de Codebase Memory utilizadas y las validaciones ejecutadas.
+
+### Principio de economía de contexto
+
+Toda herramienta debe utilizarse con el menor contexto suficiente para resolver correctamente la tarea.
+
+Evitar:
+
+- búsquedas globales cuando ya se conoce el componente;
+- leer archivos completos cuando basta un símbolo o fragmento;
+- ejecutar repetidamente comandos que entregan la misma evidencia;
+- recopilar logs completos cuando basta una ventana delimitada;
+- duplicar información obtenida previamente mediante Codebase Memory;
+- repetir búsquedas RTK y Codebase Memory que respondan exactamente la misma pregunta sin necesidad técnica;
+- introducir al contexto documentación no relacionada;
+- introducir código no relacionado;
+- introducir logs no relacionados;
+- introducir resultados de pruebas no relacionados con el alcance;
+- utilizar RTK como excusa para ejecutar comandos innecesariamente amplios.
+
+El objetivo no es minimizar contexto a cualquier costo.
+
+El objetivo es utilizar **el menor contexto suficiente que preserve la evidencia necesaria para tomar una decisión técnicamente correcta**.
+
+RTK optimiza principalmente la salida del terminal.
+
+Codebase Memory optimiza principalmente la recuperación del conocimiento estructural y semántico del repositorio.
+
+Ambos deben utilizarse de manera complementaria.
+
 ## Normativa ACH Colombia vigente
 
 La referencia normativa canónica vigente para ACH Colombia es `docs/normativa/md/ACH-Colombia-V35.md`, correspondiente a ACH Colombia Versión 35 (abril de 2026). V32 y anteriores son únicamente referencias históricas o comparativas.
@@ -293,5 +516,3 @@ La referencia normativa canónica vigente para ACH Colombia es `docs/normativa/m
 Antes de analizar o modificar funcionalidades de ACH Colombia, NACHA-M, ciclos, créditos, débitos, prenotificaciones, devoluciones, devoluciones por operador, causales, archivos, límites o seguridad, debe consultarse primero V35. Si el código, la documentación o el comportamiento existente contradicen V35, debe reportarse la discrepancia y usarse V35 como autoridad normativa; no deben inventarse reglas no soportadas por ella.
 
 Para devoluciones deben revisarse especialmente las secciones 6.6, 6.7 y los anexos aplicables de V35. Debe contemplarse la causal D33 cuando corresponda normativamente.
-
-
