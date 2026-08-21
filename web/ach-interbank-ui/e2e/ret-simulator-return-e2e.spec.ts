@@ -93,7 +93,7 @@ test('RET.SIMULATOR.RETURN.E2E.1: creación UI, devolución simulada, carga manu
     const sourceAccount = generatedDigits('41', suffix, 12);
     const destinationAccount = generatedDigits('72', suffix, 12);
     const recipientDocument = generatedDigits('80', suffix, 10);
-    await ensureOperationalCycle(token!, {
+    const targetOperationalDate = await ensureOperationalCycle(token!, {
       clearingHouseId: achColombia.id,
       timeZoneId: achColombia.timeZoneId,
       externalId,
@@ -122,15 +122,17 @@ test('RET.SIMULATOR.RETURN.E2E.1: creación UI, devolución simulada, carga manu
     expect(beforeReturn!.traceNumber).toBe(created.traceNumber);
     expect(beforeReturn!.cycleId).toBeTruthy();
     const createdCycle = await apiGet<any>(`/ach-cycles/${encodeURIComponent(beforeReturn!.cycleId)}`, token!);
+    expect(created.achCycleId).toBe(beforeReturn!.cycleId);
+    expect(calendarDate(createdCycle.processingDate)).toBe(targetOperationalDate);
 
     await page.goto('/uat/nacha-inbound-simulator', { waitUntil: 'networkidle' });
     await expect(page.getByRole('heading', { name: 'Simular respuesta de otra entidad', exact: true })).toBeVisible();
     await expect(page.getByText('Generación sin transmisión automática')).toBeVisible();
     await expect(page.getByText('CFA se excluye automáticamente del catálogo de contrapartes.')).toBeVisible();
 
-    const operationDate = new Date(createdCycle.processingDate);
+    const operationDate = calendarDate(createdCycle.processingDate);
     await page.locator('input[formcontrolname="businessDate"]').fill(
-      `${operationDate.getUTCMonth() + 1}/${operationDate.getUTCDate()}/${operationDate.getUTCFullYear()}`);
+      formatDatePickerValue(operationDate));
     await page.locator('input[formcontrolname="businessDate"]').press('Tab');
     await selectMaterialOption(page, 'Cámara', 'ACH Colombia');
     await selectMaterialOption(page, 'Tipo de respuesta', 'Devolución de débito');
@@ -167,6 +169,9 @@ test('RET.SIMULATOR.RETURN.E2E.1: creación UI, devolución simulada, carga manu
     expect(generated.uploadRequired).toBe(true);
     expect(generated.externalTransmission).toBe(false);
     expect(generated.fileName).toMatch(/^\d{7}\.\d{3}\.\d{8}\.\d+\.OUT$/);
+    const generatedDate = generated.fileName.match(/^\d{7}\.\d{3}\.(\d{8})\./)?.[1];
+    expect(generatedDate).toBe(operationDate.replaceAll('-', ''));
+    expect(generatedDate).toBe(targetOperationalDate.replaceAll('-', ''));
     await expect(page.getByText('Archivo generado correctamente', { exact: true })).toBeVisible();
     await expect(page.getByText('El archivo no fue importado; usted decide cuándo cargarlo')).toBeVisible();
 
@@ -285,7 +290,7 @@ async function ensureOperationalCycle(token: string, data: {
   sourceAccount: string;
   destinationAccount: string;
   recipientDocument: string;
-}): Promise<void> {
+}): Promise<string> {
   const previewQuery = new URLSearchParams({
     amount: '0',
     transactionExternalId: data.externalId,
@@ -302,20 +307,38 @@ async function ensureOperationalCycle(token: string, data: {
   const initialPreview = await apiGet<any>(`/transactions/policies/preview?${previewQuery}`, token);
   expect(initialPreview.cycleId, 'El preview oficial debe resolver el ciclo que utilizará la creación.').toBeTruthy();
   expect(initialPreview.processingDate, 'El preview oficial debe resolver la fecha operativa.').toBeTruthy();
-  if (initialPreview.canSubmit === true && initialPreview.isWithinProcessingWindow === true) {
-    return;
-  }
-
-  const processingDate = `${initialPreview.processingDate}`.slice(0, 10);
-  const configurationEffectiveDate = processingDate;
-  const selectedCycle = await apiGet<any>(`/ach-cycles/${encodeURIComponent(initialPreview.cycleId)}`, token);
+  const localOperationalDate = calendarDateInTimeZone(data.timeZoneId);
+  const localCycles = await apiGet<any[]>(
+    `/ach-cycles?clearingHouseId=${data.clearingHouseId}&processingDate=${encodeURIComponent(localOperationalDate)}`,
+    token);
   const allConfigs = await apiGet<any[]>(
     `/clearing-house-cycle-configs?clearingHouseId=${data.clearingHouseId}`,
+    token);
+  const openLocalCycle = localCycles.find((cycle) => cycle.acceptsTransactions === true
+    && `${cycle.operationalStatus}`.toLowerCase() === 'open');
+  const localCycle = openLocalCycle
+    ?? localCycles.find((cycle) => `${cycle.operationalStatus}`.toLowerCase() !== 'cancelled'
+      && !allConfigs.some((config) => config.isActive
+        && `${config.cycleName}`.trim() === `${cycle.cycleName}`.trim()
+        && `${config.effectiveFrom}`.slice(0, 10) === localOperationalDate))
+    ?? localCycles.find((cycle) => `${cycle.operationalStatus}`.toLowerCase() !== 'cancelled');
+  const processingDate = localCycle ? localOperationalDate : calendarDate(initialPreview.processingDate);
+  if (initialPreview.canSubmit === true
+    && initialPreview.isWithinProcessingWindow === true
+    && calendarDate(initialPreview.processingDate) === processingDate) {
+    return processingDate;
+  }
+
+  const configurationEffectiveDate = processingDate;
+  const selectedCycle = await apiGet<any>(
+    `/ach-cycles/${encodeURIComponent(processingDate === localOperationalDate ? localCycle!.id : initialPreview.cycleId)}`,
     token);
   const cycles = await apiGet<any[]>(
     `/ach-cycles?clearingHouseId=${data.clearingHouseId}&processingDate=${encodeURIComponent(processingDate)}`,
     token);
-  const window = currentCrossMidnightWindow(data.timeZoneId, cycles.map((cycle) => cycle.endTime));
+  const window = processingDate === localOperationalDate
+    ? currentSameDayWindow(data.timeZoneId)
+    : currentCrossMidnightWindow(data.timeZoneId, cycles.map((cycle) => cycle.endTime));
   const cycleName = `${selectedCycle.cycleName}`.trim();
   expect((cycleName.match(/\d+/g) ?? []).length,
     'El ciclo elegido por la política debe conservar un número canónico único.').toBe(1);
@@ -351,6 +374,54 @@ async function ensureOperationalCycle(token: string, data: {
   const finalPreview = await apiGet<any>(`/transactions/policies/preview?${previewQuery}`, token);
   expect(finalPreview.canSubmit, finalPreview.message ?? 'El ciclo preparado debe aceptar la transacción UAT.').toBe(true);
   expect(finalPreview.isWithinProcessingWindow).toBe(true);
+  expect(calendarDate(finalPreview.processingDate)).toBe(processingDate);
+  return processingDate;
+}
+
+function calendarDate(value: unknown): string {
+  const result = `${value}`.slice(0, 10);
+  expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  return result;
+}
+
+function calendarDateInTimeZone(timeZoneId: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timeZoneId,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  expect(year && month && day, 'La zona horaria de la cÃ¡mara debe producir una fecha vÃ¡lida.').toBeTruthy();
+  return `${year}-${month}-${day}`;
+}
+
+function formatDatePickerValue(date: string): string {
+  const [year, month, day] = date.split('-');
+  return `${month}/${day}/${year}`;
+}
+
+function currentSameDayWindow(timeZoneId: string): { startTime: string; endTime: string } {
+  const nowMinutes = localMinutesInTimeZone(timeZoneId);
+  return {
+    startTime: formatTime(Math.max(0, nowMinutes - 1)),
+    endTime: formatTime(Math.min(1439, nowMinutes + 60))
+  };
+}
+
+function localMinutesInTimeZone(timeZoneId: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timeZoneId,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value);
+  expect(Number.isInteger(hour) && Number.isInteger(minute), 'La zona horaria de la cÃ¡mara debe ser vÃ¡lida.').toBe(true);
+  return hour * 60 + minute;
 }
 
 function currentCrossMidnightWindow(timeZoneId: string, existingEndTimes: unknown[]): { startTime: string; endTime: string } {
