@@ -285,6 +285,7 @@ El flujo esperado para tareas relevantes es:
 5. Ejecutar únicamente las validaciones relacionadas con el alcance.
 6. Informar de manera breve las herramientas utilizadas y los resultados obtenidos.
 
+2. **Lectura directa de archivos concretos** cuando Codebase Memory ya haya identificado los símbolos, archivos o fragmentos que deben inspeccionarse.
 ## Normativa ACH Colombia vigente
 
 La referencia normativa canónica vigente para ACH Colombia es `docs/normativa/md/ACH-Colombia-V35.md`, correspondiente a ACH Colombia Versión 35 (abril de 2026). V32 y anteriores son únicamente referencias históricas o comparativas.
