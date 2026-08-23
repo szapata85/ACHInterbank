@@ -474,6 +474,13 @@ Persistent file:
 
 at the repository root.
 
+`MEMORY.md` is the persistent Project Memory store for this repository. Project
+Memory does not maintain a separate repository index or database here. When a
+valid root `MEMORY.md` already exists, no bootstrap, initialization, loading or
+indexing operation is required, and a new session must not call
+`set_project_memory` merely to initialize or index it. New sessions begin with
+read-only progressive retrieval.
+
 Project Memory exists to prevent future sessions from rediscovering durable, already verified project knowledge.
 
 Its responsibility is limited to:
@@ -536,15 +543,19 @@ Then search narrowly.
 Examples:
 
 ```text
-CENIT RETURN
+DEC-DIFFERENTIAL-001
 ```
 
 ```text
-DIFF-RESP-001
+DEC-INBOUND-SIMULATOR-001
 ```
 
 ```text
-TRAP DATE
+TRAP-DATE-UTC-001
+```
+
+```text
+TRAP-ADDENDA99-001
 ```
 
 ```text
@@ -552,15 +563,26 @@ RC-CURRENT
 ```
 
 ```text
-OPEN GAP
+OPEN-GAPS-CURRENT
 ```
 
 Retrieve only the relevant line range.
 
 A complete memory read is acceptable only when:
 
-- the file is demonstrably small; or
 - deliberate consolidation/recovery requires the complete content.
+- the task demonstrably requires most or all memory sections; or
+- explicit memory-quality auditing requires it.
+
+Small file size alone is not sufficient justification during ordinary
+implementation, debugging or JOB work; prefer progressive retrieval.
+
+The expected read path is repository-safe: `get_project_memory` and
+`search_project_memory` are read-only operations and must not modify
+`MEMORY.md`. If a future read-only operation modifies it, treat that as
+abnormal tool behavior, preserve the evidence, stop Project Memory writes, and
+do not commit the mutation automatically. This is an expected behavior and
+safety contract, not a universal guarantee for every future MCP version.
 
 ## 8.2 When to query Project Memory
 
@@ -647,14 +669,52 @@ Use:
 
 `set_project_memory`
 
-only for:
+only as an exceptional whole-file operation, justified by cases such as:
 
-- initial bootstrap;
+- creating Project Memory when `MEMORY.md` does not yet exist;
 - deliberate full consolidation;
 - recovery from malformed memory;
-- controlled complete replacement.
+- controlled or explicitly authorized complete replacement.
+
+Do not use `set_project_memory`:
+
+- at every new session;
+- merely to load `MEMORY.md`;
+- merely to initialize the MCP;
+- merely to index Project Memory; or
+- merely because Project Memory has not yet been queried in that session.
 
 Do not rewrite the entire memory for a one-item update.
+
+### Windows Project Memory write integrity
+
+The canonical repository representation of `MEMORY.md` is UTF-8 with LF line
+endings. Before a Project Memory MCP write, when feasible, verify that
+`MEMORY.md` is Git-clean and inspect:
+
+```text
+git diff -- MEMORY.md
+git ls-files --eol MEMORY.md
+```
+
+Do not overwrite unrelated or unreviewed `MEMORY.md` changes. After any
+`update_project_memory` or `set_project_memory` call, inspect:
+
+```text
+git diff -- MEMORY.md
+git diff --ignore-space-at-eol -- MEMORY.md
+git ls-files --eol MEMORY.md
+```
+
+Use these checks to distinguish intended semantic changes, EOL-only mutation,
+and semantic change with EOL churn. Never commit EOL-only churn, and never
+classify semantic changes as EOL-only. If no semantic change was intended and
+the MCP causes LF-to-CRLF churn, restore the tracked UTF-8/LF representation
+without committing the churn. If a semantic change was intended, normalize
+back to UTF-8/LF while preserving that change, then verify the final diff
+contains only the intended semantic modification. Do not repeatedly call
+Project Memory writes to fix line endings, alter global Git configuration, or
+modify `.gitattributes` automatically as a workaround.
 
 ## 8.5 Stable searchable IDs
 
