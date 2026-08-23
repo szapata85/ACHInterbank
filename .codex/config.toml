@@ -1,0 +1,12 @@
+[mcp_servers.ach_project_memory]
+command = "C:/Users/CHECHO/AppData/Local/Microsoft/WinGet/Links/uvx.exe"
+args = [
+    "project-mem-mcp@0.4.13",
+    "--allowed-dir",
+    "C:/Users/CHECHO/Documents/proyectos/Interbank/ACHInterbank"
+]
+enabled = true
+required = false
+startup_timeout_sec = 60
+tool_timeout_sec = 60
+default_tools_approval_mode = "writes"

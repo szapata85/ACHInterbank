@@ -1,146 +1,272 @@
 # Codex System Overrides
 
-- Output Constraints: Never explain code unless explicitly asked.
-- Return only raw unified diffs or minimal block modifications when the task requests code changes.
-- Eliminate conversational preambles and unnecessary post-summaries.
+- Never explain code unless explicitly requested.
+- When the task requests code changes, prefer raw unified diffs or minimal block modifications.
+- Eliminate unnecessary conversational preambles and post-summaries.
 - Prefer concise evidence over verbose narration.
 - Do not repeat information already established in the current task.
 - Use the minimum context and minimum number of tool calls required to reach a technically supported conclusion.
+- Do not re-investigate durable facts already verified in Project Memory unless current evidence indicates they may be stale.
+- Do not use a larger model context merely because additional context is available.
+- Preserve exact evidence whenever correctness depends on exact values, ordering, runtime state, regulatory text, or test output.
 
-# AGENTS.md - ACHInterbank
+---
+
+# AGENTS.md — ACHInterbank
 
 This file is the operational entry point for Codex and other coding agents working on ACHInterbank.
 
-For changes directly related to NACHA-M, ACH Colombia, CENIT, transaction processing, returns, clearing cycles or Phase 6 behavior, consult when necessary:
+For changes directly related to:
 
-- `docs/ai/ACH_PHASE6_CONTEXT.md`
+- NACHA-M;
+- ACH Colombia;
+- CENIT;
+- transaction processing;
+- credits;
+- debits;
+- prenotifications;
+- returns;
+- returns of returns;
+- differential responses;
+- clearing cycles;
+- settlement;
+- Phase 6 behavior;
 
-Do not load that document automatically for unrelated tasks when the requested change can be resolved without it.
+consult when necessary:
+
+`docs/ai/ACH_PHASE6_CONTEXT.md`
+
+Do not load that document automatically for unrelated tasks when the requested work can be completed without it.
+
+Persistent project knowledge is maintained separately in:
+
+`MEMORY.md`
+
+Do not automatically load the complete `MEMORY.md`.
+
+Use the progressive Project Memory retrieval policy defined in this file.
 
 ---
 
 # 1. Core Rules
 
-- Do not add, expose or print real credentials.
-- Do not expose tokens, secrets, complete account numbers or personal data.
-- Do not execute against external production infrastructure.
-- `Productivo NO-GO` applies to real external production environments.
-- Local controlled integration testing is governed by the explicit LIVE policy in this file.
-- Do not modify NACHA-M golden files unless explicitly requested.
-- Do not modify the table-driven NACHA-M engine unless fixing a proven defect or implementing an explicitly requested normative change.
-- Do not generate migrations unless required by the requested change.
+## 1.1 Security
+
+- Never add, expose, print or persist real credentials.
+- Never expose tokens, secrets, private keys, certificates, complete account numbers or personal data.
+- Never print complete sensitive SOAP/XML payloads unless explicitly required and safely anonymized.
+- Never commit credentials, secrets, certificates, tokens or production connection strings.
+- Never execute against external production infrastructure.
+- Never connect to real external financial networks unless a future explicit authorization safely supersedes this rule.
+- Never generate real monetary movements.
+
+`Productivo NO-GO` applies to real external production environments.
+
+Controlled local integration testing is governed by the explicit LIVE policy defined below.
+
+## 1.2 Architecture
+
+Preserve Clean Architecture boundaries:
+
+- Domain rules;
+- Application contracts and use cases;
+- Persistence/infrastructure implementations;
+- API composition;
+- frontend concerns isolated from backend domain logic.
+
+Do not bypass architectural boundaries merely to make a test pass.
+
+Prefer:
+
+- dependency inversion;
+- explicit contracts;
+- reusable domain rules;
+- deterministic behavior;
+- configuration-driven behavior;
+- data-driven behavior;
+- testable components.
+
+## 1.3 No hardcoded business behavior
+
+Do not hardcode clearing-house behavior when an existing configurable or profile-driven mechanism exists.
+
+Do not hardcode:
+
+- ACH Colombia or CENIT business rules;
+- regulatory causes;
+- field positions;
+- record layouts;
+- operational dates;
+- cycle windows;
+- settlement windows;
+- routing codes;
+- transaction codes;
+- filename conventions;
+- return behavior;
+- limits;
+- clearing-house-specific assumptions;
+
+when those values belong to:
+
+- configuration;
+- database catalogs;
+- NACHA profiles;
+- normative mappings;
+- clearing-house metadata;
+- seeded domain data;
+- existing rule engines.
+
+The official NACHA-M implementation remains profile/configuration driven.
+
+Do not introduce legacy hardcoded layouts as an alternative implementation path.
+
+## 1.4 Database
+
+EF Code First remains the source of truth for versioned application schema changes.
+
+Do not generate migrations unless required by the requested change.
+
+Do not modify production-like schemas manually merely to bypass a required migration.
+
+## 1.5 Tests
+
 - Do not reduce test coverage.
-- Do not remove existing tests unless explicitly justified by an obsolete requirement.
-- Preserve Clean Architecture boundaries:
-  - Domain rules;
-  - Application contracts and use cases;
-  - Persistence/infrastructure implementations;
-  - API composition.
-- EF Code First remains the source of truth for versioned schema changes.
-- Do not infer normative rules from existing code.
-- Do not infer existing application behavior solely from normative documents.
-- When implementation and normative requirements must be compared, investigate both independently before reaching a conclusion.
+- Do not remove existing tests unless an obsolete requirement has been explicitly demonstrated.
+- Do not weaken assertions merely to obtain green CI.
+- Do not change expected results to match a defective implementation.
+- A passing test does not independently prove regulatory compliance.
+- A failing test does not independently prove that the normative rule changed.
+
+## 1.6 NACHA-M
+
+Do not modify NACHA-M golden files unless explicitly requested or a proven normative change requires it.
+
+Do not modify the table-driven NACHA-M engine unless:
+
+- fixing a proven implementation defect; or
+- implementing an explicitly verified normative change.
+
+Do not infer normative rules from existing code.
+
+Do not infer existing application behavior solely from normative documents.
+
+When implementation and normative requirements must be compared, investigate both independently before reaching a conclusion.
+
+## 1.7 Evidence states
+
+Never mark a capability as:
+
+- `CLOSED`;
+- `VERIFIED`;
+- `GAUNTLET_PASSED`;
+- `UAT_READY`;
+- `USER_ACCEPTED`;
+- `RELEASE_READY`;
+
+without appropriate evidence.
+
+Previous Project Memory state does not override contradictory current evidence.
 
 ---
 
-# 2. POLÍTICA ACTIVA — LIVE LOCAL CONTROLADO
+# 2. ACTIVE POLICY — CONTROLLED LOCAL LIVE TESTING
 
-Esta política es la autoridad para pruebas LIVE realizadas contra infraestructura local controlada.
+This policy is the authority for LIVE testing against controlled local infrastructure.
 
-Reemplaza cualquier instrucción histórica dentro del repositorio que:
+It supersedes historical repository instructions that:
 
-- prohíba llamadas SOAP reales contra los endpoints locales autorizados;
-- limite globalmente la ejecución a una única llamada SOAP local;
-- exija archivos NACHA-M de un solo lote o una sola entrada;
-- prohíba utilizar archivos provenientes de producción como fixtures controlados;
-- marque automáticamente como NO-GO una ejecución contra `localhost`;
-- obligue a restaurar `DryRun` después de una prueba LIVE local;
-- impida diagnosticar y corregir errores mientras el runtime local permanece en modo Live.
+- prohibit real SOAP calls against authorized local endpoints;
+- globally limit execution to a single local SOAP call;
+- require NACHA-M files to contain only one batch or one entry;
+- prohibit using production-origin files as controlled fixtures;
+- automatically classify `localhost` execution as NO-GO;
+- require restoring `DryRun` after controlled local LIVE testing;
+- prevent diagnosis and correction while the local runtime remains in Live mode.
 
-## 2.1 Ambiente autorizado
+## 2.1 Authorized environment
 
-El siguiente ambiente es local, controlado y no corresponde a producción externa:
+The following environment is local, controlled and is not external production:
 
 - API: `http://localhost:843`
 - SPA: `http://localhost:743`
 - SOAP Windows: `http://localhost:7083/WSCFAACH.svc`
 - SOAP Docker: `http://host.docker.internal:7083/WSCFAACH.svc`
 - HostHeader: `localhost:7083`
-- SQL Server: contenedor local `achinterbank-sqlserver`
+- SQL Server: local container `achinterbank-sqlserver`
 
-También se permite `127.0.0.1` cuando represente un servicio local equivalente.
+`127.0.0.1` is also allowed when it represents an equivalent local service.
 
-Cualquier endpoint distinto de:
+Any endpoint other than:
 
 - `localhost`;
 - `127.0.0.1`;
 - `host.docker.internal`;
 
-debe considerarse externo y queda fuera de esta autorización salvo instrucción explícita y segura posterior.
+must be considered external and unauthorized unless a later explicit and safe instruction supersedes this rule.
 
-## 2.2 Operación permitida
+## 2.2 Permitted controlled LIVE operations
 
-Está autorizado en el ambiente local controlado:
+Within the controlled local environment it is allowed to:
 
-- mantener `ProcTransacciones__Mode=Live`;
-- ejecutar SOAP real contra el WCF local;
-- ejecutar `Proc_Contrapartidas`;
-- ejecutar `Proc_Transacciones`;
-- ejecutar `RegistrarRespuestaTransaccion`;
-- procesar archivos NACHA-M completos;
-- procesar archivos multilote;
-- procesar múltiples entradas;
-- procesar múltiples addendas;
-- generar una llamada SOAP por cada entrada elegible;
-- realizar los uploads necesarios durante diagnóstico y validación;
-- corregir código durante la ejecución;
-- corregir configuración;
-- corregir datos controlados de prueba;
-- corregir clasificación;
-- corregir correlación;
-- corregir encolamiento;
-- corregir mappings;
-- corregir persistencia;
-- reanudar el procesamiento después de una corrección;
-- usar archivos obtenidos de producción únicamente como fixtures controlados;
-- crear datos locales faltantes mediante los servicios normales de aplicación;
-- ejecutar directamente un orquestador desde DI cuando el scheduler local no se active;
-- conservar el runtime en Live cuando sea necesario para completar la validación.
+- keep `ProcTransacciones__Mode=Live`;
+- execute real SOAP calls against the local WCF service;
+- execute `Proc_Contrapartidas`;
+- execute `Proc_Transacciones`;
+- execute `RegistrarRespuestaTransaccion`;
+- process complete NACHA-M files;
+- process multi-batch files;
+- process multiple entries;
+- process multiple addendas;
+- generate one SOAP call for each eligible entry;
+- perform uploads required for diagnosis and validation;
+- correct source code during diagnosis;
+- correct controlled configuration;
+- correct controlled test data;
+- correct classification logic;
+- correct correlation logic;
+- correct queueing;
+- correct mappings;
+- correct persistence;
+- resume processing after a correction;
+- use production-origin files only as controlled fixtures;
+- create missing local test data through normal application services;
+- invoke an orchestrator directly through DI when the local scheduler does not trigger;
+- keep the local runtime in Live mode when required to complete controlled validation.
 
-## 2.3 Comportamiento esperado
+## 2.3 Expected multi-entry behavior
 
-Para un archivo con múltiples lotes o entradas:
+For a file containing multiple batches or entries:
 
-- una ingesta por archivo;
-- una clasificación por entrada;
-- un vínculo por entrada;
-- una cola por entrada elegible;
-- una llamada SOAP por entrada elegible;
-- una respuesta persistida por llamada.
+- one ingestion per file;
+- one classification per entry;
+- one link/correlation per entry;
+- one queue operation per eligible entry;
+- one SOAP call per eligible entry;
+- one persisted response per call.
 
-No bloquear únicamente por:
+Do not block solely because of:
 
-- múltiples lotes;
-- múltiples entradas;
-- múltiples addendas;
-- múltiples llamadas SOAP esperadas;
-- runtime local en modo Live;
-- datos reales utilizados exclusivamente como fixture controlado;
-- intentos anteriores bloqueados antes de llegar al SOAP;
-- nombres CENIT sin extensión;
-- archivos ACH Colombia terminados en `.OUT`.
+- multiple batches;
+- multiple entries;
+- multiple addendas;
+- multiple expected SOAP calls;
+- local runtime being in Live mode;
+- real-origin data being used exclusively as a controlled fixture;
+- previous attempts that failed before reaching SOAP;
+- CENIT filenames without extensions;
+- ACH Colombia filenames ending in `.OUT`.
 
-## 2.4 Nombres de archivos LIVE
+## 2.4 LIVE filenames
 
 ### CENIT
 
-Carpeta:
+Directory:
 
 `docs/uat/proc-transacciones-live/CENIT`
 
-Los archivos no llevan extensión.
+Files have no extension.
 
-Formato esperado:
+Expected format:
 
 ```regex
 ^\d{7}\.\d{3}\.\d{8}\.\d+$
@@ -148,53 +274,73 @@ Formato esperado:
 
 ### ACH Colombia
 
-Carpeta:
+Directory:
 
 `docs/uat/proc-transacciones-live/ACHCOL`
 
-Los archivos terminan en `.OUT`.
+Files end in `.OUT`.
 
-Formato esperado:
+Expected format:
 
 ```regex
 ^\d{7}\.\d{3}\.\d{8}\.\d+\.OUT$
 ```
 
-Nunca:
+Never:
 
-- agregar `.ach`;
-- generar alias derivados del lote;
-- generar alias derivados de `IDLOTE`;
-- generar alias derivados de `BatchNumber`.
+- append `.ach`;
+- generate aliases derived from the batch;
+- generate aliases derived from `IDLOTE`;
+- generate aliases derived from `BatchNumber`.
 
-## 2.5 Límites obligatorios
+## 2.5 Mandatory limits
 
-Está prohibido:
+It is prohibited to:
 
-- llamar endpoints externos no autorizados;
-- ejecutar contra infraestructura productiva real;
-- utilizar credenciales productivas;
-- conectarse a redes financieras externas;
-- generar movimientos monetarios reales;
-- eliminar evidencia de auditoría;
-- imprimir credenciales;
-- imprimir tokens;
-- imprimir cuentas completas;
-- imprimir datos personales;
-- imprimir XML sensible completo;
-- volver a enviar una entrada que ya obtuvo una respuesta SOAP exitosa o funcionalmente definitiva.
+- call unauthorized external endpoints;
+- execute against real production infrastructure;
+- use production credentials;
+- connect to external financial networks;
+- generate real monetary movements;
+- delete audit evidence;
+- print credentials;
+- print tokens;
+- print complete account numbers;
+- print personal data;
+- print complete sensitive XML payloads;
+- resend an entry that already received a successful or functionally definitive SOAP response.
 
-No existe un límite global artificial de una única llamada SOAP cuando existen múltiples entradas elegibles.
+There is no artificial global limit of one SOAP call when multiple eligible entries exist.
 
-No existe obligación general de restaurar `DryRun` después de una prueba LIVE local.
+There is no general requirement to restore `DryRun` after a controlled local LIVE test.
 
-No existe obligación de detener todo el flujo después del primer error corregible.
+There is no general requirement to stop the complete flow after the first correctable failure.
 
-La idempotencia, deduplicación y prevención de reenvíos definitivos continúan siendo obligatorias.
+Idempotency, deduplication and prevention of definitive resends remain mandatory.
 
 ---
 
-# 3. Repository Map
+# 3. Platform and Shell Policy
+
+Primary development environment:
+
+- Windows;
+- Codex CLI;
+- Docker Desktop / Docker Compose where applicable.
+
+Use **CMD** for repository and tooling instructions unless the user explicitly requests another shell.
+
+Do not use PowerShell-specific commands in instructions, scripts or examples unless explicitly requested.
+
+When writing portable repository scripts, prefer cross-platform tools or the repository's established scripting conventions.
+
+Do not hardcode workstation-specific paths into application source.
+
+MCP configuration may contain workstation-specific paths when required, but those paths must not leak into product code or portable repository documentation unless explicitly intended.
+
+---
+
+# 4. Repository Map
 
 - Solution: `ACHInterbank.sln`
 - Main API: `src/Cfa.ACHInterbank.Api`
@@ -204,12 +350,13 @@ La idempotencia, deduplicación y prevención de reenvíos definitivos continúa
 - Backend tests: `tests/Cfa.ACHInterbank.Tests`
 - NACHA golden files: `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`
 - Permanent Phase 6 context: `docs/ai/ACH_PHASE6_CONTEXT.md`
+- Persistent project memory: `MEMORY.md`
 
 Do not explore the complete repository when the relevant component is already known.
 
 ---
 
-# 4. Build And Test Commands
+# 5. Build and Test Commands
 
 Canonical backend validation:
 
@@ -227,47 +374,58 @@ dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Releas
 Expected result:
 
 - Build succeeded.
-- 0 warnings when the repository baseline requires it.
 - 0 errors.
+- 0 warnings when the repository baseline requires it.
 - Relevant tests passing.
 
-## Validation strategy
+## 5.1 Validation strategy
 
 Prefer the narrowest useful validation first.
 
 Order:
 
-1. affected unit or focal tests;
+1. affected unit/focal tests;
 2. affected project tests;
 3. build;
-4. broader regression suite when justified by the scope.
+4. affected integration tests;
+5. runtime-backed tests when required;
+6. broader regression suite when justified by scope.
 
-Do not execute the complete suite repeatedly when a focal validation is sufficient during diagnosis.
+Do not execute the complete suite repeatedly when focal validation is sufficient during diagnosis.
 
-Before finalizing a significant change, execute the validations necessary to prove that the requested behavior works and that the affected area did not regress.
+Before finalizing a significant change, execute the validations required to demonstrate that:
+
+- the requested behavior works;
+- the original defect is fixed;
+- the affected area did not regress.
 
 ---
 
-# 5. Phase 6 Guardrails
+# 6. Phase 6 Guardrails
 
-- Fase 6B.3C/6B.3C.1 golden files are semireal, anonymized and are not official certification artifacts.
-- Fase 6B.4 covers internal incoming NACHA decisions.
-- Fase 6B.5 covers SOAP integration boundaries.
-- `Proc_Contrapartidas` and `Proc_Transacciones` may execute only against the explicitly authorized local controlled environment defined in this file.
+- Phase 6B.3C/6B.3C.1 golden files are semireal and anonymized and are not official certification artifacts.
+- Phase 6B.4 covers internal incoming NACHA decisions.
+- Phase 6B.5 covers SOAP integration boundaries.
+- `Proc_Contrapartidas` and `Proc_Transacciones` may execute only against the explicitly authorized controlled local environment defined in this file.
 - They remain prohibited against real external production infrastructure.
 - `RegistrarRespuestaTransaccion` is non-monetary and must not independently move money.
 - `None`, duplicates and `ManualReviewRequired` must not produce an inappropriate SOAP dispatch.
 - A transaction with a successful or functionally definitive response must not be resent.
-- When Phase 6 historical documentation contradicts the active LIVE local policy in this file, this file governs local controlled testing.
+- When historical Phase 6 documentation contradicts the active controlled LIVE policy in this file, this file governs controlled local testing.
 
 ---
 
-# 6. Tool Responsibility Matrix
+# 7. Tool Responsibility Matrix
 
 Use each tool only for the responsibility it solves best.
 
 | Need | Preferred tool |
 |---|---|
+| Previous verified project state | `ach_project_memory` |
+| Durable decisions | `ach_project_memory` |
+| Open/closed gaps | `ach_project_memory` |
+| Known traps/root causes | `ach_project_memory` |
+| Release candidate state | `ach_project_memory` |
 | Code architecture | `codebase-memory` |
 | Classes, methods, dependencies | `codebase-memory` |
 | Callers / callees | `codebase-memory` |
@@ -276,30 +434,384 @@ Use each tool only for the responsibility it solves best.
 | Normative documents | `local-rag` |
 | ACH Colombia rules | `local-rag` |
 | CENIT rules | `local-rag` |
-| Terminal output | `RTK` when appropriate |
+| Large/noisy terminal output | `RTK` when appropriate |
 | Exact concrete file | Direct read |
-| Exact runtime evidence | Original command/output when RTK could hide evidence |
+| Exact runtime evidence | Original command/output |
+| Current Git truth | Git |
+| Current CI/PR evidence | GitHub when available |
 
-Primary rule:
+Primary routing rule:
 
 ```text
-Normativa        -> local-rag
-Código           -> codebase-memory
-Terminal         -> RTK
-Archivo concreto -> lectura directa
+Previous project state -> ach_project_memory
+Normative rules        -> local-rag
+Code structure         -> codebase-memory
+Terminal compression   -> RTK
+Exact file             -> direct read
+Current runtime truth  -> direct evidence
+Current Git truth      -> Git
 ```
 
 Do not use multiple tools to answer exactly the same question unless cross-validation is technically necessary.
 
+Project Memory is a context-routing and historical-state layer.
+
+It is not a normative oracle.
+
+It is not a source-code oracle.
+
 ---
 
-# 7. Codebase Memory — obligatorio para comprensión estructural
+# 8. Project Memory — Persistent Project State
+
+Expected MCP server:
+
+`ach_project_memory`
+
+Persistent file:
+
+`MEMORY.md`
+
+at the repository root.
+
+Project Memory exists to prevent future sessions from rediscovering durable, already verified project knowledge.
+
+Its responsibility is limited to:
+
+- durable architecture decisions;
+- durable business decisions;
+- verified business invariants;
+- confirmed gaps;
+- verified closures;
+- known traps;
+- proven root causes;
+- release-candidate state;
+- evidence pointers;
+- delivery objectives;
+- compact handoff information.
+
+Project Memory must not become:
+
+- a duplicate source-code index;
+- a copy of Local RAG;
+- a complete session transcript;
+- a command log store;
+- a CI log store;
+- a source of credentials;
+- a certificate repository;
+- a private-key repository;
+- a source of production data;
+- a replacement for Git history;
+- a replacement for tests;
+- a replacement for runtime evidence.
+
+`MEMORY.md` must be maintained in English.
+
+Never store sensitive information in Project Memory.
+
+## 8.1 Mandatory progressive retrieval
+
+Never blindly retrieve the complete `MEMORY.md`.
+
+When previous project knowledge may materially affect a non-trivial task, use:
+
+```text
+get_project_memory(head_only=true)
+        |
+        v
+search_project_memory("<specific keywords or stable ID>")
+        |
+        v
+get_project_memory(offset=<relevant line>, limit=<bounded range>)
+```
+
+Use `head_only` to determine:
+
+- memory size;
+- headings;
+- section boundaries.
+
+Then search narrowly.
+
+Examples:
+
+```text
+CENIT RETURN
+```
+
+```text
+DIFF-RESP-001
+```
+
+```text
+TRAP DATE
+```
+
+```text
+RC-CURRENT
+```
+
+```text
+OPEN GAP
+```
+
+Retrieve only the relevant line range.
+
+A complete memory read is acceptable only when:
+
+- the file is demonstrably small; or
+- deliberate consolidation/recovery requires the complete content.
+
+## 8.2 When to query Project Memory
+
+Query Project Memory when the current task depends on:
+
+- what was previously decided;
+- whether a gap was previously confirmed;
+- whether a capability was previously closed;
+- previously proven root causes;
+- known traps;
+- previous release evidence;
+- current release-candidate state;
+- previous delivery handoff;
+- durable constraints that materially affect the requested work.
+
+Project Memory is normally relevant for:
+
+- return processing;
+- differential responses;
+- operational-date handling;
+- cycle/date coherence;
+- release preparation;
+- UAT readiness;
+- previously closed JOBs;
+- regressions;
+- recurring runtime failures;
+- previous normative/implementation gaps.
+
+It may be unnecessary for:
+
+- isolated text changes;
+- simple CSS changes;
+- trivial naming changes;
+- formatting-only changes with no behavioral effect.
+
+## 8.3 Project Memory write policy
+
+Update Project Memory only when durable verified knowledge changes.
+
+Allowed writes:
+
+- durable architecture decision;
+- durable business decision;
+- confirmed invariant;
+- newly confirmed gap;
+- gap closure with evidence;
+- proven root cause;
+- reusable known trap;
+- release-candidate update;
+- verified CI/runtime/UAT evidence pointer;
+- meaningful delivery handoff;
+- invalidation of stale memory.
+
+Do not write:
+
+- ordinary investigation progress;
+- speculative hypotheses;
+- chain-of-thought;
+- temporary command output;
+- raw logs;
+- complete stack traces;
+- repetitive test output;
+- source code;
+- full normative text;
+- secrets;
+- tokens;
+- credentials;
+- private keys;
+- certificates;
+- connection strings;
+- complete account numbers;
+- personal data;
+- production data.
+
+## 8.4 Project Memory write mechanism
+
+Prefer:
+
+`update_project_memory`
+
+for ordinary incremental changes.
+
+Use:
+
+`set_project_memory`
+
+only for:
+
+- initial bootstrap;
+- deliberate full consolidation;
+- recovery from malformed memory;
+- controlled complete replacement.
+
+Do not rewrite the entire memory for a one-item update.
+
+## 8.5 Stable searchable IDs
+
+Use stable identifiers for durable knowledge.
+
+Recommended prefixes:
+
+```text
+DEC-
+INV-
+GAP-
+CLOSE-
+TRAP-
+EVID-
+RC-
+NEXT-
+NORM-
+```
+
+Examples:
+
+```text
+DEC-DATE-001
+INV-IDEMPOTENCY-001
+GAP-CENIT-RET-001
+CLOSE-DIFF-RESP-001
+TRAP-DATE-UTC-001
+EVID-JOB6-001
+RC-CURRENT
+NEXT-DELIVERY-001
+```
+
+Do not create multiple IDs for the same durable fact merely because it was encountered in different sessions.
+
+## 8.6 Closure evidence requirement
+
+A memory entry must not be marked `CLOSED` solely because:
+
+- an agent says it was fixed;
+- source code changed;
+- one command succeeded;
+- an old conversation described it as closed.
+
+A closure should contain or reference evidence such as:
+
+- exact affected behavior;
+- focal test;
+- regression test;
+- build result;
+- runtime-backed E2E;
+- CI result;
+- exact commit SHA;
+- other directly verifiable evidence.
+
+If evidence is incomplete, preserve a weaker state.
+
+## 8.7 Release candidate rule
+
+Release certification applies to an exact commit.
+
+Project Memory should maintain:
+
+```text
+RC-CURRENT
+COMMIT: <exact SHA>
+STATUS: <state>
+CI: <state/evidence>
+RUNTIME_E2E: <state/evidence>
+GAUNTLET: <state>
+UAT: <state>
+```
+
+A source-code change invalidates certification of the previous candidate for the affected behavior.
+
+Never transfer:
+
+- `GAUNTLET_PASSED`;
+- `UAT_READY`;
+- `RELEASE_READY`;
+
+from one commit to another without new evidence.
+
+## 8.8 Staleness and conflicts
+
+Project Memory represents previous verified knowledge.
+
+It is not immutable truth.
+
+If Project Memory conflicts with:
+
+- current source code;
+- current configuration;
+- current tests;
+- current runtime evidence;
+- current Git state;
+- current normative evidence;
+
+then:
+
+1. preserve the contradiction;
+2. determine which source governs the question;
+3. verify the current state independently;
+4. treat the memory entry as potentially stale;
+5. update or invalidate it only after verification.
+
+Never force current evidence to fit old memory.
+
+## 8.9 No Project Memory indexing
+
+Project Memory does not require repository-style indexing.
+
+Do not:
+
+- run Codebase Memory indexing to refresh `MEMORY.md`;
+- run Local RAG synchronization to refresh `MEMORY.md`;
+- create a second vector database containing Project Memory;
+- duplicate `MEMORY.md` into normative corpora.
+
+## 8.10 Memory compactness
+
+Keep `MEMORY.md` compact and information-dense.
+
+Prefer:
+
+```text
+fact
+-> evidence
+-> durable consequence
+```
+
+over narrative session history.
+
+Replace obsolete current-state entries rather than endlessly appending duplicates.
+
+Use Git history when historical versions of `MEMORY.md` are required.
+
+## 8.11 Project Memory fallback
+
+If `ach_project_memory` is unavailable:
+
+- do not stop the task solely because of its absence;
+- do not invent remembered project state;
+- use current source/runtime/normative evidence as appropriate;
+- keep investigation narrow;
+- report the missing memory layer briefly when it materially affects confidence.
+
+Project Memory availability must never affect application runtime behavior.
+
+---
+
+# 9. Codebase Memory — Mandatory Structural Retrieval
 
 The Codebase Memory project for this repository is:
 
 `ACHInterbank`
 
-Its responsibility is exclusively technical knowledge of the repository:
+Its responsibility is technical knowledge of the repository:
 
 - source code;
 - architecture;
@@ -316,27 +828,29 @@ Its responsibility is exclusively technical knowledge of the repository:
 - callees;
 - tests;
 - configuration;
-- infrastructure represented as repository files;
+- repository infrastructure;
 - execution paths;
 - impact analysis.
 
-## 7.1 `ACHInterbank-normativa` is no longer the primary normative source
+## 9.1 Normative separation
 
-Do not require the former Codebase Memory project:
+The former Codebase Memory project:
 
 `ACHInterbank-normativa`
 
-for normative retrieval.
+is not the primary normative source.
 
-Normative retrieval is now the responsibility of:
+Normative retrieval is the responsibility of:
 
 `local-rag`
 
-Do not duplicate normative documents inside source folders merely to make Codebase Memory discover them.
+Do not duplicate normative documents into source directories merely to make Codebase Memory discover them.
 
-Do not repeatedly reindex the primary `ACHInterbank` project in an attempt to incorporate the external Local RAG corpus.
+Do not repeatedly reindex `ACHInterbank` in an attempt to ingest the external Local RAG corpus.
 
-## 7.2 When to synchronize Codebase Memory
+Do not duplicate Project Memory into Codebase Memory.
+
+## 9.2 When to synchronize Codebase Memory
 
 Treat `index_repository` as an incremental synchronization.
 
@@ -346,31 +860,31 @@ Synchronize when the index may be stale, especially after:
 - `git pull`;
 - significant merge;
 - adding a module;
-- adding or changing substantial SPA components or routes;
-- adding or changing backend controllers;
-- adding or changing handlers;
-- adding or changing services;
-- adding or changing entities;
-- adding or changing EF Core configurations;
-- adding or changing migrations;
-- adding or changing SQL files;
+- substantial SPA component/route changes;
+- backend controller changes;
+- handler changes;
+- service changes;
+- entity changes;
+- EF Core configuration changes;
+- migration changes;
+- SQL changes;
 - moving files;
 - renaming files;
 - deleting files;
 - significant test changes;
-- Docker or infrastructure changes represented in the repository;
-- reinstalling or updating Codebase Memory;
-- detecting that searches cannot find recently created or modified code.
+- Docker/infrastructure changes represented in the repository;
+- reinstalling/updating Codebase Memory;
+- detecting that recent code cannot be found.
 
-Do not run `index_repository` automatically before every small action.
+Do not run `index_repository` automatically before every task.
 
-Do not run it repeatedly during the same task when no repository changes occurred since the previous synchronization.
+Do not repeat indexing during the same task when no repository change occurred.
 
-Do not delete the existing index or force a full rebuild unless there is evidence of corruption or inconsistency.
+Do not delete the existing index or force a full rebuild unless corruption or inconsistency is demonstrated.
 
-## 7.3 Codebase Memory query strategy
+## 9.3 Codebase Memory query strategy
 
-After ensuring that the index is sufficiently current, use the most specific tool possible.
+Use the most specific tool possible.
 
 ### `search_graph`
 
@@ -395,11 +909,11 @@ Use for:
 - dependencies;
 - execution paths;
 - transaction flows;
-- impacted components.
+- impact analysis.
 
 ### `get_code_snippet`
 
-Use when the specific symbol is already known.
+Use when the exact symbol is already known.
 
 Retrieve only the implementation required.
 
@@ -410,21 +924,21 @@ Use for:
 - literal text;
 - configuration;
 - constants;
-- documentation inside the repository;
+- repository documentation;
 - SQL;
-- information unavailable in the graph.
+- information unavailable from the graph.
 
 ### `get_architecture`
 
-Use only when understanding broader modules or layers is necessary.
+Use only when broader architecture understanding is actually required.
 
-Do not call it for a narrowly scoped change when the affected component is already known.
+Do not call it for narrowly scoped changes when the affected component is already known.
 
 ### `get_graph_schema` / `query_graph`
 
-Use only for graph relationships that cannot be answered efficiently through the simpler tools.
+Use only when graph relationships cannot be answered efficiently through simpler tools.
 
-## 7.4 Codebase Memory fallback
+## 9.4 Codebase Memory fallback
 
 If Codebase Memory:
 
@@ -438,13 +952,13 @@ then:
 1. report the limitation briefly;
 2. fall back to targeted local searches;
 3. keep the search scope narrow;
-4. read only the files necessary.
+4. read only the necessary files.
 
 Do not turn a Codebase Memory failure into an unrestricted repository scan.
 
 ---
 
-# 8. Local RAG — fuente normativa
+# 10. Local RAG — Normative Source
 
 The MCP:
 
@@ -454,20 +968,20 @@ is the primary retrieval mechanism for external normative documentation.
 
 Its configured corpus is external to the repository.
 
-Do not hardcode workstation-specific absolute paths such as `C:\Users\...` into this file or application source.
+Do not hardcode workstation-specific absolute paths into application source.
 
-The Local RAG root is defined through the MCP configuration.
+The Local RAG root is defined through MCP configuration.
 
-The configured corpus is expected to separate at least:
+The corpus is expected to separate at least:
 
 ```text
 ACH-Colombia/
 CENIT/
 ```
 
-This separation must be preserved during retrieval.
+Preserve that separation during retrieval.
 
-## 8.1 Responsibility
+## 10.1 Responsibility
 
 Use Local RAG for:
 
@@ -481,15 +995,16 @@ Use Local RAG for:
 - returns;
 - returns by operator;
 - return causes;
-- differential responses;
+- returns of returns;
+- differential responses when normatively applicable;
 - cycle rules;
-- file structure;
+- file structures;
 - record fields;
 - operating windows;
 - security requirements;
 - limits;
 - normative annexes;
-- other external regulatory or clearing documentation included in the configured corpus.
+- other external clearing/regulatory documentation in the configured corpus.
 
 Do not use Local RAG for:
 
@@ -497,20 +1012,21 @@ Do not use Local RAG for:
 - callers/callees;
 - source-code architecture;
 - runtime logs;
-- repository dependency analysis.
+- repository dependency analysis;
+- historical project-state memory.
 
-Those belong to Codebase Memory or direct inspection.
+Those belong to Codebase Memory, Project Memory or direct inspection.
 
 ---
 
-# 9. Local RAG synchronization policy
+# 11. Local RAG Synchronization Policy
 
 Do not synchronize Local RAG before every query.
 
 Synchronize when:
 
 - new normative documents were added;
-- documents were modified;
+- documents changed;
 - documents were replaced;
 - documents were removed;
 - expected documentation cannot be found;
@@ -529,11 +1045,13 @@ Expected synchronization flow:
 
 Do not repeatedly synchronize an unchanged corpus.
 
-A synchronization is an indexing operation, not a prerequisite for every normative question.
+Synchronization is an indexing operation.
+
+It is not a prerequisite for every normative question.
 
 ---
 
-# 10. Local RAG query strategy
+# 12. Local RAG Query Strategy
 
 Queries must be narrow and evidence-oriented.
 
@@ -549,52 +1067,52 @@ Prefer queries containing:
 Examples:
 
 ```text
-ACH Colombia V35 devolución recibida causal D33
+ACH Colombia V35 received return D33 cause
 ```
 
 ```text
-ACH Colombia V35 sección devoluciones operador
+ACH Colombia V35 operator returns
 ```
 
 ```text
-CENIT devolución transacción débito ciclo
+CENIT debit return next cycle
 ```
 
 Avoid vague queries such as:
 
 ```text
-devoluciones
+returns
 ```
 
-when enough context exists to formulate a more precise search.
+when sufficient context exists for a more precise request.
 
-## 10.1 Query workflow
+## 12.1 Query workflow
 
 For a normative task:
 
 1. query the relevant corpus with `query_documents`;
 2. evaluate the highest-relevance results;
 3. refine the query when results mix unrelated subjects;
-4. use `read_chunk_neighbors` only when surrounding context is needed to interpret the rule;
+4. use `read_chunk_neighbors` only when surrounding context is required;
 5. identify source document;
 6. identify version when available;
-7. identify section or neighboring context when available;
+7. identify section/context when available;
 8. extract only the rule needed for the task.
 
-Do not ingest complete documents into model context when a few chunks are sufficient.
+Do not ingest complete documents when a few chunks are sufficient.
 
-## 10.2 Evidence standard
+## 12.2 Normative evidence standard
 
 A normative conclusion should identify, when available:
 
 - clearing house;
 - source document;
-- version;
+- version/date;
 - section;
 - retrieved rule;
-- whether the evidence is direct or inferred from surrounding context.
+- whether the evidence is direct or inferred from neighboring context.
 
-Do not invent:
+Never invent:
 
 - section numbers;
 - versions;
@@ -604,47 +1122,47 @@ Do not invent:
 - field values;
 - operational rules.
 
-If Local RAG cannot support the rule, explicitly state that normative evidence was not found.
+If Local RAG cannot support a rule, explicitly state that normative evidence was not found.
 
 ---
 
-# 11. ACH Colombia / CENIT isolation
+# 13. ACH Colombia / CENIT Isolation
 
-Never automatically merge rules from ACH Colombia and CENIT.
+Never automatically merge ACH Colombia and CENIT rules.
 
-## ACH Colombia-only task
+## 13.1 ACH Colombia-only task
 
 Search the ACH Colombia corpus first.
 
 Do not use CENIT rules as substitutes.
 
-## CENIT-only task
+## 13.2 CENIT-only task
 
 Search the CENIT corpus first.
 
 Do not use ACH Colombia rules as substitutes.
 
-## Comparative task
+## 13.3 Comparative task
 
 When comparing ACH Colombia and CENIT:
 
-1. query ACH Colombia separately;
+1. retrieve ACH Colombia independently;
 2. retain its evidence;
-3. query CENIT separately;
+3. retrieve CENIT independently;
 4. retain its evidence;
 5. compare only after both retrievals are complete.
 
-The absence of a rule in one clearing house does not imply that the same rule applies from the other clearing house.
+Absence of a rule in one clearing house does not imply that a rule from the other clearing house applies.
 
 ---
 
-# 12. Normativa ACH Colombia vigente
+# 14. Current ACH Colombia Normative Baseline
 
-The canonical normative baseline for ACH Colombia is:
+The canonical normative baseline for current ACH Colombia behavior is:
 
-**Versión 35 — abril de 2026**
+**Version 35 — April 2026**
 
-Versions V32 and earlier are historical or comparative unless the task explicitly requires an earlier version.
+Versions V32 and earlier are historical/comparative unless the task explicitly targets them.
 
 Before modifying behavior related to:
 
@@ -666,17 +1184,18 @@ search Local RAG for V35 first.
 If Local RAG contains multiple versions:
 
 1. prefer V35 for current ACH Colombia behavior;
-2. do not mix V35 and older versions without identifying the version of each rule;
-3. use older versions only for historical comparison or migration analysis.
+2. never silently combine V35 and older versions;
+3. identify the version of every rule used;
+4. use older versions only for historical comparison or migration analysis.
 
-If V35 cannot be located in Local RAG, report that condition instead of silently falling back to V32.
+If V35 cannot be located, report that condition rather than silently falling back to V32.
 
-If code, tests, repository documentation or existing runtime behavior contradict V35:
+If code, tests, repository documentation, Project Memory or current runtime behavior contradict V35:
 
 1. preserve the normative evidence;
-2. identify the implemented behavior independently;
+2. verify implemented behavior independently;
 3. report the discrepancy;
-4. use V35 as the normative authority unless the task explicitly targets another version;
+4. use V35 as normative authority unless another version is explicitly in scope;
 5. do not invent a reconciliation rule.
 
 For returns, investigate especially:
@@ -685,78 +1204,116 @@ For returns, investigate especially:
 - section 6.7;
 - applicable annexes.
 
-Consider causal `D33` only when supported by the retrieved normative evidence and applicable to the scenario.
+Consider cause `D33` only when supported by retrieved normative evidence and applicable to the exact scenario.
 
 ---
 
-# 13. Norma vs implementación
+# 15. Normative Rules vs Implementation
 
-When a functional decision depends on both normative requirements and existing implementation, use this order:
+When a functional decision depends on both normative requirements and current implementation, use this order.
 
-1. **Local RAG**
-   - establish what the applicable rule requires.
+## Step 0 — Project Memory
 
-2. **Codebase Memory**
-   - establish where and how the behavior is implemented.
+When prior state matters:
 
-3. **Direct file read**
-   - inspect only the concrete implementation identified.
+- retrieve previous decisions;
+- retrieve known traps;
+- retrieve previous gaps;
+- retrieve previous evidence.
 
-4. **Tests**
-   - identify existing evidence and affected coverage.
+Use Project Memory to avoid rediscovery.
 
-5. **Implementation**
-   - make the minimum coherent change.
+Do not use it as current normative or implementation proof.
+
+## Step 1 — Local RAG
+
+Establish what the applicable normative rule requires.
+
+## Step 2 — Codebase Memory
+
+Establish where and how the behavior is currently implemented.
+
+## Step 3 — Direct file read
+
+Inspect only the concrete implementation identified.
+
+## Step 4 — Tests
+
+Identify existing evidence and affected coverage.
+
+## Step 5 — Implementation
+
+Make the minimum coherent change.
+
+## Step 6 — Verification
+
+Execute the minimum evidence-producing validation required.
+
+## Step 7 — Project Memory update
+
+Persist only new durable verified knowledge.
 
 The analysis should conceptually produce:
 
 ```text
-Norma
-  -> comportamiento requerido
+Previous memory
+  -> prior decisions / traps / gaps
 
-Código
-  -> comportamiento implementado
+Normative evidence
+  -> required behavior
+
+Implementation evidence
+  -> current behavior
 
 Gap
-  -> diferencia demostrable
+  -> demonstrable difference
 
-Acción
-  -> cambio mínimo necesario
+Action
+  -> minimum coherent correction
 
-Prueba
-  -> evidencia que demuestra el comportamiento
+Verification
+  -> evidence proving the behavior
+
+Durable memory
+  -> only if reusable verified knowledge changed
 ```
 
-Never use:
+Never reason:
 
 ```text
-el código hace X, por lo tanto la norma debe exigir X
+The code does X, therefore the normative rule must require X.
 ```
 
-Never use:
+Never reason:
 
 ```text
-la norma exige X, por lo tanto el código seguramente ya hace X
+The normative rule requires X, therefore the code probably already does X.
 ```
 
-Both sides must be independently verified.
+Never reason:
+
+```text
+MEMORY.md says CLOSED, therefore the current commit must still be correct.
+```
+
+Normative and implementation evidence must be independently verified whenever both matter.
 
 ---
 
-# 14. RTK — reducción de ruido de terminal
+# 16. RTK — Terminal Noise Reduction
 
-RTK and Codebase Memory solve different problems.
+RTK, Project Memory, Codebase Memory and Local RAG solve different problems.
 
-- **Codebase Memory**: knowledge and structure of the repository.
+- **Project Memory**: durable previous project state.
+- **Codebase Memory**: repository knowledge and structure.
 - **Local RAG**: normative retrieval.
 - **RTK**: compact terminal output.
-- **Direct read**: exact inspection of already identified files.
+- **Direct read**: exact inspection of known files.
+- **Direct runtime command**: exact current execution evidence.
 
-RTK does not replace Codebase Memory.
+RTK does not replace any other source.
 
-RTK does not replace Local RAG.
-
-## 14.1 Use RTK when appropriate
+## 16.1 Use RTK when appropriate
 
 When available and supported, prefer RTK for terminal commands that may produce large noisy output.
 
@@ -766,42 +1323,42 @@ Examples:
 rtk git status
 rtk git diff
 rtk git log -n 10
-rtk grep "<patrón>" .
-rtk find "<patrón>" .
+rtk grep "<pattern>" .
+rtk find "<pattern>" .
 rtk docker ps
-rtk docker logs <contenedor>
+rtk docker logs <container>
 ```
 
-For `.NET`, when supported by the installed RTK version:
+For .NET, when supported:
 
 ```bash
 rtk dotnet build ACHInterbank.sln -c Release
 ```
 
-For test runners with extensive output:
+For large test output:
 
 ```bash
 rtk test dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release
 ```
 
-Second execution:
+After an already successful build:
 
 ```bash
 rtk test dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release --no-build
 ```
 
-The canonical underlying commands remain the commands defined in `Build And Test Commands`.
+Canonical underlying commands remain unchanged.
 
-RTK must not change:
+RTK must never change:
 
 - arguments;
-- target project;
+- project target;
 - test scope;
 - command semantics.
 
-If a specific RTK wrapper is not supported by the installed version, use the original command.
+If an RTK wrapper is unsupported by the installed version, use the original command.
 
-## 14.2 Keep RTK searches narrow
+## 16.2 Keep RTK searches narrow
 
 Prefer:
 
@@ -817,21 +1374,21 @@ rtk grep "Proc_Transacciones" .
 
 when the relevant area is already known.
 
-Do not use RTK searches to manually reconstruct architecture that Codebase Memory can retrieve more accurately.
+Do not manually reconstruct architecture using terminal searches when Codebase Memory can retrieve it more efficiently.
 
 ---
 
-# 15. When exact output is required
+# 17. When Exact Output Is Required
 
-Do not rely exclusively on compacted RTK output when the task requires:
+Do not rely exclusively on compact RTK output when the task requires:
 
 - complete error evidence;
 - exact values;
 - exact ordering;
 - audit evidence;
 - UAT evidence;
-- complete logs;
-- diagnosis of a hidden or filtered failure;
+- exact logs;
+- diagnosis of a hidden/filtered failure;
 - literal comparison against a specification;
 - proof that may depend on omitted lines.
 
@@ -842,11 +1399,15 @@ In these cases:
 3. rerun only the required command without RTK;
 4. capture only the necessary exact evidence.
 
-Using an original command after RTK is allowed when technically justified.
+Using the original command after RTK is allowed when technically justified.
+
+Project Memory may retain a compact evidence pointer or conclusion.
+
+It must not replace exact evidence when exact proof is required.
 
 ---
 
-# 16. RTK availability
+# 18. RTK Availability
 
 Do not assume RTK exists in every environment.
 
@@ -854,7 +1415,7 @@ If `rtk` is unavailable:
 
 - do not stop the task solely because of its absence;
 - use the equivalent original command;
-- keep the same narrow scope;
+- preserve narrow scope;
 - do not modify application dependencies to install RTK;
 - do not introduce RTK as an application runtime dependency.
 
@@ -862,9 +1423,9 @@ RTK availability must not affect application behavior.
 
 ---
 
-# 17. Direct file reading
+# 19. Direct File Reading
 
-Direct reading is appropriate after the relevant file is known.
+Direct reading is appropriate after the relevant file has been identified.
 
 Prefer:
 
@@ -878,46 +1439,86 @@ over loading a complete large file.
 
 Do not read entire directories or large files merely because they may contain relevant information.
 
-Codebase Memory should normally discover the technical target first.
+Preferred discovery order:
 
-Local RAG should normally discover the normative target first.
+```text
+Previous project state -> Project Memory
+Technical target       -> Codebase Memory
+Normative target       -> Local RAG
+Known exact target     -> direct read
+```
 
 ---
 
-# 18. Context economy
+# 20. Context Economy
 
 The objective is:
 
-**the minimum sufficient context that preserves the evidence required for a technically correct decision.**
+**Use the minimum sufficient context that preserves all evidence required for a technically correct decision.**
 
 Avoid:
 
+- automatically loading complete `MEMORY.md`;
+- retrieving unrelated Project Memory sections;
+- storing temporary investigation output in Project Memory;
 - global repository searches when the component is known;
-- loading complete documentation when a relevant chunk is enough;
-- reading complete source files when a symbol is enough;
-- querying both Codebase Memory and RTK for exactly the same fact;
+- loading complete normative documents when one chunk is sufficient;
+- reading complete source files when one symbol is sufficient;
+- querying Codebase Memory and RTK for the same fact;
 - querying Local RAG for purely technical tasks;
 - querying Codebase Memory for normative rules;
+- using Project Memory as current source-code truth;
+- using Project Memory as normative truth;
 - synchronizing Local RAG when documents have not changed;
-- synchronizing Codebase Memory repeatedly without repository changes;
-- repeating searches whose answer is already available in the current context;
+- repeatedly synchronizing Codebase Memory without repository changes;
+- repeating a search already answered in current context;
+- rediscovering durable facts already stored in Project Memory unless freshness is questionable;
 - collecting complete logs when a bounded window is enough;
 - introducing unrelated documentation;
 - introducing unrelated code;
-- introducing unrelated test output;
+- introducing unrelated tests;
 - introducing unrelated runtime logs.
 
 Do not minimize context at the expense of required evidence.
 
-Do not maximize context merely because more information is available.
+Do not maximize context merely because more information exists.
+
+Prefer progressive retrieval over bulk ingestion.
 
 ---
 
-# 19. Task classification before tool use
+# 21. Task Classification Before Tool Use
 
-Before using tools, classify the task.
+Before using tools:
 
-## Pure technical task
+1. identify the requested outcome;
+2. classify the task;
+3. determine whether previous project state matters;
+4. select only the necessary tools.
+
+## 21.1 Historical/status-sensitive task
+
+Examples:
+
+- previous closure;
+- previous root cause;
+- known trap;
+- current release candidate;
+- previous GAP status;
+- previous UAT evidence.
+
+Use:
+
+```text
+Project Memory head
+-> narrow search
+-> bounded memory range
+-> current evidence only if freshness matters
+```
+
+Do not scan the repository merely to reconstruct history already stored in Project Memory.
+
+## 21.2 Pure technical task
 
 Examples:
 
@@ -930,7 +1531,16 @@ Examples:
 - unit test;
 - Docker configuration.
 
-Use:
+When previous state matters:
+
+```text
+Project Memory targeted retrieval
+-> Codebase Memory
+-> direct read
+-> RTK/terminal
+```
+
+When previous state cannot affect the result:
 
 ```text
 Codebase Memory
@@ -938,9 +1548,9 @@ Codebase Memory
 -> RTK/terminal
 ```
 
-Do not query Local RAG unless a functional rule becomes relevant.
+Do not query Local RAG unless a normative/business rule becomes relevant.
 
-## Pure normative task
+## 21.3 Pure normative task
 
 Examples:
 
@@ -953,199 +1563,518 @@ Use:
 
 ```text
 Local RAG
--> neighboring chunks only if necessary
+-> neighboring chunks only when necessary
 ```
 
-Do not inspect source code unless implementation comparison is requested.
+Do not query Project Memory merely to answer what a normative document says.
 
-## Normative + implementation task
+Do not inspect code unless implementation comparison is requested.
+
+## 21.4 Normative + implementation task
 
 Examples:
 
 - does ACHInterbank comply with V35?;
 - is this return implemented correctly?;
-- differential response gap;
-- ACH Colombia vs current implementation.
+- differential-response gap;
+- ACH Colombia versus current implementation.
 
 Use:
 
 ```text
-Local RAG
+Project Memory targeted retrieval when previous state matters
+-> Local RAG
 -> Codebase Memory
 -> direct read
 -> tests
+-> runtime evidence when required
 ```
 
-## Runtime diagnosis
+## 21.5 Runtime diagnosis
 
 Use:
 
 ```text
-Codebase Memory when structure is unknown
+Project Memory targeted retrieval when previous traps/failures matter
+-> Codebase Memory when structure is unknown
 -> RTK/terminal
 -> exact output when required
 -> direct read
 ```
 
+## 21.6 Release / UAT readiness
+
+Use:
+
+```text
+Project Memory
+-> exact Git commit
+-> CI evidence
+-> runtime-backed evidence
+-> normative evidence when applicable
+-> Gauntlet evidence when applicable
+-> release-state decision
+```
+
+Never infer release readiness from development closure alone.
+
 ---
 
-# 20. Expected development workflow
+# 22. Expected Development Workflow
 
 For a relevant development task:
 
 1. determine the exact requested outcome;
-2. classify the task as technical, normative, mixed or runtime;
-3. choose only the necessary tools;
-4. synchronize Codebase Memory only if its index may be stale;
-5. synchronize Local RAG only if its corpus may be stale;
-6. retrieve the minimum technical or normative context;
-7. identify affected components;
-8. identify dependencies and execution paths when necessary;
-9. identify affected tests;
-10. read only the concrete files or symbols required;
-11. implement the minimum coherent change;
-12. run focal validation;
-13. expand validation only when justified;
-14. inspect exact output if compact output is insufficient;
-15. reindex Codebase Memory when significant source changes need to become queryable in subsequent work;
-16. do not reindex Local RAG unless the normative corpus itself changed;
-17. report concise evidence.
+2. classify the task;
+3. determine whether previous durable project state matters;
+4. when relevant, retrieve Project Memory progressively:
+   - `head_only`;
+   - narrow search;
+   - bounded range;
+5. choose only the remaining necessary tools;
+6. synchronize Codebase Memory only if stale;
+7. synchronize Local RAG only if its corpus may be stale;
+8. retrieve minimum technical/normative context;
+9. identify affected components;
+10. identify dependencies/execution paths when necessary;
+11. identify affected tests;
+12. read only concrete files/symbols required;
+13. implement the minimum coherent change;
+14. run focal validation;
+15. expand validation only when justified;
+16. inspect exact output if compact output is insufficient;
+17. reindex Codebase Memory when significant source changes must become queryable;
+18. do not reindex Local RAG unless normative documents changed;
+19. update Project Memory only if new durable verified knowledge was produced;
+20. report concise evidence.
+
+Do not write Project Memory merely to record that a task happened.
+
+A Project Memory write must make a future session cheaper or safer.
 
 ---
 
-# 21. Final response expectations
+# 23. Delivery and Release State Model
 
-For code-changing tasks, keep the final response concise.
+Development completion and release readiness are different states.
+
+Use the following conceptual progression:
+
+```text
+IMPLEMENTED
+    |
+    v
+VERIFIED
+    |
+    v
+GAUNTLET_PASSED
+    |
+    v
+UAT_READY
+    |
+    v
+USER_ACCEPTED
+```
+
+A JOB being `CLOSED` does not independently imply `UAT_READY`.
+
+## 23.1 IMPLEMENTED
+
+Means the requested behavior exists in code.
+
+Does not imply adequate tests.
+
+## 23.2 VERIFIED
+
+Requires evidence appropriate to the change, such as:
+
+- focal tests;
+- regression tests;
+- integration tests;
+- build;
+- runtime evidence.
+
+## 23.3 GAUNTLET_PASSED
+
+Only applies if an independent adversarial validation has been explicitly executed against the exact candidate commit.
+
+Do not assume this state when Gauntlet has not been executed.
+
+## 23.4 UAT_READY
+
+Requires an exact candidate commit and sufficient evidence that the capability is safe to present to a user.
+
+## 23.5 USER_ACCEPTED
+
+Requires explicit user/business acceptance.
+
+Do not infer this state from technical validation.
+
+---
+
+# 24. Gauntlet Policy — When Used
+
+Gauntlet is an optional independent release-hardening layer.
+
+It is not required for every development task.
+
+Use it primarily for high-risk flows such as:
+
+- monetary transaction flows;
+- NACHA generation/parsing;
+- inbound/outbound processing;
+- returns;
+- returns of returns;
+- prenotifications;
+- differential responses;
+- cycle/date logic;
+- idempotency;
+- transport;
+- settlement;
+- release candidates.
+
+Do not use Gauntlet for trivial:
+
+- CSS changes;
+- copy changes;
+- renaming;
+- formatting;
+- isolated low-risk refactors.
+
+## 24.1 Separation of roles
+
+The Gauntlet critic must not modify code.
+
+The critic may only return:
+
+```text
+PASS
+```
+
+or:
+
+```text
+FAIL
++ evidence
++ reproduction
++ violated invariant/rule
+```
+
+The implementation agent performs corrections.
+
+A subsequent independent critic validates the corrected candidate.
+
+Do not let the same role implement and certify its own result.
+
+## 24.2 Evidence
+
+Gauntlet findings should refer to:
+
+- exact candidate commit;
+- tested scenario;
+- expected behavior;
+- observed behavior;
+- evidence;
+- relevant invariant/normative rule when applicable.
+
+## 24.3 Loop limit
+
+Avoid unbounded adversarial loops.
+
+Preferred release-hardening sequence:
+
+```text
+Pass 1 -> discovery
+Pass 2 -> regression verification
+Pass 3 -> release-candidate validation
+```
+
+If a critical failure remains after controlled passes, preserve:
+
+`NOT_READY`
+
+and report the unresolved blocker.
+
+## 24.4 Regression conversion
+
+A confirmed Gauntlet defect should become a deterministic permanent regression test whenever practical.
+
+Preferred progression:
+
+```text
+Gauntlet finding
+-> proven defect
+-> correction
+-> permanent regression test
+-> CI protection
+```
+
+---
+
+# 25. Final Response Expectations
+
+For code-changing tasks, keep final responses concise.
 
 When useful, report:
 
 - status;
-- cause;
+- cause/root cause;
 - change;
 - affected files;
 - tests executed;
 - relevant test result;
-- Codebase Memory tools used;
-- Local RAG evidence used when normative rules affected the decision;
-- relevant runtime evidence;
-- commit or PR when one was explicitly created.
+- Codebase Memory use;
+- Local RAG evidence when normative rules affected the decision;
+- runtime evidence;
+- Project Memory entry updated when durable knowledge changed;
+- exact commit/PR when explicitly created.
 
 Do not produce a long narrative when a concise technical summary is sufficient.
 
-For normative work, identify the document/version used.
+For normative work, identify:
 
-For mixed normative/implementation work, distinguish clearly between:
+- clearing house;
+- document;
+- version/date when available;
+- relevant section/evidence.
 
+For mixed normative/implementation work, distinguish:
+
+- Project Memory context;
 - normative evidence;
 - implementation evidence;
-- inferred gap;
-- implemented correction.
+- demonstrated gap;
+- correction;
+- verification evidence.
+
+Never present Project Memory as direct normative or runtime evidence.
 
 ---
 
-# 22. Prohibited tool anti-patterns
+# 26. Prohibited Tool Anti-Patterns
 
 Do not:
 
+- load complete `MEMORY.md` before every task;
+- use Project Memory as current runtime evidence;
+- use Project Memory as normative evidence;
+- use Project Memory as a source-code index;
+- store full logs in Project Memory;
+- store speculative hypotheses as durable facts;
+- mark a Project Memory gap `CLOSED` without evidence;
+- transfer release certification between commits;
+- rewrite complete Project Memory for every small update;
 - run `index_repository` before every prompt;
 - run `sync_start` before every Local RAG query;
-- perform broad `rg`/`grep` searches before trying Codebase Memory when structural discovery is required;
-- use Codebase Memory as the authoritative normative store;
+- perform broad `rg`/`grep` before trying Codebase Memory when structural discovery is required;
+- use Codebase Memory as normative authority;
 - use Local RAG to infer source-code architecture;
-- run RTK and then the exact same unfiltered command without a technical reason;
+- run RTK and immediately repeat the same full unfiltered command without a technical reason;
 - repeatedly read the same file;
+- repeatedly retrieve the same Project Memory range;
 - repeatedly retrieve the same RAG chunk;
-- load every normative document for a single rule;
-- combine ACH Colombia and CENIT evidence without separating their sources;
-- treat an older ACH Colombia version as current when V35 exists;
-- assume absence from retrieval proves absence from the corpus without refining the search;
-- make code changes before identifying the applicable normative rule when the behavior is normatively governed.
+- load every normative document for one rule;
+- combine ACH Colombia and CENIT evidence without separating sources;
+- treat an old ACH Colombia version as current when V35 exists;
+- assume absence from one RAG query proves absence from the corpus;
+- make normatively governed code changes before establishing the applicable rule;
+- create hardcoded clearing-house behavior when configurable/profile-driven behavior is appropriate.
 
 ---
 
-# 23. Source hierarchy
+# 27. Source Hierarchy
 
-For implementation truth:
+Different questions have different authoritative sources.
+
+## 27.1 Current implementation truth
+
+For what the current repository implements:
 
 1. current source code;
 2. current configuration;
-3. current tests;
-4. actual local runtime evidence.
+3. current tests.
 
-For ACH Colombia normative truth:
+Codebase Memory accelerates discovery.
+
+It does not replace exact inspection when exact evidence is required.
+
+## 27.2 Current runtime truth
+
+For what the running system actually did:
+
+1. exact runtime evidence;
+2. logs/events/audit evidence;
+3. persisted state;
+4. runtime-backed E2E evidence.
+
+A source-code reading does not replace runtime evidence when the question concerns observed behavior.
+
+## 27.3 Previous verified project-state truth
+
+For what was previously established:
+
+1. `MEMORY.md`;
+2. referenced Git commits;
+3. referenced CI/runtime/UAT evidence.
+
+Project Memory answers:
+
+```text
+What was previously verified or decided?
+```
+
+It does not independently answer:
+
+```text
+What is true in the current commit?
+```
+
+when the repository has changed.
+
+## 27.4 ACH Colombia normative truth
 
 1. applicable current normative document retrieved through Local RAG;
-2. V35 for current ACH Colombia behavior;
-3. older versions only for historical or comparative analysis.
+2. Version 35 for current ACH Colombia behavior;
+3. older versions only for explicit historical/comparative work.
 
-For CENIT normative truth:
+## 27.5 CENIT normative truth
 
 1. applicable current CENIT document retrieved through Local RAG;
 2. older documents only when explicitly relevant.
 
-Repository documentation may provide context but must not silently override a newer applicable normative source.
+Repository documentation may provide context.
 
-Runtime behavior demonstrates what the system does.
+It must not silently override a newer applicable normative source.
 
-Runtime behavior does not independently prove what the normative requirement is.
+Project Memory may store normative pointers or previous conclusions.
+
+It must not override the applicable normative document.
+
+Runtime behavior proves what the system did.
+
+Runtime behavior does not independently prove what the normative rule requires.
 
 ---
 
-# 24. Guiding principle
+# 28. Guiding Principle
 
-Every task should converge using the shortest evidence-preserving path:
+Every task should converge through the shortest evidence-preserving path.
 
 ```text
 Question
    |
-   +-- Is it normative?
+   +-- Does previous verified project state matter?
+   |       |
+   |       +--> ach_project_memory
+   |                |
+   |                +--> head
+   |                +--> narrow search
+   |                +--> bounded range
+   |
+   +-- Is the question normative?
    |       |
    |       +--> local-rag
    |
-   +-- Is it about code structure?
+   +-- Is the question about code structure?
    |       |
    |       +--> codebase-memory
    |
-   +-- Is the concrete target known?
+   +-- Is the exact file/symbol known?
    |       |
    |       +--> direct read
    |
-   +-- Does it require execution?
+   +-- Does execution matter?
            |
            +--> RTK / terminal
                     |
-                    +--> exact output only when necessary
+                    +--> exact output only when required
 ```
 
 For mixed functional work:
 
 ```text
+Project Memory
+      |
+      v
+Previous decisions / gaps / traps
+      |
+      v
 Local RAG
-   |
-   v
+      |
+      v
 Normative requirement
-   |
-   +---------------------+
-                         |
-                         v
-                 Codebase Memory
-                         |
-                         v
-                 Implementation
-                         |
-                         v
-                  Norma vs código
-                         |
-                         v
-                       Gap
-                         |
-                         v
-                Minimum correction
-                         |
-                         v
-                 Focused validation
+      |
+      v
+Codebase Memory
+      |
+      v
+Current implementation
+      |
+      v
+Normative vs implementation
+      |
+      v
+Demonstrable gap
+      |
+      v
+Minimum coherent correction
+      |
+      v
+Focused validation
+      |
+      v
+Durable new knowledge?
+     / \
+   yes  no
+    |    |
+    v    |
+Project  |
+Memory   |
+    \    /
+     v  v
+     Result
+```
+
+For release-oriented work:
+
+```text
+Project Memory
+      |
+      v
+Current candidate state
+      |
+      v
+Exact commit SHA
+      |
+      +--> CI evidence
+      |
+      +--> runtime-backed evidence
+      |
+      +--> normative evidence when applicable
+      |
+      +--> Gauntlet evidence when applicable
+      |
+      v
+Release decision
+      |
+      v
+Project Memory update
 ```
 
 The goal is not to use every available tool.
 
 The goal is to use the **smallest set of tools and context that produces a verifiable, technically correct result**.
+
+Project Memory should reduce rediscovery.
+
+Codebase Memory should reduce repository exploration.
+
+Local RAG should reduce normative-document loading.
+
+RTK should reduce terminal noise.
+
+Deterministic tests should preserve discovered behavior.
+
+Gauntlet, when used, should attempt to invalidate the candidate independently.
+
+Direct evidence remains mandatory whenever correctness depends on exact current behavior.
