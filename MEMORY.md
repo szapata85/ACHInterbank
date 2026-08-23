@@ -3,9 +3,10 @@
 ## Durable Architecture and Integration Contracts
 
 DEC-NACHA-PROFILES-001:
-NACHA-M generation and parsing are table/profile-driven. Clearing-house layouts,
-fields, filenames and business rules must remain configuration/catalog/profile-driven;
-do not introduce legacy hardcoded layouts.
+NACHA-M record layouts, field definitions, rendering/parsing metadata, filenames,
+transaction/cause catalogs and clearing-house format rules are
+profile/configuration/catalog-driven. Do not introduce legacy hardcoded layouts.
+Domain invariants may remain explicit application/domain logic.
 
 DEC-CLASSIFICATION-001:
 Transaction direction and monetary route are determined from whether the source or
@@ -15,10 +16,10 @@ Prenotifications have no monetary route. Ambiguous or unsupported combinations
 require manual review and must not be dispatched.
 
 DEC-INBOUND-SIMULATOR-001:
-The inbound simulator represents an external origin sending to a distinct
-destination. It only generates and records a NACHA-M file; it neither auto-imports,
-transmits externally, nor changes transaction states. A separate explicit upload is
-required.
+The inbound simulator emulates a non-default external counterparty responding to
+CFA, resolved through `IsDefaultSource`, never a hardcoded institution ID. CFA
+cannot be that counterparty. Generation is file-only: no auto-import, external
+transmission or transaction-state change; upload remains an explicit user action.
 
 DEC-DIFFERENTIAL-001:
 Differential prenotification responses are processed through the configured
@@ -52,21 +53,30 @@ TRAP-FUTURE-CYCLE-001:
 A preview-selected future cycle must not silently generate D+1 processing while the
 local operational day remains D.
 
+TRAP-ADDENDA99-001:
+Return Addenda type 99 uses a 3-character return cause at positions 4-6 and the
+15-character original transaction sequence at positions 7-21. Never parse a
+5-character cause or shift the original-sequence offset.
+
+TRAP-NORMATIVE-VERSION-001:
+Local RAG contains normative artifacts from different effective dates. Resolve the
+latest applicable document and supersession before using a rule; do not trust rank alone.
+
 ## Current Evidence State
 
 RC-CURRENT:
+COMMIT: UNSET
 STATUS: NOT_CERTIFIED
 CI: NOT_AUDITED
 RUNTIME_E2E: NOT_AUDITED
 GAUNTLET: NOT_RUN
 UAT: NOT_READY
 
-GAP-EVIDENCE-001:
-The repository contains CI workflows and focused automated coverage for return,
-differential-response, inbound-simulator, and CENIT flows, but this audit found no
-current executable CI or runtime-E2E result tied to a release candidate. Do not
-claim CLOSED, VERIFIED, UAT_READY, or RELEASE_READY without fresh evidence.
+EVID-RC-001:
+No fresh CI or runtime-backed E2E evidence is attached to RC-CURRENT. Do not infer
+CLOSED, VERIFIED, UAT_READY or RELEASE_READY from implementation or historical evidence.
 
-NEXT-BOOTSTRAP-001:
-Before a release or UAT decision, record the exact candidate commit and attach
-current CI plus runtime-backed evidence for the affected flow.
+OPEN-GAPS-CURRENT:
+STATUS: NOT_AUDITED
+Do not infer that no functional gaps exist. Refresh open gaps from current
+implementation, tests, normative evidence and Git before release/UAT planning.
