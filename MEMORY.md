@@ -24,14 +24,14 @@ STATUS: CLOSED
 LAST_REFRESH: 2026-08-23
 SCOPE: Operational and transactional functional completion; RET-GAP-019 provisional normative interpretation consolidation
 REPOSITORY_BRANCH: ACH-Interbank-Postgresql
-REPOSITORY_HEAD: efa3bc75f3c020af149555e2b469fe6102a5217f
+REPOSITORY_HEAD: 36af8b1c61ae72c766446c01ecb9ebc0b7c79838
 
 ### ACH Colombia
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: RET-GAP-019, OPS-GAP-001, OPS-GAP-002; shared OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
+ACTIVE_GAPS: RET-GAP-019, OPS-GAP-002; shared OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
 
-ORDINARY_STATE: PARTIAL. ProcContrapartidas/ProcTransacciones, persistence, duplicate policy, and manual export/upload paths exist. Ordinary seeded profiles are outgoing-only, still cite MAN-004 V32, and are not homologated; no ordinary incoming profile is seeded. Automatic MFT handoff/reception is absent.
+ORDINARY_STATE: PARTIAL. ProcContrapartidas/ProcTransacciones, persistence, duplicate policy, and manual export/upload paths exist. Four explicit published ACH Colombia V35 ordinary profiles cover original/prenotification, inbound/outbound, and credit/debit variants; generation and parsing request version 35.0 and fail closed on missing, ambiguous, unsupported-version, direction, or family selection. Automatic MFT handoff/reception remains absent.
 RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 remains the only open Returns-specific item.
 
 ### CENIT
@@ -54,10 +54,11 @@ RESIDUAL: Transaction trace sequence allocation is check-then-insert; cycle stag
 
 ### OPS-GAP-001
 
-STATUS: MISSING
+STATUS: CLOSED
 SCOPE: ACH Colombia / ordinary original and prenotification / inbound and outbound / V35 NACHA-M profiles
 CANONICAL_KEY: ORDINARY/ACHCOL/BIDIRECTIONAL/NACHA_PROFILE/V35_CONFORMANCE
-REQUIRED: Replace V32/absent ordinary profiles with published V35 inbound/outbound profiles, execute chamber variability through profile/configuration boundaries, and fail closed without a valid profile.
+IMPLEMENTED: Explicit V35 profiles OFFICIAL_ACH_{SALIDA,ENTRADA}_{ORIGINAL,PRENOTIFICACION}_V35_0; credit/debit monetary and prenotification type-7 variants; bidirectional resolver integration; legacy ordinary V1/V32 profiles retired; incoming hardcoded profile fallback removed.
+EVIDENCE: Commit 36af8b1c61ae72c766446c01ecb9ebc0b7c79838; Release build 8 projects/0 errors/0 warnings; profile resolution 33/33; generation, parsing, round-trip, and existing ACH Return-out profile regression 63/63; incoming ingestion 16/16 and database-backed incoming processing 15/15.
 
 ### OPS-GAP-002
 
