@@ -165,7 +165,7 @@ Residual crítico:
 
 1. No existe prueba SQL Server ReturnOut equivalente y la UAT PostgreSQL sigue siendo condicional; no constituye evidencia provider-specific vigente.
 2. El lock es `ConcurrentDictionary<int, SemaphoreSlim>` y solo coordina un proceso.
-3. `DEV14` es una solicitud oficial externa de devolución de una transacción débito ACH no consentida (V35 2.7.6 y Anexo 7), no una causal física de Addenda 99. V35 6.6 exige allí una causal de tres caracteres del Anexo 9, pero no define una traducción única desde `DEV14`: `R07`, `R10`, `R12` y `R29` describen hechos/contextos diferentes que la intención general de no consentimiento no permite distinguir. Opción C lo rechaza sin truncar. `RET-GAP-019` permanece bloqueada hasta obtener una regla primaria ACH Colombia que determine la causal física a partir del contexto requerido.
+3. `DEV14` es la clasificación de negocio/flujo de reclamos para solicitar la devolución de una transacción débito ACH no consentida (V35 2.7.6 y Anexo 7), no una causal física de Addenda 99. La sección 2.11.12 ordena `R10` para la devolución y, por separado, `DEV14` para la solicitud en el módulo de reclamos; sin embargo, V35 6.6 hace obligatorio el campo físico de tres caracteres en posiciones 4-6 y remite expresamente al Anexo 9. Allí `R10`, `R12`, `R13` y `R29` representan contextos distintos. La hipótesis de proyecto mejor soportada es conservar `DEV14` como workflow y seleccionar el Rxx físico según la causa/contexto real del Anexo 9, pero no es una regla autoritativa ni existe todavía una matriz determinística confirmada. Opción C falla cerrada para `DEV14`, sin truncar, mapear ni persistir la devolución. `RET-GAP-019` permanece abierta; ya se solicitó aclaración a ACH Colombia.
 4. Falta evidencia de aceptación externa y conciliación; transmisión y acuse aplicativo se cerraron en RET-GAP-017.
 
 RET-GAP-004 queda cerrado técnicamente. El perfil es canónico y ejecutable dentro del aplicativo, pero `IsHomologated=false`: las pruebas internas no constituyen homologación externa con ACH Colombia.
@@ -351,7 +351,7 @@ El contrato externo queda definido sólo a nivel conceptual y bloqueado a nivel 
 | RET-GAP-016 | B4 | CENIT | In | Return In integral | 🟠 IMPLEMENTADA SIN EVIDENCIA SUFICIENTE | pipeline genérico + causas | E2E provider-specific con fixture homologado | retorno perdido/mal causalizado | ALTA | fixture/norma | CENIT.RETURNIN.E2E |
 | RET-GAP-017 | B5 | ACHCOL | Out | transmisión y acuse/resultado | ✅ CERRADA Y DEMOSTRADA | Contrato `RET-GAP-017`; reconstrucción persistida byte por byte; sobre digital; dispatch transaccional; handoff atómico CFA; resultado correlacionado; lifecycle e idempotencia; SQL Server/PostgreSQL; tests focalizados/E2E | Ninguna dentro de la frontera aplicativa; homologación externa ACH Colombia permanece separada | confundir handoff técnico con homologación externa | — | RET-GAP-004/003 cerradas | No reabrir |
 | RET-GAP-018 | Operación | Ambas | Ambas | dashboard/read-model por EntryDetail | 🟡 PARCIAL — residual identificado | read store y command center | reconstrucción unificada y alertas | investigación lenta | MEDIA | taxonomía | RET.OPS.OBSERVABILITY |
-| RET-GAP-019 | Causalidad V35 | ACHCOL | Out | Solicitud `DEV14` frente a causal física Addenda 99 | 🔴 ABIERTA — BLOQUEADA POR DECISIÓN NORMATIVA | V35 2.7.6/6.6/Anexos 7 y 9; `DEV14` externo demostrado; ausencia de mapping único; falla cerrada Opción C | Fuente primaria ACH Colombia que vincule `DEV14` con una causal física o defina los atributos y la matriz determinística de resolución | devolución no generable o causal incorrecta | ALTA | evidencia normativa externa | RET.ACH.OUT.CAUSAL.V35.EVIDENCE |
+| RET-GAP-019 | Causalidad V35 | ACHCOL | Out | Workflow `DEV14` frente a causal física Addenda 99 | 🔴 CONFIRMADA ABIERTA — BLOQUEADA POR CONTRADICCIÓN NORMATIVA | V35 2.7.6: `DEV14` workflow; 2.11.12: `R10` físico y `DEV14` separado; 6.6: campo obligatorio AN(3), posiciones 4-6, según Anexo 9; Anexo 9: R10/R12/R13/R29 contextuales; contradicción ya presente en V32; falla cerrada Opción C | Aclaración oficial de ACH Colombia que especifique la regla Rxx exacta, o matriz autoritativa completa con todas las ramas/contextos necesarios para resolverla determinísticamente | devolución no generable o causal incorrecta | ALTA | aclaración ACH Colombia solicitada y pendiente | RET.ACH.OUT.CAUSAL.V35.ERRATUM |
 
 ## 23. Grafo de dependencias
 
@@ -359,7 +359,7 @@ El contrato externo queda definido sólo a nivel conceptual y bloqueado a nivel 
 flowchart TD
   V35[ACH V35] --> AOP[RET-GAP-004 cerrado: ReturnOut ACH en Opción C]
   AOP --> APROV[RET-GAP-003 cerrado: SQL Server/PostgreSQL + garantía DB multinodo]
-  V35 --> ACAUSE[RET-GAP-019: DEV14 a causal física Rxx]
+  V35 --> ACAUSE[RET-GAP-019: aclarar workflow DEV14 vs causal física Rxx]
   ACAUSE --> AUAT
   APROV --> AACK[RET-GAP-017 cerrado: transmisión/acuse/lifecycle]
   AACK --> RECON[RET-GAP-008/009: SOAP, ledger y conciliación]
@@ -378,7 +378,7 @@ flowchart TD
   CPROF --> SIM
 ```
 
-Con RET-GAP-003, RET-GAP-004 y RET-GAP-017 cerrados, RET-GAP-019 queda bloqueada por evidencia normativa externa: V35 no enlaza `DEV14` con una única causal física Rxx ni declara una matriz determinística de contexto. El siguiente JOB debe obtener esa evidencia antes del UAT integral de no consentimiento. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
+Con RET-GAP-003, RET-GAP-004 y RET-GAP-017 cerrados, RET-GAP-019 queda confirmada abierta por contradicción normativa interna: V35 separa el workflow `DEV14` del campo físico Rxx, pero 2.11.12 y la remisión 6.6 -> Anexo 9 no permiten derivar una regla determinística autoritativa. La interpretación provisional exige usar el contexto real del Anexo 9 y fallar cerrado mientras no exista aclaración. El cierre requiere una respuesta oficial de ACH Colombia con la regla Rxx exacta o una matriz autoritativa completa; después deberá diseñarse una resolución determinística por configuración/catálogo. La primera dependencia externa para CENIT continúa siendo RET-GAP-005.
 
 ## 24. CENIT RETURN UNBLOCK GATE
 
@@ -441,7 +441,7 @@ Evidencia concreta requerida para un retiro futuro: Manual STA vigente y aplicab
 ## 26. Secuencia recomendada de JOBs
 
 1. `RET.OUT.PROVIDERS.1`: ✅ completado; evidencia outbound real SQL Server/PostgreSQL y garantía DB multinodo.
-2. `RET.ACH.OUT.CAUSAL.V35.EVIDENCE`: obtener de ACH Colombia la regla primaria que vincule `DEV14` con la causal física Rxx o la matriz contextual determinística; no implementar mientras falte.
+2. `RET.ACH.OUT.CAUSAL.V35.ERRATUM`: esperar la aclaración ya solicitada a ACH Colombia sobre la regla Rxx exacta o la matriz contextual autoritativa completa; reevaluar RET-GAP-019 contra esa evidencia antes de implementar o cerrar. La futura resolución debe ser determinística y dirigida por configuración/catálogo, no por condiciones hardcoded dispersas.
 3. `RET.OUTBOUND.ACCEPTANCE.1`: ✅ characterization completada; `TRANSPORT_GATE=NO-GO` y `ACK_GATE=NO-GO`, sin implementación por falta de contrato aplicativo-canal.
 4. `RET.OUTBOUND.TRANSPORT.CONTRACT.1`: obtener la decisión técnica versionada y el contrato operativo del canal ReturnOut ACH Colombia antes de implementar dispatch.
 5. `RET.PROFILE.ACHCOL.INBOUND.RETURN.1` + `RET.SIMULATOR.RETURN.E2E.1`: ✅ perfil V35, `.003` huérfana segura y happy path con transacción legítima, carga manual, correlación exacta, lifecycle e idempotencia demostrados.

@@ -6,13 +6,13 @@ This file stores compact, durable project knowledge: canonical functional state,
 
 ## Current Canonical Functional Completion State
 
-### GAP-REFRESH-001 / GAP-REFRESH-001A
+### GAP-REFRESH-001 / GAP-REFRESH-001A / GAP-REFRESH-001B
 
 STATUS: CLOSED
 LAST_REFRESH: 2026-08-23
-SCOPE: Operational and transactional functional completion; RET-GAP-019 normative correction
+SCOPE: Operational and transactional functional completion; RET-GAP-019 provisional normative interpretation consolidation
 REPOSITORY_BRANCH: ACH-Interbank-Postgresql
-REPOSITORY_HEAD: c1ffb6ef1d805307e8046c5761b6332309bcf14d
+REPOSITORY_HEAD: efa3bc75f3c020af149555e2b469fe6102a5217f
 
 ### ACH Colombia
 
@@ -69,28 +69,35 @@ Shared completed capabilities include DB-first incoming idempotency, classificat
 ### RET-GAP-019
 
 STATUS: BLOCKED-BY-NORMATIVE-CONTRADICTION
+SEMANTIC_STATE: CONFIRMED-OPEN — evidence-supported interpretation; external authoritative clarification pending
 SCOPE: ACH Colombia / outgoing Return / no-consent debit
-PROBLEM: DEV14 is a workflow/reclamation code, but V35 contradicts itself on the physical Rxx. Section 2.11.12 page 95 prescribes R10 for the Return; Addenda 99 explicitly points to Annex 9, where R10 means no authorization/prenotification, R12 means unauthorized originator, R13 is a natural-person receiver-request Return, and R29 is a corporate unauthorized-originator Return. Annex 4 pages 273-274 instead assigns the natural-person receiver-request meaning to R10 and a sold-branch meaning to R12.
-CURRENT_BEHAVIOR: The application accepts/stores DEV14 as if it were a Return reason, forwards the selected code unchanged, and the official V35 builder fails closed with NACHA_ALLOWED_VALUE_INVALID without persisting a Return.
+PROBLEM: DEV14 is a business/claims workflow code, while the physical NACHA-M Addenda 99 return cause must be an Rxx. V35 section 2.11.12 page 95 prescribes R10 for a previously applied debit returned after a receiver claim and separately requires a DEV14 reversal request when the receiver does not accept the debit. Section 6.6 makes the physical cause mandatory, AN(3), at positions 4-6, and explicitly delegates it to Annex 9, whose R10/R12/R13/R29 meanings are contextual and conflict with section 2.11.12; Annex 4 also conflicts with Annex 9.
+PROVEN: DEV14 classifies the no-consent claim/workflow and cannot be physically emitted in the three-character Addenda 99 cause field. The section 6.6 -> Annex 9 cross-reference is the strongest physical-field evidence. This contradiction already exists in V32, and V35 change history records earlier Annex 9 changes while V34 -> V35 identifies no change to these return-cause semantics.
+PROVISIONAL_INTERPRETATION: The strongest supported project hypothesis is that DEV14 remains the claim/workflow classification while the physical Rxx is selected from the actual underlying reason and context defined by Annex 9. This hypothesis is not an authoritative ACH Colombia rule and does not define a complete deterministic matrix.
+CURRENT_BEHAVIOR: The application accepts/stores DEV14 as a workflow-like Return reason and forwards the selected code unchanged; the official V35 builder rejects it with NACHA_ALLOWED_VALUE_INVALID before persisting a generated Return or state event. This fail-closed behavior is required while the ambiguity remains.
+PROHIBITED_UNTIL_CLARIFIED: Do not implement DEV14->R10, DEV14->R13, DEV14->R29, any other universal mapping, or a speculative contextual matrix.
+AUTHORITY_STATUS: Formal clarification has been requested from ACH Colombia and is pending.
 REQUIRED_CONTEXT_AVAILABLE: PARTIAL — Customer.PersonType and AchTransaction.IsPrenotification exist, but the Return request carries only TransactionId and ReturnReasonCode; it lacks a structured workflow code, underlying dispute reason, authorization/revocation state, and a reliable receiver-type discriminator in the generation path.
-REMAINING_WORK: Obtain an authoritative V35 erratum or formal ACH Colombia clarification that resolves section 2.11.12 versus Annexes 9 and 4. After clarification, define the required context contract before implementing any configuration-driven physical-cause resolution.
-DEPENDENCIES: ACH Colombia authoritative clarification; then a context/data-model contract if the confirmed rule is contextual.
-ACCEPTANCE_EVIDENCE: Versioned clarification identifying the governing physical-cause table and each DEV14 scenario; explicit treatment of R10/R12/R13/R29 and Annex 10 reasons; verified discriminator inventory; configuration-driven design; fail-closed ambiguity; focal and provider-specific lifecycle/idempotency tests; CI green.
-CONFIDENCE: HIGH that DEV14 is workflow-only and V35 is internally contradictory; HIGH that current context is incomplete; no Rxx mapping is accepted as canonical.
+EXACT_CLOSURE_EVIDENCE: Either (1) official ACH Colombia clarification specifying the exact physical Rxx rule, or (2) an authoritative decision matrix specifying every contextual branch required to resolve the physical Rxx deterministically.
+FUTURE_IMPLEMENTATION_GUARDRAIL: After authoritative evidence arrives and the gap is reassessed, prefer a deterministic configuration/catalog-driven rule rather than scattered hardcoded conditions; retain fail-closed handling for missing or ambiguous context.
+CONFIDENCE: HIGH that DEV14 is workflow-only, the physical field requires Annex 9 Rxx semantics, and V35 is internally contradictory; no DEV14-to-Rxx mapping is canonical.
 
 ## Normative Decisions and Contradictions
 
 ### NORM-DEV14-V35-001
 
-DEV14 CLASSIFICATION: WORKFLOW.
+DEV14 CLASSIFICATION: BUSINESS/CLAIMS WORKFLOW.
+PHYSICAL ADDENDA 99 CLASSIFICATION: ANNEX 9 Rxx.
 
 V35 contains a manual-internal contradiction:
-- section 2.11.12, page 95: generate physical R10 and create a separate DEV14 reclamation request;
-- Addenda 99: the physical cause is three characters and must come from Annex 9;
-- Annex 9, pages 248-251: R10=no authorization/prenotification, R12=unauthorized originator, R13=natural-person receiver-request Return, R29=corporate unauthorized-originator Return;
-- Annex 4, pages 273-274: R10=natural-person receiver-request Return and R12=sold branch.
+- section 2.7.6 and Annex 7: DEV14 identifies a request to return a non-consented ACH debit;
+- section 2.11.12, page 95: generate physical R10 for the receiver-claim Return and create a separate DEV14 reversal request when the receiver does not accept the debit;
+- section 6.6 Addenda 99: the physical cause is mandatory, AN(3), positions 4-6, and must be selected according to Annex 9;
+- Annex 9, pages 248-251: R10=no authorization/prenotification, R12=unauthorized originator, R13=natural-person receiver-request Return, R29=corporate receiver-request Return under its catalog conditions;
+- Annex 4, pages 273-274: R10=natural-person receiver-request Return and R12=sold branch;
+- V32 already contains the same section 2.11.12 R10/DEV14 split and Annex 9 mismatch; V35 change history records earlier Annex 9 updates, while V34 -> V35 lists no change to these cause semantics.
 
-NORMATIVE CONTRADICTION UNRESOLVED. The Addenda-to-Annex-9 cross-reference is strong technical evidence, but it does not erase the explicit conflicting procedure and formal Annex 4 table. Do not persist or implement DEV14->R10, DEV14->R13, DEV14->R29, or another direct mapping without an authoritative clarification.
+NORMATIVE CONTRADICTION UNRESOLVED. Section 6.6 -> Annex 9 is the strongest evidence governing the physical field, but it does not erase the conflicting procedure or define a complete deterministic DEV14-to-Rxx matrix. The evidence-supported project hypothesis is workflow DEV14 plus a context-specific Annex 9 Rxx; it is explicitly provisional and not an authoritative ACH Colombia rule. Keep generation fail-closed, and do not persist or implement DEV14->R10, DEV14->R13, DEV14->R29, another universal mapping, or a speculative matrix. Formal ACH Colombia clarification is pending.
 
 ## Recently Closed / Reconciled History
 
