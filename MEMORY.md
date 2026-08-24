@@ -59,6 +59,7 @@ SCOPE: ACH Colombia / ordinary original and prenotification / inbound and outbou
 CANONICAL_KEY: ORDINARY/ACHCOL/BIDIRECTIONAL/NACHA_PROFILE/V35_CONFORMANCE
 IMPLEMENTED: Explicit V35 profiles OFFICIAL_ACH_{SALIDA,ENTRADA}_{ORIGINAL,PRENOTIFICACION}_V35_0; credit/debit monetary and prenotification type-7 variants; bidirectional resolver integration; legacy ordinary V1/V32 profiles retired; incoming hardcoded profile fallback removed.
 EVIDENCE: Commit 36af8b1c61ae72c766446c01ecb9ebc0b7c79838; Release build 8 projects/0 errors/0 warnings; profile resolution 33/33; generation, parsing, round-trip, and existing ACH Return-out profile regression 63/63; incoming ingestion 16/16 and database-backed incoming processing 15/15.
+STABILIZATION: V35 Type-7 compatibility regression fixed by 6830260fbad6d5f9673be0ef6269f8cc0a905033; stale legacy Type-99 characterization fixtures aligned by 45d947c1e80701ca147f58f87d1427139f8ede58; GitHub dotnet-ci run 32777030756 succeeded for build-and-test, Outgoing monitor multi-database, and ReturnOut concurrency multi-database. No Return business behavior was reopened.
 
 ### OPS-GAP-002
 
@@ -251,6 +252,7 @@ EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation
 ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
 
 ## Recent Sessions
+- 2026-08-24: OPS-GAP-001 remains CLOSED after V35 Type-7 parser stabilization and test-only legacy Type-99 fixture alignment; GitHub dotnet-ci run 32777030756 was fully green.
 
 - 2026-08-24: GAP-REFRESH-002 reconstructed the non-Returns production backlog at HEAD eee79474; six OPS gaps were added, existing CENIT/NACHA/traceability owners were reused, and closed Returns state was preserved.
 
