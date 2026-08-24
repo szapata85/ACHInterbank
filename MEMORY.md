@@ -6,6 +6,18 @@ This file stores compact, durable project knowledge: canonical functional state,
 
 ## Current Canonical Functional Completion State
 
+### GAP-REFRESH-002
+
+STATUS: CLOSED — AUDIT/RECONSTRUCTION COMPLETE
+LAST_REFRESH: 2026-08-24
+SCOPE: Production operational completion beyond the reconstructed Returns backlog
+REPOSITORY_BRANCH: ACH-Interbank-Postgresql
+REPOSITORY_HEAD: eee79474efd6d8f10b294b8c4640cb3f4a2ff3ba
+VERDICT: The local SOAP transaction core, variable cycle creation, Quartz runtime/administration, file-name reservation, and closed Returns capabilities remain intact. Production ordinary operation is incomplete because chamber-ready ordinary profiles, automatic chamber handoff/reception, CENIT chamber-response lifecycle, atomic transaction trace allocation, full operational cycle policy configuration, and unified traceability are not all closed.
+NEW_GAPS: OPS-GAP-001, OPS-GAP-002, OPS-GAP-003, OPS-GAP-004, OPS-GAP-005, OPS-GAP-006
+REUSED_OWNERS: CENIT-FORMAT-NACHAM, NACHA-RULE-METADATA, RET-GAP-018
+RETURNS_STATE: Existing CLOSED/SUPERSEDED Returns items remain unchanged; RET-GAP-019 remains externally blocked.
+
 ### GAP-REFRESH-001 / GAP-REFRESH-001A / GAP-REFRESH-001B
 
 STATUS: CLOSED
@@ -17,54 +29,85 @@ REPOSITORY_HEAD: efa3bc75f3c020af149555e2b469fe6102a5217f
 ### ACH Colombia
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: RET-GAP-019
+ACTIVE_GAPS: RET-GAP-019, OPS-GAP-001, OPS-GAP-002; shared OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
 
-Completed functional flows:
-- ordinary outgoing and incoming transactions;
-- outgoing Return lifecycle, DB-first concurrency, V35 table-driven physical generation for valid Annex causes, transport, acknowledgement, and replay protection;
-- incoming Return parsing, exact original transaction linkage, amount invariant, lifecycle, audit, orphan safety, and idempotency;
-- prenotification differential response through RegistrarRespuestaTransaccion;
-- generate-only inbound simulator support.
-
-Only confirmed residual:
-- RET-GAP-019: DEV14 is an Integra ACH reclamation/workflow novelty, not a physical Addenda 99 cause. V35 contains conflicting physical-cause instructions: section 2.11.12 prescribes R10 for the debit reclamation, while the Addenda 99 field points to Annex 9, whose R10/R12/R13/R29 meanings are contextual and conflict with both that prose and Annex 4. No manual-wide deterministic rule may be persisted until ACH Colombia resolves the erratum.
-
-Decisive evidence:
-- ACH Colombia V35 section 2.7.6 and Annex 7 define DEV14 as a debit no-consent reclamation/workflow novelty;
-- V35 section 2.11.12, page 95, requires a physical R10 Return and separately a DEV14 reclamation request;
-- V35 Addenda 99 requires a three-character Annex 9 cause;
-- V35 Annex 9, pages 248-251, and Annex 4, pages 273-274, assign conflicting meanings to R10/R12/R13;
-- OfficialNachaGenerationTableDrivenTests.ReturnOutAchV35_WhenCauseIsNotInAnnex9_ShouldFailClosed proves only that DEV14 cannot be emitted physically.
+ORDINARY_STATE: PARTIAL. ProcContrapartidas/ProcTransacciones, persistence, duplicate policy, and manual export/upload paths exist. Ordinary seeded profiles are outgoing-only, still cite MAN-004 V32, and are not homologated; no ordinary incoming profile is seeded. Automatic MFT handoff/reception is absent.
+RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 remains the only open Returns-specific item.
 
 ### CENIT
 
-STATUS: COMPLETE
-ACTIVE_GAPS: none
+STATUS: INCOMPLETE
+ACTIVE_GAPS: CENIT-FORMAT-NACHAM, OPS-GAP-003, OPS-GAP-004; shared OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
 
-Completed functional flows:
-- ordinary outgoing and incoming transactions;
-- Return In 2026 parsing, cause validation, original linkage, lifecycle, audit, orphan safety, and replay protection;
-- Return Out 2026 physical generation, persistence, dispatch, acknowledgement/result correlation, retry, and idempotency;
-- CENIT Return of Return creation and ingestion with clearing-house-specific eligibility/window rules;
-- prenotification differential response and generate-only simulator support.
-
-Decisive evidence:
-- commits 189cf2d1, 24852318, 03d03457, 54606de2, d9306080;
-- CenitReturnIn2026ParserTests (8 passing at refresh);
-- CenitReturnOut2026Tests (5 passing at refresh);
-- CenitReturnOfReturn2026Tests (13 passing at refresh);
-- AchOutboundReturnTransportEndToEndTests (7 passing at refresh);
-- successful CENIT feature-commit CI and successful multi-database ReturnOut jobs;
-- CENIT Manual de Especificaciones de Archivos NACHA-M dated 2026-05-07 retrieved through Local RAG.
+ORDINARY_STATE: BLOCKED/PARTIAL. The May 7, 2026 NACHA-M specification is now available, but ordinary original/prenotification profiles remain placeholder, non-homologated, and output-only; current HEAD deliberately blocks CENIT LIVE generation. No Gateway/PO handoff receiver or ACK/NACK/operator-rejection lifecycle is wired.
+RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, differential-response, and managed Return transport capabilities remain CLOSED.
 
 ### Shared
 
-STATUS: COMPLETE for current operational/transactional scope
-ACTIVE_GAPS: none
+STATUS: INCOMPLETE for production operational scope
+ACTIVE_GAPS: OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, RET-GAP-018
 
-Shared completed capabilities include DB-first incoming idempotency, classification/audit convergence, exact correlation, clearing-house isolation, generate-only simulator behavior, and non-monetary idempotent differential responses.
+COMPLETED_CORE: DB-first incoming duplicate handling, API duplicate policy, classification/audit convergence, clearing-house isolation, local SOAP dispatch for ProcContrapartidas and ProcTransacciones, non-monetary idempotent RegistrarRespuestaTransaccion, variable cycle-count creation, Quartz runtime/administration, and atomic external filename reservation.
+RESIDUAL: Transaction trace sequence allocation is check-then-insert; cycle stage/eligibility policy is only partially configurable; chamber-specific NACHA policy/snapshots remain in code; unified durable lineage remains partial.
 
 ## Active Functional Backlog
+
+### OPS-GAP-001
+
+STATUS: MISSING
+SCOPE: ACH Colombia / ordinary original and prenotification / inbound and outbound / V35 NACHA-M profiles
+CANONICAL_KEY: ORDINARY/ACHCOL/BIDIRECTIONAL/NACHA_PROFILE/V35_CONFORMANCE
+REQUIRED: Replace V32/absent ordinary profiles with published V35 inbound/outbound profiles, execute chamber variability through profile/configuration boundaries, and fail closed without a valid profile.
+
+### OPS-GAP-002
+
+STATUS: MISSING
+SCOPE: ACH Colombia / ordinary / bidirectional / managed MFT handoff and reception
+CANONICAL_KEY: ORDINARY/ACHCOL/BIDIRECTIONAL/TRANSPORT/MFT_HANDOFF_RECEPTION
+REQUIRED: Automate cycle-qualified generation, envelope creation, atomic CFA-managed handoff, inbound pickup/decryption/verification, archive, retry, duplicate protection, result correlation, and monitoring. The enterprise MFT/SFTP product remains external.
+
+### OPS-GAP-003
+
+STATUS: BLOCKED
+SCOPE: CENIT / ordinary / bidirectional / Gateway or PO file boundary
+CANONICAL_KEY: ORDINARY/CENIT/BIDIRECTIONAL/TRANSPORT/GATEWAY_FILE_EXCHANGE
+REQUIRED: Automate cycle-qualified output placement and inbound pickup at the approved Gateway/PO boundary with atomicity, archive, retry, duplicate protection, and monitoring. Blocked by CENIT-FORMAT-NACHAM and the approved CFA-to-Gateway operational contract.
+
+### OPS-GAP-004
+
+STATUS: MISSING
+SCOPE: CENIT / ordinary / inbound chamber responses
+CANONICAL_KEY: ORDINARY/CENIT/INBOUND/CHAMBER_RESPONSE/ACK_NACK_OPERATOR_REJECT
+REQUIRED: Parse, correlate, persist, and protect terminal lifecycle transitions for ACK, NACK, operator-rejection XML, reconciliation outputs, and no-activity outputs independently from business Returns.
+
+### OPS-GAP-005
+
+STATUS: MISSING
+SCOPE: Shared / outgoing transaction identity
+CANONICAL_KEY: ORDINARY/SHARED/OUTBOUND/SEQUENCE/TRANSACTION_TRACE_ALLOCATION
+REQUIRED: Allocate daily trace sequences atomically and idempotently across concurrent requests and application instances for SQL Server and PostgreSQL; enforce uniqueness in persistence.
+
+### OPS-GAP-006
+
+STATUS: PARTIAL
+SCOPE: Shared / clearing-house cycle policy and runtime consumption
+CANONICAL_KEY: ORDINARY/SHARED/BIDIRECTIONAL/CYCLE_POLICY/OPERATIONAL_STAGES_ELIGIBILITY
+REQUIRED: Version and administer the chamber-specific operational stages/cutoffs and allowed transaction classes consumed by assignment, validation, Quartz, generation, dispatch, and transport. Arbitrary cycle counts already work and must remain data-driven.
+
+### CENIT-FORMAT-NACHAM
+
+STATUS: BLOCKED/PARTIAL — EXISTING OWNER REUSED
+CURRENT_DELTA: The May 7, 2026 technical specification is available, resolving the old document-absence premise. Ordinary profiles remain placeholder/non-homologated and CENIT LIVE generation remains deliberately blocked; implement and verify the current ordinary inbound/outbound profile family before removing the gate.
+
+### NACHA-RULE-METADATA
+
+STATUS: PARTIAL — EXISTING OWNER REUSED
+CURRENT_DELTA: Profile resolution and physical record reading are table-driven, but current official generation still contains chamber-specific normative snapshots, batch policy, settlement-date policy, and cross-field branches in code. Business variability must remain behind the profile/configuration boundary.
+
+### RET-GAP-018
+
+STATUS: PARTIAL — EXISTING OWNER REUSED
+CURRENT_DELTA: Durable transaction/cycle/file and monitoring components exist, but the transaction detail selects a file by cycle rather than exact membership and does not reconstruct dispatcher/SOAP/transport/ACK lineage. This is now a direct operational dependency, not a new gap.
 
 ### RET-GAP-019
 
@@ -109,7 +152,7 @@ NORMATIVE CONTRADICTION UNRESOLVED. Section 6.6 -> Annex 9 is the strongest evid
 - RET-GAP-015: simulator support is CLOSED for the current generate-only scope; differential responses are not physical simulator files.
 - RET-GAP-005 is SUPERSEDED by the later CENIT 2026 file contract and managed transport design.
 - RET-GAP-011 is SUPERSEDED by the current no-participant-ACH-ROR decision; CENIT ROR remains a separate rail.
-- RET-GAP-008, RET-GAP-009, RET-GAP-018 are OUT-OF-SCOPE for the current functional completion backlog: accounting/reconciliation and generic observability remain separate unless a transactional flow directly depends on them.
+- RET-GAP-008 and RET-GAP-009 remain outside the ordinary transactional backlog unless a direct dependency is demonstrated. RET-GAP-018 is reused as PARTIAL because unified durable lineage is a direct production-operability dependency.
 - RET-CENIT-IN-000, RET-CENIT-IN-001, RET-CENIT-OUT-001, RET-CENIT-ROR-001, CENIT-RET-TRANSPORT-001, and DIFF-RESP-001 are delivery aliases/sub-jobs, not additional active functional gaps.
 - Do not reopen a CLOSED item without contradictory current repository evidence.
 
@@ -187,10 +230,10 @@ The corrected V35 ingestion and linker focal suites pass. This is a stale automa
 
 ### RC-CURRENT
 
-COMMIT: c1ffb6ef1d805307e8046c5761b6332309bcf14d
+COMMIT: eee79474efd6d8f10b294b8c4640cb3f4a2ff3ba
 STATUS: NOT_CERTIFIED
-CI: NOT_GREEN — latest relevant dotnet-ci run 32452953613 at e22fd346 failed the main test job; build, ReturnOut multi-database, and outgoing-monitor jobs passed.
-RUNTIME_E2E: FOCAL_LOCAL_ONLY — targeted return suites passed; no complete runtime-backed certification for HEAD.
+CI: NOT_REVALIDATED FOR THIS HEAD — previous relevant evidence is not transferable.
+RUNTIME_E2E: FOCAL_LOCAL_ONLY — cycle configuration 7/7 and traceability 1/1 passed from the existing Release build; a further focal CENIT validation run was stopped after not completing in the audit window. No chamber transport E2E exists.
 GAUNTLET: NOT_RUN
 UAT: NOT_READY
 
@@ -198,12 +241,16 @@ UAT: NOT_READY
 
 ### NEXT-DELIVERY-001
 
-JOB_ID: RET.ACH.OUT.CAUSAL.V35.ERRATUM
-OBJECTIVE: Obtain and version an authoritative ACH Colombia clarification resolving the physical-cause conflict among V35 section 2.11.12 page 95, Annex 9 pages 248-251, and Annex 4 pages 273-274 for DEV14 debit reclamations.
-WHY_NEXT: RET-GAP-019 is the only active functional gap; implementing any direct or contextual Rxx rule before resolving the V35 contradiction would encode an unsupported regulatory choice.
-REQUIRED_CONTEXT: V35 section 2.7.6; section 2.11.12 page 95; Addenda 99 specification; Annex 7 DEV14; Annex 9 R07/R10/R12/R13/R29; Annex 10 debit-reclamation reasons; Annex 4 conflicting table.
-EXCLUDED: Production/test/config changes, speculative Rxx mappings, CENIT, accounting/reconciliation, generic observability, and transport refactoring.
-ACCEPTANCE: Versioned authoritative clarification that identifies the governing physical cause or complete decision matrix and required discriminator fields, sufficient to design a configuration-driven implementation without inference.
+JOB_ID: OPS.ACHCOL.ORDINARY.V35.PROFILES.1
+OBJECTIVE: Implement the current ACH Colombia V35 ordinary original/prenotification profile family for inbound and outbound flows and make those flows fail closed on profile/configuration evidence rather than V32 seeds or absent profiles.
+WHY_NEXT: It is the first internal P0 dependency for both ordinary directions, the V35 source is available, and it requires no unresolved external clarification.
+INCLUDED: V35 rule extraction, profile/layout/field/rule data, inbound and outbound selection, removal of V32 ordinary-profile authority, profile-boundary cleanup required by the flow, focal/golden/negative tests, build, and local runtime generation/parsing evidence.
+EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation/certification, cycle-policy redesign, and unrelated UI.
+ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
+
+## Recent Sessions
+
+- 2026-08-24: GAP-REFRESH-002 reconstructed the non-Returns production backlog at HEAD eee79474; six OPS gaps were added, existing CENIT/NACHA/traceability owners were reused, and closed Returns state was preserved.
 
 ## Context Routing Guardrails
 
