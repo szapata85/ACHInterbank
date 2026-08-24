@@ -1123,6 +1123,41 @@ public class AchTransactionNachaTests
         Assert.NotNull(await parseContext.FileControls.FirstOrDefaultAsync());
     }
 
+    [Theory]
+    [InlineData("22", "INVOICE-001", "FREE-INFO-001", null, null, null)]
+    [InlineData("23", "PRENOTE-REFERENCE-001", null, null, null, null)]
+    [InlineData("27", null, null, "9001234567890", "CUSTOMER-001", "SERVICE-001")]
+    public void ParseAddendaLinq_WithoutProfileReader_ReadsTheSelectedType7Variant(
+        string transactionCode,
+        string? expectedInvoiceOrReference,
+        string? expectedFreeInformation,
+        string? expectedCollectorId,
+        string? expectedCustomerCode,
+        string? expectedServiceDescription)
+    {
+        using var connection = CreateOpenConnection();
+        using var context = CreateContext(connection);
+        var parser = BuildParser(context);
+        var record = BuildType7Variant(
+            transactionCode,
+            expectedInvoiceOrReference,
+            expectedFreeInformation,
+            expectedCollectorId,
+            expectedCustomerCode,
+            expectedServiceDescription);
+
+        var addenda = Assert.Single(parser.ParseAddendaLinq(
+            [record],
+            new ParsedEntryDetail { TransactionCode = transactionCode },
+            profileReader: null));
+
+        Assert.Equal(expectedInvoiceOrReference, addenda.InvoiceOrAccountNumber);
+        Assert.Equal(expectedFreeInformation, addenda.InfofromOriginator);
+        Assert.Equal(expectedCollectorId, addenda.CollectorId);
+        Assert.Equal(expectedCustomerCode, addenda.ReceiverCustomerCode);
+        Assert.Equal(expectedServiceDescription, addenda.ServiceDescription);
+    }
+
     [Fact]
     public async Task ParseAndSaveAsync_WhenBatchControlCountDoesNotMatch_ThrowsFatal51()
     {
@@ -1759,6 +1794,39 @@ public class AchTransactionNachaTests
         Copy("INFO-ADDENDA".PadRight(80), line, 3);
         Copy("0001", line, 83);
         Copy(traceNumber[^7..], line, 87);
+        return new string(line);
+    }
+
+    private static string BuildType7Variant(
+        string transactionCode,
+        string? invoiceOrReference,
+        string? freeInformation,
+        string? collectorId,
+        string? customerCode,
+        string? serviceDescription)
+    {
+        var line = new string(' ', 106).ToCharArray();
+        line[0] = '7';
+        Copy("05", line, 1);
+        if (transactionCode == "27")
+        {
+            Copy(collectorId!.PadRight(13), line, 3);
+            Copy(customerCode!.PadRight(30), line, 16);
+            Copy(serviceDescription!.PadRight(15), line, 46);
+        }
+        else
+        {
+            Copy("ORIGINATOR-001".PadRight(15), line, 3);
+            Copy("PURPOSE-01".PadRight(10), line, 20);
+            Copy(invoiceOrReference!.PadRight(transactionCode == "23" ? 53 : 24), line, 30);
+            if (transactionCode == "22")
+            {
+                Copy(freeInformation!.PadRight(24), line, 56);
+            }
+        }
+
+        Copy("0001", line, 83);
+        Copy("0000001", line, 87);
         return new string(line);
     }
 

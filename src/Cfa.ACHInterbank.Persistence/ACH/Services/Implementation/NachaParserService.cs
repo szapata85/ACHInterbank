@@ -786,7 +786,7 @@ public class NachaParserService : INachaParserService
         }).ToList();
     }
 
-    private List<AddendaRecord> ParseAddendaLinq(
+    internal List<AddendaRecord> ParseAddendaLinq(
         List<string> line,
         EntryDetail? associatedEntry,
         NachaProfileRecordReader? profileReader)
@@ -906,15 +906,14 @@ public class NachaParserService : INachaParserService
             string? originatorFreeInformation = null;
             if (businessType == "Credit")
             {
-                if (profileReader?.TryRead(a, "7", "INVOICEORACCOUNTNUMBER", selectionContext, out var invoice) == true)
+                if (isPrenotification)
                 {
-                    invoiceOrAccountNumber = invoice.Trim();
-                    profileReader.TryRead(a, "7", "ORIGINATORFREEINFORMATION", selectionContext, out var freeInformation);
-                    originatorFreeInformation = freeInformation.Trim();
+                    invoiceOrAccountNumber = ReadField(profileReader, a, "7", "REFERENCE", variant, selectionContext).Trim();
                 }
                 else
                 {
-                    invoiceOrAccountNumber = ReadField(profileReader, a, "7", "REFERENCE", variant, selectionContext).Trim();
+                    invoiceOrAccountNumber = ReadField(profileReader, a, "7", "INVOICEORACCOUNTNUMBER", variant, selectionContext).Trim();
+                    originatorFreeInformation = ReadField(profileReader, a, "7", "ORIGINATORFREEINFORMATION", variant, selectionContext).Trim();
                 }
             }
 
