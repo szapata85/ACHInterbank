@@ -107,6 +107,29 @@ internal sealed class NachaProfileRecordReader
         return ReadField(record, selected, fieldCode);
     }
 
+    public bool TryRead(
+        string record,
+        string recordCode,
+        string fieldCode,
+        IReadOnlyDictionary<string, string>? selectionContext,
+        out string value)
+    {
+        value = string.Empty;
+        if (record.Length != RecordLength || !_variantsByRecord.TryGetValue(recordCode, out var variants))
+        {
+            return false;
+        }
+
+        var selected = SelectVariant(record, recordCode, variants, selectionContext);
+        if (!selected.Fields.ContainsKey(fieldCode))
+        {
+            return false;
+        }
+
+        value = ReadField(record, selected, fieldCode);
+        return true;
+    }
+
     public bool IsReturnAddenda(string record)
     {
         const string recordCode = "7";

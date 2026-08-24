@@ -18,6 +18,13 @@ public sealed class NachaType7FieldValueResolver : INachaType7FieldValueResolver
     public IReadOnlyDictionary<string, object?> Resolve(AchBatch batch, AchTransaction transaction, AchTransactionAddenda addenda)
     {
         var traceSuffix = GetTraceSuffix(transaction.TraceNumber);
+        var reference = addenda.Reference ?? string.Empty;
+        var invoiceOrAccountNumber = reference.Length == 0
+            ? new string('0', 24)
+            : reference[..Math.Min(reference.Length, 24)];
+        var originatorFreeInformation = reference.Length <= 24
+            ? new string('0', 24)
+            : reference.Substring(24, Math.Min(reference.Length - 24, 24));
 
         var canonicalValues = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
@@ -27,6 +34,8 @@ public sealed class NachaType7FieldValueResolver : INachaType7FieldValueResolver
             ["OriginatorIdentification"] = transaction.CompanyIdentification,
             ["Purpose"] = addenda.Purpose ?? batch.CompanyEntryDescription,
             ["Reference"] = addenda.Reference,
+            ["InvoiceOrAccountNumber"] = invoiceOrAccountNumber,
+            ["OriginatorFreeInformation"] = originatorFreeInformation,
             ["CollectorId"] = addenda.CollectorId,
             ["ReceiverCustomerCode"] = addenda.ReceiverCustomerCode,
             ["ServiceDescription"] = addenda.ServiceDescription,

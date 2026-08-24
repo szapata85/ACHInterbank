@@ -179,7 +179,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var record7Variants = await context.CfgLayoutVariants
             .Include(x => x.RecordCode)
             .Include(x => x.Profile)
-            .Where(x => x.Profile.ProfileCode == "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0" && x.RecordCode.Code == "7")
+            .Where(x => x.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode && x.RecordCode.Code == "7")
             .ToListAsync();
         var inactiveStatusId = await context.CatConfigStatuses.Where(x => x.Code == "INACTIVO").Select(x => x.Id).FirstAsync();
         record7Variants.ForEach(variant => variant.StatusId = inactiveStatusId);
@@ -195,7 +195,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task MissingRequiredField_ShouldReturn_NACHA_REQUIRED_FIELD_MISSING()
     {
         await using var context = await SeedAsync();
-        var amountField = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "6", "AMOUNT");
+        var amountField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "6", "AMOUNT");
         amountField.IsEnabled = false;
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
@@ -209,7 +209,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task FieldSourceNotFound_ShouldReturn_NACHA_FIELD_SOURCE_NOT_FOUND()
     {
         await using var context = await SeedAsync();
-        var amountField = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "6", "AMOUNT");
+        var amountField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "6", "AMOUNT");
         amountField.SourceDefinition.PropertyPath = "CampoInexistente";
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
@@ -223,7 +223,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task FieldExceedsLength_ShouldReturn_NACHA_FIELD_LENGTH_INVALID()
     {
         await using var context = await SeedAsync();
-        var destinationField = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "1", "IMMEDIATEDESTINATION");
+        var destinationField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEDESTINATION");
         destinationField.SourceDefinition.ConstantValue = "12345678901234567890";
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
@@ -237,7 +237,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task CalculationFailure_ShouldReturn_NACHA_CALCULATION_FAILED()
     {
         await using var context = await SeedAsync();
-        var field = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "9", "BLOCKCOUNT");
+        var field = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "9", "BLOCKCOUNT");
         field.SourceDefinition.ExpressionDsl = """{"source":"runtime","calculationType":"CalculationNotAvailable"}""";
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
@@ -256,7 +256,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var achBefore = await achSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var cenitBefore = await cenitSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        var achField = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "1", "IMMEDIATEORIGINNAME");
+        var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         achField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
         await context.SaveChangesAsync();
 
@@ -321,7 +321,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var trace = await LoadLatestTraceAsync(context);
 
         trace.Mode.Should().Be("TABLE_DRIVEN");
-        trace.ProfileCode.Should().Be("OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
+        trace.ProfileCode.Should().Be(AchColOfficialNachaLayout.OutboundOriginalProfileCode);
         trace.FieldTraceEntries.Should().NotBeEmpty();
     }
 
@@ -349,8 +349,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var trace = await LoadLatestTraceAsync(context);
 
         trace.ProfileId.Should().NotBeNull();
-        trace.ProfileCode.Should().Be("OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
-        trace.ProfileVersion.Should().Be("1.1");
+        trace.ProfileCode.Should().Be(AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        trace.ProfileVersion.Should().Be("35.0");
         trace.ProfileStatus.Should().Be("PUBLICADO");
         trace.EffectiveDate.Should().Be(new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc));
     }
@@ -608,7 +608,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task ValidateOfficialLayout_ShouldCompareCalculatedVsRenderedTotals()
     {
         await using var context = await SeedAsync();
-        var entryHash = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "8", "ENTRYHASH");
+        var entryHash = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "8", "ENTRYHASH");
         entryHash.SourceDefinition.ExpressionDsl = JsonSerializer.Serialize(new { source = "runtime", calculationType = "BatchNumber" });
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
@@ -635,7 +635,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task Trace_ShouldCaptureFieldLengthError()
     {
         await using var context = await SeedAsync();
-        var destinationField = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "1", "IMMEDIATEDESTINATION");
+        var destinationField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEDESTINATION");
         destinationField.SourceDefinition.ConstantValue = "12345678901234567890";
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
@@ -652,7 +652,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task Trace_ShouldCaptureMissingRequiredFieldError()
     {
         await using var context = await SeedAsync();
-        var amountField = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "6", "AMOUNT");
+        var amountField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "6", "AMOUNT");
         amountField.IsEnabled = false;
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
@@ -711,7 +711,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task AchFieldChange_ShouldAppearOnlyInAchTrace()
     {
         await using var context = await SeedAsync();
-        var achField = await LoadFieldAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0", "1", "IMMEDIATEORIGINNAME");
+        var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         achField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
         await context.SaveChangesAsync();
 
@@ -746,21 +746,12 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Fact]
-    public async Task AchColV32_ShouldRenderCriticalOffsetsAndPhysicalRules()
+    public async Task AchColV35_ShouldRenderCriticalOffsetsAndPhysicalRules()
     {
         await using var context = await SeedAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
-        var goldenPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "fixtures",
-            "nacha-m",
-            "ACHCOL",
-            "valid",
-            "achcol-v32-minimal.nacha.b64");
-        var goldenBytes = Convert.FromBase64String((await File.ReadAllTextAsync(goldenPath)).Trim());
-        Encoding.ASCII.GetBytes(content).Should().Equal(goldenBytes);
         await using var stream = new MemoryStream(Encoding.ASCII.GetBytes(content));
         var records = await NachaParserService.ReadPhysicalRecordsAsync(stream, CancellationToken.None);
 
@@ -772,6 +763,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         records.Skip(6).Should().OnlyContain(record => record == new string('9', 106));
 
         var type1 = records[0];
+        type1.Substring(3, 10).Should().Be(" 000101006");
+        type1.Substring(13, 10).Should().Be(" 000128300");
         type1.Substring(23, 8).Should().Be("20260524");
         type1.Substring(31, 4).Should().Be("1400");
         type1.Substring(35, 1).Should().Be("A");
@@ -801,6 +794,10 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         type7.Substring(1, 2).Should().Be("05");
         type7.Substring(3, 15).TrimEnd().Should().Be("9001234567");
         type7.Substring(18, 2).Should().Be("  ");
+        type7.Substring(30, 24).Should().Be(new string('0', 24));
+        type7.Substring(54, 2).Should().Be("  ");
+        type7.Substring(56, 24).Should().Be(new string('0', 24));
+        type7.Substring(80, 3).Should().Be("   ");
         type7.Substring(83, 4).Should().Be("0001");
         type7.Substring(87, 7).Should().Be(type6.Substring(95, 7));
 
@@ -813,6 +810,70 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         type9.Substring(31, 18).Should().Be("000000000000000000");
         type9.Substring(49, 18).Should().Be("000000000000010000");
         type9.Substring(67, 39).Should().Be(new string(' ', 39));
+    }
+
+    [Theory]
+    [InlineData("CREDIT", "22", false, AchColOfficialNachaLayout.OutboundOriginalProfileCode)]
+    [InlineData("DEBIT", "27", false, AchColOfficialNachaLayout.OutboundOriginalProfileCode)]
+    [InlineData("CREDIT", "23", true, AchColOfficialNachaLayout.OutboundPrenotificationProfileCode)]
+    [InlineData("DEBIT", "28", true, AchColOfficialNachaLayout.OutboundPrenotificationProfileCode)]
+    public async Task AchColV35_ShouldGenerateEverySupportedOutboundOrdinaryFamily(
+        string businessType,
+        string transactionCode,
+        bool isPrenotification,
+        string expectedProfileCode)
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        var transaction = model.Transactions.Single();
+        transaction.Type = isPrenotification
+            ? TransactionTypeEnum.Prenotification
+            : businessType == "DEBIT" ? TransactionTypeEnum.Debit : TransactionTypeEnum.Credit;
+        transaction.TransactionCode = transactionCode;
+        transaction.Amount = isPrenotification ? 0m : 100m;
+        transaction.AchBatch!.ServiceClassCode = businessType == "DEBIT" ? "225" : "220";
+        transaction.Addendas =
+        [
+            new AchTransactionAddenda
+            {
+                AddendaType = "05",
+                BusinessType = businessType == "DEBIT" ? AchAddendaBusinessType.Debit : AchAddendaBusinessType.Credit,
+                Purpose = "PAGOS",
+                Reference = "FACTURA0001INFORMACIONLIBRE",
+                CollectorId = businessType == "DEBIT" ? "9001234567890" : null,
+                ReceiverCustomerCode = businessType == "DEBIT" ? "CLIENTE-SINTETICO" : null,
+                ServiceDescription = businessType == "DEBIT" ? "RECAUDO" : null,
+                SequenceNumber = 1
+            }
+        ];
+
+        var content = await CreateOfficialSut(context, "ACH Colombia", model).Sut
+            .BuildNachaFileAsync([100], CancellationToken.None);
+        var records = SplitRecords(content);
+        var type6 = records.Single(record => record[0] == '6');
+        var type7 = records.Single(record => record[0] == '7');
+        var trace = await LoadLatestTraceAsync(context);
+
+        trace.ProfileCode.Should().Be(expectedProfileCode);
+        trace.ProfileVersion.Should().Be("35.0");
+        type6.Substring(1, 2).Should().Be(transactionCode);
+        type6.Substring(29, 18).Should().Be(isPrenotification
+            ? new string('0', 18)
+            : "000000000000010000");
+        if (businessType == "DEBIT")
+        {
+            type7.Substring(3, 13).Should().Be("9001234567890");
+            type7.Substring(16, 30).TrimEnd().Should().Be("CLIENTE-SINTETICO");
+        }
+        else if (isPrenotification)
+        {
+            type7.Substring(30, 53).TrimEnd().Should().Be("FACTURA0001INFORMACIONLIBRE");
+        }
+        else
+        {
+            type7.Substring(30, 24).Should().Be("FACTURA0001INFORMACIONLI");
+            type7.Substring(56, 24).TrimEnd().Should().Be("BRE");
+        }
     }
 
     [Fact]
@@ -1009,6 +1070,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             context,
             Mock.Of<ILogger<NachaParserService>>(),
             Mock.Of<IAchStateTransitionService>());
+        var profile = await context.CfgProfiles.AsNoTracking().SingleAsync(item =>
+            item.ProfileCode == AchColOfficialNachaLayout.InboundOriginalProfileCode);
         await using var stream = new MemoryStream(Encoding.ASCII.GetBytes(content));
         var result = await parser.ParseAndSaveDetailedAsync(
             stream,
@@ -1018,7 +1081,9 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
                 ResolvedClearingHouseId = model.Cycle.ClearingHouseId,
                 ResolvedAchCycleId = model.Cycle.Id,
                 OperationalDate = model.Cycle.ProcessingDate,
-                CorrelationId = "synthetic-roundtrip-execution-2"
+                CorrelationId = "synthetic-roundtrip-execution-2",
+                SelectedProfileId = profile.Id,
+                SelectedProfileCode = profile.ProfileCode
             },
             CancellationToken.None);
 
@@ -1039,9 +1104,65 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         parsedEntry.Amount.Should().Be(100m);
         parsedEntry.AddendumIndicator.Should().Be("1");
         parsedAddenda.BusinessType.Should().Be("Credit");
+        parsedAddenda.InvoiceOrAccountNumber.Should().Be(new string('0', 24));
+        parsedAddenda.InfofromOriginator.Should().Be(new string('0', 24));
         parsedAddenda.AddendumSequence.Should().Be("0001");
         parsedAddenda.EntryDetailSequenceNumber.Should().Be(parsedEntry.SequenceNumber![^7..]);
         parsedBatchControl.BatchNumber.Should().Be("0000001");
+    }
+
+    [Fact]
+    public async Task AchColV35Prenotification_ShouldParseWithExplicitInboundProfile()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        var transaction = model.Transactions.Single();
+        transaction.Type = TransactionTypeEnum.Prenotification;
+        transaction.TransactionCode = "23";
+        transaction.Amount = 0m;
+        transaction.Addendas =
+        [
+            new AchTransactionAddenda
+            {
+                AddendaType = "05",
+                BusinessType = AchAddendaBusinessType.Credit,
+                Purpose = "PAGOS",
+                Reference = "PRENOTIFICACION-SINTETICA",
+                SequenceNumber = 1
+            }
+        ];
+        var content = await CreateOfficialSut(context, "ACH Colombia", model).Sut
+            .BuildNachaFileAsync([100], CancellationToken.None);
+
+        model.Cycle.ClearingHouse!.OriginCode = "000101006";
+        context.AchCycles.Add(model.Cycle);
+        await context.SaveChangesAsync();
+        var profile = await context.CfgProfiles.AsNoTracking().SingleAsync(item =>
+            item.ProfileCode == AchColOfficialNachaLayout.InboundPrenotificationProfileCode);
+        var parser = new NachaParserService(
+            context,
+            Mock.Of<ILogger<NachaParserService>>(),
+            Mock.Of<IAchStateTransitionService>());
+        await using var stream = new MemoryStream(Encoding.ASCII.GetBytes(content));
+
+        var result = await parser.ParseAndSaveDetailedAsync(
+            stream,
+            "0001283.001.20260524.1.OUT",
+            new NachaParseRequest
+            {
+                ResolvedClearingHouseId = model.Cycle.ClearingHouseId,
+                ResolvedAchCycleId = model.Cycle.Id,
+                OperationalDate = model.Cycle.ProcessingDate,
+                CorrelationId = "synthetic-prenote-v35",
+                SelectedProfileId = profile.Id,
+                SelectedProfileCode = profile.ProfileCode
+            },
+            CancellationToken.None);
+
+        result.Failures.Should().BeEmpty();
+        (await context.EntryDetails.AsNoTracking().SingleAsync()).Amount.Should().Be(0m);
+        (await context.AddendaRecords.AsNoTracking().SingleAsync()).InvoiceOrAccountNumber
+            .Should().Be("PRENOTIFICACION-SINTETICA");
     }
 
     [Fact]

@@ -28,40 +28,85 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
     {
         await EnsureReturnOfReturnFlowTypeAsync();
         var catalog = await LoadCatalogAsync();
+        await RetireLegacyOrdinaryAchProfilesAsync(catalog.Statuses["INACTIVO"]);
 
         await EnsureProfileAsync(new ProfileSpec(
-            ProfileCode: "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0",
-            Name: "Perfil oficial ACH Colombia salida original",
-            Description: "Perfil oficial UAT/local table-driven para ACH Colombia. Fuente normativa: MAN-004 V32.",
+            ProfileCode: AchColOfficialNachaLayout.OutboundOriginalProfileCode,
+            Name: "Perfil oficial ACH Colombia V35 salida original",
+            Description: "Perfil ordinario table-driven ACH Colombia V35 para créditos y débitos monetarios de salida.",
             ClearingHouseCode: "ACH",
             FlowTypeCode: "ORIGINAL",
-            NormativeSource: "MAN-004 V32",
-            NormativeVersion: "V32",
-            ApprovedRuleMatrix: "MATRIZ_REGLAS_ACHCOL.md@2026-07-16",
+            NormativeSource: "DDS-DIS-MAN-004, ACH Colombia Manual de Servicio V35, secciones 6.4 y 6.5",
+            NormativeVersion: AchColOfficialNachaLayout.NormativeVersion,
+            ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.4-6.5",
             IsPlaceholder: false,
             IsHomologated: false,
-            RoutingOrigin: "000101006",
-            RoutingDestination: "000128300",
+            RoutingOrigin: "000128300",
+            RoutingDestination: "000101006",
             ImmediateDestinationName: "ACH COLOMBIA",
             ImmediateOriginName: "CFA UAT",
-            Prefix: "ACH"));
+            Prefix: "ACH_ORIGINAL_V35",
+            VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
+            VersionMinor: AchColOfficialNachaLayout.ProfileVersionMinor));
 
         await EnsureProfileAsync(new ProfileSpec(
-            ProfileCode: "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V1_0",
-            Name: "Perfil oficial ACH Colombia salida prenotificación",
-            Description: "Perfil oficial UAT/local table-driven para prenotificaciones de ACH Colombia. Fuente normativa: MAN-004 V32.",
+            ProfileCode: AchColOfficialNachaLayout.OutboundPrenotificationProfileCode,
+            Name: "Perfil oficial ACH Colombia V35 salida prenotificación",
+            Description: "Perfil ordinario table-driven ACH Colombia V35 para prenotificaciones crédito y débito de salida.",
             ClearingHouseCode: "ACH",
             FlowTypeCode: "PRENOTIFICACION",
-            NormativeSource: "MAN-004 V32",
-            NormativeVersion: "V32",
-            ApprovedRuleMatrix: "MATRIZ_REGLAS_ACHCOL.md@2026-07-16",
+            NormativeSource: "DDS-DIS-MAN-004, ACH Colombia Manual de Servicio V35, secciones 6.4 y 6.5",
+            NormativeVersion: AchColOfficialNachaLayout.NormativeVersion,
+            ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.4-6.5",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "000128300",
+            RoutingDestination: "000101006",
+            ImmediateDestinationName: "ACH COLOMBIA",
+            ImmediateOriginName: "CFA UAT",
+            Prefix: "ACH_PRENOTE_V35",
+            VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
+            VersionMinor: AchColOfficialNachaLayout.ProfileVersionMinor));
+
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: AchColOfficialNachaLayout.InboundOriginalProfileCode,
+            Name: "Perfil oficial ACH Colombia V35 entrada original",
+            Description: "Perfil ordinario table-driven ACH Colombia V35 para créditos y débitos monetarios de entrada.",
+            ClearingHouseCode: "ACH",
+            FlowTypeCode: "ORIGINAL",
+            NormativeSource: "DDS-DIS-MAN-004, ACH Colombia Manual de Servicio V35, secciones 6.4 y 6.5",
+            NormativeVersion: AchColOfficialNachaLayout.NormativeVersion,
+            ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.4-6.5",
             IsPlaceholder: false,
             IsHomologated: false,
             RoutingOrigin: "000101006",
             RoutingDestination: "000128300",
-            ImmediateDestinationName: "ACH COLOMBIA",
-            ImmediateOriginName: "CFA UAT",
-            Prefix: "ACH_PRENOTE"));
+            ImmediateDestinationName: "CFA UAT",
+            ImmediateOriginName: "ACH COLOMBIA",
+            Prefix: "ACH_IN_ORIGINAL_V35",
+            DirectionCode: "ENTRADA",
+            VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
+            VersionMinor: AchColOfficialNachaLayout.ProfileVersionMinor));
+
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: AchColOfficialNachaLayout.InboundPrenotificationProfileCode,
+            Name: "Perfil oficial ACH Colombia V35 entrada prenotificación",
+            Description: "Perfil ordinario table-driven ACH Colombia V35 para prenotificaciones crédito y débito de entrada.",
+            ClearingHouseCode: "ACH",
+            FlowTypeCode: "PRENOTIFICACION",
+            NormativeSource: "DDS-DIS-MAN-004, ACH Colombia Manual de Servicio V35, secciones 6.4 y 6.5",
+            NormativeVersion: AchColOfficialNachaLayout.NormativeVersion,
+            ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.4-6.5",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "000101006",
+            RoutingDestination: "000128300",
+            ImmediateDestinationName: "CFA UAT",
+            ImmediateOriginName: "ACH COLOMBIA",
+            Prefix: "ACH_IN_PRENOTE_V35",
+            DirectionCode: "ENTRADA",
+            VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
+            VersionMinor: AchColOfficialNachaLayout.ProfileVersionMinor));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0",
@@ -246,7 +291,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profile.EffectiveFrom = EffectiveFrom;
             profile.EffectiveTo = null;
             profile.StatusId = catalog.Statuses["PUBLICADO"];
-            profile.VersionMajor = 1;
+            profile.VersionMajor = spec.VersionMajor;
             profile.VersionMinor = spec.VersionMinor;
             profile.PublishedAt = PublishedAt;
             profile.PublishedBy = spec.IsPlaceholder ? "system-phase-6b1" : "system-nacha-execution-2";
@@ -284,7 +329,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                         ? CenitReturnOut2026Layout.Variant(recordCode)
                         : isReturnOutV35
                         ? AchColReturnOutV35Layout.Variant(recordCode)
-                        : recordCode == "7" && !spec.IsPlaceholder ? AchColOfficialNachaLayout.Type7CreditVariant : null,
+                        : recordCode == "7" && !spec.IsPlaceholder ? ResolveType7CreditVariant(spec) : null,
                     isDefault: true,
                     selectionPredicateJson: null);
                 await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
@@ -300,6 +345,24 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                         AchColOfficialNachaLayout.Type7DebitVariant,
                         isDefault: false,
                         selectionPredicateJson: JsonSerializer.Serialize(new { BusinessType = "DEBIT" }));
+
+                    if (IsOrdinaryAchV35(spec)
+                        && string.Equals(spec.FlowTypeCode, "ORIGINAL", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await EnsureVariantAsync(
+                            profile,
+                            spec,
+                            recordCode,
+                            sequence + 2,
+                            catalog,
+                            AchColOfficialNachaLayout.Type7CreditPrenotificationVariant,
+                            isDefault: false,
+                            selectionPredicateJson: JsonSerializer.Serialize(new
+                            {
+                                BusinessType = "CREDIT",
+                                TransactionFamily = "PRENOTIFICATION"
+                            }));
+                    }
 
                     if (spec.IncludeReturnAddenda99)
                     {
@@ -562,6 +625,30 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             await _context.CatRuleTypes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id));
     }
 
+    private async Task RetireLegacyOrdinaryAchProfilesAsync(int inactiveStatusId)
+    {
+        string[] legacyProfileCodes =
+        [
+            "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0",
+            "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V1_0"
+        ];
+
+        var legacyProfiles = await _context.CfgProfiles
+            .Where(profile => legacyProfileCodes.Contains(profile.ProfileCode))
+            .ToListAsync();
+        foreach (var profile in legacyProfiles)
+        {
+            profile.StatusId = inactiveStatusId;
+            profile.EffectiveTo ??= EffectiveFrom;
+            profile.UpdatedAt = AuditTimestamp;
+        }
+
+        if (legacyProfiles.Count > 0)
+        {
+            await _context.SaveChangesAsync();
+        }
+    }
+
     private static byte[] BuildRowVersion(string prefix)
     {
         return prefix.StartsWith("CENIT", StringComparison.OrdinalIgnoreCase) ? [6, 11, 2, 1] : [6, 11, 1, 1];
@@ -664,6 +751,18 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                && string.Equals(recordCode, "7", StringComparison.OrdinalIgnoreCase)
                && variantCode.EndsWith("_ADDENDA_99", StringComparison.OrdinalIgnoreCase));
 
+    private static string ResolveType7CreditVariant(ProfileSpec profile)
+        => string.Equals(profile.ClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+           && string.Equals(profile.FlowTypeCode, "ORIGINAL", StringComparison.OrdinalIgnoreCase)
+           && string.Equals(profile.NormativeVersion, AchColOfficialNachaLayout.NormativeVersion, StringComparison.OrdinalIgnoreCase)
+            ? AchColOfficialNachaLayout.Type7CreditMonetaryVariant
+            : AchColOfficialNachaLayout.Type7CreditPrenotificationVariant;
+
+    private static bool IsOrdinaryAchV35(ProfileSpec profile)
+        => string.Equals(profile.ClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+           && profile.FlowTypeCode is "ORIGINAL" or "PRENOTIFICACION"
+           && string.Equals(profile.NormativeVersion, AchColOfficialNachaLayout.NormativeVersion, StringComparison.OrdinalIgnoreCase);
+
     private static FieldSpec BuildReturnOutV35Field(AchColOfficialFieldDescriptor descriptor)
     {
         var constant = (descriptor.RecordCode, descriptor.FieldCode) switch
@@ -762,7 +861,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             },
             "7" => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "ADDENDATYPE", "ORIGINATORIDENTIFICATION", "PURPOSE", "REFERENCE", "COLLECTORID", "RECEIVERCUSTOMERCODE",
+                "ADDENDATYPE", "ORIGINATORIDENTIFICATION", "PURPOSE", "REFERENCE", "INVOICEORACCOUNTNUMBER", "ORIGINATORFREEINFORMATION",
+                "COLLECTORID", "RECEIVERCUSTOMERCODE",
                 "SERVICEDESCRIPTION", "SEQUENCENUMBER", "TRACESUFFIX"
             },
             _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -983,6 +1083,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         string ImmediateOriginName,
         string Prefix,
         string DirectionCode = "SALIDA",
+        int VersionMajor = 1,
         int VersionMinor = 1,
         bool IncludeReturnAddenda99 = false);
 

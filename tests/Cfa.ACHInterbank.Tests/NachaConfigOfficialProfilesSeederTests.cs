@@ -24,7 +24,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     public async Task NachaConfigSeeds_ShouldCreatePublishedAchColombiaProfile()
     {
         await using var context = await SeedAsync();
-        var profile = await LoadProfileAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
+        var profile = await LoadProfileAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode);
 
         profile.Should().NotBeNull();
         profile!.ClearingHouse.Code.Should().Be("ACH");
@@ -50,7 +50,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     public async Task AchColombiaAndCenitProfiles_ShouldBeIndependent()
     {
         await using var context = await SeedAsync();
-        var ach = await LoadProfileAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
+        var ach = await LoadProfileAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode);
         var cenit = await LoadProfileAsync(context, "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
 
         ach!.Id.Should().NotBe(cenit!.Id);
@@ -64,7 +64,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     public async Task AchColombiaProfile_ShouldContainRecords_1_5_6_7_8_9()
     {
         await using var context = await SeedAsync();
-        var profile = await LoadProfileAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
+        var profile = await LoadProfileAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode);
 
         profile!.Records.Select(x => x.RecordCode.Code).Should().BeEquivalentTo(RequiredRecords);
     }
@@ -82,9 +82,50 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     public async Task AchColombiaProfile_ShouldContainLayoutFieldsForAllRecords()
     {
         await using var context = await SeedAsync();
-        var profile = await LoadProfileAsync(context, "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
+        var profile = await LoadProfileAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode);
 
         AssertFieldsForAllRecords(profile!);
+    }
+
+    [Fact]
+    public async Task OrdinaryAchColombiaV35Profiles_ShouldExposeDirectionAndCreditAddendaLayouts()
+    {
+        await using var context = await SeedAsync();
+        var outbound = await LoadProfileAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        var inbound = await LoadProfileAsync(context, AchColOfficialNachaLayout.InboundOriginalProfileCode);
+        var prenote = await LoadProfileAsync(context, AchColOfficialNachaLayout.OutboundPrenotificationProfileCode);
+
+        Constant(outbound!, "1", "IMMEDIATEDESTINATION").Should().Be("000101006");
+        Constant(outbound!, "1", "IMMEDIATEORIGIN").Should().Be("000128300");
+        Constant(inbound!, "1", "IMMEDIATEDESTINATION").Should().Be("000128300");
+        Constant(inbound!, "1", "IMMEDIATEORIGIN").Should().Be("000101006");
+
+        var monetaryCredit = outbound!.LayoutVariants.Single(variant =>
+            variant.VariantCode == AchColOfficialNachaLayout.Type7CreditMonetaryVariant);
+        monetaryCredit.Fields.Single(field => field.FieldCode == "INVOICEORACCOUNTNUMBER")
+            .Should().Match<CfgLayoutField>(field => field.StartPosition == 31 && field.Length == 24);
+        monetaryCredit.Fields.Single(field => field.FieldCode == "ORIGINATORFREEINFORMATION")
+            .Should().Match<CfgLayoutField>(field => field.StartPosition == 57 && field.Length == 24);
+
+        var prenoteCredit = prenote!.LayoutVariants.Single(variant =>
+            variant.VariantCode == AchColOfficialNachaLayout.Type7CreditPrenotificationVariant);
+        prenoteCredit.Fields.Single(field => field.FieldCode == "REFERENCE")
+            .Should().Match<CfgLayoutField>(field => field.StartPosition == 31 && field.Length == 53);
+
+        var activeOrdinary = await context.CfgProfiles
+            .Include(profile => profile.ClearingHouse)
+            .Include(profile => profile.FlowType)
+            .Include(profile => profile.Status)
+            .Include(profile => profile.Tags)
+            .Where(profile => profile.ClearingHouse.Code == "ACH"
+                              && (profile.FlowType.Code == "ORIGINAL" || profile.FlowType.Code == "PRENOTIFICACION")
+                              && profile.Status.Code == "PUBLICADO")
+            .ToListAsync();
+        activeOrdinary.Should().HaveCount(4)
+            .And.OnlyContain(profile => profile.VersionMajor == 35
+                                        && profile.VersionMinor == 0
+                                        && profile.Tags.Any(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == "V35"));
+        activeOrdinary.Should().NotContain(profile => profile.Tags.Any(tag => tag.TagValue.Contains("V32")));
     }
 
     [Fact]
@@ -114,9 +155,8 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         var profiles = await LoadOfficialProfilesAsync(context);
 
         profiles.Should().OnlyContain(x => x.Tags.Any(t => t.TagKey == "NormativeSource" && !string.IsNullOrWhiteSpace(t.TagValue)));
-        profiles.Where(x => x.ClearingHouse.Code == "ACH"
-                            && !x.Tags.Any(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35"))
-            .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue == "MAN-004 V32"));
+        profiles.Where(x => x.ClearingHouse.Code == "ACH")
+            .Should().OnlyContain(x => x.Tags.Any(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35"));
         profiles.Single(x => x.ProfileCode == "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0").Tags
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35")
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("sección 6.6"));
@@ -245,7 +285,9 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
 
         result.Success.Should().BeTrue();
         result.UsedFallback.Should().BeFalse();
-        result.Profile!.ProfileCode.Should().Be("OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0");
+        result.Profile!.ProfileCode.Should().Be(AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        result.Profile.VersionMajor.Should().Be(AchColOfficialNachaLayout.ProfileVersionMajor);
+        result.Profile.VersionMinor.Should().Be(AchColOfficialNachaLayout.ProfileVersionMinor);
         result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
     }
 
@@ -269,6 +311,120 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         result.UsedFallback.Should().BeFalse();
         result.Profile!.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
         result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
+    }
+
+    [Theory]
+    [InlineData("SALIDA", "ORIGINAL", AchColOfficialNachaLayout.OutboundOriginalProfileCode)]
+    [InlineData("SALIDA", "PRENOTIFICACION", AchColOfficialNachaLayout.OutboundPrenotificationProfileCode)]
+    [InlineData("ENTRADA", "ORIGINAL", AchColOfficialNachaLayout.InboundOriginalProfileCode)]
+    [InlineData("ENTRADA", "PRENOTIFICACION", AchColOfficialNachaLayout.InboundPrenotificationProfileCode)]
+    public async Task OrdinaryAchColombiaV35ProfileFamily_ShouldResolveExplicitly(
+        string directionCode,
+        string flowTypeCode,
+        string expectedProfileCode)
+    {
+        await using var context = await SeedAsync();
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = flowTypeCode,
+            DirectionCode = directionCode,
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc),
+            RequestedVersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
+            RequestedVersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor,
+            RecordCodes = RequiredRecords
+        });
+
+        result.Success.Should().BeTrue(string.Join(" | ", result.Trace));
+        result.UsedFallback.Should().BeFalse();
+        result.Profile!.ProfileCode.Should().Be(expectedProfileCode);
+        result.Profile.Tags.Should().Contain(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == "V35");
+    }
+
+    [Theory]
+    [InlineData("ENTRADA", "UNSUPPORTED")]
+    [InlineData("UNSUPPORTED", "ORIGINAL")]
+    public async Task OrdinaryAchColombiaV35ProfileFamily_ShouldFailForMissingDimensions(
+        string directionCode,
+        string flowTypeCode)
+    {
+        await using var context = await SeedAsync();
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = flowTypeCode,
+            DirectionCode = directionCode,
+            ProcessDateUtc = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc),
+            RequestedVersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
+            RequestedVersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor,
+            RecordCodes = RequiredRecords
+        });
+
+        result.Success.Should().BeFalse();
+        result.UsedFallback.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileNotFound);
+    }
+
+    [Fact]
+    public async Task OrdinaryAchColombiaV35ProfileFamily_ShouldFailForUnsupportedVersion()
+    {
+        await using var context = await SeedAsync();
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc),
+            RequestedVersionMajor = 32,
+            RequestedVersionMinor = 0,
+            RecordCodes = RequiredRecords
+        });
+
+        result.Success.Should().BeFalse();
+        result.UsedFallback.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileVersionUnsupported);
+    }
+
+    [Fact]
+    public async Task OrdinaryAchColombiaV35ProfileFamily_ShouldFailForAmbiguousProfile()
+    {
+        await using var context = await SeedAsync();
+        var source = await context.CfgProfiles.SingleAsync(profile =>
+            profile.ProfileCode == AchColOfficialNachaLayout.InboundOriginalProfileCode);
+        context.CfgProfiles.Add(new CfgProfile
+        {
+            ProfileCode = "TEST_ACH_ENTRADA_ORIGINAL_V35_AMBIGUOUS",
+            NameEs = "Duplicado intencional para prueba",
+            ClearingHouseId = source.ClearingHouseId,
+            FlowTypeId = source.FlowTypeId,
+            DirectionId = source.DirectionId,
+            ServiceClassId = source.ServiceClassId,
+            ContextPriority = source.ContextPriority,
+            EffectiveFrom = source.EffectiveFrom,
+            StatusId = source.StatusId,
+            VersionMajor = source.VersionMajor,
+            VersionMinor = source.VersionMinor,
+            PublishedAt = source.PublishedAt,
+            PublishedBy = "test",
+            RowVersion = [9, 9, 9, 9]
+        });
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc),
+            RequestedVersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
+            RequestedVersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor,
+            RecordCodes = RequiredRecords
+        });
+
+        result.Success.Should().BeFalse();
+        result.UsedFallback.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileAmbiguous);
     }
 
     [Fact]
@@ -392,7 +548,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     }
 
     [Fact]
-    public async Task NonReturnDimensions_ShouldNotSelectIncomingReturnProfile()
+    public async Task IncomingOrdinaryDimensions_ShouldSelectExplicitV35Profile()
     {
         await using var context = await SeedAsync();
         var resolver = new NachaConfigResolver(context);
@@ -404,15 +560,17 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             DirectionCode = "ENTRADA",
             ProcessDateUtc = new DateTime(2026, 7, 27, 0, 0, 0, DateTimeKind.Utc),
             RecordCodes = RequiredRecords,
-            RequireHomologated = true
+            RequestedVersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
+            RequestedVersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor
         });
 
-        result.Success.Should().BeFalse();
-        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileNotFound);
+        result.Success.Should().BeTrue(string.Join(" | ", result.Trace));
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileSelected);
+        result.Profile!.ProfileCode.Should().Be(AchColOfficialNachaLayout.InboundOriginalProfileCode);
     }
 
     [Theory]
-    [InlineData("ACH", "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V1_0")]
+    [InlineData("ACH", AchColOfficialNachaLayout.OutboundPrenotificationProfileCode)]
     [InlineData("CENIT", "OFFICIAL_CENIT_SALIDA_PRENOTIFICACION_V1_0")]
     public async Task PrenotificationProfiles_ShouldBeResolvable(
         string clearingHouseCode,
@@ -507,8 +665,25 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
 
         if (profile.ClearingHouse.Code == "ACH")
         {
+            var expectedType7Variants = profile.FlowType.Code == "ORIGINAL"
+                ? new[]
+                {
+                    AchColOfficialNachaLayout.Type7CreditMonetaryVariant,
+                    AchColOfficialNachaLayout.Type7CreditPrenotificationVariant,
+                    AchColOfficialNachaLayout.Type7DebitVariant
+                }
+                :
+                [
+                    AchColOfficialNachaLayout.Type7CreditPrenotificationVariant,
+                    AchColOfficialNachaLayout.Type7DebitVariant
+                ];
             profile.LayoutVariants.Where(variant => variant.RecordCode.Code == "7").Select(variant => variant.VariantCode)
-                .Should().BeEquivalentTo("ACH_R7_CREDIT_V2", "ACH_R7_DEBIT_V2");
+                .Should().BeEquivalentTo(expectedType7Variants);
         }
     }
+
+    private static string? Constant(CfgProfile profile, string recordCode, string fieldCode)
+        => profile.LayoutVariants.Single(variant => variant.RecordCode.Code == recordCode && variant.IsDefaultForRecord)
+            .Fields.Single(field => field.FieldCode == fieldCode)
+            .SourceDefinition.ConstantValue;
 }

@@ -33,9 +33,9 @@ internal sealed record AchColOfficialFieldDescriptor(
     IReadOnlyCollection<string>? AllowedValues = null,
     NachaFieldSensitivity Sensitivity = NachaFieldSensitivity.None,
     string Severity = "ERROR",
-    string NormativeSection = "MAN-004 V32, ficha técnica",
-    string NormativeSource = "DDS-DIS-MAN-004",
-    string NormativeVersion = "V32")
+    string NormativeSection = "Secciones 6.4 y 6.5",
+    string NormativeSource = "DDS-DIS-MAN-004, Manual de Servicio ACH Colombia",
+    string NormativeVersion = "V35")
 {
     public int EndPosition => StartPosition + Length - 1;
     public string OverflowPolicy => "REJECT";
@@ -43,7 +43,7 @@ internal sealed record AchColOfficialFieldDescriptor(
 }
 
 /// <summary>
-/// Snapshot inmutable del layout ACH Colombia demostrado por MAN-004 V32.
+/// Snapshot inmutable del layout ordinario ACH Colombia demostrado por MAN-004 V35.
 /// No representa ni se reutiliza como especificación CENIT.
 /// </summary>
 internal static class AchColOfficialNachaLayout
@@ -51,8 +51,17 @@ internal static class AchColOfficialNachaLayout
     public const int RecordLength = 106;
     public const int BlockingFactor = 10;
 
-    public const string Type7CreditVariant = "ACH_R7_CREDIT_V2";
-    public const string Type7DebitVariant = "ACH_R7_DEBIT_V2";
+    public const string OutboundOriginalProfileCode = "OFFICIAL_ACH_SALIDA_ORIGINAL_V35_0";
+    public const string OutboundPrenotificationProfileCode = "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V35_0";
+    public const string InboundOriginalProfileCode = "OFFICIAL_ACH_ENTRADA_ORIGINAL_V35_0";
+    public const string InboundPrenotificationProfileCode = "OFFICIAL_ACH_ENTRADA_PRENOTIFICACION_V35_0";
+    public const string NormativeVersion = "V35";
+    public const int ProfileVersionMajor = 35;
+    public const int ProfileVersionMinor = 0;
+
+    public const string Type7CreditMonetaryVariant = "ACH_R7_CREDIT_MONETARY_V35";
+    public const string Type7CreditPrenotificationVariant = "ACH_R7_CREDIT_PRENOTE_V35";
+    public const string Type7DebitVariant = "ACH_R7_DEBIT_V35";
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<AchColOfficialFieldDescriptor>> Layouts =
         new ReadOnlyDictionary<string, IReadOnlyList<AchColOfficialFieldDescriptor>>(
@@ -78,11 +87,11 @@ internal static class AchColOfficialNachaLayout
                     F("ACHCOL-PHYSICAL-RECORD-LENGTH", "5", "RECORDTYPE", 1, 1, NachaFieldDataType.Numeric, true, 'L', ' ', allowed: ["5"]),
                     F("ACHCOL-T5-SERVICE-CLASS-CODE", "5", "SERVICECLASSCODE", 2, 3, NachaFieldDataType.Numeric, true, 'R', '0'),
                     F("ACHCOL-T5-COMPANY-NAME", "5", "COMPANYNAME", 5, 16, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Personal),
-                    F("ACHCOL-T5-DISCRETIONARY-DATA", "5", "COMPANYDISCRETIONARYDATA", 21, 20, NachaFieldDataType.Reserved, false, 'L', ' '),
+                    F("ACHCOL-T5-DISCRETIONARY-DATA", "5", "COMPANYDISCRETIONARYDATA", 21, 20, NachaFieldDataType.Alphanumeric, false, 'L', ' '),
                     F("ACHCOL-T5-COMPANY-IDENTIFICATION", "5", "COMPANYIDENTIFICATION", 41, 10, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Personal),
                     F("ACHCOL-T5-SEC-CODE", "5", "STANDARDENTRYCLASSCODE", 51, 3, NachaFieldDataType.Alphanumeric, true, 'L', ' ', allowed: ["PPD", "CCD"]),
                     F("ACHCOL-T5-ENTRY-DESCRIPTION", "5", "COMPANYENTRYDESCRIPTION", 54, 10, NachaFieldDataType.Alphanumeric, true, 'L', ' '),
-                    F("ACHCOL-T5-DESCRIPTIVE-DATE", "5", "COMPANYDESCRIPTIVEDATE", 64, 8, NachaFieldDataType.Date, true, 'R', '0', "yyyyMMdd"),
+                    F("ACHCOL-T5-DESCRIPTIVE-DATE", "5", "COMPANYDESCRIPTIVEDATE", 64, 8, NachaFieldDataType.Date, false, 'R', '0', "yyyyMMdd"),
                     F("ACHCOL-T5-EFFECTIVE-DATE", "5", "EFFECTIVEENTRYDATE", 72, 8, NachaFieldDataType.Date, true, 'R', '0', "yyyyMMdd"),
                     F("ACHCOL-T5-SETTLEMENT-DATE", "5", "SETTLEMENTDATE", 80, 3, NachaFieldDataType.Numeric, false, 'R', ' '),
                     F("ACHCOL-T5-ORIGINATOR-STATUS", "5", "ORIGINATORSTATUSCODE", 83, 1, NachaFieldDataType.Numeric, true, 'R', '0', allowed: ["1"]),
@@ -92,19 +101,33 @@ internal static class AchColOfficialNachaLayout
 
                 ["6"] = Fields(
                     F("ACHCOL-PHYSICAL-RECORD-LENGTH", "6", "RECORDTYPE", 1, 1, NachaFieldDataType.Numeric, true, 'L', ' ', allowed: ["6"]),
-                    F("ACHCOL-T6-TRANSACTION-CODE", "6", "TRANSACTIONCODE", 2, 2, NachaFieldDataType.Numeric, true, 'R', '0'),
+                    F("ACHCOL-T6-TRANSACTION-CODE", "6", "TRANSACTIONCODE", 2, 2, NachaFieldDataType.Numeric, true, 'R', '0', allowed: ["22", "23", "27", "28", "32", "33", "37", "38", "52", "53", "55", "57"]),
                     F("ACHCOL-T6-RECEIVING-DFI", "6", "RECEIVINGDFI", 4, 8, NachaFieldDataType.Numeric, true, 'R', '0', sensitivity: NachaFieldSensitivity.Correlatable),
                     F("ACHCOL-T6-CHECK-DIGIT", "6", "CHECKDIGIT", 12, 1, NachaFieldDataType.Numeric, true, 'R', '0'),
                     F("ACHCOL-T6-ACCOUNT-NUMBER", "6", "DFIACCOUNTNUMBER", 13, 17, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Financial),
                     F("ACHCOL-T6-AMOUNT", "6", "AMOUNT", 30, 18, NachaFieldDataType.Numeric, true, 'R', '0', sensitivity: NachaFieldSensitivity.Financial),
-                    F("ACHCOL-T6-INDIVIDUAL-ID", "6", "INDIVIDUALIDENTIFICATION", 48, 15, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Personal),
+                    F("ACHCOL-T6-INDIVIDUAL-ID", "6", "INDIVIDUALIDENTIFICATION", 48, 15, NachaFieldDataType.Alphanumeric, false, 'L', ' ', sensitivity: NachaFieldSensitivity.Personal),
                     F("ACHCOL-T6-INDIVIDUAL-NAME", "6", "INDIVIDUALNAME", 63, 22, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Personal),
                     F("ACHCOL-T6-DISCRETIONARY-DATA", "6", "DISCRETIONARYDATA", 85, 2, NachaFieldDataType.Alphanumeric, false, 'L', ' ', sensitivity: NachaFieldSensitivity.Correlatable),
-                    F("ACHCOL-T6-ADDENDA-INDICATOR", "6", "ADDENDARECORDINDICATOR", 87, 1, NachaFieldDataType.Numeric, true, 'R', '0', allowed: ["0", "1"]),
+                    F("ACHCOL-T6-ADDENDA-INDICATOR", "6", "ADDENDARECORDINDICATOR", 87, 1, NachaFieldDataType.Numeric, true, 'R', '0', allowed: ["1"]),
                     F("ACHCOL-T6-TRACE-NUMBER", "6", "TRACENUMBER", 88, 15, NachaFieldDataType.Numeric, true, 'R', '0', sensitivity: NachaFieldSensitivity.Financial),
                     F("ACHCOL-T6-RESERVED", "6", "RESERVED", 103, 4, NachaFieldDataType.Reserved, false, 'L', ' ')),
 
-                [Type7CreditVariant] = Fields(
+                [Type7CreditMonetaryVariant] = Fields(
+                    F("ACHCOL-PHYSICAL-RECORD-LENGTH", "7", "RECORDTYPE", 1, 1, NachaFieldDataType.Numeric, true, 'L', ' ', allowed: ["7"]),
+                    F("ACHCOL-T7-ADDENDA-TYPE", "7", "ADDENDATYPE", 2, 2, NachaFieldDataType.Numeric, true, 'R', '0', allowed: ["05"]),
+                    F("ACHCOL-T7-CREDIT-ORIGINATOR-ID", "7", "ORIGINATORIDENTIFICATION", 4, 15, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Personal),
+                    F("ACHCOL-T7-CREDIT-RESERVED", "7", "RESERVEDPREFIX", 19, 2, NachaFieldDataType.Reserved, false, 'L', ' '),
+                    F("ACHCOL-T7-CREDIT-PURPOSE", "7", "PURPOSE", 21, 10, NachaFieldDataType.Alphanumeric, true, 'L', ' '),
+                    F("ACHCOL-T7-CREDIT-INVOICE", "7", "INVOICEORACCOUNTNUMBER", 31, 24, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Financial),
+                    F("ACHCOL-T7-CREDIT-RESERVED-INVOICE", "7", "RESERVEDINVOICE", 55, 2, NachaFieldDataType.Reserved, false, 'L', ' '),
+                    F("ACHCOL-T7-CREDIT-FREE-INFORMATION", "7", "ORIGINATORFREEINFORMATION", 57, 24, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Financial),
+                    F("ACHCOL-T7-CREDIT-RESERVED-FREE", "7", "RESERVEDFREE", 81, 3, NachaFieldDataType.Reserved, false, 'L', ' '),
+                    F("ACHCOL-T7-SEQUENCE", "7", "SEQUENCENUMBER", 84, 4, NachaFieldDataType.Numeric, true, 'R', '0', allowed: ["0001"]),
+                    F("ACHCOL-T7-TRACE-SUFFIX-MATCH", "7", "TRACESUFFIX", 88, 7, NachaFieldDataType.Numeric, true, 'R', '0', sensitivity: NachaFieldSensitivity.Financial),
+                    F("ACHCOL-T7-RESERVED", "7", "RESERVED", 95, 12, NachaFieldDataType.Reserved, false, 'L', ' ')),
+
+                [Type7CreditPrenotificationVariant] = Fields(
                     F("ACHCOL-PHYSICAL-RECORD-LENGTH", "7", "RECORDTYPE", 1, 1, NachaFieldDataType.Numeric, true, 'L', ' ', allowed: ["7"]),
                     F("ACHCOL-T7-ADDENDA-TYPE", "7", "ADDENDATYPE", 2, 2, NachaFieldDataType.Numeric, true, 'R', '0', allowed: ["05"]),
                     F("ACHCOL-T7-CREDIT-ORIGINATOR-ID", "7", "ORIGINATORIDENTIFICATION", 4, 15, NachaFieldDataType.Alphanumeric, true, 'L', ' ', sensitivity: NachaFieldSensitivity.Personal),
@@ -161,7 +184,9 @@ internal static class AchColOfficialNachaLayout
         {
             var key = string.Equals(variantCode, Type7DebitVariant, StringComparison.OrdinalIgnoreCase)
                 ? Type7DebitVariant
-                : Type7CreditVariant;
+                : string.Equals(variantCode, Type7CreditMonetaryVariant, StringComparison.OrdinalIgnoreCase)
+                    ? Type7CreditMonetaryVariant
+                    : Type7CreditPrenotificationVariant;
             return Layouts[key];
         }
 

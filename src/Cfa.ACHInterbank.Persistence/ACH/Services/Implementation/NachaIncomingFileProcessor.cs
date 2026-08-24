@@ -90,10 +90,15 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         var loaded = await LoadParsedGraphAsync(ingestionResponse.IngestionId, ct);
         var decisions = await BuildDecisionsAsync(ingestionResponse.IngestionId, loaded.Entries, loaded.Addendas, isReturnFile, ct);
         var flowType = ResolveFlowType(isReturnFile, loaded.Entries.FirstOrDefault(), loaded.Addendas.FirstOrDefault());
-        var validationPassed = errors.Count == 0 && ingestionResponse.ParsingStatus is IncomingNachaParsingStatus.Exitoso or IncomingNachaParsingStatus.ExitosoConAdvertencias;
         var persistencePassed = loaded.Headers.Count > 0 && loaded.Entries.Count > 0 && loaded.FileControls.Count > 0;
         var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestionResponse.ResolvedClearingHouseId, request.ClearingHouseCode, ct);
-        var profileCode = ResolveProfileCode(request, clearingHouseCode);
+        var profileCode = ResolveProfileCode(request, ingestionResponse.SelectedProfileCode);
+        if (!string.IsNullOrWhiteSpace(request.ExpectedProfileCode)
+            && !string.Equals(request.ExpectedProfileCode.Trim(), profileCode, StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("NACHA_PROFILE_EXPECTATION_MISMATCH");
+        }
+        var validationPassed = errors.Count == 0 && ingestionResponse.ParsingStatus is IncomingNachaParsingStatus.Exitoso or IncomingNachaParsingStatus.ExitosoConAdvertencias;
 
         return new NachaIncomingFileProcessingResult
         {
@@ -467,16 +472,16 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         return NachaIncomingFlowType.Unknown;
     }
 
-    private static string ResolveProfileCode(NachaIncomingFileRequest request, string clearingHouseCode)
+    private static string ResolveProfileCode(NachaIncomingFileRequest request, string? selectedProfileCode)
     {
-        if (!string.IsNullOrWhiteSpace(request.ExpectedProfileCode))
+        if (!string.IsNullOrWhiteSpace(selectedProfileCode))
         {
-            return request.ExpectedProfileCode.Trim();
+            return selectedProfileCode.Trim();
         }
 
-        return clearingHouseCode.Equals("CENIT", StringComparison.OrdinalIgnoreCase)
-            ? "OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_0"
-            : "OFFICIAL_ACH_ENTRADA_ORIGINAL_V1_0";
+        return string.IsNullOrWhiteSpace(request.ExpectedProfileCode)
+            ? string.Empty
+            : request.ExpectedProfileCode.Trim();
     }
 
     private static Dictionary<string, string> BuildTrace(
@@ -524,7 +529,7 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         IReadOnlyList<string> warnings)
     {
         var clearingHouseCode = string.IsNullOrWhiteSpace(request.ClearingHouseCode) ? "UNKNOWN" : request.ClearingHouseCode;
-        var profileCode = ResolveProfileCode(request, clearingHouseCode);
+        var profileCode = ResolveProfileCode(request, null);
         var trace = BuildTrace(fileName, correlationId, clearingHouseCode, profileCode, isReturnFile ? NachaIncomingFlowType.ReturnFile : NachaIncomingFlowType.Unknown, isReturnFile, false, false, [], errors, warnings, null);
         return new NachaIncomingFileProcessingResult
         {
@@ -549,7 +554,7 @@ public sealed class NachaIncomingFileProcessor : INachaIncomingFileProcessor
         bool isReturnFile)
     {
         var clearingHouseCode = string.IsNullOrWhiteSpace(request.ClearingHouseCode) ? "UNKNOWN" : request.ClearingHouseCode;
-        var profileCode = ResolveProfileCode(request, clearingHouseCode);
+        var profileCode = ResolveProfileCode(request, response.SelectedProfileCode);
         var decisions = new[]
         {
             new NachaIncomingDecision

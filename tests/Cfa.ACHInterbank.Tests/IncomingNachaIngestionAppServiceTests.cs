@@ -83,6 +83,21 @@ public class IncomingNachaIngestionAppServiceTests
                 return Task.FromResult(new NachaParseResult());
             });
 
+        var profileResolver = new Mock<INachaConfigResolver>();
+        profileResolver.Setup(x => x.ResolveAsync(It.IsAny<NachaConfigResolutionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaConfigResolutionResult
+            {
+                Success = true,
+                SelectionStatus = NachaProfileSelectionStatus.ProfileSelected,
+                Profile = new CfgProfile
+                {
+                    Id = 1,
+                    ProfileCode = AchColOfficialNachaLayout.InboundOriginalProfileCode,
+                    VersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
+                    VersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor
+                }
+            });
+
         var sut = new IncomingNachaIngestionAppService(
             context,
             resolver.Object,
@@ -90,6 +105,7 @@ public class IncomingNachaIngestionAppServiceTests
             Mock.Of<IIncomingNachaPostParseProcessor>(),
             BuildExternalPolicyMock().Object,
             Mock.Of<ILogger<IncomingNachaIngestionAppService>>(),
+            profileResolver: profileResolver.Object,
             digitalEnvelopeService: envelope.Object);
 
         var response = await sut.IngestAsync(new IncomingNachaIngestionRequest

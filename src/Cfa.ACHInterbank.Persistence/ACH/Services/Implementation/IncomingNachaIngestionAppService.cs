@@ -176,6 +176,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 ResolvedClearingHouseId = effectiveCandidate.ResolvedClearingHouseId,
                 ResolvedAchCycleId = effectiveCandidate.ResolvedAchCycleId,
                 OperationalDate = effectiveCandidate.OperationalDate,
+                SelectedProfileCode = effectiveCandidate.ProfileCode,
+                SelectedProfileVersion = effectiveCandidate.ProfileVersion,
                 TotalBatches = effectiveProcessing?.TotalBatches ?? 0,
                 TotalEntries = effectiveProcessing?.TotalEntries ?? 0,
                 TotalAddendas = effectiveProcessing?.TotalAddendas ?? 0,
@@ -481,18 +483,28 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         }
 
         NachaConfigResolutionResult? profileResolution = null;
-        if (IsDifferentialCandidate(records))
+        var isDifferentialCandidate = IsDifferentialCandidate(records);
+        var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct);
+        var configClearingHouseCode = ToConfigClearingHouseCode(clearingHouseCode);
+        var requiresExplicitProfile = isDifferentialCandidate
+                                      || string.Equals(configClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase);
+        if (requiresExplicitProfile)
         {
-            var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct);
-            var isCenitRor = string.Equals(ToConfigClearingHouseCode(clearingHouseCode), "CENIT", StringComparison.OrdinalIgnoreCase)
+            var isCenitRor = string.Equals(configClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
                              && IsCenitReturnOfReturnCandidate(records);
-            var flowTypeCode = isCenitRor ? CenitReturnOfReturn2026Layout.FlowTypeCode : "RETORNO";
+            var flowTypeCode = isDifferentialCandidate
+                ? isCenitRor ? CenitReturnOfReturn2026Layout.FlowTypeCode : "RETORNO"
+                : ResolveOrdinaryFlowTypeCode(records);
+            var isAchColOrdinary = !isDifferentialCandidate
+                                   && string.Equals(configClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase);
             profileResolution = await _profileResolver.ResolveAsync(new NachaConfigResolutionRequest
             {
-                ClearingHouseCode = ToConfigClearingHouseCode(clearingHouseCode),
+                ClearingHouseCode = configClearingHouseCode,
                 FlowTypeCode = flowTypeCode,
                 DirectionCode = "ENTRADA",
                 ProcessDateUtc = ingestion.OperationalDate ?? UtcNow.Date,
+                RequestedVersionMajor = isAchColOrdinary ? AchColOfficialNachaLayout.ProfileVersionMajor : null,
+                RequestedVersionMinor = isAchColOrdinary ? AchColOfficialNachaLayout.ProfileVersionMinor : null,
                 RecordCodes = records
                     .Where(record => record.Length == 106 && !record.All(character => character == '9'))
                     .Select(record => record[0].ToString())
@@ -500,10 +512,12 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                     .ToArray(),
                 SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["MessageType"] = isCenitRor ? "ReturnOfReturn" : "DifferentialResponse",
-                    ["AddendaType"] = "99"
+                    ["MessageType"] = isDifferentialCandidate
+                        ? isCenitRor ? "ReturnOfReturn" : "DifferentialResponse"
+                        : flowTypeCode == "PRENOTIFICACION" ? "Prenotification" : "Original",
+                    ["AddendaType"] = isDifferentialCandidate ? "99" : "05"
                 },
-                RequireHomologated = true
+                RequireHomologated = isDifferentialCandidate
             }, ct);
 
             _context.IncomingNachaProcessingEvents.Add(new IncomingNachaProcessingEvent
@@ -512,8 +526,8 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                 EventType = "NachaProfileSelection",
                 EventStatus = profileResolution.SelectionStatus.ToString(),
                 Message = profileResolution.Success
-                    ? "Perfil NACHA-M diferencial seleccionado."
-                    : "Procesamiento diferencial bloqueado antes del parser.",
+                    ? "Perfil NACHA-M explícito seleccionado."
+                    : "Procesamiento bloqueado antes del parser por selección de perfil.",
                 EvidenceJson = JsonSerializer.Serialize(new
                 {
                     clearingHouseCode,
@@ -524,7 +538,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                     profileVersion = profileResolution.Profile is null
                         ? null
                         : $"{profileResolution.Profile.VersionMajor}.{profileResolution.Profile.VersionMinor}",
-                    requireHomologated = true
+                    requireHomologated = isDifferentialCandidate
                 }),
                 RaisedBy = "IncomingNachaIngestionAppService"
             });
@@ -817,9 +831,9 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             ResolvedAchCycleId = ingestion.ResolvedAchCycleId,
             OperationalDate = ingestion.OperationalDate,
             ProfileSelectionStatus = profileSelection?.SelectionStatus,
-            SelectedProfileCode = profileSelection?.Profile?.ProfileCode,
+            SelectedProfileCode = profileSelection?.Profile?.ProfileCode ?? ingestion.ProfileCode,
             SelectedProfileVersion = profileSelection?.Profile is null
-                ? null
+                ? ingestion.ProfileVersion
                 : $"{profileSelection.Profile.VersionMajor}.{profileSelection.Profile.VersionMinor}",
             TotalBatches = processing?.TotalBatches ?? 0,
             TotalEntries = processing?.TotalEntries ?? 0,
@@ -873,6 +887,31 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             record.Length == 106
             && record[0] == '7'
             && string.Equals(record.Substring(1, 2), "99", StringComparison.Ordinal));
+
+    private static string ResolveOrdinaryFlowTypeCode(IReadOnlyList<string> records)
+    {
+        var transactionCodes = records
+            .Where(record => record.Length == AchColOfficialNachaLayout.RecordLength && record[0] == '6')
+            .Select(record => record.Substring(1, 2))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        string[] monetaryCodes = ["22", "27", "32", "37", "52", "55"];
+        string[] prenotificationCodes = ["23", "28", "33", "38", "53", "57"];
+
+        if (transactionCodes.Length > 0 && transactionCodes.All(prenotificationCodes.Contains))
+        {
+            return "PRENOTIFICACION";
+        }
+
+        if (transactionCodes.Length > 0
+            && transactionCodes.All(code => monetaryCodes.Contains(code, StringComparer.Ordinal)
+                                            || prenotificationCodes.Contains(code, StringComparer.Ordinal)))
+        {
+            return "ORIGINAL";
+        }
+
+        return "UNSUPPORTED";
+    }
 
     private static bool IsCenitReturnOfReturnCandidate(IReadOnlyList<string> records)
         => records.Any(record =>

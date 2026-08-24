@@ -396,7 +396,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             {
                 Severidad = "ERROR",
                 Codigo = "ACHCOL_LAYOUT_NOT_DEMONSTRATED",
-                Mensaje = $"La variante {variant.VariantCode} no tiene descriptor ACHCOL V32 aprobado."
+                Mensaje = $"La variante {variant.VariantCode} no tiene descriptor ACHCOL V35 aprobado."
             });
             return;
         }
@@ -473,7 +473,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                     || !string.Equals(source, descriptor.NormativeSource, StringComparison.OrdinalIgnoreCase)
                     || !string.Equals(version, descriptor.NormativeVersion, StringComparison.OrdinalIgnoreCase))
                 {
-                    AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_METADATA_INVALID", "no declara overflow REJECT y trazabilidad MAN-004 V32");
+                    AddAchColDescriptorIssue(issues, descriptor, "ACHCOL_RULE_METADATA_INVALID", "no declara overflow REJECT y trazabilidad MAN-004 V35");
                 }
             }
             catch (JsonException)

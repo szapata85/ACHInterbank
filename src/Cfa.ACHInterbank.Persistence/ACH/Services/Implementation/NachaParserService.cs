@@ -889,13 +889,34 @@ public class NachaParserService : INachaParserService
             }
 
             var businessType = ParseBusinessTypeFromType05(associatedEntry?.TransactionCode);
+            var isPrenotification = IsPrenotificationTransactionCode(associatedEntry?.TransactionCode);
             var variant = businessType == "Debit"
                 ? AchColOfficialNachaLayout.Type7DebitVariant
-                : AchColOfficialNachaLayout.Type7CreditVariant;
+                : isPrenotification
+                    ? AchColOfficialNachaLayout.Type7CreditPrenotificationVariant
+                    : AchColOfficialNachaLayout.Type7CreditMonetaryVariant;
             var selectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                ["BusinessType"] = businessType
+                ["BusinessType"] = businessType,
+                ["TransactionFamily"] = isPrenotification
+                    ? "PRENOTIFICATION"
+                    : "MONETARY"
             };
+            string? invoiceOrAccountNumber = null;
+            string? originatorFreeInformation = null;
+            if (businessType == "Credit")
+            {
+                if (profileReader?.TryRead(a, "7", "INVOICEORACCOUNTNUMBER", selectionContext, out var invoice) == true)
+                {
+                    invoiceOrAccountNumber = invoice.Trim();
+                    profileReader.TryRead(a, "7", "ORIGINATORFREEINFORMATION", selectionContext, out var freeInformation);
+                    originatorFreeInformation = freeInformation.Trim();
+                }
+                else
+                {
+                    invoiceOrAccountNumber = ReadField(profileReader, a, "7", "REFERENCE", variant, selectionContext).Trim();
+                }
+            }
 
             return new AddendaRecord
             {
@@ -916,9 +937,8 @@ public class NachaParserService : INachaParserService
                 PurposeOfTransaction = businessType == "Credit"
                     ? ReadField(profileReader, a, "7", "PURPOSE", variant, selectionContext).Trim()
                     : null,
-                InvoiceOrAccountNumber = businessType == "Credit"
-                    ? ReadField(profileReader, a, "7", "REFERENCE", variant, selectionContext).Trim()
-                    : null,
+                InvoiceOrAccountNumber = invoiceOrAccountNumber,
+                InfofromOriginator = originatorFreeInformation,
                 AddendumSequence = ReadField(profileReader, a, "7", "SEQUENCENUMBER", variant, selectionContext).Trim(),
                 EntryDetailSequenceNumber = ReadField(profileReader, a, "7", "TRACESUFFIX", variant, selectionContext).Trim()
             };
@@ -1010,6 +1030,9 @@ public class NachaParserService : INachaParserService
         ThrowTechnical("ACHCOL-T7-VARIANT: no se puede seleccionar la variante T7 sin un código de transacción T6 demostrado.");
         return string.Empty;
     }
+
+    private static bool IsPrenotificationTransactionCode(string? transactionCode)
+        => (transactionCode ?? string.Empty).Trim() is "23" or "28" or "33" or "38" or "53" or "57";
 
     private List<FileControl> ParseFileControlLinq(List<string> line, NachaProfileRecordReader? profileReader)
     {

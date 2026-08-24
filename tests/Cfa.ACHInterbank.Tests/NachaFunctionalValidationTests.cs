@@ -39,7 +39,7 @@ public class NachaFunctionalValidationTests
     }
 
     [Fact]
-    public async Task GenerateAchColombiaOutgoingFile_ShouldMatchPhysicalGoldenFile()
+    public async Task GenerateAchColombiaOutgoingFile_ShouldNotUseHistoricalV32Golden()
     {
         await using var context = await SeedOfficialProfilesAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
@@ -47,8 +47,12 @@ public class NachaFunctionalValidationTests
         var generated = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
         var fixturePath = Path.Combine(AppContext.BaseDirectory, "fixtures", "nacha-m", "ACHCOL", "valid", "achcol-v32-minimal.nacha.b64");
-        var expected = Encoding.ASCII.GetString(Convert.FromBase64String(await File.ReadAllTextAsync(fixturePath)));
-        generated.Should().Be(expected);
+        var historicalV32 = Encoding.ASCII.GetString(Convert.FromBase64String(await File.ReadAllTextAsync(fixturePath)));
+        generated.Should().NotBe(historicalV32);
+
+        var addenda = NachaFixedWidthAssertions.SplitRecords(generated).Single(record => record[0] == '7');
+        addenda.Substring(30, 24).Should().Be(new string('0', 24));
+        addenda.Substring(56, 24).Should().Be(new string('0', 24));
     }
 
     [Fact]
@@ -881,7 +885,7 @@ public class NachaFunctionalValidationTests
         {
             ScenarioId = "ACH-CO-OUT-001",
             ClearingHouseCode = "ACH",
-            ProfileCode = "OFFICIAL_ACH_SALIDA_ORIGINAL_V1_0",
+            ProfileCode = AchColOfficialNachaLayout.OutboundOriginalProfileCode,
             FlowType = "Outgoing",
             ExpectedFileName = "1234567.001.1",
             ExpectedGoldenFilePath = "fixtures/nacha-m/ACHCOL/valid/achcol-v32-minimal.nacha.b64",

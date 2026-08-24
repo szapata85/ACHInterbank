@@ -1377,9 +1377,16 @@ public class NachaFileBuilder : INachaFileBuilder
                 expectedLength: 2);
         }
 
+        string[] prenotificationCodes = ["23", "28", "33", "38", "53", "57"];
+        var transactionCode = candidate.Transaction.TransactionCode?.Trim() ?? string.Empty;
+        var creditVariantCode = prenotificationCodes.Contains(transactionCode, StringComparer.Ordinal)
+            ? AchColOfficialNachaLayout.Type7CreditPrenotificationVariant
+            : AchColOfficialNachaLayout.Type7CreditMonetaryVariant;
         var variantCode = candidate.Addenda.BusinessType switch
         {
-            Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Credit => AchColOfficialNachaLayout.Type7CreditVariant,
+            Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Credit => variants
+                .Select(variant => variant.VariantCode)
+                .SingleOrDefault(code => string.Equals(code, creditVariantCode, StringComparison.OrdinalIgnoreCase)) ?? string.Empty,
             Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Debit => AchColOfficialNachaLayout.Type7DebitVariant,
             _ => string.Empty
         };
@@ -2237,13 +2244,19 @@ public class NachaFileBuilder : INachaFileBuilder
             .Select(x => x.ServiceClassCode)
             .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
 
+        var flowTypeCode = NachaProfileDimensionResolver.ResolveFlowCode(context.Transactions);
+        var requiresAchColV35 = string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+                               && flowTypeCode is "ORIGINAL" or "PRENOTIFICACION";
+
         return new NachaConfigResolutionRequest
         {
             ClearingHouseCode = clearingHouseCode,
-            FlowTypeCode = NachaProfileDimensionResolver.ResolveFlowCode(context.Transactions),
+            FlowTypeCode = flowTypeCode,
             DirectionCode = NachaProfileDimensionResolver.ResolveDirectionCode(context.Transactions),
             ServiceClassCode = serviceClassCode,
             ProcessDateUtc = context.Cycle.ProcessingDate,
+            RequestedVersionMajor = requiresAchColV35 ? AchColOfficialNachaLayout.ProfileVersionMajor : null,
+            RequestedVersionMinor = requiresAchColV35 ? AchColOfficialNachaLayout.ProfileVersionMinor : null,
             RecordCodes = recordCodes.ToList(),
             SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -2496,7 +2509,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 throw BuildFieldRuleException(
                     "NACHA_PROFILE_LAYOUT_MISMATCH",
                     expected,
-                    "Posición, longitud, alineación, relleno o formato no coincide con MAN-004 V32.");
+                    "Posición, longitud, alineación, relleno o formato no coincide con MAN-004 V35.");
             }
 
             if (!actual.Rules.Any(rule => rule.IsEnabled && string.Equals(rule.RuleCode, expected.RuleId, StringComparison.OrdinalIgnoreCase)))
