@@ -6,13 +6,13 @@ This file stores compact, durable project knowledge: canonical functional state,
 
 ## Current Canonical Functional Completion State
 
-### GAP-REFRESH-001
+### GAP-REFRESH-001 / GAP-REFRESH-001A
 
 STATUS: CLOSED
 LAST_REFRESH: 2026-08-23
-SCOPE: Operational and transactional functional completion
+SCOPE: Operational and transactional functional completion; RET-GAP-019 normative correction
 REPOSITORY_BRANCH: ACH-Interbank-Postgresql
-REPOSITORY_HEAD: 178d01b148cec66c1909fb110da3577ad0c5a8e1
+REPOSITORY_HEAD: c1ffb6ef1d805307e8046c5761b6332309bcf14d
 
 ### ACH Colombia
 
@@ -21,19 +21,20 @@ ACTIVE_GAPS: RET-GAP-019
 
 Completed functional flows:
 - ordinary outgoing and incoming transactions;
-- outgoing Return lifecycle, DB-first concurrency, V35 table-driven physical generation, transport, acknowledgement, and replay protection;
+- outgoing Return lifecycle, DB-first concurrency, V35 table-driven physical generation for valid Annex causes, transport, acknowledgement, and replay protection;
 - incoming Return parsing, exact original transaction linkage, amount invariant, lifecycle, audit, orphan safety, and idempotency;
 - prenotification differential response through RegistrarRespuestaTransaccion;
 - generate-only inbound simulator support.
 
 Only confirmed residual:
-- RET-GAP-019: the business request code DEV14 has no authoritative deterministic mapping to a physical three-character ACH Colombia V35 Addenda 99 Rxx cause. The official V35 ReturnOut builder correctly fails closed for DEV14.
+- RET-GAP-019: DEV14 is an Integra ACH reclamation/workflow novelty, not a physical Addenda 99 cause. V35 contains conflicting physical-cause instructions: section 2.11.12 prescribes R10 for the debit reclamation, while the Addenda 99 field points to Annex 9, whose R10/R12/R13/R29 meanings are contextual and conflict with both that prose and Annex 4. No manual-wide deterministic rule may be persisted until ACH Colombia resolves the erratum.
 
 Decisive evidence:
-- commits ec16753d, 56684255, e22fd346;
-- OfficialNachaGenerationTableDrivenTests.ReturnOutAchV35_WhenCauseIsNotInAnnex9_ShouldFailClosed;
-- AchIncomingReturnIngestionServiceTests and IncomingNachaTransactionLinkerTests;
-- ACH Colombia V35 sections 2.7.6, 6.6, 6.7, Annexes 7 and 9 retrieved through Local RAG.
+- ACH Colombia V35 section 2.7.6 and Annex 7 define DEV14 as a debit no-consent reclamation/workflow novelty;
+- V35 section 2.11.12, page 95, requires a physical R10 Return and separately a DEV14 reclamation request;
+- V35 Addenda 99 requires a three-character Annex 9 cause;
+- V35 Annex 9, pages 248-251, and Annex 4, pages 273-274, assign conflicting meanings to R10/R12/R13;
+- OfficialNachaGenerationTableDrivenTests.ReturnOutAchV35_WhenCauseIsNotInAnnex9_ShouldFailClosed proves only that DEV14 cannot be emitted physically.
 
 ### CENIT
 
@@ -67,19 +68,34 @@ Shared completed capabilities include DB-first incoming idempotency, classificat
 
 ### RET-GAP-019
 
-STATUS: CONFIRMED-OPEN
+STATUS: BLOCKED-BY-NORMATIVE-CONTRADICTION
 SCOPE: ACH Colombia / outgoing Return / no-consent debit
-PROBLEM: DEV14 is a valid internal/business request but is not a valid physical three-character Annex 9 cause. V35 does not identify a unique Rxx mapping or the contextual attributes needed to select one deterministically.
-CURRENT_BEHAVIOR: The official V35 table-driven builder fails closed with NACHA_ALLOWED_VALUE_INVALID and does not persist a generated Return.
-REMAINING_WORK: Obtain authoritative ACH Colombia evidence or an approved later business decision defining the deterministic DEV14-to-Rxx resolution matrix; only then implement configuration/catalog-driven resolution and prove the physical file and lifecycle.
-DEPENDENCIES: Primary ACH Colombia normative/business decision.
-ACCEPTANCE_EVIDENCE: Versioned authoritative rule; configuration-driven mapping; focal generation tests for every branch and fail-closed ambiguity; SQL Server/PostgreSQL lifecycle/idempotency evidence; CI green.
-CONFIDENCE: HIGH
+PROBLEM: DEV14 is a workflow/reclamation code, but V35 contradicts itself on the physical Rxx. Section 2.11.12 page 95 prescribes R10 for the Return; Addenda 99 explicitly points to Annex 9, where R10 means no authorization/prenotification, R12 means unauthorized originator, R13 is a natural-person receiver-request Return, and R29 is a corporate unauthorized-originator Return. Annex 4 pages 273-274 instead assigns the natural-person receiver-request meaning to R10 and a sold-branch meaning to R12.
+CURRENT_BEHAVIOR: The application accepts/stores DEV14 as if it were a Return reason, forwards the selected code unchanged, and the official V35 builder fails closed with NACHA_ALLOWED_VALUE_INVALID without persisting a Return.
+REQUIRED_CONTEXT_AVAILABLE: PARTIAL — Customer.PersonType and AchTransaction.IsPrenotification exist, but the Return request carries only TransactionId and ReturnReasonCode; it lacks a structured workflow code, underlying dispute reason, authorization/revocation state, and a reliable receiver-type discriminator in the generation path.
+REMAINING_WORK: Obtain an authoritative V35 erratum or formal ACH Colombia clarification that resolves section 2.11.12 versus Annexes 9 and 4. After clarification, define the required context contract before implementing any configuration-driven physical-cause resolution.
+DEPENDENCIES: ACH Colombia authoritative clarification; then a context/data-model contract if the confirmed rule is contextual.
+ACCEPTANCE_EVIDENCE: Versioned clarification identifying the governing physical-cause table and each DEV14 scenario; explicit treatment of R10/R12/R13/R29 and Annex 10 reasons; verified discriminator inventory; configuration-driven design; fail-closed ambiguity; focal and provider-specific lifecycle/idempotency tests; CI green.
+CONFIDENCE: HIGH that DEV14 is workflow-only and V35 is internally contradictory; HIGH that current context is incomplete; no Rxx mapping is accepted as canonical.
+
+## Normative Decisions and Contradictions
+
+### NORM-DEV14-V35-001
+
+DEV14 CLASSIFICATION: WORKFLOW.
+
+V35 contains a manual-internal contradiction:
+- section 2.11.12, page 95: generate physical R10 and create a separate DEV14 reclamation request;
+- Addenda 99: the physical cause is three characters and must come from Annex 9;
+- Annex 9, pages 248-251: R10=no authorization/prenotification, R12=unauthorized originator, R13=natural-person receiver-request Return, R29=corporate unauthorized-originator Return;
+- Annex 4, pages 273-274: R10=natural-person receiver-request Return and R12=sold branch.
+
+NORMATIVE CONTRADICTION UNRESOLVED. The Addenda-to-Annex-9 cross-reference is strong technical evidence, but it does not erase the explicit conflicting procedure and formal Annex 4 table. Do not persist or implement DEV14->R10, DEV14->R13, DEV14->R29, or another direct mapping without an authoritative clarification.
 
 ## Recently Closed / Reconciled History
 
 - RET-GAP-001, RET-GAP-002: incoming application/audit convergence and DB-first idempotency remain CLOSED.
-- RET-GAP-003, RET-GAP-004, RET-GAP-017: ACH Colombia ReturnOut lifecycle, V35 physical generation, transport, acknowledgement, and idempotency remain CLOSED.
+- RET-GAP-003, RET-GAP-004, RET-GAP-017: ACH Colombia ReturnOut lifecycle, V35 physical generation for valid Annex causes, transport, acknowledgement, and idempotency remain CLOSED.
 - RET-GAP-006, RET-GAP-016: former CENIT ReturnOut/ReturnIn gaps are CLOSED by the 2026 layouts, services, tests, and transport implementation.
 - RET-GAP-012: CENIT Return of Return is CLOSED.
 - RET-GAP-013, RET-GAP-014: ACH Colombia and CENIT prenotification differential responses are CLOSED by clearing-house-isolated RegistrarRespuestaTransaccion processing.
@@ -142,9 +158,15 @@ Cycle selection and simulator requests must not target a future operational date
 
 ### TRAP-ADDENDA99-001
 
-ACH Colombia V35 incoming Return Addenda 99 uses:
-- three-character cause at positions 4-6;
+ACH Colombia V35 incoming and outgoing Return Addenda 99 uses:
+- a three-character physical cause at positions 4-6, governed by Annex 9;
 - original trace at positions 7-21.
+
+DEV14 is not valid in this physical field.
+
+### TRAP-NORMATIVE-VERSION-001
+
+Local RAG contains normative artifacts from different effective dates. Resolve the latest applicable document and supersession before using a rule; do not trust search rank alone. For current ACH Colombia behavior, use V35 April 2026.
 
 ### TRAP-RET-V35-TEST-FIXTURES-001
 
@@ -158,7 +180,7 @@ The corrected V35 ingestion and linker focal suites pass. This is a stale automa
 
 ### RC-CURRENT
 
-COMMIT: 178d01b148cec66c1909fb110da3577ad0c5a8e1
+COMMIT: c1ffb6ef1d805307e8046c5761b6332309bcf14d
 STATUS: NOT_CERTIFIED
 CI: NOT_GREEN — latest relevant dotnet-ci run 32452953613 at e22fd346 failed the main test job; build, ReturnOut multi-database, and outgoing-monitor jobs passed.
 RUNTIME_E2E: FOCAL_LOCAL_ONLY — targeted return suites passed; no complete runtime-backed certification for HEAD.
@@ -169,11 +191,12 @@ UAT: NOT_READY
 
 ### NEXT-DELIVERY-001
 
-JOB_ID: RET.ACH.OUT.CAUSAL.V35.EVIDENCE
-OBJECTIVE: Obtain and version the authoritative ACH Colombia decision that maps a DEV14 no-consent return request to a physical Annex 9 Rxx cause, or defines the exact contextual decision matrix.
-WHY_NEXT: RET-GAP-019 is the only confirmed active functional gap and blocks complete ACH Colombia outgoing no-consent Return processing.
-EXCLUDED: CENIT implementation, accounting/reconciliation, generic reporting/observability, infrastructure refactoring, and speculative mappings.
-ACCEPTANCE: Authoritative versioned evidence sufficient to define a deterministic configuration-driven rule; no implementation should be invented before that evidence exists.
+JOB_ID: RET.ACH.OUT.CAUSAL.V35.ERRATUM
+OBJECTIVE: Obtain and version an authoritative ACH Colombia clarification resolving the physical-cause conflict among V35 section 2.11.12 page 95, Annex 9 pages 248-251, and Annex 4 pages 273-274 for DEV14 debit reclamations.
+WHY_NEXT: RET-GAP-019 is the only active functional gap; implementing any direct or contextual Rxx rule before resolving the V35 contradiction would encode an unsupported regulatory choice.
+REQUIRED_CONTEXT: V35 section 2.7.6; section 2.11.12 page 95; Addenda 99 specification; Annex 7 DEV14; Annex 9 R07/R10/R12/R13/R29; Annex 10 debit-reclamation reasons; Annex 4 conflicting table.
+EXCLUDED: Production/test/config changes, speculative Rxx mappings, CENIT, accounting/reconciliation, generic observability, and transport refactoring.
+ACCEPTANCE: Versioned authoritative clarification that identifies the governing physical cause or complete decision matrix and required discriminator fields, sufficient to design a configuration-driven implementation without inference.
 
 ## Context Routing Guardrails
 
