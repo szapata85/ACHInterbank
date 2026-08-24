@@ -39,7 +39,7 @@ RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED.
 STATUS: INCOMPLETE
 ACTIVE_GAPS: CENIT-FORMAT-NACHAM, OPS-GAP-003, OPS-GAP-004; shared OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
 
-ORDINARY_STATE: BLOCKED/PARTIAL. The May 7, 2026 NACHA-M specification is now available, but ordinary original/prenotification profiles remain placeholder, non-homologated, and output-only; current HEAD deliberately blocks CENIT LIVE generation. No Gateway/PO handoff receiver or ACK/NACK/operator-rejection lifecycle is wired.
+ORDINARY_STATE: PARTIAL, with production transport BLOCKED. The May 7, 2026 NACHA-M specification is authoritative and sufficient for local format implementation. Ordinary original/prenotification profiles remain placeholder, non-homologated, and output-only; current HEAD deliberately blocks CENIT LIVE generation pending implementation and external homologation. No Gateway/PO handoff receiver or ACK/NACK/operator-rejection lifecycle is wired.
 RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, differential-response, and managed Return transport capabilities remain CLOSED.
 
 ### Shared
@@ -71,7 +71,7 @@ REQUIRED: Automate cycle-qualified generation, envelope creation, atomic CFA-man
 STATUS: BLOCKED
 SCOPE: CENIT / ordinary / bidirectional / Gateway or PO file boundary
 CANONICAL_KEY: ORDINARY/CENIT/BIDIRECTIONAL/TRANSPORT/GATEWAY_FILE_EXCHANGE
-REQUIRED: Automate cycle-qualified output placement and inbound pickup at the approved Gateway/PO boundary with atomicity, archive, retry, duplicate protection, and monitoring. Blocked by CENIT-FORMAT-NACHAM and the approved CFA-to-Gateway operational contract.
+REQUIRED: Automate cycle-qualified output placement and inbound pickup at the approved Gateway/PO boundary with atomicity, archive, retry, duplicate protection, and monitoring. Completion depends on CENIT-FORMAT-NACHAM; the BLOCKED state is owned by the unresolved approved CFA-to-Gateway operational contract.
 
 ### OPS-GAP-004
 
@@ -79,6 +79,7 @@ STATUS: MISSING
 SCOPE: CENIT / ordinary / inbound chamber responses
 CANONICAL_KEY: ORDINARY/CENIT/INBOUND/CHAMBER_RESPONSE/ACK_NACK_OPERATOR_REJECT
 REQUIRED: Parse, correlate, persist, and protect terminal lifecycle transitions for ACK, NACK, operator-rejection XML, reconciliation outputs, and no-activity outputs independently from business Returns.
+EXECUTABILITY: Parser/domain/persistence work is internally executable from the current CENIT manuals; transport-backed E2E depends on OPS-GAP-003.
 
 ### OPS-GAP-005
 
@@ -96,8 +97,8 @@ REQUIRED: Version and administer the chamber-specific operational stages/cutoffs
 
 ### CENIT-FORMAT-NACHAM
 
-STATUS: BLOCKED/PARTIAL — EXISTING OWNER REUSED
-CURRENT_DELTA: The May 7, 2026 technical specification is available, resolving the old document-absence premise. Ordinary profiles remain placeholder/non-homologated and CENIT LIVE generation remains deliberately blocked; implement and verify the current ordinary inbound/outbound profile family before removing the gate.
+STATUS: PARTIAL — INTERNALLY_EXECUTABLE / EXTERNAL_HOMOLOGATION_PENDING — EXISTING OWNER REUSED
+CURRENT_DELTA: The May 7, 2026 technical specification is authoritative and sufficiently defines the CENIT NACHA-M format for local implementation and testing, resolving the former normative blocker. Ordinary profiles remain placeholder/non-homologated and CENIT LIVE generation remains deliberately gated; implement and verify the current ordinary inbound/outbound profile family before external homologation and gate removal.
 
 ### NACHA-RULE-METADATA
 
