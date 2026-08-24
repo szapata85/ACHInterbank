@@ -8,6 +8,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 
@@ -22,7 +23,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         SeedTx(c, "123456780000001", 7001, txId: 10);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
 
-        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
+        var r = await sut.IngestAsync(new("f.ach", LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.Accepted, r.Decision);
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, (await c.AchTransactions.SingleAsync(x => x.Id == 10)).State);
@@ -35,7 +36,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         SeedTx(c, "123456780000001", 7001, txId: 10);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
 
-        await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
+        await sut.IngestAsync(new("f.ach", LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
 
         var ev = await c.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 10);
         Assert.Equal(AchTransferStateEnum.Pending, ev.FromState);
@@ -54,7 +55,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         SeedTx(c, "123456780000001", 7001, txId: 10);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
 
-        await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
+        await sut.IngestAsync(new("f.ach", LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
         var ev = await c.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 10);
 
         using var doc = JsonDocument.Parse(ev.PayloadJson!);
@@ -79,7 +80,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         await using var c = Ctx();
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
 
-        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "000000000000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
+        var r = await sut.IngestAsync(new("f.ach", LegacyType99ReturnRecordBuilder.Build("R01", "000000000000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, r.Decision);
         Assert.Empty(await c.AchTransactionStateEvents.ToListAsync());
@@ -92,7 +93,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         SeedTx(c, "123456780000001", 7001, txId: 10);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
 
-        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "000000000000002");
+        var content = LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001") + LegacyType99ReturnRecordBuilder.Build("R01", "000000000000002");
         var r = await sut.IngestAsync(new("f.ach", content, new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
@@ -109,7 +110,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         SeedTx(c, "123456780000001", 7001, txId: 10);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
 
-        var content = BuildType7("R01", "123456780000001") + BuildType7("R01", "123456780000001");
+        var content = LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001") + LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001");
         var r = await sut.IngestAsync(new("f.ach", content, new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)), CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
@@ -124,7 +125,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         SeedTx(c, "123456780000001", 7001, txId: 10);
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
         var receivedAt = new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc);
-        var content = BuildType7("R01", "123456780000001");
+        var content = LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001");
 
         var first = await sut.IngestAsync(new("first.ach", content, receivedAt), CancellationToken.None);
         var duplicate = await sut.IngestAsync(new("second-different-binary-name.ach", content, receivedAt.AddHours(1)), CancellationToken.None);
@@ -143,7 +144,7 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
         var sut = new AchIncomingReturnIngestionService(c, CatalogAllowAll());
 
         var result = await sut.IngestAsync(
-            new("ambiguous.ach", BuildType7("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)),
+            new("ambiguous.ach", LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001"), new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc)),
             CancellationToken.None);
 
         Assert.Equal(0, result.UpdatedTransactionCount);
@@ -295,15 +296,6 @@ public class AchIncomingReturnApplicationAndOrphanCharacterizationTests
 
         Assert.NotEqual(Guid.Empty, first.IngestionId);
         Assert.Equal(Domain.Models.ACH.IncomingNachaIngestionStatus.Duplicado, second.IngestionStatus);
-    }
-
-    private static string BuildType7(string reason, string originalTrace)
-    {
-        var chars = Enumerable.Repeat(' ', 106).ToArray();
-        chars[0] = '7'; chars[1] = '9'; chars[2] = '9';
-        var rr = reason.PadRight(5).Take(5).ToArray(); Array.Copy(rr, 0, chars, 3, 5);
-        var tr = originalTrace.PadLeft(15, '0').TakeLast(15).ToArray(); Array.Copy(tr, 0, chars, 8, 15);
-        return new string(chars);
     }
 
     private static Mock<IAchRegulatoryCatalogService> CatalogAllowAllMock()

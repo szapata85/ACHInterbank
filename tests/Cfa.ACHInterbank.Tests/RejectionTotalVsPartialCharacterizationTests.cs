@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 
@@ -12,6 +13,8 @@ namespace Cfa.ACHInterbank.Tests;
 
 public class RejectionTotalVsPartialCharacterizationTests
 {
+    private const string RejectedTestCause = "X99";
+
     [Fact]
     public async Task IngestAsync_ShouldCharacterizeRejectedTotal_AsFileLevelRejectionWithoutStateChanges()
     {
@@ -19,7 +22,7 @@ public class RejectionTotalVsPartialCharacterizationTests
         SeedTx(c, "123456780000001", 7001, 10);
         var sut = new AchIncomingReturnIngestionService(c, RejectingCatalog());
 
-        var r = await sut.IngestAsync(new("f.ach", BuildType7("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
+        var r = await sut.IngestAsync(new("f.ach", LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001"), DateTime.UtcNow), CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.RejectedTotal, r.Decision);
         Assert.Equal(0, r.UpdatedTransactionCount);
@@ -35,9 +38,9 @@ public class RejectionTotalVsPartialCharacterizationTests
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001, 10);
         SeedTx(c, "123456780000002", 7001, 11);
-        var sut = new AchIncomingReturnIngestionService(c, CatalogRejectDev14());
+        var sut = new AchIncomingReturnIngestionService(c, CatalogRejectConfiguredCause());
 
-        var content = BuildType7("R01", "123456780000001", "123456789012345") + BuildType7("DEV14", "123456780000002", "123456789012346");
+        var content = LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001", "123456789012345") + LegacyType99ReturnRecordBuilder.Build(RejectedTestCause, "123456780000002", "123456789012346");
         var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
@@ -54,9 +57,9 @@ public class RejectionTotalVsPartialCharacterizationTests
         await using var c = Ctx();
         SeedTx(c, "123456780000001", 7001, 10, amount: 125.75m);
         SeedTx(c, "123456780000002", 7001, 11, amount: 300m);
-        var sut = new AchIncomingReturnIngestionService(c, CatalogRejectDev14());
+        var sut = new AchIncomingReturnIngestionService(c, CatalogRejectConfiguredCause());
 
-        var content = BuildType7("R01", "123456780000001", "123456789012345") + BuildType7("DEV14", "123456780000002", "123456789012346");
+        var content = LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001", "123456789012345") + LegacyType99ReturnRecordBuilder.Build(RejectedTestCause, "123456780000002", "123456789012346");
         var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.RejectedPartial, r.Decision);
@@ -73,7 +76,7 @@ public class RejectionTotalVsPartialCharacterizationTests
         SeedTx(c, "123456780000002", 7001, 11);
         var sut = new AchIncomingReturnIngestionService(c, AllowAllCatalog());
 
-        var content = BuildType7("R01", "123456780000001", "123456789012345") + BuildType7("DEV14", "123456780000002", "123456789012346");
+        var content = LegacyType99ReturnRecordBuilder.Build("R01", "123456780000001", "123456789012345") + LegacyType99ReturnRecordBuilder.Build(RejectedTestCause, "123456780000002", "123456789012346");
         var r = await sut.IngestAsync(new("f.ach", content, DateTime.UtcNow), CancellationToken.None);
 
         Assert.Equal(AchIncomingReturnIngestionDecision.Accepted, r.Decision);
@@ -104,22 +107,6 @@ public class RejectionTotalVsPartialCharacterizationTests
         c.SaveChanges();
     }
 
-    static string BuildType7(string reason, string originalTrace, string trace = "123456789012345")
-    {
-        var buffer = new char[106];
-        Array.Fill(buffer, ' ');
-        buffer[0] = '7';
-        buffer[1] = '9';
-        buffer[2] = '9';
-        reason = (reason ?? string.Empty).PadRight(5).Substring(0, 5);
-        originalTrace = (originalTrace ?? string.Empty).PadLeft(15, '0').Substring(0, 15);
-        reason.CopyTo(0, buffer, 3, 5);
-        originalTrace.CopyTo(0, buffer, 8, 15);
-        trace = (trace ?? string.Empty).PadLeft(15,'0').Substring(0,15);
-        trace.CopyTo(0, buffer, 91, 15);
-        return new string(buffer);
-    }
-
     static IAchRegulatoryCatalogService AllowAllCatalog()
     {
         var m = new Mock<IAchRegulatoryCatalogService>();
@@ -136,11 +123,11 @@ public class RejectionTotalVsPartialCharacterizationTests
         return m.Object;
     }
 
-    static IAchRegulatoryCatalogService CatalogRejectDev14()
+    static IAchRegulatoryCatalogService CatalogRejectConfiguredCause()
     {
         var m = new Mock<IAchRegulatoryCatalogService>();
-        m.Setup(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), It.Is<string>(s => s == "DEV14"), It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync((false, "dev blocked"));
-        m.Setup(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), It.Is<string>(s => s != "DEV14"), It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync((true, null));
+        m.Setup(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), It.Is<string>(s => s == RejectedTestCause), It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync((false, "configured test cause blocked"));
+        m.Setup(x => x.ValidateReturnCodeAsync(It.IsAny<int>(), It.Is<string>(s => s != RejectedTestCause), It.IsAny<TransactionTypeEnum>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).ReturnsAsync((true, null));
         m.Setup(x => x.ValidateReturnPolicyAsync(It.IsAny<int>(), It.IsAny<TransactionTypeEnum>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), true, It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((true, null));
         return m.Object;
     }
