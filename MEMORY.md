@@ -29,7 +29,7 @@ REPOSITORY_HEAD: 36af8b1c61ae72c766446c01ecb9ebc0b7c79838
 ### ACH Colombia
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: RET-GAP-019, OPS-GAP-002; shared OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
+ACTIVE_GAPS: RET-GAP-019, OPS-GAP-002; shared OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
 
 ORDINARY_STATE: PARTIAL. ProcContrapartidas/ProcTransacciones, persistence, duplicate policy, and manual export/upload paths exist. Four explicit published ACH Colombia V35 ordinary profiles cover original/prenotification, inbound/outbound, and credit/debit variants; generation and parsing request version 35.0 and fail closed on missing, ambiguous, unsupported-version, direction, or family selection. Automatic MFT handoff/reception remains absent.
 RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 remains the only open Returns-specific item.
@@ -37,7 +37,7 @@ RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED.
 ### CENIT
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: CENIT-FORMAT-NACHAM, OPS-GAP-003, OPS-GAP-004; shared OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
+ACTIVE_GAPS: CENIT-FORMAT-NACHAM, OPS-GAP-003, OPS-GAP-004; shared OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
 
 ORDINARY_STATE: PARTIAL, with production transport BLOCKED. The May 7, 2026 NACHA-M specification is authoritative and sufficient for local format implementation. Ordinary original/prenotification profiles remain placeholder, non-homologated, and output-only; current HEAD deliberately blocks CENIT LIVE generation pending implementation and external homologation. No Gateway/PO handoff receiver or ACK/NACK/operator-rejection lifecycle is wired.
 RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, differential-response, and managed Return transport capabilities remain CLOSED.
@@ -45,10 +45,10 @@ RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, 
 ### Shared
 
 STATUS: INCOMPLETE for production operational scope
-ACTIVE_GAPS: OPS-GAP-005, OPS-GAP-006, NACHA-RULE-METADATA, RET-GAP-018
+ACTIVE_GAPS: OPS-GAP-006, NACHA-RULE-METADATA, RET-GAP-018
 
-COMPLETED_CORE: DB-first incoming duplicate handling, API duplicate policy, classification/audit convergence, clearing-house isolation, local SOAP dispatch for ProcContrapartidas and ProcTransacciones, non-monetary idempotent RegistrarRespuestaTransaccion, variable cycle-count creation, Quartz runtime/administration, and atomic external filename reservation.
-RESIDUAL: Transaction trace sequence allocation is check-then-insert; cycle stage/eligibility policy is only partially configurable; chamber-specific NACHA policy/snapshots remain in code; unified durable lineage remains partial.
+COMPLETED_CORE: DB-first incoming duplicate handling, API duplicate policy, classification/audit convergence, clearing-house isolation, local SOAP dispatch for ProcContrapartidas and ProcTransacciones, non-monetary idempotent RegistrarRespuestaTransaccion, variable cycle-count creation, Quartz runtime/administration, atomic external filename reservation, and atomic cross-provider transaction trace allocation.
+RESIDUAL: Cycle stage/eligibility policy is only partially configurable; chamber-specific NACHA policy/snapshots remain in code; unified durable lineage remains partial.
 
 ## Active Functional Backlog
 
@@ -85,10 +85,13 @@ EXECUTABILITY: Parser/domain/persistence work is internally executable from the 
 
 ### OPS-GAP-005
 
-STATUS: MISSING
+STATUS: CLOSED
 SCOPE: Shared / outgoing transaction identity
 CANONICAL_KEY: ORDINARY/SHARED/OUTBOUND/SEQUENCE/TRANSACTION_TRACE_ALLOCATION
-REQUIRED: Allocate daily trace sequences atomically and idempotently across concurrent requests and application instances for SQL Server and PostgreSQL; enforce uniqueness in persistence.
+ROOT_CAUSE: TransactionPersister used MAX()+1 followed by an existence check, so independent contexts could select the same daily trace before either insert committed.
+IMPLEMENTED: A per-originating-DFI/per-effective-date database allocator uses PostgreSQL ON CONFLICT DO UPDATE RETURNING and SQL Server serializable UPDLOCK/HOLDLOCK allocation on short dedicated connections. Provider migrations backfill allocator state, synchronize externally inserted traces through database triggers, and enforce unique (EffectiveEntryDate, TraceNumber).
+CONTRACT: 15 digits (8-digit originating DFI + 7-digit sequence); daily reset; range 1-6999999; uniqueness by effective entry date and complete trace number.
+EVIDENCE: Commit 4eff8e7; Release build 8 projects/0 errors/0 warnings; real-provider independent-context concurrency 96/96 for PostgreSQL and SQL Server with zero duplicates; clean two-API runtime concurrency 100/100 for each provider with persisted=100, distinct=100, duplicates=0; empty-database migrations, seed/bootstrap, second startup, and live/ready health passed for both providers.
 
 ### OPS-GAP-006
 
@@ -252,6 +255,8 @@ EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation
 ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
 
 ## Recent Sessions
+- 2026-08-24: OPS-GAP-005 CLOSED with provider-native atomic daily trace allocation, database uniqueness enforcement, and clean PostgreSQL/SQL Server two-replica proofs of 100/100 persisted distinct traces.
+
 - 2026-08-24: OPS-GAP-001 remains CLOSED after V35 Type-7 parser stabilization and test-only legacy Type-99 fixture alignment; GitHub dotnet-ci run 32777030756 was fully green.
 
 - 2026-08-24: GAP-REFRESH-002 reconstructed the non-Returns production backlog at HEAD eee79474; six OPS gaps were added, existing CENIT/NACHA/traceability owners were reused, and closed Returns state was preserved.
