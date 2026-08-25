@@ -89,9 +89,9 @@ STATUS: CLOSED
 SCOPE: Shared / outgoing transaction identity
 CANONICAL_KEY: ORDINARY/SHARED/OUTBOUND/SEQUENCE/TRANSACTION_TRACE_ALLOCATION
 ROOT_CAUSE: TransactionPersister used MAX()+1 followed by an existence check, so independent contexts could select the same daily trace before either insert committed.
-IMPLEMENTED: A per-originating-DFI/per-effective-date database allocator uses PostgreSQL ON CONFLICT DO UPDATE RETURNING and SQL Server serializable UPDLOCK/HOLDLOCK allocation on short dedicated connections. Provider migrations backfill allocator state, synchronize externally inserted traces through database triggers, and enforce unique (EffectiveEntryDate, TraceNumber).
+IMPLEMENTED: A per-originating-DFI/per-effective-date database allocator uses PostgreSQL ON CONFLICT DO UPDATE RETURNING and SQL Server serializable UPDLOCK/HOLDLOCK allocation on short dedicated connections. Provider migrations backfill allocator state, synchronize externally inserted traces through database triggers, and enforce unique (EffectiveEntryDate, TraceNumber). OPS-GAP-005A corrected CENIT Return-of-Return creation to use this allocator for the target cycle processing date instead of the independent return-trace sequence keyed by request date.
 CONTRACT: 15 digits (8-digit originating DFI + 7-digit sequence); daily reset; range 1-6999999; uniqueness by effective entry date and complete trace number.
-EVIDENCE: Commit 4eff8e7; Release build 8 projects/0 errors/0 warnings; real-provider independent-context concurrency 96/96 for PostgreSQL and SQL Server with zero duplicates; clean two-API runtime concurrency 100/100 for each provider with persisted=100, distinct=100, duplicates=0; empty-database migrations, seed/bootstrap, second startup, and live/ready health passed for both providers.
+EVIDENCE: Core commit 4eff8e7; CENIT ROR correction 872d356; Release build 0 errors/0 warnings; focal CENIT ROR 13/13; PostgreSQL and SQL Server RaceMatrix 1/1 each; OutboundReturnMultiDb 4/4; GitHub Actions run 32799729074 succeeded on 872d356. Core real-provider independent-context concurrency 96/96 and clean two-API runtime concurrency 100/100 per provider had persisted=100, distinct=100, duplicates=0; empty-database migrations, seed/bootstrap, second startup, and live/ready health passed for both providers.
 
 ### OPS-GAP-006
 
