@@ -227,7 +227,7 @@ public sealed class DifferentialPrenotificationResponseProcessorTests
             CompanyIdentification = fixture.Prenotification.CompanyIdentification,
             AchCycleId = fixture.Prenotification.AchCycleId,
             AchBatchId = fixture.Prenotification.AchBatchId,
-            EffectiveEntryDate = fixture.Prenotification.EffectiveEntryDate,
+            EffectiveEntryDate = fixture.Prenotification.EffectiveEntryDate.AddDays(1),
             Direction = AchTransactionDirection.Outgoing,
             Origin = AchTransactionOrigin.Cfa,
             ClassificationStatus = AchTransactionClassificationStatus.Determined,

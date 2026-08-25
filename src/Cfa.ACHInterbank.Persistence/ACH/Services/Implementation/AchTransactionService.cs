@@ -134,8 +134,6 @@ public class AchTransactionService : IAchTransactionService
 
         await executionStrategy.ExecuteAsync(async () =>
         {
-            await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
-
             await EnsureCustomerAndAccountsAsync(request, ct);
 
             var batchContext = await _batchResolver.ResolveAsync(request, ct);
@@ -152,6 +150,7 @@ public class AchTransactionService : IAchTransactionService
 
             batchContext = batchContext with { Classification = classification };
             var persisted = await _transactionPersister.PersistAsync(request, batchContext, ct);
+            await using var dbTransaction = await _context.Database.BeginTransactionAsync(ct);
 
             if (batchContext.MustQueueForTargetCycle && _cenitCycleQueueService is not null)
             {

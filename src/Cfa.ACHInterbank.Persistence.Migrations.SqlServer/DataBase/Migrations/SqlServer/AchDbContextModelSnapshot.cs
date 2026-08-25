@@ -4525,11 +4525,12 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.HasIndex("SourceInstitutionId");
 
-                    b.HasIndex("TraceNumber")
-                        .HasDatabaseName("IX_AchTransactions_TraceNumber");
-
                     b.HasIndex("TransactionExternalId")
                         .HasDatabaseName("IX_AchTransactions_TransactionExternalId");
+
+                    b.HasIndex("EffectiveEntryDate", "TraceNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchTransactions_EffectiveEntryDate_TraceNumber");
 
                     b.HasIndex("MonetaryIntegrationRoute", "State")
                         .HasDatabaseName("IX_AchTransactions_MonetaryRoute_State");
@@ -4537,7 +4538,10 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("Direction", "ClassificationStatus", "CreatedAt")
                         .HasDatabaseName("IX_AchTransactions_Direction_Classification_CreatedAt");
 
-                    b.ToTable("AchTransactions", (string)null);
+                    b.ToTable("AchTransactions", null, t =>
+                        {
+                            t.HasTrigger("TR_AchTransactions_SyncTraceSequence");
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionAddenda", b =>
@@ -4685,6 +4689,40 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.HasIndex("AchTransactionId", "OccurredAtUtc");
 
                     b.ToTable("AchTransactionStateEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionTraceSequence", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("LastAssignedValue")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OriginatingDfi")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateOnly>("SequenceDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OriginatingDfi", "SequenceDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AchTransactionTraceSequence_Dfi_Date");
+
+                    b.ToTable("AchTransactionTraceSequences", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AchTransactionTraceSequence_LastAssignedValue", "\"LastAssignedValue\" >= 0 AND \"LastAssignedValue\" <= 6999999");
+                        });
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionTypePolicy", b =>

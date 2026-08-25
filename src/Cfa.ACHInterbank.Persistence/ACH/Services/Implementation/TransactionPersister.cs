@@ -47,21 +47,12 @@ public class TransactionPersister : ITransactionPersister
             throw new InvalidOperationException("Error Fatal ID 7: el segmento de entidad del número de secuencia (posiciones 88-95) debe ser un código originador de 8 dígitos numéricos.");
         }
 
-        var processingDate = context.EffectiveEntryDate.Date;
-        int nextSeq = await _transactionRepository.GetMaxTraceSequenceAsync(processingDate, traceOriginatingDfi, ct) ?? 0;
-        nextSeq++;
-
-        if (nextSeq > 6_999_999)
-        {
-            throw new InvalidOperationException("Error Fatal ID 7: el consecutivo diario excede el máximo permitido (6999999). El rango 7000001-9999999 está reservado para PSE.");
-        }
-
-        var duplicateSequenceExists = await _transactionRepository.ExistsTraceSequenceAsync(processingDate, traceOriginatingDfi, nextSeq, ct);
-
-        if (duplicateSequenceExists)
-        {
-            throw new InvalidOperationException($"Error Fatal ID 7: el consecutivo diario {nextSeq:0000000} ya fue utilizado para la entidad originadora {traceOriginatingDfi} en la fecha de proceso {processingDate:yyyy-MM-dd}.");
-        }
+        var processingDate = DateOnly.FromDateTime(context.EffectiveEntryDate);
+        int nextSeq = await _transactionRepository.AllocateNextTraceSequenceAsync(
+            processingDate,
+            traceOriginatingDfi,
+            DateTime.UtcNow,
+            ct);
 
         string traceNumber = $"{traceOriginatingDfi}{nextSeq.ToString().PadLeft(7, '0')}";
 

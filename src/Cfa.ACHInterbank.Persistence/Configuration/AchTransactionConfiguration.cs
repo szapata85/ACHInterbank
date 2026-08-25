@@ -10,7 +10,8 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
 {
     public void Configure(EntityTypeBuilder<AchTransaction> builder)
     {
-        builder.ToTable("AchTransactions");
+        builder.ToTable("AchTransactions", table =>
+            table.HasTrigger("TR_AchTransactions_SyncTraceSequence"));
 
         builder.HasKey(t => t.Id);
 
@@ -78,7 +79,9 @@ public class AchTransactionConfiguration : IEntityTypeConfiguration<AchTransacti
             .HasMaxLength(20);
 
         builder.HasIndex(t => t.CompanyEntryDescriptionId);
-        builder.HasIndex(t => t.TraceNumber).HasDatabaseName("IX_AchTransactions_TraceNumber");
+        builder.HasIndex(t => new { t.EffectiveEntryDate, t.TraceNumber })
+            .IsUnique()
+            .HasDatabaseName("UX_AchTransactions_EffectiveEntryDate_TraceNumber");
         builder.HasIndex(t => t.TransactionExternalId).HasDatabaseName("IX_AchTransactions_TransactionExternalId");
         builder.HasIndex(t => new { t.Direction, t.ClassificationStatus, t.CreatedAt })
             .HasDatabaseName("IX_AchTransactions_Direction_Classification_CreatedAt");

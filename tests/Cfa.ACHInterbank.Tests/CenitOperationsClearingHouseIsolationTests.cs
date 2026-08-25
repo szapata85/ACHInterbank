@@ -158,6 +158,8 @@ public sealed class CenitOperationsClearingHouseIsolationTests
         Amount = 100m,
         Type = TransactionTypeEnum.Credit,
         TransactionCode = "22",
+        TraceNumber = $"00001007{id:D7}",
+        TraceSequenceNumber = id,
         EffectiveEntryDate = new DateTime(2026, 7, 18),
         State = AchTransferStateEnum.Pending,
         StateChangedAtUtc = new DateTime(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc),

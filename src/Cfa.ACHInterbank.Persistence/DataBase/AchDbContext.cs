@@ -44,6 +44,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<ClearingHouse> ClearingHouses { get; set; }
     public DbSet<AchCycle> AchCycles { get; set; }
     public DbSet<AchTransaction> AchTransactions { get; set; }
+    public DbSet<AchTransactionTraceSequence> AchTransactionTraceSequences => Set<AchTransactionTraceSequence>();
     public DbSet<AchTransactionAddenda> AchTransactionAddendas { get; set; }
     public DbSet<AchTransactionStateEvent> AchTransactionStateEvents { get; set; }
     public DbSet<FinancialInstitution> FinancialInstitutions { get; set; }
