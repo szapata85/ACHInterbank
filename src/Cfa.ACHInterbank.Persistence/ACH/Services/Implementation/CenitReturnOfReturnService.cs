@@ -1,5 +1,6 @@
 using System.Globalization;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -15,7 +16,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public sealed class CenitReturnOfReturnService(
     AchDbContext context,
     IAchRegulatoryCatalogService regulatoryCatalogService,
-    IAchReturnTraceSequenceService returnTraceSequenceService,
+    IAchTransactionRepository transactionRepository,
     IAchReturnGenerationLockService returnGenerationLockService,
     IOperationalCalendarService operationalCalendarService,
     ICycleNumberResolver? cycleNumberResolver = null) : ICenitReturnOfReturnService
@@ -83,12 +84,17 @@ public sealed class CenitReturnOfReturnService(
         var targetCycle = await context.AchCycles.SingleAsync(x => x.Id == request.ReturnCycleId, ct);
 
         var participant = Digits(original.OriginatingDFI, 8);
-        var sequenceDate = DateOnly.FromDateTime(request.RequestedAtUtc.Date);
-        var range = await returnTraceSequenceService.ReserveRangeAsync(participant, sequenceDate, 1, request.RequestedAtUtc, ct);
-        var trace = $"{participant}{range.StartValue:0000000}";
+        var effectiveEntryDate = targetCycle.ProcessingDate.Date;
+        var sequenceDate = DateOnly.FromDateTime(effectiveEntryDate);
+        var sequence = await transactionRepository.AllocateNextTraceSequenceAsync(
+            sequenceDate,
+            participant,
+            request.RequestedAtUtc,
+            ct);
+        var trace = $"{participant}{sequence:0000000}";
         var ror = CloneAsRor(original, trace, reason, request.RequestedAtUtc, AchTransactionDirection.Outgoing, AchTransactionOrigin.Cfa);
         ror.AchCycleId = targetCycle.Id;
-        ror.EffectiveEntryDate = targetCycle.ProcessingDate.Date;
+        ror.EffectiveEntryDate = effectiveEntryDate;
         ror.TransactionCode = sourceArtifact.EntryDetail.TransactionCode?.Trim() ?? string.Empty;
         ror.OriginalTraceRef = sourceArtifact.AddendaRecord.OriginalTraceNumber?.Trim() ?? original.TraceNumber;
 

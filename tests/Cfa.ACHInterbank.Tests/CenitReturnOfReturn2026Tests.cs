@@ -1,6 +1,7 @@
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Services;
@@ -187,9 +188,9 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
-        var sequence = new Mock<IAchReturnTraceSequenceService>();
-        sequence.Setup(x => x.ReserveRangeAsync("87654321", It.IsAny<DateOnly>(), 1, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnTraceRange(1, 1));
+        var sequence = new Mock<IAchTransactionRepository>();
+        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 16), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
         var sut = new CenitReturnOfReturnService(context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
 
         var outResult = await sut.CreateOutgoingAsync(new(1001, "R60", "C4", new DateTime(2026, 8, 16, 10, 0, 0, DateTimeKind.Utc)));
@@ -225,7 +226,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
-        var rorService = new CenitReturnOfReturnService(context, regulatory.Object, Mock.Of<IAchReturnTraceSequenceService>(), new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
+        var rorService = new CenitReturnOfReturnService(context, regulatory.Object, Mock.Of<IAchTransactionRepository>(), new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
         var dispatch = new Mock<IIncomingNachaDispatchPlanner>();
         dispatch.Setup(x => x.PlanForIngestionAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(0);
         var stateTransitions = new AchStateTransitionService(context);
@@ -308,7 +309,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
-        var sut = new CenitReturnOfReturnService(context, regulatory.Object, Mock.Of<IAchReturnTraceSequenceService>(), new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
+        var sut = new CenitReturnOfReturnService(context, regulatory.Object, Mock.Of<IAchTransactionRepository>(), new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
 
         var result = await sut.IngestIncomingAsync(new(
             2001, original.Id, "C4", "R63", "21", "123456780000555", original.TraceNumber,
@@ -330,7 +331,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
-        var sequence = new Mock<IAchReturnTraceSequenceService>(MockBehavior.Strict);
+        var sequence = new Mock<IAchTransactionRepository>(MockBehavior.Strict);
         var sut = new CenitReturnOfReturnService(
             context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
 
@@ -361,7 +362,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
         var calendar = new Mock<IOperationalCalendarService>();
         calendar.Setup(x => x.GetNextBusinessDayAsync(new DateOnly(2026, 8, 17), 7001, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DateOnly(2026, 8, 17));
-        var sequence = new Mock<IAchReturnTraceSequenceService>(MockBehavior.Strict);
+        var sequence = new Mock<IAchTransactionRepository>(MockBehavior.Strict);
         var sut = new CenitReturnOfReturnService(
             context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), calendar.Object);
 
@@ -386,7 +387,7 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
             Status = "Applied"
         });
         await context.SaveChangesAsync();
-        var sequence = new Mock<IAchReturnTraceSequenceService>(MockBehavior.Strict);
+        var sequence = new Mock<IAchTransactionRepository>(MockBehavior.Strict);
         var sut = new CenitReturnOfReturnService(
             context,
             Mock.Of<IAchRegulatoryCatalogService>(),
@@ -412,15 +413,15 @@ public sealed class CenitReturnOfReturn2026Tests : IClassFixture<OfficialNachaGe
                 It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, null, true));
-        var sequence = new Mock<IAchReturnTraceSequenceService>();
-        sequence.Setup(x => x.ReserveRangeAsync("87654321", It.IsAny<DateOnly>(), 1, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnTraceRange(7, 7));
+        var sequence = new Mock<IAchTransactionRepository>();
+        sequence.Setup(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 16), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(7);
         var service = new CenitReturnOfReturnService(context, regulatory.Object, sequence.Object, new AchReturnGenerationLockService(), Mock.Of<IOperationalCalendarService>());
         var created = await service.CreateOutgoingAsync(new(1001, "R60", "C4", new DateTime(2026, 8, 16, 12, 0, 0, DateTimeKind.Utc)));
         var duplicate = await service.CreateOutgoingAsync(new(1001, "R60", "C4", new DateTime(2026, 8, 16, 12, 1, 0, DateTimeKind.Utc)));
         created.IsSuccessful.Should().BeTrue();
         duplicate.WasDuplicate.Should().BeTrue();
-        sequence.Verify(x => x.ReserveRangeAsync("87654321", It.IsAny<DateOnly>(), 1, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+        sequence.Verify(x => x.AllocateNextTraceSequenceAsync(new DateOnly(2026, 8, 16), "87654321", It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
 
         var naming = new Mock<IExternalFileNamePolicy>();
         naming.Setup(x => x.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))

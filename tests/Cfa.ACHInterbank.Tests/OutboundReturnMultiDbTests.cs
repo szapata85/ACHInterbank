@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
+using Cfa.ACHInterbank.Persistence.ACH.Repositories.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.ExternalFileNames;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
@@ -784,11 +785,16 @@ public sealed class OutboundReturnMultiDbTests
             {
                 var flows = await context.ReturnOfReturnFlows.AsNoTracking().Where(x => x.OriginalTransactionId == originalId).ToListAsync();
                 flows.Should().HaveCount(2);
-                flows.Should().ContainSingle(x => x.Direction == "Out" && x.ParentIncomingReturnStateEventId == parentEventId);
+                var outgoingFlow = flows.Should().ContainSingle(x => x.Direction == "Out" && x.ParentIncomingReturnStateEventId == parentEventId).Subject;
                 flows.Should().ContainSingle(x => x.Direction == "In" && x.ParentOutgoingReturnGeneratedId == parentGeneratedId);
-                var rorCounter = await context.AchReturnTraceSequences.AsNoTracking().SingleAsync(x =>
-                    x.ParticipantDfi == "91000001" && x.SequenceDate == DateOnly.FromDateTime(when));
-                rorCounter.LastAssignedValue.Should().Be(1);
+                var ror = await context.AchTransactions.AsNoTracking().SingleAsync(x => x.Id == outgoingFlow.ReturnOfReturnTransactionId);
+                ror.TraceNumber.Should().Be("910000010000002");
+                ror.TraceSequenceNumber.Should().Be(2);
+                ror.EffectiveEntryDate.Should().Be(scenario.ProcessingDate);
+                ror.OriginalTraceRef.Should().Be("910000010000001");
+                var transactionCounter = await context.AchTransactionTraceSequences.AsNoTracking().SingleAsync(x =>
+                    x.OriginatingDfi == "91000001" && x.SequenceDate == DateOnly.FromDateTime(ror.EffectiveEntryDate));
+                transactionCounter.LastAssignedValue.Should().Be(2);
             }
 
             CenitReturnOfReturnService CreateRorService(AchDbContext context)
@@ -801,7 +807,7 @@ public sealed class OutboundReturnMultiDbTests
                 return new CenitReturnOfReturnService(
                     context,
                     regulatory.Object,
-                    new AchReturnTraceSequenceService(context),
+                    new AchTransactionRepository(context),
                     new AchReturnGenerationLockService(),
                     new OperationalCalendarService(context));
             }
