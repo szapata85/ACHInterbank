@@ -15,6 +15,7 @@ public class AchCycleScheduler : IAchCycleScheduler
     private readonly TimeProvider _timeProvider;
     private readonly IOperationalCycleWindowResolver _windowResolver;
     private readonly IOperationalCalendarService _calendar;
+    private readonly IClearingHouseCyclePolicyResolver _cyclePolicyResolver;
 
     public AchCycleScheduler(AchDbContext context,
                              IBankHoliday holidayService,
@@ -22,7 +23,8 @@ public class AchCycleScheduler : IAchCycleScheduler
                              ICenitOperatingCalendarPolicy cenitCalendarPolicy,
                              TimeProvider? timeProvider = null,
                              IOperationalCycleWindowResolver? windowResolver = null,
-                             IOperationalCalendarService? calendar = null)
+                             IOperationalCalendarService? calendar = null,
+                             IClearingHouseCyclePolicyResolver? cyclePolicyResolver = null)
     {
         _context = context;
         _ = holidayService;
@@ -31,6 +33,8 @@ public class AchCycleScheduler : IAchCycleScheduler
         _timeProvider = timeProvider ?? TimeProvider.System;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
         _calendar = calendar ?? new OperationalCalendarService(context);
+        _cyclePolicyResolver = cyclePolicyResolver
+            ?? new ClearingHouseCyclePolicyResolver(context, new Cfa.ACHInterbank.Application.ACH.Services.CycleNumberResolver());
     }
 
     public async Task ScheduleCyclesForClearingHouseAsync(int clearingHouseId)
@@ -78,11 +82,13 @@ public class AchCycleScheduler : IAchCycleScheduler
         if (clearingHouse == null)
             throw new InvalidOperationException("Clearing house not found");
 
-        // 🔹 Obtener configuración vigente por nombre para la fecha de procesamiento
-        List<ClearingHouseCycleConfig> cycles = await GetEffectiveCycleConfigurationsAsync(clearingHouse.Id, processingDate, CancellationToken.None);
-
         await _cenitCalendarPolicy.ValidateCycleConsistencyAsync(clearingHouse.Id, processingDate, CancellationToken.None);
 
+        var policy = await _cyclePolicyResolver.ResolveAsync(
+            clearingHouse.Id,
+            processingDate,
+            CancellationToken.None);
+        var cycles = policy.Cycles;
 
 
         if (!await _calendar.IsBusinessDayAsync(
@@ -111,6 +117,7 @@ public class AchCycleScheduler : IAchCycleScheduler
                     StartTime = cfg.StartTime,
                     EndTime = cfg.EndTime,
                     CutoffTime = cfg.CutoffTime,
+                    OutputReleaseTime = cfg.OutputReleaseTime,
                     RescheduleOnHoliday = true,
                     ClearingHouseCycleConfigId = cfg.Id
                 });
@@ -119,40 +126,6 @@ public class AchCycleScheduler : IAchCycleScheduler
 
         await _context.SaveChangesAsync();
     }
-
-    private async Task<List<ClearingHouseCycleConfig>> GetEffectiveCycleConfigurationsAsync(
-        int clearingHouseId,
-        DateTime processingDate,
-        CancellationToken ct)
-    {
-        var processingUtcDate = DateTime.SpecifyKind(processingDate.Date, DateTimeKind.Utc);
-
-        // Nota: evitamos GroupBy(...).Select(First()) directo sobre EF/Npgsql
-        // porque puede disparar fallos de traducción/proyección (p.ej. EmptyProjectionMember).
-        var candidates = await _context.ClearingHouseCycleConfigs
-            .AsNoTracking()
-            .Where(cfg => cfg.ClearingHouseId == clearingHouseId &&
-                          cfg.IsActive &&
-                          cfg.EffectiveFrom.Date <= processingUtcDate.Date &&
-                          (!cfg.EffectiveTo.HasValue || cfg.EffectiveTo.Value.Date >= processingUtcDate.Date))
-            .ToListAsync(ct);
-
-        var groups = candidates
-            .GroupBy(cfg => cfg.CycleName.Trim(), StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var ambiguous = groups.FirstOrDefault(group => group.Count() > 1);
-        if (ambiguous is not null)
-        {
-            throw new InvalidOperationException(
-                $"Existen configuraciones activas superpuestas para el ciclo '{ambiguous.Key}'.");
-        }
-
-        return groups
-            .Select(g => g.Single())
-            .OrderBy(cfg => cfg.CutoffTime)
-            .ToList();
-    }
-
 
     public async Task<List<AchCycle>> GetScheduledCyclesAsync(int clearingHouseId, DateTime date)
     {

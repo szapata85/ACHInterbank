@@ -8,6 +8,7 @@ public class AchCycleDto
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
     public TimeSpan CutoffTime { get; set; }
+    public TimeSpan OutputReleaseTime { get; set; }
     public bool RescheduleOnHoliday { get; set; }
     public int ClearingHouseId { get; set; }
     public int? ClearingHouseCycleConfigId { get; set; }

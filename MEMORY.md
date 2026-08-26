@@ -29,7 +29,7 @@ REPOSITORY_HEAD: 36af8b1c61ae72c766446c01ecb9ebc0b7c79838
 ### ACH Colombia
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: RET-GAP-019, OPS-GAP-002; shared OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
+ACTIVE_GAPS: RET-GAP-019, OPS-GAP-002; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
 
 ORDINARY_STATE: PARTIAL. ProcContrapartidas/ProcTransacciones, persistence, duplicate policy, and manual export/upload paths exist. Four explicit published ACH Colombia V35 ordinary profiles cover original/prenotification, inbound/outbound, and credit/debit variants; generation and parsing request version 35.0 and fail closed on missing, ambiguous, unsupported-version, direction, or family selection. Automatic MFT handoff/reception remains absent.
 RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 remains the only open Returns-specific item.
@@ -37,7 +37,7 @@ RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED.
 ### CENIT
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: CENIT-FORMAT-NACHAM, OPS-GAP-003, OPS-GAP-004; shared OPS-GAP-006, NACHA-RULE-METADATA, and RET-GAP-018 also apply.
+ACTIVE_GAPS: CENIT-FORMAT-NACHAM, OPS-GAP-003, OPS-GAP-004; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
 
 ORDINARY_STATE: PARTIAL, with production transport BLOCKED. The May 7, 2026 NACHA-M specification is authoritative and sufficient for local format implementation. Ordinary original/prenotification profiles remain placeholder, non-homologated, and output-only; current HEAD deliberately blocks CENIT LIVE generation pending implementation and external homologation. No Gateway/PO handoff receiver or ACK/NACK/operator-rejection lifecycle is wired.
 RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, differential-response, and managed Return transport capabilities remain CLOSED.
@@ -45,10 +45,10 @@ RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, 
 ### Shared
 
 STATUS: INCOMPLETE for production operational scope
-ACTIVE_GAPS: OPS-GAP-006, NACHA-RULE-METADATA, RET-GAP-018
+ACTIVE_GAPS: NACHA-RULE-METADATA, RET-GAP-018
 
-COMPLETED_CORE: DB-first incoming duplicate handling, API duplicate policy, classification/audit convergence, clearing-house isolation, local SOAP dispatch for ProcContrapartidas and ProcTransacciones, non-monetary idempotent RegistrarRespuestaTransaccion, variable cycle-count creation, Quartz runtime/administration, atomic external filename reservation, and atomic cross-provider transaction trace allocation.
-RESIDUAL: Cycle stage/eligibility policy is only partially configurable; chamber-specific NACHA policy/snapshots remain in code; unified durable lineage remains partial.
+COMPLETED_CORE: DB-first incoming duplicate handling, API duplicate policy, classification/audit convergence, clearing-house isolation, local SOAP dispatch for ProcContrapartidas and ProcTransacciones, non-monetary idempotent RegistrarRespuestaTransaccion, variable cycle-count creation, versioned chamber-specific cycle stages and transaction eligibility, Quartz runtime/administration, atomic external filename reservation, and atomic cross-provider transaction trace allocation.
+RESIDUAL: Chamber-specific NACHA policy/snapshots remain in code; unified durable lineage remains partial.
 
 ## Active Functional Backlog
 
@@ -63,7 +63,7 @@ STABILIZATION: V35 Type-7 compatibility regression fixed by 6830260fbad6d5f9673b
 
 ### OPS-GAP-002
 
-STATUS: MISSING
+STATUS: MISSING — UNBLOCKED FROM OPS-GAP-006 DEPENDENCY
 SCOPE: ACH Colombia / ordinary / bidirectional / managed MFT handoff and reception
 CANONICAL_KEY: ORDINARY/ACHCOL/BIDIRECTIONAL/TRANSPORT/MFT_HANDOFF_RECEPTION
 REQUIRED: Automate cycle-qualified generation, envelope creation, atomic CFA-managed handoff, inbound pickup/decryption/verification, archive, retry, duplicate protection, result correlation, and monitoring. The enterprise MFT/SFTP product remains external.
@@ -95,10 +95,13 @@ EVIDENCE: Core commit 4eff8e7; CENIT ROR correction 872d356; Release build 0 err
 
 ### OPS-GAP-006
 
-STATUS: PARTIAL
+STATUS: CLOSED
 SCOPE: Shared / clearing-house cycle policy and runtime consumption
 CANONICAL_KEY: ORDINARY/SHARED/BIDIRECTIONAL/CYCLE_POLICY/OPERATIONAL_STAGES_ELIGIBILITY
-REQUIRED: Version and administer the chamber-specific operational stages/cutoffs and allowed transaction classes consumed by assignment, validation, Quartz, generation, dispatch, and transport. Arbitrary cycle counts already work and must remain data-driven.
+DECISION: ClearingHouseCycleConfig is the single effective-dated, timezone-resolved chamber policy. Each version owns arbitrary cycles, open/input-cutoff/processing-close/output-release stages, and eligibility for monetary credit/debit, credit/debit prenotification, Return, and Return-of-Return. Resolution rejects missing, overlapping, ambiguous, invalid-timezone, duplicate-cycle, or invalid-stage policies.
+CONSUMERS: Transaction creation/validation, outbound assignment, inbound resolution/queue execution, NACHA generation, ProcContrapartidas and ProcTransacciones dispatch, Return-of-Return generation, and Quartz synchronization consume the authoritative policy or its scheduled cycle snapshot.
+EVIDENCE: Release build 8 projects/0 errors/0 warnings; impacted backend regression 242/242; scheduler 5/5; Angular administration 9/9 and production build succeeded; PostgreSQL and SQL Server migration/model checks and fresh-database persistence tests 1/1 each. Runtime resolver proof held ACHCOL ACH-V1 with 7 cycles and Cycle 1 Return allowed simultaneously with CENIT CENIT-V1 with 5 cycles and Cycle 1 Return denied; effective-version and timezone boundaries were deterministic.
+DEPENDENCY: OPS-GAP-002 is unblocked from the OPS-GAP-006 dependency perspective; it remains a separate unimplemented gap.
 
 ### CENIT-FORMAT-NACHAM
 
@@ -255,6 +258,8 @@ EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation
 ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
 
 ## Recent Sessions
+- 2026-08-25: OPS-GAP-006 CLOSED with effective-dated chamber-isolated cycle stages and transaction eligibility consumed by validation, resolution, generation, dispatch, and Quartz; PostgreSQL, SQL Server, backend, and Angular evidence passed.
+
 - 2026-08-24: OPS-GAP-005 CLOSED with provider-native atomic daily trace allocation, database uniqueness enforcement, and clean PostgreSQL/SQL Server two-replica proofs of 100/100 persisted distinct traces.
 
 - 2026-08-24: OPS-GAP-001 remains CLOSED after V35 Type-7 parser stabilization and test-only legacy Type-99 fixture alignment; GitHub dotnet-ci run 32777030756 was fully green.

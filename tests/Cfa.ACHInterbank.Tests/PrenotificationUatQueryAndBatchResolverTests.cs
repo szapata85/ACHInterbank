@@ -83,6 +83,20 @@ public class PrenotificationUatQueryAndBatchResolverTests
             PaymentRailCode = "ACH_COLOMBIA"
         };
         var clearingHouse = new ClearingHouse { Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "000101006", ClearingHouseId = 10 };
+        var cycleConfig = new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 1,
+            PolicyVersion = "ACH-V35-TEST",
+            CycleName = "Ciclo 5",
+            StartTime = new TimeSpan(16, 1, 0),
+            EndTime = new TimeSpan(18, 0, 0),
+            CutoffTime = new TimeSpan(18, 0, 0),
+            OutputReleaseTime = new TimeSpan(19, 0, 0),
+            AllowsMonetaryDebit = false,
+            EffectiveFrom = new DateTime(2026, 8, 4),
+            EffectiveTo = new DateTime(2026, 8, 4),
+            IsActive = true
+        };
         var cycle = new AchCycle
         {
             Id = "cycle-five",
@@ -91,11 +105,14 @@ public class PrenotificationUatQueryAndBatchResolverTests
             StartTime = new TimeSpan(16, 1, 0),
             EndTime = new TimeSpan(18, 0, 0),
             CutoffTime = new TimeSpan(18, 0, 0),
+            OutputReleaseTime = new TimeSpan(19, 0, 0),
             ClearingHouseId = 1,
-            ClearingHouse = clearingHouse
+            ClearingHouse = clearingHouse,
+            ClearingHouseCycleConfig = cycleConfig
         };
         context.ClearingHouseConfigs.Add(clearingHouseConfig);
         context.ClearingHouses.Add(clearingHouse);
+        context.ClearingHouseCycleConfigs.Add(cycleConfig);
         context.AchCycles.Add(cycle);
         context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = 1, Term = "PAGOS PSE", IsActive = true });
         var defaultSource = new FinancialInstitution { Id = 34, Name = "Cooperativa Financiera de Antioquia", RoutingNumber = "00001", TransitCode = "283", IsDefaultSource = true, Status = FinancialInstitutionStatus.Active };

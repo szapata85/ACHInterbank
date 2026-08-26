@@ -20,6 +20,7 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -64,6 +65,13 @@ type CycleEditorForm = FormGroup<{
   startTime: FormControl<string>;
   endTime: FormControl<string>;
   cutoffTime: FormControl<string>;
+  outputReleaseTime: FormControl<string>;
+  allowsMonetaryCredit: FormControl<boolean>;
+  allowsMonetaryDebit: FormControl<boolean>;
+  allowsCreditPrenotification: FormControl<boolean>;
+  allowsDebitPrenotification: FormControl<boolean>;
+  allowsReturn: FormControl<boolean>;
+  allowsReturnOfReturn: FormControl<boolean>;
   effectiveFrom: FormControl<Date | null>;
 }>;
 
@@ -77,6 +85,7 @@ type CycleEditorForm = FormGroup<{
     ClearingHouseContextNavigationComponent,
     MatButtonModule,
     MatCardModule,
+    MatCheckboxModule,
     MatChipsModule,
     MatDatepickerModule,
     MatNativeDateModule,
@@ -117,7 +126,7 @@ export class CycleConfigManagementComponent {
   private readonly destroyRef = inject(DestroyRef);
   editorRef?: MatDialogRef<unknown>;
 
-  readonly displayedColumns = ['cycle', 'window', 'cutoff', 'validity', 'state', 'updated', 'actions'];
+  readonly displayedColumns = ['cycle', 'window', 'cutoff', 'release', 'eligibility', 'validity', 'state', 'updated', 'actions'];
   readonly dataSource = new MatTableDataSource<ClearingHouseCycleConfigItem>([]);
   readonly canManage = this.auth.hasPermission('ClearingHouses.ManageCycles');
   readonly canReadPolicies = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
@@ -148,6 +157,16 @@ export class CycleConfigManagementComponent {
       nonNullable: true,
       validators: [Validators.required, timeValidator]
     }),
+    outputReleaseTime: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, timeValidator]
+    }),
+    allowsMonetaryCredit: new FormControl(true, { nonNullable: true }),
+    allowsMonetaryDebit: new FormControl(true, { nonNullable: true }),
+    allowsCreditPrenotification: new FormControl(true, { nonNullable: true }),
+    allowsDebitPrenotification: new FormControl(true, { nonNullable: true }),
+    allowsReturn: new FormControl(true, { nonNullable: true }),
+    allowsReturnOfReturn: new FormControl(true, { nonNullable: true }),
     effectiveFrom: new FormControl<Date | null>(today(), Validators.required)
   }, { validators: cycleWindowValidator });
 
@@ -292,6 +311,13 @@ export class CycleConfigManagementComponent {
       startTime: '',
       endTime: '',
       cutoffTime: '',
+      outputReleaseTime: '',
+      allowsMonetaryCredit: true,
+      allowsMonetaryDebit: true,
+      allowsCreditPrenotification: true,
+      allowsDebitPrenotification: true,
+      allowsReturn: true,
+      allowsReturnOfReturn: true,
       effectiveFrom: today()
     });
     this.openEditor();
@@ -305,6 +331,13 @@ export class CycleConfigManagementComponent {
       startTime: this.time(item.startTime),
       endTime: this.time(item.endTime),
       cutoffTime: this.time(item.cutoffTime),
+      outputReleaseTime: this.time(item.outputReleaseTime),
+      allowsMonetaryCredit: item.allowsMonetaryCredit,
+      allowsMonetaryDebit: item.allowsMonetaryDebit,
+      allowsCreditPrenotification: item.allowsCreditPrenotification,
+      allowsDebitPrenotification: item.allowsDebitPrenotification,
+      allowsReturn: item.allowsReturn,
+      allowsReturnOfReturn: item.allowsReturnOfReturn,
       effectiveFrom: today()
     });
     this.openEditor();
@@ -328,6 +361,13 @@ export class CycleConfigManagementComponent {
       startTime: this.apiTime(value.startTime),
       endTime: this.apiTime(value.endTime),
       cutoffTime: this.apiTime(value.cutoffTime),
+      outputReleaseTime: this.apiTime(value.outputReleaseTime),
+      allowsMonetaryCredit: value.allowsMonetaryCredit,
+      allowsMonetaryDebit: value.allowsMonetaryDebit,
+      allowsCreditPrenotification: value.allowsCreditPrenotification,
+      allowsDebitPrenotification: value.allowsDebitPrenotification,
+      allowsReturn: value.allowsReturn,
+      allowsReturnOfReturn: value.allowsReturnOfReturn,
       effectiveFrom: `${this.apiDate(value.effectiveFrom)}T00:00:00Z`
     };
 
@@ -516,11 +556,23 @@ function cycleWindowValidator(control: AbstractControl): ValidationErrors | null
   const start = control.get('startTime')?.value as string;
   const end = control.get('endTime')?.value as string;
   const cutoff = control.get('cutoffTime')?.value as string;
-  if (!start || !end || !cutoff || !/^([01]\d|2[0-3]):[0-5]\d$/.test(start + '') ||
-      !/^([01]\d|2[0-3]):[0-5]\d$/.test(end + '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(cutoff + '')) {
+  const release = control.get('outputReleaseTime')?.value as string;
+  if (!start || !end || !cutoff || !release || !/^([01]\d|2[0-3]):[0-5]\d$/.test(start + '') ||
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(end + '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(cutoff + '') ||
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(release + '')) {
     return null;
   }
-  if (start >= end) return { timeOrder: true };
-  if (cutoff < start || cutoff > end) return { cutoffOutside: true };
+  if (start === end) return { timeOrder: true };
+  const closeOffset = stageOffset(start, end);
+  if (stageOffset(start, cutoff) > closeOffset) return { cutoffOutside: true };
+  if (stageOffset(start, release) < closeOffset) return { releaseBeforeClose: true };
   return null;
+}
+
+function stageOffset(open: string, value: string): number {
+  const [openHour, openMinute] = open.split(':').map(Number);
+  const [valueHour, valueMinute] = value.split(':').map(Number);
+  const openMinutes = openHour * 60 + openMinute;
+  const valueMinutes = valueHour * 60 + valueMinute;
+  return valueMinutes >= openMinutes ? valueMinutes - openMinutes : 1440 - openMinutes + valueMinutes;
 }

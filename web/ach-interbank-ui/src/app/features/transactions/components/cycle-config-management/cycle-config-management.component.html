@@ -106,8 +106,20 @@
               <td mat-cell *matCellDef="let row">{{ time(row.startTime) }} – {{ time(row.endTime) }}</td>
             </ng-container>
             <ng-container matColumnDef="cutoff">
-              <th mat-header-cell *matHeaderCellDef>Cutoff</th>
+              <th mat-header-cell *matHeaderCellDef>Corte de entrada</th>
               <td mat-cell *matCellDef="let row">{{ time(row.cutoffTime) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="release">
+              <th mat-header-cell *matHeaderCellDef>Salida</th>
+              <td mat-cell *matCellDef="let row">{{ time(row.outputReleaseTime) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="eligibility">
+              <th mat-header-cell *matHeaderCellDef>Clases habilitadas</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.allowsMonetaryCredit ? 'Crédito ' : '' }}{{ row.allowsMonetaryDebit ? 'Débito ' : '' }}
+                {{ row.allowsCreditPrenotification || row.allowsDebitPrenotification ? 'Prenot. ' : '' }}
+                {{ row.allowsReturn ? 'Devol. ' : '' }}{{ row.allowsReturnOfReturn ? 'Dev. de dev.' : '' }}
+              </td>
             </ng-container>
             <ng-container matColumnDef="validity">
               <th mat-header-cell *matHeaderCellDef>Vigencia</th>
@@ -150,7 +162,9 @@
           <article *ngFor="let row of dataSource.filteredData; trackBy: track">
             <header><div><strong>{{ row.cycleName }}</strong><span>{{ time(row.startTime) }} – {{ time(row.endTime) }}</span></div><mat-chip>{{ status(row) }}</mat-chip></header>
             <dl>
-              <div><dt>Cutoff</dt><dd>{{ time(row.cutoffTime) }}</dd></div>
+              <div><dt>Corte de entrada</dt><dd>{{ time(row.cutoffTime) }}</dd></div>
+              <div><dt>Liberación de salida</dt><dd>{{ time(row.outputReleaseTime) }}</dd></div>
+              <div><dt>Versión</dt><dd>{{ row.policyVersion }}</dd></div>
               <div><dt>Vigencia</dt><dd>{{ validityText(row) }}</dd></div>
               <div><dt>Última modificación</dt><dd>{{ row.updatedAt ? (row.updatedAt | date:'short') : 'No disponible' }}</dd></div>
             </dl>
@@ -192,10 +206,16 @@
           <mat-error *ngIf="form.controls.endTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Cutoff</mat-label>
+          <mat-label>Corte de entrada</mat-label>
           <input matInput type="time" formControlName="cutoffTime" />
           <mat-error *ngIf="form.controls.cutoffTime.hasError('required')">La hora de cutoff es obligatoria.</mat-error>
           <mat-error *ngIf="form.controls.cutoffTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Liberación de salida</mat-label>
+          <input matInput type="time" formControlName="outputReleaseTime" />
+          <mat-error *ngIf="form.controls.outputReleaseTime.hasError('required')">La hora de salida es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.outputReleaseTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Vigente desde</mat-label>
@@ -204,8 +224,18 @@
           <mat-datepicker #fromPicker></mat-datepicker>
           <mat-error *ngIf="form.controls.effectiveFrom.hasError('required')">La fecha de vigencia es obligatoria.</mat-error>
         </mat-form-field>
-        <p *ngIf="form.hasError('timeOrder')" class="form-error" role="alert">La hora inicial debe ser anterior a la hora final.</p>
+        <fieldset class="editor-form__wide eligibility-grid">
+          <legend>Clases de transacción habilitadas</legend>
+          <mat-checkbox formControlName="allowsMonetaryCredit">Crédito monetario</mat-checkbox>
+          <mat-checkbox formControlName="allowsMonetaryDebit">Débito monetario</mat-checkbox>
+          <mat-checkbox formControlName="allowsCreditPrenotification">Prenotificación crédito</mat-checkbox>
+          <mat-checkbox formControlName="allowsDebitPrenotification">Prenotificación débito</mat-checkbox>
+          <mat-checkbox formControlName="allowsReturn">Devolución</mat-checkbox>
+          <mat-checkbox formControlName="allowsReturnOfReturn">Devolución de devolución</mat-checkbox>
+        </fieldset>
+        <p *ngIf="form.hasError('timeOrder')" class="form-error" role="alert">La hora inicial y la hora final deben ser diferentes.</p>
         <p *ngIf="form.hasError('cutoffOutside')" class="form-error" role="alert">El cutoff debe estar dentro de la ventana operativa.</p>
+        <p *ngIf="form.hasError('releaseBeforeClose')" class="form-error" role="alert">La liberación de salida no puede ocurrir antes del cierre.</p>
         <p *ngIf="form.hasError('duplicate')" class="form-error" role="alert">Ya existe una versión de este ciclo con la misma fecha de inicio.</p>
         <p *ngIf="form.hasError('overlap')" class="form-error" role="alert">La vigencia se solapa con una versión histórica cerrada.</p>
         <p *ngIf="form.hasError('backend')" class="form-error" role="alert">{{ form.getError('backend') }}</p>
@@ -227,7 +257,7 @@
         <article *ngFor="let item of historyItems; trackBy: track">
           <mat-chip>{{ status(item) }}</mat-chip>
           <strong>{{ validityText(item) }}</strong>
-          <span>{{ time(item.startTime) }} – {{ time(item.endTime) }} · cutoff {{ time(item.cutoffTime) }}</span>
+          <span>{{ item.policyVersion }} · {{ time(item.startTime) }} – {{ time(item.endTime) }} · corte {{ time(item.cutoffTime) }} · salida {{ time(item.outputReleaseTime) }}</span>
         </article>
       </div>
     </mat-dialog-content>

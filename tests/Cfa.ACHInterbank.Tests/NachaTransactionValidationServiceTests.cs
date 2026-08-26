@@ -81,7 +81,7 @@ public sealed class NachaTransactionValidationServiceTests
         var exception = await Assert.ThrowsAsync<NachaGenerationException>(
             () => sut.ValidateTransactionsForSendAsync([transaction], CancellationToken.None));
 
-        Assert.Equal(CycleTransactionPolicy.OrdinaryDebitNotAllowedReasonCode, exception.Code);
+        Assert.Equal(CycleTransactionPolicy.NotAllowedReasonCode, exception.Code);
         Assert.Contains("Transacción 1", exception.UserMessage);
         Assert.Empty(context.AchFileExports);
         policy.Verify(x => x.ValidateForNachaExportAsync(It.IsAny<AchTransaction>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -164,6 +164,21 @@ public sealed class NachaTransactionValidationServiceTests
             OriginCode = "12345678",
             ClearingHouseId = 10
         });
+        var cycleConfig = new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 31,
+            PolicyVersion = "TEST-V1",
+            CycleName = cycleName,
+            StartTime = new TimeSpan(16, 1, 0),
+            EndTime = new TimeSpan(18, 0, 0),
+            CutoffTime = new TimeSpan(18, 0, 0),
+            OutputReleaseTime = new TimeSpan(19, 0, 0),
+            AllowsMonetaryDebit = clearingHouseCode != "ACHCOL",
+            EffectiveFrom = new DateTime(2026, 1, 1),
+            IsActive = true
+        };
+        context.ClearingHouseCycleConfigs.Add(cycleConfig);
+        await context.SaveChangesAsync();
         context.AchCycles.Add(new AchCycle
         {
             Id = "CYCLE-001",
@@ -172,7 +187,9 @@ public sealed class NachaTransactionValidationServiceTests
             StartTime = new TimeSpan(16, 1, 0),
             EndTime = new TimeSpan(18, 0, 0),
             CutoffTime = new TimeSpan(18, 0, 0),
-            ClearingHouseId = 31
+            OutputReleaseTime = new TimeSpan(19, 0, 0),
+            ClearingHouseId = 31,
+            ClearingHouseCycleConfigId = cycleConfig.Id
         });
         await context.SaveChangesAsync();
     }

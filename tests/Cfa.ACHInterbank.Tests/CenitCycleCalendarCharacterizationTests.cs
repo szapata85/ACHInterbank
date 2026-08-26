@@ -275,11 +275,11 @@ public class CenitCycleCalendarCharacterizationTests
 
     private static List<ClearingHouseCycleConfig> BuildFiveConsecutiveActiveConfigs(int clearingHouseId, DateTime effectiveFrom) =>
     [
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 1", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(19,1,0), EndTime = new TimeSpan(8,30,0), CutoffTime = new TimeSpan(8,30,0) },
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 2", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(8,31,0), EndTime = new TimeSpan(11,0,0), CutoffTime = new TimeSpan(11,0,0) },
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 3", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(11,1,0), EndTime = new TimeSpan(14,0,0), CutoffTime = new TimeSpan(14,0,0) },
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 4", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(14,1,0), EndTime = new TimeSpan(16,0,0), CutoffTime = new TimeSpan(16,0,0) },
-        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 5", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(16,1,0), EndTime = new TimeSpan(18,0,0), CutoffTime = new TimeSpan(18,0,0) }
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 1", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(19,1,0), EndTime = new TimeSpan(8,30,0), CutoffTime = new TimeSpan(8,30,0), OutputReleaseTime = new TimeSpan(8,30,0) },
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 2", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(8,31,0), EndTime = new TimeSpan(11,0,0), CutoffTime = new TimeSpan(11,0,0), OutputReleaseTime = new TimeSpan(11,0,0) },
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 3", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(11,1,0), EndTime = new TimeSpan(14,0,0), CutoffTime = new TimeSpan(14,0,0), OutputReleaseTime = new TimeSpan(14,0,0) },
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 4", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(14,1,0), EndTime = new TimeSpan(16,0,0), CutoffTime = new TimeSpan(16,0,0), OutputReleaseTime = new TimeSpan(16,0,0) },
+        new() { ClearingHouseId = clearingHouseId, CycleName = "Ciclo 5", IsActive = true, EffectiveFrom = effectiveFrom, StartTime = new TimeSpan(16,1,0), EndTime = new TimeSpan(18,0,0), CutoffTime = new TimeSpan(18,0,0), OutputReleaseTime = new TimeSpan(18,0,0) }
     ];
 
     private static void SeedClearingHouse(AchDbContext context, int clearingHouseId, string code)

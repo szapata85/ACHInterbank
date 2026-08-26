@@ -36,6 +36,7 @@ public class TransactionPolicyService : ITransactionPolicyService
         _timeProvider = timeProvider ?? TimeProvider.System;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
         _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
             new ClearingHouseToPaymentRailMapper(),
             new CycleNumberResolver());
     }
@@ -72,7 +73,7 @@ public class TransactionPolicyService : ITransactionPolicyService
         var resolvedWindow = _windowResolver.Resolve(
             cycle.ProcessingDate,
             cycle.StartTime,
-            cycle.EndTime,
+            cycle.CutoffTime,
             ClearingHouseOperationalTimeZone.Resolve(cycle),
             nowInstant);
         var window = (Start: resolvedWindow.LocalStart, End: resolvedWindow.LocalEnd);
@@ -80,18 +81,21 @@ public class TransactionPolicyService : ITransactionPolicyService
         if (!isWithinProcessingWindow)
         {
             return Reject(
-                $"La transacción está fuera de la ventana operativa del ciclo {cycle.CycleName} ({window.Start:yyyy-MM-dd HH:mm} - {window.End:yyyy-MM-dd HH:mm}).",
+                $"La transacción está fuera de la ventana de entrada del ciclo {cycle.CycleName} ({window.Start:yyyy-MM-dd HH:mm} - {window.End:yyyy-MM-dd HH:mm}).",
                 cycle,
                 window,
                 idempotencyKey: BuildIdempotencyKey(request, cycle.Id));
         }
 
-        var regulatoryDecision = _cycleTransactionPolicy.Evaluate(new CycleTransactionPolicyRequest(
+        var regulatoryDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+            cycle.ClearingHouseId,
+            cycle.ClearingHouseCycleConfigId,
+            cycle.ProcessingDate,
             cycle.ClearingHouse?.Code,
             cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
             cycle.CycleName,
             request.Type,
-            request.IsPrenotification));
+            request.IsPrenotification), ct);
         if (!regulatoryDecision.IsAllowed)
         {
             return Reject(

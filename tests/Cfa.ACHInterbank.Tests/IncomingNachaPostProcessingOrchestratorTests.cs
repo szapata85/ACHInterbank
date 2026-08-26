@@ -45,6 +45,39 @@ public class IncomingNachaPostProcessingOrchestratorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_CyclePolicyDisallowsTransaction_BlocksBeforeDispatch()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        var policy = new Mock<ICycleTransactionPolicy>();
+        policy.Setup(x => x.EvaluateAsync(It.IsAny<CycleTransactionPolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleTransactionPolicyResult(
+                false,
+                "CYCLE_TRANSACTION_NOT_ALLOWED",
+                "Clase no habilitada en el ciclo.",
+                "ACH",
+                1,
+                "MonetaryCredit"));
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = CreateOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            cycleTransactionPolicy: policy.Object);
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Blocked);
+        var queue = await context.IncomingNachaDispatchQueue.SingleAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, queue.QueueStatus);
+        Assert.Equal("CYCLE_TRANSACTION_NOT_ALLOWED", queue.LastErrorCode);
+        mapper.VerifyNoOtherCalls();
+        soap.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ConfirmsQueue_AndStoresIntegrationExecution_WhenSoapResponseIsSuccessful()
     {
         await using var context = BuildContext();
@@ -1155,7 +1188,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
         TimeProvider? timeProvider = null,
         IIncomingNachaAchResultResolver? achResultResolver = null,
         ICycleCalendarGuard? calendarGuard = null,
-        IOperationalCycleWindowResolver? windowResolver = null)
+        IOperationalCycleWindowResolver? windowResolver = null,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
         => new(
             context,
             mapper,
@@ -1173,7 +1207,8 @@ public class IncomingNachaPostProcessingOrchestratorTests
             timeProvider ?? TestSupport.TestClock.Create(),
             achResultResolver,
             calendarGuard,
-            windowResolver);
+            windowResolver,
+            cycleTransactionPolicy);
 
     private static void SeedDispatchItem(AchDbContext context)
     {

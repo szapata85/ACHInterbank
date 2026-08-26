@@ -59,10 +59,13 @@ public sealed class ClearingHouseMultiDbTests
         var config = new ClearingHouseCycleConfig
         {
             ClearingHouseId = house.Id,
+            PolicyVersion = "MDB-V1",
             CycleName = "Ciclo canónico multidb",
             StartTime = new TimeSpan(3, 17, 0),
             EndTime = new TimeSpan(4, 29, 0),
             CutoffTime = new TimeSpan(4, 11, 0),
+            OutputReleaseTime = new TimeSpan(4, 45, 0),
+            AllowsReturn = false,
             EffectiveFrom = DateTime.SpecifyKind(date.AddDays(-1), DateTimeKind.Utc),
             EffectiveTo = DateTime.SpecifyKind(date.AddDays(1), DateTimeKind.Utc),
             IsActive = true
@@ -85,6 +88,10 @@ public sealed class ClearingHouseMultiDbTests
         var created = await cycleService.CreateAsync(request);
         Assert.Equal(config.Id, created.ClearingHouseCycleConfigId);
         Assert.Equal(config.CycleName, created.CycleName);
+        Assert.Equal(config.OutputReleaseTime, created.OutputReleaseTime);
+        var persistedPolicy = await context.ClearingHouseCycleConfigs.AsNoTracking().SingleAsync(x => x.Id == config.Id);
+        Assert.Equal("MDB-V1", persistedPolicy.PolicyVersion);
+        Assert.False(persistedPolicy.AllowsReturn);
 
         var legacyRequest = new AchCycleRequest
         {

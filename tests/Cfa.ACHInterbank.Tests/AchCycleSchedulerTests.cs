@@ -29,6 +29,7 @@ public class AchCycleSchedulerTests
             StartTime = new TimeSpan(19, 1, 0),
             EndTime = new TimeSpan(8, 30, 0),
             CutoffTime = new TimeSpan(8, 30, 0),
+            OutputReleaseTime = new TimeSpan(8, 30, 0),
             EffectiveFrom = new DateTime(2026, 1, 1),
             IsActive = true
         });
@@ -80,6 +81,7 @@ public class AchCycleSchedulerTests
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(10, 0, 0),
                 CutoffTime = new TimeSpan(10, 0, 0),
+                OutputReleaseTime = new TimeSpan(10, 0, 0),
                 EffectiveFrom = new DateTime(2026, 1, 1),
                 IsActive = true
             },
@@ -90,6 +92,7 @@ public class AchCycleSchedulerTests
                 StartTime = new TimeSpan(10, 1, 0),
                 EndTime = new TimeSpan(12, 0, 0),
                 CutoffTime = new TimeSpan(12, 0, 0),
+                OutputReleaseTime = new TimeSpan(12, 0, 0),
                 EffectiveFrom = new DateTime(2026, 1, 1),
                 IsActive = true
             },
@@ -100,6 +103,7 @@ public class AchCycleSchedulerTests
                 StartTime = new TimeSpan(18, 0, 0),
                 EndTime = new TimeSpan(20, 0, 0),
                 CutoffTime = new TimeSpan(20, 0, 0),
+                OutputReleaseTime = new TimeSpan(20, 0, 0),
                 EffectiveFrom = new DateTime(2026, 1, 1),
                 IsActive = true
             });
@@ -127,6 +131,7 @@ public class AchCycleSchedulerTests
         Assert.Contains(cycles, x => x.CycleName == "CICLO-2");
         Assert.Contains(cycles, x => x.CycleName == "REPROCESO-1");
         Assert.All(cycles, x => Assert.True(x.ClearingHouseCycleConfigId.HasValue));
+        Assert.All(cycles, x => Assert.Equal(x.EndTime, x.OutputReleaseTime));
     }
 
     [Fact]
@@ -166,6 +171,7 @@ public class AchCycleSchedulerTests
                 StartTime = new TimeSpan(8, 0, 0),
                 EndTime = new TimeSpan(10, 0, 0),
                 CutoffTime = new TimeSpan(10, 0, 0),
+                OutputReleaseTime = new TimeSpan(10, 0, 0),
                 EffectiveFrom = new DateTime(2026, 1, 1),
                 EffectiveTo = new DateTime(2026, 1, 31),
                 IsActive = false
@@ -178,6 +184,7 @@ public class AchCycleSchedulerTests
                 StartTime = new TimeSpan(8, 10, 0),
                 EndTime = new TimeSpan(10, 10, 0),
                 CutoffTime = new TimeSpan(10, 10, 0),
+                OutputReleaseTime = new TimeSpan(10, 10, 0),
                 EffectiveFrom = new DateTime(2026, 2, 1),
                 IsActive = true
             },
@@ -189,6 +196,7 @@ public class AchCycleSchedulerTests
                 StartTime = new TimeSpan(10, 30, 0),
                 EndTime = new TimeSpan(12, 0, 0),
                 CutoffTime = new TimeSpan(12, 0, 0),
+                OutputReleaseTime = new TimeSpan(12, 0, 0),
                 EffectiveFrom = new DateTime(2026, 2, 1),
                 IsActive = true
             });
@@ -236,12 +244,14 @@ public class AchCycleSchedulerTests
             {
                 ClearingHouseId = 1, CycleName = "CICLO 1", StartTime = TimeSpan.FromHours(8),
                 EndTime = TimeSpan.FromHours(10), CutoffTime = TimeSpan.FromHours(9),
+                OutputReleaseTime = TimeSpan.FromHours(10),
                 EffectiveFrom = new DateTime(2026, 1, 1), IsActive = true
             },
             new ClearingHouseCycleConfig
             {
                 ClearingHouseId = 1, CycleName = " ciclo 1 ", StartTime = TimeSpan.FromHours(8),
                 EndTime = TimeSpan.FromHours(10), CutoffTime = TimeSpan.FromHours(9),
+                OutputReleaseTime = TimeSpan.FromHours(10),
                 EffectiveFrom = new DateTime(2026, 2, 1), IsActive = true
             });
         await context.SaveChangesAsync();
@@ -254,7 +264,7 @@ public class AchCycleSchedulerTests
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 3, 23)));
 
-        Assert.Contains("superpuestas", exception.Message);
+        Assert.Contains("duplicado", exception.Message);
         Assert.Empty(context.AchCycles);
     }
 }

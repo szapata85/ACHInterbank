@@ -17,17 +17,21 @@ public class AchCycleAppService : IAchCycleAppService
     private readonly IMapper _mapper;
     private readonly TimeProvider _timeProvider;
     private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly IClearingHouseCyclePolicyResolver _cyclePolicyResolver;
 
     public AchCycleAppService(
         AchDbContext context,
         IMapper mapper,
         TimeProvider? timeProvider = null,
-        IOperationalCycleWindowResolver? windowResolver = null)
+        IOperationalCycleWindowResolver? windowResolver = null,
+        IClearingHouseCyclePolicyResolver? cyclePolicyResolver = null)
     {
         _context = context;
         _mapper = mapper;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _cyclePolicyResolver = cyclePolicyResolver
+            ?? new ClearingHouseCyclePolicyResolver(context, new Cfa.ACHInterbank.Application.ACH.Services.CycleNumberResolver());
     }
 
     public async Task<IEnumerable<AchCycleDto>> GetAsync(
@@ -305,13 +309,10 @@ public class AchCycleAppService : IAchCycleAppService
 
         var processingDate = request.ProcessingDate.Date;
         var requestedId = request.ClearingHouseCycleConfigId ?? existingConfigurationId;
-        var effectiveConfigurations = await _context.ClearingHouseCycleConfigs
-            .AsNoTracking()
-            .Where(config => config.ClearingHouseId == request.ClearingHouseId
-                && config.IsActive
-                && config.EffectiveFrom <= processingDate
-                && (!config.EffectiveTo.HasValue || config.EffectiveTo.Value >= processingDate))
-            .ToListAsync(ct);
+        var effectiveConfigurations = (await _cyclePolicyResolver.ResolveAsync(
+            request.ClearingHouseId,
+            processingDate,
+            ct)).Cycles;
 
         if (requestedId.HasValue)
         {
@@ -419,6 +420,7 @@ public class AchCycleAppService : IAchCycleAppService
         cycle.StartTime = configuration.StartTime;
         cycle.EndTime = configuration.EndTime;
         cycle.CutoffTime = configuration.CutoffTime;
+        cycle.OutputReleaseTime = configuration.OutputReleaseTime;
     }
 
     private static bool WindowMatches(

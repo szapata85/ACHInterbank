@@ -423,10 +423,18 @@ export interface ClearingHouseCycleConfigItem {
   id: number;
   clearingHouseId: number;
   clearingHouseName?: string | null;
+  policyVersion: string;
   cycleName: string;
   startTime: string;
   endTime: string;
   cutoffTime: string;
+  outputReleaseTime: string;
+  allowsMonetaryCredit: boolean;
+  allowsMonetaryDebit: boolean;
+  allowsCreditPrenotification: boolean;
+  allowsDebitPrenotification: boolean;
+  allowsReturn: boolean;
+  allowsReturnOfReturn: boolean;
   isActive: boolean;
   effectiveFrom: string;
   effectiveTo?: string | null;
@@ -442,9 +450,17 @@ export interface ClearingHouseCycleConfigFilters {
 export interface UpsertCycleConfigRequest {
   clearingHouseId: number;
   cycleName: string;
+  policyVersion?: string | null;
   startTime: string;
   endTime: string;
   cutoffTime: string;
+  outputReleaseTime: string;
+  allowsMonetaryCredit: boolean;
+  allowsMonetaryDebit: boolean;
+  allowsCreditPrenotification: boolean;
+  allowsDebitPrenotification: boolean;
+  allowsReturn: boolean;
+  allowsReturnOfReturn: boolean;
   effectiveFrom: string;
 }
 

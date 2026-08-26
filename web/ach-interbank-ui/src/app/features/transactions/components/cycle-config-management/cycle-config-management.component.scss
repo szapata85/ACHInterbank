@@ -31,6 +31,8 @@ td strong { display: block; }
 .dialog-intro { margin-bottom: .8rem; color: #526174; line-height: 1.55; }
 .editor-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem 1rem; }
 .editor-form__wide, .form-error { grid-column: 1 / -1; }
+.eligibility-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem 1rem; margin: 0; padding: .9rem; border: 1px solid #dfe5ec; border-radius: .65rem; }
+.eligibility-grid legend { padding: 0 .35rem; font-weight: 600; }
 .form-error { margin: 0; padding: .7rem; border-radius: .5rem; background: #fef3f2; color: #b42318; }
 mat-dialog-actions button mat-spinner { display: inline-block; margin-right: .4rem; }
 .history-list { display: grid; gap: .75rem; }
@@ -63,6 +65,7 @@ mat-dialog-actions button mat-spinner { display: inline-block; margin-right: .4r
   dd { margin: 0; text-align: right; }
   .editor-form { grid-template-columns: 1fr; }
   .editor-form__wide, .form-error { grid-column: auto; }
+  .eligibility-grid { grid-template-columns: 1fr; }
   .state-card--error { flex-wrap: wrap; }
   .state-card--error a { width: 100%; margin-left: 0; }
 }

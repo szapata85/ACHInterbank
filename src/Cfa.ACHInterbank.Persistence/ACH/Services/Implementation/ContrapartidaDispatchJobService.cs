@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
+using Cfa.ACHInterbank.Application.ACH.Implementation.PaymentRails;
 using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Application.Integrations.Interfaces;
@@ -52,6 +54,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
     private readonly TimeProvider _timeProvider;
     private readonly IOperationalCycleWindowResolver _windowResolver;
     private readonly ICycleCalendarGuard _calendarGuard;
+    private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
 
     public ContrapartidaDispatchJobService(
         AchDbContext context,
@@ -66,7 +69,8 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         IIntegrationResponseCatalogResolver? responseCatalogResolver = null,
         TimeProvider? timeProvider = null,
         IOperationalCycleWindowResolver? windowResolver = null,
-        ICycleCalendarGuard? calendarGuard = null)
+        ICycleCalendarGuard? calendarGuard = null,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
     {
         _context = context;
         _soapClient = soapClient;
@@ -81,6 +85,10 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         _timeProvider = timeProvider ?? TimeProvider.System;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
         _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context, timeProvider: _timeProvider);
+        _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
+            new ClearingHouseToPaymentRailMapper(),
+            new CycleNumberResolver());
     }
 
     public async Task<ContrapartidaCycleDispatchResult> ProcessCycleAsync(
@@ -175,6 +183,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
             _logger.LogInformation("{Summary} Reason={Reason}", deferredSummary, calendarDecision.Reason);
             return new ContrapartidaCycleDispatchResult(cycleId, clearingHouseId, 0, 0, 0, 0, 0, deferredSummary);
         }
+        await EnsureCycleAllowsDebitDispatchAsync(cycle, ct);
 
         var nowLocal = ValidateCycleOperationalWindow(cycle, nowUtcOffset).LocalNow;
 
@@ -540,6 +549,7 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
                 0,
                 deferredSummary);
         }
+        await EnsureCycleAllowsDebitDispatchAsync(cycle, ct);
 
         var nowUtcOffset = _timeProvider.GetUtcNow();
         var nowUtc = nowUtcOffset.UtcDateTime;
@@ -1259,6 +1269,23 @@ public sealed class ContrapartidaDispatchJobService : IContrapartidaDispatchJobS
         var delay = TimeSpan.FromMinutes(Math.Pow(2, exponent));
         var capped = delay > TimeSpan.FromMinutes(30) ? TimeSpan.FromMinutes(30) : delay;
         return _timeProvider.GetUtcNow().UtcDateTime.Add(capped);
+    }
+
+    private async Task EnsureCycleAllowsDebitDispatchAsync(AchCycle cycle, CancellationToken ct)
+    {
+        var decision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+            cycle.ClearingHouseId,
+            cycle.ClearingHouseCycleConfigId,
+            cycle.ProcessingDate,
+            cycle.ClearingHouse?.Code,
+            cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+            cycle.CycleName,
+            TransactionTypeEnum.Debit,
+            false), ct);
+        if (!decision.IsAllowed)
+        {
+            throw new InvalidOperationException($"{decision.ReasonCode}: {decision.Message}");
+        }
     }
 
     private sealed record ProcContrapartidasDispatchExecutionResult(

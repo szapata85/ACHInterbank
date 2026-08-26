@@ -13,22 +13,22 @@ internal static class RegulatoryCycleSeedRepair
     [
         RegulatoryCycleScheduleCatalog.GetRequired(RegulatoryCycleScheduleCatalog.AchColombiaCode),
         [
-            new(1, new TimeSpan(19, 0, 0), new TimeSpan(8, 0, 0), new TimeSpan(8, 0, 0)),
-            new(2, new TimeSpan(8, 1, 0), new TimeSpan(10, 30, 0), new TimeSpan(10, 30, 0)),
-            new(3, new TimeSpan(10, 31, 0), new TimeSpan(13, 0, 0), new TimeSpan(13, 0, 0)),
-            new(4, new TimeSpan(13, 1, 0), new TimeSpan(15, 30, 0), new TimeSpan(15, 30, 0)),
-            new(5, new TimeSpan(15, 31, 0), new TimeSpan(18, 0, 0), new TimeSpan(18, 0, 0))
+            Legacy(1, 19, 0, 8, 0),
+            Legacy(2, 8, 1, 10, 30),
+            Legacy(3, 10, 31, 13, 0),
+            Legacy(4, 13, 1, 15, 30),
+            Legacy(5, 15, 31, 18, 0)
         ]
     ];
 
     private static readonly IReadOnlyList<IReadOnlyList<RegulatoryCycleSchedule>> AchColombiaDefectiveFingerprints =
     [
         [
-            new(1, new TimeSpan(19, 1, 0), new TimeSpan(8, 15, 0), new TimeSpan(8, 15, 0)),
-            new(2, new TimeSpan(8, 16, 0), new TimeSpan(10, 45, 0), new TimeSpan(10, 45, 0)),
-            new(3, new TimeSpan(10, 46, 0), new TimeSpan(13, 15, 0), new TimeSpan(13, 15, 0)),
-            new(4, new TimeSpan(13, 16, 0), new TimeSpan(15, 30, 0), new TimeSpan(15, 30, 0)),
-            new(5, new TimeSpan(15, 31, 0), new TimeSpan(18, 0, 0), new TimeSpan(18, 0, 0))
+            Legacy(1, 19, 1, 8, 15),
+            Legacy(2, 8, 16, 10, 45),
+            Legacy(3, 10, 46, 13, 15),
+            Legacy(4, 13, 16, 15, 30),
+            Legacy(5, 15, 31, 18, 0)
         ]
     ];
 
@@ -80,6 +80,14 @@ internal static class RegulatoryCycleSeedRepair
                 StartTime = expected.StartTime,
                 EndTime = expected.EndTime,
                 CutoffTime = expected.CutoffTime,
+                OutputReleaseTime = expected.OutputReleaseTime,
+                AllowsMonetaryCredit = expected.AllowsMonetaryCredit,
+                AllowsMonetaryDebit = expected.AllowsMonetaryDebit,
+                AllowsCreditPrenotification = expected.AllowsCreditPrenotification,
+                AllowsDebitPrenotification = expected.AllowsDebitPrenotification,
+                AllowsReturn = expected.AllowsReturn,
+                AllowsReturnOfReturn = expected.AllowsReturnOfReturn,
+                PolicyVersion = $"REGULATORY-{effectiveYear}",
                 IsActive = true,
                 EffectiveFrom = periodStart
             });
@@ -123,6 +131,21 @@ internal static class RegulatoryCycleSeedRepair
         config.StartTime = expected.StartTime;
         config.EndTime = expected.EndTime;
         config.CutoffTime = expected.CutoffTime;
+        config.OutputReleaseTime = expected.OutputReleaseTime;
+        config.AllowsMonetaryCredit = expected.AllowsMonetaryCredit;
+        config.AllowsMonetaryDebit = expected.AllowsMonetaryDebit;
+        config.AllowsCreditPrenotification = expected.AllowsCreditPrenotification;
+        config.AllowsDebitPrenotification = expected.AllowsDebitPrenotification;
+        config.AllowsReturn = expected.AllowsReturn;
+        config.AllowsReturnOfReturn = expected.AllowsReturnOfReturn;
+        config.PolicyVersion = $"REGULATORY-{config.EffectiveFrom.Year}";
+    }
+
+    private static RegulatoryCycleSchedule Legacy(int number, int startHour, int startMinute, int endHour, int endMinute)
+    {
+        var start = new TimeSpan(startHour, startMinute, 0);
+        var end = new TimeSpan(endHour, endMinute, 0);
+        return new RegulatoryCycleSchedule(number, start, end, end, end);
     }
 
     private static DateTime UtcDate(int year, int month, int day)

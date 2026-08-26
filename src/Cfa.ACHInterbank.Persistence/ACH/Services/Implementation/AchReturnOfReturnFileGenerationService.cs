@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -18,13 +19,15 @@ public class AchReturnOfReturnFileGenerationService(
     INachaRecordConfigProvider? nachaRecordConfigProvider = null,
     INachaRecordFieldValidator? nachaRecordFieldValidator = null,
     ILogger<AchReturnOfReturnFileGenerationService>? logger = null,
-    INachaFileBuilder? nachaFileBuilder = null) : IAchReturnOfReturnFileGenerationService
+    INachaFileBuilder? nachaFileBuilder = null,
+    ICycleTransactionPolicy? cycleTransactionPolicy = null) : IAchReturnOfReturnFileGenerationService
 {
     private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
     private readonly INachaRecordConfigProvider? _nachaRecordConfigProvider = nachaRecordConfigProvider;
     private readonly INachaRecordFieldValidator? _nachaRecordFieldValidator = nachaRecordFieldValidator;
     private readonly ILogger<AchReturnOfReturnFileGenerationService> _logger = logger ?? NullLogger<AchReturnOfReturnFileGenerationService>.Instance;
     private readonly INachaFileBuilder? _nachaFileBuilder = nachaFileBuilder;
+    private readonly ICycleTransactionPolicy? _cycleTransactionPolicy = cycleTransactionPolicy;
     public async Task<AchReturnOfReturnFileGenerationResult> GenerateAsync(AchReturnOfReturnFileGenerationRequest request, CancellationToken cancellationToken)
     {
         var failures = new List<AchReturnOfReturnFileGenerationFailure>();
@@ -226,6 +229,24 @@ public class AchReturnOfReturnFileGenerationService(
         var now = request.GeneratedAtUtc;
         var clearingHouseId = clearingHouseIds[0];
         var firstCycle = flows.First().ReturnOfReturnTransaction.AchCycle;
+        if (_cycleTransactionPolicy is not null)
+        {
+            var cycleDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+                firstCycle.ClearingHouseId,
+                firstCycle.ClearingHouseCycleConfigId,
+                firstCycle.ProcessingDate,
+                firstCycle.ClearingHouse?.Code,
+                null,
+                firstCycle.CycleName,
+                TransactionTypeEnum.Return,
+                false,
+                IsReturnOfReturn: true), cancellationToken);
+            if (!cycleDecision.IsAllowed)
+            {
+                failures.Add(new(cycleDecision.ReasonCode, cycleDecision.Message));
+                return new(false, null, null, null, 0, requestedIds, failures, null, null);
+            }
+        }
         if (string.Equals(firstCycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
         {
             return await GenerateCenitNachaAsync(flows, request, productiveSourceValue, cancellationToken);

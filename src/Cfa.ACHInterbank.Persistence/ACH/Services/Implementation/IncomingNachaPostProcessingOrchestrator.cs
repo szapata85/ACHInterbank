@@ -52,6 +52,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
     private readonly IIncomingNachaAchResultResolver? _achResultResolver;
     private readonly ICycleCalendarGuard _calendarGuard;
     private readonly IOperationalCycleWindowResolver _windowResolver;
+    private readonly ICycleTransactionPolicy? _cycleTransactionPolicy;
 
     public IncomingNachaPostProcessingOrchestrator(
         AchDbContext context,
@@ -70,7 +71,8 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         TimeProvider? timeProvider = null,
         IIncomingNachaAchResultResolver? achResultResolver = null,
         ICycleCalendarGuard? calendarGuard = null,
-        IOperationalCycleWindowResolver? windowResolver = null)
+        IOperationalCycleWindowResolver? windowResolver = null,
+        ICycleTransactionPolicy? cycleTransactionPolicy = null)
     {
         _context = context;
         _mapper = mapper;
@@ -89,6 +91,7 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
         _achResultResolver = achResultResolver;
         _calendarGuard = calendarGuard ?? new CycleCalendarGuard(context, timeProvider: _timeProvider);
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
+        _cycleTransactionPolicy = cycleTransactionPolicy;
     }
 
     public async Task<IncomingNachaPostProcessingRunResult> ExecuteAsync(
@@ -185,6 +188,34 @@ public class IncomingNachaPostProcessingOrchestrator : IIncomingNachaPostProcess
                 AddAutomaticEvent(queue, "DispatchAlreadyConfirmed", "Skipped", "La operación ya tiene una respuesta funcional exitosa; no se reenvió.");
                 confirmed++;
                 continue;
+            }
+
+            if (_cycleTransactionPolicy is not null)
+            {
+                var transaction = queue.AchTransaction;
+                var cycle = transaction.AchCycle;
+                var cycleDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+                    cycle.ClearingHouseId,
+                    cycle.ClearingHouseCycleConfigId,
+                    cycle.ProcessingDate,
+                    cycle.ClearingHouse?.Code,
+                    cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+                    cycle.CycleName,
+                    transaction.Type,
+                    transaction.IsPrenotification,
+                    transaction.ReturnReasonCode,
+                    transaction.OriginalTraceRef,
+                    TransactionCode: transaction.TransactionCode), ct);
+                if (!cycleDecision.IsAllowed)
+                {
+                    queue.QueueStatus = IncomingNachaDispatchQueueStatus.Blocked;
+                    queue.NextAttemptAtUtc = null;
+                    queue.LastErrorCode = cycleDecision.ReasonCode;
+                    queue.LastErrorMessage = cycleDecision.Message;
+                    AddAutomaticEvent(queue, "DispatchBlockedByCyclePolicy", "Blocked", cycleDecision.Message, cycleDecision.ReasonCode);
+                    blocked++;
+                    continue;
+                }
             }
 
             var operationalDecision = EvaluateOperationalWindow(queue.AchTransaction.AchCycle, nowUtcOffset);

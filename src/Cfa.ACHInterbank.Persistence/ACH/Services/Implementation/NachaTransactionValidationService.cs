@@ -29,6 +29,7 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
         _prerequisitePolicyService = prerequisitePolicyService
             ?? throw new ArgumentNullException(nameof(prerequisitePolicyService));
         _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
             new ClearingHouseToPaymentRailMapper(),
             new CycleNumberResolver());
     }
@@ -52,14 +53,18 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
         {
             if (cycles.TryGetValue(tx.AchCycleId, out var cycle))
             {
-                var regulatoryDecision = _cycleTransactionPolicy.Evaluate(new CycleTransactionPolicyRequest(
+                var regulatoryDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+                    cycle.ClearingHouseId,
+                    cycle.ClearingHouseCycleConfigId,
+                    cycle.ProcessingDate,
                     cycle.ClearingHouse?.Code,
                     cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
                     cycle.CycleName,
                     tx.Type,
                     tx.IsPrenotification,
                     tx.ReturnReasonCode,
-                    tx.OriginalTraceRef));
+                    tx.OriginalTraceRef,
+                    TransactionCode: tx.TransactionCode), ct);
                 if (!regulatoryDecision.IsAllowed)
                 {
                     throw new NachaGenerationException(
@@ -162,16 +167,7 @@ public class NachaTransactionValidationService : INachaTransactionValidationServ
 
     private static string? ResolvePrenoteCode(string transactionCode)
     {
-        return transactionCode switch
-        {
-            "22" => "23",
-            "27" => "28",
-            "32" => "33",
-            "37" => "38",
-            "52" => "53",
-            "55" => "57",
-            _ => null
-        };
+        return NachaTransactionCodeTaxonomy.ResolvePrenotificationCode(transactionCode);
     }
 
 }

@@ -36,6 +36,7 @@ public class BatchResolver : IBatchResolver
         _timeProvider = timeProvider ?? TimeProvider.System;
         _windowResolver = windowResolver ?? new OperationalCycleWindowResolver();
         _cycleTransactionPolicy = cycleTransactionPolicy ?? new CycleTransactionPolicy(
+            new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
             new ClearingHouseToPaymentRailMapper(),
             new CycleNumberResolver());
     }
@@ -123,7 +124,7 @@ public class BatchResolver : IBatchResolver
         var window = _windowResolver.Resolve(
             cycle.ProcessingDate,
             cycle.StartTime,
-            cycle.EndTime,
+            cycle.CutoffTime,
             ClearingHouseOperationalTimeZone.Resolve(cycle),
             nowInstant);
         bool isOutsideWindow = !window.IsInside;
@@ -134,12 +135,15 @@ public class BatchResolver : IBatchResolver
             EnsureCycleIsOpenForTransactions(cycle, window);
         }
 
-        var regulatoryDecision = _cycleTransactionPolicy.Evaluate(new CycleTransactionPolicyRequest(
+        var regulatoryDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+            cycle.ClearingHouseId,
+            cycle.ClearingHouseCycleConfigId,
+            cycle.ProcessingDate,
             cycle.ClearingHouse?.Code,
             cycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
             cycle.CycleName,
             request.Type,
-            request.IsPrenotification));
+            request.IsPrenotification), ct);
         if (!regulatoryDecision.IsAllowed)
         {
             throw new InvalidOperationException($"{regulatoryDecision.ReasonCode}: {regulatoryDecision.Message}");
@@ -210,12 +214,12 @@ public class BatchResolver : IBatchResolver
     {
         if (window.Status == OperationalCycleWindowStatus.Before)
         {
-            throw new InvalidOperationException($"El ciclo {cycle.CycleName} aún no está abierto. Ventana operativa: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");
+            throw new InvalidOperationException($"El ciclo {cycle.CycleName} aún no está abierto para recepción. Ventana de entrada: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");
         }
 
         if (window.Status == OperationalCycleWindowStatus.After)
         {
-            throw new InvalidOperationException($"El ciclo {cycle.CycleName} está cerrado para recepción de transacciones. Ventana operativa: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");
+            throw new InvalidOperationException($"El ciclo {cycle.CycleName} está cerrado para recepción de transacciones. Ventana de entrada: {window.LocalStart:yyyy-MM-dd HH:mm} - {window.LocalEnd:yyyy-MM-dd HH:mm} {window.TimeZoneId}.");
         }
     }
 

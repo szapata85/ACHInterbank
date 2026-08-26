@@ -361,6 +361,22 @@ public class TransactionPolicyServiceTests
 
     private static AchCycle SeedCycle(AchDbContext context, string id, DateTime processingDate, TimeSpan startTime, TimeSpan endTime)
     {
+        var config = new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = TestClearingHouseId,
+            PolicyVersion = "TEST-V1",
+            CycleName = "Ciclo 1",
+            StartTime = startTime,
+            CutoffTime = endTime,
+            EndTime = endTime,
+            OutputReleaseTime = endTime,
+            EffectiveFrom = processingDate.Date,
+            EffectiveTo = processingDate.Date,
+            IsActive = true
+        };
+        context.ClearingHouseCycleConfigs.Add(config);
+        context.SaveChanges();
+
         var cycle = new AchCycle
         {
             Id = id,
@@ -369,7 +385,9 @@ public class TransactionPolicyServiceTests
             StartTime = startTime,
             EndTime = endTime,
             CutoffTime = endTime,
-            ClearingHouseId = TestClearingHouseId
+            OutputReleaseTime = endTime,
+            ClearingHouseId = TestClearingHouseId,
+            ClearingHouseCycleConfigId = config.Id
         };
 
         context.AchCycles.Add(cycle);

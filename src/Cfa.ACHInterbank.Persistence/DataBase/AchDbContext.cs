@@ -325,6 +325,12 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
                     ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
                     : value);
 
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.PolicyVersion)
+            .HasMaxLength(80)
+            .IsRequired();
+
+
 
         modelBuilder.Entity<FinancialInstitution>()
             .HasMany(i => i.SourceTransactions)

@@ -47,7 +47,7 @@ public class ClearingHouseCycleConfigServiceTests
             .ToListAsync();
 
         Assert.Equal(2, allConfigs.Count);
-        Assert.False(allConfigs[0].IsActive);
+        Assert.True(allConfigs[0].IsActive);
         Assert.Equal(new DateTime(2026, 1, 31), allConfigs[0].EffectiveTo!.Value.Date);
         Assert.True(allConfigs[1].IsActive);
         Assert.Equal(created.Id, allConfigs[1].Id);

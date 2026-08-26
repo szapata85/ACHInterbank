@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -17,32 +18,6 @@ public class TransactionValidator : ITransactionValidator
     private static readonly Regex ReturnReasonRegex = new(@"^(R\d{2}|DEV14)$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex ExternalIdRegex = new(@"^[A-Za-z0-9\-_/.]{1,64}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex ReferenceRegex = new(@"^[A-Za-z0-9\-_/]{1,30}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly IReadOnlyDictionary<(TransactionTypeEnum Type, AccountTypeEnum Account, bool IsPrenotification), string> FallbackTransactionCodeMap
-        = new Dictionary<(TransactionTypeEnum, AccountTypeEnum, bool), string>
-        {
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false), "22" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.Checking, true), "23" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, false), "27" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.Checking, true), "28" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, false), "32" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.Savings, true), "33" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, false), "37" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.Savings, true), "38" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, false), "52" },
-            { (TransactionTypeEnum.Credit, AccountTypeEnum.ElectronicDeposits, true), "53" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, false), "55" },
-            { (TransactionTypeEnum.Debit, AccountTypeEnum.ElectronicDeposits, true), "57" },
-            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.Checking, true), "23" },
-            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.Savings, true), "33" },
-            { (TransactionTypeEnum.Prenotification, AccountTypeEnum.ElectronicDeposits, true), "53" },
-            { (TransactionTypeEnum.Return, AccountTypeEnum.Checking, false), "27" },
-            { (TransactionTypeEnum.Return, AccountTypeEnum.Savings, false), "37" },
-            { (TransactionTypeEnum.Return, AccountTypeEnum.ElectronicDeposits, false), "55" },
-            { (TransactionTypeEnum.Reversal, AccountTypeEnum.Checking, false), "27" },
-            { (TransactionTypeEnum.Reversal, AccountTypeEnum.Savings, false), "37" },
-            { (TransactionTypeEnum.Reversal, AccountTypeEnum.ElectronicDeposits, false), "55" }
-        };
-
     public TransactionValidator(AchDbContext context)
     {
         _context = context;
@@ -151,7 +126,7 @@ public class TransactionValidator : ITransactionValidator
 
     public string ResolveTransactionCode(TransactionTypeEnum type, AccountTypeEnum accountType, bool isPrenotification)
     {
-        if (!FallbackTransactionCodeMap.TryGetValue((type, accountType, isPrenotification), out var fallbackCode))
+        if (!NachaTransactionCodeTaxonomy.TryResolve(type, accountType, isPrenotification, out var fallbackCode))
         {
             throw new ArgumentOutOfRangeException(nameof(accountType), "Tipo de cuenta no soportado.");
         }

@@ -86,15 +86,17 @@ describe('CycleConfigManagementComponent', () => {
     expect(component.dataSource.data.map(item => item.id)).toEqual([1]);
   });
 
-  it('validates time order, cutoff and duplicate versions', () => {
+  it('validates stage order, cutoff and duplicate versions', () => {
     component.openCreateForm();
     component.form.patchValue({
       cycleName: 'Ciclo 1',
       startTime: '10:00',
-      endTime: '09:00',
+      endTime: '10:00',
       cutoffTime: '11:00',
+      outputReleaseTime: '10:00',
       effectiveFrom: new Date(2026, 0, 1)
     });
+    component.form.patchValue({ endTime: '10:00', startTime: '10:00' });
     expect(component.form.hasError('timeOrder')).toBeTrue();
     component.form.patchValue({ startTime: '08:00', endTime: '10:00', cutoffTime: '11:00' });
     expect(component.form.hasError('cutoffOutside')).toBeTrue();
@@ -111,6 +113,13 @@ describe('CycleConfigManagementComponent', () => {
       startTime: '08:00',
       endTime: '10:00',
       cutoffTime: '09:30',
+      outputReleaseTime: '10:30',
+      allowsMonetaryCredit: true,
+      allowsMonetaryDebit: true,
+      allowsCreditPrenotification: true,
+      allowsDebitPrenotification: true,
+      allowsReturn: true,
+      allowsReturnOfReturn: true,
       effectiveFrom: new Date(2027, 0, 1)
     });
     component.save();
@@ -140,7 +149,10 @@ describe('CycleConfigManagementComponent', () => {
   function cycle(): any {
     return {
       id: 1, clearingHouseId: 7, clearingHouseName: 'ACH Colombia', cycleName: 'Ciclo 1',
-      startTime: '08:00:00', endTime: '10:00:00', cutoffTime: '09:30:00', isActive: true,
+      policyVersion: 'V1', startTime: '08:00:00', endTime: '10:00:00', cutoffTime: '09:30:00',
+      outputReleaseTime: '10:30:00', allowsMonetaryCredit: true, allowsMonetaryDebit: true,
+      allowsCreditPrenotification: true, allowsDebitPrenotification: true, allowsReturn: true,
+      allowsReturnOfReturn: true, isActive: true,
       effectiveFrom: '2026-01-01T00:00:00Z', effectiveTo: null, isCurrent: true
     };
   }

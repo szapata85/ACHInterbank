@@ -7,7 +7,8 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
-public class IncomingNachaDispatchEligibilityPolicy : IIncomingNachaDispatchEligibilityPolicy
+public class IncomingNachaDispatchEligibilityPolicy(
+    ICycleTransactionPolicy? cycleTransactionPolicy = null) : IIncomingNachaDispatchEligibilityPolicy
 {
     public Task<IncomingNachaDispatchEligibilityResult> EvaluateAsync(
         IncomingNachaFileIngestion ingestion,
@@ -50,25 +51,49 @@ public class IncomingNachaDispatchEligibilityPolicy : IIncomingNachaDispatchElig
             return Task.FromResult(Blocked($"Clase funcional {classification.FunctionalClass} no despachable a Proc_Transacciones."));
         }
 
-        var cycleStart = transaction.AchCycle.StartTime;
-        var cycleEnd = transaction.AchCycle.EndTime;
-        var isInWindow = IsWithinWindow(nowLocal, transaction.AchCycle.ProcessingDate, cycleStart, cycleEnd);
-        if (!isInWindow)
+        return EvaluateResolvedPolicyAsync();
+
+        async Task<IncomingNachaDispatchEligibilityResult> EvaluateResolvedPolicyAsync()
         {
-            return Task.FromResult(new IncomingNachaDispatchEligibilityResult(
+            if (cycleTransactionPolicy is not null)
+            {
+                var policy = await cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
+                    transaction.AchCycle.ClearingHouseId,
+                    transaction.AchCycle.ClearingHouseCycleConfigId,
+                    transaction.AchCycle.ProcessingDate,
+                    transaction.AchCycle.ClearingHouse?.Code,
+                    transaction.AchCycle.ClearingHouse?.ClearingHouseConfig?.PaymentRailCode,
+                    transaction.AchCycle.CycleName,
+                    transaction.Type,
+                    transaction.IsPrenotification,
+                    transaction.ReturnReasonCode,
+                    transaction.OriginalTraceRef,
+                    TransactionCode: transaction.TransactionCode), ct);
+                if (!policy.IsAllowed)
+                {
+                    return Blocked($"{policy.ReasonCode}: {policy.Message}");
+                }
+            }
+
+            var cycleStart = transaction.AchCycle.StartTime;
+            var cycleEnd = transaction.AchCycle.EndTime;
+            var isInWindow = IsWithinWindow(nowLocal, transaction.AchCycle.ProcessingDate, cycleStart, cycleEnd);
+            if (!isInWindow)
+            {
+                return new IncomingNachaDispatchEligibilityResult(
                 IsEligible: false,
                 IsWaitingWindow: true,
                 IsBlocked: false,
                 Priority: 200,
                 Reason: "Fuera de ventana operativa de ciclo.",
-                EvidenceJson: JsonSerializer.Serialize(new { nowLocal, cycleStart, cycleEnd, transaction.AchCycleId })));
-        }
+                EvidenceJson: JsonSerializer.Serialize(new { nowLocal, cycleStart, cycleEnd, transaction.AchCycleId }));
+            }
 
         // Prioridad normativa exclusiva de CENIT; se resuelve por identidad persistida, nunca por ID semilla.
-        var priority = string.Equals(transaction.AchCycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
-            ? 80
-            : 100;
-        return Task.FromResult(new IncomingNachaDispatchEligibilityResult(
+            var priority = string.Equals(transaction.AchCycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
+                ? 80
+                : 100;
+            return new IncomingNachaDispatchEligibilityResult(
             IsEligible: true,
             IsWaitingWindow: false,
             IsBlocked: false,
@@ -82,7 +107,8 @@ public class IncomingNachaDispatchEligibilityPolicy : IIncomingNachaDispatchElig
                 transaction.AchCycleId,
                 transaction.AchCycle.ClearingHouseId,
                 priority
-            })));
+            }));
+        }
     }
 
     private static IncomingNachaDispatchEligibilityResult Blocked(string reason)

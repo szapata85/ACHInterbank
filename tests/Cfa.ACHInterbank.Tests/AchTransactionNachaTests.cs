@@ -1306,7 +1306,8 @@ public class AchTransactionNachaTests
         {
             Id = 1,
             ClearingHouseId = 1,
-            HolidayStrategy = "Test"
+            HolidayStrategy = "Test",
+            TimeZoneId = "America/Bogota"
         };
 
         var clearingHouse = new ClearingHouse
@@ -1319,6 +1320,20 @@ public class AchTransactionNachaTests
             ClearingHouseConfig = config
         };
 
+        var cycleConfig = new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 1,
+            PolicyVersion = "TEST-V1",
+            CycleName = "CICLO-TEST",
+            StartTime = TimeSpan.Zero,
+            EndTime = new TimeSpan(23, 59, 0),
+            CutoffTime = TimeSpan.FromHours(17),
+            OutputReleaseTime = new TimeSpan(23, 59, 0),
+            EffectiveFrom = TestClock.OperationalDate,
+            EffectiveTo = TestClock.OperationalDate,
+            IsActive = true
+        };
+
         var cycle = new AchCycle
         {
             Id = AchCycleIdHelper.GenerateId(1, "CICLO-TEST", TestClock.OperationalDate),
@@ -1327,9 +1342,11 @@ public class AchTransactionNachaTests
             StartTime = TimeSpan.Zero,
             EndTime = new TimeSpan(23, 59, 0),
             CutoffTime = TimeSpan.FromHours(17),
+            OutputReleaseTime = new TimeSpan(23, 59, 0),
             RescheduleOnHoliday = false,
             ClearingHouseId = 1,
-            ClearingHouse = clearingHouse
+            ClearingHouse = clearingHouse,
+            ClearingHouseCycleConfig = cycleConfig
         };
 
         var sourceInstitution = new FinancialInstitution
@@ -1362,6 +1379,7 @@ public class AchTransactionNachaTests
         context.PersonTypes.Add(personType);
         context.GenderTypes.Add(gender);
         context.ClearingHouses.Add(clearingHouse);
+        context.ClearingHouseCycleConfigs.Add(cycleConfig);
         context.AchCycles.Add(cycle);
         var alternativeSource = new FinancialInstitution
         {

@@ -138,7 +138,7 @@ public class RoutingStrategyService : IRoutingStrategyService
                     .Select(c => new
                     {
                         Cycle = c,
-                        Window = _windowResolver.Resolve(c.ProcessingDate, c.StartTime, c.EndTime, timeZoneId, candidateInstant)
+                        Window = _windowResolver.Resolve(c.ProcessingDate, c.StartTime, c.CutoffTime, timeZoneId, candidateInstant)
                     })
                     .Where(x => x.Window.Status != OperationalCycleWindowStatus.After)
                     .OrderBy(x => x.Window.EndInstant)

@@ -2689,6 +2689,9 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                     b.Property<DateTime?>("OriginalProcessingDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<TimeSpan>("OutputReleaseTime")
+                        .HasColumnType("time");
+
                     b.Property<DateTime>("ProcessingDate")
                         .IsConcurrencyToken()
                         .HasColumnType("date");
@@ -4542,6 +4545,8 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
                         {
                             t.HasTrigger("TR_AchTransactions_SyncTraceSequence");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.AchTransactionAddenda", b =>
@@ -5751,6 +5756,24 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("AllowsCreditPrenotification")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowsDebitPrenotification")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowsMonetaryCredit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowsMonetaryDebit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowsReturn")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowsReturnOfReturn")
+                        .HasColumnType("bit");
+
                     b.Property<int>("ClearingHouseId")
                         .HasColumnType("int");
 
@@ -5772,6 +5795,14 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<TimeSpan>("OutputReleaseTime")
+                        .HasColumnType("time");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<TimeSpan>("StartTime")
                         .HasColumnType("time");

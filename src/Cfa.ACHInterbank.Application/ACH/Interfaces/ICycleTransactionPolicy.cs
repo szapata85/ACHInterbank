@@ -4,6 +4,6 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 
 public interface ICycleTransactionPolicy
 {
-    CycleTransactionPolicyResult Evaluate(CycleTransactionPolicyRequest request);
+    Task<CycleTransactionPolicyResult> EvaluateAsync(CycleTransactionPolicyRequest request, CancellationToken ct = default);
 }
 

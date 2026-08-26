@@ -698,7 +698,8 @@ public class ContrapartidaDispatchJobServiceTests
         context.ClearingHouseConfigs.Add(new ClearingHouseConfig
         {
             Id = 1,
-            HolidayStrategy = "Colombian"
+            HolidayStrategy = "Colombian",
+            TimeZoneId = "America/Bogota"
         });
 
         context.ClearingHouses.Add(new ClearingHouse
@@ -710,6 +711,22 @@ public class ContrapartidaDispatchJobServiceTests
             ClearingHouseId = 1
         });
 
+        var cycleConfig = new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 1,
+            PolicyVersion = "TEST-V1",
+            CycleName = "CICLO-QA",
+            StartTime = TimeSpan.Zero,
+            EndTime = new TimeSpan(23, 59, 0),
+            CutoffTime = new TimeSpan(23, 0, 0),
+            OutputReleaseTime = new TimeSpan(23, 59, 0),
+            EffectiveFrom = TestClock.OperationalDate,
+            EffectiveTo = TestClock.OperationalDate,
+            IsActive = true
+        };
+        context.ClearingHouseCycleConfigs.Add(cycleConfig);
+        await context.SaveChangesAsync();
+
         var cycleId = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         context.AchCycles.Add(new AchCycle
         {
@@ -719,7 +736,9 @@ public class ContrapartidaDispatchJobServiceTests
             ProcessingDate = TestClock.OperationalDate,
             StartTime = TimeSpan.Zero,
             EndTime = new TimeSpan(23, 59, 0),
-            CutoffTime = new TimeSpan(23, 0, 0)
+            CutoffTime = new TimeSpan(23, 0, 0),
+            OutputReleaseTime = new TimeSpan(23, 59, 0),
+            ClearingHouseCycleConfigId = cycleConfig.Id
         });
 
         var sourceFi = new FinancialInstitution

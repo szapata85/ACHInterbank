@@ -18,6 +18,7 @@ public class AchCycle : AuditableEntity
     // Ventana operativa del ciclo
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
+    public TimeSpan OutputReleaseTime { get; set; }
 
     // La admisión entrante usa este estado persistido; no deduce que un ciclo
     // está cerrado comparando únicamente su número con el ciclo más reciente.

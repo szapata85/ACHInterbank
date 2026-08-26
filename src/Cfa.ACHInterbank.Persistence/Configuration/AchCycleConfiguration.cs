@@ -25,6 +25,9 @@ public class AchCycleConfiguration : IEntityTypeConfiguration<AchCycle>
         builder.Property(cycle => cycle.EndTime)
             .IsRequired();
 
+        builder.Property(cycle => cycle.OutputReleaseTime)
+            .IsRequired();
+
         builder.Property(cycle => cycle.ProcessingDate)
             .HasColumnType("date")
             .IsConcurrencyToken();

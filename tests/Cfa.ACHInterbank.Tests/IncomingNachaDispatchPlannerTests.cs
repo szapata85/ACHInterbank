@@ -1,8 +1,11 @@
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 using Cfa.ACHInterbank.Tests.TestSupport;
 
@@ -26,6 +29,33 @@ public class IncomingNachaDispatchPlannerTests
         var blocked = await context.IncomingNachaDispatchQueue.CountAsync(x => x.QueueStatus == IncomingNachaDispatchQueueStatus.Blocked);
         Assert.Equal(1, queued);
         Assert.Equal(1, blocked);
+    }
+
+    [Fact]
+    public async Task PlanForIngestionAsync_CyclePolicyDisallowsTransaction_BlocksDispatch()
+    {
+        await using var context = BuildContext();
+        var ingestion = SeedCommonGraph(context);
+        var policy = new Mock<ICycleTransactionPolicy>();
+        policy.Setup(x => x.EvaluateAsync(It.IsAny<CycleTransactionPolicyRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CycleTransactionPolicyResult(
+                false,
+                "CYCLE_TRANSACTION_NOT_ALLOWED",
+                "Clase no habilitada en el ciclo.",
+                "ACH",
+                1,
+                "MonetaryCredit"));
+        var sut = new IncomingNachaDispatchPlanner(
+            context,
+            new IncomingNachaDispatchEligibilityPolicy(policy.Object),
+            timeProvider: TestClock.Create());
+
+        await sut.PlanForIngestionAsync(ingestion.Id, "tester");
+
+        var queue = await context.IncomingNachaDispatchQueue.SingleAsync(x => x.AchTransactionId == 100);
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Blocked, queue.QueueStatus);
+        Assert.Equal("POLICY_BLOCKED", queue.LastErrorCode);
+        Assert.Contains("CYCLE_TRANSACTION_NOT_ALLOWED", queue.LastErrorMessage);
     }
 
     [Fact]
