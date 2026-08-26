@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Tests.TestSupport;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -36,6 +37,8 @@ public class CenitOperationalGovernanceTests
     [Fact]
     public async Task BatchResolver_MarksOutsideWindowForQueue_WhenCenitCycleNotOpenYet()
     {
+        var operationalDate = new DateTime(2026, 8, 26);
+        var fixedInstant = new DateTimeOffset(2026, 8, 26, 14, 0, 0, TimeSpan.Zero);
         using var connection = new SqliteConnection("DataSource=:memory:");
         await connection.OpenAsync();
         await using var context = CreateContext(connection);
@@ -45,24 +48,42 @@ public class CenitOperationalGovernanceTests
         var fiDestination = new FinancialInstitution { Id = 2, Name = "Banco Destino", RoutingNumber = "8765", TransitCode = "4321", Status = FinancialInstitutionStatus.Active };
         fiDestination.CalculateCheckDigit();
         context.FinancialInstitutions.AddRange(fiSource, fiDestination);
-        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian" });
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, HolidayStrategy = "Colombian", TimeZoneId = "America/Bogota" });
         context.ClearingHouses.Add(new ClearingHouse { Id = 2, Code = "CENIT", Name = "CENIT", OriginCode = "011111111", ClearingHouseId = 1 });
-        context.AchCycles.Add(new AchCycle
+        var cycleConfig = new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 2,
+            PolicyVersion = "CENIT-TEST-V1",
+            CycleName = "Ciclo 2",
+            StartTime = new TimeSpan(11, 0, 0),
+            CutoffTime = new TimeSpan(12, 0, 0),
+            EndTime = new TimeSpan(13, 0, 0),
+            OutputReleaseTime = new TimeSpan(14, 0, 0),
+            AllowsMonetaryCredit = true,
+            EffectiveFrom = operationalDate,
+            EffectiveTo = operationalDate,
+            IsActive = true
+        };
+        var cycle = new AchCycle
         {
             Id = "cycle-1",
             ClearingHouseId = 2,
             CycleName = "Ciclo 2",
-            ProcessingDate = DateTime.UtcNow.Date,
-            StartTime = DateTime.UtcNow.AddHours(2).TimeOfDay,
-            EndTime = DateTime.UtcNow.AddHours(4).TimeOfDay,
-            CutoffTime = DateTime.UtcNow.AddHours(4).TimeOfDay
-        });
+            ProcessingDate = operationalDate,
+            StartTime = cycleConfig.StartTime,
+            EndTime = cycleConfig.EndTime,
+            CutoffTime = cycleConfig.CutoffTime,
+            OutputReleaseTime = cycleConfig.OutputReleaseTime,
+            ClearingHouseCycleConfig = cycleConfig
+        };
+        context.ClearingHouseCycleConfigs.Add(cycleConfig);
+        context.AchCycles.Add(cycle);
         context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = TestCompanyEntryDescriptionId, Term = "PAGO", Description = "Pago", IsActive = true, StandardEntryClassCode = "PPD" });
         await context.SaveChangesAsync();
 
         var batchRepo = new Mock<IAchBatchRepository>();
         batchRepo.Setup(x => x.FindForTransactionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchBatch { Id = 9, AchCycleId = "cycle-1", CompanyName = "Comp", CompanyIdentification = "NIT", CompanyEntryDescription = "PAGO", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, EffectiveEntryDate = DateTime.UtcNow.Date, OriginOrOdfi = "12345678" });
+            .ReturnsAsync(new AchBatch { Id = 9, AchCycleId = "cycle-1", CompanyName = "Comp", CompanyIdentification = "NIT", CompanyEntryDescription = "PAGO", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, EffectiveEntryDate = operationalDate, OriginOrOdfi = "12345678" });
         batchRepo.Setup(x => x.GetUpcomingCyclesAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<TimeSpan>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchCycle>());
 
@@ -70,7 +91,7 @@ public class CenitOperationalGovernanceTests
         routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(2, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("cycle-1");
 
-        var sut = new BatchResolver(context, batchRepo.Object, routing.Object);
+        var sut = new BatchResolver(context, batchRepo.Object, routing.Object, new FixedTimeProvider(fixedInstant, TimeZoneInfo.Utc));
         var result = await sut.ResolveAsync(new AchTransactionRequestData
         {
             Amount = 10,
