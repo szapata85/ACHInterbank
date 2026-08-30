@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.IO.Compression;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -262,8 +263,13 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName);
             operation.ClearingHouseId = cycle.ClearingHouseId;
 
-            var nacha = await _nachaBuilder.BuildNachaFileByCycleAsync(request.CycleId, cancellationToken);
-            if (string.IsNullOrWhiteSpace(nacha))
+            var buildResult = string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase)
+                ? await _nachaBuilder.BuildNachaFilesByCycleAsync(request.CycleId, cancellationToken)
+                : new NachaFileBuildResult(
+                [
+                    await _nachaBuilder.BuildNachaFileArtifactByCycleAsync(request.CycleId, cancellationToken)
+                ]);
+            if (buildResult.Files.Count == 0)
             {
                 MarkAsFailed(operation, "NACHA_NO_EXPORTABLE_CONTENT", "No hay transacciones exportables para el ciclo. No se generó archivo NACHA-M.");
                 await _context.SaveChangesAsync(cancellationToken);
@@ -271,33 +277,75 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             }
 
             var legacyFileName = BuildNachaFileName(clearingHouse, cycleNumber);
-            var filePolicy = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, nacha, context.RequestedBy, cancellationToken);
-            var normalized = filePolicy.Components.FileIdModifier.HasValue
-                ? ReplaceHeaderPosition36(nacha, filePolicy.Components.FileIdModifier.Value)
-                : nacha;
-            var outputFileName = encrypted ? $"{filePolicy.ExternalFileName}.ENV" : filePolicy.ExternalFileName;
+            var generatedFiles = new List<(string FileName, byte[] Content, string PlainHash, string? EnvelopeHash)>();
+            var generatedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in buildResult.Files.Select((artifact, index) => (artifact, index)))
+            {
+                if (string.IsNullOrWhiteSpace(item.artifact.Content))
+                {
+                    MarkAsFailed(operation, "NACHA_NO_EXPORTABLE_CONTENT", "No hay transacciones exportables para el ciclo. No se generó archivo NACHA-M.");
+                    await _context.SaveChangesAsync(cancellationToken);
+                    return ToDto(operation);
+                }
+
+                var partitionKey = buildResult.Files.Count == 1
+                    ? null
+                    : $"{item.artifact.ProfileIdentity}|{item.index + 1}";
+                var filePolicy = await GenerateAndEnforceExternalFileNamePolicyAsync(
+                    cycle,
+                    clearingHouse,
+                    legacyFileName,
+                    item.artifact.Content,
+                    context.RequestedBy,
+                    partitionKey,
+                    cancellationToken);
+                var normalized = filePolicy.Components.FileIdModifier.HasValue
+                    ? ReplaceHeaderPosition36(item.artifact.Content, filePolicy.Components.FileIdModifier.Value)
+                    : item.artifact.Content;
+                var plainBytes = Encoding.ASCII.GetBytes(normalized);
+                var content = encrypted
+                    ? await _cryptoService.CreateEnvelopeAsync(plainBytes, filePolicy.ExternalFileName)
+                    : plainBytes;
+                var generatedFileName = encrypted ? $"{filePolicy.ExternalFileName}.ENV" : filePolicy.ExternalFileName;
+                if (!generatedFileNames.Add(generatedFileName))
+                {
+                    throw new NachaGenerationException(
+                        "NACHA_OUTPUT_FILENAME_DUPLICATED",
+                        $"El nombre externo '{generatedFileName}' fue asignado a más de un archivo generado.");
+                }
+                generatedFiles.Add((
+                    generatedFileName,
+                    content,
+                    ComputeSha256(plainBytes),
+                    encrypted ? ComputeSha256(content) : null));
+            }
 
             byte[] output;
+            string outputFileName;
             string contentType;
-            string? plainHash;
-            string? envelopeHash;
-
-            if (encrypted)
+            if (generatedFiles.Count == 1)
             {
-                output = await _cryptoService.CreateEnvelopeAsync(Encoding.ASCII.GetBytes(normalized), filePolicy.ExternalFileName);
-                contentType = "application/xml";
-                plainHash = ComputeSha256(Encoding.ASCII.GetBytes(normalized));
-                envelopeHash = ComputeSha256(output);
+                output = generatedFiles[0].Content;
+                outputFileName = generatedFiles[0].FileName;
+                contentType = encrypted ? "application/xml" : "text/plain";
             }
             else
             {
-                output = Encoding.ASCII.GetBytes(normalized);
-                contentType = "text/plain";
-                plainHash = ComputeSha256(output);
-                envelopeHash = null;
+                output = BuildZip(generatedFiles.Select(file => (file.FileName, file.Content)).ToArray());
+                outputFileName = $"{generatedFiles[0].FileName}.zip";
+                contentType = "application/zip";
             }
 
-            var artifactPath = await _artifactStore.SaveAsync(operation.OperationId, encrypted ? ".ENV" : ".txt", output, cancellationToken);
+            var outputHash = ComputeSha256(output);
+            var plainHash = generatedFiles.Count == 1
+                ? generatedFiles[0].PlainHash
+                : encrypted ? null : outputHash;
+            var envelopeHash = generatedFiles.Count == 1
+                ? generatedFiles[0].EnvelopeHash
+                : encrypted ? outputHash : null;
+
+            var artifactExtension = generatedFiles.Count > 1 ? ".zip" : encrypted ? ".ENV" : ".txt";
+            var artifactPath = await _artifactStore.SaveAsync(operation.OperationId, artifactExtension, output, cancellationToken);
             operation.Status = NachaSecurityOperationStatus.Success;
             operation.ExternalFileName = outputFileName;
             operation.PlainHashSha256 = plainHash;
@@ -506,6 +554,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         string legacyFileName,
         string nachaContent,
         string requestedBy,
+        string? partitionKey,
         CancellationToken ct)
     {
         var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName);
@@ -524,7 +573,10 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             ProvidedExternalFileName = null,
             InternalFileName = legacyFileName,
             NachaContent = nachaContent,
-            RequestedBy = requestedBy
+            RequestedBy = requestedBy,
+            IdempotencyKey = string.IsNullOrWhiteSpace(partitionKey)
+                ? $"NACHA_OUT|CH:{clearingHouse.Id}|CYCLE:{cycle.Id}"
+                : $"NACHA_OUT|CH:{clearingHouse.Id}|CYCLE:{cycle.Id}|PARTITION:{partitionKey}"
         };
 
         var result = await _externalFileNamePolicy.GenerateExternalNameAsync(context, ct);
@@ -535,5 +587,21 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         }
 
         return result;
+    }
+
+    private static byte[] BuildZip(IReadOnlyCollection<(string FileName, byte[] Content)> files)
+    {
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var file in files)
+            {
+                var entry = archive.CreateEntry(file.FileName, CompressionLevel.NoCompression);
+                using var entryStream = entry.Open();
+                entryStream.Write(file.Content);
+            }
+        }
+
+        return output.ToArray();
     }
 }

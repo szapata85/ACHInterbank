@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http.Metadata;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.IO.Compression;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
@@ -75,31 +76,54 @@ public class NachaExportController : ControllerBase
                 return NotFound();
             }
 
-            var artifact = await _nachaBuilder.BuildNachaFileArtifactByCycleAsync(cycleId, ct);
-            string nachaContent = artifact.Content;
             string internalFileName = BuildInternalNachaFileName(cycle);
-            if (IsEmptyExport(nachaContent))
+            var buildResult = await BuildFilesAsync(cycle, clearingHouse, ct);
+            if (buildResult.Files.Count == 0)
             {
                 return EmptyExport(cycleId);
             }
 
-            var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, internalFileName, nachaContent, ct);
-            string fileName = fileNamePolicyResult.ExternalFileName;
-            string normalizedNachaContent = NormalizeFileHeaderIdentifier(nachaContent, fileNamePolicyResult.Components.FileIdModifier);
-            string contentSha256 = ComputeSha256(normalizedNachaContent);
-            await _fileExportAuditService.RecordGeneratedFileAsync(
-                cycle.Id,
-                cycle.ClearingHouseId,
-                "NACHA",
-                fileName,
-                CountRecords(normalizedNachaContent),
-                CountTransactions(normalizedNachaContent),
-                false,
-                artifact.AchTransactionIds,
-                contentSha256,
-                ct);
+            var files = new List<(string FileName, byte[] Content)>();
+            var generatedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (var index = 0; index < buildResult.Files.Count; index++)
+            {
+                var artifact = buildResult.Files[index];
+                if (IsEmptyExport(artifact.Content))
+                {
+                    return EmptyExport(cycleId);
+                }
 
-            return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
+                var partitionKey = buildResult.Files.Count == 1
+                    ? null
+                    : $"{artifact.ProfileIdentity}|{index + 1}";
+                var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(
+                    cycle,
+                    clearingHouse,
+                    internalFileName,
+                    artifact.Content,
+                    partitionKey,
+                    ct);
+                var fileName = fileNamePolicyResult.ExternalFileName;
+                EnsureUniqueFileName(generatedFileNames, fileName);
+                var normalized = NormalizeFileHeaderIdentifier(artifact.Content, fileNamePolicyResult.Components.FileIdModifier);
+                var contentSha256 = ComputeSha256(normalized);
+                await _fileExportAuditService.RecordGeneratedFileAsync(
+                    cycle.Id,
+                    cycle.ClearingHouseId,
+                    "NACHA",
+                    fileName,
+                    CountRecords(normalized),
+                    CountTransactions(normalized),
+                    false,
+                    artifact.AchTransactionIds,
+                    contentSha256,
+                    ct);
+                files.Add((fileName, Encoding.ASCII.GetBytes(normalized)));
+            }
+
+            return files.Count == 1
+                ? File(files[0].Content, "text/plain", files[0].FileName)
+                : File(BuildZip(files), "application/zip", $"{files[0].FileName}.zip");
         }
         catch (NachaGenerationException ex)
         {
@@ -124,8 +148,6 @@ public class NachaExportController : ControllerBase
                 return NotFound();
             }
 
-            var artifact = await _nachaBuilder.BuildNachaFileArtifactByCycleAsync(cycleId, ct);
-            string nachaContent = artifact.Content;
             ClearingHouseDto? clearingHouse = await _clearingHouseService.GetByIdAsync(cycle.ClearingHouseId, ct);
             if (clearingHouse is null)
             {
@@ -133,63 +155,98 @@ public class NachaExportController : ControllerBase
             }
 
             string internalFileName = BuildInternalNachaFileName(cycle);
-            if (IsEmptyExport(nachaContent))
+            var buildResult = await BuildFilesAsync(cycle, clearingHouse, ct);
+            if (buildResult.Files.Count == 0)
             {
                 return EmptyExport(cycleId);
             }
 
-            var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, internalFileName, nachaContent, ct);
-            string fileName = fileNamePolicyResult.ExternalFileName;
-            string normalizedNachaContent = NormalizeFileHeaderIdentifier(nachaContent, fileNamePolicyResult.Components.FileIdModifier);
-            string contentSha256 = ComputeSha256(normalizedNachaContent);
             var shouldEncrypt = forceEncryption || _envelopePolicy.ShouldEncrypt(cycle.ClearingHouseId);
-            if (!shouldEncrypt)
+            var files = new List<(string FileName, byte[] Content, string ContentType)>();
+            var generatedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (var index = 0; index < buildResult.Files.Count; index++)
             {
-                await _fileExportAuditService.RecordGeneratedFileAsync(
-                    cycle.Id,
-                    cycle.ClearingHouseId,
-                    "NACHA",
-                    fileName,
-                    CountRecords(normalizedNachaContent),
-                    CountTransactions(normalizedNachaContent),
-                    false,
-                    artifact.AchTransactionIds,
-                    contentSha256,
+                var artifact = buildResult.Files[index];
+                if (IsEmptyExport(artifact.Content))
+                {
+                    return EmptyExport(cycleId);
+                }
+
+                var partitionKey = buildResult.Files.Count == 1
+                    ? null
+                    : $"{artifact.ProfileIdentity}|{index + 1}";
+                var fileNamePolicyResult = await GenerateAndEnforceExternalFileNamePolicyAsync(
+                    cycle,
+                    clearingHouse,
+                    internalFileName,
+                    artifact.Content,
+                    partitionKey,
                     ct);
-                return File(Encoding.ASCII.GetBytes(normalizedNachaContent), "text/plain", fileName);
+                var fileName = fileNamePolicyResult.ExternalFileName;
+                var normalized = NormalizeFileHeaderIdentifier(artifact.Content, fileNamePolicyResult.Components.FileIdModifier);
+                var contentSha256 = ComputeSha256(normalized);
+
+                if (!shouldEncrypt)
+                {
+                    EnsureUniqueFileName(generatedFileNames, fileName);
+                    await _fileExportAuditService.RecordGeneratedFileAsync(
+                        cycle.Id,
+                        cycle.ClearingHouseId,
+                        "NACHA",
+                        fileName,
+                        CountRecords(normalized),
+                        CountTransactions(normalized),
+                        false,
+                        artifact.AchTransactionIds,
+                        contentSha256,
+                        ct);
+                    files.Add((fileName, Encoding.ASCII.GetBytes(normalized), "text/plain"));
+                    continue;
+                }
+
+                var plainBytes = Encoding.ASCII.GetBytes(normalized);
+                try
+                {
+                    var envelope = await _digitalEnvelope.EncryptAsync(
+                        cycle.ClearingHouseId,
+                        fileName,
+                        plainBytes,
+                        User?.Identity?.Name ?? "system",
+                        ct);
+                    EnsureUniqueFileName(generatedFileNames, envelope.FileName);
+                    await _fileExportAuditService.RecordGeneratedFileAsync(
+                        cycle.Id,
+                        cycle.ClearingHouseId,
+                        "NACHA",
+                        fileName,
+                        CountRecords(normalized),
+                        CountTransactions(normalized),
+                        true,
+                        artifact.AchTransactionIds,
+                        contentSha256,
+                        ct);
+                    if (ControllerContext.HttpContext is not null && buildResult.Files.Count == 1)
+                    {
+                        Response.Headers["X-Cryptographic-Profile"] = envelope.CryptographicProfile;
+                        Response.Headers["X-Plaintext-SHA256"] = contentSha256;
+                    }
+                    files.Add((envelope.FileName, envelope.Content, envelope.ContentType));
+                }
+                finally
+                {
+                    System.Security.Cryptography.CryptographicOperations.ZeroMemory(plainBytes);
+                }
             }
 
-            var plainBytes = Encoding.ASCII.GetBytes(normalizedNachaContent);
-            try
+            if (files.Count == 1)
             {
-                var envelope = await _digitalEnvelope.EncryptAsync(
-                    cycle.ClearingHouseId,
-                    fileName,
-                    plainBytes,
-                    User?.Identity?.Name ?? "system",
-                    ct);
-                await _fileExportAuditService.RecordGeneratedFileAsync(
-                    cycle.Id,
-                    cycle.ClearingHouseId,
-                    "NACHA",
-                    fileName,
-                    CountRecords(normalizedNachaContent),
-                    CountTransactions(normalizedNachaContent),
-                    true,
-                    artifact.AchTransactionIds,
-                    contentSha256,
-                    ct);
-                if (ControllerContext.HttpContext is not null)
-                {
-                    Response.Headers["X-Cryptographic-Profile"] = envelope.CryptographicProfile;
-                    Response.Headers["X-Plaintext-SHA256"] = contentSha256;
-                }
-                return File(envelope.Content, envelope.ContentType, envelope.FileName);
+                return File(files[0].Content, files[0].ContentType, files[0].FileName);
             }
-            finally
-            {
-                System.Security.Cryptography.CryptographicOperations.ZeroMemory(plainBytes);
-            }
+
+            return File(
+                BuildZip(files.Select(file => (file.FileName, file.Content)).ToArray()),
+                "application/zip",
+                $"{files[0].FileName}.zip");
         }
         catch (ManagedDigitalEnvelopeException ex)
         {
@@ -486,6 +543,7 @@ public class NachaExportController : ControllerBase
         ClearingHouseDto clearingHouse,
         string legacyFileName,
         string nachaContent,
+        string? partitionKey,
         CancellationToken ct)
     {
         var operationalSnapshot = _operationalTimeProvider.GetOrCreate(
@@ -502,7 +560,9 @@ public class NachaExportController : ControllerBase
             CycleNumber = ResolveCycleNumber(cycle.CycleName),
             ProcessingDate = operationalSnapshot.BogotaTimestamp,
             OperationalTimeSnapshot = operationalSnapshot,
-            IdempotencyKey = $"NACHA_OUT|CH:{clearingHouse.Id}|CYCLE:{cycle.Id}",
+            IdempotencyKey = string.IsNullOrWhiteSpace(partitionKey)
+                ? $"NACHA_OUT|CH:{clearingHouse.Id}|CYCLE:{cycle.Id}"
+                : $"NACHA_OUT|CH:{clearingHouse.Id}|CYCLE:{cycle.Id}|PARTITION:{partitionKey}",
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound,
@@ -520,6 +580,48 @@ public class NachaExportController : ControllerBase
         }
 
         return result;
+    }
+
+    private async Task<NachaFileBuildResult> BuildFilesAsync(
+        AchCycleDto cycle,
+        ClearingHouseDto clearingHouse,
+        CancellationToken ct)
+    {
+        if (string.Equals(clearingHouse.Code, "CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            return await _nachaBuilder.BuildNachaFilesByCycleAsync(cycle.Id, ct);
+        }
+
+        return new NachaFileBuildResult(
+        [
+            await _nachaBuilder.BuildNachaFileArtifactByCycleAsync(cycle.Id, ct)
+        ]);
+    }
+
+    private static byte[] BuildZip(IReadOnlyCollection<(string FileName, byte[] Content)> files)
+    {
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var file in files)
+            {
+                var entry = archive.CreateEntry(file.FileName, CompressionLevel.NoCompression);
+                using var entryStream = entry.Open();
+                entryStream.Write(file.Content);
+            }
+        }
+
+        return output.ToArray();
+    }
+
+    private static void EnsureUniqueFileName(ISet<string> generatedFileNames, string fileName)
+    {
+        if (!generatedFileNames.Add(fileName))
+        {
+            throw new NachaGenerationException(
+                "NACHA_OUTPUT_FILENAME_DUPLICATED",
+                $"El nombre externo '{fileName}' fue asignado a más de un archivo generado.");
+        }
     }
 
     private static int ResolveCycleNumber(string? cycleName)

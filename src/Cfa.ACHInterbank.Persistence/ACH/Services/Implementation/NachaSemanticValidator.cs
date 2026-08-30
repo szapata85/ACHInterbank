@@ -63,8 +63,9 @@ public class NachaSemanticValidator : INachaSemanticValidator
             EnsureRecordType(records, currentRecordIndex, '5', $"Se esperaba T5 para el lote ordinal {batchOrdinal + 1}.");
             var batchHeaderRecord = records[currentRecordIndex++];
 
-            var batchTransactions = context.Transactions
-                .Where(transaction => transaction.AchBatchId == batch.Id)
+            var batchTransactions = (batch.Transactions.Count > 0
+                    ? batch.Transactions
+                    : context.Transactions.Where(transaction => transaction.AchBatchId == batch.Id))
                 .OrderBy(transaction => transaction.Id)
                 .ToList();
             if (batchTransactions.Count == 0)

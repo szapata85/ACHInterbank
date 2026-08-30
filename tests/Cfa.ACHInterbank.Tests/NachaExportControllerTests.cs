@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO.Compression;
 using Cfa.ACHInterbank.Api.Controllers;
 using Cfa.ACHInterbank.Api.Encryption;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
@@ -302,8 +303,8 @@ public class NachaExportControllerTests
         var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
 
         builder
-            .Setup(b => b.BuildNachaFileArtifactByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new NachaFileBuildArtifact(nachaContent, []));
+            .Setup(b => b.BuildNachaFilesByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaFileBuildResult([new NachaFileBuildArtifact(nachaContent, [])]));
         cycleService
             .Setup(c => c.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 2, CycleName = "CICLO-3", ProcessingDate = DateTime.UtcNow });
@@ -343,6 +344,83 @@ public class NachaExportControllerTests
         Assert.Equal('C', Encoding.ASCII.GetString(fileResult.FileContents)[35]);
 
         auditService.VerifyAll();
+    }
+
+    [Fact]
+    public async Task ExportEncrypted_CenitMultiFile_UsesUniqueNamesAndReturnsZip()
+    {
+        const string cycleId = "cycle-cenit-multi";
+        var content1 = new string('1', 106) + new string('5', 106);
+        var content2 = new string('1', 106) + new string('5', 106);
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var crypto = new Mock<INachaExportDigitalEnvelopeService>(MockBehavior.Strict);
+        var cycleService = new Mock<IAchCycleAppService>(MockBehavior.Strict);
+        var clearingHouseService = new Mock<IClearingHouseService>(MockBehavior.Strict);
+        var envelopePolicy = new Mock<IDigitalEnvelopePolicy>(MockBehavior.Strict);
+        var identifierMapService = new Mock<INachaFileIdentifierMapService>(MockBehavior.Strict);
+        var auditService = new Mock<IAchFileExportAuditService>(MockBehavior.Strict);
+        var externalFileNamePolicy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
+        var namingContexts = new List<ExternalFileNameContext>();
+
+        builder
+            .Setup(service => service.BuildNachaFilesByCycleAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaFileBuildResult(
+            [
+                new NachaFileBuildArtifact(content1, [1]) { ProfileIdentity = "PPD-CCD" },
+                new NachaFileBuildArtifact(content2, [2]) { ProfileIdentity = "PPD-CCD" }
+            ]));
+        cycleService
+            .Setup(service => service.GetByIdAsync(cycleId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 2, CycleName = "CICLO-3", ProcessingDate = DateTime.UtcNow });
+        clearingHouseService
+            .Setup(service => service.GetByIdAsync(2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ClearingHouseDto { Id = 2, Code = "CENIT", OriginCode = "8765321", Name = "CENIT" });
+        envelopePolicy.Setup(policy => policy.ShouldEncrypt(2)).Returns(false);
+        externalFileNamePolicy
+            .Setup(policy => policy.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ExternalFileNameContext context, CancellationToken _) =>
+            {
+                namingContexts.Add(context);
+                var sequence = namingContexts.Count;
+                return new ExternalFileNamePolicyResult
+                {
+                    ExternalFileName = $"8765321.{sequence:000}.1",
+                    Components = new ExternalFileNameComponents
+                    {
+                        FullName = $"8765321.{sequence:000}.1",
+                        Prefix = "8765321",
+                        ExternalSequence = sequence,
+                        FileIdModifier = sequence == 1 ? 'A' : 'B'
+                    },
+                    Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed }
+                };
+            });
+        auditService
+            .Setup(service => service.RecordGeneratedFileAsync(
+                cycleId, 2, "NACHA", It.IsAny<string>(), 2, 0, false,
+                It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var controller = new NachaExportController(
+            builder.Object,
+            crypto.Object,
+            cycleService.Object,
+            clearingHouseService.Object,
+            envelopePolicy.Object,
+            identifierMapService.Object,
+            auditService.Object,
+            externalFileNamePolicy.Object);
+
+        var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
+
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("application/zip", fileResult.ContentType);
+        using var archive = new ZipArchive(new MemoryStream(fileResult.FileContents), ZipArchiveMode.Read);
+        Assert.Equal(["8765321.001.1", "8765321.002.1"], archive.Entries.Select(entry => entry.FullName));
+        Assert.Equal(2, namingContexts.Select(context => context.IdempotencyKey).Distinct().Count());
+        auditService.Verify(service => service.RecordGeneratedFileAsync(
+            cycleId, 2, "NACHA", It.IsAny<string>(), 2, 0, false,
+            It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [Fact]

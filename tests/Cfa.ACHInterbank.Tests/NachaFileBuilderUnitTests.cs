@@ -50,6 +50,24 @@ public class NachaFileBuilderUnitTests
     }
 
     [Fact]
+    public async Task BuildNachaFilesByCycleAsync_ReturnsEmptyResult_WhenCycleHasNoTransactions()
+    {
+        var sut = CreateSut(out var loader, out _, out _, out _, out _, out _);
+
+        loader.Setup(x => x.LoadByCycleAsync("cycle-empty", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Cfa.ACHInterbank.Application.ACH.Models.NachaBuildContext
+            {
+                Cycle = new AchCycle { Id = "cycle-empty", CycleName = "C1", ProcessingDate = DateTime.UtcNow },
+                Batches = [new AchBatch { Id = 1 }],
+                Transactions = []
+            });
+
+        var result = await sut.BuildNachaFilesByCycleAsync("cycle-empty", CancellationToken.None);
+
+        result.Files.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task BuildNachaFileByCycleAsync_ShouldThrow_WhenCycleHasNoBatches()
     {
         var sut = CreateSut(out var loader, out _, out _, out _, out _, out _);

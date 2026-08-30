@@ -360,13 +360,31 @@ public class NachaFileBuilder : INachaFileBuilder
 
     public async Task<NachaFileBuildArtifact> BuildNachaFileArtifactByCycleAsync(string cycleId, CancellationToken ct = default)
     {
+        var result = await BuildNachaFilesByCycleAsync(cycleId, ct);
+        if (result.Files.Count == 0)
+        {
+            throw new InvalidOperationException($"El ciclo {cycleId} no tiene transacciones para exportar.");
+        }
+
+        if (result.Files.Count != 1)
+        {
+            throw new NachaGenerationException(
+                "NACHA_MULTI_FILE_RESULT_REQUIRED",
+                $"El ciclo {cycleId} produce {result.Files.Count} archivos NACHA-M y debe consumirse mediante el contrato multiarchivo.");
+        }
+
+        return result.Files[0];
+    }
+
+    public async Task<NachaFileBuildResult> BuildNachaFilesByCycleAsync(string cycleId, CancellationToken ct = default)
+    {
         var context = await _dataLoader.LoadByCycleAsync(cycleId, ct);
         var cycle = context.Cycle;
         var transactions = context.Transactions;
         var batches = context.Batches;
 
         if (transactions.Count == 0)
-            throw new InvalidOperationException($"El ciclo {cycleId} no tiene transacciones para exportar.");
+            return NachaFileBuildResult.Empty;
 
         if (batches.Count == 0)
             throw new InvalidOperationException($"El ciclo {cycleId} no tiene lotes asociados para exportar.");
@@ -381,22 +399,141 @@ public class NachaFileBuilder : INachaFileBuilder
         EnforceCenitLiveGenerationGate(clearingHouseCode);
         EnforceLiveOfficialMode(clearingHouseCode);
         await _transactionValidationService.ValidateTransactionsForSendAsync(transactions, ct);
-        string content;
-        if (IsOfficialTableDrivenMode())
+        if (!string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase))
         {
-            content = await BuildOfficialTableDrivenFileAsync(context, nachaHeader, ct);
-        }
-        else
-        {
-            var layoutCache = await _dataLoader.LoadLayoutsAsync(ct);
-            var definitions = await _dataLoader.LoadDefinitionsAsync(ct);
-            content = await BuildFileAsync(context, definitions, layoutCache, nachaHeader, ct);
+            var content = await BuildContextContentAsync(context, nachaHeader, ct);
+            return new NachaFileBuildResult(
+            [
+                new NachaFileBuildArtifact(
+                    content,
+                    transactions.Select(transaction => transaction.Id).OrderBy(id => id).ToArray())
+            ]);
         }
 
-        return new NachaFileBuildArtifact(
-            content,
-            transactions.Select(x => x.Id).OrderBy(x => x).ToArray());
+        var catalog = (await _dataLoader.LoadCompanyEntryDescriptionCatalogAsync(ct))
+            .Select(item => new CompanyEntryDescriptionCatalogItem(item.Term, item.StandardEntryClassCode))
+            .ToList();
+        var transactionsByBatchId = transactions
+            .GroupBy(transaction => transaction.AchBatchId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<AchTransaction>)group.OrderBy(transaction => transaction.Id).ToArray());
+        var sources = batches
+            .Where(batch => transactionsByBatchId.ContainsKey(batch.Id))
+            .Select(batch => new CenitOutboundSourceBatch(
+                batch,
+                ResolveStandardEntryClassCode(batch, transactionsByBatchId[batch.Id], catalog),
+                transactionsByBatchId[batch.Id]))
+            .ToArray();
+        var partitions = CenitOutboundFilePartitioner.Partition(sources);
+        EnsureCompleteCenitMembership(transactions, partitions);
+
+        if (partitions.Any(partition => partition.ProfileIdentity == CenitOutboundFilePartitioner.CtxProfileIdentity))
+        {
+            throw new NachaGenerationException(
+                "CENIT_CTX_OUTBOUND_PROFILE_NOT_PUBLISHED",
+                "La partición CTX fue aislada, pero no existe un perfil publicado con layouts oficiales T5/T6/T7 CTX y multi-adenda.");
+        }
+
+        var artifacts = new List<NachaFileBuildArtifact>(partitions.Count);
+        foreach (var partition in partitions.OrderBy(item => item.FileIndex))
+        {
+            var fileContext = BuildPartitionContext(context, partition);
+            var content = await BuildContextContentAsync(fileContext, nachaHeader, ct);
+            var memberships = partition.Batches
+                .Select((batch, index) => new NachaFileBatchMembership(
+                    index + 1,
+                    batch.SourceBatch.Id,
+                    batch.ServiceCode,
+                    batch.Transactions.Select(transaction => transaction.Id).OrderBy(id => id).ToArray()))
+                .ToArray();
+            var profileIdentity = NachaProfileDimensionResolver.ResolveFlowCode(fileContext.Transactions) == "PRENOTIFICACION"
+                ? CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode
+                : CenitOrdinaryOutbound2026Layout.OriginalProfileCode;
+            artifacts.Add(new NachaFileBuildArtifact(
+                content,
+                fileContext.Transactions.Select(transaction => transaction.Id).OrderBy(id => id).ToArray())
+            {
+                ProfileIdentity = profileIdentity,
+                ServiceCodes = partition.ServiceCodes,
+                Batches = memberships
+            });
+        }
+
+        return new NachaFileBuildResult(artifacts);
     }
+
+    private static void EnsureCompleteCenitMembership(
+        IReadOnlyCollection<AchTransaction> sourceTransactions,
+        IReadOnlyCollection<CenitOutboundFilePartition> partitions)
+    {
+        var sourceIds = sourceTransactions.Select(transaction => transaction.Id).OrderBy(id => id).ToArray();
+        var emittedIds = partitions
+            .SelectMany(partition => partition.Batches)
+            .SelectMany(batch => batch.Transactions)
+            .Select(transaction => transaction.Id)
+            .OrderBy(id => id)
+            .ToArray();
+        if (!sourceIds.SequenceEqual(emittedIds))
+        {
+            throw new NachaGenerationException(
+                "CENIT_TRANSACTION_MEMBERSHIP_INCOMPLETE",
+                "La partición CENIT no preservó exactamente todas las transacciones exportables del ciclo.");
+        }
+    }
+
+    private async Task<string> BuildContextContentAsync(
+        NachaBuildContext context,
+        NachaHeader? nachaHeader,
+        CancellationToken ct)
+    {
+        if (IsOfficialTableDrivenMode())
+        {
+            return await BuildOfficialTableDrivenFileAsync(context, nachaHeader, ct);
+        }
+
+        var layoutCache = await _dataLoader.LoadLayoutsAsync(ct);
+        var definitions = await _dataLoader.LoadDefinitionsAsync(ct);
+        return await BuildFileAsync(context, definitions, layoutCache, nachaHeader, ct);
+    }
+
+    private static NachaBuildContext BuildPartitionContext(
+        NachaBuildContext source,
+        CenitOutboundFilePartition partition)
+    {
+        var batches = partition.Batches
+            .Select((item, index) => CloneBatchForFile(item, index + 1))
+            .ToArray();
+        return new NachaBuildContext
+        {
+            Cycle = source.Cycle,
+            Batches = batches,
+            Transactions = batches.SelectMany(batch => batch.Transactions).ToArray()
+        };
+    }
+
+    private static AchBatch CloneBatchForFile(CenitOutboundBatchPartition partition, int ordinal)
+        => new()
+        {
+            Id = -ordinal,
+            AchCycleId = partition.SourceBatch.AchCycleId,
+            AchCycle = partition.SourceBatch.AchCycle,
+            ServiceClassCode = partition.SourceBatch.ServiceClassCode,
+            CompanyName = partition.SourceBatch.CompanyName,
+            CompanyIdentification = partition.SourceBatch.CompanyIdentification,
+            CompanyEntryDescription = partition.SourceBatch.CompanyEntryDescription,
+            CompanyEntryDescriptionId = partition.SourceBatch.CompanyEntryDescriptionId,
+            OriginOrOdfi = partition.SourceBatch.OriginOrOdfi,
+            EffectiveEntryDate = partition.SourceBatch.EffectiveEntryDate,
+            BatchSequenceNumber = ordinal,
+            TotalDebitAmount = partition.Transactions
+                .Where(transaction => transaction.Type is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal)
+                .Sum(transaction => transaction.Amount),
+            TotalCreditAmount = partition.Transactions
+                .Where(transaction => transaction.Type is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification)
+                .Sum(transaction => transaction.Amount),
+            Transactions = partition.Transactions.ToList()
+        };
 
     // ─────────────────────────────────────────────────────────────────────────────
     // MÉTODO DE INTERFAZ: Cumple contrato de INachaFileBuilder
@@ -750,22 +887,9 @@ public class NachaFileBuilder : INachaFileBuilder
             audit.Warnings.AddRange(resolution.Warnings);
         }
 
-        var transactionsByBatchId = new Dictionary<int, List<AchTransaction>>(orderedBatches.Count);
-        foreach (var tx in context.Transactions)
-        {
-            if (!transactionsByBatchId.TryGetValue(tx.AchBatchId, out var list))
-            {
-                list = new List<AchTransaction>();
-                transactionsByBatchId[tx.AchBatchId] = list;
-            }
-
-            list.Add(tx);
-        }
-
-        foreach (var list in transactionsByBatchId.Values)
-        {
-            list.Sort(static (a, b) => a.Id.CompareTo(b.Id));
-        }
+        var transactionsByBatchId = orderedBatches.ToDictionary(
+            batch => batch.Id,
+            batch => batch.Transactions.OrderBy(transaction => transaction.Id).ToList());
 
         long totalDebit = 0, totalCredit = 0;
         int recordCount = 0, batchCount = orderedBatches.Count, entryAddendaCount = 0;
@@ -1005,9 +1129,9 @@ public class NachaFileBuilder : INachaFileBuilder
         audit.NewEngineRecordCodes.AddRange(officialRecordCodes);
 
         var sb = new StringBuilder(capacity: Math.Max(10, context.Transactions.Count * 3 + orderedBatches.Count * 4) * lineLength);
-        var transactionsByBatchId = context.Transactions
-            .GroupBy(tx => tx.AchBatchId)
-            .ToDictionary(group => group.Key, group => (IReadOnlyList<AchTransaction>)group.OrderBy(tx => tx.Id).ToList());
+        var transactionsByBatchId = orderedBatches.ToDictionary(
+            batch => batch.Id,
+            batch => (IReadOnlyList<AchTransaction>)batch.Transactions.OrderBy(transaction => transaction.Id).ToList());
 
         var recordCount = 0;
         var batchCount = orderedBatches.Count;

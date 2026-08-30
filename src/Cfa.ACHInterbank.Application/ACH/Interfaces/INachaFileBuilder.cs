@@ -36,6 +36,11 @@ public interface INachaFileBuilder
     Task<Cfa.ACHInterbank.Application.ACH.Models.NachaFileBuildArtifact> BuildNachaFileArtifactByCycleAsync(string cycleId, CancellationToken ct = default);
 
     /// <summary>
+    /// Genera cero o más archivos NACHA-M con membresía explícita por archivo.
+    /// </summary>
+    Task<Cfa.ACHInterbank.Application.ACH.Models.NachaFileBuildResult> BuildNachaFilesByCycleAsync(string cycleId, CancellationToken ct = default);
+
+    /// <summary>
     /// Construye un registro NACHA-M individual de acuerdo con su layout configurado.
     /// </summary>
     /// <typeparam name="T">Entidad del dominio correspondiente al tipo de registro.</typeparam>

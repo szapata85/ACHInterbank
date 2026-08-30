@@ -215,6 +215,101 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         records[5].Substring(49, 18).Should().Be(isDebit ? new string('0', 18) : "123456789012345678");
     }
 
+    [Theory]
+    [InlineData("PAGOS", "PPD", 1)]
+    [InlineData("CONCENTRA", "CCD", 2)]
+    public async Task CenitMultiFileBuilder_AllocatesServiceAwareBatches_AndCalculatesEmittedControls(
+        string description,
+        string serviceCode,
+        int expectedBatchCount)
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("CENIT", batchCount: 2);
+        var sourceBatch = model.Batches[0];
+        sourceBatch.CompanyEntryDescription = description;
+        var transactions = model.Transactions.OrderBy(transaction => transaction.Id).ToArray();
+        foreach (var transaction in transactions)
+        {
+            transaction.AchBatchId = sourceBatch.Id;
+            transaction.AchBatch = sourceBatch;
+            transaction.Addendas =
+            [
+                new AchTransactionAddenda
+                {
+                    Id = transaction.Id,
+                    AchTransactionId = transaction.Id,
+                    Transaction = transaction,
+                    Information = $"PAYMENT {transaction.Id}",
+                    SequenceNumber = 1
+                }
+            ];
+        }
+        sourceBatch.Transactions = transactions;
+        model = new NachaBuildContext
+        {
+            Cycle = model.Cycle,
+            Batches = [sourceBatch],
+            Transactions = transactions
+        };
+        var setup = CreateOfficialSut(context, "CENIT", model);
+
+        var result = await setup.Sut.BuildNachaFilesByCycleAsync(model.Cycle.Id, CancellationToken.None);
+
+        var artifact = result.Files.Should().ContainSingle().Subject;
+        artifact.ProfileIdentity.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
+        artifact.ServiceCodes.Should().Equal(serviceCode);
+        artifact.Batches.Should().HaveCount(expectedBatchCount);
+        if (serviceCode == "CCD")
+        {
+            artifact.Batches.Should().OnlyContain(batch => batch.AchTransactionIds.Count == 1);
+        }
+        else
+        {
+            artifact.Batches.Should().ContainSingle().Which.AchTransactionIds.Should().HaveCount(2);
+        }
+        artifact.Batches.Select(batch => batch.SourceAchBatchId).Should().OnlyContain(batchId => batchId == sourceBatch.Id);
+        artifact.AchTransactionIds.Should().BeEquivalentTo(transactions.Select(transaction => transaction.Id));
+
+        var records = SplitRecords(artifact.Content);
+        records.Should().HaveCount(10);
+        records.Count(record => record[0] == '5').Should().Be(expectedBatchCount);
+        records.Count(record => record[0] == '6').Should().Be(2);
+        records.Count(record => record[0] == '7').Should().Be(2);
+        records.Count(record => record[0] == '8').Should().Be(expectedBatchCount);
+        records.Where(record => record[0] == '8').Should().OnlyContain(record =>
+            record.Substring(4, 6) == (serviceCode == "CCD" ? "000002" : "000004"));
+        var fileControl = records.First(record => record[0] == '9');
+        fileControl.Substring(1, 6).Should().Be($"{expectedBatchCount:000000}");
+        fileControl.Substring(13, 8).Should().Be("00000004");
+    }
+
+    [Fact]
+    public async Task CenitMultiFileBuilder_CtxUsesIndependentPartition_AndFailsForMissingPublishedProfile()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("CENIT");
+        var transaction = model.Transactions.Single();
+        model.Batches.Single().CompanyEntryDescription = "CORPORATE";
+        transaction.Addendas =
+        [
+            new AchTransactionAddenda
+            {
+                Id = transaction.Id,
+                AchTransactionId = transaction.Id,
+                Transaction = transaction,
+                Information = "CTX PAYMENT",
+                SequenceNumber = 1
+            }
+        ];
+        model.Batches.Single().Transactions = [transaction];
+        var setup = CreateOfficialSut(context, "CENIT", model);
+
+        var action = async () => await setup.Sut.BuildNachaFilesByCycleAsync(model.Cycle.Id, CancellationToken.None);
+
+        var exception = await action.Should().ThrowAsync<NachaGenerationException>();
+        exception.Which.Code.Should().Be("CENIT_CTX_OUTBOUND_PROFILE_NOT_PUBLISHED");
+    }
+
     [Fact]
     public async Task OfficialNachaGeneration_ShouldNotFallbackToLegacy_WhenProfileMissing()
     {
@@ -1316,6 +1411,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         context.SaveChanges();
         loader.Setup(x => x.LoadBatchesByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(contextData.Batches);
+        loader.Setup(x => x.LoadByCycleAsync(contextData.Cycle.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(contextData);
         loader.Setup(x => x.LoadHeaderAsync(contextData.Cycle.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new NachaHeader
             {
@@ -1329,7 +1426,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             .ReturnsAsync(new List<(string Term, string StandardEntryClassCode)>
             {
                 ("PAGOS", "PPD"),
-                ("CONCENTRA", "CCD")
+                ("CONCENTRA", "CCD"),
+                ("CORPORATE", "CTX")
             });
         validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
