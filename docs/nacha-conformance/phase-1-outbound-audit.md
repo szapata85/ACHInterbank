@@ -217,3 +217,17 @@ Blockers:
 * CENIT CTX layout, multi-addenda bounds, and independent-file policy are not implemented.
 * CENIT CCD grouping/limit rules are not enforced.
 * CENIT filename, daily bound, and filename-to-Type-1 identifier relationship diverge from the manual in audit scope.
+
+## 15. CENIT-NACHA-OUT-001 Remediation Attempt
+
+* JOB: `CENIT-NACHA-OUT-001`
+* Base commit: `0b2de78544e4c8ff745c13228070b5670b115e8a`
+* Date: 2026-08-29
+* Status: `BLOCKED`
+* Product code changed: NO
+* Documentation blocker: `DOCUMENTATION_BLOCKER_FILE_IDENTIFIER_MAPPING`
+* Normative evidence retrieved: CENIT Manual de Especificaciones Formato NACHA-M, 7 May 2026, §6.1 establishes filename `RRRRTTT.ZZZ.1`, daily consecutive `1` through `999`, correspondence with Type-1 field 7, and restart at `A` every 36 files.
+* Missing normative fact: the indexed source omits the correspondence table introduced by “así:”; therefore the complete symbol order and transition mapping from `ZZZ` to the one-character Type-1 identifier cannot be established without inference.
+* Implementation decision: no production or test changes were made because the JOB explicitly prohibits inventing this mapping and requires implementation to stop when it is unavailable.
+* GAP status: `NACHA-GAP-001 OPEN`; `NACHA-GAP-004 OPEN`; `NACHA-GAP-005 BLOCKED`; `NACHA-GAP-006 OPEN`.
+* Residual Phase-1 blockers: `NACHA-GAP-002`, `NACHA-GAP-003`, and the four gaps above remain open; Phase 2 readiness remains `NO`.
