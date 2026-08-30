@@ -39,7 +39,7 @@ RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED.
 STATUS: INCOMPLETE
 ACTIVE_GAPS: CENIT-FORMAT-NACHAM, OPS-GAP-003, OPS-GAP-004; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
 
-ORDINARY_STATE: PARTIAL, with production transport BLOCKED. The May 7, 2026 NACHA-M specification is authoritative and sufficient for local format implementation. Ordinary original/prenotification profiles remain placeholder, non-homologated, and output-only; current HEAD deliberately blocks CENIT LIVE generation pending implementation and external homologation. No Gateway/PO handoff receiver or ACK/NACK/operator-rejection lifecycle is wired.
+ORDINARY_STATE: PARTIAL, with production transport BLOCKED. CENIT-NACHA-OUT-001 closed the May 7, 2026 ordinary PPD/CCD outbound physical profile, filename `RRRRTTT.ZZZ.1`, daily sequence `001..999`, and the 36-symbol Type-1 identifier mapping with focused tests. The profiles remain non-homologated and CENIT LIVE stays fail-closed; CTX (NACHA-GAP-002), CCD grouping/limits (NACHA-GAP-003), inbound work, Gateway/PO, and ACK/NACK/operator-rejection remain open.
 RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, differential-response, and managed Return transport capabilities remain CLOSED.
 
 ### Shared
@@ -107,7 +107,7 @@ DEPENDENCY: OPS-GAP-002 is unblocked from the OPS-GAP-006 dependency perspective
 ### CENIT-FORMAT-NACHAM
 
 STATUS: PARTIAL — INTERNALLY_EXECUTABLE / EXTERNAL_HOMOLOGATION_PENDING — EXISTING OWNER REUSED
-CURRENT_DELTA: The May 7, 2026 technical specification is authoritative and sufficiently defines the CENIT NACHA-M format for local implementation and testing, resolving the former normative blocker. Ordinary profiles remain placeholder/non-homologated and CENIT LIVE generation remains deliberately gated; implement and verify the current ordinary inbound/outbound profile family before external homologation and gate removal.
+CURRENT_DELTA: The May 7, 2026 specification and verified original-PDF transcription resolve the former File Identifier blocker. CENIT-NACHA-OUT-001 implemented and tested exact ordinary outbound Types 1/5/6/7/8/9, `RRRRTTT.ZZZ.1`, durable sequence `001..999`, and filename/header coherence; ordinary profiles are no longer placeholders but remain non-homologated and CENIT LIVE remains deliberately gated. CTX, CCD grouping/limits, inbound profiles, and external homologation remain open.
 
 ### NACHA-RULE-METADATA
 
@@ -259,6 +259,8 @@ EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation
 ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
 
 ## Recent Sessions
+- 2026-08-30: CENIT-NACHA-OUT-001 closed outbound gaps 001/004/005/006 with the exact May-2026 ordinary PPD/CCD profile, effective filename and durable sequence/header identity policy; CENIT LIVE remains fail-closed and gaps 002/003 remain open.
+
 - 2026-08-25: OPS-GAP-006 CLOSED with effective-dated chamber-isolated cycle stages and transaction eligibility consumed by validation, resolution, generation, dispatch, and Quartz; PostgreSQL, SQL Server, backend, and Angular evidence passed.
 
 - 2026-08-24: OPS-GAP-005 CLOSED with provider-native atomic daily trace allocation, database uniqueness enforcement, and clean PostgreSQL/SQL Server two-replica proofs of 100/100 persisted distinct traces.
