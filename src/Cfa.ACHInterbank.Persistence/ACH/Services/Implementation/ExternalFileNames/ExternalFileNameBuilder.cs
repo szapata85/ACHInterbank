@@ -45,17 +45,26 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
             var namingRule = _namingRuleService is null
                 ? null
                 : await _namingRuleService.GetActiveOutboundRuleAsync(context.ClearingHouseId, context.ProcessingDate, ct);
-            var originCode = namingRule?.OriginEntityCode ?? context.ClearingHouseOriginCode ?? string.Empty;
-            var cycleNumber = ResolveCycleNumber(context);
-            var reservation = await ReserveSequenceAsync(context, originCode, cycleNumber, namingRule?.NamePattern, ct);
-            var sequence = reservation.Sequence;
-            var externalName = ExternalFileNameSupport.BuildCenitName(
-                originCode,
-                cycleNumber,
-                context.ProcessingDate,
-                sequence);
+            if (namingRule is null
+                || !string.Equals(namingRule.NamePattern, "RRRRTTT.ZZZ.1", StringComparison.Ordinal)
+                || namingRule.DailySequenceMin != 1
+                || namingRule.DailySequenceMax != 999)
+            {
+                throw new InvalidOperationException("CENIT_FILENAME_POLICY_REQUIRED: falta la politica efectiva 2026-05-07 RRRRTTT.ZZZ.1 con secuencia 001..999.");
+            }
 
-            await CompleteReservationAsync(reservation, externalName, null, ct);
+            var originCode = namingRule.OriginEntityCode;
+            var cycleNumber = ResolveCycleNumber(context);
+            var reservation = await ReserveSequenceAsync(context, originCode, cycleNumber, namingRule.NamePattern, ct);
+            var sequence = reservation.Sequence;
+            var fileId = ExternalFileNameSupport.ResolveCenitFileIdentifier(
+                sequence,
+                namingRule.InternalFileIdMappingMode,
+                namingRule.DailySequenceMin,
+                namingRule.DailySequenceMax);
+            var externalName = ExternalFileNameSupport.BuildCenitName(originCode, sequence);
+
+            await CompleteReservationAsync(reservation, externalName, fileId, ct);
 
             return new ExternalFileNameComponents
             {
@@ -63,6 +72,7 @@ public class ExternalFileNameBuilder : IExternalFileNameBuilder
                 Prefix = originCode,
                 ExternalSequence = sequence,
                 CycleNumber = cycleNumber,
+                FileIdModifier = fileId,
                 ReservationId = reservation.ReservationId,
                 ReusedReservation = reservation.WasReused
             };

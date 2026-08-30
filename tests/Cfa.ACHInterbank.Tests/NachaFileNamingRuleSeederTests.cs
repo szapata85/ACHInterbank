@@ -37,7 +37,10 @@ public class NachaFileNamingRuleSeederTests
             Assert.Equal(1, rule.DailySequenceMin);
         });
         Assert.Contains(rules, rule => rule.NamePattern == "RRRRTTT.ZZZ.N" && rule.Extension == ".ach" && rule.DailySequenceMax == 36);
-        Assert.Contains(rules, rule => rule.NamePattern == "RRRRTTT.CCC.YYYYMMDD.S" && rule.Extension == string.Empty);
+        Assert.Contains(rules, rule => rule.NamePattern == "RRRRTTT.ZZZ.1"
+                                      && rule.Extension == string.Empty
+                                      && rule.DailySequenceMax == 999
+                                      && rule.EffectiveFrom == new DateTime(2026, 5, 7));
 
         var defaultSource = await harness.Context.FinancialInstitutions.SingleAsync(x => x.IsDefaultSource);
         Assert.All(rules, rule => Assert.Equal(defaultSource.Id, rule.SourceFinancialInstitutionId));
@@ -58,7 +61,9 @@ public class NachaFileNamingRuleSeederTests
         Assert.NotNull(achRule);
         Assert.NotNull(cenitRule);
         Assert.Equal("RRRRTTT.ZZZ.N", achRule!.NamePattern);
-        Assert.Equal("RRRRTTT.CCC.YYYYMMDD.S", cenitRule!.NamePattern);
+        Assert.Equal("RRRRTTT.ZZZ.1", cenitRule!.NamePattern);
+        Assert.Equal(999, cenitRule.DailySequenceMax);
+        Assert.Equal("Alphanumeric36", cenitRule.InternalFileIdMappingMode);
         Assert.Equal("8765321", achRule.OriginEntityCode);
         Assert.Equal("8765321", cenitRule.OriginEntityCode);
         Assert.Equal(harness.DefaultSourceId, achRule.SourceFinancialInstitutionId);

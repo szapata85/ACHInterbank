@@ -25,9 +25,9 @@ public class PostgresExternalFileNameSequenceService : IExternalFileNameSequence
     {
         var next = await ExecuteUpsertAsync(context, ct);
 
-        if ((ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)) && next > 36)
+        if (next > ExternalFileNameSupport.ResolveDailySequenceMaximum(context))
         {
-            throw new InvalidOperationException("Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.");
+            throw new InvalidOperationException(ExternalFileNameSupport.BuildDailySequenceExhaustedMessage(context));
         }
 
         return next;
@@ -65,17 +65,14 @@ public class PostgresExternalFileNameSequenceService : IExternalFileNameSequence
             cmd.Parameters.AddWithValue("@sequenceDate",
                 context.OperationalTimeSnapshot?.OperationalDate
                 ?? DateOnly.FromDateTime(context.ProcessingDate.Date));
-            cmd.Parameters.AddWithValue("@maxValue",
-                ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)
-                    ? 36
-                    : int.MaxValue);
+            cmd.Parameters.AddWithValue("@maxValue", ExternalFileNameSupport.ResolveDailySequenceMaximum(context));
             cmd.Parameters.AddWithValue("@updatedAtUtc",
                 context.OperationalTimeSnapshot?.CapturedAtUtc ?? DateTime.UtcNow);
 
             var scalar = await cmd.ExecuteScalarAsync(ct);
             if (scalar is null || scalar is DBNull)
             {
-                throw new InvalidOperationException("Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.");
+                throw new InvalidOperationException(ExternalFileNameSupport.BuildDailySequenceExhaustedMessage(context));
             }
 
             return Convert.ToInt32(scalar);

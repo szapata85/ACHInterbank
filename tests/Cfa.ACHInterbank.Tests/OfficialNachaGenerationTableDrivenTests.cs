@@ -159,6 +159,62 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         content.Should().Contain("CENIT");
     }
 
+    [Theory]
+    [InlineData("PAGOS", "PPD", false)]
+    [InlineData("PAGOS", "PPD", true)]
+    [InlineData("CONCENTRA", "CCD", false)]
+    public async Task CenitOrdinaryMay2026_ShouldRenderExactPhysicalAndControlContract(string description, string expectedSec, bool isDebit)
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("CENIT");
+        model.Batches.Single().CompanyEntryDescription = description;
+        model.Batches.Single().ServiceClassCode = isDebit ? "225" : "220";
+        model.Transactions.Single().Amount = 1234567890123456.78m;
+        model.Transactions.Single().Type = isDebit ? TransactionTypeEnum.Debit : TransactionTypeEnum.Credit;
+        model.Transactions.Single().TransactionCode = isDebit ? "27" : "22";
+        var setup = CreateOfficialSut(context, "CENIT", model);
+
+        var content = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var records = SplitRecords(content);
+
+        content.Should().NotContain("\r").And.NotContain("\n");
+        records.Should().HaveCount(10).And.OnlyContain(record => record.Length == 106);
+        records.Take(6).Select(record => record[0]).Should().Equal('1', '5', '6', '7', '8', '9');
+        records.Skip(6).Should().OnlyContain(record => record == new string('9', 106));
+
+        records[0].Substring(23, 8).Should().Be("20260524");
+        records[0][35].Should().Be('A');
+        records[0].Substring(36, 3).Should().Be("106");
+        records[0].Substring(39, 2).Should().Be("10");
+        records[0][41].Should().Be('1');
+
+        records[1].Substring(50, 3).Should().Be(expectedSec);
+        records[1].Substring(63, 8).Should().Be("20260524");
+        records[1].Substring(71, 8).Should().Be("20260524");
+        records[1].Substring(79, 3).Should().Be("144");
+
+        records[2].Substring(29, 18).Should().Be("123456789012345678");
+        records[2].Substring(47, 15).Should().Be("RCV001         ");
+        records[2][86].Should().Be('1');
+        records[2].Substring(87, 15).Should().Be("123456780000001");
+
+        records[3].Substring(1, 2).Should().Be("05");
+        records[3].Substring(83, 4).Should().Be("0001");
+        records[3].Substring(87, 7).Should().Be("0000001");
+
+        records[4].Substring(4, 6).Should().Be("000002");
+        records[4].Substring(10, 10).Should().Be("0012345678");
+        records[4].Substring(20, 18).Should().Be(isDebit ? "123456789012345678" : new string('0', 18));
+        records[4].Substring(38, 18).Should().Be(isDebit ? new string('0', 18) : "123456789012345678");
+
+        records[5].Substring(1, 6).Should().Be("000001");
+        records[5].Substring(7, 6).Should().Be("000001");
+        records[5].Substring(13, 8).Should().Be("00000002");
+        records[5].Substring(21, 10).Should().Be("0012345678");
+        records[5].Substring(31, 18).Should().Be(isDebit ? "123456789012345678" : new string('0', 18));
+        records[5].Substring(49, 18).Should().Be(isDebit ? new string('0', 18) : "123456789012345678");
+    }
+
     [Fact]
     public async Task OfficialNachaGeneration_ShouldNotFallbackToLegacy_WhenProfileMissing()
     {
@@ -1270,7 +1326,11 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
                 ReferenceCode = null
             });
         loader.Setup(x => x.LoadCompanyEntryDescriptionCatalogAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<(string Term, string StandardEntryClassCode)> { ("PAGOS", "PPD") });
+            .ReturnsAsync(new List<(string Term, string StandardEntryClassCode)>
+            {
+                ("PAGOS", "PPD"),
+                ("CONCENTRA", "CCD")
+            });
         validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));

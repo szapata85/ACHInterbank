@@ -190,7 +190,8 @@ public class NachaFunctionalValidationTests
 
         resolution.Success.Should().BeTrue();
         resolution.Profile!.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
-        resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "IsPlaceholder" && tag.TagValue == "true");
+        resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "IsPlaceholder" && tag.TagValue == "false");
+        resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == "2026-05-07");
         resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "IsHomologated" && tag.TagValue == "false");
     }
 

@@ -2423,6 +2423,61 @@ public class NachaFileBuilder : INachaFileBuilder
         {
             ValidateCenitReturnOut2026LayoutSnapshot(recordCode, layout);
         }
+        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+                 && CenitOrdinaryOutbound2026Layout.IsVariant(layout.VariantCode))
+        {
+            ValidateCenitOrdinaryOutbound2026LayoutSnapshot(recordCode, layout);
+        }
+    }
+
+    private static void ValidateCenitOrdinaryOutbound2026LayoutSnapshot(string recordCode, CfgLayoutVariant layout)
+    {
+        if (layout.TotalLength != CenitOrdinaryOutbound2026Layout.RecordLength
+            || !CenitOrdinaryOutbound2026Layout.IsVariant(layout.VariantCode))
+        {
+            throw new NachaGenerationException(
+                "NACHA_PROFILE_LAYOUT_MISMATCH",
+                "El layout publicado no coincide con el snapshot normativo CENIT ordinario 2026.");
+        }
+
+        var expectedFields = CenitOrdinaryOutbound2026Layout.ForRecord(recordCode);
+        var actualFields = layout.Fields.Where(field => field.IsEnabled).ToList();
+        foreach (var expected in expectedFields)
+        {
+            var actual = actualFields.FirstOrDefault(field =>
+                string.Equals(field.FieldCode, expected.FieldCode, StringComparison.OrdinalIgnoreCase));
+            if (actual is null
+                || actual.StartPosition != expected.StartPosition
+                || actual.Length != expected.Length
+                || actual.Justification != expected.Justification
+                || actual.PadChar != expected.PadChar
+                || !string.Equals(actual.FormatMask, expected.Format, StringComparison.Ordinal)
+                || !actual.Rules.Any(rule => rule.IsEnabled
+                    && string.Equals(rule.RuleCode, expected.RuleId, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_PROFILE_LAYOUT_MISMATCH",
+                    expected,
+                    "El campo no coincide con el Manual CENIT 2026, Anexo 1.");
+            }
+
+            if (ContainsForbiddenOfficialTransformation(actual.TransformationPipelineJson)
+                || !string.IsNullOrWhiteSpace(actual.SourceDefinition?.FallbackPolicyJson))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_SILENT_TRANSFORMATION_FORBIDDEN",
+                    expected,
+                    "La ruta oficial CENIT no admite truncamiento, substring ni fallback silencioso.");
+            }
+        }
+
+        var expectedCodes = expectedFields.Select(field => field.FieldCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (actualFields.Any(field => !expectedCodes.Contains(field.FieldCode)))
+        {
+            throw new NachaGenerationException(
+                "NACHA_PROFILE_LAYOUT_MISMATCH",
+                "El layout publicado contiene campos no contemplados por el snapshot CENIT ordinario 2026.");
+        }
     }
 
     private static void ValidateCenitReturnOut2026LayoutSnapshot(string recordCode, CfgLayoutVariant layout)
@@ -2608,12 +2663,15 @@ public class NachaFileBuilder : INachaFileBuilder
         string? clearingHouseCode)
     {
         var rules = field.Rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.Order).ToList();
+        var isCenitOrdinary = CenitOrdinaryOutbound2026Layout.IsVariant(field.LayoutVariant?.VariantCode);
         if ((string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
              || (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-                 && CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode)))
+                 && (CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode) || isCenitOrdinary)))
             && rules.Count == 0)
         {
-            var descriptor = CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode)
+            var descriptor = isCenitOrdinary
+                ? CenitOrdinaryOutbound2026Layout.Field(recordCode, field.FieldCode)
+                : CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode)
                 ? CenitReturnOut2026Layout.Field(recordCode, field.FieldCode)
                 : AchColReturnOutV35Layout.IsVariant(field.LayoutVariant?.VariantCode)
                 ? AchColReturnOutV35Layout.Field(recordCode, field.FieldCode)
@@ -3073,6 +3131,19 @@ public class NachaFileBuilder : INachaFileBuilder
             if (string.Equals(calculationType, "Filler", StringComparison.OrdinalIgnoreCase))
             {
                 return new string(' ', field.Length);
+            }
+
+            if (string.Equals(calculationType, "JulianSettlementDate", StringComparison.OrdinalIgnoreCase)
+                && TryResolveOfficialValue(record, "EffectiveEntryDate", out var effectiveEntryDate))
+            {
+                var date = effectiveEntryDate switch
+                {
+                    DateOnly dateOnly => dateOnly.ToDateTime(TimeOnly.MinValue),
+                    DateTimeOffset dateTimeOffset => dateTimeOffset.DateTime,
+                    DateTime dateTime => dateTime,
+                    _ => Convert.ToDateTime(effectiveEntryDate, CultureInfo.InvariantCulture)
+                };
+                return date.DayOfYear.ToString("D3", CultureInfo.InvariantCulture);
             }
 
             if (TryResolveOfficialValue(record, calculationType, out var raw))

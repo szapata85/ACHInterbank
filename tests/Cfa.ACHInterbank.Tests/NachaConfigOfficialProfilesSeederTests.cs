@@ -42,8 +42,11 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         profile.Should().NotBeNull();
         profile!.ClearingHouse.Code.Should().Be("CENIT");
         profile.Status.Code.Should().Be("PUBLICADO");
-        profile.EffectiveFrom.Should().Be(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        profile.EffectiveFrom.Should().Be(new DateTime(2026, 5, 7, 0, 0, 0, DateTimeKind.Utc));
         profile.EffectiveTo.Should().BeNull();
+        profile.Tags.Should().Contain(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == "2026-05-07")
+            .And.Contain(tag => tag.TagKey == "IsPlaceholder" && tag.TagValue == "false")
+            .And.Contain(tag => tag.TagKey == "IsHomologated" && tag.TagValue == "false");
     }
 
     [Fact]
@@ -138,13 +141,40 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     }
 
     [Fact]
+    public async Task CenitOrdinaryProfile_ShouldSeedExactMay2026CriticalOffsets()
+    {
+        await using var context = await SeedAsync();
+        var profile = await LoadProfileAsync(context, CenitOrdinaryOutbound2026Layout.OriginalProfileCode);
+
+        AssertField(profile!, "1", "FILECREATIONDATE", 24, 8);
+        AssertField(profile!, "1", "FILEIDMODIFIER", 36, 1);
+        AssertField(profile!, "5", "STANDARDENTRYCLASSCODE", 51, 3);
+        AssertField(profile!, "5", "SETTLEMENTDATE", 80, 3);
+        AssertField(profile!, "6", "AMOUNT", 30, 18);
+        AssertField(profile!, "6", "INDIVIDUALIDENTIFICATION", 48, 15);
+        AssertField(profile!, "6", "TRACENUMBER", 88, 15);
+        AssertField(profile!, "7", "PAYMENTRELATEDINFORMATION", 4, 80);
+        AssertField(profile!, "7", "SEQUENCENUMBER", 84, 4);
+        AssertField(profile!, "8", "TOTALDEBITAMOUNT", 21, 18);
+        AssertField(profile!, "8", "TOTALCREDITAMOUNT", 39, 18);
+        AssertField(profile!, "9", "TOTALDEBITAMOUNT", 32, 18);
+        AssertField(profile!, "9", "TOTALCREDITAMOUNT", 50, 18);
+        profile!.LayoutVariants.Should().OnlyContain(variant => variant.TotalLength == 106);
+        profile.LayoutVariants.Single(variant => variant.RecordCode.Code == "7")
+            .VariantCode.Should().Be(CenitOrdinaryOutbound2026Layout.Addenda05Variant);
+    }
+
+    [Fact]
     public async Task PublishedProfiles_ShouldHaveEffectiveDates()
     {
         await using var context = await SeedAsync();
         var profiles = await LoadOfficialProfilesAsync(context);
 
         profiles.Should().OnlyContain(x => x.PublishedAt.HasValue);
-        profiles.Should().OnlyContain(x => x.EffectiveFrom == new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        profiles.Where(profile => CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode))
+            .Should().OnlyContain(profile => profile.EffectiveFrom == new DateTime(2026, 5, 7, 0, 0, 0, DateTimeKind.Utc));
+        profiles.Where(profile => !CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode))
+            .Should().OnlyContain(profile => profile.EffectiveFrom == new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         profiles.Should().OnlyContain(x => x.EffectiveTo == null);
     }
 
@@ -160,12 +190,12 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         profiles.Single(x => x.ProfileCode == "OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0").Tags
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35")
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("sección 6.6"));
-        profiles.Where(x => x.ClearingHouse.Code == "CENIT"
-                            && x.ProfileCode != CenitReturnIn2026Layout.ProfileCode
-                            && x.ProfileCode != CenitReturnOut2026Layout.ProfileCode
-                            && x.ProfileCode != CenitReturnOfReturn2026Layout.InProfileCode
-                            && x.ProfileCode != CenitReturnOfReturn2026Layout.OutProfileCode)
-            .Should().OnlyContain(x => x.Tags.Any(t => t.TagValue.Contains("CENIT/DSP-152")));
+        profiles.Where(x => CenitOrdinaryOutbound2026Layout.IsProfile(x.ProfileCode))
+            .Should().HaveCount(2)
+            .And.OnlyContain(x => x.Tags.Any(t => t.TagKey == "NormativeVersion" && t.TagValue == "2026-05-07")
+                                  && x.Tags.Any(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("Formato NACHA-M CENIT"))
+                                  && x.Tags.Any(t => t.TagKey == "IsPlaceholder" && t.TagValue == "false")
+                                  && x.Tags.Any(t => t.TagKey == "IsHomologated" && t.TagValue == "false"));
         profiles.Single(x => x.ProfileCode == CenitReturnIn2026Layout.ProfileCode).Tags
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "2026-05-07")
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("Formato NACHA-M CENIT"));
@@ -686,4 +716,13 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         => profile.LayoutVariants.Single(variant => variant.RecordCode.Code == recordCode && variant.IsDefaultForRecord)
             .Fields.Single(field => field.FieldCode == fieldCode)
             .SourceDefinition.ConstantValue;
+
+    private static void AssertField(CfgProfile profile, string recordCode, string fieldCode, int start, int length)
+    {
+        var field = profile.LayoutVariants
+            .Single(variant => variant.RecordCode.Code == recordCode && variant.IsDefaultForRecord)
+            .Fields.Single(candidate => candidate.FieldCode == fieldCode);
+        field.StartPosition.Should().Be(start);
+        field.Length.Should().Be(length);
+    }
 }

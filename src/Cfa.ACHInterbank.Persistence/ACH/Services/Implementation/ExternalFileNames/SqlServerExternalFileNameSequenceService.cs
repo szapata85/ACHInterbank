@@ -32,13 +32,13 @@ public class SqlServerExternalFileNameSequenceService : IExternalFileNameSequenc
         catch (SqlException ex) when (ex.Number == 51036)
         {
             throw new InvalidOperationException(
-                "Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.",
+                ExternalFileNameSupport.BuildDailySequenceExhaustedMessage(context),
                 ex);
         }
 
-        if ((ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)) && next > 36)
+        if (next > ExternalFileNameSupport.ResolveDailySequenceMaximum(context))
         {
-            throw new InvalidOperationException("Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.");
+            throw new InvalidOperationException(ExternalFileNameSupport.BuildDailySequenceExhaustedMessage(context));
         }
 
         return next;
@@ -102,10 +102,7 @@ public class SqlServerExternalFileNameSequenceService : IExternalFileNameSequenc
             AddParameter(command, "@sequenceDate",
                 context.OperationalTimeSnapshot?.OperationalDate.ToDateTime(TimeOnly.MinValue)
                 ?? context.ProcessingDate.Date);
-            AddParameter(command, "@maxValue",
-                ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)
-                    ? 36
-                    : int.MaxValue);
+            AddParameter(command, "@maxValue", ExternalFileNameSupport.ResolveDailySequenceMaximum(context));
             AddParameter(command, "@updatedAtUtc",
                 context.OperationalTimeSnapshot?.CapturedAtUtc ?? DateTime.UtcNow);
 

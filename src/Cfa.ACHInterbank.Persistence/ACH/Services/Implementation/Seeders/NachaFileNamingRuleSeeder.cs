@@ -30,6 +30,7 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
 
         var now = DateTimeOffset.UtcNow;
         var effectiveFrom = new DateTime(2026, 01, 01, 0, 0, 0, DateTimeKind.Utc);
+        var cenitEffectiveFrom = new DateTime(2026, 05, 07, 0, 0, 0, DateTimeKind.Utc);
 
         await UpsertRuleAsync(
             achClearingHouse.Id,
@@ -49,15 +50,15 @@ public sealed class NachaFileNamingRuleSeeder : IDbSeeder
             cenitClearingHouse.Id,
             source.Id,
             "CENIT",
-            "CENIT-DSP-152-Anexo-2",
-            "CENIT-DSP-152-Anexo-2",
-            "Convención de nombre oficial CENIT",
-            "Regla outbound CENIT sin extensión, con entidad, ciclo, fecha operativa y sufijo consecutivo.",
-            "RRRRTTT.CCC.YYYYMMDD.S",
+            "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            "6.1 / 6.2",
+            "Convencion de nombre oficial CENIT mayo 2026",
+            "Regla outbound CENIT sin extension; ZZZ usa el consecutivo diario 001..999 y el identificador del Registro 1 cicla A-Z,0-9.",
+            "RRRRTTT.ZZZ.1",
             string.Empty,
-            int.MaxValue,
+            999,
             now,
-            effectiveFrom);
+            cenitEffectiveFrom);
 
         await _context.SaveChangesAsync();
     }

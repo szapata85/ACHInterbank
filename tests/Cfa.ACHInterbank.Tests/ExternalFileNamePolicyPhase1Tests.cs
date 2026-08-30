@@ -191,7 +191,7 @@ public class ExternalFileNamePolicyPhase1Tests
     }
 
     [Fact]
-    public async Task CenitBuilder_Uses_CurrentDocumentedPattern_WithoutAlternateNaming()
+    public async Task CenitBuilder_Uses_May2026Pattern_AndIdentifierFromReservedSequence()
     {
         await using var harness = await CreateHarnessAsync();
         await SeedDynamicNamingFixtureAsync(harness.Context);
@@ -213,36 +213,118 @@ public class ExternalFileNamePolicyPhase1Tests
             Direction = ExternalFileDirection.Outbound
         });
 
-        Assert.Equal("8765321.006.20260520.1", name.FullName);
+        Assert.Equal("8765321.001.1", name.FullName);
         Assert.Equal("8765321", name.Prefix);
         Assert.Equal(1, name.ExternalSequence);
         Assert.Equal(6, name.CycleNumber);
-        Assert.Null(name.FileIdModifier);
+        Assert.Equal('A', name.FileIdModifier);
     }
 
     [Fact]
-    public async Task CenitValidator_AcceptsConfiguredOriginCycleAndProcessingDate()
+    public async Task CenitValidator_AcceptsConfiguredOriginSequenceAndHeaderIdentifier()
     {
         var validator = CreateValidator();
         var result = await validator.ValidateAsync(new ExternalFileNameContext
         {
             ClearingHouseId = 2,
             ClearingHouseCode = "CENIT",
-            ClearingHouseOriginCode = "00001007",
+            ClearingHouseOriginCode = "8765321",
             CycleNumber = 6,
             ProcessingDate = new DateTime(2026, 05, 20),
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
-            Direction = ExternalFileDirection.Outbound
+            Direction = ExternalFileDirection.Outbound,
+            NachaContent = BuildNachaHeader('A')
         }, new ExternalFileNameComponents
         {
-            FullName = "8765321.006.20260520.1",
+            FullName = "8765321.001.1",
             Prefix = "8765321",
             ExternalSequence = 1,
-            CycleNumber = 6
+            CycleNumber = 6,
+            FileIdModifier = 'A'
         });
 
         Assert.False(result.IsHardBlocked);
+    }
+
+    [Theory]
+    [InlineData(1, 'A')]
+    [InlineData(26, 'Z')]
+    [InlineData(27, '0')]
+    [InlineData(36, '9')]
+    [InlineData(37, 'A')]
+    [InlineData(72, '9')]
+    [InlineData(73, 'A')]
+    [InlineData(998, 'Z')]
+    [InlineData(999, '0')]
+    public void CenitFileIdentifier_FollowsAuthoritativeThirtySixSymbolCycle(int sequence, char expected)
+    {
+        ExternalFileNameSupport.ResolveCenitFileIdentifier(sequence, "Alphanumeric36", 1, 999)
+            .Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task CenitBuilder_FailsClosed_WhenDailySequenceIsExhausted()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+        var builder = new ExternalFileNameBuilder(
+            new FixedSequenceService(1000),
+            new FakeIdentifierMapService(),
+            new NachaFileNamingRuleService(harness.Context));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(new ExternalFileNameContext
+        {
+            ClearingHouseId = 2,
+            ClearingHouseCode = "CENIT",
+            CycleNumber = 6,
+            ProcessingDate = new DateTime(2026, 5, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound
+        }));
+
+        exception.Message.Should().Contain("CENIT_DAILY_SEQUENCE_EXHAUSTED");
+    }
+
+    [Fact]
+    public async Task CenitBuilder_CompletesOneDurableReservation_WithFilenameAndHeaderIdentifier()
+    {
+        await using var harness = await CreateHarnessAsync();
+        await SeedDynamicNamingFixtureAsync(harness.Context);
+        var sequence = CreateSequenceService(harness.Context);
+        var reservation = new ExternalFileNameReservationService(harness.Context, sequence);
+        var builder = new ExternalFileNameBuilder(
+            sequence,
+            new FakeIdentifierMapService(),
+            new NachaFileNamingRuleService(harness.Context),
+            reservation);
+        var context = new ExternalFileNameContext
+        {
+            ClearingHouseId = 2,
+            ClearingHouseCode = "CENIT",
+            CycleNumber = 6,
+            ProcessingDate = new DateTime(2026, 5, 20),
+            ExternalFileType = ExternalFileType.NachaOut,
+            Flow = ExternalFileFlow.Originacion,
+            Direction = ExternalFileDirection.Outbound,
+            IdempotencyKey = "cenit-ordinary-20260520-001",
+            NachaContent = BuildNachaHeader('A'),
+            RequestedBy = "test"
+        };
+
+        var first = await builder.BuildAsync(context);
+        var repeated = await builder.BuildAsync(context);
+
+        repeated.FullName.Should().Be(first.FullName).And.Be("8765321.001.1");
+        repeated.FileIdModifier.Should().Be(first.FileIdModifier).And.Be('A');
+        repeated.ReservationId.Should().Be(first.ReservationId);
+        repeated.ReusedReservation.Should().BeTrue();
+        var stored = await harness.Context.ExternalFileNameReservations.AsNoTracking().SingleAsync();
+        stored.Sequence.Should().Be(1);
+        stored.ExternalFileName.Should().Be("8765321.001.1");
+        stored.FileIdModifier.Should().Be("A");
+        stored.Status.Should().Be("Completed");
     }
 
     [Fact]
@@ -840,16 +922,16 @@ public class ExternalFileNamePolicyPhase1Tests
                 Id = 2,
                 ClearingHouseId = 2,
                 FileDirection = NachaFileDirection.Outbound,
-                NamePattern = "RRRRTTT.ZZZ.N",
-                Extension = ".ach",
+                NamePattern = "RRRRTTT.ZZZ.1",
+                Extension = string.Empty,
                 DailySequenceMin = 1,
-                DailySequenceMax = 36,
+                DailySequenceMax = 999,
                 InternalFileIdMappingMode = InternalFileIdMappingMode.Alphanumeric36,
                 RequiresNameHeaderEntityMatch = true,
                 IsActive = true,
-                EffectiveFrom = new DateTime(2026, 01, 01),
-                NormativeSource = "MAN-004",
-                NormativeReference = "V32"
+                EffectiveFrom = new DateTime(2026, 05, 07),
+                NormativeSource = "Manual NACHA-M CENIT",
+                NormativeReference = "2026-05-07 6.1"
             });
 
         await context.SaveChangesAsync();
@@ -887,6 +969,12 @@ public class ExternalFileNamePolicyPhase1Tests
 
             return Task.FromResult(sequence <= 26 ? (char)('A' + (sequence - 1)) : (char)('0' + (sequence - 27)));
         }
+    }
+
+    private sealed class FixedSequenceService(int sequence) : Application.ACH.Interfaces.ExternalFileNames.IExternalFileNameSequenceService
+    {
+        public Task<int> ReserveNextSequenceAsync(ExternalFileNameContext context, CancellationToken ct = default)
+            => Task.FromResult(sequence);
     }
 
     private sealed class SqliteHarness(SqliteConnection connection, AchDbContext context) : IAsyncDisposable

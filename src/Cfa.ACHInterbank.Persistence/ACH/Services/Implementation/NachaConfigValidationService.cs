@@ -669,9 +669,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
         if (TryGetConstant(fieldsByCode, "FILEIDMODIFIER", out var fileIdModifier))
         {
-            var isValid = chamberCode == "CENIT"
-                ? fileIdModifier.Length == 1 && fileIdModifier.All(char.IsLetter)
-                : fileIdModifier.Length == 1 && fileIdModifier.All(char.IsLetterOrDigit);
+            var isValid = fileIdModifier.Length == 1 && fileIdModifier.All(char.IsLetterOrDigit);
             if (!isValid)
             {
                 AddChamberRuleIssue(issues, chamberCode, "FileIdModifier inválido para la cámara configurada.");

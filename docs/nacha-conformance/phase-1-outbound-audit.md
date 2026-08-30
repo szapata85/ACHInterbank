@@ -231,3 +231,73 @@ Blockers:
 * Implementation decision: no production or test changes were made because the JOB explicitly prohibits inventing this mapping and requires implementation to stop when it is unavailable.
 * GAP status: `NACHA-GAP-001 OPEN`; `NACHA-GAP-004 OPEN`; `NACHA-GAP-005 BLOCKED`; `NACHA-GAP-006 OPEN`.
 * Residual Phase-1 blockers: `NACHA-GAP-002`, `NACHA-GAP-003`, and the four gaps above remain open; Phase 2 readiness remains `NO`.
+
+## 16. Remediation — CENIT-NACHA-OUT-001
+
+* JOB: `CENIT-NACHA-OUT-001`
+* Implementation base: `7a6fb650dcfa30b0b9589136674351cd1cde1b18`
+* Date: 2026-08-30
+* Product code changed: YES
+* Database schema/migrations changed: NO
+* External homologation changed: NO; `IsHomologated=false` and the CENIT LIVE fail-closed gate are preserved.
+
+### Documentation blocker resolution
+
+`DOCUMENTATION_BLOCKER_FILE_IDENTIFIER_MAPPING = RESOLVED`
+
+The authoritative source remains `Manual de Especificaciones Formato NACHA-M CENIT`, 7 May 2026, original PDF SHA-256 `96831e54e4a3ae0ae1247bf3ea27885fbc38405c7432e3189b54343e7d76cb94`. The searchable evidence is the verified page-14 transcription sidecar SHA-256 `8cc12b3c13daacf04c581bac4fd2d178acda359fa715ea498cb1b1254d60a036`, source type `VERIFIED_TRANSCRIPTION_FROM_ORIGINAL_PDF`. It establishes sequence `001..999` and symbol order `ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`, repeated every 36 files.
+
+### Implemented normative rules
+
+* Effective ordinary CENIT PPD/CCD profile `2026-05-07` with exact 106-character Type 1, 5, 6, ordinary Type 7, Type 8, and Type 9 layouts, field rules, padding, and layout snapshots.
+* Type-6 and Type-8/9 monetary fields use the May-2026 18-character widths; the generic totals calculator remains unchanged.
+* Filename policy is effective-dated/configured as `RRRRTTT.ZZZ.1`, sequence `001..999`.
+* One durable daily reservation supplies both filename `ZZZ` and Type-1 File Identifier. The identifier is selected from the configured `Alphanumeric36` policy; sequence 1000 fails closed in all database-backed sequence providers.
+* ACH Colombia naming, profile layouts, and 36-file policy remain chamber-specific and unchanged.
+
+### Changed files
+
+* `MEMORY.md`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/CenitOrdinaryOutbound2026Layout.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaFileBuilder.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaConfigValidationService.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/NachaConfigOfficialProfilesSeeder.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/Seeders/NachaFileNamingRuleSeeder.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ExternalFileNames/ExternalFileNameBuilder.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ExternalFileNames/ExternalFileNameSupport.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ExternalFileNames/ExternalFileNameValidator.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ExternalFileNames/EfGenericExternalFileNameSequenceService.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ExternalFileNames/PostgresExternalFileNameSequenceService.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/ExternalFileNames/SqlServerExternalFileNameSequenceService.cs`
+* `src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaSecurity/NachaSecurityOperationService.cs`
+* `tests/Cfa.ACHInterbank.Tests/OfficialNachaGenerationTableDrivenTests.cs`
+* `tests/Cfa.ACHInterbank.Tests/ExternalFileNamePolicyPhase1Tests.cs`
+* `tests/Cfa.ACHInterbank.Tests/ExternalFileNameSequenceProviderTests.cs`
+* `tests/Cfa.ACHInterbank.Tests/NachaConfigOfficialProfilesSeederTests.cs`
+* `tests/Cfa.ACHInterbank.Tests/NachaFileNamingRuleSeederTests.cs`
+* `tests/Cfa.ACHInterbank.Tests/NachaFunctionalValidationTests.cs`
+* `tests/Cfa.ACHInterbank.Tests/NachaExportControllerTests.cs`
+* `docs/nacha-conformance/phase-1-outbound-audit.md`
+
+### GAP closure status
+
+* `NACHA-GAP-001 CLOSED`: exact May-2026 Types 1/5/6/8/9 are profile-seeded and proven by offset, width, control, 106-character, no-EOL, and filler tests; ordinary Type 7 is also covered.
+* `NACHA-GAP-004 CLOSED`: generated CENIT outbound filename is exactly `RRRRTTT.ZZZ.1`.
+* `NACHA-GAP-005 CLOSED`: durable daily sequence `1..999`, 36-symbol mapping, filename/header coherence, transition/boundary cases, and exhaustion are covered.
+* `NACHA-GAP-006 CLOSED`: the ordinary profile is effective `2026-05-07`, `IsPlaceholder=false`, and backed by exact normative tests; external homologation remains open and is not claimed.
+
+### Test evidence
+
+* `OfficialNachaGenerationTableDrivenTests | NachaControlTotalsCalculatorTests`: 83 passed, 0 failed, 0 skipped.
+* `ExternalFileNameSequenceProviderTests | ExternalFileNamePolicyPhase1Tests`: 61 passed, 0 failed, 0 skipped.
+* `NachaConfigOfficialProfilesSeederTests | NachaFileNamingRuleSeederTests`: 38 passed, 0 failed, 0 skipped.
+* `NachaFunctionalValidationTests`: 72 passed, 0 failed, 0 skipped; CENIT LIVE remains blocked as not homologated.
+* `NachaExportControllerTests.ExportEncrypted_UsesCenitNamingAndIdentifierNormalization`: 1 passed; delivered filename `003` and Type-1 identifier `C` are coherent.
+* `dotnet build ACHInterbank.sln -c Release`: 8 projects built, 0 errors, 0 warnings.
+
+### Residual Phase-1 blockers
+
+* `NACHA-GAP-002`: CENIT CTX layout, multi-addenda cardinality, and independent-file policy remain outside this JOB.
+* `NACHA-GAP-003`: CENIT CCD one-detail-per-batch and 10,000-batch/file enforcement remain outside this JOB.
+
+Phase 2 readiness remains `NO` because `NACHA-GAP-002` and `NACHA-GAP-003` remain open.

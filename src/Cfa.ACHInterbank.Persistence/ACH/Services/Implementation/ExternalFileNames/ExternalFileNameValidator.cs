@@ -98,29 +98,40 @@ public class ExternalFileNameValidator : IExternalFileNameValidator
         }
         else if (ExternalFileNameSupport.IsCenitNachaOut(context))
         {
-            if (!CenitOfficialFileNameParser.TryParseCenitFileName(components.FullName, out var parsed))
+            var parsed = ExternalFileNameSupport.Parse(context, components.FullName);
+            if (!parsed.ExternalSequence.HasValue)
             {
                 issues.Add(Hard(
                     "CENIT_NAME_PATTERN",
                     "CENIT_PATTERN_INVALID",
-                    "Regla HARD BLOCK CENIT: patrón requerido RRRRTTT.CCC.YYYYMMDD.S sin extensión.",
-                    "CENIT-DSP-152-Anexo-2 / convención operativa vigente"));
+                    "Regla HARD BLOCK CENIT: patrón requerido RRRRTTT.ZZZ.1 sin extensión.",
+                    "Manual NACHA-M CENIT 2026, 6.1 / 6.2"));
             }
             else
             {
                 var expectedOrigin = components.Prefix ?? context.ClearingHouseOriginCode;
                 if (!string.IsNullOrWhiteSpace(expectedOrigin)
-                    && !string.Equals(expectedOrigin[^Math.Min(7, expectedOrigin.Length)..], parsed!.OriginCode, StringComparison.Ordinal))
+                    && !string.Equals(expectedOrigin[^Math.Min(7, expectedOrigin.Length)..], parsed.Prefix, StringComparison.Ordinal))
                 {
-                    issues.Add(Hard("CENIT_ORIGIN_MISMATCH", "CENIT_ORIGIN_MISMATCH", "El código de origen del nombre CENIT no coincide con la entidad configurada.", "CENIT-DSP-152-Anexo-2"));
+                    issues.Add(Hard("CENIT_ORIGIN_MISMATCH", "CENIT_ORIGIN_MISMATCH", "El código de origen del nombre CENIT no coincide con la entidad configurada.", "Manual NACHA-M CENIT 2026, 6.1"));
                 }
-                else if (context.CycleNumber is > 0 && context.CycleNumber.Value != parsed!.CycleNumber)
+                else
                 {
-                    issues.Add(Hard("CENIT_CYCLE_MISMATCH", "CENIT_CYCLE_MISMATCH", "El ciclo del nombre CENIT no coincide con el ciclo operativo.", "CENIT-DSP-152-Anexo-2"));
-                }
-                else if (DateOnly.FromDateTime(context.ProcessingDate) != parsed!.FileDate)
-                {
-                    issues.Add(Hard("CENIT_DATE_MISMATCH", "CENIT_DATE_MISMATCH", "La fecha del nombre CENIT no coincide con la fecha operativa.", "CENIT-DSP-152-Anexo-2"));
+                    var expectedIdentifier = ExternalFileNameSupport.ResolveCenitFileIdentifier(
+                        parsed.ExternalSequence.Value,
+                        "Alphanumeric36",
+                        1,
+                        999);
+                    var headerIdentifier = ExternalFileNameSupport.TryExtractRecord1FileIdModifier(context.NachaContent);
+                    if ((components.FileIdModifier.HasValue && components.FileIdModifier.Value != expectedIdentifier)
+                        || (headerIdentifier.HasValue && headerIdentifier.Value != expectedIdentifier))
+                    {
+                        issues.Add(Hard(
+                            "CENIT_ZZZ_R1",
+                            "CENIT_IDENTIFIER_MISMATCH",
+                            "Regla HARD BLOCK CENIT: ZZZ y el Identificador de Archivo del Registro 1 no son coherentes.",
+                            "Manual NACHA-M CENIT 2026, 6.1"));
+                    }
                 }
             }
         }

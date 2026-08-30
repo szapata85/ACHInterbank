@@ -309,19 +309,19 @@ public class NachaExportControllerTests
             .ReturnsAsync(new AchCycleDto { Id = cycleId, ClearingHouseId = 2, CycleName = "CICLO-3", ProcessingDate = DateTime.UtcNow });
         clearingHouseService
             .Setup(c => c.GetByIdAsync(2, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ClearingHouseDto { Id = 2, Code = "CENIT", OriginCode = "12345678", Name = "CENIT" });
+            .ReturnsAsync(new ClearingHouseDto { Id = 2, Code = "CENIT", OriginCode = "8765321", Name = "CENIT" });
         envelopePolicy
             .Setup(p => p.ShouldEncrypt(2))
             .Returns(false);
         auditService
-            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 2, "NACHA", "12345678.003.1", 2, 0, false, It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.RecordGeneratedFileAsync(cycleId, 2, "NACHA", "8765321.003.1", 2, 0, false, It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         externalFileNamePolicy
             .Setup(p => p.GenerateExternalNameAsync(It.IsAny<ExternalFileNameContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((ExternalFileNameContext ctx, CancellationToken _) => new ExternalFileNamePolicyResult
             {
-                ExternalFileName = "12345678.003.1",
-                Components = new ExternalFileNameComponents { FullName = "12345678.003.1", Prefix = "12345678", ExternalSequence = 3, FileIdModifier = 'B' },
+                ExternalFileName = "8765321.003.1",
+                Components = new ExternalFileNameComponents { FullName = "8765321.003.1", Prefix = "8765321", ExternalSequence = 3, FileIdModifier = 'C' },
                 Validation = new ExternalFileNameValidationResult { Disposition = ExternalFileValidationDisposition.Passed }
             });
 
@@ -339,8 +339,8 @@ public class NachaExportControllerTests
 
         var fileResult = Assert.IsType<FileContentResult>(result);
         Assert.Equal("text/plain", fileResult.ContentType);
-        Assert.Equal("12345678.003.1", fileResult.FileDownloadName);
-        Assert.Equal('B', Encoding.ASCII.GetString(fileResult.FileContents)[35]);
+        Assert.Equal("8765321.003.1", fileResult.FileDownloadName);
+        Assert.Equal('C', Encoding.ASCII.GetString(fileResult.FileContents)[35]);
 
         auditService.VerifyAll();
     }

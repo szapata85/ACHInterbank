@@ -263,16 +263,18 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             operation.ClearingHouseId = cycle.ClearingHouseId;
 
             var nacha = await _nachaBuilder.BuildNachaFileByCycleAsync(request.CycleId, cancellationToken);
-            var legacyFileName = BuildNachaFileName(clearingHouse, cycleNumber);
-            var normalized = await NormalizeFileHeaderIdentifierForCenitAsync(nacha, clearingHouse, legacyFileName, cancellationToken);
-            if (string.IsNullOrWhiteSpace(normalized))
+            if (string.IsNullOrWhiteSpace(nacha))
             {
                 MarkAsFailed(operation, "NACHA_NO_EXPORTABLE_CONTENT", "No hay transacciones exportables para el ciclo. No se generó archivo NACHA-M.");
                 await _context.SaveChangesAsync(cancellationToken);
                 return ToDto(operation);
             }
 
-            var filePolicy = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, normalized, context.RequestedBy, cancellationToken);
+            var legacyFileName = BuildNachaFileName(clearingHouse, cycleNumber);
+            var filePolicy = await GenerateAndEnforceExternalFileNamePolicyAsync(cycle, clearingHouse, legacyFileName, nacha, context.RequestedBy, cancellationToken);
+            var normalized = filePolicy.Components.FileIdModifier.HasValue
+                ? ReplaceHeaderPosition36(nacha, filePolicy.Components.FileIdModifier.Value)
+                : nacha;
             var outputFileName = encrypted ? $"{filePolicy.ExternalFileName}.ENV" : filePolicy.ExternalFileName;
 
             byte[] output;
@@ -506,7 +508,6 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
         string requestedBy,
         CancellationToken ct)
     {
-        var isAch = string.Equals(clearingHouse.Code, "ACH", StringComparison.OrdinalIgnoreCase);
         var cycleNumber = ResolveCycleNumberOrThrow(cycle.CycleName);
         var context = new ExternalFileNameContext
         {
@@ -520,7 +521,7 @@ public class NachaSecurityOperationService : INachaSecurityOperationService
             ExternalFileType = ExternalFileType.NachaOut,
             Flow = ExternalFileFlow.Originacion,
             Direction = ExternalFileDirection.Outbound,
-            ProvidedExternalFileName = isAch ? null : legacyFileName,
+            ProvidedExternalFileName = null,
             InternalFileName = legacyFileName,
             NachaContent = nachaContent,
             RequestedBy = requestedBy

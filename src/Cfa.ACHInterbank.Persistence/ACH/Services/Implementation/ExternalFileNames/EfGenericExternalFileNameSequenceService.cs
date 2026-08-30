@@ -28,12 +28,10 @@ public class EfGenericExternalFileNameSequenceService : IExternalFileNameSequenc
                                     && x.ScopeCode == scopeCode
                                     && x.SequenceDate == date, ct);
 
-        var maxValue = ExternalFileNameSupport.IsAchColombiaNachaOut(context) || ExternalFileNameSupport.IsReturnOut(context)
-            ? 36
-            : int.MaxValue;
+        var maxValue = ExternalFileNameSupport.ResolveDailySequenceMaximum(context);
         if (row is not null && row.LastValue >= maxValue)
         {
-            throw new InvalidOperationException("Regla ACH HARD BLOCK: máximo 36 archivos diarios por participante.");
+            throw new InvalidOperationException(ExternalFileNameSupport.BuildDailySequenceExhaustedMessage(context));
         }
 
         var now = context.OperationalTimeSnapshot?.CapturedAtUtc ?? DateTime.UtcNow;
