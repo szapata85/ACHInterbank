@@ -28,6 +28,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
     public async Task SeedAsync()
     {
         await EnsureReturnOfReturnFlowTypeAsync();
+        await EnsureCtxServiceClassAsync();
         var catalog = await LoadCatalogAsync();
         await RetireLegacyOrdinaryAchProfilesAsync(catalog.Statuses["INACTIVO"]);
 
@@ -258,6 +259,44 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Prefix: "CENIT_ORDINARY_PRENOTE_OUT_2026",
             EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
 
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitCtxOutbound2026Layout.OriginalProfileCode,
+            Name: "Perfil oficial CENIT CTX salida original mayo 2026",
+            Description: "Perfil CTX table-driven CENIT conforme al formato NACHA-M del 07-may-2026; homologacion externa pendiente.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "ORIGINAL",
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitCtxOutbound2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "3.2;5.1;5.2;6.2;Anexo 1.2;Anexo 1.4-1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "01111111",
+            RoutingDestination: "02222222",
+            ImmediateDestinationName: "CENIT",
+            ImmediateOriginName: "CFA UAT",
+            Prefix: "CENIT_CTX_OUT_2026",
+            ServiceClassCode: "CTX",
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitCtxOutbound2026Layout.PrenotificationProfileCode,
+            Name: "Perfil oficial CENIT CTX salida prenotificacion mayo 2026",
+            Description: "Perfil CTX table-driven para prenotificaciones CENIT conforme al formato NACHA-M del 07-may-2026; homologacion externa pendiente.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "PRENOTIFICACION",
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitCtxOutbound2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "3.2;5.1;5.2;6.2;Anexo 1.2;Anexo 1.4-1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "01111111",
+            RoutingDestination: "02222222",
+            ImmediateDestinationName: "CENIT",
+            ImmediateOriginName: "CFA UAT",
+            Prefix: "CENIT_CTX_PRENOTE_OUT_2026",
+            ServiceClassCode: "CTX",
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+
         await _context.SaveChangesAsync();
 
         async Task EnsureProfileAsync(ProfileSpec spec)
@@ -289,7 +328,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profile.ClearingHouseId = catalog.ClearingHouses[spec.ClearingHouseCode];
             profile.FlowTypeId = catalog.FlowTypes[spec.FlowTypeCode];
             profile.DirectionId = catalog.Directions[spec.DirectionCode];
-            profile.ServiceClassId = null;
+            profile.ServiceClassId = spec.ServiceClassCode is null
+                ? null
+                : catalog.ServiceClasses[spec.ServiceClassCode];
             profile.ContextPriority = 10;
             profile.EffectiveFrom = spec.EffectiveFromOverride ?? EffectiveFrom;
             profile.EffectiveTo = null;
@@ -319,13 +360,16 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 var isCenitReturnOut2026 = IsCenitReturnOut2026(spec);
                 var isCenitReturnOfReturn2026 = IsCenitReturnOfReturn2026(spec);
                 var isCenitOrdinaryOutbound2026 = IsCenitOrdinaryOutbound2026(spec);
+                var isCenitCtxOutbound2026 = IsCenitCtxOutbound2026(spec);
                 var variant = await EnsureVariantAsync(
                     profile,
                     spec,
                     recordCode,
                     sequence,
                     catalog,
-                    isCenitOrdinaryOutbound2026
+                    isCenitCtxOutbound2026
+                        ? CenitCtxOutbound2026Layout.Variant(recordCode)
+                        : isCenitOrdinaryOutbound2026
                         ? CenitOrdinaryOutbound2026Layout.Variant(recordCode)
                         : isCenitReturnOfReturn2026
                         ? CenitReturnOfReturn2026Layout.Variant(recordCode, spec.DirectionCode == "ENTRADA")
@@ -340,7 +384,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     selectionPredicateJson: null);
                 await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
 
-                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026 && !isCenitReturnOfReturn2026 && !isCenitOrdinaryOutbound2026)
+                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026 && !isCenitReturnOfReturn2026 && !isCenitOrdinaryOutbound2026 && !isCenitCtxOutbound2026)
                 {
                     await EnsureVariantAsync(
                         profile,
@@ -387,10 +431,12 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 sequence += 10;
             }
 
-            if (IsCenitOrdinaryOutbound2026(spec))
+            if (IsCenitOrdinaryOutbound2026(spec) || IsCenitCtxOutbound2026(spec))
             {
                 var expectedVariants = RecordCodes
-                    .Select(CenitOrdinaryOutbound2026Layout.Variant)
+                    .Select(recordCode => IsCenitCtxOutbound2026(spec)
+                        ? CenitCtxOutbound2026Layout.Variant(recordCode)
+                        : CenitOrdinaryOutbound2026Layout.Variant(recordCode))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var obsoleteVariants = await _context.CfgLayoutVariants
                     .Where(candidate => candidate.ProfileId == profile.Id && !expectedVariants.Contains(candidate.VariantCode))
@@ -573,7 +619,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
             if (!spec.IsPlaceholder)
             {
-                var descriptor = UsesCenitOrdinaryOutbound2026Layout(spec)
+                var descriptor = UsesCenitCtxOutbound2026Layout(spec)
+                    ? CenitCtxOutbound2026Layout.Field(recordCode, field.Code)
+                    : UsesCenitOrdinaryOutbound2026Layout(spec)
                     ? CenitOrdinaryOutbound2026Layout.Field(recordCode, field.Code)
                     : UsesCenitReturnOfReturn2026Layout(spec)
                     ? CenitReturnOfReturn2026Layout.Field(recordCode, field.Code)
@@ -650,9 +698,28 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             await _context.CatFlowTypes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
             await _context.CatDirections.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
             await _context.CatConfigStatuses.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
+            await _context.CatServiceClasses.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
             await _context.CatRecordCodes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
             await _context.CatDataSourceTypes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id),
             await _context.CatRuleTypes.AsNoTracking().ToDictionaryAsync(x => x.Code, x => x.Id));
+    }
+
+    private async Task EnsureCtxServiceClassAsync()
+    {
+        if (await _context.CatServiceClasses.AnyAsync(x => x.Code == "CTX" && x.ClearingHouseId == null))
+        {
+            return;
+        }
+
+        _context.CatServiceClasses.Add(new CatServiceClass
+        {
+            Code = "CTX",
+            NameEs = "Intercambio de informacion corporativa",
+            IsActive = true,
+            CreatedAt = AuditTimestamp,
+            UpdatedAt = AuditTimestamp
+        });
+        await _context.SaveChangesAsync();
     }
 
     private async Task RetireLegacyOrdinaryAchProfilesAsync(int inactiveStatusId)
@@ -706,6 +773,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
     private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode, string variantCode)
     {
+        if (UsesCenitCtxOutbound2026Layout(profile))
+        {
+            return CenitCtxOutbound2026Layout.ForRecord(recordCode)
+                .Select(descriptor => BuildCenitCtxField(profile, descriptor))
+                .ToList();
+        }
+
         if (UsesCenitOrdinaryOutbound2026Layout(profile))
         {
             return CenitOrdinaryOutbound2026Layout.ForRecord(recordCode)
@@ -777,6 +851,10 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         => CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode)
            && string.Equals(profile.NormativeVersion, CenitOrdinaryOutbound2026Layout.NormativeVersion, StringComparison.Ordinal);
 
+    private static bool IsCenitCtxOutbound2026(ProfileSpec profile)
+        => CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode)
+           && string.Equals(profile.NormativeVersion, CenitCtxOutbound2026Layout.NormativeVersion, StringComparison.Ordinal);
+
     private static bool UsesCenitReturnIn2026Layout(ProfileSpec profile)
         => IsCenitReturnIn2026(profile);
 
@@ -788,6 +866,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
     private static bool UsesCenitOrdinaryOutbound2026Layout(ProfileSpec profile)
         => IsCenitOrdinaryOutbound2026(profile);
+
+    private static bool UsesCenitCtxOutbound2026Layout(ProfileSpec profile)
+        => IsCenitCtxOutbound2026(profile);
 
     private static bool UsesReturnV35Layout(ProfileSpec profile, string recordCode, string variantCode)
         => IsReturnOutV35(profile)
@@ -867,6 +948,37 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 ConstantValue = "0001",
                 EntityName = null,
                 PropertyPath = null,
+                ExpressionDsl = null
+            },
+            _ => field
+        };
+    }
+
+    private static FieldSpec BuildCenitCtxField(ProfileSpec profile, AchColOfficialFieldDescriptor descriptor)
+    {
+        var field = BuildCenitOrdinaryField(profile, descriptor);
+        return (descriptor.RecordCode, descriptor.FieldCode) switch
+        {
+            ("6", "ADDENDACOUNT") => field with
+            {
+                SourceTypeCode = "ENTIDAD",
+                EntityName = "AchTransaction",
+                PropertyPath = "AddendaCount",
+                ExpressionDsl = null
+            },
+            ("6", "ADDENDARECORDINDICATOR") => field with
+            {
+                SourceTypeCode = "ENTIDAD",
+                EntityName = "AchTransaction",
+                PropertyPath = "AddendumIndicator",
+                ExpressionDsl = null
+            },
+            ("7", "SEQUENCENUMBER") => field with
+            {
+                SourceTypeCode = "ENTIDAD",
+                ConstantValue = null,
+                EntityName = "AchTransactionAddenda",
+                PropertyPath = "SequenceNumber",
                 ExpressionDsl = null
             },
             _ => field
@@ -1162,6 +1274,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         int VersionMajor = 1,
         int VersionMinor = 1,
         bool IncludeReturnAddenda99 = false,
+        string? ServiceClassCode = null,
         DateTime? EffectiveFromOverride = null);
 
     private sealed record CatalogIds(
@@ -1169,6 +1282,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         IReadOnlyDictionary<string, int> FlowTypes,
         IReadOnlyDictionary<string, int> Directions,
         IReadOnlyDictionary<string, int> Statuses,
+        IReadOnlyDictionary<string, int> ServiceClasses,
         IReadOnlyDictionary<string, int> RecordCodes,
         IReadOnlyDictionary<string, int> SourceTypes,
         IReadOnlyDictionary<string, int> RuleTypes);

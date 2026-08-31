@@ -252,7 +252,6 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             Transactions = transactions
         };
         var setup = CreateOfficialSut(context, "CENIT", model);
-
         var result = await setup.Sut.BuildNachaFilesByCycleAsync(model.Cycle.Id, CancellationToken.None);
 
         var artifact = result.Files.Should().ContainSingle().Subject;
@@ -284,7 +283,85 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Fact]
-    public async Task CenitMultiFileBuilder_CtxUsesIndependentPartition_AndFailsForMissingPublishedProfile()
+    public async Task CenitCtxOfficialProfile_RendersMultipleEntriesAndOwnedAddendasInOneBatch()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("CENIT", batchCount: 2);
+        var sourceBatch = model.Batches[0];
+        sourceBatch.CompanyEntryDescription = "CORPORATE";
+        var transactions = model.Transactions.OrderBy(transaction => transaction.Id).ToArray();
+        for (var transactionIndex = 0; transactionIndex < transactions.Length; transactionIndex++)
+        {
+            var transaction = transactions[transactionIndex];
+            transaction.AchBatchId = sourceBatch.Id;
+            transaction.AchBatch = sourceBatch;
+            transaction.Addendas = Enumerable.Range(1, transactionIndex + 2)
+                .Select(sequence => new AchTransactionAddenda
+                {
+                    Id = (transaction.Id * 10) + sequence,
+                    AchTransactionId = transaction.Id,
+                    Transaction = transaction,
+                    AddendaType = "05",
+                    Information = $"CTX PAYMENT {transaction.Id}-{sequence}",
+                    SequenceNumber = sequence
+                })
+                .ToList();
+        }
+        sourceBatch.Transactions = transactions;
+        model = new NachaBuildContext
+        {
+            Cycle = model.Cycle,
+            Batches = [sourceBatch],
+            Transactions = transactions
+        };
+        var setup = CreateOfficialSut(context, "CENIT", model);
+        foreach (var customer in context.Customers)
+        {
+            customer.FirstName = "CTX";
+            customer.LastName = "RECEIVER";
+        }
+        await context.SaveChangesAsync();
+
+        var result = await setup.Sut.BuildNachaFilesByCycleAsync(model.Cycle.Id, CancellationToken.None);
+
+        var artifact = result.Files.Should().ContainSingle().Subject;
+        artifact.ProfileIdentity.Should().Be(CenitCtxOutbound2026Layout.OriginalProfileCode);
+        artifact.ServiceCodes.Should().Equal("CTX");
+        artifact.Batches.Should().ContainSingle().Which.AchTransactionIds.Should().HaveCount(2);
+
+        var records = SplitRecords(artifact.Content);
+        records.Should().OnlyContain(record => record.Length == 106);
+        records.Take(11).Select(record => record[0]).Should().Equal('1', '5', '6', '7', '7', '6', '7', '7', '7', '8', '9');
+        records.Skip(11).Should().OnlyContain(record => record == new string('9', 106));
+        records[1].Substring(50, 3).Should().Be("CTX");
+
+        records[2].Substring(62, 4).Should().Be("0002");
+        records[2][86].Should().Be('1');
+        records[3].Substring(83, 4).Should().Be("0001");
+        records[4].Substring(83, 4).Should().Be("0002");
+        records[3].Substring(87, 7).Should().Be("0000001");
+        records[4].Substring(87, 7).Should().Be("0000001");
+
+        records[5].Substring(62, 4).Should().Be("0003");
+        records[6].Substring(83, 4).Should().Be("0001");
+        records[7].Substring(83, 4).Should().Be("0002");
+        records[8].Substring(83, 4).Should().Be("0003");
+        records.Skip(6).Take(3).Should().OnlyContain(record => record.Substring(87, 7) == "0000002");
+
+        records[9].Substring(4, 6).Should().Be("000007");
+        records[9].Substring(10, 10).Should().Be("0024691356");
+        records[9].Substring(20, 18).Should().Be(new string('0', 18));
+        records[9].Substring(38, 18).Should().Be("000000000000020100");
+        records[10].Substring(1, 6).Should().Be("000001");
+        records[10].Substring(7, 6).Should().Be("000002");
+        records[10].Substring(13, 8).Should().Be("00000007");
+        records[10].Substring(21, 10).Should().Be("0024691356");
+        records[10].Substring(31, 18).Should().Be(new string('0', 18));
+        records[10].Substring(49, 18).Should().Be("000000000000020100");
+    }
+
+    [Fact]
+    public async Task CenitCtxOfficialProfile_RejectsNonConsecutiveAddendaSequence()
     {
         await using var context = await SeedAsync();
         var model = BuildContext("CENIT");
@@ -297,8 +374,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
                 Id = transaction.Id,
                 AchTransactionId = transaction.Id,
                 Transaction = transaction,
-                Information = "CTX PAYMENT",
-                SequenceNumber = 1
+                Information = "CTX PAYMENT 2",
+                SequenceNumber = 2
             }
         ];
         model.Batches.Single().Transactions = [transaction];
@@ -307,7 +384,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var action = async () => await setup.Sut.BuildNachaFilesByCycleAsync(model.Cycle.Id, CancellationToken.None);
 
         var exception = await action.Should().ThrowAsync<NachaGenerationException>();
-        exception.Which.Code.Should().Be("CENIT_CTX_OUTBOUND_PROFILE_NOT_PUBLISHED");
+        exception.Which.Code.Should().Be("CENIT_CTX_ADDENDA_SEQUENCE_INVALID");
     }
 
     [Fact]

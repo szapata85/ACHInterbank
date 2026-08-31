@@ -85,6 +85,15 @@ public class NachaConfigResolver : INachaConfigResolver
             .Where(x => !request.RequireHomologated || IsNormativelyEnabled(x))
             .ToList();
 
+        if (!string.IsNullOrWhiteSpace(serviceClassCode)
+            && dimensionCandidates.Any(x => x.ServiceClass is not null))
+        {
+            activeCandidates = activeCandidates
+                .Where(x => x.ServiceClass is not null
+                            && string.Equals(x.ServiceClass.Code, serviceClassCode, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
         if (activeCandidates.Count == 0)
         {
             return Failure(
@@ -94,15 +103,6 @@ public class NachaConfigResolver : INachaConfigResolver
                     : "El perfil existe, pero no está publicado o vigente para la fecha solicitada.",
                 trace,
                 warnings);
-        }
-
-        if (!string.IsNullOrWhiteSpace(serviceClassCode)
-            && activeCandidates.Any(x => x.ServiceClass is not null))
-        {
-            activeCandidates = activeCandidates
-                .Where(x => x.ServiceClass is not null
-                            && string.Equals(x.ServiceClass.Code, serviceClassCode, StringComparison.OrdinalIgnoreCase))
-                .ToList();
         }
 
         var topPriority = activeCandidates.Min(x => x.ContextPriority);

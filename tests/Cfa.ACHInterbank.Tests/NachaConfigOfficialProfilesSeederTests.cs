@@ -165,15 +165,42 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     }
 
     [Fact]
+    public async Task CenitCtxProfile_ShouldSeedOfficialType5Type6AndType7Layouts()
+    {
+        await using var context = await SeedAsync();
+        var profile = await LoadProfileAsync(context, CenitCtxOutbound2026Layout.OriginalProfileCode);
+
+        profile.Should().NotBeNull();
+        profile!.ServiceClass!.Code.Should().Be("CTX");
+        profile.Records.Select(record => record.RecordCode.Code).Should().BeEquivalentTo(RequiredRecords);
+        profile.LayoutVariants.Should().OnlyContain(variant => variant.TotalLength == 106);
+        AssertField(profile, "5", "STANDARDENTRYCLASSCODE", 51, 3);
+        AssertField(profile, "6", "AMOUNT", 30, 18);
+        AssertField(profile, "6", "ADDENDACOUNT", 63, 4);
+        AssertField(profile, "6", "INDIVIDUALNAME", 67, 16);
+        AssertField(profile, "6", "ADDENDARECORDINDICATOR", 87, 1);
+        AssertField(profile, "6", "TRACENUMBER", 88, 15);
+        AssertField(profile, "7", "PAYMENTRELATEDINFORMATION", 4, 80);
+        AssertField(profile, "7", "SEQUENCENUMBER", 84, 4);
+        AssertField(profile, "7", "TRACESUFFIX", 88, 7);
+        Constant(profile, "7", "ADDENDATYPE").Should().Be("05");
+        profile.LayoutVariants.Single(variant => variant.RecordCode.Code == "7")
+            .Fields.Single(field => field.FieldCode == "SEQUENCENUMBER")
+            .SourceDefinition.PropertyPath.Should().Be("SequenceNumber");
+    }
+
+    [Fact]
     public async Task PublishedProfiles_ShouldHaveEffectiveDates()
     {
         await using var context = await SeedAsync();
         var profiles = await LoadOfficialProfilesAsync(context);
 
         profiles.Should().OnlyContain(x => x.PublishedAt.HasValue);
-        profiles.Where(profile => CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode))
+        profiles.Where(profile => CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode)
+                                  || CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode))
             .Should().OnlyContain(profile => profile.EffectiveFrom == new DateTime(2026, 5, 7, 0, 0, 0, DateTimeKind.Utc));
-        profiles.Where(profile => !CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode))
+        profiles.Where(profile => !CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode)
+                                  && !CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode))
             .Should().OnlyContain(profile => profile.EffectiveFrom == new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         profiles.Should().OnlyContain(x => x.EffectiveTo == null);
     }
@@ -341,6 +368,74 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         result.UsedFallback.Should().BeFalse();
         result.Profile!.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
         result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
+    }
+
+    [Fact]
+    public async Task CenitCtxProfile_ShouldResolveOnlyForCtxServiceClass()
+    {
+        await using var context = await SeedAsync();
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "CTX",
+            ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = RequiredRecords
+        });
+
+        result.Success.Should().BeTrue(string.Join(" | ", result.Trace));
+        result.Profile!.ProfileCode.Should().Be(CenitCtxOutbound2026Layout.OriginalProfileCode);
+        result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
+    }
+
+    [Fact]
+    public async Task CenitCtxProfile_ShouldFailClosedWhenMissing()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles.SingleAsync(item =>
+            item.ProfileCode == CenitCtxOutbound2026Layout.OriginalProfileCode);
+        profile.StatusId = await context.CatConfigStatuses
+            .Where(status => status.Code == "INACTIVO")
+            .Select(status => status.Id)
+            .SingleAsync();
+        await context.SaveChangesAsync();
+
+        var result = await ResolveCtxProfileAsync(context);
+
+        result.Success.Should().BeFalse();
+        result.UsedFallback.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileInactive);
+    }
+
+    [Fact]
+    public async Task CenitCtxProfile_ShouldFailClosedWhenAmbiguous()
+    {
+        await using var context = await SeedAsync();
+        var source = await context.CfgLayoutVariants.SingleAsync(variant =>
+            variant.Profile.ProfileCode == CenitCtxOutbound2026Layout.OriginalProfileCode
+            && variant.RecordCode.Code == "6");
+        context.CfgLayoutVariants.Add(new CfgLayoutVariant
+        {
+            ProfileId = source.ProfileId,
+            RecordCodeId = source.RecordCodeId,
+            VariantCode = "TEST_CENIT_CTX_R6_AMBIGUOUS",
+            NameEs = "Layout CTX duplicado intencional para prueba",
+            Priority = source.Priority,
+            TotalLength = source.TotalLength,
+            IsDefaultForRecord = source.IsDefaultForRecord,
+            EffectiveFrom = source.EffectiveFrom,
+            StatusId = source.StatusId,
+            CreatedAt = source.CreatedAt,
+            UpdatedAt = source.UpdatedAt
+        });
+        await context.SaveChangesAsync();
+
+        var result = await ResolveCtxProfileAsync(context);
+
+        result.Success.Should().BeFalse();
+        result.UsedFallback.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileAmbiguous);
     }
 
     [Theory]
@@ -627,12 +722,24 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
 
     private Task<AchDbContext> SeedAsync() => _fixture.CreateSeededContextAsync();
 
+    private static Task<NachaConfigResolutionResult> ResolveCtxProfileAsync(AchDbContext context)
+        => new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "CTX",
+            ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = RequiredRecords
+        });
+
     private static async Task<List<CfgProfile>> LoadOfficialProfilesAsync(AchDbContext context)
     {
         return await context.CfgProfiles
             .Include(x => x.ClearingHouse)
             .Include(x => x.FlowType)
             .Include(x => x.Direction)
+            .Include(x => x.ServiceClass)
             .Include(x => x.Status)
             .Include(x => x.Tags)
             .Include(x => x.Records)
@@ -653,6 +760,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .Include(x => x.ClearingHouse)
             .Include(x => x.FlowType)
             .Include(x => x.Direction)
+            .Include(x => x.ServiceClass)
             .Include(x => x.Status)
             .Include(x => x.Tags)
             .Include(x => x.Records)

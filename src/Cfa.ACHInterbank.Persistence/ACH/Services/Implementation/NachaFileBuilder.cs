@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -334,6 +334,30 @@ public class NachaFileBuilder : INachaFileBuilder
             Transactions = transactions
         };
         var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
+        if (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase))
+        {
+            var catalog = (await _dataLoader.LoadCompanyEntryDescriptionCatalogAsync(ct))
+                .Select(item => new CompanyEntryDescriptionCatalogItem(item.Term, item.StandardEntryClassCode))
+                .ToList();
+            var serviceCodes = batches
+                .Select(batch => ResolveStandardEntryClassCode(batch, batch.Transactions.ToArray(), catalog))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (serviceCodes.Length != 1)
+            {
+                throw new NachaGenerationException(
+                    "CENIT_SINGLE_FILE_SERVICE_AMBIGUOUS",
+                    "El wrapper de archivo único CENIT requiere una sola clase de servicio; use el resultado multiarchivo para entradas mixtas.");
+            }
+
+            context = new NachaBuildContext
+            {
+                Cycle = cycle,
+                Batches = batches,
+                Transactions = transactions,
+                StandardEntryClassCode = serviceCodes[0]
+            };
+        }
         var calendarDecision = await _calendarGuard.EnsureExecutableAsync(cycle, ct);
         if (!calendarDecision.CanExecute)
         {
@@ -428,13 +452,6 @@ public class NachaFileBuilder : INachaFileBuilder
         var partitions = CenitOutboundFilePartitioner.Partition(sources);
         EnsureCompleteCenitMembership(transactions, partitions);
 
-        if (partitions.Any(partition => partition.ProfileIdentity == CenitOutboundFilePartitioner.CtxProfileIdentity))
-        {
-            throw new NachaGenerationException(
-                "CENIT_CTX_OUTBOUND_PROFILE_NOT_PUBLISHED",
-                "La partición CTX fue aislada, pero no existe un perfil publicado con layouts oficiales T5/T6/T7 CTX y multi-adenda.");
-        }
-
         var artifacts = new List<NachaFileBuildArtifact>(partitions.Count);
         foreach (var partition in partitions.OrderBy(item => item.FileIndex))
         {
@@ -447,9 +464,15 @@ public class NachaFileBuilder : INachaFileBuilder
                     batch.ServiceCode,
                     batch.Transactions.Select(transaction => transaction.Id).OrderBy(id => id).ToArray()))
                 .ToArray();
-            var profileIdentity = NachaProfileDimensionResolver.ResolveFlowCode(fileContext.Transactions) == "PRENOTIFICACION"
-                ? CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode
-                : CenitOrdinaryOutbound2026Layout.OriginalProfileCode;
+            var isCtx = partition.ProfileIdentity == CenitOutboundFilePartitioner.CtxProfileIdentity;
+            var isPrenotification = NachaProfileDimensionResolver.ResolveFlowCode(fileContext.Transactions) == "PRENOTIFICACION";
+            var profileIdentity = (isCtx, isPrenotification) switch
+            {
+                (true, true) => CenitCtxOutbound2026Layout.PrenotificationProfileCode,
+                (true, false) => CenitCtxOutbound2026Layout.OriginalProfileCode,
+                (false, true) => CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode,
+                _ => CenitOrdinaryOutbound2026Layout.OriginalProfileCode
+            };
             artifacts.Add(new NachaFileBuildArtifact(
                 content,
                 fileContext.Transactions.Select(transaction => transaction.Id).OrderBy(id => id).ToArray())
@@ -508,7 +531,8 @@ public class NachaFileBuilder : INachaFileBuilder
         {
             Cycle = source.Cycle,
             Batches = batches,
-            Transactions = batches.SelectMany(batch => batch.Transactions).ToArray()
+            Transactions = batches.SelectMany(batch => batch.Transactions).ToArray(),
+            StandardEntryClassCode = partition.ServiceCodes.Single()
         };
     }
 
@@ -1136,6 +1160,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var recordCount = 0;
         var batchCount = orderedBatches.Count;
         var isAchColOfficial = string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase);
+        var isCenitCtx = CenitCtxOutbound2026Layout.IsProfile(resolution.Profile?.ProfileCode);
         var dailySequence = header?.CycleNumber > 0 ? header.CycleNumber : 1;
         var fileIdModifier = _controlTotalsCalculator.ResolveFileIdModifier(dailySequence);
         audit.FileIdModifier = new NachaFileIdModifierAudit { DailySequence = dailySequence, ResolvedValue = fileIdModifier };
@@ -1239,6 +1264,10 @@ public class NachaFileBuilder : INachaFileBuilder
                 var type7ByTransaction = type7Candidates
                     .GroupBy(candidate => candidate.Transaction.Id)
                     .ToDictionary(group => group.Key, group => group.ToList());
+                if (isCenitCtx)
+                {
+                    ValidateCtxAddendaSequences(calculation.Transactions, type7ByTransaction);
+                }
                 var entryDetails = await BuildEntryDetailRecordsOfficialAsync(
                     calculation.Transactions,
                     RequireOfficialLayout(resolution, "6"),
@@ -1273,9 +1302,9 @@ public class NachaFileBuilder : INachaFileBuilder
 
                     foreach (var candidate in associatedAddendas.OrderBy(item => item.Addenda.SequenceNumber ?? 1))
                     {
-                        if (isAchColOfficial)
+                        if (isAchColOfficial || isCenitCtx)
                         {
-                            ValidateType7Association(entryDetail, candidate);
+                            ValidateType7Association(entryDetail, candidate, isCenitCtx);
                         }
 
                         var type7Layout = isAchColOfficial
@@ -1477,7 +1506,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 transaction,
                 receiverName,
                 receivingDfiLength,
-                type7ByTransaction.TryGetValue(transaction.Id, out var addendas) && addendas.Count > 0));
+                type7ByTransaction.TryGetValue(transaction.Id, out var addendas) ? addendas.Count : 0));
         }
 
         return records;
@@ -1530,12 +1559,50 @@ public class NachaFileBuilder : INachaFileBuilder
         return selected;
     }
 
-    private static void ValidateType7Association(EntryDetailRecord entry, NachaType7RecordCandidate candidate)
+    private static void ValidateCtxAddendaSequences(
+        IReadOnlyList<AchTransaction> transactions,
+        IReadOnlyDictionary<int, List<NachaType7RecordCandidate>> type7ByTransaction)
     {
+        foreach (var transaction in transactions.OrderBy(item => item.Id))
+        {
+            if (!type7ByTransaction.TryGetValue(transaction.Id, out var addendas)
+                || addendas.Count is < 1 or > CenitCtxOutbound2026Layout.MaxAddendaPerEntry)
+            {
+                throw new NachaGenerationException(
+                    "CENIT_CTX_ADDENDA_CARDINALITY_INVALID",
+                    $"La transacción CTX {transaction.Id} debe contener entre 1 y {CenitCtxOutbound2026Layout.MaxAddendaPerEntry} adendas.");
+            }
+
+            if (transaction.Type == TransactionTypeEnum.Prenotification && addendas.Count != 1)
+            {
+                throw new NachaGenerationException(
+                    "CENIT_CTX_PRENOTE_ADDENDA_CARDINALITY_INVALID",
+                    $"La prenotificación CTX {transaction.Id} debe contener exactamente una adenda.");
+            }
+
+            var ordered = addendas.OrderBy(item => item.Addenda.SequenceNumber).ToArray();
+            for (var index = 0; index < ordered.Length; index++)
+            {
+                if (ordered[index].Addenda.SequenceNumber != index + 1)
+                {
+                    throw new NachaGenerationException(
+                        "CENIT_CTX_ADDENDA_SEQUENCE_INVALID",
+                        $"La secuencia de adendas CTX de la transacción {transaction.Id} debe iniciar en 0001 y ser consecutiva.");
+                }
+            }
+        }
+    }
+
+    private static void ValidateType7Association(
+        EntryDetailRecord entry,
+        NachaType7RecordCandidate candidate,
+        bool isCenitCtx = false)
+    {
+        var chamber = isCenitCtx ? "CENIT" : "ACHCOL";
         if (entry.AddendumIndicator != "1")
         {
             throw BuildCrossFieldException(
-                "ACHCOL-T6-ADDENDA-INDICATOR",
+                $"{chamber}-T6-ADDENDA-INDICATOR",
                 "6/7",
                 "ADDENDARECORDINDICATOR",
                 87,
@@ -1547,7 +1614,7 @@ public class NachaFileBuilder : INachaFileBuilder
         if (trace.Length != 15 || trace.Any(character => !char.IsDigit(character)))
         {
             throw BuildCrossFieldException(
-                "ACHCOL-T6-TRACE-NUMBER",
+                $"{chamber}-T6-TRACE-NUMBER",
                 "6",
                 "TRACENUMBER",
                 88,
@@ -1561,7 +1628,7 @@ public class NachaFileBuilder : INachaFileBuilder
         if (!string.Equals(suffix, trace[^7..], StringComparison.Ordinal))
         {
             throw BuildCrossFieldException(
-                "ACHCOL-T7-TRACE-SUFFIX-MATCH",
+                $"{chamber}-T7-TRACE-SUFFIX-MATCH",
                 "6/7",
                 "TRACESUFFIX",
                 88,
@@ -2364,9 +2431,9 @@ public class NachaFileBuilder : INachaFileBuilder
         string clearingHouseCode,
         IReadOnlyCollection<string> recordCodes)
     {
-        var serviceClassCode = context.Batches
-            .Select(x => x.ServiceClassCode)
-            .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+        var serviceClassCode = context.StandardEntryClassCode
+            ?? context.Batches.Select(x => x.ServiceClassCode)
+                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
 
         var flowTypeCode = NachaProfileDimensionResolver.ResolveFlowCode(context.Transactions);
         var requiresAchColV35 = string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
@@ -2551,6 +2618,61 @@ public class NachaFileBuilder : INachaFileBuilder
                  && CenitOrdinaryOutbound2026Layout.IsVariant(layout.VariantCode))
         {
             ValidateCenitOrdinaryOutbound2026LayoutSnapshot(recordCode, layout);
+        }
+        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+                 && CenitCtxOutbound2026Layout.IsVariant(layout.VariantCode))
+        {
+            ValidateCenitCtxOutbound2026LayoutSnapshot(recordCode, layout);
+        }
+    }
+
+    private static void ValidateCenitCtxOutbound2026LayoutSnapshot(string recordCode, CfgLayoutVariant layout)
+    {
+        if (layout.TotalLength != CenitCtxOutbound2026Layout.RecordLength
+            || !CenitCtxOutbound2026Layout.IsVariant(layout.VariantCode))
+        {
+            throw new NachaGenerationException(
+                "NACHA_PROFILE_LAYOUT_MISMATCH",
+                "El layout publicado no coincide con el snapshot normativo CENIT CTX 2026.");
+        }
+
+        var expectedFields = CenitCtxOutbound2026Layout.ForRecord(recordCode);
+        var actualFields = layout.Fields.Where(field => field.IsEnabled).ToList();
+        foreach (var expected in expectedFields)
+        {
+            var actual = actualFields.FirstOrDefault(field =>
+                string.Equals(field.FieldCode, expected.FieldCode, StringComparison.OrdinalIgnoreCase));
+            if (actual is null
+                || actual.StartPosition != expected.StartPosition
+                || actual.Length != expected.Length
+                || actual.Justification != expected.Justification
+                || actual.PadChar != expected.PadChar
+                || !string.Equals(actual.FormatMask, expected.Format, StringComparison.Ordinal)
+                || !actual.Rules.Any(rule => rule.IsEnabled
+                    && string.Equals(rule.RuleCode, expected.RuleId, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_PROFILE_LAYOUT_MISMATCH",
+                    expected,
+                    "El campo no coincide con el Manual CENIT 2026, Anexos 1.2, 1.4 o 1.5.");
+            }
+
+            if (ContainsForbiddenOfficialTransformation(actual.TransformationPipelineJson)
+                || !string.IsNullOrWhiteSpace(actual.SourceDefinition?.FallbackPolicyJson))
+            {
+                throw BuildFieldRuleException(
+                    "NACHA_SILENT_TRANSFORMATION_FORBIDDEN",
+                    expected,
+                    "La ruta oficial CENIT CTX no admite truncamiento, substring ni fallback silencioso.");
+            }
+        }
+
+        var expectedCodes = expectedFields.Select(field => field.FieldCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (actualFields.Any(field => !expectedCodes.Contains(field.FieldCode)))
+        {
+            throw new NachaGenerationException(
+                "NACHA_PROFILE_LAYOUT_MISMATCH",
+                "El layout publicado contiene campos no contemplados por el snapshot CENIT CTX 2026.");
         }
     }
 
@@ -2788,12 +2910,15 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var rules = field.Rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.Order).ToList();
         var isCenitOrdinary = CenitOrdinaryOutbound2026Layout.IsVariant(field.LayoutVariant?.VariantCode);
+        var isCenitCtx = CenitCtxOutbound2026Layout.IsVariant(field.LayoutVariant?.VariantCode);
         if ((string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
              || (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-                 && (CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode) || isCenitOrdinary)))
+                 && (CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode) || isCenitOrdinary || isCenitCtx)))
             && rules.Count == 0)
         {
-            var descriptor = isCenitOrdinary
+            var descriptor = isCenitCtx
+                ? CenitCtxOutbound2026Layout.Field(recordCode, field.FieldCode)
+                : isCenitOrdinary
                 ? CenitOrdinaryOutbound2026Layout.Field(recordCode, field.FieldCode)
                 : CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode)
                 ? CenitReturnOut2026Layout.Field(recordCode, field.FieldCode)
@@ -4162,9 +4287,9 @@ public class NachaFileBuilder : INachaFileBuilder
             string companyEntryDescription,
             OperationalTimeSnapshot operationalSnapshot)
         {
-            if (standardEntryClassCode is not ("PPD" or "CCD"))
+            if (standardEntryClassCode is not ("PPD" or "CCD" or "CTX"))
             {
-                throw new InvalidOperationException("Error Fatal ID 20: Tipo de servicio del lote inválido. Solo se permite PPD o CCD.");
+                throw new InvalidOperationException("Error Fatal ID 20: Tipo de servicio del lote inválido. Solo se permite PPD, CCD o CTX.");
             }
 
             return new BatchHeaderRecord
@@ -4226,13 +4351,14 @@ public class NachaFileBuilder : INachaFileBuilder
         public string DestinationAccountNumber { get; init; } = string.Empty;
         public decimal Amount { get; init; }
         public string RecipientIdNumber { get; init; } = string.Empty;
+        public int AddendaCount { get; init; }
         public string ReceiverName { get; init; } = string.Empty;
         public string DiscretionaryData { get; init; } = string.Empty;
         public string AddendumIndicator { get; init; } = "1";
         public string TraceNumber { get; init; } = string.Empty;
         public string CompanyIdentification { get; init; } = string.Empty;
 
-        public static EntryDetailRecord From(AchTransaction tx, string receiverName, int receivingDfiLength, bool hasAddenda = true)
+        public static EntryDetailRecord From(AchTransaction tx, string receiverName, int receivingDfiLength, int addendaCount = 1)
         {
             var receivingDfi = (tx.ReceivingDFI ?? string.Empty).Trim();
             if (receivingDfi.Length != receivingDfiLength || receivingDfi.Any(c => !char.IsDigit(c)))
@@ -4263,9 +4389,10 @@ public class NachaFileBuilder : INachaFileBuilder
                 DestinationAccountNumber = tx.DestinationAccountNumber,
                 Amount = tx.Amount,
                 RecipientIdNumber = tx.RecipientIdNumber,
+                AddendaCount = addendaCount,
                 ReceiverName = receiverName,
                 DiscretionaryData = tx.DiscretionaryData,
-                AddendumIndicator = hasAddenda ? "1" : "0",
+                AddendumIndicator = addendaCount > 0 ? "1" : "0",
                 TraceNumber = tx.TraceNumber,
                 CompanyIdentification = tx.CompanyIdentification
             };
