@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FileAck xmlns="urn:xs:FileAck">
+  <GroupHeader>
+    <GroupId>ACK-20260831-01</GroupId>
+    <Status>ACK</Status>
+    <IndvItemsTotalNo>2</IndvItemsTotalNo>
+    <CreationDate>2026-08-31T12:05:00-05:00</CreationDate>
+  </GroupHeader>
+  <AdditionalRefs>
+    <RelatedRef>REF-1</RelatedRef>
+    <OrigSender>0001001</OrigSender>
+  </AdditionalRefs>
+</FileAck>

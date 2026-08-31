@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
+using System.Text.Json.Serialization;
 
 namespace Cfa.ACHInterbank.Application.ACH.Models;
 
@@ -19,11 +20,18 @@ public sealed record CenitChamberResponseResult(
     string SourceResponseId,
     string SourceFileName,
     string RawTechnicalReference,
-    CenitChamberResponseType ResponseType,
-    CenitChamberResponseState State,
-    CenitChamberCorrelationOutcome CorrelationOutcome,
+    [property: JsonConverter(typeof(JsonStringEnumConverter))] CenitChamberResponseType ResponseType,
+    [property: JsonConverter(typeof(JsonStringEnumConverter))] CenitChamberResponseState State,
+    [property: JsonConverter(typeof(JsonStringEnumConverter))] CenitChamberCorrelationOutcome CorrelationOutcome,
     int? RelatedFileId,
     string? RelatedFileName,
+    string? AchCycleId,
+    string? XmlNamespace,
+    string? MessageGroupId,
+    string? MessageStatus,
+    DateTime? MessageCreatedAtUtc,
+    string? OriginatingSender,
+    string? RelatedReference,
     int? RelatedTransactionId,
     string? TransactionTraceNumber,
     string? ReasonCode,
@@ -31,7 +39,9 @@ public sealed record CenitChamberResponseResult(
     DateTime ReceivedAtUtc,
     DateTime? ProcessedAtUtc,
     bool IsApplied,
-    string? ProblemCode);
+    string? ProblemCode,
+    int ItemSequence,
+    int ItemCount);
 
 public sealed record CenitChamberResponsePage(
     IReadOnlyList<CenitChamberResponseResult> Items,

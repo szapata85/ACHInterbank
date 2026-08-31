@@ -10,6 +10,8 @@ public sealed class CenitChamberResponse : AuditableEntity
     public ClearingHouse ClearingHouse { get; set; } = null!;
     public int? AchFileExportId { get; set; }
     public AchFileExport? AchFileExport { get; set; }
+    public string? AchCycleId { get; set; }
+    public AchCycle? AchCycle { get; set; }
     public int? AchTransactionId { get; set; }
     public AchTransaction? AchTransaction { get; set; }
     public string SourceResponseId { get; set; } = string.Empty;
@@ -26,7 +28,14 @@ public sealed class CenitChamberResponse : AuditableEntity
     public string IdempotencyKey { get; set; } = string.Empty;
     public string? RelatedOutboundFileName { get; set; }
     public string? RelatedReference { get; set; }
+    public string? XmlNamespace { get; set; }
+    public string? MessageGroupId { get; set; }
+    public string? MessageStatus { get; set; }
+    public DateTime? MessageCreatedAtUtc { get; set; }
+    public string? OriginatingSender { get; set; }
     public string? TransactionTraceNumber { get; set; }
     public string? ProblemCode { get; set; }
     public bool IsApplied { get; set; }
+    public int ItemSequence { get; set; } = 1;
+    public int ItemCount { get; set; } = 1;
 }

@@ -19,7 +19,7 @@ public sealed class CenitOperationsClearingHouseIsolationTests
         var achColombia = await AddClearingHouseAsync(context, "ACHCOL", 9102);
         await SeedTransactionsAsync(context, cenit, achColombia);
 
-        var controller = new CenitOperationsController(context);
+        var controller = new CenitOperationsController(context, null);
 
         var action = await controller.GetTraceabilityAsync(null, null, 1, 50, CancellationToken.None);
 

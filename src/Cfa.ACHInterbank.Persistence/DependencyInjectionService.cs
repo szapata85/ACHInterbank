@@ -39,6 +39,7 @@ public static class DependencyInjectionService
         services.Configure<TransactionPolicyOptions>(configuration.GetSection("TransactionPolicies"));
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         services.Configure<NachaInboundSimulatorOptions>(configuration.GetSection(NachaInboundSimulatorOptions.SectionName));
+        services.Configure<CenitLocalGatewayOptions>(configuration.GetSection(CenitLocalGatewayOptions.SectionName));
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
         services.Configure<CertificateManagementOptions>(configuration.GetSection(CertificateManagementOptions.SectionName));
         services.Configure<DigitalEnvelopeCertificateBootstrapOptions>(configuration.GetSection(DigitalEnvelopeCertificateBootstrapOptions.SectionName));
@@ -117,6 +118,8 @@ public static class DependencyInjectionService
         });
 
         services.AddHostedService<DatabaseInitializationHostedService>();
+        services.AddSingleton<ICenitGatewayTransportAdapter, CenitLocalGatewayFolderTransportAdapter>();
+        services.AddHostedService<CenitLocalGatewayPickupHostedService>();
         services.AddDataProtection()
             .SetApplicationName(DataProtectionKeyRingConfiguration.ApplicationName)
             .PersistKeysToDbContext<AchDbContext>();

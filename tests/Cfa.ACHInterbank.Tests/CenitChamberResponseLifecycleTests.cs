@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -52,13 +53,113 @@ public sealed class CenitChamberResponseLifecycleTests
         var service = CreateService(context);
         var command = new CenitChamberResponseImportCommand(
             $"SRC-{messageType}", $"{messageType}.dat", messageType, content,
-            Utc(), "0001001.001.20260831.1", null, null, "CENIT-CYCLE-1");
+            Utc(), null, null, null, "CENIT-CYCLE-1");
 
         var result = await service.ImportAsync(command);
 
         Assert.Equal(expectedType, result.ResponseType);
         Assert.Equal(expectedState, result.State);
         Assert.Equal(CenitChamberCorrelationOutcome.Matched, result.CorrelationOutcome);
+        Assert.Null(result.RelatedFileId);
+        Assert.Equal("CENIT-CYCLE-1", result.AchCycleId);
+        Assert.True(result.IsApplied);
+        Assert.Equal(CenitChamberResponseState.Pending, (await context.AchFileExports.SingleAsync()).ChamberResponseState);
+    }
+
+    [Fact]
+    public async Task OfficialAckFixture_ShouldPreserveNamespaceHeaderAndReferences()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var content = await File.ReadAllTextAsync(Fixture("official-file-ack.xml"));
+
+        var result = await CreateService(context).ImportAsync(Command("ACK") with
+        {
+            Content = content,
+            TransactionTraceNumber = null
+        });
+
+        Assert.Equal(CenitChamberResponseType.Ack, result.ResponseType);
+        Assert.Equal("urn:xs:FileAck", result.XmlNamespace);
+        Assert.Equal("ACK-20260831-01", result.MessageGroupId);
+        Assert.Equal("ACK", result.MessageStatus);
+        Assert.Equal(new DateTime(2026, 8, 31, 17, 5, 0, DateTimeKind.Utc), result.MessageCreatedAtUtc);
+        Assert.Equal("0001001", result.OriginatingSender);
+        Assert.Equal("REF-1", result.RelatedReference);
+        Assert.Equal(CenitChamberCorrelationOutcome.Matched, result.CorrelationOutcome);
+    }
+
+    [Fact]
+    public async Task ExplicitFileName_ShouldCorrelateWhenXmlReferenceIsNotTheTransmissionReference()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var command = Command("ACK") with
+        {
+            Content = "<FileAck><GroupHeader><Status>ACK</Status></GroupHeader><AdditionalRefs><RelatedRef>0001001.001.20260831.1</RelatedRef></AdditionalRefs></FileAck>"
+        };
+
+        var result = await CreateService(context).ImportAsync(command);
+
+        Assert.Equal(CenitChamberCorrelationOutcome.Matched, result.CorrelationOutcome);
+        Assert.NotNull(result.RelatedFileId);
+        Assert.True(result.IsApplied);
+    }
+
+    [Fact]
+    public async Task OfficialFileNackFixture_WithoutLocator_ShouldBeFileLevelNack()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var content = await File.ReadAllTextAsync(Fixture("official-file-nack.xml"));
+
+        var result = await CreateService(context).ImportAsync(Command("NACK") with { Content = content });
+
+        Assert.Equal(CenitChamberResponseType.Nack, result.ResponseType);
+        Assert.Equal(CenitChamberResponseState.Rejected, result.State);
+        Assert.Equal("ERR_FILENAME_EXTENSION", result.ReasonCode);
+        Assert.Null(result.RelatedTransactionId);
+        Assert.Equal("urn:xs:FileNack", result.XmlNamespace);
+    }
+
+    [Fact]
+    public async Task MultiErrorFileNack_ShouldPersistAndCorrelateEveryOperatorError()
+    {
+        await using var connection = await OpenAsync();
+        await using var context = await CreateSeededContextAsync(connection);
+        var export = await context.AchFileExports.Include(x => x.Transactions).SingleAsync();
+        var first = await context.AchTransactions.SingleAsync();
+        var second = Transaction(7302, first.AchCycleId, first.AchBatchId, first.SourceInstitutionId, first.DestinationInstitutionId,
+            "000010070007302");
+        context.AchTransactions.Add(second);
+        export.TotalTransactions = 2;
+        export.Transactions.Add(new AchFileExportTransaction
+        {
+            AchTransactionId = second.Id,
+            AchCycleId = second.AchCycleId,
+            AchBatchId = second.AchBatchId,
+            FileSequence = 2,
+            TraceNumber = second.TraceNumber,
+            Amount = second.Amount,
+            IncludedAtUtc = Utc()
+        });
+        await context.SaveChangesAsync();
+        var content = await File.ReadAllTextAsync(Fixture("official-multi-operator-nack.xml"));
+
+        var result = await CreateService(context).ImportAsync(Command("OPERATOR") with
+        {
+            Content = content,
+            TransactionTraceNumber = null
+        });
+
+        var responses = await context.CenitChamberResponses.OrderBy(x => x.ItemSequence).ToListAsync();
+        Assert.Equal(2, responses.Count);
+        Assert.All(responses, x => Assert.Equal(2, x.ItemCount));
+        Assert.Equal([1, 2], responses.Select(x => x.ItemSequence));
+        Assert.Equal([7301, 7302], responses.Select(x => x.AchTransactionId));
+        Assert.All(responses, x => Assert.Equal("ERR_TRACE_NO_INV", x.ReasonCode));
+        Assert.Equal(2, result.ItemCount);
+        Assert.Equal(CenitChamberResponseType.OperatorRejected, result.ResponseType);
     }
 
     [Theory]
@@ -163,6 +264,10 @@ public sealed class CenitChamberResponseLifecycleTests
 
         var created = Assert.IsType<CreatedAtActionResult>(await controller.ImportChamberResponseAsync(Command("ACK")));
         var imported = Assert.IsType<CenitChamberResponseResult>(created.Value);
+        var json = JsonSerializer.Serialize(imported);
+        Assert.Contains("\"ResponseType\":\"Ack\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"State\":\"Accepted\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"CorrelationOutcome\":\"Matched\"", json, StringComparison.Ordinal);
         var detail = Assert.IsType<OkObjectResult>(await controller.GetChamberResponseAsync(imported.Id));
         Assert.Equal(CenitChamberResponseState.Accepted, Assert.IsType<CenitChamberResponseResult>(detail.Value).State);
 
@@ -311,7 +416,13 @@ public sealed class CenitChamberResponseLifecycleTests
         EffectiveEntryDate = new DateTime(2026, 8, 31)
     };
 
-    private static AchTransaction Transaction(int id, string cycleId, int batchId, int sourceId, int destinationId) => new()
+    private static AchTransaction Transaction(
+        int id,
+        string cycleId,
+        int batchId,
+        int sourceId,
+        int destinationId,
+        string traceNumber = "000010070007301") => new()
     {
         Id = id,
         TransactionExternalId = $"TX-{id}",
@@ -319,7 +430,7 @@ public sealed class CenitChamberResponseLifecycleTests
         Amount = 100m,
         Type = TransactionTypeEnum.Credit,
         TransactionCode = "22",
-        TraceNumber = "000010070007301",
+        TraceNumber = traceNumber,
         TraceSequenceNumber = id,
         EffectiveEntryDate = new DateTime(2026, 8, 31),
         State = AchTransferStateEnum.Pending,
@@ -334,4 +445,7 @@ public sealed class CenitChamberResponseLifecycleTests
     };
 
     private static DateTime Utc() => new(2026, 8, 31, 12, 0, 0, DateTimeKind.Utc);
+
+    private static string Fixture(string name)
+        => Path.Combine(AppContext.BaseDirectory, "TestData", "Cenit", "ChamberResponses", name);
 }

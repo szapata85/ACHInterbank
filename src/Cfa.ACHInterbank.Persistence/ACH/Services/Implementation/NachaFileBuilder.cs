@@ -532,7 +532,9 @@ public class NachaFileBuilder : INachaFileBuilder
             Cycle = source.Cycle,
             Batches = batches,
             Transactions = batches.SelectMany(batch => batch.Transactions).ToArray(),
-            StandardEntryClassCode = partition.ServiceCodes.Single()
+            StandardEntryClassCode = partition.ProfileIdentity == CenitOutboundFilePartitioner.CtxProfileIdentity
+                ? "CTX"
+                : "PPD"
         };
     }
 

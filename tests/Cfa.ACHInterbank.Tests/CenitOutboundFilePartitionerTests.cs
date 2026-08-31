@@ -79,6 +79,19 @@ public sealed class CenitOutboundFilePartitionerTests
         AssertMembership(files, 4);
     }
 
+    [Fact]
+    public void MixedPpdAndCcd_SharesTheOrdinaryProfilePartition()
+    {
+        var ppd = SourceBatch(10, "PPD", CreateTransactions(1, withAddenda: false, firstId: 1));
+        var ccd = SourceBatch(20, "CCD", CreateTransactions(1, withAddenda: true, firstId: 2));
+
+        var file = Assert.Single(CenitOutboundFilePartitioner.Partition([ppd, ccd]));
+
+        Assert.Equal(CenitOutboundFilePartitioner.PpdCcdProfileIdentity, file.ProfileIdentity);
+        Assert.Equal(["PPD", "CCD"], file.ServiceCodes);
+        AssertMembership([file], 2);
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(9_999)]

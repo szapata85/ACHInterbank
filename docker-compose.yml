@@ -78,6 +78,13 @@ services:
       RateLimiting__PermitLimit: "${RATE_LIMITING_PERMIT_LIMIT:-10}"
       RateLimiting__WindowSeconds: "${RATE_LIMITING_WINDOW_SECONDS:-1}"
       RateLimiting__QueueLimit: "${RATE_LIMITING_QUEUE_LIMIT:-2}"
+      CenitLocalGateway__Enabled: "${CENIT_LOCAL_GATEWAY_ENABLED:-true}"
+      CenitLocalGateway__InputPath: /var/ach/cenit/input
+      CenitLocalGateway__OutputPath: /var/ach/cenit/output
+      CenitLocalGateway__ArchivePath: /var/ach/cenit/archive
+      CenitLocalGateway__PollIntervalMilliseconds: "250"
+    volumes:
+      - ./.runtime/cenit:/var/ach/cenit
     ports:
       - "843:8080"
     depends_on:

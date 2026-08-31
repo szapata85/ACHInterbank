@@ -18,11 +18,6 @@ public class CenitOperationsController : ControllerBase
     private readonly AchDbContext _dbContext;
     private readonly ICenitChamberResponseService? _chamberResponses;
 
-    public CenitOperationsController(AchDbContext dbContext)
-        : this(dbContext, null)
-    {
-    }
-
     public CenitOperationsController(
         AchDbContext dbContext,
         ICenitChamberResponseService? chamberResponses)

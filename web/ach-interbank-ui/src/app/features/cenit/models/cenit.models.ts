@@ -139,6 +139,13 @@ export interface CenitChamberResponseRow {
   correlationOutcome: 'Pending' | 'Matched' | 'NotFound' | 'Ambiguous' | 'TransactionNotFound' | 'TransactionAmbiguous' | 'Invalid' | 'InvalidTransition';
   relatedFileId?: number | null;
   relatedFileName?: string | null;
+  achCycleId?: string | null;
+  xmlNamespace?: string | null;
+  messageGroupId?: string | null;
+  messageStatus?: string | null;
+  messageCreatedAtUtc?: string | null;
+  originatingSender?: string | null;
+  relatedReference?: string | null;
   relatedTransactionId?: number | null;
   transactionTraceNumber?: string | null;
   reasonCode?: string | null;
@@ -147,4 +154,6 @@ export interface CenitChamberResponseRow {
   processedAtUtc?: string | null;
   isApplied: boolean;
   problemCode?: string | null;
+  itemSequence?: number;
+  itemCount?: number;
 }

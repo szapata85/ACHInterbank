@@ -5398,6 +5398,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AchCycleId")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<int?>("AchFileExportId")
                         .HasColumnType("integer");
 
@@ -5431,6 +5435,27 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
                     b.Property<bool>("IsApplied")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("ItemCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemSequence")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("MessageCreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MessageGroupId")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("MessageStatus")
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)");
+
+                    b.Property<string>("OriginatingSender")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
 
                     b.Property<string>("ProblemCode")
                         .HasMaxLength(60)
@@ -5486,6 +5511,10 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("XmlNamespace")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AchTransactionId");
@@ -5493,12 +5522,14 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                     b.HasIndex("IdempotencyKey")
                         .IsUnique();
 
+                    b.HasIndex("AchCycleId", "ReceivedAtUtc");
+
                     b.HasIndex("AchFileExportId", "ReceivedAtUtc");
 
-                    b.HasIndex("ClearingHouseId", "SourceResponseId")
-                        .IsUnique();
-
                     b.HasIndex("CorrelationOutcome", "ReceivedAtUtc");
+
+                    b.HasIndex("ClearingHouseId", "SourceResponseId", "ItemSequence")
+                        .IsUnique();
 
                     b.ToTable("CenitChamberResponses", (string)null);
                 });
@@ -6389,6 +6420,14 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                             IsActive = true,
                             StandardEntryClassCode = "CCD",
                             Term = "COBROS SSS"
+                        },
+                        new
+                        {
+                            Id = 39,
+                            Description = "Pagos corporativos CENIT con múltiples adendas.",
+                            IsActive = true,
+                            StandardEntryClassCode = "CTX",
+                            Term = "CORPORATE"
                         });
                 });
 
@@ -12784,6 +12823,11 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
 
             modelBuilder.Entity("Cfa.ACHInterbank.Domain.Models.ACH.CenitChamberResponse", b =>
                 {
+                    b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchCycle", "AchCycle")
+                        .WithMany()
+                        .HasForeignKey("AchCycleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Cfa.ACHInterbank.Domain.Models.ACH.AchFileExport", "AchFileExport")
                         .WithMany("ChamberResponses")
                         .HasForeignKey("AchFileExportId")
@@ -12799,6 +12843,8 @@ namespace Cfa.ACHInterbank.Persistence.DataBase.Migrations.Postgres
                         .HasForeignKey("ClearingHouseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("AchCycle");
 
                     b.Navigation("AchFileExport");
 

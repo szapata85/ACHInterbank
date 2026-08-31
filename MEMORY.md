@@ -77,12 +77,12 @@ REQUIRED: Automate cycle-qualified output placement and inbound pickup at the ap
 
 ### OPS-GAP-004
 
-STATUS: CLOSED — INTERNAL IMPLEMENTATION; RUNTIME CERTIFICATION PENDING
+STATUS: CLOSED — LOCAL RUNTIME E2E CERTIFIED
 SCOPE: CENIT / ordinary / inbound chamber responses
 CANONICAL_KEY: ORDINARY/CENIT/INBOUND/CHAMBER_RESPONSE/ACK_NACK_OPERATOR_REJECT
-IMPLEMENTED: Dedicated CENIT ACK/NACK/operator-rejection XML, reconciliation, and no-activity lifecycle linked to ordinary outbound file membership; exact file/transaction correlation; persisted unresolved/ambiguous outcomes; semantic idempotency; protected terminal transitions; ProblemDetails API; and CENIT operational UI with pending and terminal-state presentation. This remains independent from Returns, differential responses, and RegistrarRespuestaTransaccion.
-EVIDENCE: Release build 8 projects with 0 errors/warnings; lifecycle/API/persistence tests 12/12; existing CENIT isolation 1/1; outbound transport regression 7/7; persistence DI 9/9; focused Angular CENIT operations 8/8. PostgreSQL and SQL Server migrations were generated.
-RUNTIME: CENIT-RUNTIME-E2E-001 remains pending for Docker, Gateway/PO pickup/drop, and real local ACK/NACK/operator-rejection transport paths; OPS-GAP-003 remains the external transport-boundary dependency.
+IMPLEMENTED: Dedicated CENIT ACK/NACK/operator-rejection XML, reconciliation, and no-activity lifecycle linked to ordinary outbound file membership; exact file/transaction correlation; persisted unresolved/ambiguous outcomes; semantic idempotency; protected terminal transitions; ProblemDetails API; and CENIT operational UI with pending and terminal-state presentation. FileNack preserves every FileErrorHandling item, while reconciliation and no-activity are owned by the operational CENIT cycle rather than an ordinary export. This remains independent from Returns, differential responses, and RegistrarRespuestaTransaccion.
+EVIDENCE: CENIT-RUNTIME-E2E-001 passed official-like namespaced ACK, file NACK, operator rejection, multi-error FileNack, reconciliation, and no-activity fixtures; Release build 8 projects with 0 errors/warnings; lifecycle/API/persistence 16/16; Gateway adapter 1/1; outbound partitioning 17/17; table-driven NACHA-M 70/70; Angular operations 8/8; Docker SQL Server/API/SPA health green; and real SPA -> API -> database Playwright 1/1.
+RUNTIME: The local folder-backed test Gateway used atomic input/output/archive exchange and certified PPD+ACK, CCD+NACK, CTX multi-error operator rejection, reconciliation, no activity, replay idempotency, terminal conflict protection, durable lineage, API, and operational SPA visibility. No Banco de la República connectivity or institutional homologation was executed; OPS-GAP-003 remains the external Gateway/PO boundary.
 
 ### OPS-GAP-005
 
@@ -260,7 +260,7 @@ EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation
 ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
 
 ## Recent Sessions
-- 2026-08-31: OPS-GAP-004 internally closed the ordinary CENIT chamber-response lifecycle for ACK, NACK, operator rejection, reconciliation, and no activity with exact correlation, idempotency, protected transitions, provider migrations, ProblemDetails API, and operational UI; CENIT-RUNTIME-E2E-001 remains pending.
+- 2026-08-31: CENIT-RUNTIME-E2E-001 locally certified the ordinary CENIT outbound-to-response lifecycle through Docker SQL Server/API/SPA, an atomic folder-backed test Gateway, real persistence/API, and Playwright; ACK, NACK, multi-error operator rejection, reconciliation, no activity, idempotency, and terminal protection passed, while external Banco Gateway/PO homologation remains separate under OPS-GAP-003.
 - 2026-08-30: CENIT-NACHA-IN-001 implemented direction-aware ordinary inbound PPD/CCD/CTX profiles by reusing the official physical descriptors under section 7.3.1; multi-Addenda ownership, received batches, controls, profile failures, and shared Return/ACH regressions passed. CENIT-FORMAT-NACHAM is internally closed; external homologation and OPS-GAP-003/004 remain separate.
 - 2026-08-30: CENIT-NACHA-OUT-002B implemented the official CENIT CTX table-driven outbound profile from sections 3.2/5.1/5.2/6.2 and Annexes 1.2/1.4/1.5/1.8/1.9, including multi-addenda sequencing/association and fail-closed profile selection; CENIT-NACHA-OUT-002 is internally closed, with external homologation pending.
 - 2026-08-30: CENIT-NACHA-OUT-002A resolved the outbound single-file blocker and PPD/CCD cardinality/batch allocation with an additive 0..N artifact result, post-partition controls, exact membership, and unique per-file naming.
