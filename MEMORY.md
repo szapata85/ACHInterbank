@@ -106,8 +106,8 @@ DEPENDENCY: OPS-GAP-002 is unblocked from the OPS-GAP-006 dependency perspective
 
 ### CENIT-FORMAT-NACHAM
 
-STATUS: PARTIAL — INTERNALLY_EXECUTABLE / EXTERNAL_HOMOLOGATION_PENDING — EXISTING OWNER REUSED
-CURRENT_DELTA: The May 7, 2026 specification now drives exact table-driven ordinary PPD/CCD and CTX outbound profiles. CENIT-NACHA-OUT-002B added CTX-specific Type-5 values, Annex 1.4 Type-6, Annex 1.5 Type-7, 1..9,999 owned addendas, per-entry sequence reset/association, multi-entry batches, and explicit fail-closed CTX profile selection on top of 002A multi-file partitioning and controls. CENIT-NACHA-OUT-002 is internally CLOSED. Profiles remain non-homologated, CENIT LIVE remains deliberately gated, and inbound profiles plus external homologation remain open.
+STATUS: INTERNALLY_CLOSED / EXTERNAL_HOMOLOGATION_PENDING — EXISTING OWNER REUSED
+CURRENT_DELTA: The May 7, 2026 specification drives table-driven ordinary PPD/CCD and CTX profiles in both directions. CENIT-NACHA-IN-001 added explicit inbound original/prenotification metadata, reused the official physical descriptors under section 7.3.1, enabled CTX 1..9,999 owned Addenda parsing with per-entry sequence/trace association, preserved received operator batches, and validated physical T8/T9 controls. Evidence: Release build 8 projects/0 errors/0 warnings; inbound focal 19/19; official profiles 46/46; shared inbound parser 12/12; ingestion 16/16; Return-In 8/8; Return-of-Return 2/2. CENIT-FORMAT-NACHAM is internally closed. External homologation remains pending; OPS-GAP-003 Gateway/PO and OPS-GAP-004 ACK/NACK remain separate operational gaps.
 
 ### NACHA-RULE-METADATA
 
@@ -259,6 +259,7 @@ EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation
 ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
 
 ## Recent Sessions
+- 2026-08-30: CENIT-NACHA-IN-001 implemented direction-aware ordinary inbound PPD/CCD/CTX profiles by reusing the official physical descriptors under section 7.3.1; multi-Addenda ownership, received batches, controls, profile failures, and shared Return/ACH regressions passed. CENIT-FORMAT-NACHAM is internally closed; external homologation and OPS-GAP-003/004 remain separate.
 - 2026-08-30: CENIT-NACHA-OUT-002B implemented the official CENIT CTX table-driven outbound profile from sections 3.2/5.1/5.2/6.2 and Annexes 1.2/1.4/1.5/1.8/1.9, including multi-addenda sequencing/association and fail-closed profile selection; CENIT-NACHA-OUT-002 is internally closed, with external homologation pending.
 - 2026-08-30: CENIT-NACHA-OUT-002A resolved the outbound single-file blocker and PPD/CCD cardinality/batch allocation with an additive 0..N artifact result, post-partition controls, exact membership, and unique per-file naming.
 

@@ -486,25 +486,46 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
         var isDifferentialCandidate = IsDifferentialCandidate(records);
         var clearingHouseCode = await ResolveClearingHouseCodeAsync(ingestion.ResolvedClearingHouseId, ct);
         var configClearingHouseCode = ToConfigClearingHouseCode(clearingHouseCode);
+        var isCenit = string.Equals(configClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase);
         var requiresExplicitProfile = isDifferentialCandidate
-                                      || string.Equals(configClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase);
+                                      || string.Equals(configClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
+                                      || isCenit;
         if (requiresExplicitProfile)
         {
-            var isCenitRor = string.Equals(configClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-                             && IsCenitReturnOfReturnCandidate(records);
+            var isCenitRor = isCenit && IsCenitReturnOfReturnCandidate(records);
             var flowTypeCode = isDifferentialCandidate
                 ? isCenitRor ? CenitReturnOfReturn2026Layout.FlowTypeCode : "RETORNO"
                 : ResolveOrdinaryFlowTypeCode(records);
             var isAchColOrdinary = !isDifferentialCandidate
                                    && string.Equals(configClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase);
-            profileResolution = await _profileResolver.ResolveAsync(new NachaConfigResolutionRequest
+            var isCenitOrdinary = !isDifferentialCandidate && isCenit;
+            var cenitServiceClassCode = isCenitOrdinary
+                ? ResolveCenitInboundProfileService(records)
+                : null;
+            profileResolution = string.Equals(
+                    cenitServiceClassCode,
+                    "CENIT_INBOUND_SERVICE_UNSUPPORTED",
+                    StringComparison.Ordinal)
+                ? new NachaConfigResolutionResult
+                {
+                    Success = false,
+                    SelectionStatus = NachaProfileSelectionStatus.ProfileNotFound,
+                    Trace = ["Selección cerrada: ProfileNotFound."],
+                    Warnings = ["El archivo CENIT contiene una clase de servicio ausente, no soportada o mezclada con CTX."]
+                }
+                : await _profileResolver.ResolveAsync(new NachaConfigResolutionRequest
             {
                 ClearingHouseCode = configClearingHouseCode,
                 FlowTypeCode = flowTypeCode,
                 DirectionCode = "ENTRADA",
+                ServiceClassCode = cenitServiceClassCode,
                 ProcessDateUtc = ingestion.OperationalDate ?? UtcNow.Date,
-                RequestedVersionMajor = isAchColOrdinary ? AchColOfficialNachaLayout.ProfileVersionMajor : null,
-                RequestedVersionMinor = isAchColOrdinary ? AchColOfficialNachaLayout.ProfileVersionMinor : null,
+                RequestedVersionMajor = isAchColOrdinary
+                    ? AchColOfficialNachaLayout.ProfileVersionMajor
+                    : isCenitOrdinary ? 1 : null,
+                RequestedVersionMinor = isAchColOrdinary
+                    ? AchColOfficialNachaLayout.ProfileVersionMinor
+                    : isCenitOrdinary ? 0 : null,
                 RecordCodes = records
                     .Where(record => record.Length == 106 && !record.All(character => character == '9'))
                     .Select(record => record[0].ToString())
@@ -533,6 +554,7 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
                     clearingHouseCode,
                     flowType = flowTypeCode,
                     direction = "ENTRADA",
+                    serviceClass = cenitServiceClassCode,
                     selectionStatus = profileResolution.SelectionStatus.ToString(),
                     profileCode = profileResolution.Profile?.ProfileCode,
                     profileVersion = profileResolution.Profile is null
@@ -919,6 +941,24 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             && record[0] == '7'
             && string.Equals(record.Substring(1, 2), "99", StringComparison.Ordinal)
             && CenitReturnOfReturn2026Layout.IsCause(record.Substring(3, 3)));
+
+    internal static string? ResolveCenitInboundProfileService(IReadOnlyList<string> records)
+    {
+        var services = records
+            .Where(record => record.Length == CenitOrdinaryOutbound2026Layout.RecordLength && record[0] == '5')
+            .Select(record => record.Substring(50, 3).Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (services.Length > 0 && services.All(service => service is "PPD" or "CCD"))
+        {
+            return null;
+        }
+
+        return services.Length == 1 && services[0] == "CTX"
+            ? "CTX"
+            : "CENIT_INBOUND_SERVICE_UNSUPPORTED";
+    }
 
     private static string ToConfigClearingHouseCode(string clearingHouseCode)
         => clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase)

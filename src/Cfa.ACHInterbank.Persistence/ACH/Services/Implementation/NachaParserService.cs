@@ -91,6 +91,8 @@ public class NachaParserService : INachaParserService
             {
                 throw new InvalidOperationException("NACHA_PROFILE_SNAPSHOT_MISMATCH: la identidad del perfil seleccionado cambió antes del parser.");
             }
+            var isCenitInboundProfile = CenitOrdinaryInbound2026Layout.IsProfile(profileReader?.ProfileCode);
+            var isCenitCtxInboundProfile = CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode);
 
             var lines = await ReadPhysicalRecordsAsync(nachaStream, ct, profileReader);
 
@@ -119,6 +121,9 @@ public class NachaParserService : INachaParserService
             EntryDetail? lastEntry = null;
             var lastEntryAwaitingAddenda = false;
             var lastEntryAccepted = false;
+            var expectedAddendaCount = 0;
+            var parsedAddendaCount = 0;
+            int? lastCenitEntrySequence = null;
             var entryDetails = new List<EntryDetail>();
             var addendaRecords = new List<AddendaRecord>();
             var batchControls = new List<BatchControl>();
@@ -185,6 +190,10 @@ public class NachaParserService : INachaParserService
                         currentBatch = ParseBatchHeaderLinq([line], profileReader).FirstOrDefault();
                         if (currentBatch is not null)
                         {
+                            if (isCenitInboundProfile)
+                            {
+                                ValidateCenitInboundBatchService(profileReader!.ProfileCode, currentBatch);
+                            }
                             currentBatchMetrics = new BatchRuntimeMetrics();
                             fileMetrics.RegisterBatch();
                             currentBatch.NachaID = currentHeader?.NachaID;
@@ -212,6 +221,10 @@ public class NachaParserService : INachaParserService
                         fileMetrics.RegisterEntry(entry, CreditCodes, DebitCodes);
 
                         await ValidateEntrySequencePolicyAsync(entry, currentBatch, currentHeader, lastConsecutiveByBatch, seenSequenceNumbers, ct);
+                        if (isCenitInboundProfile)
+                        {
+                            ValidateCenitInboundEntry(profileReader!.ProfileCode, entry, ref lastCenitEntrySequence);
+                        }
 
                         var isReturnEntry = profileReader is not null
                                             && lineIndex + 1 < lines.Count
@@ -224,7 +237,9 @@ public class NachaParserService : INachaParserService
                             ct);
                         lastEntry = entry;
                         lastEntryAccepted = isValid;
-                        lastEntryAwaitingAddenda = string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal);
+                        expectedAddendaCount = ResolveExpectedAddendaCount(profileReader, line, entry);
+                        parsedAddendaCount = 0;
+                        lastEntryAwaitingAddenda = expectedAddendaCount > 0;
                         if (isValid)
                         {
                             entryDetails.Add(entry);
@@ -241,6 +256,15 @@ public class NachaParserService : INachaParserService
                         var addenda = ParseAddendaLinq([line], lastEntry, profileReader).FirstOrDefault();
                         if (addenda is not null)
                         {
+                            parsedAddendaCount++;
+                            if (isCenitInboundProfile)
+                            {
+                                ValidateCenitInboundAddenda(
+                                    lastEntry,
+                                    addenda,
+                                    parsedAddendaCount,
+                                    isCenitCtxInboundProfile);
+                            }
                             addenda.NachaID = currentHeader?.NachaID;
                             currentBatchMetrics?.RegisterAddenda();
                             fileMetrics.RegisterAddenda();
@@ -251,7 +275,7 @@ public class NachaParserService : INachaParserService
                                 totalAddendas++;
                             }
 
-                            lastEntryAwaitingAddenda = false;
+                            lastEntryAwaitingAddenda = parsedAddendaCount < expectedAddendaCount;
                         }
                         break;
                     case '8':
@@ -448,6 +472,111 @@ public class NachaParserService : INachaParserService
             {
                 ThrowRegulatory("D04", "Inconsistencia en Número de Lote entre registros tipo 5 y tipo 8.");
             }
+        }
+    }
+
+    private static int ResolveExpectedAddendaCount(
+        NachaProfileRecordReader? profileReader,
+        string record,
+        EntryDetail entry)
+    {
+        if (!CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode))
+        {
+            return string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal) ? 1 : 0;
+        }
+
+        if (!profileReader!.TryRead(record, "6", "ADDENDACOUNT", null, out var rawCount)
+            || !int.TryParse(rawCount, NumberStyles.None, CultureInfo.InvariantCulture, out var count))
+        {
+            throw new InvalidOperationException("CENIT-2026-CTX-IN-T6-ADDENDA-COUNT: el número de adendas debe ser numérico de cuatro posiciones.");
+        }
+
+        ValidateCenitCtxAddendaCardinality(count);
+        if (!string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("CENIT-2026-CTX-IN-T6-ADDENDA-INDICATOR: el indicador debe ser 1 cuando la transacción declara adendas.");
+        }
+
+        return count;
+    }
+
+    internal static void ValidateCenitCtxAddendaCardinality(int count)
+    {
+        if (count is < 1 or > CenitCtxOutbound2026Layout.MaxAddendaPerEntry)
+        {
+            throw new InvalidOperationException("CENIT-2026-CTX-IN-T6-ADDENDA-COUNT: cada transacción CTX debe contener entre 1 y 9999 adendas.");
+        }
+    }
+
+    private static void ValidateCenitInboundBatchService(string profileCode, BatchHeader batch)
+    {
+        var service = (batch.StandardEntryClassCode ?? string.Empty).Trim().ToUpperInvariant();
+        var valid = CenitOrdinaryInbound2026Layout.IsCtxProfile(profileCode)
+            ? service == "CTX"
+            : service is "PPD" or "CCD";
+        if (!valid)
+        {
+            throw new InvalidOperationException("CENIT_INBOUND_PROFILE_SERVICE_MISMATCH: el servicio del lote no corresponde al perfil oficial seleccionado.");
+        }
+
+        var serviceClass = (batch.ServiceClassCode ?? string.Empty).Trim();
+        if (serviceClass is not ("200" or "220" or "225"))
+        {
+            throw new InvalidOperationException("CENIT-2026-T5-SERVICE-CLASS: el código clase de transacciones no es válido.");
+        }
+    }
+
+    private static void ValidateCenitInboundEntry(
+        string profileCode,
+        EntryDetail entry,
+        ref int? lastSequence)
+    {
+        var transactionCode = (entry.TransactionCode ?? string.Empty).Trim();
+        var descriptor = CenitOrdinaryInbound2026Layout.Field(profileCode, "6", "TRANSACTIONCODE");
+        if (descriptor.AllowedValues is null
+            || !descriptor.AllowedValues.Any(value => string.Equals(value, transactionCode, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("CENIT-2026-T6-TRANSACTION-CODE: el código de transacción no pertenece al perfil ordinario CENIT.");
+        }
+
+        var isPrenotification = PrenoteCodes.Contains(transactionCode);
+        if (isPrenotification != CenitOrdinaryInbound2026Layout.IsPrenotificationProfile(profileCode))
+        {
+            throw new InvalidOperationException("CENIT_INBOUND_PROFILE_FLOW_MISMATCH: la familia monetaria/prenotificación no corresponde al perfil seleccionado.");
+        }
+
+        var rawSequence = (entry.SequenceNumber ?? string.Empty).Trim();
+        var consecutive = int.Parse(rawSequence[8..], CultureInfo.InvariantCulture);
+        var expected = lastSequence.HasValue ? lastSequence.Value + 1 : 1;
+        if (consecutive != expected)
+        {
+            throw new InvalidOperationException("CENIT-2026-T6-FILE-SEQUENCE: los registros de detalle deben ser consecutivos dentro del archivo.");
+        }
+
+        lastSequence = consecutive;
+    }
+
+    private static void ValidateCenitInboundAddenda(
+        EntryDetail entry,
+        AddendaRecord addenda,
+        int parsedCount,
+        bool isCtx)
+    {
+        if (!string.Equals((addenda.CodeTypeAddendumRecord ?? string.Empty).Trim(), "05", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("CENIT-2026-T7-ADDENDA-TYPE: el tipo de adenda de información debe ser 05.");
+        }
+
+        var expectedSequence = isCtx ? parsedCount.ToString("0000", CultureInfo.InvariantCulture) : "0001";
+        if (!string.Equals((addenda.AddendumSequence ?? string.Empty).Trim(), expectedSequence, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("CENIT-2026-CTX-IN-T7-SEQUENCE: la secuencia de adendas debe ser consecutiva y reiniciar por cada transacción.");
+        }
+
+        var expectedAssociation = GetEntrySequenceSuffix(entry.SequenceNumber);
+        if (!string.Equals((addenda.EntryDetailSequenceNumber ?? string.Empty).Trim(), expectedAssociation, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("CENIT-2026-CTX-IN-T7-ASSOCIATION: la adenda no referencia la secuencia de su registro de detalle propietario.");
         }
     }
 
@@ -880,6 +1009,21 @@ public class NachaParserService : INachaParserService
                     OriginalTraceNumber = originalTraceNumber,
                     NewTraceNumber = addendaSequence,
                     EntryDetailSequenceNumber = GetEntrySequenceSuffix(addendaSequence)
+                };
+            }
+
+            if (profileReader is not null
+                && CenitOrdinaryInbound2026Layout.IsProfile(profileReader.ProfileCode))
+            {
+                var paymentInformation = ReadField(profileReader, a, "7", "PAYMENTRELATEDINFORMATION").TrimEnd();
+                return new AddendaRecord
+                {
+                    CodeTypeAddendumRecord = addendaType,
+                    BusinessType = ParseBusinessTypeFromType05(associatedEntry?.TransactionCode),
+                    PaymentRelatedInformation = paymentInformation,
+                    InfofromOriginator = paymentInformation,
+                    AddendumSequence = ReadField(profileReader, a, "7", "SEQUENCENUMBER").Trim(),
+                    EntryDetailSequenceNumber = ReadField(profileReader, a, "7", "TRACESUFFIX").Trim()
                 };
             }
 

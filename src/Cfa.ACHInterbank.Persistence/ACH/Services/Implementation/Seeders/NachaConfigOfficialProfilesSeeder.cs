@@ -297,6 +297,88 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ServiceClassCode: "CTX",
             EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
 
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitOrdinaryInbound2026Layout.OriginalProfileCode,
+            Name: "Perfil oficial CENIT entrada original mayo 2026",
+            Description: "Perfil ordinario table-driven CENIT para aplicación de transacciones PPD/CCD recibidas del Operador ACH.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "ORIGINAL",
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitOrdinaryInbound2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "3.1;5.1;6.2;7.3;7.3.1;Anexo 1.1-1.3;Anexo 1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CFA UAT",
+            ImmediateOriginName: "CENIT",
+            Prefix: "CENIT_ORDINARY_IN_2026",
+            DirectionCode: "ENTRADA",
+            VersionMinor: 0,
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitOrdinaryInbound2026Layout.PrenotificationProfileCode,
+            Name: "Perfil oficial CENIT entrada prenotificacion mayo 2026",
+            Description: "Perfil table-driven CENIT para aplicación de prenotificaciones PPD/CCD recibidas del Operador ACH.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "PRENOTIFICACION",
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitOrdinaryInbound2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "3.1;5.1;6.2;7.3;7.3.1;Anexo 1.1-1.3;Anexo 1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CFA UAT",
+            ImmediateOriginName: "CENIT",
+            Prefix: "CENIT_ORDINARY_PRENOTE_IN_2026",
+            DirectionCode: "ENTRADA",
+            VersionMinor: 0,
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode,
+            Name: "Perfil oficial CENIT CTX entrada original mayo 2026",
+            Description: "Perfil CTX table-driven CENIT para aplicación de transacciones recibidas del Operador ACH.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "ORIGINAL",
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitOrdinaryInbound2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "3.2;5.1;5.2;6.2;7.3;7.3.1;Anexo 1.1-1.2;Anexo 1.4-1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CFA UAT",
+            ImmediateOriginName: "CENIT",
+            Prefix: "CENIT_CTX_IN_2026",
+            DirectionCode: "ENTRADA",
+            VersionMinor: 0,
+            ServiceClassCode: "CTX",
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+
+        await EnsureProfileAsync(new ProfileSpec(
+            ProfileCode: CenitOrdinaryInbound2026Layout.CtxPrenotificationProfileCode,
+            Name: "Perfil oficial CENIT CTX entrada prenotificacion mayo 2026",
+            Description: "Perfil CTX table-driven CENIT para aplicación de prenotificaciones recibidas del Operador ACH.",
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: "PRENOTIFICACION",
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitOrdinaryInbound2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: "3.2;5.1;5.2;6.2;7.3;7.3.1;Anexo 1.1-1.2;Anexo 1.4-1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CFA UAT",
+            ImmediateOriginName: "CENIT",
+            Prefix: "CENIT_CTX_PRENOTE_IN_2026",
+            DirectionCode: "ENTRADA",
+            VersionMinor: 0,
+            ServiceClassCode: "CTX",
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+
         await _context.SaveChangesAsync();
 
         async Task EnsureProfileAsync(ProfileSpec spec)
@@ -361,13 +443,16 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 var isCenitReturnOfReturn2026 = IsCenitReturnOfReturn2026(spec);
                 var isCenitOrdinaryOutbound2026 = IsCenitOrdinaryOutbound2026(spec);
                 var isCenitCtxOutbound2026 = IsCenitCtxOutbound2026(spec);
+                var isCenitOrdinaryInbound2026 = IsCenitOrdinaryInbound2026(spec);
                 var variant = await EnsureVariantAsync(
                     profile,
                     spec,
                     recordCode,
                     sequence,
                     catalog,
-                    isCenitCtxOutbound2026
+                    isCenitOrdinaryInbound2026
+                        ? CenitOrdinaryInbound2026Layout.Variant(spec.ProfileCode, recordCode)
+                        : isCenitCtxOutbound2026
                         ? CenitCtxOutbound2026Layout.Variant(recordCode)
                         : isCenitOrdinaryOutbound2026
                         ? CenitOrdinaryOutbound2026Layout.Variant(recordCode)
@@ -384,7 +469,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     selectionPredicateJson: null);
                 await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
 
-                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026 && !isCenitReturnOfReturn2026 && !isCenitOrdinaryOutbound2026 && !isCenitCtxOutbound2026)
+                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026 && !isCenitReturnOfReturn2026 && !isCenitOrdinaryOutbound2026 && !isCenitCtxOutbound2026 && !isCenitOrdinaryInbound2026)
                 {
                     await EnsureVariantAsync(
                         profile,
@@ -431,10 +516,14 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 sequence += 10;
             }
 
-            if (IsCenitOrdinaryOutbound2026(spec) || IsCenitCtxOutbound2026(spec))
+            if (IsCenitOrdinaryOutbound2026(spec)
+                || IsCenitCtxOutbound2026(spec)
+                || IsCenitOrdinaryInbound2026(spec))
             {
                 var expectedVariants = RecordCodes
-                    .Select(recordCode => IsCenitCtxOutbound2026(spec)
+                    .Select(recordCode => IsCenitOrdinaryInbound2026(spec)
+                        ? CenitOrdinaryInbound2026Layout.Variant(spec.ProfileCode, recordCode)
+                        : IsCenitCtxOutbound2026(spec)
                         ? CenitCtxOutbound2026Layout.Variant(recordCode)
                         : CenitOrdinaryOutbound2026Layout.Variant(recordCode))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -619,7 +708,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
             if (!spec.IsPlaceholder)
             {
-                var descriptor = UsesCenitCtxOutbound2026Layout(spec)
+                var descriptor = UsesCenitOrdinaryInbound2026Layout(spec)
+                    ? CenitOrdinaryInbound2026Layout.Field(spec.ProfileCode, recordCode, field.Code)
+                    : UsesCenitCtxOutbound2026Layout(spec)
                     ? CenitCtxOutbound2026Layout.Field(recordCode, field.Code)
                     : UsesCenitOrdinaryOutbound2026Layout(spec)
                     ? CenitOrdinaryOutbound2026Layout.Field(recordCode, field.Code)
@@ -773,6 +864,15 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
     private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode, string variantCode)
     {
+        if (UsesCenitOrdinaryInbound2026Layout(profile))
+        {
+            return CenitOrdinaryInbound2026Layout.ForRecord(profile.ProfileCode, recordCode)
+                .Select(descriptor => CenitOrdinaryInbound2026Layout.IsCtxProfile(profile.ProfileCode)
+                    ? BuildCenitCtxField(profile, descriptor)
+                    : BuildCenitOrdinaryField(profile, descriptor))
+                .ToList();
+        }
+
         if (UsesCenitCtxOutbound2026Layout(profile))
         {
             return CenitCtxOutbound2026Layout.ForRecord(recordCode)
@@ -855,6 +955,11 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         => CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode)
            && string.Equals(profile.NormativeVersion, CenitCtxOutbound2026Layout.NormativeVersion, StringComparison.Ordinal);
 
+    private static bool IsCenitOrdinaryInbound2026(ProfileSpec profile)
+        => CenitOrdinaryInbound2026Layout.IsProfile(profile.ProfileCode)
+           && string.Equals(profile.DirectionCode, "ENTRADA", StringComparison.Ordinal)
+           && string.Equals(profile.NormativeVersion, CenitOrdinaryInbound2026Layout.NormativeVersion, StringComparison.Ordinal);
+
     private static bool UsesCenitReturnIn2026Layout(ProfileSpec profile)
         => IsCenitReturnIn2026(profile);
 
@@ -869,6 +974,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
     private static bool UsesCenitCtxOutbound2026Layout(ProfileSpec profile)
         => IsCenitCtxOutbound2026(profile);
+
+    private static bool UsesCenitOrdinaryInbound2026Layout(ProfileSpec profile)
+        => IsCenitOrdinaryInbound2026(profile);
 
     private static bool UsesReturnV35Layout(ProfileSpec profile, string recordCode, string variantCode)
         => IsReturnOutV35(profile)

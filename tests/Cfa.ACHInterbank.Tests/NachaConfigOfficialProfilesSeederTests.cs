@@ -200,7 +200,8 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
                                   || CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode))
             .Should().OnlyContain(profile => profile.EffectiveFrom == new DateTime(2026, 5, 7, 0, 0, 0, DateTimeKind.Utc));
         profiles.Where(profile => !CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode)
-                                  && !CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode))
+                                  && !CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode)
+                                  && !CenitOrdinaryInbound2026Layout.IsProfile(profile.ProfileCode))
             .Should().OnlyContain(profile => profile.EffectiveFrom == new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         profiles.Should().OnlyContain(x => x.EffectiveTo == null);
     }
@@ -387,6 +388,86 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         result.Success.Should().BeTrue(string.Join(" | ", result.Trace));
         result.Profile!.ProfileCode.Should().Be(CenitCtxOutbound2026Layout.OriginalProfileCode);
         result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
+    }
+
+    [Theory]
+    [InlineData("PPD", "ORIGINAL", null, CenitOrdinaryInbound2026Layout.OriginalProfileCode)]
+    [InlineData("CCD", "ORIGINAL", null, CenitOrdinaryInbound2026Layout.OriginalProfileCode)]
+    [InlineData("CTX", "ORIGINAL", "CTX", CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode)]
+    [InlineData("PPD", "PRENOTIFICACION", null, CenitOrdinaryInbound2026Layout.PrenotificationProfileCode)]
+    [InlineData("CCD", "PRENOTIFICACION", null, CenitOrdinaryInbound2026Layout.PrenotificationProfileCode)]
+    [InlineData("CTX", "PRENOTIFICACION", "CTX", CenitOrdinaryInbound2026Layout.CtxPrenotificationProfileCode)]
+    public async Task CenitInboundProfiles_ShouldResolveByFlowAndPhysicalService(
+        string physicalService,
+        string flowType,
+        string? profileService,
+        string expectedProfile)
+    {
+        await using var context = await SeedAsync();
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            FlowTypeCode = flowType,
+            DirectionCode = "ENTRADA",
+            ServiceClassCode = profileService,
+            RequestedVersionMajor = 1,
+            RequestedVersionMinor = 0,
+            ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = RequiredRecords
+        });
+
+        result.Success.Should().BeTrue($"{physicalService}: {string.Join(" | ", result.Trace)}");
+        result.Profile!.ProfileCode.Should().Be(expectedProfile);
+        result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
+    }
+
+    [Fact]
+    public async Task CenitInboundCtxProfile_ShouldFailClosedWhenMissingWithoutOutboundFallback()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles.SingleAsync(item =>
+            item.ProfileCode == CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode);
+        profile.StatusId = await context.CatConfigStatuses
+            .Where(status => status.Code == "INACTIVO")
+            .Select(status => status.Id)
+            .SingleAsync();
+        await context.SaveChangesAsync();
+
+        var result = await ResolveCenitInboundAsync(context, "ORIGINAL", "CTX");
+
+        result.Success.Should().BeFalse();
+        result.UsedFallback.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileInactive);
+    }
+
+    [Fact]
+    public async Task CenitInboundCtxProfile_ShouldFailClosedWhenLayoutIsAmbiguous()
+    {
+        await using var context = await SeedAsync();
+        var source = await context.CfgLayoutVariants.SingleAsync(variant =>
+            variant.Profile.ProfileCode == CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode
+            && variant.RecordCode.Code == "7");
+        context.CfgLayoutVariants.Add(new CfgLayoutVariant
+        {
+            ProfileId = source.ProfileId,
+            RecordCodeId = source.RecordCodeId,
+            VariantCode = "TEST_CENIT_CTX_IN_R7_AMBIGUOUS",
+            NameEs = "Layout CTX entrada duplicado intencional para prueba",
+            Priority = source.Priority,
+            TotalLength = source.TotalLength,
+            IsDefaultForRecord = source.IsDefaultForRecord,
+            EffectiveFrom = source.EffectiveFrom,
+            StatusId = source.StatusId,
+            CreatedAt = source.CreatedAt,
+            UpdatedAt = source.UpdatedAt
+        });
+        await context.SaveChangesAsync();
+
+        var result = await ResolveCenitInboundAsync(context, "ORIGINAL", "CTX");
+
+        result.Success.Should().BeFalse();
+        result.UsedFallback.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileAmbiguous);
     }
 
     [Fact]
@@ -729,6 +810,22 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             FlowTypeCode = "ORIGINAL",
             DirectionCode = "SALIDA",
             ServiceClassCode = "CTX",
+            ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = RequiredRecords
+        });
+
+    private static Task<NachaConfigResolutionResult> ResolveCenitInboundAsync(
+        AchDbContext context,
+        string flowType,
+        string? serviceClass)
+        => new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            FlowTypeCode = flowType,
+            DirectionCode = "ENTRADA",
+            ServiceClassCode = serviceClass,
+            RequestedVersionMajor = 1,
+            RequestedVersionMinor = 0,
             ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
             RecordCodes = RequiredRecords
         });
