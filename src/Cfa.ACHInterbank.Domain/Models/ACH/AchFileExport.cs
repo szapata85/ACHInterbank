@@ -23,7 +23,13 @@ public class AchFileExport : AuditableEntity
     public DateTime? TransmittedAtUtc { get; set; }
     public DateTime? AcknowledgedAtUtc { get; set; }
     public string? AcknowledgementCode { get; set; }
+    public CenitChamberResponseState ChamberResponseState { get; set; } = CenitChamberResponseState.Pending;
+    public DateTime? ChamberResponseUpdatedAtUtc { get; set; }
     public ICollection<AchFileExportTransaction> Transactions { get; set; } = new List<AchFileExportTransaction>();
     public ICollection<AchFileTransmissionAttempt> TransmissionAttempts { get; set; } = new List<AchFileTransmissionAttempt>();
     public ICollection<AchFileTransportResult> TransportResults { get; set; } = new List<AchFileTransportResult>();
+    public ICollection<CenitChamberResponse> ChamberResponses { get; set; } = new List<CenitChamberResponse>();
+
+    public bool AllowsCenitChamberRetransmission()
+        => ChamberResponseState == CenitChamberResponseState.Pending;
 }

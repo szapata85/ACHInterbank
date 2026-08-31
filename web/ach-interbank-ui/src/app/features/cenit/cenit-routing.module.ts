@@ -22,7 +22,8 @@ const routes: Routes = [
   { path: 'operacion/neteo', component: CenitOperationPageComponent, data: { view: 'neteo' } },
   { path: 'operacion/optimizacion', component: CenitOperationPageComponent, data: { view: 'optimizacion' } },
   { path: 'operacion/devoluciones', component: CenitOperationPageComponent, data: { view: 'devoluciones' } },
-  { path: 'operacion/trazabilidad', component: CenitOperationPageComponent, data: { view: 'trazabilidad' } }
+  { path: 'operacion/trazabilidad', component: CenitOperationPageComponent, data: { view: 'trazabilidad' } },
+  { path: 'operacion/respuestas-camara', component: CenitOperationPageComponent, data: { view: 'respuestas-camara' } }
 ];
 
 @NgModule({

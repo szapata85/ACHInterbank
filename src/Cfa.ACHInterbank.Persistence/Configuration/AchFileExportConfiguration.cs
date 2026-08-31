@@ -25,6 +25,7 @@ public class AchFileExportConfiguration : IEntityTypeConfiguration<AchFileExport
             .HasDefaultValue(AchFileExportLifecycleStatus.HistoricalUnknown).IsRequired();
         builder.Property(x => x.TransmissionReference).HasMaxLength(120);
         builder.Property(x => x.AcknowledgementCode).HasMaxLength(30);
+        builder.Property(x => x.ChamberResponseState).HasConversion<string>().HasMaxLength(30).HasDefaultValue(CenitChamberResponseState.Pending).IsRequired();
 
         builder.HasOne(x => x.AchCycle)
             .WithMany()

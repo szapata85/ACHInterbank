@@ -3,6 +3,30 @@
   gap: 1rem;
 }
 
+:host ::ng-deep .cenit-chamber-state {
+  border-radius: 999px;
+  font-weight: 700;
+  padding-inline: 0.6rem;
+}
+
+:host ::ng-deep .cenit-chamber-state--ack-aceptado,
+:host ::ng-deep .cenit-chamber-state--reconciliación {
+  background: #d8f3dc;
+  color: #1b4332;
+}
+
+:host ::ng-deep .cenit-chamber-state--nack-rechazado,
+:host ::ng-deep .cenit-chamber-state--rechazo-definitivo-del-operador {
+  background: #ffe3e3;
+  color: #9b2226;
+}
+
+:host ::ng-deep .cenit-chamber-state--pendiente,
+:host ::ng-deep .cenit-chamber-state--sin-actividad {
+  background: #fff3bf;
+  color: #7f4f24;
+}
+
 .resumen-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

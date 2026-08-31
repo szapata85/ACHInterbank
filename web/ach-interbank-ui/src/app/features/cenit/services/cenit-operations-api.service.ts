@@ -9,6 +9,7 @@ import {
   ReturnRejectionReportRow
 } from '../../reports/services/reports-api.service';
 import {
+  CenitChamberResponseRow,
   CenitQueueRow,
   CenitNetPositionRow,
   CenitOptimizationDecisionRow,
@@ -56,6 +57,12 @@ export class CenitOperationsApiService {
   getOperationalTraceability(page = 1, pageSize = 50): Observable<CenitSimplePage<CenitTraceabilityRow>> {
     const params: Record<string, number> = { page, pageSize };
     return this.api.get<CenitSimplePage<CenitTraceabilityRow>>('api/cenit/traceability', { params });
+  }
+
+  getChamberResponses(page = 1, pageSize = 50): Observable<CenitSimplePage<CenitChamberResponseRow>> {
+    return this.api.get<CenitSimplePage<CenitChamberResponseRow>>('api/cenit/chamber-responses', {
+      params: { page, pageSize }
+    });
   }
 
   private toTraceabilityRow(row: ReturnRejectionReportRow): CenitTraceabilityRow {

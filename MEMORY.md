@@ -77,11 +77,12 @@ REQUIRED: Automate cycle-qualified output placement and inbound pickup at the ap
 
 ### OPS-GAP-004
 
-STATUS: MISSING
+STATUS: CLOSED — INTERNAL IMPLEMENTATION; RUNTIME CERTIFICATION PENDING
 SCOPE: CENIT / ordinary / inbound chamber responses
 CANONICAL_KEY: ORDINARY/CENIT/INBOUND/CHAMBER_RESPONSE/ACK_NACK_OPERATOR_REJECT
-REQUIRED: Parse, correlate, persist, and protect terminal lifecycle transitions for ACK, NACK, operator-rejection XML, reconciliation outputs, and no-activity outputs independently from business Returns.
-EXECUTABILITY: Parser/domain/persistence work is internally executable from the current CENIT manuals; transport-backed E2E depends on OPS-GAP-003.
+IMPLEMENTED: Dedicated CENIT ACK/NACK/operator-rejection XML, reconciliation, and no-activity lifecycle linked to ordinary outbound file membership; exact file/transaction correlation; persisted unresolved/ambiguous outcomes; semantic idempotency; protected terminal transitions; ProblemDetails API; and CENIT operational UI with pending and terminal-state presentation. This remains independent from Returns, differential responses, and RegistrarRespuestaTransaccion.
+EVIDENCE: Release build 8 projects with 0 errors/warnings; lifecycle/API/persistence tests 12/12; existing CENIT isolation 1/1; outbound transport regression 7/7; persistence DI 9/9; focused Angular CENIT operations 8/8. PostgreSQL and SQL Server migrations were generated.
+RUNTIME: CENIT-RUNTIME-E2E-001 remains pending for Docker, Gateway/PO pickup/drop, and real local ACK/NACK/operator-rejection transport paths; OPS-GAP-003 remains the external transport-boundary dependency.
 
 ### OPS-GAP-005
 
@@ -259,6 +260,7 @@ EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation
 ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
 
 ## Recent Sessions
+- 2026-08-31: OPS-GAP-004 internally closed the ordinary CENIT chamber-response lifecycle for ACK, NACK, operator rejection, reconciliation, and no activity with exact correlation, idempotency, protected transitions, provider migrations, ProblemDetails API, and operational UI; CENIT-RUNTIME-E2E-001 remains pending.
 - 2026-08-30: CENIT-NACHA-IN-001 implemented direction-aware ordinary inbound PPD/CCD/CTX profiles by reusing the official physical descriptors under section 7.3.1; multi-Addenda ownership, received batches, controls, profile failures, and shared Return/ACH regressions passed. CENIT-FORMAT-NACHAM is internally closed; external homologation and OPS-GAP-003/004 remain separate.
 - 2026-08-30: CENIT-NACHA-OUT-002B implemented the official CENIT CTX table-driven outbound profile from sections 3.2/5.1/5.2/6.2 and Annexes 1.2/1.4/1.5/1.8/1.9, including multi-addenda sequencing/association and fail-closed profile selection; CENIT-NACHA-OUT-002 is internally closed, with external homologation pending.
 - 2026-08-30: CENIT-NACHA-OUT-002A resolved the outbound single-file blocker and PPD/CCD cardinality/batch allocation with an additive 0..N artifact result, post-partition controls, exact membership, and unique per-file naming.

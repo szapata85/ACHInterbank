@@ -4,12 +4,12 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { CenitOperationsApiService } from '../services/cenit-operations-api.service';
-import { CenitNetPositionRow, CenitOptimizationDecisionRow, CenitQueueRow, CenitTraceabilityRow } from '../models/cenit.models';
+import { CenitChamberResponseRow, CenitNetPositionRow, CenitOptimizationDecisionRow, CenitQueueRow, CenitTraceabilityRow } from '../models/cenit.models';
 import { CycleReportRow } from '../../reports/services/reports-api.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { ColDef } from 'ag-grid-community';
 
-type OperationView = 'ciclos' | 'cola' | 'neteo' | 'optimizacion' | 'devoluciones' | 'trazabilidad';
+type OperationView = 'ciclos' | 'cola' | 'neteo' | 'optimizacion' | 'devoluciones' | 'trazabilidad' | 'respuestas-camara';
 
 interface IndicadorOperacion {
   etiqueta: string;
@@ -69,7 +69,7 @@ export class CenitOperationPageComponent implements OnInit {
 
   get resumenVista(): IndicadorOperacion[] {
     const cantidad = this.filteredRows.length;
-    const etiqueta = this.view === 'trazabilidad' ? 'eventos' : 'registros';
+    const etiqueta = this.view === 'trazabilidad' || this.view === 'respuestas-camara' ? 'eventos' : 'registros';
 
     return [
       {
@@ -97,7 +97,8 @@ export class CenitOperationPageComponent implements OnInit {
       neteo: 'No hay posiciones netas CENIT registradas para la ejecución consultada.',
       optimizacion: 'No hay decisiones de optimización CENIT registradas para los filtros aplicados.',
       devoluciones: 'No hay devoluciones operativas CENIT para los filtros aplicados.',
-      trazabilidad: 'No hay eventos de trazabilidad CENIT/ACH para los filtros aplicados.'
+      trazabilidad: 'No hay eventos de trazabilidad CENIT/ACH para los filtros aplicados.',
+      'respuestas-camara': 'No hay archivos ordinarios pendientes ni respuestas de cámara CENIT registradas.'
     };
 
     return map[this.view];
@@ -173,6 +174,15 @@ export class CenitOperationPageComponent implements OnInit {
             error: () => this.setError('No fue posible consultar trazabilidad operativa.')
           });
         return;
+      case 'respuestas-camara':
+        this.api
+          .getChamberResponses(1, 50)
+          .pipe(finalize(done))
+          .subscribe({
+            next: (response) => this.setRows((response.items ?? []).map((x) => this.mapChamberResponse(x))),
+            error: () => this.setError('No fue posible consultar las respuestas de cámara CENIT.')
+          });
+        return;
     }
   }
 
@@ -194,6 +204,9 @@ export class CenitOperationPageComponent implements OnInit {
       headerName: header,
       sortable: true,
       filter: 'agTextColumnFilter',
+      cellClass: header === 'Estado cámara'
+        ? (params) => `cenit-chamber-state cenit-chamber-state--${String(params.value ?? '').toLowerCase().replace(/\s+/g, '-')}`
+        : undefined,
       tooltipValueGetter: (params) => (params.value == null ? '' : String(params.value))
     }));
   }
@@ -271,6 +284,59 @@ export class CenitOperationPageComponent implements OnInit {
     };
   }
 
+  private mapChamberResponse(row: CenitChamberResponseRow): Record<string, string> {
+    return {
+      'Estado cámara': this.mapChamberState(row.state),
+      'Tipo respuesta': this.mapChamberType(row.responseType),
+      Correlación: this.mapCorrelation(row.correlationOutcome, row.problemCode),
+      'Respuesta origen': row.sourceResponseId || '-',
+      'Archivo respuesta': row.sourceFileName || '-',
+      Archivo: row.relatedFileName || '-',
+      Transacción: row.relatedTransactionId?.toString() || '-',
+      Traza: row.transactionTraceNumber || '-',
+      Código: row.reasonCode || '-',
+      Descripción: row.description || '-',
+      Recibida: row.receivedAtUtc,
+      Procesada: row.processedAtUtc || '-'
+    };
+  }
+
+  private mapChamberState(value: CenitChamberResponseRow['state']): string {
+    return ({
+      Pending: 'Pendiente',
+      Accepted: 'ACK aceptado',
+      Rejected: 'NACK rechazado',
+      OperatorRejected: 'Rechazo definitivo del operador',
+      Reconciliation: 'Reconciliación',
+      NoActivity: 'Sin actividad'
+    } as const)[value];
+  }
+
+  private mapChamberType(value: CenitChamberResponseRow['responseType']): string {
+    return ({
+      Unknown: 'Pendiente / no reconocido',
+      Ack: 'ACK',
+      Nack: 'NACK',
+      OperatorRejected: 'Rechazo del operador',
+      Reconciliation: 'Reconciliación',
+      NoActivity: 'Sin actividad'
+    } as const)[value];
+  }
+
+  private mapCorrelation(value: CenitChamberResponseRow['correlationOutcome'], problemCode?: string | null): string {
+    if (problemCode) return `${value} · ${problemCode}`;
+    return ({
+      Pending: 'Pendiente',
+      Matched: 'Correlacionada',
+      NotFound: 'Archivo no encontrado',
+      Ambiguous: 'Correlación ambigua',
+      TransactionNotFound: 'Transacción no encontrada',
+      TransactionAmbiguous: 'Transacción ambigua',
+      Invalid: 'Respuesta no reconocida',
+      InvalidTransition: 'Transición incompatible'
+    } as const)[value];
+  }
+
   private formatAmount(value: number): string {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 }).format(value);
   }
@@ -306,6 +372,11 @@ export class CenitOperationPageComponent implements OnInit {
         titulo: 'Trazabilidad operativa CENIT/ACH',
         subtitulo: 'Vista integral de causal, decisión, lote, archivo, cámara y fecha valor.',
         mensaje: 'Evidencia detallada para auditoría operativa y regulatoria.'
+      },
+      'respuestas-camara': {
+        titulo: 'Respuestas de cámara CENIT',
+        subtitulo: 'Estado de ACK, NACK, rechazo del operador y salidas al cierre de sesión.',
+        mensaje: 'Los rechazos definitivos bloquean la retransmisión; las correlaciones no resueltas requieren revisión operativa.'
       }
     };
 

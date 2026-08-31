@@ -1,3 +1,5 @@
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.AspNetCore.Authorization;
@@ -14,10 +16,88 @@ public class CenitOperationsController : ControllerBase
 {
     private const string CenitClearingHouseCode = "CENIT";
     private readonly AchDbContext _dbContext;
+    private readonly ICenitChamberResponseService? _chamberResponses;
 
     public CenitOperationsController(AchDbContext dbContext)
+        : this(dbContext, null)
+    {
+    }
+
+    public CenitOperationsController(
+        AchDbContext dbContext,
+        ICenitChamberResponseService? chamberResponses)
     {
         _dbContext = dbContext;
+        _chamberResponses = chamberResponses;
+    }
+
+    [EndpointSummary("Importar respuesta de cámara CENIT")]
+    [HttpPost("chamber-responses")]
+    [Authorize(Policy = "CanManageAch")]
+    [ProducesResponseType(typeof(CenitChamberResponseResult), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(CenitChamberResponseResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> ImportChamberResponseAsync(
+        [FromBody] CenitChamberResponseImportCommand command,
+        CancellationToken ct = default)
+    {
+        if (_chamberResponses is null)
+        {
+            return ProblemResult("CENIT_CHAMBER_RESPONSE_SERVICE_UNAVAILABLE", StatusCodes.Status503ServiceUnavailable, null);
+        }
+
+        CenitChamberResponseResult result;
+        try
+        {
+            result = await _chamberResponses.ImportAsync(command, ct);
+        }
+        catch (ArgumentException exception)
+        {
+            return ProblemResult("CENIT_RESPONSE_INVALID", StatusCodes.Status400BadRequest, exception.Message);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.ProblemCode))
+        {
+            var status = result.ProblemCode.Contains("AMBIGUOUS", StringComparison.Ordinal)
+                         || result.ProblemCode.Contains("CONFLICT", StringComparison.Ordinal)
+                         || result.ProblemCode.Contains("TRANSITION", StringComparison.Ordinal)
+                ? StatusCodes.Status409Conflict
+                : StatusCodes.Status422UnprocessableEntity;
+            return ProblemResult(result.ProblemCode, status, "La respuesta CENIT quedó registrada con resultado operativo controlado.", result);
+        }
+
+        return result.IsDuplicate
+            ? Ok(result)
+            : CreatedAtAction(nameof(GetChamberResponseAsync), new { id = result.Id }, result);
+    }
+
+    [EndpointSummary("Detalle de respuesta de cámara CENIT")]
+    [HttpGet("chamber-responses/{id:guid}")]
+    [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(typeof(CenitChamberResponseResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetChamberResponseAsync(Guid id, CancellationToken ct = default)
+    {
+        if (_chamberResponses is null) return NotFound();
+        var result = await _chamberResponses.GetAsync(id, ct);
+        return result is null ? NotFound() : Ok(result);
+    }
+
+    [EndpointSummary("Consultar respuestas de cámara CENIT")]
+    [HttpGet("chamber-responses")]
+    [Authorize(Policy = "CanReadAch")]
+    [ProducesResponseType(typeof(CenitChamberResponsePage), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListChamberResponsesAsync(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        if (_chamberResponses is null)
+        {
+            return Ok(new CenitChamberResponsePage([], 0, Math.Max(1, page), Math.Clamp(pageSize, 1, 200)));
+        }
+        return Ok(await _chamberResponses.ListAsync(page, pageSize, ct));
     }
 
     [EndpointSummary("Cola de ejecución de ciclos CENIT")]
@@ -348,6 +428,19 @@ public class CenitOperationsController : ControllerBase
         }
 
         return code.Trim().ToUpperInvariant();
+    }
+
+    private static ObjectResult ProblemResult(string code, int status, string? detail, object? result = null)
+    {
+        var problem = new ProblemDetails
+        {
+            Title = code,
+            Detail = detail,
+            Status = status
+        };
+        problem.Extensions["code"] = code;
+        if (result is not null) problem.Extensions["result"] = result;
+        return new ObjectResult(problem) { StatusCode = status };
     }
 
     private static string ResolveRegulatoryDescription(string code, IReadOnlyDictionary<string, string> dictionary)
