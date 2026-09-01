@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.OutgoingTransactionMonitoring;
+using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Persistence.ACH.OutgoingTransactionMonitoring;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -109,6 +110,114 @@ public sealed class OutgoingTransactionMonitoringQueryValidationTests
         (await service.GetDetailAsync(t2.Id, false))!.Files.Select(file => file.FileName).Should().Equal("File B");
         (await service.GetDetailAsync(t3.Id, false))!.Files.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task GetDetailAsync_RepresentsDispatchSoapAndMatchedChamberResponseForExactTransaction()
+    {
+        await using var fixture = await TestFixture.CreateAsync();
+        var context = fixture.Context;
+        var configuration = new ClearingHouseConfig { TimeZoneId = "America/Bogota" };
+        context.Add(configuration);
+        await context.SaveChangesAsync();
+        var house = new ClearingHouse { Name = "Cámara", Code = "MON", OriginCode = "MON", ClearingHouseId = configuration.Id };
+        var source = Institution("CFA", true, "00001", "001");
+        var destination = Institution("Destino", false, "00002", "002");
+        context.AddRange(house, source, destination);
+        await context.SaveChangesAsync();
+        var cycle = new AchCycle { Id = "MON-C1", CycleName = "C1", ProcessingDate = new DateTime(2026, 8, 2), StartTime = TimeSpan.FromHours(8), EndTime = TimeSpan.FromHours(12), CutoffTime = TimeSpan.FromHours(11), ClearingHouseId = house.Id, OperationalStatus = AchCycleOperationalStatus.Open };
+        var batch = new AchBatch { AchCycleId = cycle.Id, ServiceClassCode = "220", CompanyName = "CFA", CompanyIdentification = "MON", OriginOrOdfi = "00000001", EffectiveEntryDate = cycle.ProcessingDate, BatchSequenceNumber = 1, CompanyEntryDescriptionId = 1 };
+        context.AddRange(cycle, batch);
+        await context.SaveChangesAsync();
+        var transaction = Transaction("SOAP-RESPONSE", "900000000000001", source.Id, destination.Id, cycle.Id, batch.Id);
+        var decoy = Transaction("DECOY", "900000000000002", source.Id, destination.Id, cycle.Id, batch.Id);
+        context.AddRange(transaction, decoy);
+        await context.SaveChangesAsync();
+
+        var dispatch = new ContrapartidaDispatchItem
+        {
+            AchTransactionId = transaction.Id,
+            AchCycleId = cycle.Id,
+            ClearingHouseId = house.Id,
+            AchBatchId = batch.Id,
+            State = ContrapartidaDispatchItemStateEnum.ReportedToContrapartida,
+            AttemptCount = 2,
+            LastAttemptAtUtc = new DateTime(2026, 8, 2, 9, 2, 0, DateTimeKind.Utc),
+            LastSuccessAtUtc = new DateTime(2026, 8, 2, 9, 2, 1, DateTimeKind.Utc),
+            LastResponseCode = "00"
+        };
+        foreach (var attempt in new[]
+                 {
+                     DispatchAttempt(1, new DateTime(2026, 8, 2, 9, 1, 0, DateTimeKind.Utc), false, true, "TIMEOUT"),
+                     DispatchAttempt(2, new DateTime(2026, 8, 2, 9, 2, 0, DateTimeKind.Utc), true, false, "00")
+                 })
+            dispatch.Attempts.Add(attempt);
+        context.ContrapartidaDispatchItems.Add(dispatch);
+        context.AchResponses.AddRange(
+            ChamberResponse(transaction.Id, transaction.TransactionExternalId, "ACCEPTED", "R01", "Fondos insuficientes"),
+            ChamberResponse(decoy.Id, decoy.TransactionExternalId, "DECOY", "R99", "No debe aparecer"));
+        await context.SaveChangesAsync();
+        var service = new OutgoingTransactionMonitoringQueryService(context, new OutgoingTransactionMonitoringStatusPolicy());
+
+        var detail = (await service.GetDetailAsync(transaction.Id, includeTechnicalDetail: true))!;
+
+        detail.Integration.WasDispatched.Should().BeTrue();
+        detail.Integration.AttemptCount.Should().Be(2);
+        detail.Integration.ResponseCode.Should().Be("00");
+        detail.Integration.ResultDisplayName.Should().Be("Integración exitosa");
+        detail.Timeline.Where(item => item.SourceType == "ContrapartidaDispatchAttempt").Should().SatisfyRespectively(
+            item => { item.StageCode.Should().Be("MonetaryIntegration"); item.OutcomeCode.Should().Be("TechnicalError"); item.IsTechnical.Should().BeTrue(); },
+            item => { item.StageCode.Should().Be("MonetaryIntegration"); item.OutcomeCode.Should().Be("Successful"); item.IsTechnical.Should().BeFalse(); });
+
+        detail.Responses.Should().ContainSingle();
+        detail.Responses[0].ResponseTypeDisplayName.Should().Be("Transacción");
+        detail.Responses[0].ExternalStatusCode.Should().Be("ACCEPTED");
+        detail.Responses[0].CauseCode.Should().Be("R01");
+        detail.Responses[0].CauseDescription.Should().Be("Fondos insuficientes");
+        detail.Responses[0].CorrelationStatusDisplayName.Should().Be("Correlacionada");
+        detail.Timeline.Should().ContainSingle(item => item.SourceType == "AchResponse"
+            && item.StageCode == "DifferentialResponse"
+            && item.OutcomeCode == "ACCEPTED");
+    }
+
+    private static ContrapartidaDispatchAttempt DispatchAttempt(int number, DateTime startedAtUtc, bool successful, bool technicalFailure, string code)
+        => new()
+        {
+            AttemptNumber = number,
+            StartedAtUtc = startedAtUtc,
+            FinishedAtUtc = startedAtUtc.AddSeconds(1),
+            Result = successful ? ContrapartidaDispatchAttemptResultEnum.Success : ContrapartidaDispatchAttemptResultEnum.Failed,
+            ExternalResponseCode = code,
+            ExternalResponseMessage = successful ? "Integración completada" : "Tiempo de espera agotado",
+            ErrorCode = technicalFailure ? code : string.Empty,
+            ErrorMessage = technicalFailure ? "Falla técnica controlada" : string.Empty,
+            SoapMethodName = "Proc_Contrapartidas",
+            ExecutionMode = "DryRun",
+            IsSuccessful = successful,
+            IsTechnicalFailure = technicalFailure,
+            RetryAllowed = technicalFailure,
+            RetryEligible = technicalFailure,
+            ProcessedAtUtc = startedAtUtc.AddSeconds(1)
+        };
+
+    private static AchResponse ChamberResponse(int transactionId, string externalTransactionId, string statusCode, string causeCode, string causeDescription)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            AchTransactionId = transactionId,
+            CorrelationStatus = AchResponseCorrelationStatus.Matched,
+            TipoRespuesta = TipoRespuestaAch.Transaccion,
+            IdTransaccion = externalTransactionId,
+            CodigoCamaraCompensacion = "MON",
+            CodigoEstadoExterno = statusCode,
+            CodigoCausalExterna = causeCode,
+            DescripcionCausal = causeDescription,
+            IdTransaccionServicioExterno = transactionId,
+            HashIdempotencia = $"response-{transactionId}",
+            EstadoProcesamiento = AchResponseProcessingStatus.Notificada,
+            PermiteNotificacion = true,
+            FechaRecepcion = new DateTime(2026, 8, 2, 9, 3, 0, DateTimeKind.Utc),
+            FechaCreacion = new DateTime(2026, 8, 2, 9, 3, 0, DateTimeKind.Utc)
+        };
 
     private static FinancialInstitution Institution(string name, bool source, string routing, string transit)
     {

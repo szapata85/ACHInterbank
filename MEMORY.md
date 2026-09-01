@@ -119,8 +119,8 @@ CURRENT_DELTA: Profile resolution and physical record reading are table-driven, 
 
 ### RET-GAP-018
 
-STATUS: PARTIAL — TEST COVERAGE ONLY
-CURRENT_DELTA: RET-GAP-018.1 is CLOSED: transaction detail resolves files exclusively through `AchFileExportTransactions` filtered by `AchTransactionId`; absent membership produces no file attribution. Focused deterministic regression evidence: `OutgoingTransactionMonitoringQueryValidationTests` 7/7 passed (2026-09-01). RET-GAP-018.2 verified that dispatch/SOAP attempts, exact file membership, file transmission attempts/results, acknowledgement/outcome, chamber responses/correlation, state events, and their unified detail/timeline are already durably persisted and surfaced. Remaining scope is deterministic focused assertions for dispatch/SOAP and chamber-response detail/timeline; no functional lineage gap was found.
+STATUS: CLOSED
+CURRENT_DELTA: Unified lineage was already functionally implemented. RET-GAP-018.1 closed deterministic exact-file membership evidence; RET-GAP-018.2 verified no remaining functional lineage gap; RET-GAP-018.3 completed deterministic dispatch/SOAP and chamber-response monitoring detail/timeline coverage.
 
 ### RET-GAP-019
 
