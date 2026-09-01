@@ -13,7 +13,7 @@ LAST_REFRESH: 2026-08-24
 SCOPE: Production operational completion beyond the reconstructed Returns backlog
 REPOSITORY_BRANCH: ACH-Interbank-Postgresql
 REPOSITORY_HEAD: eee79474efd6d8f10b294b8c4640cb3f4a2ff3ba
-VERDICT: The local SOAP transaction core, variable cycle creation, Quartz runtime/administration, file-name reservation, and closed Returns capabilities remain intact. Production ordinary operation is incomplete because chamber-ready ordinary profiles, automatic chamber handoff/reception, CENIT chamber-response lifecycle, atomic transaction trace allocation, full operational cycle policy configuration, and unified traceability are not all closed.
+VERDICT: The local SOAP transaction core, variable cycle creation, Quartz runtime/administration, file-name reservation, ACH Colombia managed-file exchange, CENIT chamber-response lifecycle, atomic transaction trace allocation, full operational cycle policy configuration, and closed Returns capabilities remain intact. Production ordinary operation remains incomplete only for the external CENIT Gateway/PO boundary and the shared partial metadata/traceability owners.
 NEW_GAPS: OPS-GAP-001, OPS-GAP-002, OPS-GAP-003, OPS-GAP-004, OPS-GAP-005, OPS-GAP-006
 REUSED_OWNERS: CENIT-FORMAT-NACHAM, NACHA-RULE-METADATA, RET-GAP-018
 RETURNS_STATE: Existing CLOSED/SUPERSEDED Returns items remain unchanged; RET-GAP-019 remains externally blocked.
@@ -37,9 +37,9 @@ RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED.
 ### CENIT
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: CENIT-FORMAT-NACHAM, OPS-GAP-003, OPS-GAP-004; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
+ACTIVE_GAPS: OPS-GAP-003; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
 
-ORDINARY_STATE: INTERNALLY CLOSED, with production transport BLOCKED. CENIT-NACHA-OUT-001 closed the May 7, 2026 ordinary PPD/CCD outbound physical profile and official naming. CENIT-NACHA-OUT-002A added 0..N files, explicit membership, PPD/CCD cardinality, post-partition controls, and collision-safe naming. CENIT-NACHA-OUT-002B added independently selectable original/prenotification CTX profiles with official table-driven Type-5/6/7 layouts, 1..9,999 transaction-owned addendas, per-entry addenda sequencing and association, multi-entry batches, and fail-closed profile selection. Evidence: Release build 8 projects with 0 errors/warnings; CTX 6/6, partition boundaries 16/16, ordinary CENIT 6/6, official-profile seeder/resolver 38/38, resolver 8/8, and focused ACH Colombia round-trip regression passed. CENIT-NACHA-OUT-002 is internally CLOSED. Profiles remain non-homologated and CENIT LIVE stays fail-closed; inbound work, Gateway/PO, and ACK/NACK/operator-rejection remain open.
+ORDINARY_STATE: INTERNALLY CLOSED, with production transport BLOCKED. CENIT-NACHA-OUT-001 closed the May 7, 2026 ordinary PPD/CCD outbound physical profile and official naming. CENIT-NACHA-OUT-002A added 0..N files, explicit membership, PPD/CCD cardinality, post-partition controls, and collision-safe naming. CENIT-NACHA-OUT-002B added independently selectable original/prenotification CTX profiles with official table-driven Type-5/6/7 layouts, 1..9,999 transaction-owned addendas, per-entry addenda sequencing and association, multi-entry batches, and fail-closed profile selection. Evidence: Release build 8 projects with 0 errors/warnings; CTX 6/6, partition boundaries 16/16, ordinary CENIT 6/6, official-profile seeder/resolver 38/38, resolver 8/8, and focused ACH Colombia round-trip regression passed. CENIT-NACHA-OUT-002 and its inbound counterpart are internally CLOSED; CENIT-RUNTIME-E2E-001 closed chamber responses locally. Profiles remain non-homologated and CENIT LIVE stays fail-closed pending the Gateway/PO contract.
 RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, differential-response, and managed Return transport capabilities remain CLOSED.
 
 ### Shared
@@ -105,12 +105,12 @@ DECISION: ClearingHouseCycleConfig is the single effective-dated, timezone-resol
 CONSUMERS: Transaction creation/validation, outbound assignment, inbound resolution/queue execution, NACHA generation, ProcContrapartidas and ProcTransacciones dispatch, Return-of-Return generation, and Quartz synchronization consume the authoritative policy or its scheduled cycle snapshot.
 EVIDENCE: Release build 8 projects/0 errors/0 warnings; impacted backend regression 242/242; scheduler 5/5; Angular administration 9/9 and production build succeeded; PostgreSQL and SQL Server migration/model checks and fresh-database persistence tests 1/1 each. Runtime resolver proof held ACHCOL ACH-V1 with 7 cycles and Cycle 1 Return allowed simultaneously with CENIT CENIT-V1 with 5 cycles and Cycle 1 Return denied; effective-version and timezone boundaries were deterministic.
 CI_STABILIZATION: OPS-GAP-006 CI stabilization completed. Root cause: STALE TEST FIXTURE. Commit: d910301c9a3788197546e7c698087d8185389b08. GitHub Actions run: 33015421841. build-and-test: SUCCESS.
-DEPENDENCY: OPS-GAP-002 is unblocked from the OPS-GAP-006 dependency perspective; it remains a separate unimplemented gap.
+DEPENDENCY: OPS-GAP-002 was unblocked by this work and is now internally closed; its external managed-MFT deployment remains separate.
 
 ### CENIT-FORMAT-NACHAM
 
 STATUS: INTERNALLY_CLOSED / EXTERNAL_HOMOLOGATION_PENDING — EXISTING OWNER REUSED
-CURRENT_DELTA: The May 7, 2026 specification drives table-driven ordinary PPD/CCD and CTX profiles in both directions. CENIT-NACHA-IN-001 added explicit inbound original/prenotification metadata, reused the official physical descriptors under section 7.3.1, enabled CTX 1..9,999 owned Addenda parsing with per-entry sequence/trace association, preserved received operator batches, and validated physical T8/T9 controls. Evidence: Release build 8 projects/0 errors/0 warnings; inbound focal 19/19; official profiles 46/46; shared inbound parser 12/12; ingestion 16/16; Return-In 8/8; Return-of-Return 2/2. CENIT-FORMAT-NACHAM is internally closed. External homologation remains pending; OPS-GAP-003 Gateway/PO and OPS-GAP-004 ACK/NACK remain separate operational gaps.
+CURRENT_DELTA: The May 7, 2026 specification drives table-driven ordinary PPD/CCD and CTX profiles in both directions. CENIT-NACHA-IN-001 added explicit inbound original/prenotification metadata, reused the official physical descriptors under section 7.3.1, enabled CTX 1..9,999 owned Addenda parsing with per-entry sequence/trace association, preserved received operator batches, and validated physical T8/T9 controls. Evidence: Release build 8 projects/0 errors/0 warnings; inbound focal 19/19; official profiles 46/46; shared inbound parser 12/12; ingestion 16/16; Return-In 8/8; Return-of-Return 2/2. CENIT-FORMAT-NACHAM is internally closed. External homologation and OPS-GAP-003 Gateway/PO remain pending; OPS-GAP-004 is locally closed.
 
 ### NACHA-RULE-METADATA
 
@@ -258,12 +258,12 @@ UAT: NOT_READY
 
 ### NEXT-DELIVERY-001
 
-JOB_ID: OPS.ACHCOL.ORDINARY.V35.PROFILES.1
-OBJECTIVE: Implement the current ACH Colombia V35 ordinary original/prenotification profile family for inbound and outbound flows and make those flows fail closed on profile/configuration evidence rather than V32 seeds or absent profiles.
-WHY_NEXT: It is the first internal P0 dependency for both ordinary directions, the V35 source is available, and it requires no unresolved external clarification.
-INCLUDED: V35 rule extraction, profile/layout/field/rule data, inbound and outbound selection, removal of V32 ordinary-profile authority, profile-boundary cleanup required by the flow, focal/golden/negative tests, build, and local runtime generation/parsing evidence.
-EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation/certification, cycle-policy redesign, and unrelated UI.
-ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
+JOB_ID: RET-GAP-018.1
+OBJECTIVE: Correct transaction-detail file selection to use exact persisted transaction-to-file membership and expose that membership as the first unified lineage slice.
+WHY_NEXT: It is the highest-value executable operational gap after the closed transport, response, trace, and cycle work; it has no unresolved external or normative dependency.
+INCLUDED: Exact membership query/DTO/API and the focused operational detail presentation, with deterministic regression coverage for multi-file cycles.
+EXCLUDED: Dispatcher/SOAP/transport/ACK lineage reconstruction, new transport contracts, RET-GAP-019, external homologation/certification, and unrelated reporting/UI.
+ACCEPTANCE: A transaction detail identifies only its actual exported/received file when a cycle has multiple files; no cycle-level fallback can misattribute the file; focal regression tests pass.
 
 ## Recent Sessions
 - 2026-08-31: OPS-GAP-002 implemented the internal ACH Colombia managed-file lifecycle with shared automatic/manual execution, durable immutable evidence, retries, recovery, archive/retirement, authorized API, and Spanish operations UI; external managed MFT deployment remains an operational dependency.
