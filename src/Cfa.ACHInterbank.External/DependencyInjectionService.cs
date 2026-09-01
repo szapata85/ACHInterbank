@@ -2,11 +2,13 @@ using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.External.Notifications;
 using Cfa.ACHInterbank.External.Connections.RespuestaTransaccionesAch;
+using Cfa.ACHInterbank.External.Connections;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +37,7 @@ public static class DependencyInjectionService
             configuration.GetSection(AchOutboundReturnTransportOptions.SectionName));
         services.Configure<AchColombiaManagedMftOptions>(
             configuration.GetSection(AchColombiaManagedMftOptions.SectionName));
+        services.AddScoped<IAchColombiaManagedMftAdapter, AchColombiaManagedMftFolderAdapter>();
 
         var resilienceSection = configuration.GetSection("Resilience:Soap");
         var timeoutSeconds = resilienceSection.GetValue<int?>("TimeoutSeconds") ?? 15;
