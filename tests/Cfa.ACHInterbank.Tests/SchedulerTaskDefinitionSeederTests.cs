@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
+using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +22,7 @@ public sealed class SchedulerTaskDefinitionSeederTests
         await seeder.SeedAsync();
 
         var tasks = await context.TaskDefinitions.AsNoTracking().ToListAsync();
-        tasks.Should().HaveCount(7);
+        tasks.Should().HaveCount(9);
         tasks.Select(x => x.Code).Should().OnlyHaveUniqueItems();
         tasks.Single(x => x.Code == "SeedBankHolidays").Name.Should().Be("Actualizar días festivos");
         tasks.Single(x => x.Code == "AchCycleSeeder").Name.Should().Be("Actualizar ciclos de compensación");
@@ -30,5 +32,11 @@ public sealed class SchedulerTaskDefinitionSeederTests
         var transacciones = tasks.Single(x => x.Code == "IncomingNachaPostProcessing");
         transacciones.ManualExecutionEnabled.Should().BeTrue();
         transacciones.RetryOnFailure.Should().BeFalse();
+        var outboundMft = tasks.Single(x => x.Code == "AchColombiaManagedMftOutbound");
+        outboundMft.ManualExecutionEnabled.Should().BeFalse();
+        outboundMft.ConcurrencyPolicy.Should().Be(ConcurrencyPolicyEnum.SkipIfRunning);
+        var inboundMft = tasks.Single(x => x.Code == "AchColombiaManagedMftInbound");
+        inboundMft.ManualExecutionEnabled.Should().BeFalse();
+        inboundMft.ConcurrencyPolicy.Should().Be(ConcurrencyPolicyEnum.SkipIfRunning);
     }
 }

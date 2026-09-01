@@ -29,9 +29,9 @@ REPOSITORY_HEAD: 36af8b1c61ae72c766446c01ecb9ebc0b7c79838
 ### ACH Colombia
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: RET-GAP-019, OPS-GAP-002; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
+ACTIVE_GAPS: RET-GAP-019; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
 
-ORDINARY_STATE: PARTIAL. ProcContrapartidas/ProcTransacciones, persistence, duplicate policy, and manual export/upload paths exist. Four explicit published ACH Colombia V35 ordinary profiles cover original/prenotification, inbound/outbound, and credit/debit variants; generation and parsing request version 35.0 and fail closed on missing, ambiguous, unsupported-version, direction, or family selection. Automatic MFT handoff/reception remains absent.
+ORDINARY_STATE: INTERNALLY CLOSED for managed file exchange. ACH Colombia V35 ordinary profiles remain explicit and fail closed; OPS-GAP-002 adds a durable immutable bidirectional transfer envelope, shared automatic/manual application execution, database-driven Quartz triggers, controlled managed-MFT adapter, retries, duplicate/concurrency/restart protection, archive/retirement history, authorized API/download, and Spanish operational SPA/menu. The external managed MFT/SFTP service and its deployment configuration remain operational dependencies.
 RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 remains the only open Returns-specific item.
 
 ### CENIT
@@ -63,10 +63,12 @@ STABILIZATION: V35 Type-7 compatibility regression fixed by 6830260fbad6d5f9673b
 
 ### OPS-GAP-002
 
-STATUS: MISSING — UNBLOCKED FROM OPS-GAP-006 DEPENDENCY
+STATUS: CLOSED INTERNALLY — EXTERNAL MANAGED MFT DEPLOYMENT REMAINS
 SCOPE: ACH Colombia / ordinary / bidirectional / managed MFT handoff and reception
 CANONICAL_KEY: ORDINARY/ACHCOL/BIDIRECTIONAL/TRANSPORT/MFT_HANDOFF_RECEPTION
-REQUIRED: Automate cycle-qualified generation, envelope creation, atomic CFA-managed handoff, inbound pickup/decryption/verification, archive, retry, duplicate protection, result correlation, and monitoring. The enterprise MFT/SFTP product remains external.
+IMPLEMENTED: Immutable durable transfers/events/configuration; retained content by durable ID; shared Application use case for Quartz and API; atomic outbound handoff and inbound claim/restart recovery; persistent hash/export uniqueness; retry/uncertain/non-retryable classification; existing inbound ingestion and outbound NACHA/envelope reuse; archive, retirement without history deletion, download, correction lineage, monitoring catalog, authorized API, Spanish SPA, and seeded navigation.
+EVIDENCE: Release solution build succeeded with 0 errors and 0 warnings; 35 focused managed-MFT, adapter, API, DI, scheduler, persistence-model, and navigation tests passed; Angular production build succeeded. Focused Playwright was skipped because the repository dev-server did not become ready within its configured 120-second window. No full E2E or external managed-MFT runtime certification was claimed.
+DEPENDENCY: The enterprise MFT/SFTP product, endpoints, credentials, and deployment remain external operational configuration; application defaults remain disabled until explicitly configured.
 
 ### OPS-GAP-003
 
@@ -264,6 +266,7 @@ EXCLUDED: Returns, RET-GAP-019, CENIT, MFT/SFTP transport, external homologation
 ACCEPTANCE: Published unambiguous V35 ordinary profiles for both directions and prenotification; no legacy fallback; no ordinary V32 authority; generated and parsed artifacts pass V35 structural/semantic tests; missing/ambiguous profile fails before persistence or dispatch; build and focal regression tests pass.
 
 ## Recent Sessions
+- 2026-08-31: OPS-GAP-002 implemented the internal ACH Colombia managed-file lifecycle with shared automatic/manual execution, durable immutable evidence, retries, recovery, archive/retirement, authorized API, and Spanish operations UI; external managed MFT deployment remains an operational dependency.
 - 2026-08-31: CENIT-RUNTIME-E2E-001 locally certified the ordinary CENIT outbound-to-response lifecycle through Docker SQL Server/API/SPA, an atomic folder-backed test Gateway, real persistence/API, and Playwright; ACK, NACK, multi-error operator rejection, reconciliation, no activity, idempotency, and terminal protection passed, while external Banco Gateway/PO homologation remains separate under OPS-GAP-003.
 - 2026-08-30: CENIT-NACHA-IN-001 implemented direction-aware ordinary inbound PPD/CCD/CTX profiles by reusing the official physical descriptors under section 7.3.1; multi-Addenda ownership, received batches, controls, profile failures, and shared Return/ACH regressions passed. CENIT-FORMAT-NACHAM is internally closed; external homologation and OPS-GAP-003/004 remain separate.
 - 2026-08-30: CENIT-NACHA-OUT-002B implemented the official CENIT CTX table-driven outbound profile from sections 3.2/5.1/5.2/6.2 and Annexes 1.2/1.4/1.5/1.8/1.9, including multi-addenda sequencing/association and fail-closed profile selection; CENIT-NACHA-OUT-002 is internally closed, with external homologation pending.

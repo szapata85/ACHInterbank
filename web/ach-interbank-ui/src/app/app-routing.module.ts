@@ -219,6 +219,17 @@ export const APP_ROUTES: Routes = [
         loadChildren: () => import('./features/reports/reports.module').then((m) => m.ReportsModule)
       },
       {
+        path: 'ach-colombia/file-exchange',
+        canActivate: [roleGuard, permissionGuard],
+        data: {
+          roles: ['Admin', 'ACH.Operator'],
+          permissions: ['CanReadAch'],
+          breadcrumb: 'Intercambio de archivos ACH Colombia',
+          title: 'Intercambio de archivos ACH Colombia'
+        },
+        loadComponent: () => import('./features/ach-colombia-file-exchange/ach-colombia-file-exchange.component').then((m) => m.AchColombiaFileExchangeComponent)
+      },
+      {
         path: 'cenit',
         canActivate: [roleGuard, permissionGuard],
         data: {

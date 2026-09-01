@@ -33,6 +33,8 @@ public static class DependencyInjectionService
             configuration.GetSection(ControlledLocalSoapTransportOptions.SectionName));
         services.Configure<AchOutboundReturnTransportOptions>(
             configuration.GetSection(AchOutboundReturnTransportOptions.SectionName));
+        services.Configure<AchColombiaManagedMftOptions>(
+            configuration.GetSection(AchColombiaManagedMftOptions.SectionName));
 
         var resilienceSection = configuration.GetSection("Resilience:Soap");
         var timeoutSeconds = resilienceSection.GetValue<int?>("TimeoutSeconds") ?? 15;

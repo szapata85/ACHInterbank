@@ -135,6 +135,42 @@ public class TaskDefinitionSeeder : IDbSeeder
                 StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
             });
         }
+        if (!_context.TaskDefinitions.Any(t => t.Code == "AchColombiaManagedMftOutbound"))
+        {
+            _context.TaskDefinitions.Add(new TaskDefinition
+            {
+                Code = "AchColombiaManagedMftOutbound",
+                Name = "Enviar archivos a ACH Colombia",
+                Description = "Entrega automáticamente archivos oficiales mediante la frontera administrada.",
+                ManualExecutionEnabled = false,
+                RetryOnFailure = true,
+                MaxRetries = 2,
+                ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+                RequestsRecovery = true,
+                PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+                N = 5,
+                TimeZoneId = "America/Bogota",
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        }
+        if (!_context.TaskDefinitions.Any(t => t.Code == "AchColombiaManagedMftInbound"))
+        {
+            _context.TaskDefinitions.Add(new TaskDefinition
+            {
+                Code = "AchColombiaManagedMftInbound",
+                Name = "Recibir archivos de ACH Colombia",
+                Description = "Consulta y procesa automáticamente archivos disponibles en la frontera administrada.",
+                ManualExecutionEnabled = false,
+                RetryOnFailure = true,
+                MaxRetries = 2,
+                ConcurrencyPolicy = ConcurrencyPolicyEnum.SkipIfRunning,
+                RequestsRecovery = true,
+                PeriodicityType = PeriodicityTypeEnum.EveryNMinutes,
+                N = 3,
+                TimeZoneId = "America/Bogota",
+                StartAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        }
         await _context.SaveChangesAsync();
 
         var metadata = new Dictionary<string, (string Name, string Description, bool? Manual, bool Monetary)>(StringComparer.OrdinalIgnoreCase)
@@ -145,7 +181,9 @@ public class TaskDefinitionSeeder : IDbSeeder
             ["AchTacitAcceptanceJob"] = ("Aplicar aceptación tácita", "Evalúa las prenotificaciones cuyo plazo finalizó y aplica las reglas operativas vigentes.", false, false),
             ["AchContrapartidasByCycle"] = ("Despachar débitos originados por CFA", "Evalúa y envía los movimientos débito elegibles del ciclo vigente.", true, true),
             ["IncomingNachaPostProcessing"] = ("Procesar créditos recibidos", "Evalúa entradas NACHA-M y envía únicamente los movimientos crédito elegibles.", true, true),
-            ["ach-response-reprocess-dispatcher"] = ("Procesar respuestas diferenciales", "Procesa de forma idempotente solicitudes autorizadas de reproceso de respuestas ACH, sin movimientos monetarios.", true, false)
+            ["ach-response-reprocess-dispatcher"] = ("Procesar respuestas diferenciales", "Procesa de forma idempotente solicitudes autorizadas de reproceso de respuestas ACH, sin movimientos monetarios.", true, false),
+            ["AchColombiaManagedMftOutbound"] = ("Enviar archivos a ACH Colombia", "Entrega automáticamente archivos oficiales mediante la frontera administrada.", false, false),
+            ["AchColombiaManagedMftInbound"] = ("Recibir archivos de ACH Colombia", "Consulta y procesa automáticamente archivos disponibles en la frontera administrada.", false, false)
         };
         var persisted = _context.TaskDefinitions.Where(x => metadata.Keys.Contains(x.Code)).ToList();
         foreach (var task in persisted)

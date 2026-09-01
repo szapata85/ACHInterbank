@@ -105,6 +105,9 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<AchFileExportTransaction> AchFileExportTransactions => Set<AchFileExportTransaction>();
     public DbSet<AchFileTransmissionAttempt> AchFileTransmissionAttempts => Set<AchFileTransmissionAttempt>();
     public DbSet<AchFileTransportResult> AchFileTransportResults => Set<AchFileTransportResult>();
+    public DbSet<AchManagedFileTransfer> AchManagedFileTransfers => Set<AchManagedFileTransfer>();
+    public DbSet<AchManagedFileTransferEvent> AchManagedFileTransferEvents => Set<AchManagedFileTransferEvent>();
+    public DbSet<AchManagedFileTransferConfiguration> AchManagedFileTransferConfigurations => Set<AchManagedFileTransferConfiguration>();
     public DbSet<CenitChamberResponse> CenitChamberResponses => Set<CenitChamberResponse>();
     public DbSet<ContrapartidaDispatchBatch> ContrapartidaDispatchBatches => Set<ContrapartidaDispatchBatch>();
     public DbSet<ContrapartidaDispatchItem> ContrapartidaDispatchItems => Set<ContrapartidaDispatchItem>();
@@ -218,6 +221,11 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
             .IsUnique()
             .HasDatabaseName("UX_AchFileExports_Cycle_Kind_Encrypted_Version")
             .HasFilter(isPostgres ? "\"Version\" IS NOT NULL" : "[Version] IS NOT NULL");
+        modelBuilder.Entity<AchManagedFileTransfer>()
+            .HasIndex(x => x.AchFileExportId)
+            .IsUnique()
+            .HasDatabaseName("UX_AchManagedFileTransfers_AchFileExportId")
+            .HasFilter(isPostgres ? "\"AchFileExportId\" IS NOT NULL" : "[AchFileExportId] IS NOT NULL");
         modelBuilder.Entity<CenitCycleQueue>()
             .HasIndex(x => new { x.AchTransactionId, x.TargetAchCycleId })
             .IsUnique()
