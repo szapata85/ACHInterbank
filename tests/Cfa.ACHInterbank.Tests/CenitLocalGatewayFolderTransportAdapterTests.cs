@@ -11,6 +11,18 @@ public sealed class CenitLocalGatewayFolderTransportAdapterTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"cenit-gateway-{Guid.NewGuid():N}");
 
     [Fact]
+    public void CenitLocalGatewayOptions_ShouldBeDisabledWhenUnspecified()
+    {
+        Assert.False(new CenitLocalGatewayOptions().Enabled);
+    }
+
+    [Fact]
+    public void CenitLocalGatewayOptions_ShouldEnableWhenExplicitlyConfigured()
+    {
+        Assert.True(Options.Create(new CenitLocalGatewayOptions { Enabled = true }).Value.Enabled);
+    }
+
+    [Fact]
     public async Task FolderAdapter_ShouldHandoffPickupAndArchiveAtomically()
     {
         var input = Path.Combine(_root, "input");

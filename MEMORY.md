@@ -207,6 +207,10 @@ Differential responses must not move money and must not be applied twice.
 
 A transaction with a successful or functionally definitive SOAP response must not be resent.
 
+### INV-CENIT-LOCAL-GATEWAY-001
+
+CENIT local Gateway simulator is disabled by default and prohibited in Production.
+
 ## Known Traps
 
 ### TRAP-DATE-UTC-001

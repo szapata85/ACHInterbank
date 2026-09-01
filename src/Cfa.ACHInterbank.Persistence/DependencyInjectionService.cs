@@ -34,12 +34,20 @@ namespace Cfa.ACHInterbank.Persistence;
 
 public static class DependencyInjectionService
 {
-    public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddPersistence(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment? hostEnvironment = null)
     {
         services.Configure<TransactionPolicyOptions>(configuration.GetSection("TransactionPolicies"));
         services.Configure<NachaGenerationOptions>(configuration.GetSection(NachaGenerationOptions.SectionName));
         services.Configure<NachaInboundSimulatorOptions>(configuration.GetSection(NachaInboundSimulatorOptions.SectionName));
-        services.Configure<CenitLocalGatewayOptions>(configuration.GetSection(CenitLocalGatewayOptions.SectionName));
+        services.AddOptions<CenitLocalGatewayOptions>()
+            .Bind(configuration.GetSection(CenitLocalGatewayOptions.SectionName))
+            .Validate(
+                options => hostEnvironment is null || !hostEnvironment.IsProduction() || !options.Enabled,
+                "CENIT_LOCAL_GATEWAY_NOT_ALLOWED_IN_PRODUCTION")
+            .ValidateOnStart();
         services.Configure<CertificateSecretResolverOptions>(configuration.GetSection("DigitalEnvelope:CertificateSecretResolver"));
         services.Configure<CertificateManagementOptions>(configuration.GetSection(CertificateManagementOptions.SectionName));
         services.Configure<DigitalEnvelopeCertificateBootstrapOptions>(configuration.GetSection(DigitalEnvelopeCertificateBootstrapOptions.SectionName));

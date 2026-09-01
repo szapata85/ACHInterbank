@@ -24,7 +24,7 @@ builder.Services.Configure<DigitalEnvelopeSignatureValidationOptions>(builder.Co
 builder.Services.AddSingleton<IDigitalEnvelopePolicy, DigitalEnvelopePolicy>();
 builder.Services.AddWebApi(builder.Configuration)
                 .AddApplication()
-                .AddPersistence(builder.Configuration)
+                .AddPersistence(builder.Configuration, builder.Environment)
                 .AddExternal(builder.Configuration);
 
 var crashLogPath = Path.Combine(builder.Environment.ContentRootPath, "crash.log");
