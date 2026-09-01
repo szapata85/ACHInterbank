@@ -120,7 +120,7 @@ CURRENT_DELTA: Profile resolution and physical record reading are table-driven, 
 ### RET-GAP-018
 
 STATUS: PARTIAL — EXISTING OWNER REUSED
-CURRENT_DELTA: Durable transaction/cycle/file and monitoring components exist, but the transaction detail selects a file by cycle rather than exact membership and does not reconstruct dispatcher/SOAP/transport/ACK lineage. This is now a direct operational dependency, not a new gap.
+CURRENT_DELTA: RET-GAP-018.1 is CLOSED: transaction detail resolves files exclusively through `AchFileExportTransactions` filtered by `AchTransactionId`; absent membership produces no file attribution. Focused deterministic regression evidence: `OutgoingTransactionMonitoringQueryValidationTests` 7/7 passed (2026-09-01). Dispatcher/SOAP/transport/ACK lineage remains incomplete. This is now a direct operational dependency, not a new gap.
 
 ### RET-GAP-019
 
@@ -259,6 +259,7 @@ UAT: NOT_READY
 ### NEXT-DELIVERY-001
 
 JOB_ID: RET-GAP-018.1
+STATUS: CLOSED
 OBJECTIVE: Correct transaction-detail file selection to use exact persisted transaction-to-file membership and expose that membership as the first unified lineage slice.
 WHY_NEXT: It is the highest-value executable operational gap after the closed transport, response, trace, and cycle work; it has no unresolved external or normative dependency.
 INCLUDED: Exact membership query/DTO/API and the focused operational detail presentation, with deterministic regression coverage for multi-file cycles.

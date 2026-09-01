@@ -190,6 +190,13 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         exactFileDetail.Files[0].HasTransmissionEvidence.Should().BeFalse();
         exactFileDetail.TechnicalDetail.Should().NotBeNull();
 
+        var secondFileDetail = await service.GetDetailAsync(ids.SecondFileMembership, includeTechnicalDetail: false);
+        secondFileDetail!.Files.Should().ContainSingle();
+        secondFileDetail.Files[0].FileName.Should().Be("UAT-F4-SALIDA.002");
+
+        var noMembershipDetail = await service.GetDetailAsync(ids.WithoutFile, includeTechnicalDetail: false);
+        noMembershipDetail!.Files.Should().BeEmpty();
+
         var cenitTransportDetail = await service.GetDetailAsync(ids.CenitReturnTransport, includeTechnicalDetail: false);
         cenitTransportDetail!.Summary.ClearingHouseDisplayName.Should().Contain("CENIT");
         cenitTransportDetail.Files.Should().HaveCount(2);
@@ -504,7 +511,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
             [Attempt(1, technical: true, code: "TIMEOUT", started: now.UtcDateTime.AddMinutes(28)), Attempt(2, success: true, code: "00", started: now.UtcDateTime.AddMinutes(29))]);
         await context.SaveChangesAsync();
         return new ScenarioIds(future.Id, pending.Id, accepted.Id, rejected.Id, returned.Id, withoutFile.Id, technical.Id, retry.Id,
-            exactFile.Id, achSpecialDate.Id, cenitSpecialDate.Id, cenitTransport.Id);
+            exactFile.Id, fillers[0].Id, achSpecialDate.Id, cenitSpecialDate.Id, cenitTransport.Id);
     }
 
     private static AchTransaction Phase4Transaction(string externalId, string trace, int sourceId, int destinationId, string cycleId, int batchId, DateTimeOffset createdAt)
@@ -560,13 +567,13 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         };
 
     private sealed record ScenarioIds(int FutureCycle, int PendingResponse, int Accepted, int Rejected, int AcceptedReturned,
-        int WithoutFile, int TechnicalFailure, int RetrySucceeded, int ExactFile, int AchSpecialDateCycle, int CenitSpecialDateCycle,
+        int WithoutFile, int TechnicalFailure, int RetrySucceeded, int ExactFile, int SecondFileMembership, int AchSpecialDateCycle, int CenitSpecialDateCycle,
         int CenitReturnTransport)
     {
         public static ScenarioIds From(IReadOnlyDictionary<string, int> ids) => new(
             ids["UAT-F4-MON-SAL-01-FUTURO"], ids["UAT-F4-MON-SAL-02-PENDIENTE"], ids["UAT-F4-MON-SAL-03-ACEPTADA"],
             ids["UAT-F4-MON-SAL-04-RECHAZADA"], ids["UAT-F4-MON-SAL-05-DEVUELTA"], ids["UAT-F4-MON-SAL-06-SIN-ARCHIVO"],
-            ids["UAT-F4-MON-SAL-07-ERROR-TECNICO"], ids["UAT-F4-MON-SAL-08-REINTENTO"], ids["UAT-F4-MON-SAL-11-ARCHIVO-EXACTO"],
+            ids["UAT-F4-MON-SAL-07-ERROR-TECNICO"], ids["UAT-F4-MON-SAL-08-REINTENTO"], ids["UAT-F4-MON-SAL-11-ARCHIVO-EXACTO"], ids["UAT-F4-MON-SAL-PAG-01"],
             ids["UAT-F4-MON-SAL-12-ACH-FECHA-ESPECIAL"], ids["UAT-F4-MON-SAL-13-CENIT-FECHA-ESPECIAL"],
             ids["UAT-F4-MON-SAL-14-CENIT-RETURN-TRANSPORT"]);
     }
