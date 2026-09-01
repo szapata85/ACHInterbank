@@ -258,13 +258,13 @@ UAT: NOT_READY
 
 ### NEXT-DELIVERY-001
 
-JOB_ID: RET-GAP-018.1
-STATUS: CLOSED
-OBJECTIVE: Correct transaction-detail file selection to use exact persisted transaction-to-file membership and expose that membership as the first unified lineage slice.
-WHY_NEXT: It is the highest-value executable operational gap after the closed transport, response, trace, and cycle work; it has no unresolved external or normative dependency.
-INCLUDED: Exact membership query/DTO/API and the focused operational detail presentation, with deterministic regression coverage for multi-file cycles.
-EXCLUDED: Dispatcher/SOAP/transport/ACK lineage reconstruction, new transport contracts, RET-GAP-019, external homologation/certification, and unrelated reporting/UI.
-ACCEPTANCE: A transaction detail identifies only its actual exported/received file when a cycle has multiple files; no cycle-level fallback can misattribute the file; focal regression tests pass.
+JOB_ID: NACHA-RULE-METADATA.2
+STATUS: OPEN
+OBJECTIVE: Move outbound chamber policy metadata from code into the existing NACHA profile/configuration boundary.
+WHY_NEXT: Verification confirms live CENIT/ACH-specific layout snapshots, batch partition/cardinality, settlement handling, and profile-version/cross-field branches remain embedded after profile resolution.
+INCLUDED: Define profile-level policy metadata and consume it in the official outbound generator, CENIT partitioner, and publish-time validation; retain deterministic regression coverage.
+EXCLUDED: New normative interpretation, inbound/Returns/SOAP/transport/UI work, external homologation, and RET-GAP-019.
+ACCEPTANCE: Official outbound behavior resolves chamber-specific policy from published metadata without the identified chamber-specific generation branches.
 
 ## Recent Sessions
 - 2026-08-31: OPS-GAP-002 implemented the internal ACH Colombia managed-file lifecycle with shared automatic/manual execution, durable immutable evidence, retries, recovery, archive/retirement, authorized API, and Spanish operations UI; external managed MFT deployment remains an operational dependency.
