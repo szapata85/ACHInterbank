@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
@@ -29,6 +30,7 @@ public class NachaFileBuilderFileIntegrityClosureTests
         var recordProvider = new Mock<INachaRecordDataProvider>(MockBehavior.Loose);
         var holiday = new Mock<IBankHoliday>(MockBehavior.Loose);
         var batchGenerator = new Mock<IBatchNumberGenerator>(MockBehavior.Strict);
+        var configResolver = new Mock<INachaConfigResolver>(MockBehavior.Strict);
 
         object? record8 = null;
         object? record9 = null;
@@ -110,6 +112,15 @@ public class NachaFileBuilderFileIntegrityClosureTests
                 1,
                 [new BatchNumberScopeTrace("DAILY_RESET_BY_CHAMBER_DATE_ORIGINATING_DFI", "scope", 14, 15, false, 1)]));
 
+        configResolver.Setup(x => x.ResolveAsync(It.IsAny<NachaConfigResolutionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaConfigResolutionResult
+            {
+                Success = true,
+                OutboundPolicy = chamberCode == "ACH" ? ResolveAchBatchPolicy() : null,
+                Trace = [],
+                Warnings = []
+            });
+
         var dbOptions = new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var db = new AchDbContext(dbOptions);
         db.CatClearingHouses.Add(new CatClearingHouse
@@ -128,7 +139,7 @@ public class NachaFileBuilderFileIntegrityClosureTests
         });
 
         var sut = new NachaFileBuilder(db, holiday.Object, loader.Object, validation.Object, renderer.Object, recordProvider.Object, semantic.Object,
-            null, null, null, null, null, null, null, options, null, batchGenerator.Object);
+            configResolver.Object, null, null, null, null, null, null, options, null, batchGenerator.Object);
 
         var content = await sut.BuildNachaFileAsync([100], CancellationToken.None);
 
@@ -163,5 +174,18 @@ public class NachaFileBuilderFileIntegrityClosureTests
         var prop = instance.GetType().GetProperty(propertyName);
         prop.Should().NotBeNull();
         return (long)(prop!.GetValue(instance) ?? 0L);
+    }
+
+    private static NachaOutboundPartitionPolicy ResolveAchBatchPolicy()
+    {
+        var result = NachaOutboundPolicyMetadata.Resolve("TEST_ACH_LEGACY", [
+            new(NachaOutboundPolicyMetadata.BatchNumberStrategyKey, "FileLocalOrdinal"),
+            new(NachaOutboundPolicyMetadata.BatchNumberScopeKey, "CurrentFile"),
+            new(NachaOutboundPolicyMetadata.BatchNumberStartingNumberKey, "1"),
+            new(NachaOutboundPolicyMetadata.BatchNumberMaximumKey, "9999999"),
+            new(NachaOutboundPolicyMetadata.BatchNumberPolicyIdentityKey, "ACHCOL_FILE_LOCAL_ORDINAL")
+        ]);
+        result.Status.Should().Be(NachaOutboundPolicyMetadataStatus.Resolved);
+        return result.Policy!;
     }
 }
