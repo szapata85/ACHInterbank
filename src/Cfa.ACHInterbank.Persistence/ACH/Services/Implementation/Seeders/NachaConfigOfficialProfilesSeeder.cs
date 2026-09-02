@@ -50,7 +50,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateOriginName: "CFA UAT",
             Prefix: "ACH_ORIGINAL_V35",
             VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
-            VersionMinor: AchColOfficialNachaLayout.ProfileVersionMinor));
+            VersionMinor: AchColOfficialNachaLayout.ProfileVersionMinor,
+            OutboundPolicy: BuildAchColombiaOutboundBatchNumberPolicy(AchColOfficialNachaLayout.OutboundOriginalProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: AchColOfficialNachaLayout.OutboundPrenotificationProfileCode,
@@ -69,7 +70,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateOriginName: "CFA UAT",
             Prefix: "ACH_PRENOTE_V35",
             VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
-            VersionMinor: AchColOfficialNachaLayout.ProfileVersionMinor));
+            VersionMinor: AchColOfficialNachaLayout.ProfileVersionMinor,
+            OutboundPolicy: BuildAchColombiaOutboundBatchNumberPolicy(AchColOfficialNachaLayout.OutboundPrenotificationProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: AchColOfficialNachaLayout.InboundOriginalProfileCode,
@@ -126,7 +128,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             RoutingDestination: "000101006",
             ImmediateDestinationName: "ACH COLOMBIA",
             ImmediateOriginName: "",
-            Prefix: "ACH_RETURN_OUT_V35"));
+            Prefix: "ACH_RETURN_OUT_V35",
+            OutboundPolicy: BuildAchColombiaOutboundBatchNumberPolicy("OFFICIAL_ACH_SALIDA_DEVOLUCION_V35_1_0")));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: "OFFICIAL_ACH_ENTRADA_DEVOLUCION_V1_0",
@@ -1022,6 +1025,19 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     MinAddendaPerEntry: 1,
                     AddendaCardinalityErrorCode: "CENIT_CCD_ADDENDA_REQUIRED")
             ]);
+
+    private static NachaOutboundPartitionPolicy BuildAchColombiaOutboundBatchNumberPolicy(string profileCode)
+        => new(
+            profileCode,
+            FileOrder: 0,
+            FileAllocation: default,
+            Services: [],
+            BatchNumberAssignment: new(
+                NachaOutboundBatchNumberAssignmentStrategy.FileLocalOrdinal,
+                NachaOutboundBatchNumberScope.CurrentFile,
+                StartingNumber: 1,
+                MaximumBatchNumber: 9_999_999,
+                PolicyIdentity: "ACHCOL_FILE_LOCAL_ORDINAL"));
 
     private static NachaOutboundPartitionPolicy BuildCenitCtxOutboundPolicy(string profileCode)
         => new(

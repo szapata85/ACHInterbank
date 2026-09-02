@@ -912,7 +912,13 @@ public class NachaFileBuilder : INachaFileBuilder
     {
         var orderedBatches = context.Batches.ToList();
         var clearingHouseCode = context.Cycle.ClearingHouse?.Name?.Contains("CENIT", StringComparison.OrdinalIgnoreCase) == true ? "CENIT" : "ACH";
-        var batchNumberAssignment = await ResolveBatchNumberAssignmentAsync(orderedBatches, clearingHouseCode, context.Cycle.ProcessingDate, ct);
+        var resolution = await ResolveRuntimeConfigAsync(context, definitions, ct);
+        var batchNumberAssignment = await ResolveBatchNumberAssignmentAsync(
+            orderedBatches,
+            clearingHouseCode,
+            context.Cycle.ProcessingDate,
+            resolution.OutboundPolicy?.BatchNumberAssignment,
+            ct);
         var batchSequenceById = batchNumberAssignment.BatchNumberByBatchId;
 
         if (!orderedBatches.Any())
@@ -937,7 +943,6 @@ public class NachaFileBuilder : INachaFileBuilder
             audit.Trace.Add($"BatchNumberScope:{scopeTrace.Scope};Policy={scopeTrace.PolicyCode};Previous={scopeTrace.PreviousValue};Assigned={scopeTrace.AssignedValue};WasCreated={scopeTrace.WasCreated};Reserved={scopeTrace.ReservedCount}");
         }
 
-        var resolution = await ResolveRuntimeConfigAsync(context, definitions, ct);
         if (resolution.Profile is not null)
         {
             audit.ProfileId = resolution.Profile.Id;
@@ -1164,6 +1169,7 @@ public class NachaFileBuilder : INachaFileBuilder
             orderedBatches,
             clearingHouseCode,
             operationalSnapshot.BogotaTimestamp,
+            resolution.OutboundPolicy?.BatchNumberAssignment,
             ct);
         var batchSequenceById = batchNumberAssignment.BatchNumberByBatchId;
 
@@ -1464,32 +1470,45 @@ public class NachaFileBuilder : INachaFileBuilder
         IReadOnlyList<AchBatch> orderedBatches,
         string clearingHouseCode,
         DateTime processingDate,
+        NachaOutboundBatchNumberAssignmentPolicy? batchNumberPolicy,
         CancellationToken ct)
     {
-        if (string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase))
+        if (batchNumberPolicy?.Strategy == NachaOutboundBatchNumberAssignmentStrategy.FileLocalOrdinal)
         {
-            if (orderedBatches.Count > 9_999_999)
+            if (batchNumberPolicy.Scope != NachaOutboundBatchNumberScope.CurrentFile)
+            {
+                throw new NachaGenerationException(
+                    "NACHA_BATCH_NUMBER_POLICY_INVALID",
+                    "La política publicada de numeración de lotes no tiene un alcance ejecutable.");
+            }
+            var availableNumbers = (long)batchNumberPolicy.MaximumBatchNumber - batchNumberPolicy.StartingNumber + 1;
+            if (orderedBatches.Count > availableNumbers)
             {
                 throw new NachaGenerationException(
                     "NACHA_BATCH_NUMBER_OVERFLOW",
-                    "La cantidad de lotes excede la capacidad normativa de siete posiciones.",
-                    ruleId: "ACHCOL-T5-BATCH-NUMBER",
-                    chamber: "ACHCOL",
+                    "La cantidad de lotes excede la capacidad publicada de numeración.",
+                    ruleId: null,
+                    chamber: clearingHouseCode,
                     recordType: "5/8",
                     fieldName: "BATCHNUMBER",
                     cause: "Ordinal de lote fuera de rango.",
-                    startPosition: 92,
-                    expectedLength: 7);
+                    expectedLength: batchNumberPolicy.MaximumBatchNumber.ToString(CultureInfo.InvariantCulture).Length);
             }
 
             var assignments = orderedBatches
-                .Select((batch, index) => new { batch.Id, Number = index + 1 })
+                .Select((batch, index) => new { batch.Id, Number = batchNumberPolicy.StartingNumber + index })
                 .ToDictionary(item => item.Id, item => item.Number);
             return Task.FromResult(new BatchNumberAssignmentResult(
                 assignments,
-                "ACHCOL_FILE_LOCAL_ORDINAL",
+                batchNumberPolicy.PolicyIdentity,
                 1,
-                [new BatchNumberScopeTrace("ACHCOL_FILE_LOCAL_ORDINAL", "CURRENT_FILE", 0, orderedBatches.Count, true, orderedBatches.Count)]));
+                [new BatchNumberScopeTrace(
+                    batchNumberPolicy.PolicyIdentity,
+                    batchNumberPolicy.Scope.ToString().ToUpperInvariant(),
+                    0,
+                    orderedBatches.Count,
+                    true,
+                    orderedBatches.Count)]));
         }
 
         var hasCompletePersistedAssignment = orderedBatches.Count > 0

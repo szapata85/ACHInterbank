@@ -207,6 +207,27 @@ public class NachaConfigResolverTests
         result.OutboundPolicy.Should().BeNull();
     }
 
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenPublishedBatchPolicyIsIncomplete()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        context.CfgProfileTags.Add(new CfgProfileTag
+        {
+            Id = 1,
+            ProfileId = 10,
+            TagKey = NachaOutboundPolicyMetadata.BatchNumberStrategyKey,
+            TagValue = "FileLocalOrdinal"
+        });
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequest(requireOutboundPolicy: true));
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.OutboundPolicyInvalid);
+        result.OutboundPolicy.Should().BeNull();
+    }
+
     private static AchDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()

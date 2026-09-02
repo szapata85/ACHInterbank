@@ -15,11 +15,29 @@ public enum NachaOutboundServicePartitionStrategy
     PreserveSourceBatches = 3
 }
 
+public enum NachaOutboundBatchNumberAssignmentStrategy
+{
+    FileLocalOrdinal = 1
+}
+
+public enum NachaOutboundBatchNumberScope
+{
+    CurrentFile = 1
+}
+
+public sealed record NachaOutboundBatchNumberAssignmentPolicy(
+    NachaOutboundBatchNumberAssignmentStrategy Strategy,
+    NachaOutboundBatchNumberScope Scope,
+    int StartingNumber,
+    int MaximumBatchNumber,
+    string PolicyIdentity);
+
 public sealed record NachaOutboundPartitionPolicy(
     string ProfileCode,
     int FileOrder,
     NachaOutboundFileAllocation FileAllocation,
-    IReadOnlyList<NachaOutboundServicePartitionPolicy> Services);
+    IReadOnlyList<NachaOutboundServicePartitionPolicy> Services,
+    NachaOutboundBatchNumberAssignmentPolicy? BatchNumberAssignment = null);
 
 public sealed record NachaOutboundServicePartitionPolicy(
     string ServiceCode,
@@ -50,6 +68,11 @@ public static class NachaOutboundPolicyMetadata
     public const string FileOrderKey = Prefix + "FileOrder";
     public const string FileAllocationKey = Prefix + "FileAllocation";
     public const string ServiceKeyPrefix = Prefix + "Service.";
+    public const string BatchNumberStrategyKey = Prefix + "BatchNumber.Strategy";
+    public const string BatchNumberScopeKey = Prefix + "BatchNumber.Scope";
+    public const string BatchNumberStartingNumberKey = Prefix + "BatchNumber.StartingNumber";
+    public const string BatchNumberMaximumKey = Prefix + "BatchNumber.Maximum";
+    public const string BatchNumberPolicyIdentityKey = Prefix + "BatchNumber.PolicyIdentity";
 
     public static IReadOnlyList<KeyValuePair<string, string>> ToTags(NachaOutboundPartitionPolicy policy)
     {
@@ -59,16 +82,26 @@ public static class NachaOutboundPolicyMetadata
             throw new ArgumentException(error, nameof(policy));
         }
 
-        var tags = new List<KeyValuePair<string, string>>
+        var tags = new List<KeyValuePair<string, string>>();
+        if (policy.FileOrder > 0)
         {
-            new(FileOrderKey, policy.FileOrder.ToString(CultureInfo.InvariantCulture)),
-            new(FileAllocationKey, policy.FileAllocation.ToString())
-        };
-        tags.AddRange(policy.Services
-            .OrderBy(service => service.Order)
-            .Select(service => new KeyValuePair<string, string>(
-                ServiceKeyPrefix + service.ServiceCode,
-                SerializeService(service))));
+            tags.Add(new(FileOrderKey, policy.FileOrder.ToString(CultureInfo.InvariantCulture)));
+            tags.Add(new(FileAllocationKey, policy.FileAllocation.ToString()));
+            tags.AddRange(policy.Services
+                .OrderBy(service => service.Order)
+                .Select(service => new KeyValuePair<string, string>(
+                    ServiceKeyPrefix + service.ServiceCode,
+                    SerializeService(service))));
+        }
+        if (policy.BatchNumberAssignment is not null)
+        {
+            var batch = policy.BatchNumberAssignment;
+            tags.Add(new(BatchNumberStrategyKey, batch.Strategy.ToString()));
+            tags.Add(new(BatchNumberScopeKey, batch.Scope.ToString()));
+            tags.Add(new(BatchNumberStartingNumberKey, batch.StartingNumber.ToString(CultureInfo.InvariantCulture)));
+            tags.Add(new(BatchNumberMaximumKey, batch.MaximumBatchNumber.ToString(CultureInfo.InvariantCulture)));
+            tags.Add(new(BatchNumberPolicyIdentityKey, batch.PolicyIdentity));
+        }
         return tags;
     }
 
@@ -95,46 +128,62 @@ public static class NachaOutboundPolicyMetadata
         var unknownPolicyTag = policyTags.FirstOrDefault(tag =>
             !string.Equals(tag.Key, FileOrderKey, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(tag.Key, FileAllocationKey, StringComparison.OrdinalIgnoreCase)
-            && !tag.Key.StartsWith(ServiceKeyPrefix, StringComparison.OrdinalIgnoreCase));
+            && !tag.Key.StartsWith(ServiceKeyPrefix, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(tag.Key, BatchNumberStrategyKey, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(tag.Key, BatchNumberScopeKey, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(tag.Key, BatchNumberStartingNumberKey, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(tag.Key, BatchNumberMaximumKey, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(tag.Key, BatchNumberPolicyIdentityKey, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(unknownPolicyTag.Key))
         {
             return Invalid($"La metadata outbound contiene la clave desconocida '{unknownPolicyTag.Key}'.");
         }
 
         var byKey = policyTags.ToDictionary(tag => tag.Key, tag => tag.Value, StringComparer.OrdinalIgnoreCase);
-        if (!TryPositiveInt(byKey, FileOrderKey, out var fileOrder, out var error))
-        {
-            return Invalid(error);
-        }
-        if (!byKey.TryGetValue(FileAllocationKey, out var allocationValue)
-            || !Enum.TryParse<NachaOutboundFileAllocation>(allocationValue, true, out var allocation)
-            || !Enum.IsDefined(allocation))
-        {
-            return Invalid($"La metadata outbound requiere '{FileAllocationKey}' válido.");
-        }
-
+        var hasPartitionTags = policyTags.Any(tag => string.Equals(tag.Key, FileOrderKey, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(tag.Key, FileAllocationKey, StringComparison.OrdinalIgnoreCase)
+            || tag.Key.StartsWith(ServiceKeyPrefix, StringComparison.OrdinalIgnoreCase));
+        var fileOrder = 0;
+        var allocation = default(NachaOutboundFileAllocation);
         var services = new List<NachaOutboundServicePartitionPolicy>();
-        foreach (var tag in policyTags.Where(tag => tag.Key.StartsWith(ServiceKeyPrefix, StringComparison.OrdinalIgnoreCase)))
+        if (hasPartitionTags)
         {
-            var serviceCode = tag.Key[ServiceKeyPrefix.Length..].Trim().ToUpperInvariant();
-            if (string.IsNullOrWhiteSpace(serviceCode))
+            if (!TryPositiveInt(byKey, FileOrderKey, out fileOrder, out var error))
             {
-                return Invalid("La metadata outbound contiene un código de servicio vacío.");
+                return Invalid(error);
             }
-
-            var serviceResult = ParseService(serviceCode, tag.Value);
-            if (serviceResult.Error is not null)
+            if (!byKey.TryGetValue(FileAllocationKey, out var allocationValue)
+                || !Enum.TryParse<NachaOutboundFileAllocation>(allocationValue, true, out allocation)
+                || !Enum.IsDefined(allocation))
             {
-                return Invalid(serviceResult.Error);
+                return Invalid($"La metadata outbound requiere '{FileAllocationKey}' válido.");
             }
-            services.Add(serviceResult.Policy!);
+            foreach (var tag in policyTags.Where(tag => tag.Key.StartsWith(ServiceKeyPrefix, StringComparison.OrdinalIgnoreCase)))
+            {
+                var serviceCode = tag.Key[ServiceKeyPrefix.Length..].Trim().ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(serviceCode))
+                {
+                    return Invalid("La metadata outbound contiene un código de servicio vacío.");
+                }
+                var serviceResult = ParseService(serviceCode, tag.Value);
+                if (serviceResult.Error is not null)
+                {
+                    return Invalid(serviceResult.Error);
+                }
+                services.Add(serviceResult.Policy!);
+            }
         }
 
-        var policy = new NachaOutboundPartitionPolicy(profileCode, fileOrder, allocation, services);
-        error = Validate(policy);
-        return error is null
+        var batchResult = ParseBatchNumberAssignment(byKey);
+        if (batchResult.Error is not null)
+        {
+            return Invalid(batchResult.Error);
+        }
+        var policy = new NachaOutboundPartitionPolicy(profileCode, fileOrder, allocation, services, batchResult.Policy);
+        var validationError = Validate(policy);
+        return validationError is null
             ? new(NachaOutboundPolicyMetadataStatus.Resolved, policy)
-            : Invalid(error);
+            : Invalid(validationError);
     }
 
     public static string? Validate(NachaOutboundPartitionPolicy policy)
@@ -143,15 +192,20 @@ public static class NachaOutboundPolicyMetadata
         {
             return "La política outbound requiere identidad de perfil.";
         }
-        if (policy.FileOrder <= 0)
+        var hasPartitionPolicy = policy.FileOrder != 0 || policy.Services.Count != 0 || Enum.IsDefined(policy.FileAllocation);
+        if (!hasPartitionPolicy && policy.BatchNumberAssignment is null)
+        {
+            return "La política outbound requiere una política de partición o numeración de lotes.";
+        }
+        if (hasPartitionPolicy && policy.FileOrder <= 0)
         {
             return "La política outbound requiere un orden de archivo positivo.";
         }
-        if (!Enum.IsDefined(policy.FileAllocation))
+        if (hasPartitionPolicy && !Enum.IsDefined(policy.FileAllocation))
         {
             return "La política outbound contiene una asignación de archivos inválida.";
         }
-        if (policy.Services.Count == 0)
+        if (hasPartitionPolicy && policy.Services.Count == 0)
         {
             return "La política outbound requiere al menos un servicio.";
         }
@@ -207,6 +261,16 @@ public static class NachaOutboundPolicyMetadata
             }
         }
 
+        if (policy.BatchNumberAssignment is { } batch
+            && (!Enum.IsDefined(batch.Strategy)
+                || !Enum.IsDefined(batch.Scope)
+                || batch.StartingNumber <= 0
+                || batch.MaximumBatchNumber < batch.StartingNumber
+                || string.IsNullOrWhiteSpace(batch.PolicyIdentity)))
+        {
+            return "La política outbound de numeración de lotes es incompleta o inválida.";
+        }
+
         return null;
     }
 
@@ -227,6 +291,46 @@ public static class NachaOutboundPolicyMetadata
             values.Add($"AddendaErrorCode={service.AddendaCardinalityErrorCode}");
         }
         return string.Join(';', values);
+    }
+
+    private static (NachaOutboundBatchNumberAssignmentPolicy? Policy, string? Error) ParseBatchNumberAssignment(
+        IReadOnlyDictionary<string, string> values)
+    {
+        var batchKeys = new[]
+        {
+            BatchNumberStrategyKey,
+            BatchNumberScopeKey,
+            BatchNumberStartingNumberKey,
+            BatchNumberMaximumKey,
+            BatchNumberPolicyIdentityKey
+        };
+        if (!batchKeys.Any(values.ContainsKey))
+        {
+            return (null, null);
+        }
+        if (!values.TryGetValue(BatchNumberStrategyKey, out var strategyValue)
+            || !Enum.TryParse<NachaOutboundBatchNumberAssignmentStrategy>(strategyValue, true, out var strategy)
+            || !Enum.IsDefined(strategy))
+        {
+            return (null, $"La metadata outbound requiere '{BatchNumberStrategyKey}' válido.");
+        }
+        if (!values.TryGetValue(BatchNumberScopeKey, out var scopeValue)
+            || !Enum.TryParse<NachaOutboundBatchNumberScope>(scopeValue, true, out var scope)
+            || !Enum.IsDefined(scope))
+        {
+            return (null, $"La metadata outbound requiere '{BatchNumberScopeKey}' válido.");
+        }
+        if (!TryPositiveInt(values, BatchNumberStartingNumberKey, out var startingNumber, out var error)
+            || !TryPositiveInt(values, BatchNumberMaximumKey, out var maximum, out error))
+        {
+            return (null, error);
+        }
+        if (!values.TryGetValue(BatchNumberPolicyIdentityKey, out var policyIdentity)
+            || string.IsNullOrWhiteSpace(policyIdentity))
+        {
+            return (null, $"La metadata outbound requiere '{BatchNumberPolicyIdentityKey}' válido.");
+        }
+        return (new(strategy, scope, startingNumber, maximum, policyIdentity.Trim()), null);
     }
 
     private static (NachaOutboundServicePartitionPolicy? Policy, string? Error) ParseService(

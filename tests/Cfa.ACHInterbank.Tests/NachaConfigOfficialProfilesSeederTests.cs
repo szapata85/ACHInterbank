@@ -240,6 +240,33 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     }
 
     [Fact]
+    public async Task AchOutboundProfile_ShouldFailClosed_WhenPublishedBatchPolicyIsIncomplete()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles
+            .Include(candidate => candidate.Tags)
+            .SingleAsync(candidate => candidate.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        context.CfgProfileTags.Remove(profile.Tags.Single(tag =>
+            tag.TagKey == NachaOutboundPolicyMetadata.BatchNumberMaximumKey));
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc),
+            RequestedVersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
+            RequestedVersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor,
+            RecordCodes = RequiredRecords
+        });
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.OutboundPolicyInvalid);
+    }
+
+    [Fact]
     public async Task PublishedProfiles_ShouldHaveEffectiveDates()
     {
         await using var context = await SeedAsync();

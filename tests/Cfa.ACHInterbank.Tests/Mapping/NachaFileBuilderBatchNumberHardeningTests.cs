@@ -108,6 +108,71 @@ public class NachaFileBuilderBatchNumberHardeningTests
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task BuildNachaFileAsync_ShouldAssignPublishedFileLocalOrdinalsInFileOrder()
+    {
+        var setup = CreateBaseSut(mode: "HYBRID", batchCount: 3);
+        var batchNumbers = new List<int>();
+        setup.Renderer.Setup(x => x.RenderRecordAsync("5", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()))
+            .Callback<string, object, NachaRecordLayout>((_, entity, _) => batchNumbers.Add(ReadIntProperty(entity, "BatchNumber")))
+            .ReturnsAsync(new string('5', 106));
+
+        await setup.Sut.BuildNachaFileAsync([100, 101, 102], CancellationToken.None);
+
+        batchNumbers.Should().Equal(1, 2, 3);
+    }
+
+    [Fact]
+    public async Task BuildNachaFileAsync_ShouldEnforcePublishedBatchNumberCapacity()
+    {
+        var setup = CreateBaseSut(mode: "HYBRID", batchCount: 3, batchPolicy: FileLocalPolicy(maximum: 2));
+
+        var ex = await Assert.ThrowsAsync<NachaGenerationException>(() =>
+            setup.Sut.BuildNachaFileAsync([100, 101, 102], CancellationToken.None));
+
+        ex.Code.Should().Be("NACHA_BATCH_NUMBER_OVERFLOW");
+    }
+
+    [Fact]
+    public async Task BuildNachaFileAsync_ShouldUsePublishedPolicyWithoutAchChamberCheck()
+    {
+        var setup = CreateBaseSut(
+            mode: "HYBRID",
+            persistedBatchNumber: 42,
+            clearingHouseName: "CENIT",
+            batchPolicy: FileLocalPolicy());
+        object? record5 = null;
+        setup.Renderer.Setup(x => x.RenderRecordAsync("5", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()))
+            .Callback<string, object, NachaRecordLayout>((_, entity, _) => record5 = entity)
+            .ReturnsAsync(new string('5', 106));
+
+        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        ReadIntProperty(record5!, "BatchNumber").Should().Be(1);
+        setup.BatchGenerator.Verify(x => x.AssignBatchNumbersAsync(
+            It.IsAny<IReadOnlyList<AchBatch>>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task BuildNachaFileAsync_WithoutPublishedPolicy_ShouldPreserveNonAchPersistedAssignment()
+    {
+        var setup = CreateBaseSut(
+            mode: "HYBRID",
+            persistedBatchNumber: 42,
+            clearingHouseName: "CENIT",
+            publishBatchPolicy: false);
+        object? record5 = null;
+        setup.Renderer.Setup(x => x.RenderRecordAsync("5", It.IsAny<object>(), It.IsAny<NachaRecordLayout>()))
+            .Callback<string, object, NachaRecordLayout>((_, entity, _) => record5 = entity)
+            .ReturnsAsync(new string('5', 106));
+
+        await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        ReadIntProperty(record5!, "BatchNumber").Should().Be(42);
+        setup.BatchGenerator.Verify(x => x.AssignBatchNumbersAsync(
+            It.IsAny<IReadOnlyList<AchBatch>>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static int ReadIntProperty(object instance, string propertyName)
     {
         var prop = instance.GetType().GetProperty(propertyName);
@@ -115,7 +180,13 @@ public class NachaFileBuilderBatchNumberHardeningTests
         return (int)(prop!.GetValue(instance) ?? 0);
     }
 
-    private static SutSetup CreateBaseSut(string mode, int persistedBatchNumber = 0)
+    private static SutSetup CreateBaseSut(
+        string mode,
+        int persistedBatchNumber = 0,
+        string clearingHouseName = "ACH Colombia",
+        NachaOutboundBatchNumberAssignmentPolicy? batchPolicy = null,
+        bool publishBatchPolicy = true,
+        int batchCount = 1)
     {
         var loader = new Mock<INachaDataLoader>(MockBehavior.Strict);
         var renderer = new Mock<INachaFixedWidthRecordRenderer>(MockBehavior.Strict);
@@ -126,7 +197,7 @@ public class NachaFileBuilderBatchNumberHardeningTests
         var holiday = new Mock<IBankHoliday>(MockBehavior.Loose);
         var batchGenerator = new Mock<IBatchNumberGenerator>(MockBehavior.Strict);
 
-        var cycle = new AchCycle { Id = "c1", CycleName = "C40", ProcessingDate = DateTime.UtcNow, ClearingHouse = new ClearingHouse { Name = "ACH Colombia" } };
+        var cycle = new AchCycle { Id = "c1", CycleName = "C40", ProcessingDate = DateTime.UtcNow, ClearingHouse = new ClearingHouse { Name = clearingHouseName } };
         var tx = new AchTransaction
         {
             Id = 1,
@@ -142,7 +213,33 @@ public class NachaFileBuilderBatchNumberHardeningTests
         };
         var batch = new AchBatch { Id = 100, AchCycle = cycle, AchCycleId = cycle.Id, CompanyIdentification = "1234567890", CompanyName = "CO", OriginOrOdfi = "12345678", ServiceClassCode = "220", EffectiveEntryDate = DateTime.UtcNow, Transactions = [tx], CompanyEntryDescription = "PAGOS", BatchSequenceNumber = persistedBatchNumber };
 
-        loader.Setup(x => x.LoadBatchesByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>())).ReturnsAsync([batch]);
+        var batches = new[] { batch }.Concat(Enumerable.Range(1, batchCount - 1).Select(index => new AchBatch
+        {
+            Id = 100 + index,
+            AchCycle = cycle,
+            AchCycleId = cycle.Id,
+            CompanyIdentification = "1234567890",
+            CompanyName = "CO",
+            OriginOrOdfi = "12345678",
+            ServiceClassCode = "220",
+            EffectiveEntryDate = DateTime.UtcNow,
+            CompanyEntryDescription = "PAGOS",
+            BatchSequenceNumber = persistedBatchNumber + index,
+            Transactions = [new AchTransaction
+            {
+                Id = index + 1,
+                Type = TransactionTypeEnum.Credit,
+                Amount = 100m,
+                AchBatchId = 100 + index,
+                AchCycleId = cycle.Id,
+                CompanyIdentification = "1234567890",
+                ReceivingDFI = "12345678",
+                DestinationAccountNumber = "1234567890",
+                TraceNumber = $"12345678{index + 1:0000000}",
+                Addendas = []
+            }]
+        })).ToArray();
+        loader.Setup(x => x.LoadBatchesByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>())).ReturnsAsync(batches);
         loader.Setup(x => x.LoadHeaderAsync(cycle.Id, It.IsAny<CancellationToken>())).ReturnsAsync((NachaHeader?)null);
         loader.Setup(x => x.LoadLayoutsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new Dictionary<string, NachaRecordLayout>
         {
@@ -164,7 +261,15 @@ public class NachaFileBuilderBatchNumberHardeningTests
         validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
         resolver.Setup(x => x.ResolveAsync(It.IsAny<NachaConfigResolutionRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new NachaConfigResolutionResult { Success = false, Trace = [], Warnings = [] });
+            .ReturnsAsync(new NachaConfigResolutionResult
+            {
+                Success = false,
+                Trace = [],
+                Warnings = [],
+                OutboundPolicy = publishBatchPolicy
+                    ? new NachaOutboundPartitionPolicy("TEST", 0, default, [], batchPolicy ?? FileLocalPolicy())
+                    : null
+            });
 
         renderer.Setup(x => x.RenderRecordAsync("1", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('1', 106));
         renderer.Setup(x => x.RenderRecordAsync("5", It.IsAny<object>(), It.IsAny<NachaRecordLayout>())).ReturnsAsync(new string('5', 106));
@@ -199,6 +304,14 @@ public class NachaFileBuilderBatchNumberHardeningTests
 
         return new SutSetup(sut, renderer, batchGenerator);
     }
+
+    private static NachaOutboundBatchNumberAssignmentPolicy FileLocalPolicy(int maximum = 9_999_999)
+        => new(
+            NachaOutboundBatchNumberAssignmentStrategy.FileLocalOrdinal,
+            NachaOutboundBatchNumberScope.CurrentFile,
+            1,
+            maximum,
+            "ACHCOL_FILE_LOCAL_ORDINAL");
 
     private sealed record SutSetup(NachaFileBuilder Sut, Mock<INachaFixedWidthRecordRenderer> Renderer, Mock<IBatchNumberGenerator> BatchGenerator);
 

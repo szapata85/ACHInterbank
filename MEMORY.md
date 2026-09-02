@@ -117,7 +117,9 @@ CURRENT_DELTA: The May 7, 2026 specification drives table-driven ordinary PPD/CC
 STATUS: PARTIAL — EXISTING OWNER REUSED
 SLICE_2A: CLOSED — Published profile tags now carry typed outbound partition/cardinality/addenda policy through NachaConfigResolver to CenitOutboundFilePartitioner. Current PPD, CCD, and CTX output behavior is preserved without partitioner-side CENIT service tables or numeric limits.
 EVIDENCE_2A: Release test-project build 7 projects/0 errors/0 warnings; CenitOutboundFilePartitionerTests 18/18; NachaConfigResolverTests 10/10; NachaConfigOfficialProfilesSeederTests 47/47; OfficialNachaGenerationTableDrivenTests 70/70; NachaFileBuilderUnitTests 6/6.
-CURRENT_DELTA: NACHA-RULE-METADATA remains PARTIAL. Remaining categories are ACH batch policy, settlement policy, generator layout snapshots, and profile-version / SEC / cross-field policy.
+SLICE_2B: CLOSED — ACH outbound batch assignment is published as typed strategy/scope/start/maximum/audit metadata, resolved by NachaConfigResolver, and consumed without a chamber-specific branch. File-local ordinal output and Type-5/Type-8 agreement are preserved; non-file-local paths retain persisted/generator behavior.
+EVIDENCE_2B: Release Application, Persistence, and test-project builds succeeded with 0 errors/0 warnings. Focused deterministic tests passed for file order, Type-5/Type-8 agreement, metadata-defined capacity, metadata authority without ACH chamber detection, non-ACH persisted assignment, and incomplete batch metadata fail-closed.
+CURRENT_DELTA: NACHA-RULE-METADATA remains PARTIAL. Remaining categories are settlement policy, generator layout snapshots, and profile-version / SEC / cross-field policy.
 
 ### RET-GAP-018
 
