@@ -1,5 +1,6 @@
 using System.Text;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
@@ -9,6 +10,7 @@ using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -47,6 +49,65 @@ public sealed class AchColombiaManagedFileExchangeTests
         await using var fixture = await Fixture.CreateAsync();
         var result = await fixture.Service.ExecuteOutboundAsync("ACH-1", AchManagedFileExecutionOrigin.Manual, "operator", "manual-only");
         Assert.Equal(1, result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData(AchManagedFileDirection.Outbound)]
+    [InlineData(AchManagedFileDirection.Inbound)]
+    public async Task DisabledProfile_ShouldFailClosedForManualExecution(AchManagedFileDirection direction)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Configuration.ProfileEnabled = false;
+        await fixture.Context.SaveChangesAsync();
+
+        var error = direction == AchManagedFileDirection.Outbound
+            ? await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ExecuteOutboundAsync("ACH-1", AchManagedFileExecutionOrigin.Manual, "operator", "profile-off"))
+            : await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ExecuteInboundAsync(AchManagedFileExecutionOrigin.Manual, "operator", "profile-off"));
+
+        Assert.Equal("ACHCOL_MFT_DISABLED", error.Message);
+    }
+
+    [Fact]
+    public async Task Administration_ShouldPersistSafeConfigurationAndProtectedCredential()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var before = await fixture.Service.GetAdministrationAsync();
+        var updated = await fixture.Service.UpdateAdministrationAsync(new(
+            "MFT principal", "ManagedFolder", "ManagedFile", true, "mft.local", 443, "operador",
+            false, false, true, true, 4, 120, 180,
+            "out-persisted", "in-persisted", "archive-persisted", before.ConcurrencyToken), "operator");
+
+        var credential = await fixture.Service.SetCredentialAsync(new("Password", "super-secret"), "operator");
+        var persisted = await fixture.Context.AchManagedFileTransferConfigurations.SingleAsync();
+        var read = await fixture.Service.GetAdministrationAsync();
+
+        Assert.Equal("out-persisted", updated.OutboundLocation);
+        Assert.True(credential.CredentialConfigured);
+        Assert.NotEqual("super-secret", persisted.ProtectedCredential);
+        Assert.DoesNotContain("super-secret", System.Text.Json.JsonSerializer.Serialize(read));
+        Assert.DoesNotContain(await fixture.Context.AuditLogs.Select(x => (x.BeforeJson ?? "") + (x.AfterJson ?? "") + (x.ChangedFields ?? "")).ToListAsync(), x => x.Contains("super-secret", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task EffectiveConfiguration_ShouldUsePersistedRoutesAndStaticProcessingLimits()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Configuration.ProfileEnabled = true;
+        fixture.Configuration.OutboundLocation = "out-persisted";
+        fixture.Configuration.InboundLocation = "in-persisted";
+        fixture.Configuration.ArchiveLocation = "archive-persisted";
+        await fixture.Context.SaveChangesAsync();
+
+        var provider = new AchColombiaManagedMftConfigurationProvider(fixture.Context, Options.Create(new AchColombiaManagedMftOptions
+        { ProcessingPath = "processing-static", MaximumFileBytes = 123 }));
+        var effective = await provider.GetEffectiveAsync();
+
+        Assert.True(effective.Enabled);
+        Assert.Equal("out-persisted", effective.OutboundPath);
+        Assert.Equal("in-persisted", effective.InboundPath);
+        Assert.Equal("archive-persisted", effective.ArchivePath);
+        Assert.Equal("processing-static", effective.ProcessingPath);
+        Assert.Equal(123, effective.MaximumFileBytes);
     }
 
     [Theory]
@@ -200,7 +261,7 @@ public sealed class AchColombiaManagedFileExchangeTests
             var chamber = new ClearingHouse { Id = 1, ClearingHouseId = 1, Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "0001001" };
             context.ClearingHouses.Add(chamber);
             context.AchCycles.Add(new AchCycle { Id = "ACH-1", CycleName = "Ciclo 1", ProcessingDate = new(2026, 8, 31), CutoffTime = new(8, 30, 0), ClearingHouseId = 1 });
-            var configuration = new AchManagedFileTransferConfiguration { ClearingHouseId = 1, ManualOutboundAllowed = true, ManualInboundAllowed = true };
+            var configuration = new AchManagedFileTransferConfiguration { ClearingHouseId = 1, ProfileEnabled = true, ManualOutboundAllowed = true, ManualInboundAllowed = true };
             context.AchManagedFileTransferConfigurations.Add(configuration);
             await context.SaveChangesAsync();
             var builder = new Mock<INachaFileBuilder>();
@@ -225,8 +286,11 @@ public sealed class AchColombiaManagedFileExchangeTests
             ingestion.Setup(x => x.IngestAsync(It.IsAny<IncomingNachaIngestionRequest>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((IncomingNachaIngestionRequest request, CancellationToken _) => new IncomingNachaIngestionResponse { IngestionId = Guid.NewGuid(), OriginalFileName = request.FileName, IngestionStatus = IncomingNachaIngestionStatus.Completado, ParsingStatus = IncomingNachaParsingStatus.Exitoso, OperationalDate = new(2026, 8, 31) });
             var adapter = new StubAdapter();
+            var encryption = new Mock<Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces.IEncryptionService>();
+            encryption.Setup(x => x.Encrypt("super-secret")).Returns("protected:super-secret");
             var service = new AchColombiaManagedFileExchangeService(context, builder.Object, naming.Object, time.Object, envelope.Object,
-                new AchFileExportAuditService(context), ingestion.Object, adapter);
+                new AchFileExportAuditService(context), ingestion.Object, adapter, encryption.Object, Options.Create(new AchColombiaManagedMftOptions
+                { Enabled = true, OutboundPath = "out", InboundPath = "in", ProcessingPath = "processing", ArchivePath = "archive", MaximumFileBytes = 99 }));
             return new() { Context = context, Builder = builder, Adapter = adapter, Configuration = configuration, Service = service };
         }
 
