@@ -117,8 +117,8 @@ CURRENT_DELTA: The May 7, 2026 specification drives table-driven ordinary PPD/CC
 STATUS: PARTIAL — EXISTING OWNER REUSED
 SLICE_2A: CLOSED — Published profile tags now carry typed outbound partition/cardinality/addenda policy through NachaConfigResolver to CenitOutboundFilePartitioner. Current PPD, CCD, and CTX output behavior is preserved without partitioner-side CENIT service tables or numeric limits.
 EVIDENCE_2A: Release test-project build 7 projects/0 errors/0 warnings; CenitOutboundFilePartitionerTests 18/18; NachaConfigResolverTests 10/10; NachaConfigOfficialProfilesSeederTests 47/47; OfficialNachaGenerationTableDrivenTests 70/70; NachaFileBuilderUnitTests 6/6.
-SLICE_2B: CLOSED_PENDING_CI — ACH outbound batch assignment is published as typed strategy/scope/start/maximum/audit metadata, resolved by NachaConfigResolver, and consumed without a chamber-specific branch. CI stabilization supplies the required resolved metadata in the legacy integrity fixture; no product behavior or generator branch changed.
-EVIDENCE_2B: Release Application, Persistence, and test-project builds succeeded with 0 errors/0 warnings. CI regression 33590417183 was traced to a legacy fixture with no resolver/policy falling back to generator value 15; focused legacy integrity (ACH/CENIT), file order, Type-5/Type-8 agreement, metadata capacity/authority, and non-ACH persisted assignment tests pass. Awaiting broad CI.
+SLICE_2B: CLOSED — ACH outbound batch assignment is published as typed strategy/scope/start/maximum/audit metadata, resolved by NachaConfigResolver, and consumed without a chamber-specific branch. CI stabilization commit 47427a26 corrected TEST_SETUP_MISSING_REQUIRED_POLICY in the legacy fixture only; no product behavior or generator branch changed.
+EVIDENCE_2B: GitHub Actions run 33591708889 green: build-and-test, Outgoing monitor (SQL Server + PostgreSQL), and ReturnOut concurrency (SQL Server + PostgreSQL). This broad CI evidence closes 2B.
 CURRENT_DELTA: NACHA-RULE-METADATA remains PARTIAL. Remaining categories are settlement policy, generator layout snapshots, and profile-version / SEC / cross-field policy.
 
 ### RET-GAP-018
