@@ -13,8 +13,3 @@ export interface TransferDetail extends TransferSummary {
   lastError?: string; archivedAtUtc?: string; retiredAtUtc?: string; retirementReason?: string;
   correctedFromTransferId?: string; history: TransferEvent[];
 }
-export interface TransferConfiguration {
-  automaticOutboundEnabled: boolean; automaticInboundEnabled: boolean; manualOutboundAllowed: boolean;
-  manualInboundAllowed: boolean; maximumRetries: number; retentionDays: number; outboundLocation: string;
-  inboundLocation: string; archiveLocation: string; concurrencyToken: string;
-}

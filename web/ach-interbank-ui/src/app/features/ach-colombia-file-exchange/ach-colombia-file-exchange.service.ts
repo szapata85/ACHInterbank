@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
-import { ExecutionOrigin, TransferConfiguration, TransferDetail, TransferDirection, TransferStatus, TransferSummary } from './ach-colombia-file-exchange.models';
+import { ExecutionOrigin, TransferDetail, TransferDirection, TransferStatus, TransferSummary } from './ach-colombia-file-exchange.models';
 
 @Injectable({ providedIn: 'root' })
 export class AchColombiaFileExchangeService {
@@ -16,8 +16,6 @@ export class AchColombiaFileExchangeService {
     return this.api.get<TransferSummary[]>(`${this.base}/transfers`, { params });
   }
   detail(id: string) { return this.api.get<TransferDetail>(`${this.base}/transfers/${id}`); }
-  configuration() { return this.api.get<TransferConfiguration>(`${this.base}/configuration`); }
-  saveConfiguration(value: TransferConfiguration) { return this.api.put<TransferConfiguration>(`${this.base}/configuration`, value); }
   executeOutbound(cycleId: string) { return this.api.post(`${this.base}/outbound/execute`, { cycleId }); }
   executeInbound() { return this.api.post(`${this.base}/inbound/execute`, {}); }
   retry(id: string) { return this.api.post<TransferDetail>(`${this.base}/transfers/${id}/retry`, {}); }
