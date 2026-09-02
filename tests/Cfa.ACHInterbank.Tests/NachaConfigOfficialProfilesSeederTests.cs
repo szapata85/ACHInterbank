@@ -190,6 +190,56 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     }
 
     [Fact]
+    public async Task CenitOutboundProfiles_ShouldPublishResolvedPartitionPolicies()
+    {
+        await using var context = await SeedAsync();
+        var resolver = new NachaConfigResolver(context);
+        var ordinary = await resolver.ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+            RequireOutboundPolicy = true,
+            RecordCodes = RequiredRecords
+        });
+        var ctx = await resolver.ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "CTX",
+            ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+            RequireOutboundPolicy = true,
+            RecordCodes = RequiredRecords
+        });
+
+        ordinary.Success.Should().BeTrue(string.Join(" | ", ordinary.Trace));
+        ordinary.OutboundPolicy.Should().NotBeNull();
+        ordinary.OutboundPolicy!.FileAllocation.Should().Be(NachaOutboundFileAllocation.CombineServicePartitionsByIndex);
+        ordinary.OutboundPolicy.Services.Single(service => service.ServiceCode == "PPD")
+            .Should().Match<NachaOutboundServicePartitionPolicy>(service =>
+                service.Strategy == NachaOutboundServicePartitionStrategy.EntriesPerFile
+                && service.MaxEntriesPerFile == 10_000);
+        ordinary.OutboundPolicy.Services.Single(service => service.ServiceCode == "CCD")
+            .Should().Match<NachaOutboundServicePartitionPolicy>(service =>
+                service.Strategy == NachaOutboundServicePartitionStrategy.FixedEntriesPerBatch
+                && service.EntriesPerBatch == 1
+                && service.MaxBatchesPerFile == 10_000
+                && service.MinAddendaPerEntry == 1);
+
+        ctx.Success.Should().BeTrue(string.Join(" | ", ctx.Trace));
+        ctx.OutboundPolicy.Should().NotBeNull();
+        ctx.OutboundPolicy!.FileAllocation.Should().Be(NachaOutboundFileAllocation.IndependentServiceFiles);
+        ctx.OutboundPolicy.Services.Single().Should().Match<NachaOutboundServicePartitionPolicy>(service =>
+            service.ServiceCode == "CTX"
+            && service.Strategy == NachaOutboundServicePartitionStrategy.PreserveSourceBatches
+            && service.MinAddendaPerEntry == 1
+            && service.MaxAddendaPerEntry == 9_999);
+    }
+
+    [Fact]
     public async Task PublishedProfiles_ShouldHaveEffectiveDates()
     {
         await using var context = await SeedAsync();

@@ -131,6 +131,29 @@ public class NachaConfigResolver : INachaConfigResolver
 
         trace.Add($"Perfil seleccionado: {profile.ProfileCode} (Id={profile.Id}).");
 
+        var outboundPolicyMetadata = NachaOutboundPolicyMetadata.Resolve(
+            profile.ProfileCode,
+            profile.Tags.Select(tag => new KeyValuePair<string, string>(tag.TagKey, tag.TagValue)));
+        if (outboundPolicyMetadata.Status == NachaOutboundPolicyMetadataStatus.Invalid)
+        {
+            return Failure(
+                NachaProfileSelectionStatus.OutboundPolicyInvalid,
+                outboundPolicyMetadata.Error ?? "La política outbound del perfil es inválida.",
+                trace,
+                warnings,
+                profile);
+        }
+        if (request.RequireOutboundPolicy
+            && outboundPolicyMetadata.Status == NachaOutboundPolicyMetadataStatus.NotPresent)
+        {
+            return Failure(
+                NachaProfileSelectionStatus.OutboundPolicyMissing,
+                $"El perfil oficial '{profile.ProfileCode}' no publica la política outbound requerida.",
+                trace,
+                warnings,
+                profile);
+        }
+
         var neededRecordCodes = request.RecordCodes.Count > 0
             ? request.RecordCodes.ToHashSet(StringComparer.OrdinalIgnoreCase)
             : profile.Records.Where(x => x.IsEnabled).Select(x => x.RecordCode.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -213,6 +236,7 @@ public class NachaConfigResolver : INachaConfigResolver
             SelectionStatus = NachaProfileSelectionStatus.ProfileSelected,
             UsedFallback = false,
             Profile = profile,
+            OutboundPolicy = outboundPolicyMetadata.Policy,
             LayoutsByRecordCode = selectedLayouts,
             LayoutVariantsByRecordCode = variantsByRecordCode,
             Trace = trace,

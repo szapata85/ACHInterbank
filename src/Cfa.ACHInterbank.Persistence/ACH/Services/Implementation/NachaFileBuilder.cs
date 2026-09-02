@@ -449,7 +449,8 @@ public class NachaFileBuilder : INachaFileBuilder
                 ResolveStandardEntryClassCode(batch, transactionsByBatchId[batch.Id], catalog),
                 transactionsByBatchId[batch.Id]))
             .ToArray();
-        var partitions = CenitOutboundFilePartitioner.Partition(sources);
+        var outboundPolicies = await ResolveCenitOutboundPoliciesAsync(context, sources, ct);
+        var partitions = CenitOutboundFilePartitioner.Partition(sources, outboundPolicies);
         EnsureCompleteCenitMembership(transactions, partitions);
 
         var artifacts = new List<NachaFileBuildArtifact>(partitions.Count);
@@ -464,26 +465,60 @@ public class NachaFileBuilder : INachaFileBuilder
                     batch.ServiceCode,
                     batch.Transactions.Select(transaction => transaction.Id).OrderBy(id => id).ToArray()))
                 .ToArray();
-            var isCtx = partition.ProfileIdentity == CenitOutboundFilePartitioner.CtxProfileIdentity;
-            var isPrenotification = NachaProfileDimensionResolver.ResolveFlowCode(fileContext.Transactions) == "PRENOTIFICACION";
-            var profileIdentity = (isCtx, isPrenotification) switch
-            {
-                (true, true) => CenitCtxOutbound2026Layout.PrenotificationProfileCode,
-                (true, false) => CenitCtxOutbound2026Layout.OriginalProfileCode,
-                (false, true) => CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode,
-                _ => CenitOrdinaryOutbound2026Layout.OriginalProfileCode
-            };
             artifacts.Add(new NachaFileBuildArtifact(
                 content,
                 fileContext.Transactions.Select(transaction => transaction.Id).OrderBy(id => id).ToArray())
             {
-                ProfileIdentity = profileIdentity,
+                ProfileIdentity = partition.ProfileIdentity,
                 ServiceCodes = partition.ServiceCodes,
                 Batches = memberships
             });
         }
 
         return new NachaFileBuildResult(artifacts);
+    }
+
+    private async Task<IReadOnlyList<NachaOutboundPartitionPolicy>> ResolveCenitOutboundPoliciesAsync(
+        NachaBuildContext context,
+        IReadOnlyList<CenitOutboundSourceBatch> sources,
+        CancellationToken ct)
+    {
+        if (_configResolver is null)
+        {
+            throw new NachaGenerationException(
+                "NACHA_OUTBOUND_POLICY_RESOLVER_MISSING",
+                "El resolver de perfiles no está disponible para obtener la política outbound oficial.");
+        }
+
+        var policies = new Dictionary<int, NachaOutboundPartitionPolicy>();
+        foreach (var serviceGroup in sources.GroupBy(source => source.ServiceCode, StringComparer.OrdinalIgnoreCase))
+        {
+            var serviceTransactions = serviceGroup
+                .SelectMany(source => source.Transactions)
+                .OrderBy(transaction => transaction.Id)
+                .ToArray();
+            var resolution = await _configResolver.ResolveAsync(new NachaConfigResolutionRequest
+            {
+                ClearingHouseCode = "CENIT",
+                FlowTypeCode = NachaProfileDimensionResolver.ResolveFlowCode(serviceTransactions),
+                DirectionCode = NachaProfileDimensionResolver.ResolveDirectionCode(serviceTransactions),
+                ServiceClassCode = serviceGroup.Key,
+                ProcessDateUtc = context.Cycle.ProcessingDate,
+                RequireOutboundPolicy = true
+            }, ct);
+
+            if (!resolution.Success || resolution.Profile is null || resolution.OutboundPolicy is null)
+            {
+                throw new NachaGenerationException(
+                    resolution.DiagnosticCode,
+                    resolution.Trace.LastOrDefault()
+                    ?? $"No se resolvió política outbound para el servicio '{serviceGroup.Key}'.");
+            }
+
+            policies.TryAdd(resolution.Profile.Id, resolution.OutboundPolicy);
+        }
+
+        return policies.Values.OrderBy(policy => policy.FileOrder).ToArray();
     }
 
     private static void EnsureCompleteCenitMembership(
@@ -532,9 +567,7 @@ public class NachaFileBuilder : INachaFileBuilder
             Cycle = source.Cycle,
             Batches = batches,
             Transactions = batches.SelectMany(batch => batch.Transactions).ToArray(),
-            StandardEntryClassCode = partition.ProfileIdentity == CenitOutboundFilePartitioner.CtxProfileIdentity
-                ? "CTX"
-                : "PPD"
+            StandardEntryClassCode = partition.StandardEntryClassCode
         };
     }
 

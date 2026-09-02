@@ -115,7 +115,9 @@ CURRENT_DELTA: The May 7, 2026 specification drives table-driven ordinary PPD/CC
 ### NACHA-RULE-METADATA
 
 STATUS: PARTIAL — EXISTING OWNER REUSED
-CURRENT_DELTA: Profile resolution and physical record reading are table-driven, but current official generation still contains chamber-specific normative snapshots, batch policy, settlement-date policy, and cross-field branches in code. Business variability must remain behind the profile/configuration boundary.
+SLICE_2A: CLOSED — Published profile tags now carry typed outbound partition/cardinality/addenda policy through NachaConfigResolver to CenitOutboundFilePartitioner. Current PPD, CCD, and CTX output behavior is preserved without partitioner-side CENIT service tables or numeric limits.
+EVIDENCE_2A: Release test-project build 7 projects/0 errors/0 warnings; CenitOutboundFilePartitionerTests 18/18; NachaConfigResolverTests 10/10; NachaConfigOfficialProfilesSeederTests 47/47; OfficialNachaGenerationTableDrivenTests 70/70; NachaFileBuilderUnitTests 6/6.
+CURRENT_DELTA: NACHA-RULE-METADATA remains PARTIAL. Remaining categories are ACH batch policy, settlement policy, generator layout snapshots, and profile-version / SEC / cross-field policy.
 
 ### RET-GAP-018
 
@@ -258,15 +260,16 @@ UAT: NOT_READY
 
 ### NEXT-DELIVERY-001
 
-JOB_ID: NACHA-RULE-METADATA.2
+JOB_ID: NACHA-RULE-METADATA.2B
 STATUS: OPEN
-OBJECTIVE: Move outbound chamber policy metadata from code into the existing NACHA profile/configuration boundary.
-WHY_NEXT: Verification confirms live CENIT/ACH-specific layout snapshots, batch partition/cardinality, settlement handling, and profile-version/cross-field branches remain embedded after profile resolution.
-INCLUDED: Define profile-level policy metadata and consume it in the official outbound generator, CENIT partitioner, and publish-time validation; retain deterministic regression coverage.
-EXCLUDED: New normative interpretation, inbound/Returns/SOAP/transport/UI work, external homologation, and RET-GAP-019.
-ACCEPTANCE: Official outbound behavior resolves chamber-specific policy from published metadata without the identified chamber-specific generation branches.
+OBJECTIVE: Extract ACH outbound batch-number assignment and batch-local ordinal policy into the existing resolved profile policy boundary.
+WHY_NEXT: Slice 2A established the typed profile-policy resolution path; ACH batch assignment is the next isolated outbound policy category still embedded in generation code.
+INCLUDED: ResolveBatchNumberAssignmentAsync and directly related ACH batch-local ordinal policy, published metadata, fail-closed validation, and focused behavior-preserving regression coverage.
+EXCLUDED: Settlement policy, generator layout snapshots, profile-version / SEC / cross-field cleanup, inbound/Returns/SOAP/transport/UI work, external homologation, and RET-GAP-019.
+ACCEPTANCE: ACH batch-number behavior is resolved from published profile policy with unchanged generated output and no generator-side chamber constants.
 
 ## Recent Sessions
+- 2026-09-01: NACHA-RULE-METADATA.2A moved official CENIT PPD/CCD/CTX partition, cardinality, and addenda policy into published profile tags resolved as a typed contract; generated behavior and focused regressions remained unchanged.
 - 2026-08-31: OPS-GAP-002 implemented the internal ACH Colombia managed-file lifecycle with shared automatic/manual execution, durable immutable evidence, retries, recovery, archive/retirement, authorized API, and Spanish operations UI; external managed MFT deployment remains an operational dependency.
 - 2026-08-31: CENIT-RUNTIME-E2E-001 locally certified the ordinary CENIT outbound-to-response lifecycle through Docker SQL Server/API/SPA, an atomic folder-backed test Gateway, real persistence/API, and Playwright; ACK, NACK, multi-error operator rejection, reconciliation, no activity, idempotency, and terminal protection passed, while external Banco Gateway/PO homologation remains separate under OPS-GAP-003.
 - 2026-08-30: CENIT-NACHA-IN-001 implemented direction-aware ordinary inbound PPD/CCD/CTX profiles by reusing the official physical descriptors under section 7.3.1; multi-Addenda ownership, received batches, controls, profile failures, and shared Return/ACH regressions passed. CENIT-FORMAT-NACHAM is internally closed; external homologation and OPS-GAP-003/004 remain separate.

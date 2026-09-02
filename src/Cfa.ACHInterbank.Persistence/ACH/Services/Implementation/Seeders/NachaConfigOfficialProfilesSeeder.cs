@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -239,7 +240,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateDestinationName: "CENIT",
             ImmediateOriginName: "CFA UAT",
             Prefix: "CENIT_ORDINARY_OUT_2026",
-            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            OutboundPolicy: BuildCenitOrdinaryOutboundPolicy(CenitOrdinaryOutbound2026Layout.OriginalProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode,
@@ -257,7 +259,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateDestinationName: "CENIT",
             ImmediateOriginName: "CFA UAT",
             Prefix: "CENIT_ORDINARY_PRENOTE_OUT_2026",
-            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            OutboundPolicy: BuildCenitOrdinaryOutboundPolicy(CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: CenitCtxOutbound2026Layout.OriginalProfileCode,
@@ -276,7 +279,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateOriginName: "CFA UAT",
             Prefix: "CENIT_CTX_OUT_2026",
             ServiceClassCode: "CTX",
-            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            OutboundPolicy: BuildCenitCtxOutboundPolicy(CenitCtxOutbound2026Layout.OriginalProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: CenitCtxOutbound2026Layout.PrenotificationProfileCode,
@@ -295,7 +299,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateOriginName: "CFA UAT",
             Prefix: "CENIT_CTX_PRENOTE_OUT_2026",
             ServiceClassCode: "CTX",
-            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            OutboundPolicy: BuildCenitCtxOutboundPolicy(CenitCtxOutbound2026Layout.PrenotificationProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: CenitOrdinaryInbound2026Layout.OriginalProfileCode,
@@ -433,6 +438,25 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             await EnsureTagAsync(profile, "ApprovedRuleMatrix", spec.ApprovedRuleMatrix);
             await EnsureTagAsync(profile, "Phase", spec.IsPlaceholder ? "6B.1" : "NACHA-EXECUTION-2");
             await EnsureTagAsync(profile, "ProductionDecision", "NO-GO");
+            if (spec.OutboundPolicy is not null)
+            {
+                var outboundPolicyTags = NachaOutboundPolicyMetadata.ToTags(spec.OutboundPolicy);
+                foreach (var tag in outboundPolicyTags)
+                {
+                    await EnsureTagAsync(profile, tag.Key, tag.Value);
+                }
+
+                var expectedKeys = outboundPolicyTags.Select(tag => tag.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var obsoleteTags = profile.Tags
+                    .Where(tag => tag.TagKey.StartsWith(NachaOutboundPolicyMetadata.Prefix, StringComparison.OrdinalIgnoreCase)
+                                  && !expectedKeys.Contains(tag.TagKey))
+                    .ToArray();
+                if (obsoleteTags.Length > 0)
+                {
+                    _context.CfgProfileTags.RemoveRange(obsoleteTags);
+                    await _context.SaveChangesAsync();
+                }
+            }
 
             var sequence = 10;
             foreach (var recordCode in RecordCodes)
@@ -978,6 +1002,42 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
     private static bool UsesCenitOrdinaryInbound2026Layout(ProfileSpec profile)
         => IsCenitOrdinaryInbound2026(profile);
 
+    private static NachaOutboundPartitionPolicy BuildCenitOrdinaryOutboundPolicy(string profileCode)
+        => new(
+            profileCode,
+            FileOrder: 10,
+            NachaOutboundFileAllocation.CombineServicePartitionsByIndex,
+            [
+                new NachaOutboundServicePartitionPolicy(
+                    "PPD",
+                    Order: 10,
+                    NachaOutboundServicePartitionStrategy.EntriesPerFile,
+                    MaxEntriesPerFile: 10_000),
+                new NachaOutboundServicePartitionPolicy(
+                    "CCD",
+                    Order: 20,
+                    NachaOutboundServicePartitionStrategy.FixedEntriesPerBatch,
+                    MaxBatchesPerFile: 10_000,
+                    EntriesPerBatch: 1,
+                    MinAddendaPerEntry: 1,
+                    AddendaCardinalityErrorCode: "CENIT_CCD_ADDENDA_REQUIRED")
+            ]);
+
+    private static NachaOutboundPartitionPolicy BuildCenitCtxOutboundPolicy(string profileCode)
+        => new(
+            profileCode,
+            FileOrder: 20,
+            NachaOutboundFileAllocation.IndependentServiceFiles,
+            [
+                new NachaOutboundServicePartitionPolicy(
+                    "CTX",
+                    Order: 10,
+                    NachaOutboundServicePartitionStrategy.PreserveSourceBatches,
+                    MinAddendaPerEntry: 1,
+                    MaxAddendaPerEntry: 9_999,
+                    AddendaCardinalityErrorCode: "CENIT_CTX_ADDENDA_CARDINALITY_INVALID")
+            ]);
+
     private static bool UsesReturnV35Layout(ProfileSpec profile, string recordCode, string variantCode)
         => IsReturnOutV35(profile)
            || (profile.IncludeReturnAddenda99
@@ -1383,7 +1443,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         int VersionMinor = 1,
         bool IncludeReturnAddenda99 = false,
         string? ServiceClassCode = null,
-        DateTime? EffectiveFromOverride = null);
+        DateTime? EffectiveFromOverride = null,
+        NachaOutboundPartitionPolicy? OutboundPolicy = null);
 
     private sealed record CatalogIds(
         IReadOnlyDictionary<string, int> ClearingHouses,

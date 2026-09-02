@@ -6,8 +6,15 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 namespace Cfa.ACHInterbank.Tests;
 
-public sealed class CenitOutboundFilePartitionerTests
+public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNachaGenerationFixture>
 {
+    private readonly OfficialNachaGenerationFixture _fixture;
+
+    public CenitOutboundFilePartitionerTests(OfficialNachaGenerationFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
     [Theory]
     [InlineData(1, 1)]
     [InlineData(9_999, 1)]
@@ -15,7 +22,7 @@ public sealed class CenitOutboundFilePartitionerTests
     [InlineData(10_001, 2)]
     [InlineData(20_000, 2)]
     [InlineData(20_001, 3)]
-    public void Ppd_PartitionsByFileEntryLimit_WithoutLossOrDuplication(int entryCount, int expectedFiles)
+    public async Task Ppd_PartitionsByFileEntryLimit_WithoutLossOrDuplication(int entryCount, int expectedFiles)
     {
         var sources = entryCount == 20_000
             ? new[]
@@ -26,14 +33,16 @@ public sealed class CenitOutboundFilePartitionerTests
             }
             : [SourceBatch(10, "PPD", CreateTransactions(entryCount, withAddenda: false))];
 
-        var files = CenitOutboundFilePartitioner.Partition(sources);
+        var policies = await ResolvePoliciesAsync("PPD");
+        var entryLimit = policies.Single().Services.Single(service => service.ServiceCode == "PPD").MaxEntriesPerFile!.Value;
+        var files = CenitOutboundFilePartitioner.Partition(sources, policies);
 
         Assert.Equal(expectedFiles, files.Count);
         Assert.Equal(
             Enumerable.Range(0, expectedFiles)
                 .Select(index => Math.Min(
-                    CenitOutboundFilePartitioner.PpdEntryLimitPerFile,
-                    entryCount - (index * CenitOutboundFilePartitioner.PpdEntryLimitPerFile))),
+                    entryLimit,
+                    entryCount - (index * entryLimit))),
             files.Select(file => file.Batches.Sum(batch => batch.Transactions.Count)));
         AssertMembership(files, entryCount);
     }
@@ -44,35 +53,38 @@ public sealed class CenitOutboundFilePartitionerTests
     [InlineData(9_999, 1)]
     [InlineData(10_000, 1)]
     [InlineData(10_001, 2)]
-    public void Ccd_AllocatesExactlyOneEntryPerBatch_AndSplitsAtTenThousandBatches(
+    public async Task Ccd_AllocatesExactlyOneEntryPerBatch_AndSplitsAtTenThousandBatches(
         int entryCount,
         int expectedFiles)
     {
         var source = SourceBatch(20, "CCD", CreateTransactions(entryCount, withAddenda: true));
 
-        var files = CenitOutboundFilePartitioner.Partition([source]);
+        var policies = await ResolvePoliciesAsync("CCD");
+        var batchLimit = policies.Single().Services.Single(service => service.ServiceCode == "CCD").MaxBatchesPerFile!.Value;
+        var files = CenitOutboundFilePartitioner.Partition([source], policies);
 
         Assert.Equal(expectedFiles, files.Count);
         Assert.All(files, file => Assert.InRange(
             file.Batches.Count,
             1,
-            CenitOutboundFilePartitioner.CcdBatchLimitPerFile));
+            batchLimit));
         Assert.All(files.SelectMany(file => file.Batches), batch => Assert.Single(batch.Transactions));
         AssertMembership(files, entryCount);
     }
 
     [Fact]
-    public void MixedOrdinaryAndCtx_ProducesIndependentProfilePartitions()
+    public async Task MixedOrdinaryAndCtx_ProducesIndependentProfilePartitions()
     {
         var ppd = SourceBatch(10, "PPD", CreateTransactions(2, withAddenda: false, firstId: 1));
         var ctx = SourceBatch(20, "CTX", CreateTransactions(2, withAddenda: true, firstId: 3));
 
-        var files = CenitOutboundFilePartitioner.Partition([ppd, ctx]);
+        var policies = await ResolvePoliciesAsync("PPD", "CTX");
+        var files = CenitOutboundFilePartitioner.Partition([ppd, ctx], policies);
 
         Assert.Equal(2, files.Count);
-        Assert.Equal(CenitOutboundFilePartitioner.PpdCcdProfileIdentity, files[0].ProfileIdentity);
+        Assert.Equal(CenitOrdinaryOutbound2026Layout.OriginalProfileCode, files[0].ProfileIdentity);
         Assert.Equal(["PPD"], files[0].ServiceCodes);
-        Assert.Equal(CenitOutboundFilePartitioner.CtxProfileIdentity, files[1].ProfileIdentity);
+        Assert.Equal(CenitCtxOutbound2026Layout.OriginalProfileCode, files[1].ProfileIdentity);
         Assert.Equal(["CTX"], files[1].ServiceCodes);
         Assert.Single(files[1].Batches);
         Assert.Equal(2, files[1].Batches[0].Transactions.Count);
@@ -80,14 +92,16 @@ public sealed class CenitOutboundFilePartitionerTests
     }
 
     [Fact]
-    public void MixedPpdAndCcd_SharesTheOrdinaryProfilePartition()
+    public async Task MixedPpdAndCcd_SharesTheOrdinaryProfilePartition()
     {
         var ppd = SourceBatch(10, "PPD", CreateTransactions(1, withAddenda: false, firstId: 1));
         var ccd = SourceBatch(20, "CCD", CreateTransactions(1, withAddenda: true, firstId: 2));
 
-        var file = Assert.Single(CenitOutboundFilePartitioner.Partition([ppd, ccd]));
+        var file = Assert.Single(CenitOutboundFilePartitioner.Partition(
+            [ppd, ccd],
+            await ResolvePoliciesAsync("PPD", "CCD")));
 
-        Assert.Equal(CenitOutboundFilePartitioner.PpdCcdProfileIdentity, file.ProfileIdentity);
+        Assert.Equal(CenitOrdinaryOutbound2026Layout.OriginalProfileCode, file.ProfileIdentity);
         Assert.Equal(["PPD", "CCD"], file.ServiceCodes);
         AssertMembership([file], 2);
     }
@@ -95,12 +109,14 @@ public sealed class CenitOutboundFilePartitionerTests
     [Theory]
     [InlineData(1)]
     [InlineData(9_999)]
-    public void Ctx_PreservesTransactionOwnedAddendas_AtSupportedBoundaries(int addendaCount)
+    public async Task Ctx_PreservesTransactionOwnedAddendas_AtSupportedBoundaries(int addendaCount)
     {
         var transaction = CreateTransaction(1, addendaCount);
         var source = SourceBatch(30, "CTX", [transaction]);
 
-        var file = Assert.Single(CenitOutboundFilePartitioner.Partition([source]));
+        var file = Assert.Single(CenitOutboundFilePartitioner.Partition(
+            [source],
+            await ResolvePoliciesAsync("CTX")));
         var emitted = Assert.Single(Assert.Single(file.Batches).Transactions);
 
         Assert.Same(transaction, emitted);
@@ -108,25 +124,67 @@ public sealed class CenitOutboundFilePartitionerTests
     }
 
     [Fact]
-    public void Ctx_RejectsMoreThanNineThousandNineHundredNinetyNineAddendas()
+    public async Task Ctx_RejectsMoreThanNineThousandNineHundredNinetyNineAddendas()
     {
         var source = SourceBatch(30, "CTX", [CreateTransaction(1, 10_000)]);
 
+        var policies = await ResolvePoliciesAsync("CTX");
         var exception = Assert.Throws<NachaGenerationException>(
-            () => CenitOutboundFilePartitioner.Partition([source]));
+            () => CenitOutboundFilePartitioner.Partition([source], policies));
 
         Assert.Equal("CENIT_CTX_ADDENDA_CARDINALITY_INVALID", exception.Code);
     }
 
     [Fact]
-    public void Ccd_RejectsEntryWithoutMandatoryAddenda()
+    public async Task Ccd_RejectsEntryWithoutMandatoryAddenda()
     {
         var source = SourceBatch(20, "CCD", CreateTransactions(1, withAddenda: false));
 
+        var policies = await ResolvePoliciesAsync("CCD");
         var exception = Assert.Throws<NachaGenerationException>(
-            () => CenitOutboundFilePartitioner.Partition([source]));
+            () => CenitOutboundFilePartitioner.Partition([source], policies));
 
         Assert.Equal("CENIT_CCD_ADDENDA_REQUIRED", exception.Code);
+    }
+
+    [Fact]
+    public async Task Ppd_PartitionBoundary_IsDrivenByResolvedPolicy()
+    {
+        var resolved = Assert.Single(await ResolvePoliciesAsync("PPD"));
+        var services = resolved.Services
+            .Select(service => service.ServiceCode == "PPD" ? service with { MaxEntriesPerFile = 2 } : service)
+            .ToArray();
+        var testPolicy = resolved with { Services = services };
+
+        var files = CenitOutboundFilePartitioner.Partition(
+            [SourceBatch(10, "PPD", CreateTransactions(3, withAddenda: false))],
+            [testPolicy]);
+
+        Assert.Equal(2, files.Count);
+        Assert.Equal([2, 1], files.Select(file => file.Batches.Sum(batch => batch.Transactions.Count)));
+    }
+
+    private async Task<IReadOnlyList<NachaOutboundPartitionPolicy>> ResolvePoliciesAsync(params string[] serviceCodes)
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var resolver = new NachaConfigResolver(context);
+        var policies = new Dictionary<int, NachaOutboundPartitionPolicy>();
+        foreach (var serviceCode in serviceCodes)
+        {
+            var result = await resolver.ResolveAsync(new NachaConfigResolutionRequest
+            {
+                ClearingHouseCode = "CENIT",
+                FlowTypeCode = "ORIGINAL",
+                DirectionCode = "SALIDA",
+                ServiceClassCode = serviceCode,
+                ProcessDateUtc = new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc),
+                RequireOutboundPolicy = true
+            });
+            Assert.True(result.Success, string.Join(" | ", result.Trace));
+            policies.TryAdd(result.Profile!.Id, result.OutboundPolicy!);
+        }
+
+        return policies.Values.OrderBy(policy => policy.FileOrder).ToArray();
     }
 
     private static CenitOutboundSourceBatch SourceBatch(

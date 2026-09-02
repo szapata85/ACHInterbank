@@ -10,7 +10,9 @@ public enum NachaProfileSelectionStatus
     ProfileAmbiguous = 3,
     ProfileInactive = 4,
     ProfileVersionUnsupported = 5,
-    ClearingHouseUndetermined = 6
+    ClearingHouseUndetermined = 6,
+    OutboundPolicyMissing = 7,
+    OutboundPolicyInvalid = 8
 }
 
 public class NachaConfigResolutionRequest
@@ -22,6 +24,7 @@ public class NachaConfigResolutionRequest
     public int? RequestedVersionMajor { get; init; }
     public int? RequestedVersionMinor { get; init; }
     public bool RequireHomologated { get; init; }
+    public bool RequireOutboundPolicy { get; init; }
     public DateTime ProcessDateUtc { get; init; }
     public IReadOnlyCollection<string> RecordCodes { get; init; } = Array.Empty<string>();
     public IReadOnlyDictionary<string, string> SelectionContext { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -34,6 +37,7 @@ public class NachaConfigResolutionResult
     public string DiagnosticCode => SelectionStatus.ToString();
     public bool UsedFallback { get; set; }
     public CfgProfile? Profile { get; init; }
+    public NachaOutboundPartitionPolicy? OutboundPolicy { get; init; }
     public IReadOnlyDictionary<string, CfgLayoutVariant> LayoutsByRecordCode { get; init; } = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, IReadOnlyList<CfgLayoutVariant>> LayoutVariantsByRecordCode { get; init; }
         = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>(StringComparer.OrdinalIgnoreCase);

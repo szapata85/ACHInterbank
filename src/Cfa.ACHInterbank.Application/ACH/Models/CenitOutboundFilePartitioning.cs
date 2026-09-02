@@ -15,21 +15,18 @@ public sealed record CenitOutboundBatchPartition(
 public sealed record CenitOutboundFilePartition(
     int FileIndex,
     string ProfileIdentity,
+    string StandardEntryClassCode,
     IReadOnlyList<string> ServiceCodes,
     IReadOnlyList<CenitOutboundBatchPartition> Batches);
 
 public static class CenitOutboundFilePartitioner
 {
-    public const int PpdEntryLimitPerFile = 10_000;
-    public const int CcdBatchLimitPerFile = 10_000;
-    public const int CtxAddendaLimitPerEntry = 9_999;
-    public const string PpdCcdProfileIdentity = "CENIT_PPD_CCD_OUTBOUND_2026";
-    public const string CtxProfileIdentity = "CENIT_CTX_OUTBOUND_2026";
-
     public static IReadOnlyList<CenitOutboundFilePartition> Partition(
-        IReadOnlyList<CenitOutboundSourceBatch> sourceBatches)
+        IReadOnlyList<CenitOutboundSourceBatch> sourceBatches,
+        IReadOnlyList<NachaOutboundPartitionPolicy> policies)
     {
         ArgumentNullException.ThrowIfNull(sourceBatches);
+        ArgumentNullException.ThrowIfNull(policies);
 
         var normalized = sourceBatches
             .Select(source => source with
@@ -41,46 +38,79 @@ public static class CenitOutboundFilePartitioner
             .ToArray();
 
         EnsureUniqueTransactionMembership(normalized);
+        EnsureValidPolicies(policies, normalized);
 
-        var ppdFiles = PartitionPpd(normalized.Where(source => source.ServiceCode == "PPD"));
-        var ccdFiles = PartitionCcd(normalized.Where(source => source.ServiceCode == "CCD"));
-        var ordinaryFileCount = Math.Max(ppdFiles.Count, ccdFiles.Count);
-        var result = new List<CenitOutboundFilePartition>(ordinaryFileCount + 1);
-
-        for (var index = 0; index < ordinaryFileCount; index++)
+        var result = new List<CenitOutboundFilePartition>();
+        foreach (var policy in policies.OrderBy(item => item.FileOrder))
         {
-            var batches = new List<CenitOutboundBatchPartition>();
-            if (index < ppdFiles.Count)
-            {
-                batches.AddRange(ppdFiles[index]);
-            }
-            if (index < ccdFiles.Count)
-            {
-                batches.AddRange(ccdFiles[index]);
-            }
+            var serviceFiles = policy.Services
+                .OrderBy(service => service.Order)
+                .Select(service => new
+                {
+                    Files = PartitionService(
+                        normalized.Where(source => string.Equals(
+                            source.ServiceCode,
+                            service.ServiceCode,
+                            StringComparison.OrdinalIgnoreCase)),
+                        service)
+                })
+                .Where(item => item.Files.Count > 0)
+                .ToArray();
 
-            result.Add(new CenitOutboundFilePartition(
-                result.Count + 1,
-                PpdCcdProfileIdentity,
-                batches.Select(batch => batch.ServiceCode).Distinct(StringComparer.Ordinal).ToArray(),
-                batches));
-        }
-
-        var ctxBatches = PartitionCtx(normalized.Where(source => source.ServiceCode == "CTX"));
-        if (ctxBatches.Count > 0)
-        {
-            result.Add(new CenitOutboundFilePartition(
-                result.Count + 1,
-                CtxProfileIdentity,
-                ["CTX"],
-                ctxBatches));
+            if (policy.FileAllocation == NachaOutboundFileAllocation.CombineServicePartitionsByIndex)
+            {
+                var fileCount = serviceFiles.Length == 0 ? 0 : serviceFiles.Max(item => item.Files.Count);
+                for (var index = 0; index < fileCount; index++)
+                {
+                    var batches = serviceFiles
+                        .Where(item => index < item.Files.Count)
+                        .SelectMany(item => item.Files[index])
+                        .ToArray();
+                    AddFile(result, policy, batches);
+                }
+            }
+            else
+            {
+                foreach (var service in serviceFiles)
+                {
+                    foreach (var batches in service.Files)
+                    {
+                        AddFile(result, policy, batches);
+                    }
+                }
+            }
         }
 
         return result;
     }
 
-    private static List<IReadOnlyList<CenitOutboundBatchPartition>> PartitionPpd(
-        IEnumerable<CenitOutboundSourceBatch> sources)
+    private static IReadOnlyList<IReadOnlyList<CenitOutboundBatchPartition>> PartitionService(
+        IEnumerable<CenitOutboundSourceBatch> sourceBatches,
+        NachaOutboundServicePartitionPolicy policy)
+    {
+        var sources = sourceBatches.ToArray();
+        ValidateAddendaCardinality(sources, policy);
+
+        return policy.Strategy switch
+        {
+            NachaOutboundServicePartitionStrategy.EntriesPerFile
+                => PartitionByEntriesPerFile(sources, policy.MaxEntriesPerFile!.Value),
+            NachaOutboundServicePartitionStrategy.FixedEntriesPerBatch
+                => PartitionByFixedEntriesPerBatch(
+                    sources,
+                    policy.EntriesPerBatch!.Value,
+                    policy.MaxBatchesPerFile!.Value),
+            NachaOutboundServicePartitionStrategy.PreserveSourceBatches
+                => sources.Length == 0
+                    ? []
+                    : [sources.Select(ToPartition).ToArray()],
+            _ => throw InvalidPolicy($"Estrategia desconocida para el servicio '{policy.ServiceCode}'.")
+        };
+    }
+
+    private static IReadOnlyList<IReadOnlyList<CenitOutboundBatchPartition>> PartitionByEntriesPerFile(
+        IEnumerable<CenitOutboundSourceBatch> sources,
+        int maxEntriesPerFile)
     {
         var files = new List<IReadOnlyList<CenitOutboundBatchPartition>>();
         var current = new List<CenitOutboundBatchPartition>();
@@ -91,9 +121,9 @@ public static class CenitOutboundFilePartitioner
             var offset = 0;
             while (offset < source.Transactions.Count)
             {
-                var remaining = source.Transactions.Count - offset;
-                var remainingCapacity = PpdEntryLimitPerFile - currentEntryCount;
-                var take = Math.Min(remaining, remainingCapacity);
+                var take = Math.Min(
+                    source.Transactions.Count - offset,
+                    maxEntriesPerFile - currentEntryCount);
                 current.Add(new CenitOutboundBatchPartition(
                     source.Batch,
                     source.ServiceCode,
@@ -101,7 +131,7 @@ public static class CenitOutboundFilePartitioner
                 currentEntryCount += take;
                 offset += take;
 
-                if (currentEntryCount == PpdEntryLimitPerFile)
+                if (currentEntryCount == maxEntriesPerFile)
                 {
                     files.Add(current.ToArray());
                     current = [];
@@ -114,32 +144,29 @@ public static class CenitOutboundFilePartitioner
         {
             files.Add(current.ToArray());
         }
-
         return files;
     }
 
-    private static List<IReadOnlyList<CenitOutboundBatchPartition>> PartitionCcd(
-        IEnumerable<CenitOutboundSourceBatch> sources)
+    private static IReadOnlyList<IReadOnlyList<CenitOutboundBatchPartition>> PartitionByFixedEntriesPerBatch(
+        IEnumerable<CenitOutboundSourceBatch> sources,
+        int entriesPerBatch,
+        int maxBatchesPerFile)
     {
         var files = new List<IReadOnlyList<CenitOutboundBatchPartition>>();
-        var current = new List<CenitOutboundBatchPartition>(CcdBatchLimitPerFile);
+        var current = new List<CenitOutboundBatchPartition>(maxBatchesPerFile);
 
         foreach (var source in sources)
         {
-            foreach (var transaction in source.Transactions)
+            for (var offset = 0; offset < source.Transactions.Count; offset += entriesPerBatch)
             {
-                if (transaction.Addendas.Count == 0)
-                {
-                    throw new NachaGenerationException(
-                        "CENIT_CCD_ADDENDA_REQUIRED",
-                        "Cada entrada CCD CENIT debe tener al menos una adenda.");
-                }
-
-                current.Add(new CenitOutboundBatchPartition(source.Batch, source.ServiceCode, [transaction]));
-                if (current.Count == CcdBatchLimitPerFile)
+                current.Add(new CenitOutboundBatchPartition(
+                    source.Batch,
+                    source.ServiceCode,
+                    source.Transactions.Skip(offset).Take(entriesPerBatch).ToArray()));
+                if (current.Count == maxBatchesPerFile)
                 {
                     files.Add(current.ToArray());
-                    current = new List<CenitOutboundBatchPartition>(CcdBatchLimitPerFile);
+                    current = new List<CenitOutboundBatchPartition>(maxBatchesPerFile);
                 }
             }
         }
@@ -148,42 +175,101 @@ public static class CenitOutboundFilePartitioner
         {
             files.Add(current.ToArray());
         }
-
         return files;
     }
 
-    private static IReadOnlyList<CenitOutboundBatchPartition> PartitionCtx(
-        IEnumerable<CenitOutboundSourceBatch> sources)
+    private static void ValidateAddendaCardinality(
+        IEnumerable<CenitOutboundSourceBatch> sources,
+        NachaOutboundServicePartitionPolicy policy)
     {
-        var batches = new List<CenitOutboundBatchPartition>();
-        foreach (var source in sources)
+        if (!policy.MinAddendaPerEntry.HasValue && !policy.MaxAddendaPerEntry.HasValue)
         {
-            foreach (var transaction in source.Transactions)
-            {
-                if (transaction.Addendas.Count is < 1 or > CtxAddendaLimitPerEntry)
-                {
-                    throw new NachaGenerationException(
-                        "CENIT_CTX_ADDENDA_CARDINALITY_INVALID",
-                        "Cada entrada CTX CENIT debe contener entre 1 y 9.999 adendas.");
-                }
-            }
-
-            batches.Add(new CenitOutboundBatchPartition(source.Batch, source.ServiceCode, source.Transactions));
+            return;
         }
 
-        return batches;
+        foreach (var transaction in sources.SelectMany(source => source.Transactions))
+        {
+            if (transaction.Addendas.Count < (policy.MinAddendaPerEntry ?? 0)
+                || transaction.Addendas.Count > (policy.MaxAddendaPerEntry ?? int.MaxValue))
+            {
+                throw new NachaGenerationException(
+                    policy.AddendaCardinalityErrorCode!,
+                    $"La entrada del servicio {policy.ServiceCode} no cumple la cardinalidad de adendas publicada.");
+            }
+        }
     }
+
+    private static void EnsureValidPolicies(
+        IReadOnlyList<NachaOutboundPartitionPolicy> policies,
+        IReadOnlyList<CenitOutboundSourceBatch> sources)
+    {
+        if (policies.Count == 0)
+        {
+            throw new NachaGenerationException(
+                "NACHA_OUTBOUND_POLICY_MISSING",
+                "No se resolvió política outbound para particionar el archivo oficial.");
+        }
+        if (policies.GroupBy(policy => policy.ProfileCode, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1)
+            || policies.GroupBy(policy => policy.FileOrder).Any(group => group.Count() > 1))
+        {
+            throw InvalidPolicy("Las políticas outbound resueltas son ambiguas.");
+        }
+
+        foreach (var policy in policies)
+        {
+            var error = NachaOutboundPolicyMetadata.Validate(policy);
+            if (error is not null)
+            {
+                throw InvalidPolicy(error);
+            }
+        }
+
+        foreach (var serviceCode in sources.Select(source => source.ServiceCode).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var matches = policies.Sum(policy => policy.Services.Count(service =>
+                string.Equals(service.ServiceCode, serviceCode, StringComparison.OrdinalIgnoreCase)));
+            if (matches == 0)
+            {
+                throw new NachaGenerationException(
+                    "NACHA_OUTBOUND_POLICY_MISSING",
+                    $"No existe política outbound para el servicio '{serviceCode}'.");
+            }
+            if (matches > 1)
+            {
+                throw InvalidPolicy($"El servicio '{serviceCode}' pertenece a más de una política outbound.");
+            }
+        }
+    }
+
+    private static void AddFile(
+        ICollection<CenitOutboundFilePartition> result,
+        NachaOutboundPartitionPolicy policy,
+        IReadOnlyList<CenitOutboundBatchPartition> batches)
+    {
+        var serviceCodes = batches.Select(batch => batch.ServiceCode).Distinct(StringComparer.Ordinal).ToArray();
+        var standardEntryClassCode = policy.FileAllocation == NachaOutboundFileAllocation.IndependentServiceFiles
+            ? serviceCodes.Single()
+            : policy.Services.OrderBy(service => service.Order).First().ServiceCode;
+        result.Add(new CenitOutboundFilePartition(
+            result.Count + 1,
+            policy.ProfileCode,
+            standardEntryClassCode,
+            serviceCodes,
+            batches));
+    }
+
+    private static CenitOutboundBatchPartition ToPartition(CenitOutboundSourceBatch source)
+        => new(source.Batch, source.ServiceCode, source.Transactions);
 
     private static string NormalizeServiceCode(string serviceCode)
     {
         var normalized = serviceCode?.Trim().ToUpperInvariant() ?? string.Empty;
-        if (normalized is not ("PPD" or "CCD" or "CTX"))
+        if (string.IsNullOrWhiteSpace(normalized))
         {
             throw new NachaGenerationException(
-                "CENIT_SERVICE_NOT_SUPPORTED",
-                $"El servicio CENIT '{normalized}' no puede particionarse de forma segura.");
+                "NACHA_OUTBOUND_SERVICE_UNDETERMINED",
+                "No se pudo determinar el servicio para particionar el archivo oficial.");
         }
-
         return normalized;
     }
 
@@ -200,4 +286,7 @@ public static class CenitOutboundFilePartitioner
             }
         }
     }
+
+    private static NachaGenerationException InvalidPolicy(string message)
+        => new("NACHA_OUTBOUND_POLICY_INVALID", message);
 }

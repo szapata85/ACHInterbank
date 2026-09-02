@@ -170,6 +170,43 @@ public class NachaConfigResolverTests
         result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileInactive);
     }
 
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenRequiredOutboundPolicyIsMissing()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequest(requireOutboundPolicy: true));
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.OutboundPolicyMissing);
+        result.OutboundPolicy.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenOutboundPolicyIsInternallyInconsistent()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        context.CfgProfileTags.AddRange(
+            new CfgProfileTag { Id = 1, ProfileId = 10, TagKey = NachaOutboundPolicyMetadata.FileOrderKey, TagValue = "10" },
+            new CfgProfileTag { Id = 2, ProfileId = 10, TagKey = NachaOutboundPolicyMetadata.FileAllocationKey, TagValue = "CombineServicePartitionsByIndex" },
+            new CfgProfileTag
+            {
+                Id = 3,
+                ProfileId = 10,
+                TagKey = NachaOutboundPolicyMetadata.ServiceKeyPrefix + "PPD",
+                TagValue = "Order=10;Strategy=EntriesPerFile;MaxEntriesPerFile=0"
+            });
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequest(requireOutboundPolicy: true));
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.OutboundPolicyInvalid);
+        result.OutboundPolicy.Should().BeNull();
+    }
+
     private static AchDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()
@@ -268,7 +305,9 @@ public class NachaConfigResolverTests
         await context.SaveChangesAsync();
     }
 
-    private static NachaConfigResolutionRequest BaseRequest(bool requireHomologated = false)
+    private static NachaConfigResolutionRequest BaseRequest(
+        bool requireHomologated = false,
+        bool requireOutboundPolicy = false)
         => new()
         {
             ClearingHouseCode = "ACH",
@@ -277,6 +316,7 @@ public class NachaConfigResolverTests
             ServiceClassCode = "PPD",
             ProcessDateUtc = DateTime.UtcNow,
             RecordCodes = ["1"],
-            RequireHomologated = requireHomologated
+            RequireHomologated = requireHomologated,
+            RequireOutboundPolicy = requireOutboundPolicy
         };
 }
