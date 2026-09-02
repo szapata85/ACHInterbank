@@ -23,4 +23,14 @@ export class AchColombiaFileExchangeService {
   archive(id: string) { return this.api.post<TransferDetail>(`${this.base}/transfers/${id}/archive`, {}); }
   retire(id: string, reason: string) { return this.api.post<TransferDetail>(`${this.base}/transfers/${id}/retire`, { reason }); }
   download(id: string) { return this.http.get(this.api.resolveUrl(`${this.base}/transfers/${id}/download`), { responseType: 'blob', observe: 'response' }); }
+  administration() { return this.api.get<ManagedMftAdministration>(`${this.base}/administration`); }
+  updateAdministration(value: ManagedMftAdministration) { return this.api.put<ManagedMftAdministration>(`${this.base}/administration`, value); }
+  setCredential(credentialType: string, secret: string) { return this.api.put<ManagedMftAdministration>(`${this.base}/administration/credential`, { credentialType, secret }); }
+}
+
+export interface ManagedMftAdministration {
+  profileName: string; provider: string; protocol: string; profileEnabled: boolean; endpoint?: string; port?: number; principal?: string;
+  automaticOutboundEnabled: boolean; automaticInboundEnabled: boolean; manualOutboundAllowed: boolean; manualInboundAllowed: boolean;
+  maximumRetries: number; retryDelaySeconds: number; retentionDays: number; outboundLocation: string; inboundLocation: string; archiveLocation: string;
+  credentialConfigured: boolean; credentialType?: string; credentialUpdatedAtUtc?: string; concurrencyToken: string;
 }

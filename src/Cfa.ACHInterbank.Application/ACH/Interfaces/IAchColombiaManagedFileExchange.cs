@@ -11,6 +11,11 @@ public interface IAchColombiaManagedMftAdapter
     Task<string> ArchiveInboundAsync(AchManagedMftArtifact artifact, CancellationToken ct = default);
 }
 
+public interface IAchColombiaManagedMftConfigurationProvider
+{
+    Task<AchManagedMftEffectiveConfiguration> GetEffectiveAsync(CancellationToken ct = default);
+}
+
 public interface IAchColombiaManagedFileExchangeService
 {
     Task<AchManagedFileExecutionResult> ExecuteOutboundAsync(string cycleId, AchManagedFileExecutionOrigin origin, string actor, string idempotencyKey,
@@ -25,4 +30,7 @@ public interface IAchColombiaManagedFileExchangeService
     Task<AchManagedFileDownload?> DownloadAsync(Guid transferId, string actor, CancellationToken ct = default);
     Task<AchManagedFileTransferConfigurationDto> GetConfigurationAsync(CancellationToken ct = default);
     Task<AchManagedFileTransferConfigurationDto> UpdateConfigurationAsync(AchManagedFileTransferConfigurationDto configuration, string actor, CancellationToken ct = default);
+    Task<AchManagedMftAdministrationDto> GetAdministrationAsync(CancellationToken ct = default);
+    Task<AchManagedMftAdministrationDto> UpdateAdministrationAsync(UpdateAchManagedMftAdministrationRequest request, string actor, CancellationToken ct = default);
+    Task<AchManagedMftAdministrationDto> SetCredentialAsync(SetAchManagedMftCredentialRequest request, string actor, CancellationToken ct = default);
 }

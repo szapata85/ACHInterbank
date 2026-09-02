@@ -89,5 +89,16 @@ public sealed class AchManagedFileTransferConfiguration : AuditableEntity
     public string OutboundLocation { get; set; } = "outbound";
     public string InboundLocation { get; set; } = "inbound";
     public string ArchiveLocation { get; set; } = "archive";
+    public string ProfileName { get; set; } = "ACH Colombia Managed MFT";
+    public string Provider { get; set; } = "ManagedFolder";
+    public string Protocol { get; set; } = "ManagedFile";
+    public bool ProfileEnabled { get; set; }
+    public string? Endpoint { get; set; }
+    public int? Port { get; set; }
+    public string? Principal { get; set; }
+    public int RetryDelaySeconds { get; set; } = 60;
+    public string? CredentialType { get; set; }
+    public string? ProtectedCredential { get; set; }
+    public DateTime? CredentialUpdatedAtUtc { get; set; }
     public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
 }

@@ -32,5 +32,21 @@ public sealed record AchManagedFileTransferConfigurationDto(
     bool ManualInboundAllowed, int MaximumRetries, int RetentionDays, string OutboundLocation,
     string InboundLocation, string ArchiveLocation, Guid ConcurrencyToken);
 
+public sealed record AchManagedMftAdministrationDto(
+    string ProfileName, string Provider, string Protocol, bool ProfileEnabled, string? Endpoint, int? Port,
+    string? Principal, bool AutomaticOutboundEnabled, bool AutomaticInboundEnabled, bool ManualOutboundAllowed,
+    bool ManualInboundAllowed, int MaximumRetries, int RetryDelaySeconds, int RetentionDays,
+    string OutboundLocation, string InboundLocation, string ArchiveLocation, bool CredentialConfigured,
+    string? CredentialType, DateTime? CredentialUpdatedAtUtc, Guid ConcurrencyToken);
+
+public sealed record UpdateAchManagedMftAdministrationRequest(
+    string ProfileName, string Provider, string Protocol, bool ProfileEnabled, string? Endpoint, int? Port,
+    string? Principal, bool AutomaticOutboundEnabled, bool AutomaticInboundEnabled, bool ManualOutboundAllowed,
+    bool ManualInboundAllowed, int MaximumRetries, int RetryDelaySeconds, int RetentionDays,
+    string OutboundLocation, string InboundLocation, string ArchiveLocation, Guid ConcurrencyToken);
+
+public sealed record SetAchManagedMftCredentialRequest(string CredentialType, string Secret);
+public sealed record AchManagedMftEffectiveConfiguration(bool Enabled, string OutboundPath, string InboundPath, string ProcessingPath, string ArchivePath, long MaximumFileBytes);
+
 public sealed record AchManagedFileExecutionResult(int Processed, int Succeeded, int Failed, IReadOnlyList<Guid> TransferIds);
 public sealed record AchManagedFileDownload(string FileName, string ContentType, byte[] Content);

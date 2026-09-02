@@ -24,7 +24,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
 {
     public const string AuditActionItemKey = "Audit.Action";
     public const string AuditCorrelationItemKey = "Audit.Correlation";
-    private static readonly string[] AuditIgnoredProperties = ["CreatedAt", "UpdatedAt"];
+    private static readonly string[] AuditIgnoredProperties = ["CreatedAt", "UpdatedAt", "ProtectedCredential"];
     private static readonly TimeSpan ColombiaOffset = TimeSpan.FromHours(-5);
     private readonly IHttpContextAccessor? _httpContextAccessor;
     private readonly TimeProvider _timeProvider;

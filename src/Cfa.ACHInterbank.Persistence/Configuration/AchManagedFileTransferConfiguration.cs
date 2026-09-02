@@ -64,6 +64,13 @@ public sealed class AchManagedFileTransferConfigurationEntityConfiguration : IEn
         builder.Property(x => x.OutboundLocation).HasMaxLength(120).IsRequired();
         builder.Property(x => x.InboundLocation).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ArchiveLocation).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.ProfileName).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.Provider).HasMaxLength(60).IsRequired();
+        builder.Property(x => x.Protocol).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.Endpoint).HasMaxLength(300);
+        builder.Property(x => x.Principal).HasMaxLength(160);
+        builder.Property(x => x.CredentialType).HasMaxLength(40);
+        builder.Property(x => x.ProtectedCredential).HasMaxLength(8000);
         builder.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
         builder.HasOne(x => x.ClearingHouse).WithMany().HasForeignKey(x => x.ClearingHouseId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => x.ClearingHouseId).IsUnique();

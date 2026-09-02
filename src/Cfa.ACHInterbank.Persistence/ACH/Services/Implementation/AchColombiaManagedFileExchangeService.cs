@@ -6,12 +6,15 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
+using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
@@ -24,7 +27,9 @@ public sealed class AchColombiaManagedFileExchangeService(
     INachaExportDigitalEnvelopeService digitalEnvelope,
     IAchFileExportAuditService exportAudit,
     IIncomingNachaIngestionAppService ingestionService,
-    IAchColombiaManagedMftAdapter mftAdapter) : IAchColombiaManagedFileExchangeService
+    IAchColombiaManagedMftAdapter mftAdapter,
+    IEncryptionService? encryption = null,
+    IOptions<AchColombiaManagedMftOptions>? options = null) : IAchColombiaManagedFileExchangeService
 {
     private const string ClearingHouseCode = "ACHCOL";
 
@@ -35,7 +40,7 @@ public sealed class AchColombiaManagedFileExchangeService(
         ValidateCommand(actor, idempotencyKey);
         var configuration = await GetOrCreateConfigurationEntityAsync(ct);
         if (!IsEnabled(configuration, AchManagedFileDirection.Outbound, origin)) return new(0, 0, 0, []);
-        if (!mftAdapter.Enabled) throw new InvalidOperationException("ACHCOL_MFT_DISABLED");
+        if (!configuration.ProfileEnabled) throw new InvalidOperationException("ACHCOL_MFT_DISABLED");
 
         var cycle = await context.AchCycles.AsNoTracking().Include(x => x.ClearingHouse)
             .SingleOrDefaultAsync(x => x.Id == cycleId && x.ClearingHouse!.Code == ClearingHouseCode, ct)
@@ -134,7 +139,7 @@ public sealed class AchColombiaManagedFileExchangeService(
         ValidateCommand(actor, idempotencyKey);
         var configuration = await GetOrCreateConfigurationEntityAsync(ct);
         if (!IsEnabled(configuration, AchManagedFileDirection.Inbound, origin)) return new(0, 0, 0, []);
-        if (!mftAdapter.Enabled) throw new InvalidOperationException("ACHCOL_MFT_DISABLED");
+        if (!configuration.ProfileEnabled) throw new InvalidOperationException("ACHCOL_MFT_DISABLED");
         var chamberId = configuration.ClearingHouseId;
         var artifacts = await mftAdapter.PickupInboundAsync(ct);
         var ids = new List<Guid>();
@@ -317,6 +322,52 @@ public sealed class AchColombiaManagedFileExchangeService(
         return Map(entity);
     }
 
+    public async Task<AchManagedMftAdministrationDto> GetAdministrationAsync(CancellationToken ct = default)
+        => MapAdministration(await GetOrCreateConfigurationEntityAsync(ct));
+
+    public async Task<AchManagedMftAdministrationDto> UpdateAdministrationAsync(UpdateAchManagedMftAdministrationRequest value, string actor, CancellationToken ct = default)
+    {
+        if (value.MaximumRetries is < 0 or > 20 || value.RetryDelaySeconds is < 0 or > 86400 || value.RetentionDays is < 1 or > 3650)
+            throw new ArgumentException("Configuración operativa fuera de rango.");
+        if (value.Port is < 1 or > 65535) throw new ArgumentException("Puerto inválido.");
+        if (value.ProfileEnabled && (string.IsNullOrWhiteSpace(value.OutboundLocation) || string.IsNullOrWhiteSpace(value.InboundLocation) || string.IsNullOrWhiteSpace(value.ArchiveLocation)))
+            throw new ArgumentException("Las rutas operativas son obligatorias para un perfil habilitado.");
+        var entity = await GetOrCreateConfigurationEntityAsync(ct);
+        if (entity.ConcurrencyToken != value.ConcurrencyToken) throw new DbUpdateConcurrencyException("ACHCOL_MFT_CONFIGURATION_CONFLICT");
+        entity.ProfileName = LimitRequired(value.ProfileName, 120);
+        entity.Provider = LimitRequired(value.Provider, 60);
+        entity.Protocol = LimitRequired(value.Protocol, 40);
+        entity.ProfileEnabled = value.ProfileEnabled;
+        entity.Endpoint = Optional(value.Endpoint, 300);
+        entity.Port = value.Port;
+        entity.Principal = Optional(value.Principal, 160);
+        entity.AutomaticOutboundEnabled = value.AutomaticOutboundEnabled;
+        entity.AutomaticInboundEnabled = value.AutomaticInboundEnabled;
+        entity.ManualOutboundAllowed = value.ManualOutboundAllowed;
+        entity.ManualInboundAllowed = value.ManualInboundAllowed;
+        entity.MaximumRetries = value.MaximumRetries;
+        entity.RetryDelaySeconds = value.RetryDelaySeconds;
+        entity.RetentionDays = value.RetentionDays;
+        entity.OutboundLocation = LimitRequired(value.OutboundLocation, 120);
+        entity.InboundLocation = LimitRequired(value.InboundLocation, 120);
+        entity.ArchiveLocation = LimitRequired(value.ArchiveLocation, 120);
+        entity.ConcurrencyToken = Guid.NewGuid();
+        await context.SaveChangesAsync(ct);
+        return MapAdministration(entity);
+    }
+
+    public async Task<AchManagedMftAdministrationDto> SetCredentialAsync(SetAchManagedMftCredentialRequest value, string actor, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(value.CredentialType) || string.IsNullOrWhiteSpace(value.Secret)) throw new ArgumentException("La credencial es obligatoria.");
+        var entity = await GetOrCreateConfigurationEntityAsync(ct);
+        entity.CredentialType = LimitRequired(value.CredentialType, 40);
+        entity.ProtectedCredential = (encryption ?? throw new InvalidOperationException("ACHCOL_MFT_CREDENTIAL_PROTECTION_NOT_CONFIGURED")).Encrypt(value.Secret);
+        entity.CredentialUpdatedAtUtc = DateTime.UtcNow;
+        entity.ConcurrencyToken = Guid.NewGuid();
+        await context.SaveChangesAsync(ct);
+        return MapAdministration(entity);
+    }
+
     private async Task<AchManagedFileExecutionResult> HandoffAsync(AchManagedFileTransfer transfer, string actor, CancellationToken ct)
     {
         transfer.AttemptCount++;
@@ -380,7 +431,12 @@ public sealed class AchColombiaManagedFileExchangeService(
         var chamber = await context.ClearingHouses.SingleAsync(x => x.Code == ClearingHouseCode, ct);
         var configuration = await context.AchManagedFileTransferConfigurations.SingleOrDefaultAsync(x => x.ClearingHouseId == chamber.Id, ct);
         if (configuration is not null) return configuration;
-        configuration = new AchManagedFileTransferConfiguration { ClearingHouseId = chamber.Id };
+        var defaults = options?.Value ?? new AchColombiaManagedMftOptions();
+        configuration = new AchManagedFileTransferConfiguration
+        {
+            ClearingHouseId = chamber.Id, ProfileEnabled = defaults.Enabled,
+            OutboundLocation = defaults.OutboundPath, InboundLocation = defaults.InboundPath, ArchiveLocation = defaults.ArchivePath
+        };
         context.Add(configuration);
         await context.SaveChangesAsync(ct);
         return configuration;
@@ -407,6 +463,7 @@ public sealed class AchColombiaManagedFileExchangeService(
     private static void ValidateCommand(string actor, string key) { ArgumentException.ThrowIfNullOrWhiteSpace(actor); ArgumentException.ThrowIfNullOrWhiteSpace(key); }
     private static string LimitRequired(string value, int max) { ArgumentException.ThrowIfNullOrWhiteSpace(value); return Limit(value, max); }
     private static string Limit(string value, int max) => value.Trim()[..Math.Min(value.Trim().Length, max)];
+    private static string? Optional(string? value, int max) => string.IsNullOrWhiteSpace(value) ? null : Limit(value, max);
     private static int ResolveCycleNumber(string value)
     {
         var matches = Regex.Matches(value ?? string.Empty, @"(?<!\d)(\d+)(?!\d)");
@@ -420,4 +477,5 @@ public sealed class AchColombiaManagedFileExchangeService(
     }
     private static AchManagedFileTransferDetail Map(AchManagedFileTransfer x) => new(x.Id, x.PhysicalFileName, x.Direction, x.OperationalDate, x.AchCycleId, x.Status, x.ExecutionOrigin, x.FileSize, x.ContentSha256, x.AttemptCount, x.CreatedAtUtc, x.TransferredAtUtc, x.ProcessedAtUtc, x.LastError, x.ArchivedAtUtc != null, x.ArchivedAtUtc, x.RetiredAtUtc != null, x.RetiredAtUtc, x.RetirementReason, x.CorrectedFromTransferId, x.Events.OrderBy(e => e.OccurredAtUtc).Select(e => new AchManagedFileTransferEventDto(e.Id, e.OccurredAtUtc, e.EventType, e.Result, e.Message, e.ExecutionOrigin, e.Actor)).ToArray());
     private static AchManagedFileTransferConfigurationDto Map(AchManagedFileTransferConfiguration x) => new(x.AutomaticOutboundEnabled, x.AutomaticInboundEnabled, x.ManualOutboundAllowed, x.ManualInboundAllowed, x.MaximumRetries, x.RetentionDays, x.OutboundLocation, x.InboundLocation, x.ArchiveLocation, x.ConcurrencyToken);
+    private static AchManagedMftAdministrationDto MapAdministration(AchManagedFileTransferConfiguration x) => new(x.ProfileName, x.Provider, x.Protocol, x.ProfileEnabled, x.Endpoint, x.Port, x.Principal, x.AutomaticOutboundEnabled, x.AutomaticInboundEnabled, x.ManualOutboundAllowed, x.ManualInboundAllowed, x.MaximumRetries, x.RetryDelaySeconds, x.RetentionDays, x.OutboundLocation, x.InboundLocation, x.ArchiveLocation, !string.IsNullOrWhiteSpace(x.ProtectedCredential), x.CredentialType, x.CredentialUpdatedAtUtc, x.ConcurrencyToken);
 }

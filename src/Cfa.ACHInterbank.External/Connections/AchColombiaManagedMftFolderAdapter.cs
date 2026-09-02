@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace Cfa.ACHInterbank.External.Connections;
 
 [Scoped]
-public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManagedMftOptions> options)
+public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManagedMftOptions> options, IAchColombiaManagedMftConfigurationProvider? configurationProvider = null)
     : IAchColombiaManagedMftAdapter
 {
     private readonly AchColombiaManagedMftOptions _options = options.Value;
@@ -17,10 +17,11 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
     public async Task<AchManagedMftResult> HandoffOutboundAsync(
         string fileName, byte[] content, string contentSha256, CancellationToken ct = default)
     {
-        if (!Enabled) return Failure("ACHCOL_MFT_DISABLED", "El intercambio administrado no está habilitado.", false);
-        var validation = Validate(fileName, content, contentSha256);
+        var effective = configurationProvider is null ? FromOptions() : await configurationProvider.GetEffectiveAsync(ct);
+        if (!effective.Enabled) return Failure("ACHCOL_MFT_DISABLED", "El intercambio administrado no está habilitado.", false);
+        var validation = Validate(fileName, content, contentSha256, effective.MaximumFileBytes);
         if (validation is not null) return validation;
-        var root = ResolveRoot(_options.OutboundPath);
+        var root = ResolveRoot(effective.OutboundPath);
         Directory.CreateDirectory(root);
         var target = ResolveChild(root, fileName);
         if (File.Exists(target)) return await ExistingAsync(target, contentSha256, ct);
@@ -39,9 +40,10 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
 
     public async Task<IReadOnlyList<AchManagedMftArtifact>> PickupInboundAsync(CancellationToken ct = default)
     {
-        if (!Enabled) return [];
-        var inbound = ResolveRoot(_options.InboundPath);
-        var processing = ResolveRoot(_options.ProcessingPath);
+        var effective = configurationProvider is null ? FromOptions() : await configurationProvider.GetEffectiveAsync(ct);
+        if (!effective.Enabled) return [];
+        var inbound = ResolveRoot(effective.InboundPath);
+        var processing = ResolveRoot(effective.ProcessingPath);
         Directory.CreateDirectory(inbound);
         Directory.CreateDirectory(processing);
         foreach (var source in Directory.EnumerateFiles(inbound).Where(IsEligible))
@@ -51,7 +53,7 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
             {
                 await using (var readiness = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.None, 1, FileOptions.Asynchronous))
                 {
-                    if (readiness.Length == 0 || readiness.Length > _options.MaximumFileBytes) continue;
+                    if (readiness.Length == 0 || readiness.Length > effective.MaximumFileBytes) continue;
                 }
                 File.Move(source, claimed, false);
             }
@@ -64,17 +66,18 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
         {
             ct.ThrowIfCancellationRequested();
             var bytes = await File.ReadAllBytesAsync(path, ct);
-            if (bytes.LongLength == 0 || bytes.LongLength > _options.MaximumFileBytes) continue;
+            if (bytes.LongLength == 0 || bytes.LongLength > effective.MaximumFileBytes) continue;
             artifacts.Add(new(Path.GetFileName(path), bytes, Convert.ToHexString(SHA256.HashData(bytes)), path));
         }
         return artifacts;
     }
 
-    public Task<string> ArchiveInboundAsync(AchManagedMftArtifact artifact, CancellationToken ct = default)
+    public async Task<string> ArchiveInboundAsync(AchManagedMftArtifact artifact, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var processing = ResolveRoot(_options.ProcessingPath);
-        var archive = ResolveRoot(_options.ArchivePath);
+        var effective = configurationProvider is null ? FromOptions() : await configurationProvider.GetEffectiveAsync(ct);
+        var processing = ResolveRoot(effective.ProcessingPath);
+        var archive = ResolveRoot(effective.ArchivePath);
         var source = Path.GetFullPath(artifact.ClaimReference);
         if (!source.StartsWith(processing + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("ACHCOL_MFT_CLAIM_REFERENCE_INVALID");
@@ -93,12 +96,12 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
             File.Delete(source);
         }
         else if (File.Exists(source)) File.Move(source, target, false);
-        return Task.FromResult($"mft-archive:{Path.GetFileName(target)}");
+        return $"mft-archive:{Path.GetFileName(target)}";
     }
 
-    private AchManagedMftResult? Validate(string fileName, byte[] content, string expectedHash)
+    private static AchManagedMftResult? Validate(string fileName, byte[] content, string expectedHash, long maximumFileBytes)
     {
-        if (content.Length == 0 || content.LongLength > _options.MaximumFileBytes)
+        if (content.Length == 0 || content.LongLength > maximumFileBytes)
             return Failure("ACHCOL_MFT_SIZE_INVALID", "El archivo está vacío o excede el tamaño permitido.", false);
         if (!string.Equals(fileName, Path.GetFileName(fileName), StringComparison.Ordinal))
             return Failure("ACHCOL_MFT_FILENAME_INVALID", "El nombre del archivo no es seguro.", false);
@@ -135,4 +138,5 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
     private static void TryDeleteTemporary(string path) { try { if (File.Exists(path)) File.Delete(path); } catch { } }
     private static AchManagedMftResult Failure(string code, string message, bool retryable, bool uncertain = false)
         => new(false, retryable, uncertain, code, message, null);
+    private AchManagedMftEffectiveConfiguration FromOptions() => new(_options.Enabled, _options.OutboundPath, _options.InboundPath, _options.ProcessingPath, _options.ArchivePath, _options.MaximumFileBytes);
 }

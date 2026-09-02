@@ -77,6 +77,28 @@ public sealed class AchColombiaFileExchangeController(IAchColombiaManagedFileExc
         catch (DbUpdateConcurrencyException) { return Conflict(new ProblemDetails { Status = 409, Title = "La configuración cambió", Detail = "Actualice la pantalla y vuelva a intentar." }); }
     }
 
+    [HttpGet("administration")]
+    [Authorize(Policy = "CanReadAch")]
+    public Task<AchManagedMftAdministrationDto> GetAdministration(CancellationToken ct)
+        => service.GetAdministrationAsync(ct);
+
+    [HttpPut("administration")]
+    [Authorize(Policy = "CanManageAch")]
+    public async Task<ActionResult<AchManagedMftAdministrationDto>> UpdateAdministration(UpdateAchManagedMftAdministrationRequest request, CancellationToken ct)
+    {
+        try { return Ok(await service.UpdateAdministrationAsync(request, Actor(), ct)); }
+        catch (DbUpdateConcurrencyException) { return Conflict(new ProblemDetails { Status = 409, Title = "La configuración cambió", Detail = "Actualice la pantalla y vuelva a intentar." }); }
+        catch (ArgumentException ex) { return BadRequest(new ProblemDetails { Status = 400, Title = "Configuración inválida", Detail = ex.Message }); }
+    }
+
+    [HttpPut("administration/credential")]
+    [Authorize(Policy = "CanManageAch")]
+    public async Task<ActionResult<AchManagedMftAdministrationDto>> SetCredential(SetAchManagedMftCredentialRequest request, CancellationToken ct)
+    {
+        try { return Ok(await service.SetCredentialAsync(request, Actor(), ct)); }
+        catch (ArgumentException ex) { return BadRequest(new ProblemDetails { Status = 400, Title = "Credencial inválida", Detail = ex.Message }); }
+    }
+
     private string Actor() => User.Identity?.Name ?? "usuario-api";
     private string Idempotency() => Request.Headers.TryGetValue("Idempotency-Key", out var value) && !string.IsNullOrWhiteSpace(value)
         ? value.ToString() : $"manual:{HttpContext.TraceIdentifier}";

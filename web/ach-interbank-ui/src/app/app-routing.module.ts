@@ -230,6 +230,11 @@ export const APP_ROUTES: Routes = [
         loadComponent: () => import('./features/ach-colombia-file-exchange/ach-colombia-file-exchange.component').then((m) => m.AchColombiaFileExchangeComponent)
       },
       {
+        path: 'administracion/mft-ach', canActivate: [roleGuard, permissionGuard],
+        data: { roles: ['Admin', 'ACH.Operator'], permissions: ['CanReadAch'], breadcrumb: 'MFT ACH', title: 'Administración MFT ACH' },
+        loadComponent: () => import('./features/ach-colombia-mft-administration/ach-colombia-mft-administration.component').then((m) => m.AchColombiaMftAdministrationComponent)
+      },
+      {
         path: 'cenit',
         canActivate: [roleGuard, permissionGuard],
         data: {
