@@ -70,6 +70,24 @@ IMPLEMENTED: Immutable durable transfers/events/configuration; retained content 
 EVIDENCE: Release solution build succeeded with 0 errors and 0 warnings; 35 focused managed-MFT, adapter, API, DI, scheduler, persistence-model, and navigation tests passed; Angular production build succeeded. Focused Playwright was skipped because the repository dev-server did not become ready within its configured 120-second window. No full E2E or external managed-MFT runtime certification was claimed.
 DEPENDENCY: The enterprise MFT/SFTP product, endpoints, credentials, and deployment remain external operational configuration; application defaults remain disabled until explicitly configured.
 
+#### OPS-GAP-002.2A
+
+STATUS: CLOSED / ACCEPTED BASELINE / DO NOT REOPEN
+
+#### OPS-GAP-002.2B
+
+STATUS: CLOSED — MANAGED MFT ADMINISTRATION CERTIFIED
+SCOPE: ACH Colombia / managed MFT / persistent administration and effective runtime configuration
+IMPLEMENTED: Persistent Managed MFT profile and master enabled state; endpoint metadata; outbound, inbound and archive routes; retry and retention policy; DB-backed protected write-only credential rotation; safe credential metadata; audit redaction; authorized administration API; Spanish Administration SPA/menu; persisted route consumption by the existing folder-based Managed MFT boundary.
+SECURITY: Credentials are protected at rest in the ACHInterbank application database. Plaintext is not returned through read APIs or Angular and is not written to audit/log payloads. No OpenBao, Vault, external enterprise secret manager, direct SFTP or GoAnywhere adapter was introduced.
+PROFILE_CONTRACT: ProfileEnabled is the master fail-closed switch. Manual execution additionally requires the corresponding manual permission. Automatic execution additionally requires the corresponding automatic flag. Existing configuration rows receive ProfileEnabled=false through both SQL Server and PostgreSQL migrations.
+IMPLEMENTATION_COMMIT: 12c1619ea20215640078183f82ae64cfc6a4640c
+CERTIFICATION_COMMIT: 0ae876ed94120b7bb292b3dce95e508c356b2859
+ROOT_CAUSE_PREVIOUS_FAILURE: STALE TEST FIXTURE
+EVIDENCE: Focused backend 19/19 PASS. Focused Angular 3/3 PASS. TypeScript PASS. Angular production build PASS. GitHub Dotnet CI run 33679704675 PASS: 2459 passed / 0 failed / 15 skipped. GitHub Angular CI run 33679704705 PASS including runtime-backed-e2e.
+VERDICT: OPS-GAP-002.2B CLOSED
+REMAINING_BOUNDARY: External enterprise Managed MFT / GoAnywhere deployment, production endpoints, operational credentials and homologation remain external operational dependencies and are not part of the internally closed OPS-GAP-002.2B slice.
+
 ### OPS-GAP-003
 
 STATUS: BLOCKED
