@@ -11,21 +11,49 @@
   <section class="filters">
     <label>Desde<input type="date" [(ngModel)]="filter.from"></label><label>Hasta<input type="date" [(ngModel)]="filter.to"></label>
     <label>Operación<select [(ngModel)]="filter.direction"><option value="">Todas</option><option value="Outbound">Envío</option><option value="Inbound">Recepción</option></select></label>
-    <label>Estado<select [(ngModel)]="filter.status"><option value="">Todos</option><option value="Transferred">Enviado</option><option value="Processed">Procesado</option><option value="Rejected">Rechazado</option><option value="RetryPending">Pendiente de reintento</option><option value="Retired">Retirado</option></select></label>
-    <label>Ejecución<select [(ngModel)]="filter.executionOrigin"><option value="">Todas</option><option value="Automatic">Automática</option><option value="Manual">Manual</option></select></label>
-    <button class="secondary" (click)="refresh()" [disabled]="busy">Filtrar</button>
+    <label>Estado<select [(ngModel)]="filter.status"><option value="">Todos</option><option *ngFor="let value of statuses" [value]="value">{{ status(value) }}</option></select></label>
+    <label>Ejecución inicial<select [(ngModel)]="filter.executionOrigin"><option value="">Todas</option><option value="Automatic">Automática</option><option value="Manual">Manual</option></select></label>
+    <label>Ciclo<input [(ngModel)]="filter.cycleId"></label>
+    <label>Nombre de archivo<input [(ngModel)]="filter.fileName"></label>
+    <label>Identificador de transferencia<input [(ngModel)]="filter.transferId"></label>
+    <label>Archivo operativo<select [(ngModel)]="filter.archived"><option value="">Todos</option><option value="true">Archivados</option><option value="false">Sin archivar</option></select></label>
+    <button class="secondary" (click)="search()" [disabled]="busy">Filtrar</button>
   </section>
 
   <p *ngIf="busy" class="loading">Cargando operación…</p>
   <div class="table-wrap"><table><thead><tr><th>Archivo</th><th>Operación</th><th>Cámara</th><th>Fecha operativa</th><th>Ciclo</th><th>Estado</th><th>Ejecución</th><th>Intentos</th><th>Archivo</th><th>Última actualización</th></tr></thead>
-    <tbody><tr *ngFor="let row of rows" (click)="open(row)" tabindex="0"><td>{{ row.fileName }}</td><td>{{ direction(row.direction) }}</td><td>ACH Colombia</td><td>{{ row.operationalDate | date:'yyyy-MM-dd' }}</td><td>{{ row.cycleId || '—' }}</td><td><span class="status">{{ status(row.status) }}</span></td><td>{{ origin(row.executionOrigin) }}</td><td>{{ row.attemptCount }}</td><td>{{ row.archived ? 'Archivado' : row.retired ? 'Retirado' : 'Activo' }}</td><td>{{ row.updatedAtUtc | date:'short' }}</td></tr><tr *ngIf="!busy && !rows.length"><td colspan="10" class="empty">No hay intercambios para los filtros seleccionados.</td></tr></tbody>
+    <tbody><tr *ngFor="let row of rows" (click)="open(row)" (keydown.enter)="open(row)" tabindex="0"><td>{{ row.fileName }}</td><td>{{ direction(row.direction) }}</td><td>ACH Colombia</td><td>{{ row.operationalDate | date:'yyyy-MM-dd' }}</td><td>{{ row.cycleId || '—' }}</td><td><span class="status">{{ status(row.status) }}</span></td><td>{{ origin(row.executionOrigin) }}</td><td>{{ row.attemptCount }}</td><td>{{ row.retired ? 'Retirado' : row.archived ? 'Archivado' : 'Activo' }}</td><td>{{ row.updatedAtUtc | date:'short' }}</td></tr><tr *ngIf="!busy && !rows.length"><td colspan="10" class="empty">No hay intercambios para los filtros seleccionados.</td></tr></tbody>
   </table></div>
+  <nav aria-label="Páginas de transferencias"><button (click)="page(-1)" [disabled]="busy || filter.pageNumber === 1">Anterior</button> Página {{ filter.pageNumber }} <button (click)="page(1)" [disabled]="busy || rows.length < filter.pageSize">Siguiente</button></nav>
 
   <aside class="detail" *ngIf="selected"><button class="close" (click)="close()" aria-label="Cerrar detalle">×</button><h2>{{ selected.fileName }}</h2>
-    <dl><div><dt>Operación</dt><dd>{{ direction(selected.direction) }}</dd></div><div><dt>Estado</dt><dd>{{ status(selected.status) }}</dd></div><div><dt>Ejecución</dt><dd>{{ origin(selected.executionOrigin) }}</dd></div><div><dt>Tamaño</dt><dd>{{ selected.fileSize | number }} bytes</dd></div><div><dt>Intentos</dt><dd>{{ selected.attemptCount }}</dd></div><div><dt>Archivo</dt><dd>{{ selected.archived ? 'Archivado' : 'Activo' }}</dd></div></dl>
-    <p *ngIf="selected.correctedFromTransferId">Este archivo reemplaza un envío anterior. Referencia: {{ selected.correctedFromTransferId }}</p>
+    <dl>
+      <div><dt>Transferencia</dt><dd>{{ selected.id }}</dd></div><div><dt>Cámara</dt><dd>ACH Colombia</dd></div>
+      <div><dt>Operación</dt><dd>{{ direction(selected.direction) }}</dd></div><div><dt>Estado</dt><dd>{{ status(selected.status) }}</dd></div>
+      <div><dt>Ejecución inicial</dt><dd>{{ origin(selected.executionOrigin) }}</dd></div><div><dt>Ciclo</dt><dd>{{ selected.cycleId || '—' }}</dd></div>
+      <div><dt>Fecha operativa</dt><dd>{{ selected.operationalDate | date:'yyyy-MM-dd' }}</dd></div>
+      <div><dt>Tamaño</dt><dd>{{ selected.fileSize | number }} bytes</dd></div><div><dt>Intentos</dt><dd>{{ selected.attemptCount }}</dd></div>
+      <div><dt>Creación</dt><dd>{{ selected.createdAtUtc | date:'medium' }}</dd></div>
+      <div><dt>Último intento</dt><dd>{{ (selected.lastAttemptAtUtc | date:'medium') || 'Sin intento registrado' }}</dd></div>
+      <div><dt>Entrega a MFT</dt><dd>{{ (selected.transferredAtUtc | date:'medium') || 'Sin entrega confirmada' }}</dd></div>
+      <div><dt>Fin de procesamiento</dt><dd>{{ (selected.processedAtUtc | date:'medium') || '—' }}</dd></div>
+      <div><dt>Archivo operativo</dt><dd>{{ selected.retired ? 'Retirado' : selected.archived ? 'Archivado' : 'Activo' }}</dd></div>
+      <div><dt>Archivado</dt><dd>{{ (selected.archivedAtUtc | date:'medium') || '—' }}</dd></div>
+      <div><dt>Retirado</dt><dd>{{ (selected.retiredAtUtc | date:'medium') || '—' }}</dd></div>
+      <div><dt>Contenido retenido</dt><dd>{{ selected.contentAvailable ? 'Disponible para descarga' : 'No disponible' }}</dd></div>
+      <div><dt>Correlación</dt><dd>{{ selected.correlationId || '—' }}</dd></div>
+      <div *ngIf="selected.achFileExportId"><dt>Archivo generado</dt><dd>{{ selected.achFileExportId }}</dd></div>
+    </dl>
+    <p *ngIf="lastSuccessfulStep(selected) as step">Último paso correcto: {{ event(step.eventType) }} · {{ step.occurredAtUtc | date:'medium' }}</p>
+    <p *ngIf="guidance(selected) as text" class="notice">{{ text }}</p>
+    <p><a routerLink="/administracion/mft-ach">Consultar rutas y configuración MFT vigente</a>. La configuración vigente puede diferir de la utilizada en intentos anteriores.</p>
+    <p *ngIf="selected.retirementReason">Razón de retiro: {{ selected.retirementReason }}</p>
+    <p *ngIf="selected.correctedFromTransferId">Reemplaza la transferencia <button (click)="open({id: selected.correctedFromTransferId})">{{ selected.correctedFromTransferId }}</button></p>
+    <p *ngIf="selected.incomingNachaFileIngestionId"><a [routerLink]="['/incoming-nacha-command-center/ingestions', selected.incomingNachaFileIngestionId]">Ver ingestión y transacciones: {{ selected.incomingNachaFileIngestionId }}</a></p>
+    <section *ngIf="selected.transactionIds.length"><h3>Transacciones del archivo exacto</h3><ul><li *ngFor="let id of selected.transactionIds"><a [routerLink]="['/transactions/outgoing-monitoring', id]">Transacción {{ id }}: trazabilidad, SOAP y respuestas</a></li></ul></section>
+    <p *ngIf="selected.lastErrorCode">Código de diagnóstico: {{ selected.lastErrorCode }}</p>
     <p class="notice error" *ngIf="selected.lastError">{{ selected.lastError }}</p>
-    <div class="actions"><button (click)="download()" [disabled]="busy || selected.retired">Descargar</button><ng-container *ngIf="canManage"><button (click)="retry()" [disabled]="busy">Reintentar</button><button (click)="reprocess()" [disabled]="busy">Reprocesar</button><button (click)="archive()" [disabled]="busy">Archivar</button><button class="danger" (click)="retire()" [disabled]="busy">Retirar archivo</button></ng-container></div>
-    <h3>Historial</h3><ol class="history"><li *ngFor="let item of selected.history"><time>{{ item.occurredAtUtc | date:'short' }}</time><strong>{{ event(item.eventType) }}</strong><span>{{ item.message }}</span><small>{{ origin(item.executionOrigin) }} · {{ item.actor }}</small></li></ol>
+    <div class="actions"><button (click)="download()" [disabled]="busy || !selected.contentAvailable">Descargar</button><ng-container *ngIf="canManage"><button (click)="retry()" [disabled]="busy || !selected.canRetry">Reintentar</button><button (click)="reprocess()" [disabled]="busy || !selected.canReprocess">Reprocesar</button><button (click)="archive()" [disabled]="busy || !selected.canArchive">Archivar</button><button class="danger" (click)="retire()" [disabled]="busy || !selected.canRetire">Retirar archivo</button></ng-container></div>
+    <h3>Historial</h3><ol class="history"><li *ngFor="let item of selected.history"><time>{{ item.occurredAtUtc | date:'medium' }}</time><strong>{{ event(item.eventType) }} · {{ outcome(item.result) }}</strong><span>{{ item.message }}</span><small>{{ origin(item.executionOrigin) }} · {{ item.actor }}</small></li></ol>
   </aside>
 </section>

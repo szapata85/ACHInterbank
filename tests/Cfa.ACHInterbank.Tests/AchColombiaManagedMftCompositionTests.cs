@@ -28,6 +28,24 @@ namespace Cfa.ACHInterbank.Tests;
 public sealed class AchColombiaManagedMftCompositionTests
 {
     [Fact]
+    public async Task MonitoringApi_ShouldForwardFiltersAndPreserveReadAuthorization()
+    {
+        var id = Guid.NewGuid();
+        var service = new Mock<IAchColombiaManagedFileExchangeService>();
+        service.Setup(x => x.QueryAsync(It.Is<AchManagedFileTransferQuery>(q => q.TransferId == id
+            && q.FileName == "file.OUT" && q.Archived == false && q.PageNumber == 2 && q.PageSize == 25
+            && q.Status == AchManagedFileTransferStatus.Uncertain), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AchManagedFileTransferSummary>());
+        var controller = new AchColombiaFileExchangeController(service.Object);
+        Assert.Empty(await controller.Query(null, null, null, AchManagedFileTransferStatus.Uncertain,
+            null, null, default, "file.OUT", id, false, 2, 25));
+        service.VerifyAll();
+        foreach (var methodName in new[] { nameof(controller.Query), nameof(controller.Get) })
+            Assert.Contains(typeof(AchColombiaFileExchangeController).GetMethod(methodName)!
+                .GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>(), x => x.Policy == "CanReadAch");
+    }
+
+    [Fact]
     public void ProductionComposition_WithManagedMftDisabled_ShouldResolveManagedMftAndSchedulerGraph()
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions

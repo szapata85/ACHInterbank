@@ -12,4 +12,13 @@ export interface TransferDetail extends TransferSummary {
   fileSize: number; contentSha256: string; createdAtUtc: string; transferredAtUtc?: string; processedAtUtc?: string;
   lastError?: string; archivedAtUtc?: string; retiredAtUtc?: string; retirementReason?: string;
   correctedFromTransferId?: string; history: TransferEvent[];
+  lastAttemptAtUtc?: string; lastErrorCode?: string; correlationId?: string;
+  achFileExportId?: number; incomingNachaFileIngestionId?: string; transactionIds: number[];
+  contentAvailable: boolean; canRetry: boolean; canReprocess: boolean; canArchive: boolean; canRetire: boolean;
+}
+
+export interface TransferFilter {
+  from: string; to: string; direction: TransferDirection | ''; status: TransferStatus | '';
+  executionOrigin: ExecutionOrigin | ''; cycleId: string; fileName: string; transferId: string;
+  archived: '' | 'true' | 'false'; pageNumber: number; pageSize: number;
 }

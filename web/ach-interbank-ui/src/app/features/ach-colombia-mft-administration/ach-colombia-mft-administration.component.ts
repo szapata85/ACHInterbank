@@ -14,6 +14,11 @@ import { AchColombiaFileExchangeService, ManagedMftAdministration } from '../ach
 <label>Puerto <input class="form-control" type="number" [(ngModel)]="model.port"></label><label>Usuario / identificador seguro <input class="form-control" [(ngModel)]="model.principal"></label>
 <label><input type="checkbox" [(ngModel)]="model.profileEnabled"> Perfil habilitado</label><hr><h4>Rutas operativas</h4>
 <label>Ruta de entrega de salida <input class="form-control" [(ngModel)]="model.outboundLocation"></label><label>Ruta de recepción de entrada <input class="form-control" [(ngModel)]="model.inboundLocation"></label><label>Ruta de archivo <input class="form-control" [(ngModel)]="model.archiveLocation"></label>
+<h4>Ejecución</h4>
+<label><input type="checkbox" [(ngModel)]="model.automaticOutboundEnabled"> Envío automático</label>
+<label><input type="checkbox" [(ngModel)]="model.automaticInboundEnabled"> Recepción automática</label>
+<label><input type="checkbox" [(ngModel)]="model.manualOutboundAllowed"> Permitir envío manual</label>
+<label><input type="checkbox" [(ngModel)]="model.manualInboundAllowed"> Permitir recepción manual</label>
 <h4>Reintento y retención</h4><label>Máximo de intentos <input class="form-control" type="number" [(ngModel)]="model.maximumRetries"></label><label>Demora (segundos) <input class="form-control" type="number" [(ngModel)]="model.retryDelaySeconds"></label><label>Retención (días) <input class="form-control" type="number" [(ngModel)]="model.retentionDays"></label>
 <button class="btn btn-primary mt-3" *ngIf="canManage" (click)="save()">Guardar configuración</button></fieldset>
 <hr><h4>Credencial</h4><p>{{model.credentialConfigured ? 'Configurada' : 'No configurada'}} <span *ngIf="model.credentialUpdatedAtUtc">— Última actualización: {{model.credentialUpdatedAtUtc | date:'short'}}</span></p>

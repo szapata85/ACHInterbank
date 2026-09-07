@@ -64,7 +64,7 @@ public sealed class AchColombiaManagedFileExchangeService(
                 && existing.RetainedContent is not null
                 && existing.AttemptCount <= configuration.MaximumRetries)
             {
-                return await HandoffAsync(existing, actor, ct);
+                return await HandoffAsync(existing, origin, actor, ct);
             }
             return new(1, existing.Status is AchManagedFileTransferStatus.Transferred ? 1 : 0, existing.Status is AchManagedFileTransferStatus.Failed ? 1 : 0, [existing.Id]);
         }
@@ -130,7 +130,7 @@ public sealed class AchColombiaManagedFileExchangeService(
             return new(1, winner.Status == AchManagedFileTransferStatus.Transferred ? 1 : 0,
                 winner.Status is AchManagedFileTransferStatus.Failed or AchManagedFileTransferStatus.Rejected ? 1 : 0, [winner.Id]);
         }
-        return await HandoffAsync(transfer, actor, ct);
+        return await HandoffAsync(transfer, origin, actor, ct);
     }
 
     public async Task<AchManagedFileExecutionResult> ExecuteInboundAsync(
@@ -155,7 +155,7 @@ public sealed class AchColombiaManagedFileExchangeService(
                     && duplicate.Status is AchManagedFileTransferStatus.Received or AchManagedFileTransferStatus.InProgress or AchManagedFileTransferStatus.RetryPending)
                 {
                     AddEvent(duplicate, "InboundRecovery", "Started", "Se reanudó una recepción interrumpida.", origin, actor);
-                    await ProcessInboundAsync(duplicate, duplicate.RetainedContent ?? artifact.Content, actor, false, null, ct);
+                    await ProcessInboundAsync(duplicate, duplicate.RetainedContent ?? artifact.Content, origin, actor, false, null, ct);
                     if (duplicate.Status == AchManagedFileTransferStatus.Processed) succeeded++; else failed++;
                 }
                 else
@@ -206,7 +206,7 @@ public sealed class AchColombiaManagedFileExchangeService(
             }
             else
             {
-                await ProcessInboundAsync(transfer, artifact.Content, actor, false, null, ct);
+                await ProcessInboundAsync(transfer, artifact.Content, origin, actor, false, null, ct);
                 if (transfer.Status == AchManagedFileTransferStatus.Processed) succeeded++; else failed++;
             }
             transfer.ArchiveReference = await mftAdapter.ArchiveInboundAsync(artifact, ct);
@@ -228,8 +228,8 @@ public sealed class AchColombiaManagedFileExchangeService(
         if (transfer.RetainedContent is null) throw new InvalidOperationException("ACHCOL_MFT_CONTENT_NOT_RETAINED");
         var configuration = await GetOrCreateConfigurationEntityAsync(ct);
         if (transfer.AttemptCount > configuration.MaximumRetries) throw new InvalidOperationException("ACHCOL_MFT_RETRIES_EXHAUSTED");
-        await HandoffAsync(transfer, actor, ct);
-        return Map(await RequiredAsync(transferId, ct));
+        await HandoffAsync(transfer, AchManagedFileExecutionOrigin.Manual, actor, ct);
+        return await MapAsync(await RequiredAsync(transferId, ct), ct);
     }
 
     public async Task<AchManagedFileTransferDetail> ReprocessAsync(Guid transferId, string actor, CancellationToken ct = default)
@@ -237,9 +237,9 @@ public sealed class AchColombiaManagedFileExchangeService(
         var transfer = await RequiredAsync(transferId, ct);
         if (transfer.Direction != AchManagedFileDirection.Inbound || transfer.IncomingNachaFileIngestionId is null || transfer.RetainedContent is null || transfer.Status is not (AchManagedFileTransferStatus.Rejected or AchManagedFileTransferStatus.Failed))
             throw new InvalidOperationException("ACHCOL_MFT_REPROCESS_NOT_ALLOWED");
-        await ProcessInboundAsync(transfer, transfer.RetainedContent, actor, true, transfer.IncomingNachaFileIngestionId, ct);
+        await ProcessInboundAsync(transfer, transfer.RetainedContent, AchManagedFileExecutionOrigin.Manual, actor, true, transfer.IncomingNachaFileIngestionId, ct);
         await context.SaveChangesAsync(ct);
-        return Map(transfer);
+        return await MapAsync(transfer, ct);
     }
 
     public async Task<AchManagedFileTransferDetail> ArchiveAsync(Guid transferId, string actor, CancellationToken ct = default)
@@ -251,7 +251,7 @@ public sealed class AchColombiaManagedFileExchangeService(
         AddEvent(transfer, "Archived", "Succeeded", "Contenido conservado en el archivo operativo.", AchManagedFileExecutionOrigin.Manual, actor);
         transfer.ConcurrencyToken = Guid.NewGuid();
         await context.SaveChangesAsync(ct);
-        return Map(transfer);
+        return await MapAsync(transfer, ct);
     }
 
     public async Task<AchManagedFileTransferDetail> RetireAsync(Guid transferId, string actor, string reason, CancellationToken ct = default)
@@ -268,7 +268,7 @@ public sealed class AchColombiaManagedFileExchangeService(
         transfer.ConcurrencyToken = Guid.NewGuid();
         AddEvent(transfer, "Retired", "Succeeded", "Archivo retirado del almacenamiento activo; historial conservado.", AchManagedFileExecutionOrigin.Manual, actor);
         await context.SaveChangesAsync(ct);
-        return Map(transfer);
+        return await MapAsync(transfer, ct);
     }
 
     public async Task<IReadOnlyList<AchManagedFileTransferSummary>> QueryAsync(AchManagedFileTransferQuery query, CancellationToken ct = default)
@@ -280,7 +280,16 @@ public sealed class AchColombiaManagedFileExchangeService(
         if (query.Status.HasValue) items = items.Where(x => x.Status == query.Status);
         if (!string.IsNullOrWhiteSpace(query.CycleId)) items = items.Where(x => x.AchCycleId == query.CycleId);
         if (query.ExecutionOrigin.HasValue) items = items.Where(x => x.ExecutionOrigin == query.ExecutionOrigin);
-        return await items.OrderByDescending(x => x.CreatedAtUtc).Take(500)
+        if (!string.IsNullOrWhiteSpace(query.FileName))
+        {
+            var fileName = query.FileName.Trim().ToUpperInvariant();
+            items = items.Where(x => x.PhysicalFileName.ToUpper().Contains(fileName));
+        }
+        if (query.TransferId.HasValue) items = items.Where(x => x.Id == query.TransferId);
+        if (query.Archived.HasValue) items = items.Where(x => (x.ArchivedAtUtc != null) == query.Archived);
+        var pageSize = Math.Clamp(query.PageSize, 1, 500);
+        var pageNumber = Math.Clamp(query.PageNumber, 1, int.MaxValue / pageSize);
+        return await items.OrderByDescending(x => x.CreatedAtUtc).ThenBy(x => x.Id).Skip((pageNumber - 1) * pageSize).Take(pageSize)
             .Select(x => new AchManagedFileTransferSummary(x.Id, x.PhysicalFileName, x.Direction, x.OperationalDate, x.AchCycleId, x.Status, x.ExecutionOrigin, x.AttemptCount, x.UpdatedAt.UtcDateTime, x.ArchivedAtUtc != null, x.RetiredAtUtc != null)).ToListAsync(ct);
     }
 
@@ -288,7 +297,7 @@ public sealed class AchColombiaManagedFileExchangeService(
     {
         var transfer = await context.AchManagedFileTransfers.AsNoTracking().Include(x => x.Events)
             .SingleOrDefaultAsync(x => x.Id == transferId && x.ClearingHouse.Code == ClearingHouseCode, ct);
-        return transfer is null ? null : Map(transfer);
+        return transfer is null ? null : await MapAsync(transfer, ct);
     }
 
     public async Task<AchManagedFileDownload?> DownloadAsync(Guid transferId, string actor, CancellationToken ct = default)
@@ -368,12 +377,12 @@ public sealed class AchColombiaManagedFileExchangeService(
         return MapAdministration(entity);
     }
 
-    private async Task<AchManagedFileExecutionResult> HandoffAsync(AchManagedFileTransfer transfer, string actor, CancellationToken ct)
+    private async Task<AchManagedFileExecutionResult> HandoffAsync(AchManagedFileTransfer transfer, AchManagedFileExecutionOrigin origin, string actor, CancellationToken ct)
     {
         transfer.AttemptCount++;
         transfer.LastAttemptAtUtc = DateTime.UtcNow;
         transfer.Status = AchManagedFileTransferStatus.InProgress;
-        AddEvent(transfer, "OutboundAttempt", "Started", $"Intento {transfer.AttemptCount} de entrega iniciado.", transfer.ExecutionOrigin, actor);
+        AddEvent(transfer, "OutboundAttempt", "Started", $"Intento {transfer.AttemptCount} de entrega iniciado.", origin, actor);
         await context.SaveChangesAsync(ct);
         var result = await mftAdapter.HandoffOutboundAsync(transfer.PhysicalFileName, transfer.RetainedContent!, transfer.ContentSha256, ct);
         transfer.LastErrorCode = result.Succeeded ? null : result.Code;
@@ -385,20 +394,20 @@ public sealed class AchColombiaManagedFileExchangeService(
         {
             transfer.ArchivedAtUtc ??= DateTime.UtcNow;
             transfer.ArchiveReference ??= $"retained:{transfer.Id:N}";
-            AddEvent(transfer, "Archived", "Succeeded", "Contenido conservado en el archivo operativo.", transfer.ExecutionOrigin, actor);
+            AddEvent(transfer, "Archived", "Succeeded", "Contenido conservado en el archivo operativo.", origin, actor);
         }
         transfer.ConcurrencyToken = Guid.NewGuid();
-        AddEvent(transfer, "OutboundAttempt", result.Succeeded ? "Succeeded" : result.Uncertain ? "Uncertain" : "Failed", result.Message, transfer.ExecutionOrigin, actor);
+        AddEvent(transfer, "OutboundAttempt", result.Succeeded ? "Succeeded" : result.Uncertain ? "Uncertain" : "Failed", result.Message, origin, actor);
         await context.SaveChangesAsync(ct);
         return new(1, result.Succeeded ? 1 : 0, result.Succeeded ? 0 : 1, [transfer.Id]);
     }
 
-    private async Task ProcessInboundAsync(AchManagedFileTransfer transfer, byte[] content, string actor, bool reprocess, Guid? parentId, CancellationToken ct)
+    private async Task ProcessInboundAsync(AchManagedFileTransfer transfer, byte[] content, AchManagedFileExecutionOrigin origin, string actor, bool reprocess, Guid? parentId, CancellationToken ct)
     {
         transfer.AttemptCount++;
         transfer.LastAttemptAtUtc = DateTime.UtcNow;
         transfer.Status = AchManagedFileTransferStatus.InProgress;
-        AddEvent(transfer, reprocess ? "ReprocessStarted" : "InboundProcessingStarted", "Started", "Procesamiento NACHA-M iniciado.", transfer.ExecutionOrigin, actor);
+        AddEvent(transfer, reprocess ? "ReprocessStarted" : "InboundProcessingStarted", "Started", "Procesamiento NACHA-M iniciado.", origin, actor);
         await context.SaveChangesAsync(ct);
         await using var stream = new MemoryStream(content, false);
         var result = await ingestionService.IngestAsync(new IncomingNachaIngestionRequest
@@ -423,7 +432,7 @@ public sealed class AchColombiaManagedFileExchangeService(
         transfer.LastError = result.Errors.Count == 0 ? null : Limit(string.Join(" | ", result.Errors), 1000);
         transfer.LastErrorCode = transfer.Status is AchManagedFileTransferStatus.Processed or AchManagedFileTransferStatus.Duplicate ? null : "ACHCOL_INBOUND_REJECTED";
         transfer.ConcurrencyToken = Guid.NewGuid();
-        AddEvent(transfer, reprocess ? "ReprocessFinished" : "InboundProcessingFinished", transfer.Status.ToString(), transfer.LastError ?? "Procesamiento completado.", transfer.ExecutionOrigin, actor);
+        AddEvent(transfer, reprocess ? "ReprocessFinished" : "InboundProcessingFinished", transfer.Status.ToString(), transfer.LastError ?? "Procesamiento completado.", origin, actor);
     }
 
     private async Task<AchManagedFileTransferConfiguration> GetOrCreateConfigurationEntityAsync(CancellationToken ct)
@@ -475,7 +484,29 @@ public sealed class AchColombiaManagedFileExchangeService(
         if (!identifier.HasValue || content.Length < 36) return content;
         var chars = content.ToCharArray(); chars[35] = identifier.Value; return new string(chars);
     }
-    private static AchManagedFileTransferDetail Map(AchManagedFileTransfer x) => new(x.Id, x.PhysicalFileName, x.Direction, x.OperationalDate, x.AchCycleId, x.Status, x.ExecutionOrigin, x.FileSize, x.ContentSha256, x.AttemptCount, x.CreatedAtUtc, x.TransferredAtUtc, x.ProcessedAtUtc, x.LastError, x.ArchivedAtUtc != null, x.ArchivedAtUtc, x.RetiredAtUtc != null, x.RetiredAtUtc, x.RetirementReason, x.CorrectedFromTransferId, x.Events.OrderBy(e => e.OccurredAtUtc).Select(e => new AchManagedFileTransferEventDto(e.Id, e.OccurredAtUtc, e.EventType, e.Result, e.Message, e.ExecutionOrigin, e.Actor)).ToArray());
+    private async Task<AchManagedFileTransferDetail> MapAsync(AchManagedFileTransfer x, CancellationToken ct)
+    {
+        var maximumRetries = await context.AchManagedFileTransferConfigurations.AsNoTracking()
+            .Where(c => c.ClearingHouseId == x.ClearingHouseId).Select(c => (int?)c.MaximumRetries).SingleOrDefaultAsync(ct)
+            ?? new AchManagedFileTransferConfiguration().MaximumRetries;
+        var transactions = x.AchFileExportId.HasValue
+            ? await context.AchFileExportTransactions.AsNoTracking().Where(m => m.AchFileExportId == x.AchFileExportId)
+                .OrderBy(m => m.FileSequence).ThenBy(m => m.AchTransactionId).Select(m => m.AchTransactionId).ToArrayAsync(ct)
+            : [];
+        return new(x.Id, x.PhysicalFileName, x.Direction, x.OperationalDate, x.AchCycleId, x.Status, x.ExecutionOrigin, x.FileSize, x.ContentSha256, x.AttemptCount, x.CreatedAtUtc, x.TransferredAtUtc, x.ProcessedAtUtc, x.LastError, x.ArchivedAtUtc != null, x.ArchivedAtUtc, x.RetiredAtUtc != null, x.RetiredAtUtc, x.RetirementReason, x.CorrectedFromTransferId, x.Events.OrderBy(e => e.OccurredAtUtc).ThenBy(e => e.Id).Select(e => new AchManagedFileTransferEventDto(e.Id, e.OccurredAtUtc, e.EventType, e.Result, e.Message, e.ExecutionOrigin, e.Actor)).ToArray())
+        {
+            LastAttemptAtUtc = x.LastAttemptAtUtc, LastErrorCode = x.LastErrorCode, CorrelationId = x.CorrelationId,
+            AchFileExportId = x.AchFileExportId, IncomingNachaFileIngestionId = x.IncomingNachaFileIngestionId,
+            TransactionIds = transactions, ContentAvailable = x.RetainedContent is not null,
+            CanRetry = x.Direction == AchManagedFileDirection.Outbound && x.RetainedContent is not null
+                && x.Status is AchManagedFileTransferStatus.RetryPending or AchManagedFileTransferStatus.Uncertain
+                && x.AttemptCount <= maximumRetries,
+            CanReprocess = x.Direction == AchManagedFileDirection.Inbound && x.IncomingNachaFileIngestionId.HasValue
+                && x.RetainedContent is not null && x.Status is AchManagedFileTransferStatus.Rejected or AchManagedFileTransferStatus.Failed,
+            CanArchive = !x.RetiredAtUtc.HasValue,
+            CanRetire = x.Status != AchManagedFileTransferStatus.InProgress && !x.RetiredAtUtc.HasValue
+        };
+    }
     private static AchManagedFileTransferConfigurationDto Map(AchManagedFileTransferConfiguration x) => new(x.AutomaticOutboundEnabled, x.AutomaticInboundEnabled, x.ManualOutboundAllowed, x.ManualInboundAllowed, x.MaximumRetries, x.RetentionDays, x.OutboundLocation, x.InboundLocation, x.ArchiveLocation, x.ConcurrencyToken);
     private static AchManagedMftAdministrationDto MapAdministration(AchManagedFileTransferConfiguration x) => new(x.ProfileName, x.Provider, x.Protocol, x.ProfileEnabled, x.Endpoint, x.Port, x.Principal, x.AutomaticOutboundEnabled, x.AutomaticInboundEnabled, x.ManualOutboundAllowed, x.ManualInboundAllowed, x.MaximumRetries, x.RetryDelaySeconds, x.RetentionDays, x.OutboundLocation, x.InboundLocation, x.ArchiveLocation, !string.IsNullOrWhiteSpace(x.ProtectedCredential), x.CredentialType, x.CredentialUpdatedAtUtc, x.ConcurrencyToken);
 }

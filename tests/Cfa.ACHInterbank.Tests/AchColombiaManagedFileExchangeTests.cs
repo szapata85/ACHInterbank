@@ -17,6 +17,86 @@ namespace Cfa.ACHInterbank.Tests;
 
 public sealed class AchColombiaManagedFileExchangeTests
 {
+    [Fact]
+    public async Task Monitoring_ShouldProjectDurableEvidenceAndCommandEligibility_WithoutMutatingHistory()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var transfer = fixture.SeedTransfer(AchManagedFileDirection.Outbound, AchManagedFileTransferStatus.Uncertain, [3]);
+        transfer.AttemptCount = fixture.Configuration.MaximumRetries + 1;
+        transfer.LastAttemptAtUtc = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+        transfer.LastErrorCode = "ACHCOL_MFT_IO_UNCERTAIN";
+        transfer.Events.Add(new() { Id = 20, OccurredAtUtc = transfer.LastAttemptAtUtc.Value, EventType = "OutboundAttempt", Result = "Uncertain" });
+        transfer.Events.Add(new() { Id = 10, OccurredAtUtc = transfer.LastAttemptAtUtc.Value, EventType = "OutboundAttempt", Result = "Started" });
+        await fixture.Context.SaveChangesAsync();
+        fixture.Context.ChangeTracker.Clear();
+
+        var detail = await fixture.Service.GetAsync(transfer.Id);
+
+        Assert.NotNull(detail);
+        Assert.Equal(transfer.LastAttemptAtUtc, detail.LastAttemptAtUtc);
+        Assert.Equal(transfer.LastErrorCode, detail.LastErrorCode);
+        Assert.Equal(transfer.CorrelationId, detail.CorrelationId);
+        Assert.True(detail.ContentAvailable);
+        Assert.False(detail.CanRetry);
+        Assert.False(detail.CanReprocess);
+        Assert.True(detail.CanArchive);
+        Assert.Equal(new long[] { 10, 20 }, detail.History.Select(x => x.Id));
+        Assert.Empty(fixture.Context.ChangeTracker.Entries());
+
+        var retired = await fixture.Service.RetireAsync(transfer.Id, "operator", "Test retention completed");
+        Assert.False(retired.ContentAvailable);
+        Assert.False(retired.CanRetry);
+        Assert.False(retired.CanArchive);
+        Assert.False(retired.CanRetire);
+    }
+
+    [Theory]
+    [InlineData(AchManagedFileExecutionOrigin.Automatic, AchManagedFileExecutionOrigin.Manual)]
+    [InlineData(AchManagedFileExecutionOrigin.Manual, AchManagedFileExecutionOrigin.Automatic)]
+    public async Task RetryTimeline_ShouldRecordActualTrigger_AndPreserveInitialOrigin(
+        AchManagedFileExecutionOrigin initial, AchManagedFileExecutionOrigin retry)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var transfer = fixture.SeedTransfer(AchManagedFileDirection.Outbound, AchManagedFileTransferStatus.RetryPending, [3]);
+        transfer.ExecutionOrigin = initial;
+        transfer.AchCycleId = "ACH-1";
+        fixture.Configuration.AutomaticOutboundEnabled = true;
+        await fixture.Context.SaveChangesAsync();
+
+        if (retry == AchManagedFileExecutionOrigin.Manual)
+            await fixture.Service.RetryAsync(transfer.Id, "operator", "manual-retry");
+        else
+            await fixture.Service.ExecuteOutboundAsync("ACH-1", retry, "task:AchColombiaManagedMftOutbound", "task-retry");
+
+        var detail = await fixture.Service.GetAsync(transfer.Id);
+        Assert.Equal(initial, detail!.ExecutionOrigin);
+        Assert.All(detail.History.Where(x => x.EventType == "OutboundAttempt"), x => Assert.Equal(retry, x.ExecutionOrigin));
+        Assert.Equal(2, detail.History.Count(x => x.EventType == "OutboundAttempt"));
+    }
+
+    [Fact]
+    public async Task MonitoringSearch_ShouldFilterAndPageDeterministically()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var one = fixture.SeedTransfer(AchManagedFileDirection.Outbound, AchManagedFileTransferStatus.Uncertain, [1]);
+        var two = fixture.SeedTransfer(AchManagedFileDirection.Outbound, AchManagedFileTransferStatus.Uncertain, [2]);
+        one.PhysicalFileName = "one.OUT.env";
+        two.PhysicalFileName = "two.OUT.env";
+        one.CreatedAtUtc = two.CreatedAtUtc = new(2026, 9, 1);
+        two.ArchivedAtUtc = new(2026, 9, 2);
+        await fixture.Context.SaveChangesAsync();
+
+        var first = await fixture.Service.QueryAsync(new(PageSize: 1));
+        var second = await fixture.Service.QueryAsync(new(PageNumber: 2, PageSize: 1));
+        Assert.Single(first);
+        Assert.Single(second);
+        Assert.NotEqual(first[0].Id, second[0].Id);
+        Assert.Equal(first[0].Id, (await fixture.Service.QueryAsync(new(PageSize: 1)))[0].Id);
+        Assert.Equal(two.Id, Assert.Single(await fixture.Service.QueryAsync(new(FileName: "two.OUT", Archived: true))).Id);
+        Assert.Equal(one.Id, Assert.Single(await fixture.Service.QueryAsync(new(TransferId: one.Id, Status: AchManagedFileTransferStatus.Uncertain))).Id);
+        Assert.Empty(await fixture.Service.QueryAsync(new(TransferId: one.Id, Archived: true)));
+    }
+
     [Theory]
     [InlineData(AchManagedFileExecutionOrigin.Manual)]
     [InlineData(AchManagedFileExecutionOrigin.Automatic)]
@@ -164,6 +244,11 @@ public sealed class AchColombiaManagedFileExchangeTests
         Assert.Equal(1, result.Succeeded);
         Assert.Equal(1, await fixture.Context.AchManagedFileTransfers.CountAsync());
         Assert.Contains(await fixture.Context.AchManagedFileTransferEvents.ToListAsync(), x => x.EventType == "InboundRecovery");
+        var detail = await fixture.Service.GetAsync(transfer.Id);
+        Assert.Equal(AchManagedFileExecutionOrigin.Manual, detail!.ExecutionOrigin);
+        Assert.All(detail.History.Where(x => x.EventType.StartsWith("InboundProcessing", StringComparison.Ordinal)),
+            x => Assert.Equal(AchManagedFileExecutionOrigin.Automatic, x.ExecutionOrigin));
+        Assert.NotNull(detail.IncomingNachaFileIngestionId);
     }
 
     [Fact]
@@ -205,10 +290,14 @@ public sealed class AchColombiaManagedFileExchangeTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var transfer = fixture.SeedTransfer(AchManagedFileDirection.Inbound, AchManagedFileTransferStatus.Rejected, [4]);
+        transfer.ExecutionOrigin = AchManagedFileExecutionOrigin.Automatic;
         transfer.IncomingNachaFileIngestionId = Guid.NewGuid();
         await fixture.Context.SaveChangesAsync();
         var detail = await fixture.Service.ReprocessAsync(transfer.Id, "operator");
         Assert.Equal(AchManagedFileTransferStatus.Processed, detail.Status);
+        Assert.Equal(AchManagedFileExecutionOrigin.Automatic, detail.ExecutionOrigin);
+        Assert.All(detail.History.Where(x => x.EventType.StartsWith("Reprocess", StringComparison.Ordinal)),
+            x => Assert.Equal(AchManagedFileExecutionOrigin.Manual, x.ExecutionOrigin));
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ReprocessAsync(transfer.Id, "operator"));
     }
 

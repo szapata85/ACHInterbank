@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
+import { provideRouter } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AchColombiaFileExchangeComponent } from './ach-colombia-file-exchange.component';
@@ -15,7 +16,8 @@ describe('AchColombiaFileExchangeComponent', () => {
     id: '7a4c3c48-92bd-4fd2-a8f1-3d16e2745d71', fileName: 'transfer.out', direction: 'Outbound', operationalDate: '2026-09-02',
     status: 'Failed', executionOrigin: 'Manual', attemptCount: 1, updatedAtUtc: '2026-09-02T12:00:00Z', archived: false, retired: false
   };
-  const detail: TransferDetail = { ...row, fileSize: 128, contentSha256: 'hash', createdAtUtc: '2026-09-02T11:00:00Z', history: [] };
+  const detail: TransferDetail = { ...row, status: 'RetryPending', fileSize: 128, contentSha256: 'hash', createdAtUtc: '2026-09-02T11:00:00Z', history: [],
+    transactionIds: [], contentAvailable: true, canRetry: true, canReprocess: false, canArchive: true, canRetire: true };
 
   beforeEach(async () => {
     api = jasmine.createSpyObj<AchColombiaFileExchangeService>('AchColombiaFileExchangeService',
@@ -29,6 +31,7 @@ describe('AchColombiaFileExchangeComponent', () => {
     await TestBed.configureTestingModule({
       imports: [AchColombiaFileExchangeComponent],
       providers: [
+        provideRouter([]),
         { provide: AchColombiaFileExchangeService, useValue: api },
         { provide: AuthService, useValue: auth },
         { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) }
@@ -43,6 +46,39 @@ describe('AchColombiaFileExchangeComponent', () => {
 
     expect(api.list).toHaveBeenCalled();
     expect(component.rows).toEqual([row]);
+  });
+
+  it('shows durable correlation, all lifecycle filters and links to existing lineage', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.selected = { ...detail, correlationId: 'correlation-123', transactionIds: [42],
+      lastErrorCode: 'ACHCOL_MFT_IO_UNCERTAIN', lastAttemptAtUtc: '2026-09-02T12:00:00Z',
+      history: [{ id: 1, occurredAtUtc: '2026-09-02T12:00:00Z', eventType: 'OutboundAttempt', result: 'Uncertain',
+        message: 'Entrega sin confirmar', executionOrigin: 'Automatic', actor: 'task:AchColombiaManagedMftOutbound' }] };
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain(detail.id);
+    expect(text).toContain('correlation-123');
+    expect(text).toContain('ACHCOL_MFT_IO_UNCERTAIN');
+    expect(text).toContain('task:AchColombiaManagedMftOutbound');
+    expect(fixture.nativeElement.querySelector('a[href="/transactions/outgoing-monitoring/42"]')).not.toBeNull();
+    expect(component.statuses.length).toBe(11);
+    expect(component.statuses).toContain('Uncertain');
+    expect(component.statuses).toContain('Failed');
+  });
+
+  it('prevents an ineligible retry and a missing-content download', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.selected = { ...detail, canRetry: false, contentAvailable: false };
+    fixture.detectChanges();
+    component.retry();
+    component.download();
+    expect(api.retry).not.toHaveBeenCalled();
+    expect(api.download).not.toHaveBeenCalled();
+    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+    expect(buttons.find(x => x.textContent === 'Reintentar')!.disabled).toBeTrue();
+    expect(buttons.find(x => x.textContent === 'Descargar')!.disabled).toBeTrue();
   });
 
   it('does not render or invoke management actions without CanManageAch', () => {

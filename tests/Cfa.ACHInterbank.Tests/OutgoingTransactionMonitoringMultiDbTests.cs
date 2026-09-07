@@ -5,6 +5,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Persistence.ACH.OutgoingTransactionMonitoring;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Cfa.ACHInterbank.Persistence.Security.Services;
@@ -194,6 +195,8 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         secondFileDetail!.Files.Should().ContainSingle();
         secondFileDetail.Files[0].FileName.Should().Be("UAT-F4-SALIDA.002");
 
+        await ValidateManagedMftProjectionAsync(context, ids.ExactFile, ids.SecondFileMembership);
+
         var noMembershipDetail = await service.GetDetailAsync(ids.WithoutFile, includeTechnicalDetail: false);
         noMembershipDetail!.Files.Should().BeEmpty();
 
@@ -224,6 +227,64 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         (await context.AchTransactions.CountAsync(item => item.Id == ids.RetrySucceeded)).Should().Be(1);
 
         await ValidateProcContrapartidasBootstrapAsync(context, transactionId);
+    }
+
+    private static async Task ValidateManagedMftProjectionAsync(AchDbContext context, int templateId, int nonMemberId)
+    {
+        var house = await context.ClearingHouses.SingleOrDefaultAsync(x => x.Code == "ACHCOL");
+        if (house is null)
+        {
+            house = new ClearingHouse { Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "0001001",
+                ClearingHouseId = await context.Set<ClearingHouseConfig>().Select(x => x.Id).FirstAsync() };
+            context.Add(house);
+            await context.SaveChangesAsync();
+        }
+        var cycle = new AchCycle { Id = "OPS-2C-CYCLE", ClearingHouseId = house.Id, CycleName = "Ciclo OPS 2C",
+            ProcessingDate = ScenarioNow.UtcDateTime.Date };
+        var batch = new AchBatch { AchCycleId = cycle.Id, ServiceClassCode = "220", CompanyName = "CFA",
+            CompanyIdentification = "OPS2C", OriginOrOdfi = "00000001", EffectiveEntryDate = ScenarioNow.UtcDateTime.Date,
+            BatchSequenceNumber = 1, CompanyEntryDescriptionId = 1 };
+        context.AddRange(cycle, batch);
+        await context.SaveChangesAsync();
+        var template = await context.AchTransactions.AsNoTracking().SingleAsync(x => x.Id == templateId);
+        var member = Phase4Transaction("OPS-2C-MEMBER", "900000000002001", template.SourceInstitutionId,
+            template.DestinationInstitutionId, cycle.Id, batch.Id, ScenarioNow);
+        var file = File(cycle.Id, house.Id, "OPS-2C.OUT.env", 1, ScenarioNow.UtcDateTime);
+        context.AddRange(member, file);
+        await context.SaveChangesAsync();
+        context.Add(Membership(file.Id, member, cycle.Id, batch.Id, ScenarioNow.UtcDateTime));
+        var transfer = new AchManagedFileTransfer
+        {
+            ClearingHouseId = file.ClearingHouseId, AchFileExportId = file.Id,
+            Direction = AchManagedFileDirection.Outbound, Status = AchManagedFileTransferStatus.Uncertain,
+            ExecutionOrigin = AchManagedFileExecutionOrigin.Automatic, PhysicalFileName = "OPS-2C.OUT.env",
+            LogicalFileIdentity = "OPS-2C", IdempotencyKey = "OPS-2C", CorrelationId = "OPS-2C-correlation",
+            ContentSha256 = new string('A', 64), RetainedContent = [1, 2], FileSize = 2,
+            OperationalDate = ScenarioNow.UtcDateTime.Date, CreatedAtUtc = ScenarioNow.UtcDateTime,
+            LastAttemptAtUtc = ScenarioNow.UtcDateTime, LastErrorCode = "ACHCOL_MFT_IO_UNCERTAIN"
+        };
+        transfer.Events.Add(new() { EventType = "OutboundAttempt", Result = "Uncertain", Message = "Entrega sin confirmar",
+            ExecutionOrigin = AchManagedFileExecutionOrigin.Automatic, Actor = "task:AchColombiaManagedMftOutbound", OccurredAtUtc = ScenarioNow.UtcDateTime });
+        context.AchManagedFileTransfers.Add(transfer);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        // Monitoring must remain read-only and must not invoke transport or business execution dependencies.
+        var mft = new AchColombiaManagedFileExchangeService(context, null!, null!, null!, null!, null!, null!, null!);
+        var detail = await mft.GetAsync(transfer.Id);
+        detail.Should().NotBeNull();
+        detail!.TransactionIds.Should().Equal(member.Id).And.NotContain(nonMemberId);
+        detail.AchFileExportId.Should().Be(file.Id);
+        detail.CorrelationId.Should().Be("OPS-2C-correlation");
+        detail.LastErrorCode.Should().Be("ACHCOL_MFT_IO_UNCERTAIN");
+        detail.LastAttemptAtUtc.Should().Be(ScenarioNow.UtcDateTime);
+        detail.ContentAvailable.Should().BeTrue();
+        detail.History.Should().ContainSingle(x => x.Actor == "task:AchColombiaManagedMftOutbound");
+        (await mft.QueryAsync(new(FileName: "ops-2c", TransferId: transfer.Id,
+            Archived: false, Status: AchManagedFileTransferStatus.Uncertain, PageSize: 1)))
+            .Should().ContainSingle(x => x.Id == transfer.Id);
+        (await mft.QueryAsync(new(FileName: "OPS-2C", PageNumber: 2, PageSize: 1))).Should().BeEmpty();
+        context.ChangeTracker.Entries().Should().BeEmpty();
     }
 
     private static async Task ValidateProcContrapartidasBootstrapAsync(AchDbContext context, int transactionId)

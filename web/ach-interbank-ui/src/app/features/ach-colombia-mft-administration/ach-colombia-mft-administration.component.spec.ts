@@ -14,7 +14,7 @@ describe('AchColombiaMftAdministrationComponent', () => {
 
   beforeEach(async () => {
     api = jasmine.createSpyObj('AchColombiaFileExchangeService', ['administration', 'updateAdministration', 'setCredential']);
-    api.administration.and.returnValue(of(model)); api.updateAdministration.and.returnValue(of(model)); api.setCredential.and.returnValue(of(model));
+    api.administration.and.returnValue(of({ ...model })); api.updateAdministration.and.callFake(value => of({ ...value })); api.setCredential.and.returnValue(of({ ...model }));
     auth = jasmine.createSpyObj('AuthService', ['hasPermission']); auth.hasPermission.and.returnValue(true);
     await TestBed.configureTestingModule({ imports: [AchColombiaMftAdministrationComponent], providers: [
       { provide: AchColombiaFileExchangeService, useValue: api }, { provide: AuthService, useValue: auth },
@@ -33,6 +33,27 @@ describe('AchColombiaMftAdministrationComponent', () => {
     component.secret = 'new-secret'; component.rotate();
     expect(api.setCredential).toHaveBeenCalledWith('Password', 'new-secret');
     expect(component.secret).toBe('');
+  });
+
+  it('edits existing execution flags and reloads persisted values', async () => {
+    await fixture.whenStable();
+    const inputs = Array.from(fixture.nativeElement.querySelectorAll('input[type=checkbox]')) as HTMLInputElement[];
+    expect(inputs.length).toBe(5);
+    inputs[1].click();
+    inputs[2].click();
+    inputs[3].click();
+    inputs[4].click();
+    fixture.detectChanges();
+    component.save();
+    expect(api.updateAdministration).toHaveBeenCalledWith(jasmine.objectContaining({
+      automaticOutboundEnabled: true, automaticInboundEnabled: true, manualOutboundAllowed: false, manualInboundAllowed: false
+    }));
+    const saved = { ...component.model! };
+    api.administration.and.returnValue(of(saved));
+    component.load();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(inputs.map(x => x.checked)).toEqual([true, true, true, false, false]);
   });
 
   it('does not render management controls without CanManageAch', async () => {

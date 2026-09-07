@@ -20,12 +20,27 @@ public sealed record AchManagedFileTransferDetail(
     string ContentSha256, int AttemptCount, DateTime CreatedAtUtc, DateTime? TransferredAtUtc,
     DateTime? ProcessedAtUtc, string? LastError, bool Archived, DateTime? ArchivedAtUtc,
     bool Retired, DateTime? RetiredAtUtc, string? RetirementReason, Guid? CorrectedFromTransferId,
-    IReadOnlyList<AchManagedFileTransferEventDto> History);
+    IReadOnlyList<AchManagedFileTransferEventDto> History)
+{
+    public DateTime? LastAttemptAtUtc { get; init; }
+    public string? LastErrorCode { get; init; }
+    public string CorrelationId { get; init; } = string.Empty;
+    public int? AchFileExportId { get; init; }
+    public Guid? IncomingNachaFileIngestionId { get; init; }
+    public IReadOnlyList<int> TransactionIds { get; init; } = [];
+    public bool ContentAvailable { get; init; }
+    public bool CanRetry { get; init; }
+    public bool CanReprocess { get; init; }
+    public bool CanArchive { get; init; }
+    public bool CanRetire { get; init; }
+}
 
 public sealed record AchManagedFileTransferQuery(
     DateTime? From = null, DateTime? To = null, AchManagedFileDirection? Direction = null,
     AchManagedFileTransferStatus? Status = null, string? CycleId = null,
-    AchManagedFileExecutionOrigin? ExecutionOrigin = null);
+    AchManagedFileExecutionOrigin? ExecutionOrigin = null,
+    string? FileName = null, Guid? TransferId = null, bool? Archived = null,
+    int PageNumber = 1, int PageSize = 50);
 
 public sealed record AchManagedFileTransferConfigurationDto(
     bool AutomaticOutboundEnabled, bool AutomaticInboundEnabled, bool ManualOutboundAllowed,

@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
-import { ExecutionOrigin, TransferDetail, TransferDirection, TransferStatus, TransferSummary } from './ach-colombia-file-exchange.models';
+import { TransferDetail, TransferFilter, TransferSummary } from './ach-colombia-file-exchange.models';
 
 @Injectable({ providedIn: 'root' })
 export class AchColombiaFileExchangeService {
@@ -10,7 +10,7 @@ export class AchColombiaFileExchangeService {
   private readonly http = inject(HttpClient);
   private readonly base = 'api/ach-colombia/file-exchange';
 
-  list(filter: { from?: string; to?: string; direction?: TransferDirection | ''; status?: TransferStatus | ''; executionOrigin?: ExecutionOrigin | ''; cycleId?: string }): Observable<TransferSummary[]> {
+  list(filter: Partial<TransferFilter>): Observable<TransferSummary[]> {
     let params = new HttpParams();
     Object.entries(filter).forEach(([key, value]) => { if (value) params = params.set(key, value); });
     return this.api.get<TransferSummary[]>(`${this.base}/transfers`, { params });

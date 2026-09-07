@@ -17,8 +17,11 @@ public sealed class AchColombiaFileExchangeController(IAchColombiaManagedFileExc
     public Task<IReadOnlyList<AchManagedFileTransferSummary>> Query(
         [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] AchManagedFileDirection? direction,
         [FromQuery] AchManagedFileTransferStatus? status, [FromQuery] string? cycleId,
-        [FromQuery] AchManagedFileExecutionOrigin? executionOrigin, CancellationToken ct)
-        => service.QueryAsync(new(from, to, direction, status, cycleId, executionOrigin), ct);
+        [FromQuery] AchManagedFileExecutionOrigin? executionOrigin, CancellationToken ct,
+        [FromQuery] string? fileName = null, [FromQuery] Guid? transferId = null,
+        [FromQuery] bool? archived = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 50)
+        => service.QueryAsync(new(from, to, direction, status, cycleId, executionOrigin,
+            fileName, transferId, archived, pageNumber, pageSize), ct);
 
     [HttpGet("transfers/{id:guid}")]
     [Authorize(Policy = "CanReadAch")]
