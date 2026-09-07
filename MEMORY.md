@@ -29,7 +29,7 @@ REPOSITORY_HEAD: 36af8b1c61ae72c766446c01ecb9ebc0b7c79838
 ### ACH Colombia
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: ACHCOL-CLAIMS-DEV14 (proposed, confirmed gap); shared NACHA-RULE-METADATA and RET-GAP-018 also apply. RET-GAP-019 is CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED.
+ACTIVE_GAPS: ACHCOL-CLAIMS-DEV14 (proposed, confirmed gap); shared NACHA-RULE-METADATA also applies. RET-GAP-019 is CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED.
 
 ORDINARY_STATE: INTERNALLY CLOSED for managed file exchange. ACH Colombia V35 ordinary profiles remain explicit and fail closed; OPS-GAP-002 adds a durable immutable bidirectional transfer envelope, shared automatic/manual application execution, database-driven Quartz triggers, controlled managed-MFT adapter, retries, duplicate/concurrency/restart protection, archive/retirement history, authorized API/download, and Spanish operational SPA/menu. The external managed MFT/SFTP service and its deployment configuration remain operational dependencies.
 RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 is CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED; ACHCOL-CLAIMS-DEV14 remains a separately confirmed capability gap.
@@ -37,7 +37,7 @@ RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED.
 ### CENIT
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: OPS-GAP-003; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
+ACTIVE_GAPS: OPS-GAP-003; shared NACHA-RULE-METADATA also applies.
 
 ORDINARY_STATE: INTERNALLY CLOSED, with production transport BLOCKED. CENIT-NACHA-OUT-001 closed the May 7, 2026 ordinary PPD/CCD outbound physical profile and official naming. CENIT-NACHA-OUT-002A added 0..N files, explicit membership, PPD/CCD cardinality, post-partition controls, and collision-safe naming. CENIT-NACHA-OUT-002B added independently selectable original/prenotification CTX profiles with official table-driven Type-5/6/7 layouts, 1..9,999 transaction-owned addendas, per-entry addenda sequencing and association, multi-entry batches, and fail-closed profile selection. Evidence: Release build 8 projects with 0 errors/warnings; CTX 6/6, partition boundaries 16/16, ordinary CENIT 6/6, official-profile seeder/resolver 38/38, resolver 8/8, and focused ACH Colombia round-trip regression passed. CENIT-NACHA-OUT-002 and its inbound counterpart are internally CLOSED; CENIT-RUNTIME-E2E-001 closed chamber responses locally. Profiles remain non-homologated and CENIT LIVE stays fail-closed pending the Gateway/PO contract.
 RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, differential-response, and managed Return transport capabilities remain CLOSED.
@@ -45,10 +45,10 @@ RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, 
 ### Shared
 
 STATUS: INCOMPLETE for production operational scope
-ACTIVE_GAPS: NACHA-RULE-METADATA, RET-GAP-018
+ACTIVE_GAPS: NACHA-RULE-METADATA
 
 COMPLETED_CORE: DB-first incoming duplicate handling, API duplicate policy, classification/audit convergence, clearing-house isolation, local SOAP dispatch for ProcContrapartidas and ProcTransacciones, non-monetary idempotent RegistrarRespuestaTransaccion, variable cycle-count creation, versioned chamber-specific cycle stages and transaction eligibility, Quartz runtime/administration, atomic external filename reservation, and atomic cross-provider transaction trace allocation.
-RESIDUAL: Chamber-specific NACHA policy/snapshots remain in code; unified durable lineage remains partial.
+RESIDUAL: Chamber-specific NACHA policy/snapshots remain in code. Unified durable lineage is CLOSED under RET-GAP-018.
 
 ## Active Functional Backlog
 
@@ -87,6 +87,17 @@ ROOT_CAUSE_PREVIOUS_FAILURE: STALE TEST FIXTURE
 EVIDENCE: Focused backend 19/19 PASS. Focused Angular 3/3 PASS. TypeScript PASS. Angular production build PASS. GitHub Dotnet CI run 33679704675 PASS: 2459 passed / 0 failed / 15 skipped. GitHub Angular CI run 33679704705 PASS including runtime-backed-e2e.
 VERDICT: OPS-GAP-002.2B CLOSED
 REMAINING_BOUNDARY: External enterprise Managed MFT / GoAnywhere deployment, production endpoints, operational credentials and homologation remain external operational dependencies and are not part of the internally closed OPS-GAP-002.2B slice.
+
+#### OPS-GAP-002.2C
+
+STATUS: CLOSED — OPERATIONS/HANDOFF MONITORING DELTA IMPLEMENTED AND CERTIFIED
+GATE: PROVEN_PRODUCT_DELTA after reuse-first A–T audit; existing transfer/events, API, Operations screen, Administration and RET-GAP-018 owners reused.
+IMPLEMENTED: Bounded search/paging and all existing state filters; durable identity, latest attempt, safe error code, retained-content and command eligibility projections; exact export membership and existing ingestion/transaction/predecessor navigation; event result/order and actual subsequent execution origin; existing automatic/manual Administration controls exposed. No new monitoring persistence, lineage entity, scheduler, transport or schema.
+CERTIFIED_COMMIT: 523f5ae530085761ca494ccdb6b6ed6d67a71a46
+EVIDENCE: docs/ai/OPS-GAP-002.2C_REUSE_AUDIT.md; focal backend 33/33; Angular focal 10/10; TypeScript and production build PASS; Release solution build 0 warnings/0 errors. Dotnet CI 34161860666 PASS: 2471 passed/15 skipped; Outgoing monitor SQL Server + PostgreSQL 2/2; ReturnOut concurrency SQL Server + PostgreSQL 4/4. Angular CI 34161860829 PASS including existing runtime E2E 7 passed/1 skipped.
+PROVEN_ROOT_CAUSE: New provider characterization exposed an inherited PostgreSQL failure translating UpdatedAt.UtcDateTime inside the list projection. Materializing the bounded scalar page before UTC conversion fixes it; both providers verify the timestamp and exact membership.
+EVIDENCE_LIMITS: Current routes remain in Administration; historical physical-route snapshots and individual Quartz fire IDs were not recorded. Existing event origins are preserved; corrected origins apply to new executions. No external delivery or global UAT/release certification is inferred.
+BASELINES: OPS-GAP-002.2A CLOSED; OPS-GAP-002.2B CLOSED; RET-GAP-018 CLOSED. Enterprise Managed MFT / GoAnywhere deployment, production connectivity, credentials and homologation remain a SEPARATE EXTERNAL OPERATIONAL DEPENDENCY.
 
 ### OPS-GAP-003
 
@@ -199,7 +210,7 @@ DO NOT USE: The former normative-contradiction interpretation and external-clari
 - RET-GAP-015: simulator support is CLOSED for the current generate-only scope; differential responses are not physical simulator files.
 - RET-GAP-005 is SUPERSEDED by the later CENIT 2026 file contract and managed transport design.
 - RET-GAP-011 is SUPERSEDED by the current no-participant-ACH-ROR decision; CENIT ROR remains a separate rail.
-- RET-GAP-008 and RET-GAP-009 remain outside the ordinary transactional backlog unless a direct dependency is demonstrated. RET-GAP-018 is reused as PARTIAL because unified durable lineage is a direct production-operability dependency.
+- RET-GAP-008 and RET-GAP-009 remain outside the ordinary transactional backlog unless a direct dependency is demonstrated. RET-GAP-018 is CLOSED; its existing unified durable lineage remains the reused production-operability owner.
 - RET-CENIT-IN-000, RET-CENIT-IN-001, RET-CENIT-OUT-001, RET-CENIT-ROR-001, CENIT-RET-TRANSPORT-001, and DIFF-RESP-001 are delivery aliases/sub-jobs, not additional active functional gaps.
 - Do not reopen a CLOSED item without contradictory current repository evidence.
 
@@ -286,24 +297,20 @@ The corrected V35 ingestion and linker focal suites pass. This is a stale automa
 
 ### RC-CURRENT
 
-COMMIT: eee79474efd6d8f10b294b8c4640cb3f4a2ff3ba
-STATUS: NOT_CERTIFIED
-CI: NOT_REVALIDATED FOR THIS HEAD — previous relevant evidence is not transferable.
-RUNTIME_E2E: FOCAL_LOCAL_ONLY — cycle configuration 7/7 and traceability 1/1 passed from the existing Release build; a further focal CENIT validation run was stopped after not completing in the audit window. No chamber transport E2E exists.
+COMMIT: 523f5ae530085761ca494ccdb6b6ed6d67a71a46
+STATUS: CI_VERIFIED — OPS-GAP-002.2C SCOPE ONLY; NOT A GLOBAL RELEASE CERTIFICATION
+CI: Dotnet CI 34161860666 PASS (2471 passed, 15 skipped; Outgoing monitor 2/2 and ReturnOut concurrency 4/4 across SQL Server + PostgreSQL). Angular CI 34161860829 PASS.
+RUNTIME_E2E: Existing Angular CI local-runtime suite 7 passed / 1 skipped at this commit. No enterprise Managed MFT deployment or external homologation certified.
 GAUNTLET: NOT_RUN
-UAT: NOT_READY
+UAT: NOT_CERTIFIED
 
 ## Next Job
 
 ### NEXT-DELIVERY-001
 
-JOB_ID: NACHA-RULE-METADATA.2B
-STATUS: OPEN
-OBJECTIVE: Extract ACH outbound batch-number assignment and batch-local ordinal policy into the existing resolved profile policy boundary.
-WHY_NEXT: Slice 2A established the typed profile-policy resolution path; ACH batch assignment is the next isolated outbound policy category still embedded in generation code.
-INCLUDED: ResolveBatchNumberAssignmentAsync and directly related ACH batch-local ordinal policy, published metadata, fail-closed validation, and focused behavior-preserving regression coverage.
-EXCLUDED: Settlement policy, generator layout snapshots, profile-version / SEC / cross-field cleanup, inbound/Returns/SOAP/transport/UI work, external homologation, and the separately tracked proven RET-GAP-019 / ACHCOL-CLAIMS-DEV14 delta.
-ACCEPTANCE: ACH batch-number behavior is resolved from published profile policy with unchanged generated output and no generator-side chamber constants.
+JOB_ID: NOT_SELECTED
+STATUS: AWAITING_PRIORITIZATION
+CONTEXT: NACHA-RULE-METADATA.2B and OPS-GAP-002.2C are CLOSED. Select the next authorized slice from the remaining backlog; do not reopen these closed slices. External Managed MFT deployment remains a separate operational dependency.
 
 ## Recent Sessions
 - 2026-09-07: RET-GAP-019 certification closed after stale DEV14 ReturnOut expectations were corrected and GitHub Actions run 34154650922 passed broad tests plus isolated SQL Server/PostgreSQL ReturnOut and monitor jobs. ACHCOL-CLAIMS-DEV14 remains unimplemented.
