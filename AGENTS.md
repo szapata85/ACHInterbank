@@ -1268,6 +1268,8 @@ Consider cause `D33` only when supported by retrieved normative evidence and app
 
 ---
 
+ACH Colombia R10 / DEV14: `DEC-ACHCOL-R10-DEV14-001` in Project Memory is the canonical project decision. Do not re-derive the former R10/DEV14 ambiguity unless a later explicitly accepted ACH Colombia clarification supersedes it.
+
 # 15. Normative Rules vs Implementation
 
 When a functional decision depends on both normative requirements and current implementation, use this order.

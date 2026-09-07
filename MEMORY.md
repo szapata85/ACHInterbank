@@ -16,23 +16,23 @@ REPOSITORY_HEAD: eee79474efd6d8f10b294b8c4640cb3f4a2ff3ba
 VERDICT: The local SOAP transaction core, variable cycle creation, Quartz runtime/administration, file-name reservation, ACH Colombia managed-file exchange, CENIT chamber-response lifecycle, atomic transaction trace allocation, full operational cycle policy configuration, and closed Returns capabilities remain intact. Production ordinary operation remains incomplete only for the external CENIT Gateway/PO boundary and the shared partial metadata/traceability owners.
 NEW_GAPS: OPS-GAP-001, OPS-GAP-002, OPS-GAP-003, OPS-GAP-004, OPS-GAP-005, OPS-GAP-006
 REUSED_OWNERS: CENIT-FORMAT-NACHAM, NACHA-RULE-METADATA, RET-GAP-018
-RETURNS_STATE: Existing CLOSED/SUPERSEDED Returns items remain unchanged; RET-GAP-019 remains externally blocked.
+RETURNS_STATE: Existing CLOSED/SUPERSEDED Returns items remain unchanged; RET-GAP-019 is RULE_RESOLVED with a proven product delta and separate DEV14 Claims capability gap.
 
 ### GAP-REFRESH-001 / GAP-REFRESH-001A / GAP-REFRESH-001B
 
 STATUS: CLOSED
 LAST_REFRESH: 2026-08-23
-SCOPE: Operational and transactional functional completion; RET-GAP-019 provisional normative interpretation consolidation
+SCOPE: Operational and transactional functional completion; RET-GAP-019 state corrected by DEC-ACHCOL-R10-DEV14-001
 REPOSITORY_BRANCH: ACH-Interbank-Postgresql
 REPOSITORY_HEAD: 36af8b1c61ae72c766446c01ecb9ebc0b7c79838
 
 ### ACH Colombia
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: RET-GAP-019; shared NACHA-RULE-METADATA and RET-GAP-018 also apply.
+ACTIVE_GAPS: ACHCOL-CLAIMS-DEV14 (proposed, confirmed gap); shared NACHA-RULE-METADATA and RET-GAP-018 also apply. RET-GAP-019 is no longer a normative blocker.
 
 ORDINARY_STATE: INTERNALLY CLOSED for managed file exchange. ACH Colombia V35 ordinary profiles remain explicit and fail closed; OPS-GAP-002 adds a durable immutable bidirectional transfer envelope, shared automatic/manual application execution, database-driven Quartz triggers, controlled managed-MFT adapter, retries, duplicate/concurrency/restart protection, archive/retirement history, authorized API/download, and Spanish operational SPA/menu. The external managed MFT/SFTP service and its deployment configuration remain operational dependencies.
-RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 remains the only open Returns-specific item.
+RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 is RULE_RESOLVED — PROVEN_PRODUCT_DELTA; the separately confirmed DEV14 Claims capability gap remains.
 
 ### CENIT
 
@@ -146,36 +146,47 @@ CURRENT_DELTA: Unified lineage was already functionally implemented. RET-GAP-018
 
 ### RET-GAP-019
 
-STATUS: BLOCKED-BY-NORMATIVE-CONTRADICTION
-SEMANTIC_STATE: CONFIRMED-OPEN — evidence-supported interpretation; external authoritative clarification pending
-SCOPE: ACH Colombia / outgoing Return / no-consent debit
-PROBLEM: DEV14 is a business/claims workflow code, while the physical NACHA-M Addenda 99 return cause must be an Rxx. V35 section 2.11.12 page 95 prescribes R10 for a previously applied debit returned after a receiver claim and separately requires a DEV14 reversal request when the receiver does not accept the debit. Section 6.6 makes the physical cause mandatory, AN(3), at positions 4-6, and explicitly delegates it to Annex 9, whose R10/R12/R13/R29 meanings are contextual and conflict with section 2.11.12; Annex 4 also conflicts with Annex 9.
-PROVEN: DEV14 classifies the no-consent claim/workflow and cannot be physically emitted in the three-character Addenda 99 cause field. The section 6.6 -> Annex 9 cross-reference is the strongest physical-field evidence. This contradiction already exists in V32, and V35 change history records earlier Annex 9 changes while V34 -> V35 identifies no change to these return-cause semantics.
-PROVISIONAL_INTERPRETATION: The strongest supported project hypothesis is that DEV14 remains the claim/workflow classification while the physical Rxx is selected from the actual underlying reason and context defined by Annex 9. This hypothesis is not an authoritative ACH Colombia rule and does not define a complete deterministic matrix.
-CURRENT_BEHAVIOR: The application accepts/stores DEV14 as a workflow-like Return reason and forwards the selected code unchanged; the official V35 builder rejects it with NACHA_ALLOWED_VALUE_INVALID before persisting a generated Return or state event. This fail-closed behavior is required while the ambiguity remains.
-PROHIBITED_UNTIL_CLARIFIED: Do not implement DEV14->R10, DEV14->R13, DEV14->R29, any other universal mapping, or a speculative contextual matrix.
-AUTHORITY_STATUS: Formal clarification has been requested from ACH Colombia and is pending.
-REQUIRED_CONTEXT_AVAILABLE: PARTIAL — Customer.PersonType and AchTransaction.IsPrenotification exist, but the Return request carries only TransactionId and ReturnReasonCode; it lacks a structured workflow code, underlying dispute reason, authorization/revocation state, and a reliable receiver-type discriminator in the generation path.
-EXACT_CLOSURE_EVIDENCE: Either (1) official ACH Colombia clarification specifying the exact physical Rxx rule, or (2) an authoritative decision matrix specifying every contextual branch required to resolve the physical Rxx deterministically.
-FUTURE_IMPLEMENTATION_GUARDRAIL: After authoritative evidence arrives and the gap is reassessed, prefer a deterministic configuration/catalog-driven rule rather than scattered hardcoded conditions; retain fail-closed handling for missing or ambiguous context.
-CONFIDENCE: HIGH that DEV14 is workflow-only, the physical field requires Annex 9 Rxx semantics, and V35 is internally contradictory; no DEV14-to-Rxx mapping is canonical.
+STATUS: RULE_RESOLVED — PROVEN_PRODUCT_DELTA
+DECISION: DEC-ACHCOL-R10-DEV14-001
+EXTERNAL_CLARIFICATION_DEPENDENCY: REMOVED
+SCOPE: ACH Colombia / non-consented debit / R10 Return versus DEV14 Claims
+RULE: R10 is the NACHA-M Return path within the maximum four-cycle rejection period when no prenotification exists or no Receiver User authorization/agreement exists. Once elapsed or for previous operational days, DEV14 belongs to the separate ACH Claims path.
+IMPLEMENTATION: PROVEN_PRODUCT_DELTA plus SEPARATE_CLAIMS_CAPABILITY_GAP.
+AUDIT_EVIDENCE: AchReturnsService accepts DEV14 in ReturnOut, persists it as ReturnReasonCode, and passes it to the table-driven builder; the official V35 Addenda 99 layout rejects DEV14 before a physical artifact can be produced. R10 is broadly allowed for debit by catalog/policy without prenotification/authorization facts. Return window uses a hardcoded historical AchCycle ordinal delta <= 4, not ClearingHouseCycleConfig, an effective policy version, or a scheduled policy snapshot. No distinct DEV14 Claims workflow exists; Claims is only an event-source enum value for Certified transitions.
+NEXT_ACTION: Implement only the proven delta: separate DEV14 Claims ownership/workflow from ReturnOut and replace the hardcoded window/R10 selection with evidence-backed configurable policy behavior.
+DEVELOPMENT_RULE: Do not map DEV14 to R10, R13, R29, or any Rxx; do not serialize DEV14 into Addenda 99.
 
 ## Normative Decisions and Contradictions
 
+### DEC-ACHCOL-R10-DEV14-001
+
+STATUS: ACCEPTED — DURABLE BUSINESS/OPERATIONAL DECISION
+DATE_ACCEPTED: 2026-09-06
+SCOPE: ACH Colombia / non-consented debit / R10 Return versus DEV14 Claims
+
+RULE:
+A non-consented ACH debit still within the maximum four-cycle rejection period may use R10 when the R10 condition is satisfied:
+- no prenotification; or
+- no Receiver User authorization/agreement.
+
+Once that period has elapsed or the transaction belongs to previous days, the case is handled through the ACH Claims Module using DEV14.
+
+INVARIANT:
+R10 and DEV14 are separate operational paths. DEV14 is a Claims-workflow code, not a NACHA-M Addenda 99 Rxx return cause. DEV14 R10 is not a mapping: there is no DEV14 -> R10, DEV14 -> R13, DEV14 -> R29, or DEV14 -> generic Rxx serialization mapping. Addenda 99 DEV14 serialization is prohibited.
+
+FOUR_CYCLE_GUARDRAIL:
+Do not interpret "four cycles" as CycleNumber <= 4, four hours, or a fixed fourth-cycle cutoff without explicit implementation evidence. Use the existing configurable ACH Colombia cycle-policy boundary where applicable.
+
+ANTI_DRIFT:
+Do not reopen the former R10/DEV14 normative ambiguity unless a later explicitly accepted ACH Colombia clarification supersedes this decision.
+
+IMPLEMENTATION_FINDING:
+RET-GAP-019 audit on 2026-09-07 found a proven product delta. Production ReturnOut has no DEV14-to-Rxx mapping and the official V35 profile prevents DEV14 physical Addenda 99 serialization. However, DEV14 is still accepted by the ACH Colombia return catalog/policy and reaches ReturnOut before the physical builder rejects it; R10 has no modeled prenotification/authorization decision conditions; and the four-cycle check is hardcoded from historical AchCycle ordering. No distinct DEV14 Claims workflow, persistence, API, UI, scheduler, or integration boundary was found. Proposed separate gap: ACHCOL-CLAIMS-DEV14.
+
 ### NORM-DEV14-V35-001
 
-DEV14 CLASSIFICATION: BUSINESS/CLAIMS WORKFLOW.
-PHYSICAL ADDENDA 99 CLASSIFICATION: ANNEX 9 Rxx.
-
-V35 contains a manual-internal contradiction:
-- section 2.7.6 and Annex 7: DEV14 identifies a request to return a non-consented ACH debit;
-- section 2.11.12, page 95: generate physical R10 for the receiver-claim Return and create a separate DEV14 reversal request when the receiver does not accept the debit;
-- section 6.6 Addenda 99: the physical cause is mandatory, AN(3), positions 4-6, and must be selected according to Annex 9;
-- Annex 9, pages 248-251: R10=no authorization/prenotification, R12=unauthorized originator, R13=natural-person receiver-request Return, R29=corporate receiver-request Return under its catalog conditions;
-- Annex 4, pages 273-274: R10=natural-person receiver-request Return and R12=sold branch;
-- V32 already contains the same section 2.11.12 R10/DEV14 split and Annex 9 mismatch; V35 change history records earlier Annex 9 updates, while V34 -> V35 lists no change to these cause semantics.
-
-NORMATIVE CONTRADICTION UNRESOLVED. Section 6.6 -> Annex 9 is the strongest evidence governing the physical field, but it does not erase the conflicting procedure or define a complete deterministic DEV14-to-Rxx matrix. The evidence-supported project hypothesis is workflow DEV14 plus a context-specific Annex 9 Rxx; it is explicitly provisional and not an authoritative ACH Colombia rule. Keep generation fail-closed, and do not persist or implement DEV14->R10, DEV14->R13, DEV14->R29, another universal mapping, or a speculative matrix. Formal ACH Colombia clarification is pending.
+STATUS: SUPERSEDED BY DEC-ACHCOL-R10-DEV14-001
+DO NOT USE: The former normative-contradiction interpretation and external-clarification-pending state are obsolete.
 
 ## Recently Closed / Reconciled History
 
@@ -192,6 +203,11 @@ NORMATIVE CONTRADICTION UNRESOLVED. Section 6.6 -> Annex 9 is the strongest evid
 - Do not reopen a CLOSED item without contradictory current repository evidence.
 
 ## Durable Architecture and Business Decisions
+
+### DEC-ACHCOL-R10-DEV14-001
+
+STATUS: ACCEPTED — durable operational decision; see the canonical entry in Normative Decisions and Contradictions.
+INVARIANT: DEV14 is Claims-only and never an Addenda 99 Rxx; R10 and DEV14 are not aliases. Retain the R10 condition and configurable-cycle guardrail stated in the canonical entry.
 
 ### DEC-NACHA-PROFILES-001
 
@@ -251,7 +267,7 @@ ACH Colombia V35 incoming and outgoing Return Addenda 99 uses:
 - a three-character physical cause at positions 4-6, governed by Annex 9;
 - original trace at positions 7-21.
 
-DEV14 is not valid in this physical field.
+DEV14 is not valid in this physical field. DEC-ACHCOL-R10-DEV14-001 prohibits treating it as an Rxx alias or modifying the layout to fit it.
 
 ### TRAP-NORMATIVE-VERSION-001
 
@@ -285,10 +301,11 @@ STATUS: OPEN
 OBJECTIVE: Extract ACH outbound batch-number assignment and batch-local ordinal policy into the existing resolved profile policy boundary.
 WHY_NEXT: Slice 2A established the typed profile-policy resolution path; ACH batch assignment is the next isolated outbound policy category still embedded in generation code.
 INCLUDED: ResolveBatchNumberAssignmentAsync and directly related ACH batch-local ordinal policy, published metadata, fail-closed validation, and focused behavior-preserving regression coverage.
-EXCLUDED: Settlement policy, generator layout snapshots, profile-version / SEC / cross-field cleanup, inbound/Returns/SOAP/transport/UI work, external homologation, and RET-GAP-019.
+EXCLUDED: Settlement policy, generator layout snapshots, profile-version / SEC / cross-field cleanup, inbound/Returns/SOAP/transport/UI work, external homologation, and the separately tracked proven RET-GAP-019 / ACHCOL-CLAIMS-DEV14 delta.
 ACCEPTANCE: ACH batch-number behavior is resolved from published profile policy with unchanged generated output and no generator-side chamber constants.
 
 ## Recent Sessions
+- 2026-09-07: RET-GAP-019 audit accepted DEC-ACHCOL-R10-DEV14-001, removed the obsolete normative block, and proved a ReturnOut/cycle-policy product delta plus a distinct DEV14 Claims capability gap; no product code changed.
 - 2026-09-01: NACHA-RULE-METADATA.2A moved official CENIT PPD/CCD/CTX partition, cardinality, and addenda policy into published profile tags resolved as a typed contract; generated behavior and focused regressions remained unchanged.
 - 2026-08-31: OPS-GAP-002 implemented the internal ACH Colombia managed-file lifecycle with shared automatic/manual execution, durable immutable evidence, retries, recovery, archive/retirement, authorized API, and Spanish operations UI; external managed MFT deployment remains an operational dependency.
 - 2026-08-31: CENIT-RUNTIME-E2E-001 locally certified the ordinary CENIT outbound-to-response lifecycle through Docker SQL Server/API/SPA, an atomic folder-backed test Gateway, real persistence/API, and Playwright; ACK, NACK, multi-error operator rejection, reconciliation, no activity, idempotency, and terminal protection passed, while external Banco Gateway/PO homologation remains separate under OPS-GAP-003.
