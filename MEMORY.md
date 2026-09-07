@@ -16,7 +16,7 @@ REPOSITORY_HEAD: eee79474efd6d8f10b294b8c4640cb3f4a2ff3ba
 VERDICT: The local SOAP transaction core, variable cycle creation, Quartz runtime/administration, file-name reservation, ACH Colombia managed-file exchange, CENIT chamber-response lifecycle, atomic transaction trace allocation, full operational cycle policy configuration, and closed Returns capabilities remain intact. Production ordinary operation remains incomplete only for the external CENIT Gateway/PO boundary and the shared partial metadata/traceability owners.
 NEW_GAPS: OPS-GAP-001, OPS-GAP-002, OPS-GAP-003, OPS-GAP-004, OPS-GAP-005, OPS-GAP-006
 REUSED_OWNERS: CENIT-FORMAT-NACHAM, NACHA-RULE-METADATA, RET-GAP-018
-RETURNS_STATE: Existing CLOSED/SUPERSEDED Returns items remain unchanged; RET-GAP-019 implementation is complete and awaits mandatory multi-provider validation; ACHCOL-CLAIMS-DEV14 remains the separate confirmed Claims capability gap.
+RETURNS_STATE: Existing CLOSED/SUPERSEDED Returns items remain unchanged; RET-GAP-019 is CLOSED and certified; ACHCOL-CLAIMS-DEV14 remains the separate confirmed Claims capability gap.
 
 ### GAP-REFRESH-001 / GAP-REFRESH-001A / GAP-REFRESH-001B
 
@@ -29,10 +29,10 @@ REPOSITORY_HEAD: 36af8b1c61ae72c766446c01ecb9ebc0b7c79838
 ### ACH Colombia
 
 STATUS: INCOMPLETE
-ACTIVE_GAPS: ACHCOL-CLAIMS-DEV14 (proposed, confirmed gap); shared NACHA-RULE-METADATA and RET-GAP-018 also apply. RET-GAP-019 is no longer a normative blocker and awaits only required multi-provider validation before closure.
+ACTIVE_GAPS: ACHCOL-CLAIMS-DEV14 (proposed, confirmed gap); shared NACHA-RULE-METADATA and RET-GAP-018 also apply. RET-GAP-019 is CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED.
 
 ORDINARY_STATE: INTERNALLY CLOSED for managed file exchange. ACH Colombia V35 ordinary profiles remain explicit and fail closed; OPS-GAP-002 adds a durable immutable bidirectional transfer envelope, shared automatic/manual application execution, database-driven Quartz triggers, controlled managed-MFT adapter, retries, duplicate/concurrency/restart protection, archive/retirement history, authorized API/download, and Spanish operational SPA/menu. The external managed MFT/SFTP service and its deployment configuration remain operational dependencies.
-RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 implementation is complete with provider validation pending; ACHCOL-CLAIMS-DEV14 remains a separately confirmed capability gap.
+RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 is CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED; ACHCOL-CLAIMS-DEV14 remains a separately confirmed capability gap.
 
 ### CENIT
 
@@ -146,15 +146,15 @@ CURRENT_DELTA: Unified lineage was already functionally implemented. RET-GAP-018
 
 ### RET-GAP-019
 
-STATUS: RULE_RESOLVED — IMPLEMENTATION COMPLETE / PROVIDER VALIDATION PENDING
+STATUS: CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED
 DECISION: DEC-ACHCOL-R10-DEV14-001
 EXTERNAL_CLARIFICATION_DEPENDENCY: REMOVED
 SCOPE: ACH Colombia / non-consented debit / R10 Return versus DEV14 Claims
 RULE: R10 is the NACHA-M Return path within the configured maximum four-cycle rejection window when no prenotification exists or no Receiver User authorization/agreement is explicitly established. Once elapsed or for previous operational days, DEV14 belongs to the separate ACH Claims path.
-IMPLEMENTATION: DEV14 is rejected at the ACH Colombia ReturnOut service boundary before persistence/generation and is absent from the ReturnOut catalog; no DEV14-to-Rxx mapping was added. R10 requires an eligible monetary debit, the configured/scheduled same-day cycle window, and a proven absent prenotification or explicit typed lack-of-authorization/agreement basis. The historic global AchCycle ordinal delta is removed. Effective-dated AchReturnPolicy.MaxCycles supplies the configured limit; scheduled AchCycle/ClearingHouseCycleConfig snapshots determine return opportunities and fail closed when policy/order is unresolved. Previous operational days and expired windows fail closed from ReturnOut. The official V35 table-driven Addenda 99 guard remains unchanged.
-EXECUTABLE_EVIDENCE: Release build succeeded with 0 errors/0 warnings; AchReturnsFileByClearingHouseTests 29/29 and RegulatoryCatalogSeederTests 4/4 passed. The lower-level official V35 DEV14 fail-closed characterization remains present. No Claims capability was added.
-VALIDATION_BLOCKER: Return catalog/policy seeding changed, so the required focused SQL Server and PostgreSQL provider tests still need to run. This environment exposes neither OUTBOUND_RETURN_SQLSERVER_CONNECTION_STRING nor OUTBOUND_RETURN_POSTGRES_CONNECTION_STRING; PostgreSQL is not available locally. Do not mark this gap CLOSED until those provider tests pass.
-NEXT_ACTION: Provide controlled local SQL Server and PostgreSQL test connections; run the focused OutboundReturnMultiDb provider suite, then close RET-GAP-019 only if it passes.
+IMPLEMENTATION: DEV14 is rejected at the ACH Colombia ReturnOut service boundary before persistence/generation and is absent from the active ReturnOut catalog; no DEV14-to-Rxx mapping exists. R10 requires an eligible monetary debit, the configured/scheduled same-day cycle window, and a proven absent prenotification or explicit typed lack-of-authorization/agreement basis. The historic global AchCycle ordinal delta is removed. Effective-dated AchReturnPolicy.MaxCycles supplies the configured limit; scheduled AchCycle/ClearingHouseCycleConfig snapshots determine return opportunities and fail closed when policy/order is unresolved. Previous operational days and expired windows fail closed from ReturnOut. The official V35 table-driven Addenda 99 guard remains unchanged.
+CERTIFICATION_EVIDENCE: GitHub Actions run 34154650922 for stabilization commit 693a6df458a331ea3608504146c0beabbedb7d72 succeeded: broad build-and-test, ReturnOut concurrency (isolated SQL Server + PostgreSQL), and Outgoing monitor (isolated SQL Server + PostgreSQL). The three stale DEV14 ReturnOut test expectations were corrected; Release build had 0 errors/0 warnings. No Claims capability was added.
+SEPARATE_GAP: ACHCOL-CLAIMS-DEV14 remains CONFIRMED GAP — IMPLEMENTATION PENDING.
+NEXT_ACTION: Continue the active shared metadata delivery objective; do not reopen RET-GAP-019 without contradictory current evidence.
 DEVELOPMENT_RULE: Do not map DEV14 to R10, R13, R29, or any Rxx; do not serialize DEV14 into Addenda 99.
 
 ## Normative Decisions and Contradictions
@@ -182,7 +182,7 @@ ANTI_DRIFT:
 Do not reopen the former R10/DEV14 normative ambiguity unless a later explicitly accepted ACH Colombia clarification supersedes this decision.
 
 IMPLEMENTATION_FINDING:
-RET-GAP-019 implementation on 2026-09-07 rejects DEV14 as Claims-only at the ACH Colombia ReturnOut boundary before persistence/generation and removes it from the ReturnOut catalog. It introduces no DEV14-to-Rxx mapping and keeps the official V35 Addenda 99 defense in depth unchanged. R10 requires a monetary debit, the configured effective-dated AchReturnPolicy.MaxCycles window over scheduled cycle snapshots, and either proven absent prenotification or an explicit typed no-authorization/agreement basis; unknown data does not prove absent authorization. Previous-day and expired cases fail closed from ReturnOut. No distinct DEV14 Claims workflow, persistence, API, UI, scheduler, or integration boundary was added; ACHCOL-CLAIMS-DEV14 remains a confirmed implementation gap. Closure awaits mandatory focused SQL Server and PostgreSQL provider validation for the changed return catalog/policy seeding.
+RET-GAP-019 was certified closed on 2026-09-07. DEV14 is Claims-only and rejected before ACH Colombia ReturnOut persistence/generation; it is absent from the active ReturnOut catalog and has no Rxx mapping. R10 requires a monetary debit, a configured effective-dated AchReturnPolicy.MaxCycles window over scheduled cycle snapshots, and either proven absent prenotification or an explicit typed no-authorization/agreement basis; unknown data does not prove absent authorization. Previous-day and expired cases fail closed. GitHub Actions run 34154650922 succeeded for the broad suite and isolated SQL Server/PostgreSQL ReturnOut and monitor jobs. No DEV14 Claims capability was added; ACHCOL-CLAIMS-DEV14 remains CONFIRMED GAP — IMPLEMENTATION PENDING.
 
 ### NORM-DEV14-V35-001
 
@@ -306,7 +306,8 @@ EXCLUDED: Settlement policy, generator layout snapshots, profile-version / SEC /
 ACCEPTANCE: ACH batch-number behavior is resolved from published profile policy with unchanged generated output and no generator-side chamber constants.
 
 ## Recent Sessions
-- 2026-09-07: RET-GAP-019 implemented the narrow ACH Colombia ReturnOut delta: DEV14 is rejected as Claims-only before persistence/generation, R10 has a deterministic basis, and the window uses effective policy plus scheduled cycle snapshots. Focal backend tests pass; closure awaits controlled SQL Server/PostgreSQL provider validation. ACHCOL-CLAIMS-DEV14 remains unimplemented.
+- 2026-09-07: RET-GAP-019 certification closed after stale DEV14 ReturnOut expectations were corrected and GitHub Actions run 34154650922 passed broad tests plus isolated SQL Server/PostgreSQL ReturnOut and monitor jobs. ACHCOL-CLAIMS-DEV14 remains unimplemented.
+- 2026-09-07: RET-GAP-019 implementation established the narrow ACH Colombia ReturnOut delta: DEV14 is rejected as Claims-only before persistence/generation, R10 has a deterministic basis, and the window uses effective policy plus scheduled cycle snapshots. Subsequent certification is recorded above; ACHCOL-CLAIMS-DEV14 remains unimplemented.
 - 2026-09-07: RET-GAP-019 audit accepted DEC-ACHCOL-R10-DEV14-001, removed the obsolete normative block, and proved a ReturnOut/cycle-policy product delta plus a distinct DEV14 Claims capability gap; no product code changed.
 - 2026-09-01: NACHA-RULE-METADATA.2A moved official CENIT PPD/CCD/CTX partition, cardinality, and addenda policy into published profile tags resolved as a typed contract; generated behavior and focused regressions remained unchanged.
 - 2026-08-31: OPS-GAP-002 implemented the internal ACH Colombia managed-file lifecycle with shared automatic/manual execution, durable immutable evidence, retries, recovery, archive/retirement, authorized API, and Spanish operations UI; external managed MFT deployment remains an operational dependency.
