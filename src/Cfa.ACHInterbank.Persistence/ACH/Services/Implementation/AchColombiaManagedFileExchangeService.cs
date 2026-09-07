@@ -289,8 +289,13 @@ public sealed class AchColombiaManagedFileExchangeService(
         if (query.Archived.HasValue) items = items.Where(x => (x.ArchivedAtUtc != null) == query.Archived);
         var pageSize = Math.Clamp(query.PageSize, 1, 500);
         var pageNumber = Math.Clamp(query.PageNumber, 1, int.MaxValue / pageSize);
-        return await items.OrderByDescending(x => x.CreatedAtUtc).ThenBy(x => x.Id).Skip((pageNumber - 1) * pageSize).Take(pageSize)
-            .Select(x => new AchManagedFileTransferSummary(x.Id, x.PhysicalFileName, x.Direction, x.OperationalDate, x.AchCycleId, x.Status, x.ExecutionOrigin, x.AttemptCount, x.UpdatedAt.UtcDateTime, x.ArchivedAtUtc != null, x.RetiredAtUtc != null)).ToListAsync(ct);
+        var page = await items.OrderByDescending(x => x.CreatedAtUtc).ThenBy(x => x.Id).Skip((pageNumber - 1) * pageSize).Take(pageSize)
+            .Select(x => new { x.Id, x.PhysicalFileName, x.Direction, x.OperationalDate, x.AchCycleId, x.Status,
+                x.ExecutionOrigin, x.AttemptCount, x.UpdatedAt, Archived = x.ArchivedAtUtc != null, Retired = x.RetiredAtUtc != null })
+            .ToListAsync(ct);
+        return page.Select(x => new AchManagedFileTransferSummary(x.Id, x.PhysicalFileName, x.Direction,
+            x.OperationalDate, x.AchCycleId, x.Status, x.ExecutionOrigin, x.AttemptCount,
+            x.UpdatedAt.UtcDateTime, x.Archived, x.Retired)).ToArray();
     }
 
     public async Task<AchManagedFileTransferDetail?> GetAsync(Guid transferId, CancellationToken ct = default)

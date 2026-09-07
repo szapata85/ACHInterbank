@@ -37,7 +37,7 @@ Phase A completed against `cab1c6064281593238288dcb546a0a3fdfbccf4f`, branch `AC
 | Q HandOff visibility | M/S/U/L | REUSE_WITH_SMALL_EXTENSION | Export/ingestion/correlation evidence retained but not presented | Project identifiers and existing exact-file members; link existing monitors |
 | R Audit/security | S/F/A/P | REUSE_AS_IS | Protected credential, redacted audit, safe adapter errors | No credential or raw physical storage path projection |
 | S Authorization | A/U | REUSE_AS_IS | CanReadAch / CanManageAch; route guards | Preserve policies |
-| T Cross-provider persistence | P | REUSE_AS_IS | Existing common EF entities and provider migrations | No schema delta |
+| T Cross-provider persistence | P/S | REUSE_WITH_SMALL_EXTENSION | Initial Phase A classified REUSE_AS_IS; new provider execution proved the existing list's UpdatedAt.UtcDateTime SQL projection fails on PostgreSQL | Convert the materialized timestamp in memory; no schema delta |
 | Enterprise transport/deployment | External operator | OUT_OF_SCOPE_EXTERNAL | Folder boundary is application handoff, not enterprise delivery confirmation | No GoAnywhere/SFTP implementation |
 
 Gate: **PROVEN_PRODUCT_DELTA**. Only extensions named above are authorized by this audit. No new persisted monitoring model, lineage owner, scheduler, business state or transport.
@@ -65,6 +65,7 @@ RET-GAP-018 already owns exact file membership, deterministic business lineage, 
 - A wider local `FullyQualifiedName~AchColombia` run was intentionally aborted after 77 passed / 0 failed because it retained the test DLL lock. It is **not** passing regression evidence. The overlapping solution build failed with MSB3027/MSB3021 (testhost PID 12384); sequential rebuild and new CI are required.
 - Sequential `dotnet build ACHInterbank.sln -c Release --no-restore --maxcpucount:1`: Build succeeded, 0 warnings, 0 errors.
 - Exact-commit CI/provider certification: pending. No external deployment certification.
+- CI run `34161388727`, Outgoing monitor job `101863786754`: SQL Server passed; PostgreSQL failed at Managed MFT `QueryAsync` with ``No coercion operator is defined between types 'System.DateTimeOffset' and 'System.Nullable`1[System.DateTime]'.`` The inherited timestamp conversion inside SQL was a proven projection defect. The correction materializes the bounded scalar page before UTC conversion; filters/paging remain in SQL and no content bytes are loaded by the list. This is a narrow 2C monitoring fix, not a redesign of 2A/2B.
 
 ## Delivered monitoring projection
 

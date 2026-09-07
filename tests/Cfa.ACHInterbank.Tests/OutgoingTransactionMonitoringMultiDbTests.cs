@@ -267,6 +267,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
             ExecutionOrigin = AchManagedFileExecutionOrigin.Automatic, Actor = "task:AchColombiaManagedMftOutbound", OccurredAtUtc = ScenarioNow.UtcDateTime });
         context.AchManagedFileTransfers.Add(transfer);
         await context.SaveChangesAsync();
+        var updatedAt = transfer.UpdatedAt.UtcDateTime;
         context.ChangeTracker.Clear();
 
         // Monitoring must remain read-only and must not invoke transport or business execution dependencies.
@@ -280,9 +281,10 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         detail.LastAttemptAtUtc.Should().Be(ScenarioNow.UtcDateTime);
         detail.ContentAvailable.Should().BeTrue();
         detail.History.Should().ContainSingle(x => x.Actor == "task:AchColombiaManagedMftOutbound");
-        (await mft.QueryAsync(new(FileName: "ops-2c", TransferId: transfer.Id,
-            Archived: false, Status: AchManagedFileTransferStatus.Uncertain, PageSize: 1)))
-            .Should().ContainSingle(x => x.Id == transfer.Id);
+        var page = await mft.QueryAsync(new(FileName: "ops-2c", TransferId: transfer.Id,
+            Archived: false, Status: AchManagedFileTransferStatus.Uncertain, PageSize: 1));
+        page.Should().ContainSingle(x => x.Id == transfer.Id);
+        page[0].UpdatedAtUtc.Should().Be(updatedAt);
         (await mft.QueryAsync(new(FileName: "OPS-2C", PageNumber: 2, PageSize: 1))).Should().BeEmpty();
         context.ChangeTracker.Entries().Should().BeEmpty();
     }
