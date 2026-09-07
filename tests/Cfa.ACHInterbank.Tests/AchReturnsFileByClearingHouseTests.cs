@@ -23,12 +23,12 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 100, "ACH-NOPOL");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [100] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [100] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-NOPOL", [new ReturnSelectionItemDto(100, "DEV14")]), CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-NOPOL", [new ReturnSelectionItemDto(100, "R01")]), CancellationToken.None));
 
         Assert.Contains("RETURN_FILENAME_POLICY_REQUIRED", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 100));
@@ -60,11 +60,11 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 201, "ACH-C1");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [201] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [201] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C1", [new ReturnSelectionItemDto(201, "DEV14")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C1", [new ReturnSelectionItemDto(201, "R01")]), CancellationToken.None);
 
         Assert.NotNull(response);
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 201));
@@ -77,7 +77,7 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 202, "ACH-C1-REBUILD");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [202] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [202] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
         var builder = ReturnOutNachaFileBuilderFactory.Create();
         var sut = new AchReturnsService(
@@ -88,7 +88,7 @@ public class AchReturnsFileByClearingHouseTests
             externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(),
             nachaFileBuilder: builder);
         var generated = await sut.GenerateReturnsFileAsync(
-            new GenerateReturnsFileRequest("ACH-C1-REBUILD", [new ReturnSelectionItemDto(202, "DEV14")]),
+            new GenerateReturnsFileRequest("ACH-C1-REBUILD", [new ReturnSelectionItemDto(202, "R01")]),
             CancellationToken.None);
         var identifierMap = new Mock<INachaFileIdentifierMapService>();
         identifierMap.Setup(x => x.ResolveIdentifierAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync('A');
@@ -127,10 +127,10 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 302, "ACH-C2");
         var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.Is<AchReturnEligibilityRequest>(r => r.TransactionId == 302), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnEligibilityResult(true, "DEV14", 7002, "Debit", "Pending", []));
+            .ReturnsAsync(new AchReturnEligibilityResult(true, "R01", 7002, "Debit", "Pending", []));
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C2", [new ReturnSelectionItemDto(302, "DEV14")]), CancellationToken.None);
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C2", [new ReturnSelectionItemDto(302, "R01")]), CancellationToken.None);
         eligibility.VerifyAll();
     }
 
@@ -164,12 +164,12 @@ public class AchReturnsFileByClearingHouseTests
 
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [502] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [502] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
         var cenitEx = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("CEN-C4", [new ReturnSelectionItemDto(501, "R01")]), CancellationToken.None));
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C4", [new ReturnSelectionItemDto(502, "DEV14")]), CancellationToken.None);
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C4", [new ReturnSelectionItemDto(502, "R01")]), CancellationToken.None);
 
         Assert.Contains("CENIT_RETURN_POLICY_REQUIRED", cenitEx.Message, StringComparison.Ordinal);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 501));
@@ -187,7 +187,7 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 601, "ACH-C5");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [601] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [601] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
@@ -219,7 +219,7 @@ public class AchReturnsFileByClearingHouseTests
             externalFileNamePolicy: policy.Object,
             nachaFileBuilder: builder);
 
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C5", [new ReturnSelectionItemDto(601, "DEV14")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-C5", [new ReturnSelectionItemDto(601, "R01")]), CancellationToken.None);
 
         Assert.Equal("0101006.001.1", response.FileName);
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 601 && x.FileName == "0101006.001.1"));
@@ -233,7 +233,7 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 602, "ACH-GOLD-1");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [602] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [602] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
@@ -263,7 +263,7 @@ public class AchReturnsFileByClearingHouseTests
             externalFileNamePolicy: policy.Object,
             nachaFileBuilder: builder);
 
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-GOLD-1", [new ReturnSelectionItemDto(602, "DEV14")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-GOLD-1", [new ReturnSelectionItemDto(602, "R01")]), CancellationToken.None);
 
         Assert.Equal("0101006.002.1", response.FileName);
         Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 602 && x.FileName == "0101006.002.1"));
@@ -282,7 +282,7 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 603, "ACH-GOLD-2");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [603] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [603] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var policy = new Mock<IExternalFileNamePolicy>(MockBehavior.Strict);
@@ -305,7 +305,7 @@ public class AchReturnsFileByClearingHouseTests
             externalFileNamePolicy: policy.Object,
             nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-GOLD-2", [new ReturnSelectionItemDto(603, "DEV14")]), CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-GOLD-2", [new ReturnSelectionItemDto(603, "R01")]), CancellationToken.None));
 
         Assert.Contains("RETURN_FILENAME_POLICY_REQUIRED", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 603));
@@ -319,12 +319,12 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 606, "ACH-CFG-1");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [606] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [606] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var builder = ReturnOutNachaFileBuilderFactory.Create();
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: builder);
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-1", [new ReturnSelectionItemDto(606, "DEV14")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-1", [new ReturnSelectionItemDto(606, "R01")]), CancellationToken.None);
 
         Assert.NotNull(response);
         Mock.Get(builder).Verify(x => x.BuildReturnOutAsync(It.IsAny<NachaReturnOutBuildRequest>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
@@ -337,12 +337,12 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 607, "ACH-CFG-2");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [607] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [607] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var builder = ReturnOutNachaFileBuilderFactory.Create();
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: builder);
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-2", [new ReturnSelectionItemDto(607, "DEV14")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-2", [new ReturnSelectionItemDto(607, "R01")]), CancellationToken.None);
 
         var content = Encoding.UTF8.GetString(response.Content);
         var records = SplitRecords(content);
@@ -357,11 +357,11 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 608, "ACH-CFG-3");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [608] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [608] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-3", [new ReturnSelectionItemDto(608, "DEV14")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-3", [new ReturnSelectionItemDto(608, "R01")]), CancellationToken.None);
 
         var content = Encoding.UTF8.GetString(response.Content);
         var records = SplitRecords(content);
@@ -377,11 +377,11 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 609, "ACH-CFG-4");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [609] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [609] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-4", [new ReturnSelectionItemDto(609, "DEV14")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CFG-4", [new ReturnSelectionItemDto(609, "R01")]), CancellationToken.None);
 
         var records = SplitRecords(Encoding.UTF8.GetString(response.Content));
         var r1 = records.First(r => r[0] == '1');
@@ -396,11 +396,11 @@ public class AchReturnsFileByClearingHouseTests
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 604, "ACH-RLAY-1");
         var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
         {
-            [604] = new(true, "DEV14", 7002, "Debit", "Pending", [])
+            [604] = new(true, "R01", 7002, "Debit", "Pending", [])
         });
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-RLAY-1", [new ReturnSelectionItemDto(604, "DEV14")]), CancellationToken.None);
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-RLAY-1", [new ReturnSelectionItemDto(604, "R01")]), CancellationToken.None);
 
         var content = Encoding.UTF8.GetString(response.Content);
         var records = SplitRecords(content);
@@ -432,27 +432,199 @@ public class AchReturnsFileByClearingHouseTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_ShouldEvaluateCausePolicy_ForOutboundReturn()
+    public async Task GenerateReturnsFileAsync_ShouldRejectDev14BeforeReturnOutPersistenceOrGeneration()
     {
         await using var context = BuildContext();
         SeedScenario(context, 7002, "ACH", "ACH Colombia", 701, "ACH-CP-1");
-        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult> { [701] = new(true, "DEV14", 7002, "Debit", "Pending", []) });
+        var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
         var causePolicy = new Mock<IAchCauseCodePolicy>(MockBehavior.Strict);
-        causePolicy.Setup(x => x.EvaluateAsync(It.Is<AchCauseCodePolicyRequest>(r =>
-                r.Code == "DEV14" &&
-                r.Flow == AchCauseCodeFlow.OutboundReturn &&
-                r.ClearingHouseId == 7002 &&
-                r.ClearingHouseCode == "ACH" &&
-                r.Source == "GenerateReturnsFileAsync"),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchCauseCodePolicyResult(true, AchCauseCodeRail.AchColombia, AchCauseCodeKind.ReturnReason, true, [new("NORMATIVE_PENDING", "pending", AchCauseCodePolicySeverity.Warning)]));
+        var builder = new Mock<INachaFileBuilder>(MockBehavior.Strict);
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object, nachaFileBuilder: builder.Object);
 
-        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), causeCodePolicy: causePolicy.Object, nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-1", [new ReturnSelectionItemDto(701, "DEV14")]), CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CP-1", [new ReturnSelectionItemDto(701, "DEV14")]), CancellationToken.None));
 
-        Assert.NotNull(response.Content);
-        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 701));
-        causePolicy.VerifyAll();
+        Assert.Contains("ACHCOL_DEV14_CLAIMS_ONLY", ex.Message, StringComparison.Ordinal);
+        Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == 701));
+        Assert.False(await context.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == 701));
+        eligibility.Verify(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        causePolicy.Verify(x => x.EvaluateAsync(It.IsAny<AchCauseCodePolicyRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        builder.Verify(x => x.BuildReturnOutAsync(It.IsAny<NachaReturnOutBuildRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldAcceptR10WhenNoPrenotificationExistsWithinConfiguredWindow()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 710, "ACH-R10-1");
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [710] = new(true, "R10", 7002, "Debit", "Pending", [])
+        });
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
+
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-1", [new ReturnSelectionItemDto(710, "R10")]), CancellationToken.None);
+
+        Assert.NotEmpty(response.Content);
+        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 710));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldAcceptR10WithExplicitNoAuthorizationBasisAndAuditIt()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 712, "ACH-R10-2");
+        var original = await context.AchTransactions.SingleAsync(transaction => transaction.Id == 712);
+        context.AchTransactions.Add(new AchTransaction
+        {
+            Id = 713,
+            AchCycleId = original.AchCycleId,
+            Type = TransactionTypeEnum.Prenotification,
+            IsPrenotification = true,
+            TransactionCode = "28",
+            DestinationInstitutionId = original.DestinationInstitutionId,
+            DestinationAccountNumber = original.DestinationAccountNumber,
+            EffectiveEntryDate = original.EffectiveEntryDate,
+            Reference = "PRENOTE-713",
+            SourceAccountNumber = "1"
+        });
+        await context.SaveChangesAsync();
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [712] = new(true, "R10", 7002, "Debit", "Pending", [])
+        });
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
+
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-2", [new ReturnSelectionItemDto(712, "R10", AchColombiaR10Basis: AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement)]), CancellationToken.None);
+
+        Assert.Contains("NoReceiverAuthorizationOrAgreement", await context.AchTransactionStateEvents.Where(eventRow => eventRow.AchTransactionId == 712).Select(eventRow => eventRow.PayloadJson).SingleAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldFailClosedForR10WhenPrenotificationExistsAndNoBasisIsProvided()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 714, "ACH-R10-3");
+        var original = await context.AchTransactions.SingleAsync(transaction => transaction.Id == 714);
+        context.AchTransactions.Add(new AchTransaction
+        {
+            Id = 715,
+            AchCycleId = original.AchCycleId,
+            Type = TransactionTypeEnum.Prenotification,
+            IsPrenotification = true,
+            TransactionCode = "28",
+            DestinationInstitutionId = original.DestinationInstitutionId,
+            DestinationAccountNumber = original.DestinationAccountNumber,
+            EffectiveEntryDate = original.EffectiveEntryDate,
+            Reference = "PRENOTE-715",
+            SourceAccountNumber = "1"
+        });
+        await context.SaveChangesAsync();
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [714] = new(true, "R10", 7002, "Debit", "Pending", [])
+        });
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-3", [new ReturnSelectionItemDto(714, "R10")]), CancellationToken.None));
+
+        Assert.Contains("ACHCOL_R10_BASIS_UNPROVEN", ex.Message, StringComparison.Ordinal);
+        Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 714));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldAllowR10AtConfiguredFourCycleBoundary()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 716, "ACH-R10-W0");
+        var day = DateTime.UtcNow.Date;
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-W1", day, 1);
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-W2", day, 2);
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-W3", day, 3);
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [716] = new(true, "R10", 7002, "Debit", "Pending", [])
+        });
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
+
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-W3", [new ReturnSelectionItemDto(716, "R10")]), CancellationToken.None);
+
+        Assert.True(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 716));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldRejectR10AfterConfiguredFourCycleBoundaryEvenWhenSevenCyclesExist()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 718, "ACH-R10-X0");
+        var day = DateTime.UtcNow.Date;
+        for (var hour = 1; hour <= 6; hour++)
+        {
+            SeedScheduledAchCycle(context, 7002, $"ACH-R10-X{hour}", day, hour);
+        }
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [718] = new(true, "R10", 7002, "Debit", "Pending", [])
+        });
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-X4", [new ReturnSelectionItemDto(718, "R10")]), CancellationToken.None));
+
+        Assert.Contains("ACHCOL_R10_RETURN_WINDOW_EXPIRED", ex.Message, StringComparison.Ordinal);
+        Assert.False(await context.Set<AchReturnGenerated>().AnyAsync(row => row.OriginalTransactionId == 718));
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldRejectR10ForPreviousOperationalDay()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 720, "ACH-R10-D0");
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-D1", DateTime.UtcNow.Date.AddDays(1), 1);
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [720] = new(true, "R10", 7002, "Debit", "Pending", [])
+        });
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-D1", [new ReturnSelectionItemDto(720, "R10")]), CancellationToken.None));
+
+        Assert.Contains("ACHCOL_RETURN_PREVIOUS_OPERATIONAL_DAY", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateReturnsFileAsync_ShouldUseThePolicyEffectiveOnTheOriginalOperationalDay()
+    {
+        await using var context = BuildContext();
+        SeedScenario(context, 7002, "ACH", "ACH Colombia", 722, "ACH-R10-H0");
+        var historicalDay = DateTime.UtcNow.Date.AddDays(-1);
+        var originalCycle = await context.AchCycles.SingleAsync(cycle => cycle.Id == "ACH-R10-H0");
+        originalCycle.ProcessingDate = historicalDay;
+        var originalTransaction = await context.AchTransactions.SingleAsync(transaction => transaction.Id == 722);
+        originalTransaction.EffectiveEntryDate = historicalDay;
+        var currentPolicy = await context.AchReturnPolicies.SingleAsync(policy => policy.ClearingHouseId == 7002 && policy.TransactionType == "Debit");
+        context.AchReturnPolicies.Add(new AchReturnPolicy
+        {
+            ClearingHouseId = 7002,
+            TransactionType = "Debit",
+            Direction = AchReturnDirection.Any,
+            FlowType = AchReturnFlowType.Return,
+            MaxCycles = 2,
+            EffectiveFrom = historicalDay,
+            EffectiveTo = historicalDay,
+            IsActive = true
+        });
+        currentPolicy.EffectiveFrom = DateTime.UtcNow.Date;
+        await context.SaveChangesAsync();
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-H1", historicalDay, 1);
+        SeedScheduledAchCycle(context, 7002, "ACH-R10-H2", historicalDay, 2);
+        var eligibility = BuildEligibilityMock(new Dictionary<int, AchReturnEligibilityResult>
+        {
+            [722] = new(true, "R10", 7002, "Debit", "Pending", [])
+        });
+        var sut = new AchReturnsService(context, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-R10-H2", [new ReturnSelectionItemDto(722, "R10")]), CancellationToken.None));
+
+        Assert.Contains("ACHCOL_R10_RETURN_WINDOW_EXPIRED", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -530,6 +702,34 @@ public class AchReturnsFileByClearingHouseTests
 
     static AchDbContext BuildContext() => new(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
+    static void SeedScheduledAchCycle(AchDbContext context, int clearingHouseId, string cycleId, DateTime processingDate, int hour, bool allowsReturn = true)
+    {
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = cycleId,
+            CycleName = cycleId,
+            ClearingHouseId = clearingHouseId,
+            ProcessingDate = processingDate.Date,
+            StartTime = new TimeSpan(hour, 0, 0),
+            EndTime = new TimeSpan(hour, 30, 0),
+            CutoffTime = new TimeSpan(hour, 15, 0),
+            OutputReleaseTime = new TimeSpan(hour, 30, 0),
+            ClearingHouseCycleConfig = new ClearingHouseCycleConfig
+            {
+                ClearingHouseId = clearingHouseId,
+                PolicyVersion = "TEST",
+                CycleName = cycleId,
+                StartTime = new TimeSpan(hour, 0, 0),
+                EndTime = new TimeSpan(hour, 30, 0),
+                CutoffTime = new TimeSpan(hour, 15, 0),
+                OutputReleaseTime = new TimeSpan(hour, 30, 0),
+                AllowsReturn = allowsReturn,
+                EffectiveFrom = processingDate.Date
+            }
+        });
+        context.SaveChanges();
+    }
+
     static void SeedScenario(AchDbContext c, int clearingHouseId, string code, string name, int transactionId, string cycleId)
     {
         if (!c.ClearingHouses.Any(x => x.Id == clearingHouseId))
@@ -537,9 +737,38 @@ public class AchReturnsFileByClearingHouseTests
             c.ClearingHouses.Add(new ClearingHouse { Id = clearingHouseId, Code = code, Name = name, OriginCode = "000101006" });
         }
 
+        if (string.Equals(code, "ACH", StringComparison.OrdinalIgnoreCase)
+            && !c.AchReturnPolicies.Any(policy => policy.ClearingHouseId == clearingHouseId
+                && policy.TransactionType == "Debit"
+                && policy.FlowType == AchReturnFlowType.Return))
+        {
+            c.AchReturnPolicies.Add(new AchReturnPolicy
+            {
+                ClearingHouseId = clearingHouseId,
+                TransactionType = "Debit",
+                Direction = AchReturnDirection.Any,
+                FlowType = AchReturnFlowType.Return,
+                MaxCycles = 4,
+                EffectiveFrom = DateTime.UtcNow.Date,
+                IsActive = true
+            });
+        }
+
         if (!c.AchCycles.Any(x => x.Id == cycleId))
         {
-            c.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = cycleId, ProcessingDate = DateTime.UtcNow.Date, CutoffTime = new TimeSpan(8, 0, 0), ClearingHouseId = clearingHouseId });
+            var cyclePolicy = new ClearingHouseCycleConfig
+            {
+                ClearingHouseId = clearingHouseId,
+                PolicyVersion = "TEST",
+                CycleName = cycleId,
+                StartTime = TimeSpan.Zero,
+                EndTime = new TimeSpan(23, 59, 0),
+                CutoffTime = new TimeSpan(8, 0, 0),
+                OutputReleaseTime = new TimeSpan(8, 30, 0),
+                AllowsReturn = true,
+                EffectiveFrom = DateTime.UtcNow.Date
+            };
+            c.AchCycles.Add(new AchCycle { Id = cycleId, CycleName = cycleId, ProcessingDate = DateTime.UtcNow.Date, CutoffTime = new TimeSpan(8, 0, 0), ClearingHouseId = clearingHouseId, ClearingHouseCycleConfig = cyclePolicy });
         }
 
         c.AchTransactions.Add(new AchTransaction
@@ -556,7 +785,8 @@ public class AchReturnsFileByClearingHouseTests
             Amount = 100m,
             Reference = $"REF-{transactionId}",
             SourceAccountNumber = "1",
-            DestinationAccountNumber = "2"
+            DestinationAccountNumber = "2",
+            DestinationInstitutionId = 1
         });
 
         c.SaveChanges();

@@ -17,7 +17,7 @@ public class RegulatoryCatalogSeederTests
 
         await sut.SeedAsync();
 
-        Assert.True(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14" && x.IsActive));
+        Assert.False(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14" && x.IsActive));
         Assert.True(await context.AchReturnPolicies.AnyAsync(x => x.TransactionType == "Debit" && x.IsActive));
         Assert.True(await context.AchPrenotificationPolicies.AnyAsync(x => x.TransactionType == "Debit" && x.IsRequired));
         Assert.True(await context.ClearingHouseTransactionRules.AnyAsync(x =>
@@ -174,7 +174,7 @@ public class RegulatoryCatalogSeederTests
         Assert.False(legacyR96.IsActive);
         Assert.Equal(IncomingNachaBusinessOutcome.NotProcessed, legacyR96.BusinessOutcome);
 
-        Assert.True(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14"));
+        Assert.False(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14" && x.IsActive));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "I503" && x.IsRetryable));
     }
 

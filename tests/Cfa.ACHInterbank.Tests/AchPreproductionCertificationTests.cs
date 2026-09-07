@@ -127,7 +127,7 @@ public class AchPreproductionCertificationTests
         var service = new AchReturnsService(context, new FixedTimeProvider(fixedNow), new AchRegulatoryCatalogService(context), eligibility.Object, new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create("2345678.001.1"), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
         var response = await service.GenerateReturnsFileAsync(
-            new GenerateReturnsFileRequest("cycle-ret", [new ReturnSelectionItemDto(501, "DEV14")]),
+            new GenerateReturnsFileRequest("cycle-ret", [new ReturnSelectionItemDto(501, "R01")]),
             CancellationToken.None);
 
         Assert.Equal("2345678.001.1", response.FileName);
@@ -390,7 +390,7 @@ public class AchPreproductionCertificationTests
     {
         SeedReferenceData(context);
         SeedInstitutions(context);
-        SeedCustomer(context, "CLIENTE DEV14", "900000014", "999988887777");
+        SeedCustomer(context, "CLIENTE R01", "900000014", "999988887777");
         var companyEntryDescriptionId = SeedCompanyEntryDescription(context, "RECAUDOS");
 
         context.AchCycles.Add(new AchCycle
@@ -408,7 +408,7 @@ public class AchPreproductionCertificationTests
         {
             Id = 501,
             Amount = 3200m,
-            Reference = "PAGO DEV14",
+            Reference = "PAGO R01",
             Type = TransactionTypeEnum.Debit,
             TransactionCode = "27",
             ServiceClassCode = "225",
@@ -445,7 +445,7 @@ public class AchPreproductionCertificationTests
         context.AchReturnCodes.Add(new AchReturnCode
         {
             ClearingHouseId = returnClearingHouseId,
-            Code = "DEV14",
+            Code = "R01",
             Description = "No consentimiento",
             AppliesToDebit = true,
             AppliesToReturn = true,
@@ -457,7 +457,7 @@ public class AchPreproductionCertificationTests
         {
             ClearingHouseId = returnClearingHouseId,
             TransactionType = "Debit",
-            AllowedReturnCodesCsv = "DEV14",
+            AllowedReturnCodesCsv = "R01",
             MaxDays = 60,
             RequiredOriginalTransactionState = "Pending",
             RequiresAddenda = true,

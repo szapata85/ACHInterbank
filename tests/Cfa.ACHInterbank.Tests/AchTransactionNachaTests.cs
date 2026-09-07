@@ -960,7 +960,7 @@ public class AchTransactionNachaTests
     }
 
     [Fact]
-    public async Task GenerateReturnsFileAsync_WithFiveCharacterReasonCode_FailsClosedAtOptionCBoundary()
+    public async Task GenerateReturnsFileAsync_WithDev14_FailsClosedBeforeOptionCGeneration()
     {
         using var connection = CreateOpenConnection();
 
@@ -1028,7 +1028,7 @@ public class AchTransactionNachaTests
                 [new ReturnSelectionItemDto(persistedTransactionId, "DEV14")]),
             CancellationToken.None));
 
-        Assert.Contains("NACHA_ALLOWED_VALUE_INVALID", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("ACHCOL_DEV14_CLAIMS_ONLY", ex.Message, StringComparison.Ordinal);
         Assert.False(await executionContext.Set<AchReturnGenerated>().AnyAsync(x => x.OriginalTransactionId == persistedTransactionId));
         Assert.False(await executionContext.AchTransactionStateEvents.AnyAsync(x => x.AchTransactionId == persistedTransactionId));
     }

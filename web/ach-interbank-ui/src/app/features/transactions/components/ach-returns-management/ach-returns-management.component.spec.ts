@@ -228,7 +228,7 @@ describe('AchReturnsManagementComponent', () => {
     selectCycleAndLoad();
     component.onSelectionChanged([eligibleRow]);
     dialog.open.and.returnValue({
-      afterClosed: () => of('R01')
+      afterClosed: () => of({ reasonCode: 'R01' })
     } as unknown as ReturnType<MatDialog['open']>);
     spyOn(URL, 'createObjectURL').and.returnValue('blob:ret');
     spyOn(URL, 'revokeObjectURL');
@@ -245,6 +245,24 @@ describe('AchReturnsManagementComponent', () => {
       items: [{ transactionId: 10, returnReasonCode: 'R01' }]
     });
     expect(component.lastGenerated?.reasonCode).toBe('R01');
+  });
+
+  it('envía la base estructurada de R10 cuando el operador la confirma', () => {
+    selectCycleAndLoad();
+    component.onSelectionChanged([eligibleRow]);
+    dialog.open.and.returnValue({
+      afterClosed: () => of({ reasonCode: 'R10', achColombiaR10Basis: 2 })
+    } as unknown as ReturnType<MatDialog['open']>);
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:ret');
+    spyOn(URL, 'revokeObjectURL');
+    spyOn(HTMLAnchorElement.prototype, 'click');
+
+    component.openReasonDialog();
+
+    expect(returnsApi.generateFile).toHaveBeenCalledWith({
+      cycleId: 'cycle-1',
+      items: [{ transactionId: 10, returnReasonCode: 'R10', achColombiaR10Basis: 2 }]
+    });
   });
 
   it('previene doble generación mientras la primera está activa', () => {

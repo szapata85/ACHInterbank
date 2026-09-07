@@ -26,7 +26,7 @@ public class AchReturnsPostgresUatEndToEndTests
     private const string BackfillTargetMigration = "20260521225311_AddIntegrationMappingTrace";
 
     [Theory]
-    [InlineData(7002, "ACHCOL", "ACH Colombia", 101, "ACH-CYCLE-UAT", "DEV14", TransactionTypeEnum.Debit, "27", 3200)]
+    [InlineData(7002, "ACHCOL", "ACH Colombia", 101, "ACH-CYCLE-UAT", "R01", TransactionTypeEnum.Debit, "27", 3200)]
     [InlineData(7001, "CENIT", "CENIT", 201, "CEN-CYCLE-UAT", "R01", TransactionTypeEnum.Credit, "22", 4100)]
     public async Task GenerateReturnsFileAsync_ShouldUseOfficialReturnPolicy_AndPersistPostgresArtifacts(
         int clearingHouseId,
@@ -169,14 +169,14 @@ public class AchReturnsPostgresUatEndToEndTests
             TransactionTypeEnum.Debit,
             "27",
             1200m,
-            "DEV14");
+            "R01");
 
         var fixedNow = new DateTimeOffset(2026, 06, 06, 11, 00, 00, TimeSpan.Zero);
         var expectedReturnFileName = await BuildExpectedReturnFileNameAsync(harness.Context, 1);
         var policy = BuildOfficialReturnOutPolicy(harness.Context);
         var eligibility = BuildEligibilityService(harness.Context);
         var sut = BuildReturnsService(harness.Context, fixedNow, eligibility, policy);
-        var request = new GenerateReturnsFileRequest("ACH-CYCLE-IDEMPOTENCY", [new ReturnSelectionItemDto(301, "DEV14")]);
+        var request = new GenerateReturnsFileRequest("ACH-CYCLE-IDEMPOTENCY", [new ReturnSelectionItemDto(301, "R01")]);
 
         var first = await sut.GenerateReturnsFileAsync(request, CancellationToken.None);
         Assert.Equal(expectedReturnFileName, first.FileName);

@@ -19,7 +19,7 @@ namespace Cfa.ACHInterbank.Tests;
 public class AchReturnsUatEndToEndTests
 {
     [Theory]
-    [InlineData(7002, "ACHCOL", "ACH Colombia", 101, "ACH-CYCLE-UAT", "DEV14", TransactionTypeEnum.Debit, "27", 3200)]
+    [InlineData(7002, "ACHCOL", "ACH Colombia", 101, "ACH-CYCLE-UAT", "R01", TransactionTypeEnum.Debit, "27", 3200)]
     public async Task GenerateReturnsFileAsync_ShouldUseOfficialReturnPolicy_AndPersistUatArtifacts(
         int clearingHouseId,
         string clearingHouseCode,
@@ -189,7 +189,7 @@ public class AchReturnsUatEndToEndTests
         var policy = BuildOfficialReturnOutPolicy(harness.Context);
         var eligibility = BuildEligibilityService(harness.Context);
         var sut = BuildReturnsService(harness.Context, fixedNow, eligibility, policy);
-        var request = new GenerateReturnsFileRequest("ACH-CYCLE-IDEMPOTENCY", [new ReturnSelectionItemDto(301, "DEV14")]);
+        var request = new GenerateReturnsFileRequest("ACH-CYCLE-IDEMPOTENCY", [new ReturnSelectionItemDto(301, "R01")]);
 
         var first = await sut.GenerateReturnsFileAsync(request, CancellationToken.None);
         Assert.Equal(expectedReturnFileName, first.FileName);
@@ -362,7 +362,7 @@ public class AchReturnsUatEndToEndTests
                 new AchReturnCode
                 {
                     ClearingHouseId = 7002,
-                    Code = "DEV14",
+                    Code = "R01",
                     Description = "No consentimiento",
                     AppliesToCredit = false,
                     AppliesToDebit = true,
@@ -397,7 +397,7 @@ public class AchReturnsUatEndToEndTests
                     TransactionType = "Debit",
                     Direction = AchReturnDirection.Any,
                     FlowType = AchReturnFlowType.Return,
-                    AllowedReturnCodesCsv = "DEV14",
+                    AllowedReturnCodesCsv = "R01",
                     MaxDays = 60,
                     RequiredOriginalTransactionState = "Pending",
                     RequiresAddenda = true,

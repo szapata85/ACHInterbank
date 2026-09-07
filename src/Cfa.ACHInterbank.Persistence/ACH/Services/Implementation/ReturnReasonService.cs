@@ -17,7 +17,7 @@ public class ReturnReasonService(AchDbContext context) : IReturnReasonService
 
         if (onlyForReturn)
         {
-            query = query.Where(reason => reason.IsForReturn);
+            query = query.Where(reason => reason.IsForReturn && reason.Code != "DEV14");
         }
 
         var items = await query

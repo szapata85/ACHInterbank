@@ -16,11 +16,12 @@ public class AchCauseCodePolicyTests
     {
         await using var c = await BuildContextAsync(); var (_, ach) = await SeedRails(c); await new RegulatoryCatalogSeeder(c).SeedAsync();
         var sut = new AchCauseCodePolicy(c);
-        foreach (var code in new[] { "R07", "R10", "R29", "R31", "DEV14" })
+        foreach (var code in new[] { "R07", "R10", "R29", "R31" })
         {
             var result = await sut.EvaluateAsync(new(code, AchCauseCodeFlow.OutboundReturn, ach.Id, "ACH"));
             Assert.True(result.IsAllowed, $"Expected code {code} to be allowed. Issues: {string.Join(" | ", result.Issues.Select(i => $"{i.Code}:{i.Message}"))}");
         }
+        Assert.False((await sut.EvaluateAsync(new("DEV14", AchCauseCodeFlow.OutboundReturn, ach.Id, "ACH"))).IsAllowed);
     }
 
     [Fact]

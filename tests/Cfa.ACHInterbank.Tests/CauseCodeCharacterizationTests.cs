@@ -71,11 +71,14 @@ public class CauseCodeCharacterizationTests
         await new RegulatoryCatalogSeeder(context).SeedAsync();
         var sut = new AchRegulatoryCatalogService(context);
 
-        foreach (var code in new[] { "R07", "R10", "R29", "R31", "DEV14" })
+        foreach (var code in new[] { "R07", "R10", "R29", "R31" })
         {
             var result = await sut.ValidateReturnCodeAsync(ach.Id, code, TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
             Assert.True(result.IsAllowed, $"ACH code should be allowed in current catalog: {code}");
         }
+
+        var dev14 = await sut.ValidateReturnCodeAsync(ach.Id, "DEV14", TransactionTypeEnum.Debit, DateTime.UtcNow.Date, DateTime.UtcNow.Date, CancellationToken.None);
+        Assert.False(dev14.IsAllowed);
     }
 
     [Fact]

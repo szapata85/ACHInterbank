@@ -18,12 +18,12 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 1001, cycleId: "ACH-CHAR-1");
 
-        var sut = BuildSut(context, 1001, "DEV14");
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-1", [new ReturnSelectionItemDto(1001, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, 1001, "R01");
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-1", [new ReturnSelectionItemDto(1001, "R01")]), CancellationToken.None);
 
         var generated = await context.Set<AchReturnGenerated>().SingleAsync(x => x.OriginalTransactionId == 1001);
         Assert.Equal(1001, generated.OriginalTransactionId);
-        Assert.Equal("DEV14", generated.ReturnReasonCode);
+        Assert.Equal("R01", generated.ReturnReasonCode);
         Assert.Equal("ACH-CHAR-1", generated.ReturnCycleId);
         Assert.Equal(125.55m, generated.Amount);
         Assert.False(string.IsNullOrWhiteSpace(generated.NewSequenceNumber));
@@ -41,13 +41,13 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         SeedScenario(context, transactionId: 1002, cycleId: "ACH-CHAR-2", state: AchTransferStateEnum.Pending);
         var initialState = await context.AchTransactions.Where(x => x.Id == 1002).Select(x => x.State).SingleAsync();
 
-        var sut = BuildSut(context, 1002, "DEV14");
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-2", [new ReturnSelectionItemDto(1002, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, 1002, "R01");
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-2", [new ReturnSelectionItemDto(1002, "R01")]), CancellationToken.None);
 
         var reloaded = await context.AchTransactions.SingleAsync(x => x.Id == 1002);
         Assert.Equal(AchTransferStateEnum.Pending, initialState);
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, reloaded.State);
-        Assert.Equal("DEV14", reloaded.ReturnReasonCode);
+        Assert.Equal("R01", reloaded.ReturnReasonCode);
         Assert.Equal("091000020000001", reloaded.OriginalTraceRef);
     }
 
@@ -59,14 +59,14 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
 
         Assert.Equal(0, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 1003));
 
-        var sut = BuildSut(context, 1003, "DEV14");
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-3", [new ReturnSelectionItemDto(1003, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, 1003, "R01");
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-3", [new ReturnSelectionItemDto(1003, "R01")]), CancellationToken.None);
 
         var evt = await context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 1003);
         Assert.Equal(AchTransferStateEnum.Pending, evt.FromState);
         Assert.Equal(AchTransferStateEnum.ReturnedByEpr, evt.ToState);
         Assert.Equal(AchStateEventSourceEnum.Epr, evt.Source);
-        Assert.Equal("DEV14", evt.ReasonCode);
+        Assert.Equal("R01", evt.ReasonCode);
         Assert.Contains("ReturnFileGenerated", evt.PayloadJson, StringComparison.Ordinal);
         Assert.Contains("outbound-return", evt.PayloadJson, StringComparison.Ordinal);
     }
@@ -77,10 +77,10 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 1004, cycleId: "ACH-CHAR-4");
 
-        var sut = BuildSut(context, 1004, "DEV14");
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-4", [new ReturnSelectionItemDto(1004, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, 1004, "R01");
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-4", [new ReturnSelectionItemDto(1004, "R01")]), CancellationToken.None);
 
-        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-4", [new ReturnSelectionItemDto(1004, "DEV14")]), CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-4", [new ReturnSelectionItemDto(1004, "R01")]), CancellationToken.None));
         Assert.Contains("ya cuenta con una devolución registrada", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, await context.Set<AchReturnGenerated>().CountAsync(x => x.OriginalTransactionId == 1004));
     }
@@ -91,8 +91,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 1005, cycleId: "ACH-CHAR-5");
 
-        var sut = BuildSut(context, 1005, "DEV14", new AchReturnGenerationLockService());
-        var request = new GenerateReturnsFileRequest("ACH-CHAR-5", [new ReturnSelectionItemDto(1005, "DEV14")]);
+        var sut = BuildSut(context, 1005, "R01", new AchReturnGenerationLockService());
+        var request = new GenerateReturnsFileRequest("ACH-CHAR-5", [new ReturnSelectionItemDto(1005, "R01")]);
 
         var t1 = ExecuteIgnoringFailureAsync(() => sut.GenerateReturnsFileAsync(request, CancellationToken.None));
         var t2 = ExecuteIgnoringFailureAsync(() => sut.GenerateReturnsFileAsync(request, CancellationToken.None));
@@ -161,8 +161,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         SeedScenario(context, transactionId: 2001, cycleId: "ACH-CHAR-MULTI-1");
         SeedScenario(context, transactionId: 2002, cycleId: "ACH-CHAR-MULTI-1");
 
-        var sut = BuildSut(context, new Dictionary<int, string> { [2001] = "DEV14", [2002] = "DEV14" });
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-MULTI-1", [new ReturnSelectionItemDto(2001, "DEV14"), new ReturnSelectionItemDto(2002, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, new Dictionary<int, string> { [2001] = "R01", [2002] = "R01" });
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-MULTI-1", [new ReturnSelectionItemDto(2001, "R01"), new ReturnSelectionItemDto(2002, "R01")]), CancellationToken.None);
 
         Assert.Equal(2, await context.Set<AchReturnGenerated>().CountAsync(x => x.ReturnCycleId == "ACH-CHAR-MULTI-1"));
         var events = await context.AchTransactionStateEvents.Where(x => x.AchTransactionId == 2001 || x.AchTransactionId == 2002).ToListAsync();
@@ -185,7 +185,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
 
         var eligibility = new Mock<IAchReturnEligibilityService>(MockBehavior.Strict);
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnEligibilityResult(false, "DEV14", 7002, "Debit", "Pending", [new AchReturnEligibilityFailure("RETURN_POLICY_REJECTED", "reject") ]));
+            .ReturnsAsync(new AchReturnEligibilityResult(false, "R01", 7002, "Debit", "Pending", [new AchReturnEligibilityFailure("RETURN_POLICY_REJECTED", "reject") ]));
 
         var sut = new AchReturnsService(
             context,
@@ -194,7 +194,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
             returnGenerationLockService: new TestReturnGenerationLockService(),
             nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-FAIL-1", [new ReturnSelectionItemDto(2003, "DEV14")]), CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-FAIL-1", [new ReturnSelectionItemDto(2003, "R01")]), CancellationToken.None));
 
         Assert.Equal(0, await context.Set<AchReturnGenerated>().CountAsync(x => x.OriginalTransactionId == 2003));
         Assert.Equal(0, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 2003));
@@ -206,10 +206,10 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 2004, cycleId: "ACH-CHAR-DUP-1");
 
-        var sut = BuildSut(context, 2004, "DEV14");
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, 2004, "R01");
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "R01")]), CancellationToken.None);
 
-        await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "DEV14")]), CancellationToken.None));
+        await Assert.ThrowsAsync<AchReturnAlreadyGeneratedException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-DUP-1", [new ReturnSelectionItemDto(2004, "R01")]), CancellationToken.None));
 
         Assert.Equal(1, await context.Set<AchReturnGenerated>().CountAsync(x => x.OriginalTransactionId == 2004));
         Assert.Equal(1, await context.AchTransactionStateEvents.CountAsync(x => x.AchTransactionId == 2004));
@@ -221,8 +221,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 2005, cycleId: "ACH-CHAR-PAYLOAD-1");
 
-        var sut = BuildSut(context, 2005, "DEV14");
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-PAYLOAD-1", [new ReturnSelectionItemDto(2005, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, 2005, "R01");
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-PAYLOAD-1", [new ReturnSelectionItemDto(2005, "R01")]), CancellationToken.None);
 
         var evt = await context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 2005);
         using var doc = System.Text.Json.JsonDocument.Parse(evt.PayloadJson!);
@@ -241,7 +241,7 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         Assert.Equal("Pending", root.GetProperty("previousState").GetString());
         Assert.Equal("ReturnedByEpr", root.GetProperty("newState").GetString());
 
-        Assert.Equal("DEV14", root.GetProperty("returnReasonCode").GetString());
+        Assert.Equal("R01", root.GetProperty("returnReasonCode").GetString());
         Assert.Equal("ACH-CHAR-PAYLOAD-1", root.GetProperty("returnCycleId").GetString());
         Assert.Equal(7002, root.GetProperty("clearingHouseId").GetInt32());
         Assert.Equal("ACH", root.GetProperty("clearingHouseCode").GetString());
@@ -278,8 +278,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         var before = await context.AchTransactions.SingleAsync(x => x.Id == 2006);
         var beforeChangedAt = before.StateChangedAtUtc;
 
-        var sut = BuildSut(context, 2006, "DEV14");
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-STATE-1", [new ReturnSelectionItemDto(2006, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, 2006, "R01");
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-STATE-1", [new ReturnSelectionItemDto(2006, "R01")]), CancellationToken.None);
 
         var after = await context.AchTransactions.SingleAsync(x => x.Id == 2006);
         var evt = await context.AchTransactionStateEvents.SingleAsync(x => x.AchTransactionId == 2006);
@@ -297,8 +297,8 @@ public class AchOutboundReturnStateAndIdempotencyCharacterizationTests
         await using var context = BuildContext();
         SeedScenario(context, transactionId: 2007, cycleId: "ACH-CHAR-NACHA-1");
 
-        var sut = BuildSut(context, 2007, "DEV14");
-        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-NACHA-1", [new ReturnSelectionItemDto(2007, "DEV14")]), CancellationToken.None);
+        var sut = BuildSut(context, 2007, "R01");
+        var response = await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("ACH-CHAR-NACHA-1", [new ReturnSelectionItemDto(2007, "R01")]), CancellationToken.None);
 
         var records = System.Text.Encoding.UTF8.GetString(response.Content).Chunk(106).Select(x => new string(x)).ToArray();
         Assert.Equal(10, records.Length);

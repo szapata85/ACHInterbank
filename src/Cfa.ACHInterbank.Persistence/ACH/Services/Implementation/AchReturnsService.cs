@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using DigitoChequeoHelper = Cfa.ACHInterbank.Application.Helpers.DigitoChequeo.DigitoChequeo;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -67,9 +68,6 @@ public class AchReturnsService(
             .OrderBy(t => t.Id)
             .ToListAsync(ct);
 
-        var cycleOrder = await GetCycleOrderAsync(cycle.ClearingHouseId, ct);
-        cycleOrder.TryGetValue(cycle.Id, out var selectedCycleOrder);
-
         var alreadyReturned = await context.Set<AchReturnGenerated>()
             .AsNoTracking()
             .Select(r => r.OriginalTransactionId)
@@ -84,17 +82,6 @@ public class AchReturnsService(
             {
                 isEligible = false;
                 message = "La transacción ya tiene devolución generada.";
-            }
-
-            if (!cycleOrder.TryGetValue(tx.AchCycleId, out var txCycleOrder))
-            {
-                isEligible = false;
-                message = "No fue posible validar la antigüedad por ciclo.";
-            }
-            else if (IsAchColombia(cycle.ClearingHouse?.Code) && (selectedCycleOrder - txCycleOrder) > 4)
-            {
-                isEligible = false;
-                message = "La transacción supera el máximo de 4 ciclos para devolución.";
             }
 
             return new ReturnEligibleTransactionDto(
@@ -165,6 +152,12 @@ public class AchReturnsService(
             throw new InvalidOperationException("RETURN_OUT_CLEARING_HOUSE_NOT_SUPPORTED: la cámara no dispone de un perfil Return Out implementado.");
         }
 
+        if (isAchColombia && request.Items.Any(item =>
+                string.Equals(item.ReturnReasonCode?.Trim(), "DEV14", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("ACHCOL_DEV14_CLAIMS_ONLY: DEV14 pertenece al flujo de reclamaciones y no puede generar ReturnOut.");
+        }
+
         if (isCenit && _cenitReturnPolicy is null)
         {
             throw new InvalidOperationException("CENIT_RETURN_POLICY_REQUIRED: la policy normativa CENIT no está registrada.");
@@ -175,6 +168,7 @@ public class AchReturnsService(
 
         var transactions = await context.AchTransactions
             .Include(t => t.AchCycle)
+                .ThenInclude(cycle => cycle!.ClearingHouseCycleConfig)
             .Where(t => selectedIds.Contains(t.Id))
             .ToListAsync(ct);
 
@@ -183,13 +177,14 @@ public class AchReturnsService(
             throw new InvalidOperationException("Algunas transacciones seleccionadas no existen.");
         }
 
-        if (transactions.Any(t => t.AchCycleId != request.CycleId))
+        var isAchColombiaR10Batch = isAchColombia
+            && request.Items.All(item => string.Equals(item.ReturnReasonCode?.Trim(), "R10", StringComparison.OrdinalIgnoreCase));
+        if (transactions.Any(transaction => transaction.AchCycle?.ClearingHouseId != cycle.ClearingHouseId)
+            || (!isAchColombiaR10Batch && transactions.Any(transaction => transaction.AchCycleId != request.CycleId)))
         {
             throw new InvalidOperationException("No se permite mezclar transacciones de ciclos distintos en el mismo archivo de devolución.");
         }
 
-        var cycleOrder = await GetCycleOrderAsync(cycle.ClearingHouseId, ct);
-        cycleOrder.TryGetValue(cycle.Id, out var selectedCycleOrder);
         var cenitCycleEvidence = isCenit
             ? await ResolveCenitCycleEvidenceAsync(originalCycle, cycle, ct)
             : null;
@@ -226,10 +221,9 @@ public class AchReturnsService(
                 throw new InvalidOperationException("CENIT_ROR_NOT_ORDINARY_RETURN: las causales R60-R74 requieren el flujo independiente de devolución de una devolución.");
             }
 
-            if (!cycleOrder.TryGetValue(tx.AchCycleId, out var txCycleOrder)
-                || (isAchColombia && (selectedCycleOrder - txCycleOrder) > 4))
+            if (isAchColombia && string.Equals(item.ReturnReasonCode?.Trim(), "R10", StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"La transacción {tx.Id} excede la ventana máxima de 4 ciclos para devolución.");
+                await ValidateAchColombiaR10Async(tx, cycle, item.AchColombiaR10Basis, ct);
             }
 
             var eligibility = await _returnEligibilityService.EvaluateOutgoingReturnAsync(
@@ -320,7 +314,8 @@ public class AchReturnsService(
                 receiverEntity,
                 originEntity,
                 returnTransactionCode,
-                cenitSource?.StandardEntryClassCode ?? "PPD"));
+                cenitSource?.StandardEntryClassCode ?? "PPD",
+                item.AchColombiaR10Basis));
 
             CompareReturnShadow(
                 cycle.ClearingHouseId,
@@ -468,7 +463,8 @@ public class AchReturnsService(
                     generatedRows.Count,
                     now,
                     fileContent,
-                    AchTransferStateEnum.ReturnedByEpr);
+                    AchTransferStateEnum.ReturnedByEpr,
+                    prepared.Single(item => item.Transaction.Id == row.OriginalTransactionId).AchColombiaR10Basis);
 
                 var transition = await _stateTransitionService.TransitionAsync(new AchStateTransitionRequest(
                     row.OriginalTransactionId,
@@ -526,7 +522,8 @@ public class AchReturnsService(
         string ReceiverEntity,
         string OriginEntity,
         string ReturnTransactionCode,
-        string StandardEntryClassCode);
+        string StandardEntryClassCode,
+        AchColombiaR10ReturnBasis? AchColombiaR10Basis);
 
     private sealed record CenitOriginalSource(
         string StandardEntryClassCode,
@@ -556,7 +553,8 @@ public class AchReturnsService(
         int returnCount,
         DateTime createdAtUtc,
         string fileContent,
-        AchTransferStateEnum newState)
+        AchTransferStateEnum newState,
+        AchColombiaR10ReturnBasis? achColombiaR10Basis)
     {
         var payload = new
         {
@@ -572,6 +570,7 @@ public class AchReturnsService(
             previousState = originalTx.State.ToString(),
             newState = newState.ToString(),
             returnReasonCode = generatedRow.ReturnReasonCode,
+            achColombiaR10Basis = achColombiaR10Basis?.ToString(),
             returnCycleId = generatedRow.ReturnCycleId,
             clearingHouseId = cycle.ClearingHouseId,
             clearingHouseCode = cycle.ClearingHouse?.Code,
@@ -938,21 +937,119 @@ public class AchReturnsService(
     }
 
 
-    private async Task<Dictionary<string, int>> GetCycleOrderAsync(int clearingHouseId, CancellationToken ct)
+    private async Task ValidateAchColombiaR10Async(
+        AchTransaction transaction,
+        AchCycle returnCycle,
+        AchColombiaR10ReturnBasis? requestedBasis,
+        CancellationToken ct)
     {
-        var buffered = await context.AchCycles
+        if (transaction.Type != TransactionTypeEnum.Debit || transaction.IsPrenotification)
+        {
+            throw new InvalidOperationException("ACHCOL_R10_DEBIT_REQUIRED: R10 solo aplica a un débito monetario elegible.");
+        }
+
+        var originalCycle = transaction.AchCycle
+            ?? throw new InvalidOperationException("ACHCOL_R10_ORIGINAL_CYCLE_REQUIRED: no fue posible resolver el ciclo original.");
+        if (originalCycle.ProcessingDate.Date != returnCycle.ProcessingDate.Date)
+        {
+            throw new InvalidOperationException("ACHCOL_RETURN_PREVIOUS_OPERATIONAL_DAY: la devolución R10 fuera del día operativo pertenece al flujo de reclamaciones.");
+        }
+
+        _ = originalCycle.ClearingHouseCycleConfig
+            ?? throw new InvalidOperationException("ACHCOL_R10_WINDOW_POLICY_UNRESOLVED: el ciclo original no conserva su política de ciclos.");
+        var maxReturnCycles = await ResolveAchColombiaMaxReturnCyclesAsync(
+            originalCycle.ClearingHouseId,
+            originalCycle.ProcessingDate,
+            ct);
+
+        var scheduledCycles = await context.AchCycles
             .AsNoTracking()
-            .Where(c => c.ClearingHouseId == clearingHouseId)
-            .OrderBy(c => c.ProcessingDate)
+            .Include(cycle => cycle.ClearingHouseCycleConfig)
+            .Where(cycle => cycle.ClearingHouseId == originalCycle.ClearingHouseId
+                && cycle.ProcessingDate.Date == originalCycle.ProcessingDate.Date)
+            .OrderBy(cycle => cycle.StartTime)
+            .ThenBy(cycle => cycle.CutoffTime)
+            .ToListAsync(ct);
+        var originalIndex = scheduledCycles.FindIndex(cycle => cycle.Id == originalCycle.Id);
+        var returnIndex = scheduledCycles.FindIndex(cycle => cycle.Id == returnCycle.Id);
+        if (originalIndex < 0 || returnIndex < originalIndex)
+        {
+            throw new InvalidOperationException("ACHCOL_R10_WINDOW_POLICY_UNRESOLVED: no fue posible resolver el orden operativo de los ciclos.");
+        }
+
+        var returnOpportunityCount = scheduledCycles
+            .Skip(originalIndex)
+            .Take(returnIndex - originalIndex + 1)
+            .Count(cycle => cycle.ClearingHouseCycleConfig?.AllowsReturn == true);
+        if (scheduledCycles[returnIndex].ClearingHouseCycleConfig?.AllowsReturn != true)
+        {
+            throw new InvalidOperationException("ACHCOL_R10_RETURN_NOT_ALLOWED_IN_CYCLE: la política del ciclo solicitado no permite ReturnOut.");
+        }
+        if (returnOpportunityCount > maxReturnCycles)
+        {
+            throw new InvalidOperationException("ACHCOL_R10_RETURN_WINDOW_EXPIRED: la transacción excede la ventana configurada de devolución.");
+        }
+
+        if (requestedBasis == AchColombiaR10ReturnBasis.NoReceiverAuthorizationOrAgreement)
+        {
+            return;
+        }
+
+        var prenotificationCode = NachaTransactionCodeTaxonomy.ResolvePrenotificationCode(transaction.TransactionCode);
+        if (string.IsNullOrWhiteSpace(prenotificationCode)
+            || transaction.DestinationInstitutionId <= 0
+            || string.IsNullOrWhiteSpace(transaction.DestinationAccountNumber))
+        {
+            throw new InvalidOperationException("ACHCOL_R10_BASIS_UNPROVEN: no se puede probar la ausencia de prenotificación con la información original.");
+        }
+
+        var prenotificationExists = await context.AchTransactions
+            .AsNoTracking()
+            .AnyAsync(candidate => candidate.Id != transaction.Id
+                && candidate.IsPrenotification
+                && candidate.DestinationInstitutionId == transaction.DestinationInstitutionId
+                && candidate.DestinationAccountNumber == transaction.DestinationAccountNumber
+                && candidate.TransactionCode == prenotificationCode
+                && candidate.EffectiveEntryDate.Date <= transaction.EffectiveEntryDate.Date, ct);
+        if (prenotificationExists)
+        {
+            var code = requestedBasis == AchColombiaR10ReturnBasis.NoPrenotification
+                ? "ACHCOL_R10_BASIS_CONTRADICTED"
+                : "ACHCOL_R10_BASIS_UNPROVEN";
+            throw new InvalidOperationException($"{code}: existe evidencia de prenotificación; seleccione una base R10 válida y verificable.");
+        }
+
+        if (requestedBasis is null or AchColombiaR10ReturnBasis.NoPrenotification)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException("ACHCOL_R10_BASIS_UNPROVEN: la base R10 no es reconocida.");
+    }
+
+    private async Task<int> ResolveAchColombiaMaxReturnCyclesAsync(
+        int clearingHouseId,
+        DateTime operationalDate,
+        CancellationToken ct)
+    {
+        var policies = await context.AchReturnPolicies
+            .AsNoTracking()
+            .Where(policy => policy.ClearingHouseId == clearingHouseId
+                && policy.IsActive
+                && policy.TransactionType == "Debit"
+                && policy.Direction == AchReturnDirection.Any
+                && policy.FlowType == AchReturnFlowType.Return
+                && policy.EffectiveFrom.Date <= operationalDate.Date
+                && (!policy.EffectiveTo.HasValue || policy.EffectiveTo.Value.Date >= operationalDate.Date))
+            .Select(policy => policy.MaxCycles)
             .ToListAsync(ct);
 
-        var cycles = buffered
-            .OrderBy(c => c.ProcessingDate)
-            .ThenBy(c => c.CutoffTime)
-            .Select(c => c.Id)
-            .ToList();
+        if (policies.Count != 1 || !policies[0].HasValue || policies[0].Value <= 0)
+        {
+            throw new InvalidOperationException("ACHCOL_R10_WINDOW_POLICY_UNRESOLVED: la política efectiva de devolución no define un máximo de ciclos único.");
+        }
 
-        return cycles.Select((id, index) => new { id, index }).ToDictionary(x => x.id, x => x.index, StringComparer.OrdinalIgnoreCase);
+        return policies[0].Value;
     }
 
     private static string NormalizeDigits(string? value, int length)

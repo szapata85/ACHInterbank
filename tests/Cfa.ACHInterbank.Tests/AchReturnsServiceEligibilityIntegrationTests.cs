@@ -23,10 +23,10 @@ public class AchReturnsServiceEligibilityIntegrationTests
         var catalog = new Mock<IAchRegulatoryCatalogService>();
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnEligibilityResult(true, "DEV14", 7002, "Debit", "Pending", []));
+            .ReturnsAsync(new AchReturnEligibilityResult(true, "R01", 7002, "Debit", "Pending", []));
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
-        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(1, "DEV14")]), CancellationToken.None);
+        await sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(1, "R01")]), CancellationToken.None);
 
         eligibility.Verify(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -42,11 +42,11 @@ public class AchReturnsServiceEligibilityIntegrationTests
         var catalog = new Mock<IAchRegulatoryCatalogService>();
         var eligibility = new Mock<IAchReturnEligibilityService>();
         eligibility.Setup(x => x.EvaluateOutgoingReturnAsync(It.IsAny<AchReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AchReturnEligibilityResult(false, "DEV14", 7002, "Debit", "Pending", [new AchReturnEligibilityFailure("RETURN_POLICY_REJECTED", "Política no permite retorno.")]));
+            .ReturnsAsync(new AchReturnEligibilityResult(false, "R01", 7002, "Debit", "Pending", [new AchReturnEligibilityFailure("RETURN_POLICY_REJECTED", "Política no permite retorno.")]));
 
         var sut = new AchReturnsService(context, regulatoryCatalogService: catalog.Object, returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(1, "DEV14")]), CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(1, "R01")]), CancellationToken.None));
         Assert.Equal("Política no permite retorno.", ex.Message);
     }
 

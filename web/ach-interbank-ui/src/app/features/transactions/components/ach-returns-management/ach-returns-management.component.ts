@@ -42,6 +42,11 @@ interface ReturnReasonDialogData {
   selectedCount: number;
 }
 
+interface ReturnReasonDialogResult {
+  reasonCode: string;
+  achColombiaR10Basis?: 1 | 2;
+}
+
 interface ReturnDetailDialogData {
   id: string;
   traceNumber: string;
@@ -96,6 +101,14 @@ interface GeneratedReturnEvidence {
         </mat-select>
         <mat-error *ngIf="reasonControl.hasError('required')">Selecciona una causal.</mat-error>
       </mat-form-field>
+      <mat-form-field *ngIf="reasonControl.value === 'R10'" appearance="outline">
+        <mat-label>Base verificable para R10</mat-label>
+        <mat-select [formControl]="r10BasisControl">
+          <mat-option [value]="1">No existe prenotificación previa</mat-option>
+          <mat-option [value]="2">No existe autorización o acuerdo del usuario receptor</mat-option>
+        </mat-select>
+        <mat-error *ngIf="r10BasisControl.invalid">Selecciona la base verificable para R10.</mat-error>
+      </mat-form-field>
       <p class="notice">
         Esta acción genera el archivo NACHA-M .RET existente; no aprueba, rechaza ni reprocesa transacciones.
       </p>
@@ -106,8 +119,8 @@ interface GeneratedReturnEvidence {
         mat-flat-button
         color="primary"
         type="button"
-        [disabled]="reasonControl.invalid"
-        [mat-dialog-close]="reasonControl.value">
+        [disabled]="reasonControl.invalid || (reasonControl.value === 'R10' && r10BasisControl.invalid)"
+        (click)="closeWithSelection()">
         Generar archivo .RET
       </button>
     </mat-dialog-actions>
@@ -158,6 +171,17 @@ export class AchReturnReasonDialogComponent {
       ?? '',
     { nonNullable: true, validators: Validators.required }
   );
+  readonly r10BasisControl = new FormControl<1 | 2 | null>(null, Validators.required);
+
+  closeWithSelection(): void {
+    const reasonCode = this.reasonControl.value;
+    this.dialogRef.close({
+      reasonCode,
+      ...(reasonCode === 'R10' && this.r10BasisControl.value
+        ? { achColombiaR10Basis: this.r10BasisControl.value }
+        : {})
+    } satisfies ReturnReasonDialogResult);
+  }
 }
 
 @Component({
@@ -507,21 +531,21 @@ export class AchReturnsManagementComponent implements OnInit {
     })
       .afterClosed()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((reasonCode: string | undefined) => {
-        if (reasonCode) {
-          this.generateFile(reasonCode);
+      .subscribe((selection: ReturnReasonDialogResult | undefined) => {
+        if (selection?.reasonCode) {
+          this.generateFile(selection.reasonCode, selection.achColombiaR10Basis);
         }
       });
   }
 
-  generateFile(reasonCode: string): void {
+  generateFile(reasonCode: string, achColombiaR10Basis?: 1 | 2): void {
     if (this.generating || this.loading) {
       return;
     }
     const cycleId = this.filterForm.controls.cycleId.value;
     const selectedItems = this.allRows
       .filter((row) => row.isEligible && this.selectedRows.has(row.id))
-      .map((row) => ({ transactionId: row.id, returnReasonCode: reasonCode }));
+      .map((row) => ({ transactionId: row.id, returnReasonCode: reasonCode, ...(achColombiaR10Basis ? { achColombiaR10Basis } : {}) }));
     if (!cycleId || selectedItems.length === 0) {
       this.notifications.warning('No hay transacciones elegibles seleccionadas para generar el archivo.');
       return;

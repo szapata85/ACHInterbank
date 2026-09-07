@@ -147,6 +147,7 @@ export interface ReturnEligibleTransaction {
 export interface ReturnSelectionItem {
   transactionId: number;
   returnReasonCode: string;
+  achColombiaR10Basis?: 1 | 2;
 }
 
 export interface GenerateReturnsFileRequest {

@@ -19,7 +19,14 @@ public sealed record ReturnEligibleTransactionDto(
 public sealed record ReturnSelectionItemDto(
     int TransactionId,
     string ReturnReasonCode,
-    CenitIncomingReturnOperationalEvidence? CenitOperationalEvidence = null);
+    CenitIncomingReturnOperationalEvidence? CenitOperationalEvidence = null,
+    AchColombiaR10ReturnBasis? AchColombiaR10Basis = null);
+
+public enum AchColombiaR10ReturnBasis
+{
+    NoPrenotification = 1,
+    NoReceiverAuthorizationOrAgreement = 2
+}
 
 public sealed record GenerateReturnsFileRequest(
     string CycleId,
