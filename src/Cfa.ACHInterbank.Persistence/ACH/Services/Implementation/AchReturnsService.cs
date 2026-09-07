@@ -226,10 +226,11 @@ public class AchReturnsService(
                 await ValidateAchColombiaR10Async(tx, cycle, item.AchColombiaR10Basis, ct);
             }
 
+            var returnReasonCode = item.ReturnReasonCode ?? string.Empty;
             var eligibility = await _returnEligibilityService.EvaluateOutgoingReturnAsync(
                 new AchReturnEligibilityRequest(
                     tx.Id,
-                    item.ReturnReasonCode,
+                    returnReasonCode,
                     isCenit ? cycle.ProcessingDate : now,
                     HasAddenda: true),
                 ct);
@@ -1040,16 +1041,16 @@ public class AchReturnsService(
                 && policy.Direction == AchReturnDirection.Any
                 && policy.FlowType == AchReturnFlowType.Return
                 && policy.EffectiveFrom.Date <= operationalDate.Date
-                && (!policy.EffectiveTo.HasValue || policy.EffectiveTo.Value.Date >= operationalDate.Date))
+                && (!policy.EffectiveTo.HasValue || policy.EffectiveTo.GetValueOrDefault().Date >= operationalDate.Date))
             .Select(policy => policy.MaxCycles)
             .ToListAsync(ct);
 
-        if (policies.Count != 1 || !policies[0].HasValue || policies[0].Value <= 0)
+        if (policies.Count != 1 || policies[0] is not int maxReturnCycles || maxReturnCycles <= 0)
         {
             throw new InvalidOperationException("ACHCOL_R10_WINDOW_POLICY_UNRESOLVED: la política efectiva de devolución no define un máximo de ciclos único.");
         }
 
-        return policies[0].Value;
+        return maxReturnCycles;
     }
 
     private static string NormalizeDigits(string? value, int length)

@@ -24,7 +24,7 @@ public class CauseCodeCharacterizationTests
         Assert.Contains("R10", achCodes);
         Assert.Contains("R29", achCodes);
         Assert.Contains("R31", achCodes);
-        Assert.Contains("DEV14", achCodes);
+        Assert.DoesNotContain("DEV14", achCodes);
     }
 
     [Fact]
@@ -134,9 +134,9 @@ public class CauseCodeCharacterizationTests
         await new RegulatoryCatalogSeeder(context).SeedAsync();
         var sut = new TransactionValidator(context);
 
-        var dto = new AddendaDto { AddendaType = "99", BusinessType = AchAddendaBusinessType.Return, ReturnReasonCode = " dev14 ", OriginalTraceNumber = "123456789012345", NewTraceNumber = "543210987654321" };
+        var dto = new AddendaDto { AddendaType = "99", BusinessType = AchAddendaBusinessType.Return, ReturnReasonCode = " r10 ", OriginalTraceNumber = "123456789012345", NewTraceNumber = "543210987654321" };
         var normalized = sut.NormalizeAndValidateAddenda(dto, TransactionTypeEnum.Return, false, "RETORNO");
-        Assert.Equal("DEV14", normalized.ReturnReasonCode);
+        Assert.Equal("R10", normalized.ReturnReasonCode);
     }
 
     [Fact]
