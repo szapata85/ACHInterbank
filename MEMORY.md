@@ -99,6 +99,14 @@ PROVEN_ROOT_CAUSE: New provider characterization exposed an inherited PostgreSQL
 EVIDENCE_LIMITS: Current routes remain in Administration; historical physical-route snapshots and individual Quartz fire IDs were not recorded. Existing event origins are preserved; corrected origins apply to new executions. No external delivery or global UAT/release certification is inferred.
 BASELINES: OPS-GAP-002.2A CLOSED; OPS-GAP-002.2B CLOSED; RET-GAP-018 CLOSED. Enterprise Managed MFT / GoAnywhere deployment, production connectivity, credentials and homologation remain a SEPARATE EXTERNAL OPERATIONAL DEPENDENCY.
 
+#### OPS-GAP-002.2D
+
+STATUS: CLOSED — MANUAL MFT RETRY GATE AND FRESH-DATABASE MIGRATION DISCOVERY CERTIFIED
+SOURCE: MFT-EXTERNAL-READINESS-001; audit baseline 3ef76b9410dbda54a7b0433f806417bdde536840.
+IMPLEMENTED: ProfileEnabled and ManualOutboundAllowed now fail closed before explicit manual outbound retry handoff; a denied retry cannot invoke the adapter or mutate attempt/event state, and CanRetry uses the same effective gate. Existing migration 20260902090000_OpsGap0022BManagedMftAdministration is discoverable for SQL Server and PostgreSQL, and both snapshots represent the existing 2B model; no duplicate schema or new migration was introduced.
+EVIDENCE: Retry implementation 79a393e02dd2290515439db7ea7df059096d2f62; certified descendant fa85f5d9b3dedaece774facf828fdf104db969e5. RetryPermission 3/3, focused Managed MFT 36/36, fresh-provider OutgoingMonitorMultiDb 2/2 with migration history/full-column/second-Migrate proof, Release build 8 projects with 0 errors/0 warnings, and GitHub Dotnet CI 34182482659 all required jobs SUCCESS.
+BOUNDARY: OPS-GAP-002.2A/.2B/.2C remain accepted closed baselines. No external MFT implementation, global UAT or release certification is claimed; enterprise MFT deployment, topology/routes, identity/credentials, connectivity, external contract and homologation remain external.
+
 ### OPS-GAP-003
 
 STATUS: BLOCKED
@@ -218,9 +226,9 @@ DO NOT USE: The former normative-contradiction interpretation and external-clari
 
 ### MFT_EXTERNAL_READINESS
 
-STATUS: PROVEN_INTERNAL_PRODUCT_DELTA (MFT-EXTERNAL-READINESS-001, 2026-09-07).
-EVIDENCE: At fde26d133947309384e3d9fb0b163c9c3c7acd95, AchColombiaManagedFileExchangeService.RetryAsync invokes Manual handoff without checking ManualOutboundAllowed; the registered folder adapter checks ProfileEnabled only. Source-proven permission bypass; no runtime reproduction or fix claimed. See docs/ai/MFT_EXTERNAL_READINESS_AUDIT.md.
-CONSEQUENCE: Propose OPS-GAP-002.2D only for the manual outbound retry gate; implementation deferred. Accepted 2A/2B/2C closures remain historical baselines, with this narrow current-source contradiction recorded. External MFT / GoAnywhere deployment and homologation remain separate; NEXT_JOB unchanged.
+STATUS: APPLICATION_READY_EXTERNAL_DEPLOYMENT_PENDING (OPS-GAP-002.2D certified, 2026-09-07).
+EVIDENCE: The manual outbound retry permission bypass identified by MFT-EXTERNAL-READINESS-001 is closed at certified descendant fa85f5d9b3dedaece774facf828fdf104db969e5. ProfileEnabled and ManualOutboundAllowed fail closed before adapter handoff, CanRetry is aligned, and fresh SQL Server/PostgreSQL migration discovery for the existing 2B Administration model is certified by GitHub Dotnet CI 34182482659.
+CONSEQUENCE: No residual internal MFT blocker is proven within this scope. Enterprise MFT / GoAnywhere deployment, production topology/routes, service identity/credentials, connectivity, external contract and homologation remain external; no global UAT or release certification is inferred.
 
 ### DEC-ACHCOL-R10-DEV14-001
 
