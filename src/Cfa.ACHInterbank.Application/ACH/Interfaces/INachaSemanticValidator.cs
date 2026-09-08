@@ -5,4 +5,5 @@ namespace Cfa.ACHInterbank.Application.ACH.Interfaces;
 public interface INachaSemanticValidator
 {
     void Validate(string fileContent, NachaBuildContext context);
+    void Validate(string fileContent, NachaBuildContext context, NachaServiceClassSemanticContract semanticContract);
 }

@@ -156,7 +156,10 @@ SLICE_2A: CLOSED — Published profile tags now carry typed outbound partition/c
 EVIDENCE_2A: Release test-project build 7 projects/0 errors/0 warnings; CenitOutboundFilePartitionerTests 18/18; NachaConfigResolverTests 10/10; NachaConfigOfficialProfilesSeederTests 47/47; OfficialNachaGenerationTableDrivenTests 70/70; NachaFileBuilderUnitTests 6/6.
 SLICE_2B: CLOSED — ACH outbound batch assignment is published as typed strategy/scope/start/maximum/audit metadata, resolved by NachaConfigResolver, and consumed without a chamber-specific branch. CI stabilization commit 47427a26 corrected TEST_SETUP_MISSING_REQUIRED_POLICY in the legacy fixture only; no product behavior or generator branch changed.
 EVIDENCE_2B: GitHub Actions run 33591708889 green: build-and-test, Outgoing monitor (SQL Server + PostgreSQL), and ReturnOut concurrency (SQL Server + PostgreSQL). This broad CI evidence closes 2B.
-CURRENT_DELTA: NACHA-RULE-METADATA remains PARTIAL. Remaining categories are settlement policy, generator layout snapshots, and profile-version / SEC / cross-field policy.
+SLICE_2C: CLOSED — Published SettlementPolicy tags resolve as a typed fail-closed contract for SettlementDate and JulianSettlementDate; missing, empty, unsupported, duplicate, and source-incompatible metadata is rejected.
+SLICE_2D: CLOSED — Official T5 CfgProfileRecord rows reference chamber-specific CfgRuleSet/CfgRuleSetRule contracts for ServiceClassCode 200/220/225. NachaConfigResolver materializes the typed contract; publication and resolution reject missing, bad, unsupported, duplicate, contradictory, or record-incompatible metadata; official runtime rejects transaction-code/effective-direction mismatch, disallowed service-class direction, and T5/T8 ServiceClassCode mismatch. T5/T8 coherence is a generic NACHA-M invariant, not profile-variable metadata.
+EVIDENCE_2D: Release build 8 projects/0 errors/0 warnings; required focused regressions 212/212; final semantic/resolver/publication checks 38/38; rebuilt functional generation 6/6; final semantic plus legacy compatibility 15/15. Broad backend run reached 2498 passed and 15 skipped; 8 environment-gated multi-database tests lacked their required opt-in variables, and the 2 code-related failures were corrected and revalidated.
+CURRENT_DELTA: NACHA-RULE-METADATA remains PARTIAL. Remaining categories are generator layout/profile publication snapshots and broader profile-version/SEC/static transaction-code policy debt.
 
 ### RET-GAP-018
 
@@ -327,6 +330,7 @@ STATUS: AWAITING_PRIORITIZATION
 CONTEXT: NACHA-RULE-METADATA.2B and OPS-GAP-002.2C are CLOSED. Select the next authorized slice from the remaining backlog; do not reopen these closed slices. External Managed MFT deployment remains a separate operational dependency.
 
 ## Recent Sessions
+- 2026-09-08: NACHA-RULE-METADATA.2D closed the published ServiceClassCode/entry-direction contract through existing CfgRuleSet metadata, typed resolution, publication rejection, chamber-specific seeding, and generic runtime cross-field enforcement; layout snapshots and broader SEC/static transaction-code debt remain out of scope.
 - 2026-09-07: RET-GAP-019 certification closed after stale DEV14 ReturnOut expectations were corrected and GitHub Actions run 34154650922 passed broad tests plus isolated SQL Server/PostgreSQL ReturnOut and monitor jobs. ACHCOL-CLAIMS-DEV14 remains unimplemented.
 - 2026-09-07: RET-GAP-019 implementation established the narrow ACH Colombia ReturnOut delta: DEV14 is rejected as Claims-only before persistence/generation, R10 has a deterministic basis, and the window uses effective policy plus scheduled cycle snapshots. Subsequent certification is recorded above; ACHCOL-CLAIMS-DEV14 remains unimplemented.
 - 2026-09-07: RET-GAP-019 audit accepted DEC-ACHCOL-R10-DEV14-001, removed the obsolete normative block, and proved a ReturnOut/cycle-policy product delta plus a distinct DEV14 Claims capability gap; no product code changed.

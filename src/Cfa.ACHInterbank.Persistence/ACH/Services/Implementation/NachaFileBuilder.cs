@@ -1443,7 +1443,8 @@ public class NachaFileBuilder : INachaFileBuilder
         audit.TotalFields = audit.FieldTraceEntries.Count;
         audit.FileHash = Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(fileContent)));
         await PersistGenerationAuditAsync(audit, resolution.Profile?.Id, ct, operationalSnapshot.CapturedAtUtc);
-        _nachaSemanticValidator.Validate(fileContent, context);
+        _nachaSemanticValidator.Validate(fileContent, context, resolution.SemanticContract
+            ?? throw new NachaGenerationException("NACHA_SEMANTIC_CONTRACT_MISSING", "El perfil resuelto no materializó el contrato semántico ServiceClassCode."));
         return fileContent;
     }
 

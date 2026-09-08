@@ -9,21 +9,6 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class IncomingNachaFunctionalClassifier : IIncomingNachaFunctionalClassifier
 {
-    private static readonly HashSet<string> CreditCodes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "21", "22", "23", "31", "32", "33", "42", "51", "52", "53"
-    };
-
-    private static readonly HashSet<string> DebitCodes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "26", "27", "28", "36", "37", "38", "55", "56", "57"
-    };
-
-    private static readonly HashSet<string> PrenoteCodes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "23", "33", "53", "28", "38", "57"
-    };
-
     private static readonly HashSet<string> ReturnCodes = new(StringComparer.OrdinalIgnoreCase)
     {
         "21", "26", "31", "36", "51", "56"
@@ -32,9 +17,10 @@ public class IncomingNachaFunctionalClassifier : IIncomingNachaFunctionalClassif
     public IncomingNachaClassificationResult Classify(EntryDetail entry, AddendaRecord? addenda)
     {
         var code = (entry.TransactionCode ?? string.Empty).Trim();
-        var isCredit = CreditCodes.Contains(code);
-        var isDebit = DebitCodes.Contains(code);
-        var isPrenote = PrenoteCodes.Contains(code) && entry.Amount.GetValueOrDefault() == 0m;
+        var hasDirection = NachaTransactionCodeDirectionClassifier.TryResolve(code, out var direction);
+        var isCredit = hasDirection && direction == NachaEntryDirection.Credit;
+        var isDebit = hasDirection && direction == NachaEntryDirection.Debit;
+        var isPrenote = NachaTransactionCodeDirectionClassifier.IsPrenotificationCode(code) && entry.Amount.GetValueOrDefault() == 0m;
         var isReturn = ReturnCodes.Contains(code) && addenda is not null && string.Equals(addenda.CodeTypeAddendumRecord?.Trim(), "99", StringComparison.OrdinalIgnoreCase);
 
         IncomingNachaFunctionalClass functionalClass;

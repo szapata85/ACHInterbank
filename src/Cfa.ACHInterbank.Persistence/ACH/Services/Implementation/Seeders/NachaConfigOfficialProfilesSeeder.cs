@@ -471,6 +471,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             }
 
             var sequence = 10;
+            var semanticRuleSetId = await EnsureServiceClassSemanticRuleSetAsync(spec.ClearingHouseCode, catalog);
             foreach (var recordCode in RecordCodes)
             {
                 var isReturnOutV35 = IsReturnOutV35(spec);
@@ -503,7 +504,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                         : recordCode == "7" && !spec.IsPlaceholder ? ResolveType7CreditVariant(spec) : null,
                     isDefault: true,
                     selectionPredicateJson: null);
-                await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, catalog);
+                await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, semanticRuleSetId, catalog);
 
                 if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026 && !isCenitReturnOfReturn2026 && !isCenitOrdinaryOutbound2026 && !isCenitCtxOutbound2026 && !isCenitOrdinaryInbound2026)
                 {
@@ -663,6 +664,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             string recordCode,
             int sequence,
             int layoutVariantId,
+            int semanticRuleSetId,
             CatalogIds catalog)
         {
             var recordCodeId = catalog.RecordCodes[recordCode];
@@ -685,7 +687,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profileRecord.MaxOccurs = null;
             profileRecord.SourceStrategy = "TABLE_DRIVEN";
             profileRecord.LayoutVariantId = layoutVariantId;
-            profileRecord.SemanticRuleSetId = null;
+            profileRecord.SemanticRuleSetId = recordCode == "5" ? semanticRuleSetId : null;
             profileRecord.UpdatedAt = AuditTimestamp;
             await _context.SaveChangesAsync();
         }
@@ -816,6 +818,67 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             rule.UpdatedAt = AuditTimestamp;
             await _context.SaveChangesAsync();
         }
+    }
+
+    private async Task<int> EnsureServiceClassSemanticRuleSetAsync(string clearingHouseCode, CatalogIds catalog)
+    {
+        var ruleSetCode = $"NACHA_{clearingHouseCode}_SERVICE_CLASS_DIRECTION_V1";
+        var ruleSet = await _context.CfgRuleSets
+            .Include(candidate => candidate.Rules)
+            .SingleOrDefaultAsync(candidate => candidate.RuleSetCode == ruleSetCode);
+        if (ruleSet is null)
+        {
+            ruleSet = new CfgRuleSet
+            {
+                RuleSetCode = ruleSetCode,
+                CreatedAt = AuditTimestamp
+            };
+            _context.CfgRuleSets.Add(ruleSet);
+        }
+
+        ruleSet.NameEs = $"Contrato clase de servicio/dirección {clearingHouseCode}";
+        ruleSet.Description = "Contrato semántico publicado para ServiceClassCode 200/220/225 y dirección de entradas.";
+        ruleSet.Scope = NachaSemanticContractMetadata.RequiredScope;
+        ruleSet.UpdatedAt = AuditTimestamp;
+        await _context.SaveChangesAsync();
+
+        var declarations = new[]
+        {
+            new { ServiceClassCode = "200", AllowedDirections = new[] { "CREDIT", "DEBIT" } },
+            new { ServiceClassCode = "220", AllowedDirections = new[] { "CREDIT" } },
+            new { ServiceClassCode = "225", AllowedDirections = new[] { "DEBIT" } }
+        };
+        for (var index = 0; index < declarations.Length; index++)
+        {
+            var declaration = declarations[index];
+            var ruleCode = NachaSemanticContractMetadata.RuleCodePrefix + declaration.ServiceClassCode;
+            var rule = ruleSet.Rules.SingleOrDefault(candidate => candidate.RuleCode == ruleCode);
+            if (rule is null)
+            {
+                rule = new CfgRuleSetRule
+                {
+                    RuleSetId = ruleSet.Id,
+                    RuleCode = ruleCode,
+                    CreatedAt = AuditTimestamp
+                };
+                _context.CfgRuleSetRules.Add(rule);
+            }
+
+            rule.RuleTypeId = catalog.RuleTypes[NachaSemanticContractMetadata.RequiredRuleType];
+            rule.ConditionDsl = null;
+            rule.RuleConfigJson = JsonSerializer.Serialize(new
+            {
+                serviceClassCode = declaration.ServiceClassCode,
+                allowedDirections = declaration.AllowedDirections
+            });
+            rule.ErrorCode = "NACHA_SERVICE_CLASS_DIRECTION_NOT_ALLOWED";
+            rule.ErrorMessageEs = "La clase de servicio no permite la dirección efectiva de la entrada.";
+            rule.Order = (index + 1) * 10;
+            rule.UpdatedAt = AuditTimestamp;
+        }
+
+        await _context.SaveChangesAsync();
+        return ruleSet.Id;
     }
 
     private async Task<CatalogIds> LoadCatalogAsync()

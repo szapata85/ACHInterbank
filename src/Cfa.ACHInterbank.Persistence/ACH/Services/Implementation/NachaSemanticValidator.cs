@@ -11,6 +11,10 @@ public class NachaSemanticValidator : INachaSemanticValidator
     private const int RecordLength = 106;
     private const int BatchHeaderDescriptionStart = 53;
     private const int BatchHeaderDescriptionLength = 10;
+    private const int ServiceClassStart = 1;
+    private const int ServiceClassLength = 3;
+    private const int TransactionCodeStart = 1;
+    private const int TransactionCodeLength = 2;
     private const int ReturnReasonStart = 3;
     private const int ReturnReasonLength = 5;
     private const int OriginalTraceStart = 8;
@@ -26,6 +30,21 @@ public class NachaSemanticValidator : INachaSemanticValidator
     private const string RequiredMassCreditDescription = "MULTICREDIT";
 
     public void Validate(string fileContent, NachaBuildContext context)
+        => ValidateCore(fileContent, context, semanticContract: null);
+
+    public void Validate(
+        string fileContent,
+        NachaBuildContext context,
+        NachaServiceClassSemanticContract semanticContract)
+    {
+        ArgumentNullException.ThrowIfNull(semanticContract);
+        ValidateCore(fileContent, context, semanticContract);
+    }
+
+    private static void ValidateCore(
+        string fileContent,
+        NachaBuildContext context,
+        NachaServiceClassSemanticContract? semanticContract)
     {
         ArgumentNullException.ThrowIfNull(context);
 
@@ -73,20 +92,34 @@ public class NachaSemanticValidator : INachaSemanticValidator
                 throw new InvalidOperationException($"El lote ordinal {batchOrdinal + 1} no contiene entradas exportables.");
             }
 
+            var serviceClassCode = batchHeaderRecord.Substring(ServiceClassStart, ServiceClassLength);
+            NachaServiceClassSemanticRule? serviceClassRule = null;
+            if (semanticContract is not null
+                && !semanticContract.TryGetRule(serviceClassCode, out serviceClassRule!))
+            {
+                throw new InvalidOperationException($"NACHA_SERVICE_CLASS_UNDECLARED: ServiceClassCode {serviceClassCode} no está declarado para el lote ordinal {batchOrdinal + 1}.");
+            }
+
             ValidateBatchSemantics(batch, batchTransactions, batchHeaderRecord, batchOrdinal);
 
             if (MatchesInterleavedShape(records, currentRecordIndex, batchTransactions.Count))
             {
-                ValidateInterleavedEntries(records, ref currentRecordIndex, batchTransactions, batchOrdinal);
+                ValidateInterleavedEntries(records, ref currentRecordIndex, batchTransactions, batchOrdinal, serviceClassRule);
             }
             else
             {
                 // Compatibility is restricted to DEVELOPMENT by NachaFileBuilder's LIVE gate.
                 // It remains readable only for isolated legacy/shadow diagnostics.
-                ValidateLegacyGroupedEntries(records, ref currentRecordIndex, batchTransactions, batchOrdinal);
+                ValidateLegacyGroupedEntries(records, ref currentRecordIndex, batchTransactions, batchOrdinal, serviceClassRule);
             }
 
             EnsureRecordType(records, currentRecordIndex, '8', $"El lote ordinal {batchOrdinal + 1} debe cerrar con T8.");
+            var batchControlServiceClassCode = records[currentRecordIndex].Substring(ServiceClassStart, ServiceClassLength);
+            if (semanticContract is not null
+                && !string.Equals(serviceClassCode, batchControlServiceClassCode, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"NACHA_T5_T8_SERVICE_CLASS_MISMATCH: T5={serviceClassCode} y T8={batchControlServiceClassCode} en lote ordinal {batchOrdinal + 1}.");
+            }
             currentRecordIndex++;
         }
 
@@ -164,7 +197,8 @@ public class NachaSemanticValidator : INachaSemanticValidator
         IReadOnlyList<string> records,
         ref int currentRecordIndex,
         IReadOnlyList<Domain.Models.ACH.AchTransaction> transactions,
-        int batchOrdinal)
+        int batchOrdinal,
+        NachaServiceClassSemanticRule? serviceClassRule)
     {
         for (var entryOrdinal = 0; entryOrdinal < transactions.Count; entryOrdinal++)
         {
@@ -172,6 +206,7 @@ public class NachaSemanticValidator : INachaSemanticValidator
             EnsureRecordType(records, currentRecordIndex, '6', $"La entrada ordinal {entryOrdinal + 1} del lote {batchOrdinal + 1} debe generar T6.");
             var entryRecord = records[currentRecordIndex++];
             ValidateEntryAmount(transaction, batchOrdinal, entryOrdinal);
+            ValidateEntryDirection(transaction, entryRecord, serviceClassRule, batchOrdinal, entryOrdinal);
 
             var indicator = entryRecord[AddendaIndicatorStart];
             if (indicator == '0')
@@ -220,14 +255,17 @@ public class NachaSemanticValidator : INachaSemanticValidator
         IReadOnlyList<string> records,
         ref int currentRecordIndex,
         IReadOnlyList<Domain.Models.ACH.AchTransaction> transactions,
-        int batchOrdinal)
+        int batchOrdinal,
+        NachaServiceClassSemanticRule? serviceClassRule)
     {
         var entryRecords = new List<string>(transactions.Count);
         for (var entryOrdinal = 0; entryOrdinal < transactions.Count; entryOrdinal++)
         {
             EnsureRecordType(records, currentRecordIndex, '6', $"La entrada ordinal {entryOrdinal + 1} del lote {batchOrdinal + 1} debe generar T6.");
-            entryRecords.Add(records[currentRecordIndex++]);
+            var entryRecord = records[currentRecordIndex++];
+            entryRecords.Add(entryRecord);
             ValidateEntryAmount(transactions[entryOrdinal], batchOrdinal, entryOrdinal);
+            ValidateEntryDirection(transactions[entryOrdinal], entryRecord, serviceClassRule, batchOrdinal, entryOrdinal);
         }
 
         for (var entryOrdinal = 0; entryOrdinal < transactions.Count; entryOrdinal++)
@@ -256,6 +294,41 @@ public class NachaSemanticValidator : INachaSemanticValidator
         if (!transaction.IsPrenotification && transaction.Amount <= 0)
         {
             throw new InvalidOperationException($"La entrada ordinal {entryOrdinal + 1} del lote {batchOrdinal + 1} requiere monto mayor a cero.");
+        }
+    }
+
+    private static void ValidateEntryDirection(
+        Domain.Models.ACH.AchTransaction transaction,
+        string entryRecord,
+        NachaServiceClassSemanticRule? serviceClassRule,
+        int batchOrdinal,
+        int entryOrdinal)
+    {
+        if (serviceClassRule is null)
+        {
+            return;
+        }
+
+        var transactionCode = entryRecord.Substring(TransactionCodeStart, TransactionCodeLength);
+        if (!NachaTransactionCodeDirectionClassifier.TryResolve(transactionCode, out var transactionCodeDirection))
+        {
+            throw new InvalidOperationException($"NACHA_TRANSACTION_CODE_DIRECTION_UNSUPPORTED: código {transactionCode} en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
+
+        var effectiveDirection = transaction.Type switch
+        {
+            TransactionTypeEnum.Credit => NachaEntryDirection.Credit,
+            TransactionTypeEnum.Debit => NachaEntryDirection.Debit,
+            _ => transactionCodeDirection
+        };
+        if (transactionCodeDirection != effectiveDirection)
+        {
+            throw new InvalidOperationException($"NACHA_TRANSACTION_CODE_DIRECTION_MISMATCH: código {transactionCode} no coincide con la dirección efectiva {effectiveDirection} en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
+        }
+
+        if (!serviceClassRule.Allows(effectiveDirection))
+        {
+            throw new InvalidOperationException($"NACHA_SERVICE_CLASS_DIRECTION_NOT_ALLOWED: ServiceClassCode {serviceClassRule.ServiceClassCode} no permite {effectiveDirection} en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
         }
     }
 

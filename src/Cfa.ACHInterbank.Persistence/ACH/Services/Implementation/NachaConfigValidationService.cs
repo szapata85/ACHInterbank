@@ -47,6 +47,10 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             .AsNoTracking()
             .Include(x => x.Records)
                 .ThenInclude(x => x.RecordCode)
+            .Include(x => x.Records)
+                .ThenInclude(x => x.SemanticRuleSet)
+                    .ThenInclude(x => x!.Rules)
+                        .ThenInclude(x => x.RuleType)
             .Include(x => x.LayoutVariants)
                 .ThenInclude(x => x.RecordCode)
             .Include(x => x.LayoutVariants)
@@ -119,6 +123,17 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                     : "INVALID_SETTLEMENT_POLICY",
                 Mensaje = settlementPolicyMetadata.Error
                     ?? $"El perfil requiere la metadata '{NachaSettlementPolicyMetadata.TagKey}'."
+            });
+        }
+
+        var semanticMetadata = NachaSemanticContractMetadata.Resolve(profile.Records);
+        if (semanticMetadata.Status != NachaSemanticContractMetadataStatus.Resolved)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = semanticMetadata.ErrorCode ?? "INVALID_SEMANTIC_CONTRACT",
+                Mensaje = semanticMetadata.Error ?? "El perfil requiere un contrato semántico ServiceClassCode válido."
             });
         }
         foreach (var variant in profile.LayoutVariants)

@@ -1512,7 +1512,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             });
         validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
+        semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>(), It.IsAny<NachaServiceClassSemanticContract>()));
         batchNumberGenerator.Setup(x => x.AssignBatchNumbersAsync(It.IsAny<IReadOnlyList<AchBatch>>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<AchBatch> batches, string _, DateTime _, CancellationToken _) =>
                 new BatchNumberAssignmentResult(

@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -31,6 +32,10 @@ public class NachaConfigResolverTests
         result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileSelected);
         result.Profile.Should().NotBeNull();
         result.SettlementPolicy.Should().Be(NachaSettlementPolicy.SettlementDate);
+        result.SemanticContract.Should().NotBeNull();
+        result.SemanticContract!.Rules.Should().HaveCount(3);
+        result.SemanticContract.TryGetRule("220", out var serviceClass220).Should().BeTrue();
+        serviceClass220.Should().Match<NachaServiceClassSemanticRule>(rule => rule.AllowsCredit && !rule.AllowsDebit);
         result.LayoutsByRecordCode.Should().ContainKey("1");
         result.LayoutsByRecordCode.Should().ContainKey("5");
     }
@@ -304,6 +309,65 @@ public class NachaConfigResolverTests
         result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.SettlementPolicyInvalid);
     }
 
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenRequiredSemanticContractIsMissing()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        var record5 = await context.CfgProfileRecords.SingleAsync(record => record.RecordCodeId == 2);
+        record5.SemanticRuleSetId = null;
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequestForRecord5());
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.SemanticContractMissing);
+        result.Warnings.Should().ContainSingle(message => message.Contains("MISSING_SEMANTIC_CONTRACT"));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenSemanticRuleIsUnsupported()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        var rule = await context.CfgRuleSetRules.FirstAsync();
+        rule.RuleCode = "UNSUPPORTED_RULE";
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequestForRecord5());
+
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.SemanticContractInvalid);
+        result.Warnings.Should().ContainSingle(message => message.Contains("UNSUPPORTED_SEMANTIC_RULE"));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenSemanticDeclarationIsDuplicated()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        context.CfgRuleSetRules.Add(SemanticRule(510, "service_class_allowed_directions_200", "200", "CREDIT", "DEBIT"));
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequestForRecord5());
+
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.SemanticContractInvalid);
+        result.Warnings.Should().ContainSingle(message => message.Contains("DUPLICATE_SEMANTIC_DECLARATION"));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenSemanticDeclarationsContradict()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        context.CfgRuleSetRules.Add(SemanticRule(510, "service_class_allowed_directions_220", "220", "DEBIT"));
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(BaseRequestForRecord5());
+
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.SemanticContractInvalid);
+        result.Warnings.Should().ContainSingle(message => message.Contains("CONTRADICTORY_SEMANTIC_DECLARATION"));
+    }
+
     private static AchDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()
@@ -324,6 +388,7 @@ public class NachaConfigResolverTests
             new CatRecordCode { Id = 1, Code = "1", NameEs = "Header", IsMandatoryBase = true },
             new CatRecordCode { Id = 2, Code = "5", NameEs = "Batch", IsMandatoryBase = true });
         context.CatDataSourceTypes.Add(new CatDataSourceType { Id = 1, Code = "CONSTANTE", NameEs = "Constante" });
+        context.CatRuleTypes.Add(new CatRuleType { Id = 1, Code = NachaSemanticContractMetadata.RequiredRuleType, NameEs = "Condicional" });
 
         var profile = new CfgProfile
         {
@@ -352,7 +417,19 @@ public class NachaConfigResolverTests
         });
         context.CfgProfileRecords.AddRange(
             new CfgProfileRecord { Id = 100, ProfileId = 10, RecordCodeId = 1, Sequence = 10, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
-            new CfgProfileRecord { Id = 101, ProfileId = 10, RecordCodeId = 2, Sequence = 20, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" });
+            new CfgProfileRecord { Id = 101, ProfileId = 10, RecordCodeId = 2, Sequence = 20, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN", SemanticRuleSetId = 500 });
+
+        context.CfgRuleSets.Add(new CfgRuleSet
+        {
+            Id = 500,
+            RuleSetCode = "TEST_SERVICE_CLASS_DIRECTION",
+            NameEs = "Contrato semántico",
+            Scope = NachaSemanticContractMetadata.RequiredScope
+        });
+        context.CfgRuleSetRules.AddRange(
+            SemanticRule(501, NachaSemanticContractMetadata.RuleCodePrefix + "200", "200", "CREDIT", "DEBIT"),
+            SemanticRule(502, NachaSemanticContractMetadata.RuleCodePrefix + "220", "220", "CREDIT"),
+            SemanticRule(503, NachaSemanticContractMetadata.RuleCodePrefix + "225", "225", "DEBIT"));
 
         var source = new CfgFieldSourceDefinition { Id = 1000, DataSourceTypeId = 1, ConstantValue = "1" };
         context.CfgFieldSourceDefinitions.Add(source);
@@ -422,5 +499,29 @@ public class NachaConfigResolverTests
             RecordCodes = ["1"],
             RequireHomologated = requireHomologated,
             RequireOutboundPolicy = requireOutboundPolicy
+        };
+
+    private static NachaConfigResolutionRequest BaseRequestForRecord5()
+        => new()
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = DateTime.UtcNow,
+            RecordCodes = ["5"]
+        };
+
+    private static CfgRuleSetRule SemanticRule(int id, string ruleCode, string serviceClassCode, params string[] directions)
+        => new()
+        {
+            Id = id,
+            RuleSetId = 500,
+            RuleTypeId = 1,
+            RuleCode = ruleCode,
+            RuleConfigJson = JsonSerializer.Serialize(new { serviceClassCode, allowedDirections = directions }),
+            ErrorCode = "NACHA_SERVICE_CLASS_DIRECTION_NOT_ALLOWED",
+            ErrorMessageEs = "Dirección no permitida.",
+            Order = id
         };
 }

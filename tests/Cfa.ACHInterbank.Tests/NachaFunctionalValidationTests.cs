@@ -1096,7 +1096,7 @@ public class NachaFunctionalValidationTests
         loader.Setup(x => x.LoadHeaderAsync(contextData.Cycle.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new NachaHeader { AchCycleId = contextData.Cycle.Id, FileCreationDate = "20260524", FileCreationTime = "1400", FileIdModifier = "A", ReferenceCode = null });
         loader.Setup(x => x.LoadCompanyEntryDescriptionCatalogAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<(string Term, string StandardEntryClassCode)> { ("PAGOS", "PPD") });
         validation.Setup(x => x.ValidateTransactionsForSendAsync(It.IsAny<IReadOnlyList<AchTransaction>>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>()));
+        semantic.Setup(x => x.Validate(It.IsAny<string>(), It.IsAny<NachaBuildContext>(), It.IsAny<NachaServiceClassSemanticContract>()));
         batchNumberGenerator.Setup(x => x.AssignBatchNumbersAsync(It.IsAny<IReadOnlyList<AchBatch>>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<AchBatch> batches, string _, DateTime _, CancellationToken _) => new BatchNumberAssignmentResult(batches.ToDictionary(x => x.Id, _ => 1), "TEST_FIXED", 1, []));
 

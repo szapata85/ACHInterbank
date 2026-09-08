@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -427,6 +428,93 @@ public sealed class NachaConfigAdminServicesHardeningTests
 
         result.IsValid.Should().BeFalse();
         result.Issues.Should().Contain(x => x.Codigo == "MISSING_RECORD");
+    }
+
+    [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldAcceptValidSemanticContract()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+
+        var result = await new NachaConfigValidationService(context).ValidateBeforePublishAsync(profile.Id);
+
+        result.Issues.Should().NotContain(issue => IsSemanticIssue(issue.Codigo));
+    }
+
+    [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldFailClosed_WhenSemanticContractIsMissing()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var record5 = await context.CfgProfileRecords.SingleAsync(record => record.ProfileId == profile.Id && record.RecordCode.Code == "5");
+        record5.SemanticRuleSetId = null;
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigValidationService(context).ValidateBeforePublishAsync(profile.Id);
+
+        result.Issues.Should().Contain(issue => issue.Codigo == "MISSING_SEMANTIC_CONTRACT");
+    }
+
+    [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldFailClosed_WhenSemanticReferenceDoesNotExist()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var record5Id = await context.CfgProfileRecords
+            .Where(record => record.ProfileId == profile.Id && record.RecordCode.Code == "5")
+            .Select(record => record.Id)
+            .SingleAsync();
+        await context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF;");
+        await context.Database.ExecuteSqlInterpolatedAsync($"UPDATE CfgProfileRecord SET SemanticRuleSetId = {999999} WHERE Id = {record5Id}");
+        context.ChangeTracker.Clear();
+
+        var result = await new NachaConfigValidationService(context).ValidateBeforePublishAsync(profile.Id);
+
+        result.Issues.Should().Contain(issue => issue.Codigo == "BAD_SEMANTIC_RULE_SET_REFERENCE");
+    }
+
+    [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldFailClosed_WhenSemanticRuleIsUnsupported()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var rule = await context.CfgRuleSetRules.FirstAsync();
+        rule.RuleCode = "UNSUPPORTED";
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigValidationService(context).ValidateBeforePublishAsync(profile.Id);
+
+        result.Issues.Should().Contain(issue => issue.Codigo == "UNSUPPORTED_SEMANTIC_RULE");
+    }
+
+    [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldFailClosed_WhenSemanticDeclarationIsDuplicated()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var ruleSetId = await context.CfgRuleSets.Select(ruleSet => ruleSet.Id).SingleAsync();
+        var ruleTypeId = await context.CatRuleTypes.Where(ruleType => ruleType.Code == NachaSemanticContractMetadata.RequiredRuleType).Select(ruleType => ruleType.Id).SingleAsync();
+        context.CfgRuleSetRules.Add(SemanticRule(ruleSetId, ruleTypeId, "service_class_allowed_directions_200", "200", "CREDIT", "DEBIT"));
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigValidationService(context).ValidateBeforePublishAsync(profile.Id);
+
+        result.Issues.Should().Contain(issue => issue.Codigo == "DUPLICATE_SEMANTIC_DECLARATION");
+    }
+
+    [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldFailClosed_WhenSemanticDeclarationsContradict()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var ruleSetId = await context.CfgRuleSets.Select(ruleSet => ruleSet.Id).SingleAsync();
+        var ruleTypeId = await context.CatRuleTypes.Where(ruleType => ruleType.Code == NachaSemanticContractMetadata.RequiredRuleType).Select(ruleType => ruleType.Id).SingleAsync();
+        context.CfgRuleSetRules.Add(SemanticRule(ruleSetId, ruleTypeId, "service_class_allowed_directions_220", "220", "DEBIT"));
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigValidationService(context).ValidateBeforePublishAsync(profile.Id);
+
+        result.Issues.Should().Contain(issue => issue.Codigo == "CONTRADICTORY_SEMANTIC_DECLARATION");
     }
 
     [Fact]
@@ -884,7 +972,9 @@ public sealed class NachaConfigAdminServicesHardeningTests
         context.CatDataSourceTypes.AddRange(
             new CatDataSourceType { Id = 1, Code = "CONSTANTE", NameEs = "Constante" },
             new CatDataSourceType { Id = 2, Code = "ENTIDAD", NameEs = "Entidad" });
-        context.CatRuleTypes.Add(new CatRuleType { Id = 1, Code = "REQUIRED", NameEs = "Required" });
+        context.CatRuleTypes.AddRange(
+            new CatRuleType { Id = 1, Code = "REQUIRED", NameEs = "Required" },
+            new CatRuleType { Id = 2, Code = NachaSemanticContractMetadata.RequiredRuleType, NameEs = "Conditional" });
         await context.SaveChangesAsync();
     }
 
@@ -923,6 +1013,10 @@ public sealed class NachaConfigAdminServicesHardeningTests
         var publishedStatusId = await context.CatConfigStatuses.Where(x => x.Code == "PUBLICADO").Select(x => x.Id).SingleAsync();
         var sourceTypeConstId = await context.CatDataSourceTypes.Where(x => x.Code == "CONSTANTE").Select(x => x.Id).SingleAsync();
         var recordCodeByCode = await context.CatRecordCodes.ToDictionaryAsync(x => x.Code, x => x.Id);
+        var semanticRuleTypeId = await context.CatRuleTypes
+            .Where(ruleType => ruleType.Code == NachaSemanticContractMetadata.RequiredRuleType)
+            .Select(ruleType => ruleType.Id)
+            .SingleAsync();
 
         var profile = new CfgProfile
         {
@@ -946,9 +1040,23 @@ public sealed class NachaConfigAdminServicesHardeningTests
         });
         await context.SaveChangesAsync();
 
+        var semanticRuleSet = new CfgRuleSet
+        {
+            RuleSetCode = "TEST_SERVICE_CLASS_DIRECTION",
+            NameEs = "Contrato semántico",
+            Scope = NachaSemanticContractMetadata.RequiredScope
+        };
+        context.CfgRuleSets.Add(semanticRuleSet);
+        await context.SaveChangesAsync();
+        context.CfgRuleSetRules.AddRange(
+            SemanticRule(semanticRuleSet.Id, semanticRuleTypeId, NachaSemanticContractMetadata.RuleCodePrefix + "200", "200", "CREDIT", "DEBIT"),
+            SemanticRule(semanticRuleSet.Id, semanticRuleTypeId, NachaSemanticContractMetadata.RuleCodePrefix + "220", "220", "CREDIT"),
+            SemanticRule(semanticRuleSet.Id, semanticRuleTypeId, NachaSemanticContractMetadata.RuleCodePrefix + "225", "225", "DEBIT"));
+        await context.SaveChangesAsync();
+
         context.CfgProfileRecords.AddRange(
             new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["1"], Sequence = 10, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
-            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["5"], Sequence = 20, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
+            new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["5"], Sequence = 20, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN", SemanticRuleSetId = semanticRuleSet.Id },
             new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["6"], Sequence = 30, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
             new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["8"], Sequence = 40, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
             new CfgProfileRecord { ProfileId = profile.Id, RecordCodeId = recordCodeByCode["9"], Sequence = 50, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" });
@@ -1005,4 +1113,19 @@ public sealed class NachaConfigAdminServicesHardeningTests
         await context.SaveChangesAsync();
         return await context.CfgProfiles.AsNoTracking().SingleAsync(x => x.Id == profile.Id);
     }
+
+    private static bool IsSemanticIssue(string code)
+        => code.Contains("SEMANTIC", StringComparison.OrdinalIgnoreCase);
+
+    private static CfgRuleSetRule SemanticRule(int ruleSetId, int ruleTypeId, string ruleCode, string serviceClassCode, params string[] directions)
+        => new()
+        {
+            RuleSetId = ruleSetId,
+            RuleTypeId = ruleTypeId,
+            RuleCode = ruleCode,
+            RuleConfigJson = JsonSerializer.Serialize(new { serviceClassCode, allowedDirections = directions }),
+            ErrorCode = "NACHA_SERVICE_CLASS_DIRECTION_NOT_ALLOWED",
+            ErrorMessageEs = "Dirección no permitida.",
+            Order = 10
+        };
 }

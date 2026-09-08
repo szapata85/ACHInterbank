@@ -69,6 +69,35 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     }
 
     [Fact]
+    public async Task OfficialProfiles_ShouldSeedAndResolveChamberSpecificSemanticRuleSetsIdempotently()
+    {
+        await using var context = await SeedAsync();
+        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+        var ach = await LoadProfileAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        var cenit = await LoadProfileAsync(context, CenitOrdinaryOutbound2026Layout.OriginalProfileCode);
+
+        var achRecord5 = ach!.Records.Single(record => record.RecordCode.Code == "5");
+        var cenitRecord5 = cenit!.Records.Single(record => record.RecordCode.Code == "5");
+        achRecord5.SemanticRuleSetId.Should().NotBeNull();
+        cenitRecord5.SemanticRuleSetId.Should().NotBeNull();
+        achRecord5.SemanticRuleSetId.Should().NotBe(cenitRecord5.SemanticRuleSetId);
+        ach.Records.Where(record => record.RecordCode.Code != "5").Should().OnlyContain(record => record.SemanticRuleSetId == null);
+        cenit.Records.Where(record => record.RecordCode.Code != "5").Should().OnlyContain(record => record.SemanticRuleSetId == null);
+
+        var achContract = NachaSemanticContractMetadata.Resolve(ach.Records);
+        achContract.Status.Should().Be(NachaSemanticContractMetadataStatus.Resolved);
+        achContract.Contract!.TryGetRule("200", out var rule200).Should().BeTrue();
+        rule200.Should().Match<NachaServiceClassSemanticRule>(rule => rule.AllowsCredit && rule.AllowsDebit);
+        achContract.Contract.TryGetRule("220", out var rule220).Should().BeTrue();
+        rule220.Should().Match<NachaServiceClassSemanticRule>(rule => rule.AllowsCredit && !rule.AllowsDebit);
+        achContract.Contract.TryGetRule("225", out var rule225).Should().BeTrue();
+        rule225.Should().Match<NachaServiceClassSemanticRule>(rule => !rule.AllowsCredit && rule.AllowsDebit);
+
+        (await context.CfgRuleSets.CountAsync()).Should().Be(2);
+        (await context.CfgRuleSetRules.CountAsync()).Should().Be(6);
+    }
+
+    [Fact]
     public async Task AchColombiaProfile_ShouldContainRecords_1_5_6_7_8_9()
     {
         await using var context = await SeedAsync();
@@ -924,6 +953,10 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .Include(x => x.Tags)
             .Include(x => x.Records)
                 .ThenInclude(x => x.RecordCode)
+            .Include(x => x.Records)
+                .ThenInclude(x => x.SemanticRuleSet)
+                    .ThenInclude(x => x!.Rules)
+                        .ThenInclude(x => x.RuleType)
             .Include(x => x.LayoutVariants)
                 .ThenInclude(x => x.RecordCode)
             .Include(x => x.LayoutVariants)
@@ -945,6 +978,10 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .Include(x => x.Tags)
             .Include(x => x.Records)
                 .ThenInclude(x => x.RecordCode)
+            .Include(x => x.Records)
+                .ThenInclude(x => x.SemanticRuleSet)
+                    .ThenInclude(x => x!.Rules)
+                        .ThenInclude(x => x.RuleType)
             .Include(x => x.LayoutVariants)
                 .ThenInclude(x => x.RecordCode)
             .Include(x => x.LayoutVariants)

@@ -47,6 +47,10 @@ public class NachaConfigResolver : INachaConfigResolver
             .Include(x => x.Tags)
             .Include(x => x.Records)
                 .ThenInclude(x => x.RecordCode)
+            .Include(x => x.Records)
+                .ThenInclude(x => x.SemanticRuleSet)
+                    .ThenInclude(x => x!.Rules)
+                        .ThenInclude(x => x.RuleType)
             .Where(x => x.ClearingHouse.Code == clearingHouseCode
                         && x.FlowType.Code == flowTypeCode
                         && x.Direction.Code == directionCode
@@ -187,6 +191,26 @@ public class NachaConfigResolver : INachaConfigResolver
             ? request.RecordCodes.ToHashSet(StringComparer.OrdinalIgnoreCase)
             : profile.Records.Where(x => x.IsEnabled).Select(x => x.RecordCode.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        NachaServiceClassSemanticContract? semanticContract = null;
+        if (neededRecordCodes.Contains("5"))
+        {
+            var semanticMetadata = NachaSemanticContractMetadata.Resolve(profile.Records);
+            if (semanticMetadata.Status != NachaSemanticContractMetadataStatus.Resolved)
+            {
+                return Failure(
+                    semanticMetadata.Status == NachaSemanticContractMetadataStatus.NotPresent
+                        ? NachaProfileSelectionStatus.SemanticContractMissing
+                        : NachaProfileSelectionStatus.SemanticContractInvalid,
+                    $"{semanticMetadata.ErrorCode}: {semanticMetadata.Error}",
+                    trace,
+                    warnings,
+                    profile);
+            }
+
+            semanticContract = semanticMetadata.Contract;
+            trace.Add($"Contrato semántico ServiceClassCode resuelto desde CfgRuleSet: {string.Join(",", semanticContract!.Rules.Select(rule => rule.ServiceClassCode))}.");
+        }
+
         var layouts = await _context.CfgLayoutVariants
             .AsNoTracking()
             .Include(x => x.RecordCode)
@@ -267,6 +291,7 @@ public class NachaConfigResolver : INachaConfigResolver
             Profile = profile,
             OutboundPolicy = outboundPolicyMetadata.Policy,
             SettlementPolicy = settlementPolicyMetadata.Policy,
+            SemanticContract = semanticContract,
             LayoutsByRecordCode = selectedLayouts,
             LayoutVariantsByRecordCode = variantsByRecordCode,
             Trace = trace,
