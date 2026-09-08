@@ -216,6 +216,12 @@ DO NOT USE: The former normative-contradiction interpretation and external-clari
 
 ## Durable Architecture and Business Decisions
 
+### MFT_EXTERNAL_READINESS
+
+STATUS: PROVEN_INTERNAL_PRODUCT_DELTA (MFT-EXTERNAL-READINESS-001, 2026-09-07).
+EVIDENCE: At fde26d133947309384e3d9fb0b163c9c3c7acd95, AchColombiaManagedFileExchangeService.RetryAsync invokes Manual handoff without checking ManualOutboundAllowed; the registered folder adapter checks ProfileEnabled only. Source-proven permission bypass; no runtime reproduction or fix claimed. See docs/ai/MFT_EXTERNAL_READINESS_AUDIT.md.
+CONSEQUENCE: Propose OPS-GAP-002.2D only for the manual outbound retry gate; implementation deferred. Accepted 2A/2B/2C closures remain historical baselines, with this narrow current-source contradiction recorded. External MFT / GoAnywhere deployment and homologation remain separate; NEXT_JOB unchanged.
+
 ### DEC-ACHCOL-R10-DEV14-001
 
 STATUS: ACCEPTED — durable operational decision; see the canonical entry in Normative Decisions and Contradictions.
