@@ -262,6 +262,50 @@ public sealed class AchColombiaManagedFileExchangeTests
         Assert.Equal(AchManagedFileTransferStatus.Transferred, (await fixture.Context.AchManagedFileTransfers.FindAsync(transfer.Id))!.Status);
     }
 
+    [Theory]
+    [InlineData(true, false, "ACHCOL_MFT_RETRY_NOT_ALLOWED")]
+    [InlineData(false, true, "ACHCOL_MFT_DISABLED")]
+    public async Task RetryPermissionDenied_ShouldFailBeforeTransportSideEffects(
+        bool profileEnabled, bool manualOutboundAllowed, string expectedError)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Configuration.ProfileEnabled = profileEnabled;
+        fixture.Configuration.ManualOutboundAllowed = manualOutboundAllowed;
+        var transfer = fixture.SeedTransfer(AchManagedFileDirection.Outbound, AchManagedFileTransferStatus.Uncertain, [3]);
+        await fixture.Context.SaveChangesAsync();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Service.RetryAsync(transfer.Id, "operator", "denied-retry"));
+
+        Assert.Equal(expectedError, error.Message);
+        Assert.Equal(0, fixture.Adapter.OutboundHandoffCount);
+        var persisted = await fixture.Context.AchManagedFileTransfers.Include(x => x.Events).SingleAsync(x => x.Id == transfer.Id);
+        Assert.Equal(0, persisted.AttemptCount);
+        Assert.DoesNotContain(persisted.Events, x => x.EventType == "OutboundAttempt");
+        Assert.Equal(AchManagedFileTransferStatus.Uncertain, persisted.Status);
+        Assert.Equal(new byte[] { 3 }, persisted.RetainedContent);
+        Assert.False((await fixture.Service.GetAsync(transfer.Id))!.CanRetry);
+    }
+
+    [Fact]
+    public async Task RetryPermissionAllowed_ShouldPreserveManualAttemptAndEligibility()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var transfer = fixture.SeedTransfer(AchManagedFileDirection.Outbound, AchManagedFileTransferStatus.RetryPending, [3]);
+        await fixture.Context.SaveChangesAsync();
+        Assert.True((await fixture.Service.GetAsync(transfer.Id))!.CanRetry);
+
+        var detail = await fixture.Service.RetryAsync(transfer.Id, "operator", "allowed-retry");
+
+        Assert.Equal(1, fixture.Adapter.OutboundHandoffCount);
+        Assert.Equal(1, detail.AttemptCount);
+        Assert.Equal(AchManagedFileTransferStatus.Transferred, detail.Status);
+        var attempts = detail.History.Where(x => x.EventType == "OutboundAttempt").ToArray();
+        Assert.Equal(2, attempts.Length);
+        Assert.All(attempts, x => Assert.Equal(AchManagedFileExecutionOrigin.Manual, x.ExecutionOrigin));
+        Assert.All(attempts, x => Assert.Equal("operator", x.Actor));
+    }
+
     [Fact]
     public async Task UncertainTransport_ShouldRemainEligibleForControlledRetry()
     {
@@ -394,9 +438,14 @@ public sealed class AchColombiaManagedFileExchangeTests
     private sealed class StubAdapter : IAchColombiaManagedMftAdapter
     {
         public bool Enabled => true;
+        public int OutboundHandoffCount { get; private set; }
         public IReadOnlyList<AchManagedMftArtifact> Artifacts { get; set; } = [];
         public AchManagedMftResult OutboundResult { get; set; } = new(true, false, false, "OK", "Entregado.", "out");
-        public Task<AchManagedMftResult> HandoffOutboundAsync(string fileName, byte[] content, string contentSha256, CancellationToken ct = default) => Task.FromResult(OutboundResult);
+        public Task<AchManagedMftResult> HandoffOutboundAsync(string fileName, byte[] content, string contentSha256, CancellationToken ct = default)
+        {
+            OutboundHandoffCount++;
+            return Task.FromResult(OutboundResult);
+        }
         public Task<IReadOnlyList<AchManagedMftArtifact>> PickupInboundAsync(CancellationToken ct = default) => Task.FromResult(Artifacts);
         public Task<string> ArchiveInboundAsync(AchManagedMftArtifact artifact, CancellationToken ct = default) => Task.FromResult($"archive:{artifact.FileName}");
     }

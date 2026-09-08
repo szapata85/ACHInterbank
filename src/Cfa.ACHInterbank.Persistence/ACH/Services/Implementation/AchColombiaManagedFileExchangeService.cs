@@ -228,6 +228,9 @@ public sealed class AchColombiaManagedFileExchangeService(
         if (transfer.RetainedContent is null) throw new InvalidOperationException("ACHCOL_MFT_CONTENT_NOT_RETAINED");
         var configuration = await GetOrCreateConfigurationEntityAsync(ct);
         if (transfer.AttemptCount > configuration.MaximumRetries) throw new InvalidOperationException("ACHCOL_MFT_RETRIES_EXHAUSTED");
+        if (!configuration.ProfileEnabled) throw new InvalidOperationException("ACHCOL_MFT_DISABLED");
+        if (!IsEnabled(configuration, AchManagedFileDirection.Outbound, AchManagedFileExecutionOrigin.Manual))
+            throw new InvalidOperationException("ACHCOL_MFT_RETRY_NOT_ALLOWED");
         await HandoffAsync(transfer, AchManagedFileExecutionOrigin.Manual, actor, ct);
         return await MapAsync(await RequiredAsync(transferId, ct), ct);
     }
@@ -491,9 +494,18 @@ public sealed class AchColombiaManagedFileExchangeService(
     }
     private async Task<AchManagedFileTransferDetail> MapAsync(AchManagedFileTransfer x, CancellationToken ct)
     {
-        var maximumRetries = await context.AchManagedFileTransferConfigurations.AsNoTracking()
-            .Where(c => c.ClearingHouseId == x.ClearingHouseId).Select(c => (int?)c.MaximumRetries).SingleOrDefaultAsync(ct)
-            ?? new AchManagedFileTransferConfiguration().MaximumRetries;
+        var retrySettings = await context.AchManagedFileTransferConfigurations.AsNoTracking()
+            .Where(c => c.ClearingHouseId == x.ClearingHouseId)
+            .Select(c => new { c.MaximumRetries, c.ProfileEnabled, c.ManualOutboundAllowed })
+            .SingleOrDefaultAsync(ct);
+        var configuration = retrySettings is null
+            ? new AchManagedFileTransferConfiguration()
+            : new AchManagedFileTransferConfiguration
+            {
+                MaximumRetries = retrySettings.MaximumRetries,
+                ProfileEnabled = retrySettings.ProfileEnabled,
+                ManualOutboundAllowed = retrySettings.ManualOutboundAllowed
+            };
         var transactions = x.AchFileExportId.HasValue
             ? await context.AchFileExportTransactions.AsNoTracking().Where(m => m.AchFileExportId == x.AchFileExportId)
                 .OrderBy(m => m.FileSequence).ThenBy(m => m.AchTransactionId).Select(m => m.AchTransactionId).ToArrayAsync(ct)
@@ -505,7 +517,8 @@ public sealed class AchColombiaManagedFileExchangeService(
             TransactionIds = transactions, ContentAvailable = x.RetainedContent is not null,
             CanRetry = x.Direction == AchManagedFileDirection.Outbound && x.RetainedContent is not null
                 && x.Status is AchManagedFileTransferStatus.RetryPending or AchManagedFileTransferStatus.Uncertain
-                && x.AttemptCount <= maximumRetries,
+                && x.AttemptCount <= configuration.MaximumRetries && configuration.ProfileEnabled
+                && IsEnabled(configuration, AchManagedFileDirection.Outbound, AchManagedFileExecutionOrigin.Manual),
             CanReprocess = x.Direction == AchManagedFileDirection.Inbound && x.IncomingNachaFileIngestionId.HasValue
                 && x.RetainedContent is not null && x.Status is AchManagedFileTransferStatus.Rejected or AchManagedFileTransferStatus.Failed,
             CanArchive = !x.RetiredAtUtc.HasValue,
