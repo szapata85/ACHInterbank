@@ -85,10 +85,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             exists = true;
             EnsureExpectedRowVersion(profile, request.ExpectedRowVersion);
 
-            if (!string.Equals(profile.Status.Code, "BORRADOR", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new NachaConfigException("INVALID_PROFILE_STATE", "Solo se puede editar perfiles en estado BORRADOR.", 409, Convert.ToBase64String(profile.RowVersion));
-            }
+            EnsureProfileIsBorrador(profile);
 
             var before = JsonSerializer.SerializeToElement(profile, AuditJsonOptions);
             profile.NameEs = request.NombreEs.Trim();
@@ -295,6 +292,7 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
             }
 
             EnsureExpectedRowVersion(profile, request.ExpectedRowVersion);
+            EnsureProfileIsBorrador(profile);
             var records = await _context.CfgProfileRecords.Where(x => x.ProfileId == profileId).ToListAsync(ct);
             if (records.Count == 0)
             {

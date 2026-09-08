@@ -400,8 +400,11 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         async Task EnsureProfileAsync(ProfileSpec spec)
         {
             var profile = await _context.CfgProfiles
+                .Include(x => x.Status)
                 .Include(x => x.Tags)
                 .Include(x => x.Records)
+                    .ThenInclude(x => x.SemanticRuleSet)
+                        .ThenInclude(x => x!.Rules)
                 .Include(x => x.LayoutVariants)
                     .ThenInclude(x => x.Fields)
                         .ThenInclude(x => x.SourceDefinition)
@@ -409,6 +412,18 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     .ThenInclude(x => x.Fields)
                         .ThenInclude(x => x.Rules)
                 .FirstOrDefaultAsync(x => x.ProfileCode == spec.ProfileCode);
+
+            if (profile?.PublishedAt is not null)
+            {
+                if (!PublishedProfileMatchesSeed(profile, spec, catalog))
+                {
+                    throw new InvalidOperationException(
+                        $"OFFICIAL_PUBLISHED_PROFILE_CONFLICT: {spec.ProfileCode} v{spec.VersionMajor}.{spec.VersionMinor} differs from the authoritative seed. NEW PROFILE VERSION REQUIRED.");
+                }
+
+                _context.ChangeTracker.Clear();
+                return;
+            }
 
             if (profile is null)
             {
@@ -470,102 +485,45 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 }
             }
 
-            var sequence = 10;
             var semanticRuleSetId = await EnsureServiceClassSemanticRuleSetAsync(spec.ClearingHouseCode, catalog);
+            var expectedVariants = BuildExpectedVariants(spec);
             foreach (var recordCode in RecordCodes)
             {
-                var isReturnOutV35 = IsReturnOutV35(spec);
-                var isCenitReturnIn2026 = IsCenitReturnIn2026(spec);
-                var isCenitReturnOut2026 = IsCenitReturnOut2026(spec);
-                var isCenitReturnOfReturn2026 = IsCenitReturnOfReturn2026(spec);
-                var isCenitOrdinaryOutbound2026 = IsCenitOrdinaryOutbound2026(spec);
-                var isCenitCtxOutbound2026 = IsCenitCtxOutbound2026(spec);
-                var isCenitOrdinaryInbound2026 = IsCenitOrdinaryInbound2026(spec);
-                var variant = await EnsureVariantAsync(
-                    profile,
-                    spec,
-                    recordCode,
-                    sequence,
-                    catalog,
-                    isCenitOrdinaryInbound2026
-                        ? CenitOrdinaryInbound2026Layout.Variant(spec.ProfileCode, recordCode)
-                        : isCenitCtxOutbound2026
-                        ? CenitCtxOutbound2026Layout.Variant(recordCode)
-                        : isCenitOrdinaryOutbound2026
-                        ? CenitOrdinaryOutbound2026Layout.Variant(recordCode)
-                        : isCenitReturnOfReturn2026
-                        ? CenitReturnOfReturn2026Layout.Variant(recordCode, spec.DirectionCode == "ENTRADA")
-                        : isCenitReturnIn2026
-                        ? CenitReturnIn2026Layout.Variant(recordCode)
-                        : isCenitReturnOut2026
-                        ? CenitReturnOut2026Layout.Variant(recordCode)
-                        : isReturnOutV35
-                        ? AchColReturnOutV35Layout.Variant(recordCode)
-                        : recordCode == "7" && !spec.IsPlaceholder ? ResolveType7CreditVariant(spec) : null,
-                    isDefault: true,
-                    selectionPredicateJson: null);
-                await EnsureProfileRecordAsync(profile, recordCode, sequence, variant.Id, semanticRuleSetId, catalog);
-
-                if (recordCode == "7" && !spec.IsPlaceholder && !isReturnOutV35 && !isCenitReturnIn2026 && !isCenitReturnOut2026 && !isCenitReturnOfReturn2026 && !isCenitOrdinaryOutbound2026 && !isCenitCtxOutbound2026 && !isCenitOrdinaryInbound2026)
+                CfgLayoutVariant? defaultVariant = null;
+                foreach (var expectedVariant in expectedVariants.Where(candidate => candidate.RecordCode == recordCode))
                 {
-                    await EnsureVariantAsync(
+                    var variant = await EnsureVariantAsync(
                         profile,
                         spec,
                         recordCode,
-                        sequence + 1,
                         catalog,
-                        AchColOfficialNachaLayout.Type7DebitVariant,
-                        isDefault: false,
-                        selectionPredicateJson: JsonSerializer.Serialize(new { BusinessType = "DEBIT" }));
-
-                    if (IsOrdinaryAchV35(spec)
-                        && string.Equals(spec.FlowTypeCode, "ORIGINAL", StringComparison.OrdinalIgnoreCase))
+                        expectedVariant.VariantCode,
+                        expectedVariant.IsDefault,
+                        expectedVariant.SelectionPredicateJson);
+                    if (expectedVariant.IsDefault)
                     {
-                        await EnsureVariantAsync(
-                            profile,
-                            spec,
-                            recordCode,
-                            sequence + 2,
-                            catalog,
-                            AchColOfficialNachaLayout.Type7CreditPrenotificationVariant,
-                            isDefault: false,
-                            selectionPredicateJson: JsonSerializer.Serialize(new
-                            {
-                                BusinessType = "CREDIT",
-                                TransactionFamily = "PRENOTIFICATION"
-                            }));
-                    }
-
-                    if (spec.IncludeReturnAddenda99)
-                    {
-                        await EnsureVariantAsync(
-                            profile,
-                            spec,
-                            recordCode,
-                            sequence + 2,
-                            catalog,
-                            $"{spec.Prefix}_R7_ADDENDA_99",
-                            isDefault: false,
-                            selectionPredicateJson: JsonSerializer.Serialize(new { AddendaType = "99" }));
+                        defaultVariant = variant;
                     }
                 }
 
-                sequence += 10;
+                await EnsureProfileRecordAsync(
+                    profile,
+                    recordCode,
+                    expectedVariants.Single(candidate => candidate.RecordCode == recordCode && candidate.IsDefault).Sequence,
+                    defaultVariant!.Id,
+                    semanticRuleSetId,
+                    catalog);
             }
 
             if (IsCenitOrdinaryOutbound2026(spec)
                 || IsCenitCtxOutbound2026(spec)
                 || IsCenitOrdinaryInbound2026(spec))
             {
-                var expectedVariants = RecordCodes
-                    .Select(recordCode => IsCenitOrdinaryInbound2026(spec)
-                        ? CenitOrdinaryInbound2026Layout.Variant(spec.ProfileCode, recordCode)
-                        : IsCenitCtxOutbound2026(spec)
-                        ? CenitCtxOutbound2026Layout.Variant(recordCode)
-                        : CenitOrdinaryOutbound2026Layout.Variant(recordCode))
+                var expectedVariantCodes = expectedVariants
+                    .Select(candidate => candidate.VariantCode)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var obsoleteVariants = await _context.CfgLayoutVariants
-                    .Where(candidate => candidate.ProfileId == profile.Id && !expectedVariants.Contains(candidate.VariantCode))
+                    .Where(candidate => candidate.ProfileId == profile.Id && !expectedVariantCodes.Contains(candidate.VariantCode))
                     .ToListAsync();
                 foreach (var obsoleteVariant in obsoleteVariants)
                 {
@@ -609,7 +567,6 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             CfgProfile profile,
             ProfileSpec spec,
             string recordCode,
-            int sequence,
             CatalogIds catalog,
             string? explicitVariantCode,
             bool isDefault,
@@ -746,21 +703,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
             if (!spec.IsPlaceholder)
             {
-                var descriptor = UsesCenitOrdinaryInbound2026Layout(spec)
-                    ? CenitOrdinaryInbound2026Layout.Field(spec.ProfileCode, recordCode, field.Code)
-                    : UsesCenitCtxOutbound2026Layout(spec)
-                    ? CenitCtxOutbound2026Layout.Field(recordCode, field.Code)
-                    : UsesCenitOrdinaryOutbound2026Layout(spec)
-                    ? CenitOrdinaryOutbound2026Layout.Field(recordCode, field.Code)
-                    : UsesCenitReturnOfReturn2026Layout(spec)
-                    ? CenitReturnOfReturn2026Layout.Field(recordCode, field.Code)
-                    : UsesCenitReturnIn2026Layout(spec)
-                    ? CenitReturnIn2026Layout.Field(recordCode, field.Code)
-                    : UsesCenitReturnOut2026Layout(spec)
-                    ? CenitReturnOut2026Layout.Field(recordCode, field.Code)
-                    : UsesReturnV35Layout(spec, recordCode, variant.VariantCode)
-                    ? AchColReturnOutV35Layout.Field(recordCode, field.Code)
-                    : AchColOfficialNachaLayout.Field(recordCode, field.Code, variant.VariantCode);
+                var descriptor = ResolveDescriptor(spec, recordCode, variant.VariantCode, field.Code);
                 await EnsureExecutableRuleAsync(layoutField, descriptor, spec.ClearingHouseCode, catalog);
             }
         }
@@ -791,28 +734,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             rule.ErrorMessageEs = "El campo no cumple la regla normativa configurada.";
             rule.Severity = descriptor.Severity;
             rule.ConditionDsl = null;
-            rule.RuleConfigJson = JsonSerializer.Serialize(new
-            {
-                ruleId = descriptor.RuleId,
-                chamber = clearingHouseCode,
-                recordType = descriptor.RecordCode,
-                field = descriptor.FieldCode,
-                startPosition = descriptor.StartPosition,
-                length = descriptor.Length,
-                dataType = descriptor.DataType.ToString().ToUpperInvariant(),
-                required = descriptor.Required,
-                justification = descriptor.Justification.ToString(),
-                padChar = descriptor.PadChar.ToString(),
-                format = descriptor.Format,
-                allowedValues = descriptor.AllowedValues,
-                sensitivity = descriptor.Sensitivity.ToString().ToUpperInvariant(),
-                overflowPolicy = descriptor.OverflowPolicy,
-                normalizer = descriptor.Normalizer,
-                normativeSource = descriptor.NormativeSource,
-                normativeVersion = descriptor.NormativeVersion,
-                normativeSection = descriptor.NormativeSection,
-                severity = descriptor.Severity
-            });
+            rule.RuleConfigJson = BuildExecutableRuleConfig(descriptor, clearingHouseCode);
             rule.Order = 10;
             rule.IsEnabled = true;
             rule.UpdatedAt = AuditTimestamp;
@@ -834,6 +756,18 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 CreatedAt = AuditTimestamp
             };
             _context.CfgRuleSets.Add(ruleSet);
+        }
+        else if (await _context.CfgProfileRecords.AnyAsync(candidate =>
+                     candidate.SemanticRuleSetId == ruleSet.Id
+                     && candidate.Profile.PublishedAt != null))
+        {
+            if (!SemanticRuleSetMatchesSeed(ruleSet, clearingHouseCode, catalog))
+            {
+                throw new InvalidOperationException(
+                    $"OFFICIAL_PUBLISHED_SEMANTIC_RULE_SET_CONFLICT: {ruleSetCode} is referenced by a PUBLICADO profile and differs from the authoritative seed. NEW PROFILE VERSION REQUIRED.");
+            }
+
+            return ruleSet.Id;
         }
 
         ruleSet.NameEs = $"Contrato clase de servicio/dirección {clearingHouseCode}";
@@ -866,11 +800,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
 
             rule.RuleTypeId = catalog.RuleTypes[NachaSemanticContractMetadata.RequiredRuleType];
             rule.ConditionDsl = null;
-            rule.RuleConfigJson = JsonSerializer.Serialize(new
-            {
-                serviceClassCode = declaration.ServiceClassCode,
-                allowedDirections = declaration.AllowedDirections
-            });
+            rule.RuleConfigJson = BuildSemanticRuleConfig(declaration.ServiceClassCode, declaration.AllowedDirections);
             rule.ErrorCode = "NACHA_SERVICE_CLASS_DIRECTION_NOT_ALLOWED";
             rule.ErrorMessageEs = "La clase de servicio no permite la dirección efectiva de la entrada.";
             rule.Order = (index + 1) * 10;
@@ -941,6 +871,208 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         return prefix.StartsWith("CENIT", StringComparison.OrdinalIgnoreCase) ? [6, 11, 2, 1] : [6, 11, 1, 1];
     }
 
+    private static bool PublishedProfileMatchesSeed(CfgProfile profile, ProfileSpec spec, CatalogIds catalog)
+    {
+        if (profile.VersionMajor != spec.VersionMajor
+            || profile.VersionMinor != spec.VersionMinor
+            || profile.ClearingHouseId != catalog.ClearingHouses[spec.ClearingHouseCode]
+            || profile.FlowTypeId != catalog.FlowTypes[spec.FlowTypeCode]
+            || profile.DirectionId != catalog.Directions[spec.DirectionCode]
+            || profile.ServiceClassId != (spec.ServiceClassCode is null ? null : catalog.ServiceClasses[spec.ServiceClassCode])
+            || profile.ContextPriority != 10
+            || profile.EffectiveFrom != (spec.EffectiveFromOverride ?? EffectiveFrom)
+            || profile.EffectiveTo is not null)
+        {
+            return false;
+        }
+
+        var expectedTags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["NormativeSource"] = spec.NormativeSource,
+            ["NormativeVersion"] = spec.NormativeVersion,
+            ["IsPlaceholder"] = spec.IsPlaceholder ? "true" : "false",
+            ["IsHomologated"] = spec.IsHomologated ? "true" : "false",
+            ["ApprovedRuleMatrix"] = spec.ApprovedRuleMatrix,
+            ["Phase"] = spec.IsPlaceholder ? "6B.1" : "NACHA-EXECUTION-2",
+            ["ProductionDecision"] = "NO-GO",
+            [NachaSettlementPolicyMetadata.TagKey] = spec.SettlementPolicy.ToString()
+        };
+        if (spec.OutboundPolicy is not null)
+        {
+            foreach (var tag in NachaOutboundPolicyMetadata.ToTags(spec.OutboundPolicy))
+            {
+                expectedTags[tag.Key] = tag.Value;
+            }
+        }
+
+        if (expectedTags.Any(expected => profile.Tags.Count(tag =>
+                string.Equals(tag.TagKey, expected.Key, StringComparison.OrdinalIgnoreCase)) != 1
+                || !profile.Tags.Any(tag =>
+                    string.Equals(tag.TagKey, expected.Key, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(tag.TagValue, expected.Value, StringComparison.Ordinal)))
+            || profile.Tags.Any(tag =>
+                tag.TagKey.StartsWith(NachaOutboundPolicyMetadata.Prefix, StringComparison.OrdinalIgnoreCase)
+                && !expectedTags.ContainsKey(tag.TagKey)))
+        {
+            return false;
+        }
+
+        var expectedVariants = BuildExpectedVariants(spec);
+        if (profile.LayoutVariants.Count != expectedVariants.Count)
+        {
+            return false;
+        }
+
+        foreach (var expectedVariant in expectedVariants)
+        {
+            var variant = profile.LayoutVariants.SingleOrDefault(candidate =>
+                string.Equals(candidate.VariantCode, expectedVariant.VariantCode, StringComparison.Ordinal));
+            if (variant is null
+                || variant.RecordCodeId != catalog.RecordCodes[expectedVariant.RecordCode]
+                || variant.NameEs != $"Registro {expectedVariant.RecordCode} oficial {spec.ClearingHouseCode}"
+                || variant.Description != $"Variant oficial UAT/local para registro {expectedVariant.RecordCode}; perfil {profile.ProfileCode}."
+                || variant.Priority != expectedVariant.Priority
+                || variant.EffectiveFrom != (spec.EffectiveFromOverride ?? EffectiveFrom)
+                || variant.EffectiveTo is not null
+                || variant.StatusId != catalog.Statuses["PUBLICADO"]
+                || variant.TotalLength != 106
+                || variant.SelectionPredicateJson != expectedVariant.SelectionPredicateJson
+                || variant.IsDefaultForRecord != expectedVariant.IsDefault)
+            {
+                return false;
+            }
+
+            var expectedFields = BuildFields(spec, expectedVariant.RecordCode, expectedVariant.VariantCode);
+            if (variant.Fields.Count != expectedFields.Count)
+            {
+                return false;
+            }
+
+            foreach (var expectedField in expectedFields)
+            {
+                var field = variant.Fields.SingleOrDefault(candidate =>
+                    string.Equals(candidate.FieldCode, expectedField.Code, StringComparison.OrdinalIgnoreCase));
+                if (field is null || !FieldMatchesSeed(field, expectedField, catalog))
+                {
+                    return false;
+                }
+
+                if (spec.IsPlaceholder)
+                {
+                    if (field.Rules.Count != 0) return false;
+                    continue;
+                }
+
+                var descriptor = ResolveDescriptor(spec, expectedVariant.RecordCode, expectedVariant.VariantCode, expectedField.Code);
+                if (field.Rules.Count != 1 || !ExecutableRuleMatchesSeed(field.Rules.Single(), descriptor, spec.ClearingHouseCode, catalog))
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (profile.Records.Count != RecordCodes.Length)
+        {
+            return false;
+        }
+
+        var semanticRuleSet = profile.Records
+            .SingleOrDefault(record => record.RecordCodeId == catalog.RecordCodes["5"])
+            ?.SemanticRuleSet;
+        if (semanticRuleSet is null || !SemanticRuleSetMatchesSeed(semanticRuleSet, spec.ClearingHouseCode, catalog))
+        {
+            return false;
+        }
+
+        var sequence = 10;
+        foreach (var recordCode in RecordCodes)
+        {
+            var defaultVariant = expectedVariants.Single(variant =>
+                variant.RecordCode == recordCode && variant.IsDefault);
+            var actualVariant = profile.LayoutVariants.Single(variant => variant.VariantCode == defaultVariant.VariantCode);
+            var record = profile.Records.SingleOrDefault(candidate => candidate.RecordCodeId == catalog.RecordCodes[recordCode]);
+            if (record is null
+                || record.Sequence != sequence
+                || !record.IsEnabled
+                || record.MinOccurs != (recordCode == "7" ? 0 : 1)
+                || record.MaxOccurs is not null
+                || record.SourceStrategy != "TABLE_DRIVEN"
+                || record.LayoutVariantId != actualVariant.Id
+                || record.SemanticRuleSetId != (recordCode == "5" ? semanticRuleSet.Id : null))
+            {
+                return false;
+            }
+
+            sequence += 10;
+        }
+
+        return true;
+    }
+
+    private static bool FieldMatchesSeed(CfgLayoutField field, FieldSpec expected, CatalogIds catalog)
+    {
+        var source = field.SourceDefinition;
+        return source is not null
+               && field.FieldNameEs == expected.Name
+               && field.StartPosition == expected.Start
+               && field.Length == expected.Length
+               && field.PadChar == expected.PadChar
+               && field.Justification == expected.Justification
+               && field.FormatMask == expected.FormatMask
+               && field.SortOrder == expected.Start
+               && field.IsVisibleInBackoffice
+               && field.IsEnabled
+               && field.TransformationPipelineJson == expected.TransformationPipelineJson
+               && source.DataSourceTypeId == catalog.SourceTypes[expected.SourceTypeCode]
+               && source.ConstantValue == expected.ConstantValue
+               && source.EntityName == expected.EntityName
+               && source.PropertyPath == expected.PropertyPath
+               && source.SqlObjectName is null
+               && source.ExpressionDsl == expected.ExpressionDsl
+               && source.ExternalCatalogCode is null
+               && source.FallbackPolicyJson is null;
+    }
+
+    private static bool SemanticRuleSetMatchesSeed(CfgRuleSet ruleSet, string clearingHouseCode, CatalogIds catalog)
+    {
+        var declarations = new[]
+        {
+            new { ServiceClassCode = "200", AllowedDirections = new[] { "CREDIT", "DEBIT" } },
+            new { ServiceClassCode = "220", AllowedDirections = new[] { "CREDIT" } },
+            new { ServiceClassCode = "225", AllowedDirections = new[] { "DEBIT" } }
+        };
+        if (ruleSet.RuleSetCode != $"NACHA_{clearingHouseCode}_SERVICE_CLASS_DIRECTION_V1"
+            || ruleSet.NameEs != $"Contrato clase de servicio/dirección {clearingHouseCode}"
+            || ruleSet.Description != "Contrato semántico publicado para ServiceClassCode 200/220/225 y dirección de entradas."
+            || ruleSet.Scope != NachaSemanticContractMetadata.RequiredScope
+            || ruleSet.Rules.Count != declarations.Length)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < declarations.Length; index++)
+        {
+            var declaration = declarations[index];
+            var rule = ruleSet.Rules.SingleOrDefault(candidate =>
+                candidate.RuleCode == NachaSemanticContractMetadata.RuleCodePrefix + declaration.ServiceClassCode);
+            if (rule is null
+                || rule.RuleTypeId != catalog.RuleTypes[NachaSemanticContractMetadata.RequiredRuleType]
+                || rule.ConditionDsl is not null
+                || rule.RuleConfigJson != BuildSemanticRuleConfig(declaration.ServiceClassCode, declaration.AllowedDirections)
+                || rule.ErrorCode != "NACHA_SERVICE_CLASS_DIRECTION_NOT_ALLOWED"
+                || rule.ErrorMessageEs != "La clase de servicio no permite la dirección efectiva de la entrada."
+                || rule.Order != (index + 1) * 10)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string BuildSemanticRuleConfig(string serviceClassCode, IReadOnlyList<string> allowedDirections)
+        => JsonSerializer.Serialize(new { serviceClassCode, allowedDirections });
+
     private async Task EnsureReturnOfReturnFlowTypeAsync()
     {
         if (await _context.CatFlowTypes.AnyAsync(x => x.Code == CenitReturnOfReturn2026Layout.FlowTypeCode)) return;
@@ -960,6 +1092,149 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         });
         await _context.SaveChangesAsync();
     }
+
+    private static IReadOnlyList<VariantSpec> BuildExpectedVariants(ProfileSpec spec)
+    {
+        var result = new List<VariantSpec>();
+        var sequence = 10;
+        foreach (var recordCode in RecordCodes)
+        {
+            var explicitVariantCode = IsCenitOrdinaryInbound2026(spec)
+                ? CenitOrdinaryInbound2026Layout.Variant(spec.ProfileCode, recordCode)
+                : IsCenitCtxOutbound2026(spec)
+                ? CenitCtxOutbound2026Layout.Variant(recordCode)
+                : IsCenitOrdinaryOutbound2026(spec)
+                ? CenitOrdinaryOutbound2026Layout.Variant(recordCode)
+                : IsCenitReturnOfReturn2026(spec)
+                ? CenitReturnOfReturn2026Layout.Variant(recordCode, spec.DirectionCode == "ENTRADA")
+                : IsCenitReturnIn2026(spec)
+                ? CenitReturnIn2026Layout.Variant(recordCode)
+                : IsCenitReturnOut2026(spec)
+                ? CenitReturnOut2026Layout.Variant(recordCode)
+                : IsReturnOutV35(spec)
+                ? AchColReturnOutV35Layout.Variant(recordCode)
+                : recordCode == "7" && !spec.IsPlaceholder ? ResolveType7CreditVariant(spec) : null;
+            result.Add(new VariantSpec(
+                recordCode,
+                explicitVariantCode ?? $"{spec.Prefix}_R{recordCode}_BASE_V1",
+                sequence,
+                Priority: 10,
+                IsDefault: true,
+                SelectionPredicateJson: null));
+
+            if (recordCode == "7"
+                && !spec.IsPlaceholder
+                && !IsReturnOutV35(spec)
+                && !IsCenitReturnIn2026(spec)
+                && !IsCenitReturnOut2026(spec)
+                && !IsCenitReturnOfReturn2026(spec)
+                && !IsCenitOrdinaryOutbound2026(spec)
+                && !IsCenitCtxOutbound2026(spec)
+                && !IsCenitOrdinaryInbound2026(spec))
+            {
+                result.Add(new VariantSpec(
+                    recordCode,
+                    AchColOfficialNachaLayout.Type7DebitVariant,
+                    sequence + 1,
+                    Priority: 20,
+                    IsDefault: false,
+                    JsonSerializer.Serialize(new { BusinessType = "DEBIT" })));
+
+                if (IsOrdinaryAchV35(spec)
+                    && string.Equals(spec.FlowTypeCode, "ORIGINAL", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Add(new VariantSpec(
+                        recordCode,
+                        AchColOfficialNachaLayout.Type7CreditPrenotificationVariant,
+                        sequence + 2,
+                        Priority: 20,
+                        IsDefault: false,
+                        JsonSerializer.Serialize(new
+                        {
+                            BusinessType = "CREDIT",
+                            TransactionFamily = "PRENOTIFICATION"
+                        })));
+                }
+
+                if (spec.IncludeReturnAddenda99)
+                {
+                    result.Add(new VariantSpec(
+                        recordCode,
+                        $"{spec.Prefix}_R7_ADDENDA_99",
+                        sequence + 2,
+                        Priority: 20,
+                        IsDefault: false,
+                        JsonSerializer.Serialize(new { AddendaType = "99" })));
+                }
+            }
+
+            sequence += 10;
+        }
+
+        return result;
+    }
+
+    private static AchColOfficialFieldDescriptor ResolveDescriptor(
+        ProfileSpec spec,
+        string recordCode,
+        string variantCode,
+        string fieldCode)
+        => UsesCenitOrdinaryInbound2026Layout(spec)
+            ? CenitOrdinaryInbound2026Layout.Field(spec.ProfileCode, recordCode, fieldCode)
+            : UsesCenitCtxOutbound2026Layout(spec)
+            ? CenitCtxOutbound2026Layout.Field(recordCode, fieldCode)
+            : UsesCenitOrdinaryOutbound2026Layout(spec)
+            ? CenitOrdinaryOutbound2026Layout.Field(recordCode, fieldCode)
+            : UsesCenitReturnOfReturn2026Layout(spec)
+            ? CenitReturnOfReturn2026Layout.Field(recordCode, fieldCode)
+            : UsesCenitReturnIn2026Layout(spec)
+            ? CenitReturnIn2026Layout.Field(recordCode, fieldCode)
+            : UsesCenitReturnOut2026Layout(spec)
+            ? CenitReturnOut2026Layout.Field(recordCode, fieldCode)
+            : UsesReturnV35Layout(spec, recordCode, variantCode)
+            ? AchColReturnOutV35Layout.Field(recordCode, fieldCode)
+            : AchColOfficialNachaLayout.Field(recordCode, fieldCode, variantCode);
+
+    private static bool ExecutableRuleMatchesSeed(
+        CfgFieldRule rule,
+        AchColOfficialFieldDescriptor descriptor,
+        string clearingHouseCode,
+        CatalogIds catalog)
+        => rule.RuleTypeId == catalog.RuleTypes[descriptor.DataType is NachaFieldDataType.Date or NachaFieldDataType.Time
+               ? "DATE_FORMAT"
+               : descriptor.AllowedValues?.Count > 0 ? "ENUM" : "REGEX"]
+           && rule.RuleCode == descriptor.RuleId
+           && rule.ErrorCode == "NACHA_FIELD_RULE_FAILED"
+           && rule.ErrorMessageEs == "El campo no cumple la regla normativa configurada."
+           && rule.Severity == descriptor.Severity
+           && rule.ConditionDsl is null
+           && rule.RuleConfigJson == BuildExecutableRuleConfig(descriptor, clearingHouseCode)
+           && rule.Order == 10
+           && rule.IsEnabled;
+
+    private static string BuildExecutableRuleConfig(AchColOfficialFieldDescriptor descriptor, string clearingHouseCode)
+        => JsonSerializer.Serialize(new
+        {
+            ruleId = descriptor.RuleId,
+            chamber = clearingHouseCode,
+            recordType = descriptor.RecordCode,
+            field = descriptor.FieldCode,
+            startPosition = descriptor.StartPosition,
+            length = descriptor.Length,
+            dataType = descriptor.DataType.ToString().ToUpperInvariant(),
+            required = descriptor.Required,
+            justification = descriptor.Justification.ToString(),
+            padChar = descriptor.PadChar.ToString(),
+            format = descriptor.Format,
+            allowedValues = descriptor.AllowedValues,
+            sensitivity = descriptor.Sensitivity.ToString().ToUpperInvariant(),
+            overflowPolicy = descriptor.OverflowPolicy,
+            normalizer = descriptor.Normalizer,
+            normativeSource = descriptor.NormativeSource,
+            normativeVersion = descriptor.NormativeVersion,
+            normativeSection = descriptor.NormativeSection,
+            severity = descriptor.Severity
+        });
 
     private static IReadOnlyList<FieldSpec> BuildFields(ProfileSpec profile, string recordCode, string variantCode)
     {
@@ -1559,4 +1834,12 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         string? PropertyPath,
         string? ExpressionDsl,
         string? TransformationPipelineJson);
+
+    private sealed record VariantSpec(
+        string RecordCode,
+        string VariantCode,
+        int Sequence,
+        int Priority,
+        bool IsDefault,
+        string? SelectionPredicateJson);
 }

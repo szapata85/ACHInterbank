@@ -22,6 +22,13 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
 
     public async Task<NachaConfigPublicationResultDto> PublishAsync(int profileId, string actor, string expectedRowVersion, CancellationToken ct = default)
     {
+        var currentProfile = await _context.CfgProfiles
+            .Include(x => x.Status)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == profileId, ct)
+            ?? throw new InvalidOperationException("Perfil no encontrado.");
+        EnsureProfileIsBorrador(currentProfile);
+
         var validation = await _validation.ValidateBeforePublishAsync(profileId, ct);
         if (!validation.IsValid)
         {
@@ -35,10 +42,11 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
 
         return await ExecuteInTransactionAsync(async () =>
         {
-            var profile = await _context.CfgProfiles.FirstOrDefaultAsync(x => x.Id == profileId, ct)
+            var profile = await _context.CfgProfiles.Include(x => x.Status).FirstOrDefaultAsync(x => x.Id == profileId, ct)
                          ?? throw new InvalidOperationException("Perfil no encontrado.");
 
             EnsureExpectedRowVersion(profile, expectedRowVersion);
+            EnsureProfileIsBorrador(profile);
 
             profile.StatusId = await ResolveStatusIdAsync("PUBLICADO", ct);
             profile.PublishedAt = DateTime.UtcNow;
@@ -113,6 +121,18 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
         if (!profile.RowVersion.SequenceEqual(expectedBytes))
         {
             throw new NachaConfigException("CONCURRENCY_CONFLICT", "El perfil fue modificado por otro usuario.", 409, Convert.ToBase64String(profile.RowVersion));
+        }
+    }
+
+    private static void EnsureProfileIsBorrador(CfgProfile profile)
+    {
+        if (!string.Equals(profile.Status.Code, "BORRADOR", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NachaConfigException(
+                "INVALID_PROFILE_STATE",
+                "Solo se puede publicar un perfil en estado BORRADOR. Se requiere una nueva version para cambiar una publicacion existente.",
+                409,
+                Convert.ToBase64String(profile.RowVersion));
         }
     }
 

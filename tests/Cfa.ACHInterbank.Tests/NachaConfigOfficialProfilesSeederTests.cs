@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
@@ -95,6 +96,190 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
 
         (await context.CfgRuleSets.CountAsync()).Should().Be(2);
         (await context.CfgRuleSetRules.CountAsync()).Should().Be(6);
+    }
+
+    [Fact]
+    public async Task PublishedProfileSeedRerun_ShouldNotRewriteGenerationDefinition()
+    {
+        await using var context = await SeedAsync();
+        var profileCode = AchColOfficialNachaLayout.OutboundOriginalProfileCode;
+        var field = await context.CfgLayoutFields
+            .Where(candidate => candidate.LayoutVariant.Profile.ProfileCode == profileCode)
+            .OrderBy(candidate => candidate.Id)
+            .FirstAsync();
+        var preservedAuditTimestamp = new DateTimeOffset(2030, 1, 2, 3, 4, 5, TimeSpan.Zero);
+        field.UpdatedAt = preservedAuditTimestamp;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        preservedAuditTimestamp = await context.CfgLayoutFields
+            .Where(candidate => candidate.Id == field.Id)
+            .Select(candidate => candidate.UpdatedAt)
+            .SingleAsync();
+
+        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+
+        (await context.CfgLayoutFields.AsNoTracking().SingleAsync(candidate => candidate.Id == field.Id))
+            .UpdatedAt.Should().Be(preservedAuditTimestamp);
+    }
+
+    [Fact]
+    public async Task ConflictingPublishedProfileSeedRerun_ShouldFailClosedWithoutOverwrite()
+    {
+        await using var context = await SeedAsync();
+        var profileCode = AchColOfficialNachaLayout.OutboundOriginalProfileCode;
+        var field = await context.CfgLayoutFields
+            .Where(candidate => candidate.LayoutVariant.Profile.ProfileCode == profileCode)
+            .OrderBy(candidate => candidate.Id)
+            .FirstAsync();
+        field.Length += 1;
+        var conflictingLength = field.Length;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var call = () => new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(call);
+        exception.Message.Should().Contain("NEW PROFILE VERSION REQUIRED");
+        (await context.CfgLayoutFields.AsNoTracking().SingleAsync(candidate => candidate.Id == field.Id))
+            .Length.Should().Be(conflictingLength);
+    }
+
+    [Fact]
+    public async Task PublishedSemanticRuleSetSeedRerun_ShouldFailClosedWithoutRewrite()
+    {
+        await using var context = await SeedAsync();
+        var rule = await context.CfgRuleSetRules
+            .Where(candidate => candidate.RuleSet.RuleSetCode == "NACHA_ACH_SERVICE_CLASS_DIRECTION_V1")
+            .OrderBy(candidate => candidate.Order)
+            .FirstAsync();
+        rule.RuleConfigJson = """{"serviceClassCode":"200","allowedDirections":["CREDIT"]}""";
+        var conflictingRule = rule.RuleConfigJson;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var call = () => new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(call);
+        exception.Message.Should().Contain("NEW PROFILE VERSION REQUIRED");
+        (await context.CfgRuleSetRules.AsNoTracking().SingleAsync(candidate => candidate.Id == rule.Id))
+            .RuleConfigJson.Should().Be(conflictingRule);
+    }
+
+    [Fact]
+    public async Task DraftOfficialProfileSeedRerun_ShouldRestoreAuthoritativeDefinition()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles
+            .SingleAsync(candidate => candidate.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        profile.StatusId = await context.CatConfigStatuses
+            .Where(candidate => candidate.Code == "BORRADOR")
+            .Select(candidate => candidate.Id)
+            .SingleAsync();
+        profile.PublishedAt = null;
+        profile.PublishedBy = null;
+        var field = await context.CfgLayoutFields
+            .Where(candidate => candidate.LayoutVariant.ProfileId == profile.Id)
+            .OrderBy(candidate => candidate.Id)
+            .FirstAsync();
+        var authoritativeLength = field.Length;
+        field.Length += 1;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+
+        (await context.CfgLayoutFields.AsNoTracking().SingleAsync(candidate => candidate.Id == field.Id))
+            .Length.Should().Be(authoritativeLength);
+        var reloaded = await context.CfgProfiles
+            .Include(candidate => candidate.Status)
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == profile.Id);
+        reloaded.Status.Code.Should().Be("PUBLICADO");
+    }
+
+    [Fact]
+    public async Task InactivatedPublishedProfileSeedRerun_ShouldPreserveLifecycleStatus()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles
+            .SingleAsync(candidate => candidate.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        profile.StatusId = await context.CatConfigStatuses
+            .Where(candidate => candidate.Code == "INACTIVO")
+            .Select(candidate => candidate.Id)
+            .SingleAsync();
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+
+        var statusCode = await context.CfgProfiles
+            .Where(candidate => candidate.Id == profile.Id)
+            .Select(candidate => candidate.Status.Code)
+            .SingleAsync();
+        statusCode.Should().Be("INACTIVO");
+    }
+
+    [Fact]
+    public async Task PublishAsync_ShouldRejectRepublishWithoutMutation()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        var snapshotsBefore = await context.HistConfigSnapshots.CountAsync(candidate => candidate.ProfileId == profile.Id);
+        var changesBefore = await context.HistConfigChanges.CountAsync(candidate => candidate.ProfileId == profile.Id);
+        var fieldBefore = await context.CfgLayoutFields
+            .Where(candidate => candidate.LayoutVariant.ProfileId == profile.Id)
+            .OrderBy(candidate => candidate.Id)
+            .Select(candidate => new { candidate.Id, candidate.StartPosition, candidate.Length })
+            .FirstAsync();
+        var publication = new NachaConfigPublicationService(context, new AlwaysValidNachaConfigValidationService());
+
+        var call = () => publication.PublishAsync(profile.Id, "publisher", Convert.ToBase64String(profile.RowVersion));
+
+        var exception = await Assert.ThrowsAsync<NachaConfigException>(call);
+        exception.ErrorCode.Should().Be("INVALID_PROFILE_STATE");
+        var reloaded = await context.CfgProfiles.AsNoTracking().SingleAsync(candidate => candidate.Id == profile.Id);
+        reloaded.VersionMinor.Should().Be(profile.VersionMinor);
+        reloaded.PublishedAt.Should().Be(profile.PublishedAt);
+        var fieldAfter = await context.CfgLayoutFields.AsNoTracking()
+            .Where(candidate => candidate.Id == fieldBefore.Id)
+            .Select(candidate => new { candidate.Id, candidate.StartPosition, candidate.Length })
+            .SingleAsync();
+        fieldAfter.Should().BeEquivalentTo(fieldBefore);
+        (await context.HistConfigSnapshots.CountAsync(candidate => candidate.ProfileId == profile.Id)).Should().Be(snapshotsBefore);
+        (await context.HistConfigChanges.CountAsync(candidate => candidate.ProfileId == profile.Id)).Should().Be(changesBefore);
+    }
+
+    [Fact]
+    public async Task PublishAsync_ShouldPublishValidDraftOnce()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles
+            .SingleAsync(candidate => candidate.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        profile.StatusId = await context.CatConfigStatuses
+            .Where(candidate => candidate.Code == "BORRADOR")
+            .Select(candidate => candidate.Id)
+            .SingleAsync();
+        profile.PublishedAt = null;
+        profile.PublishedBy = null;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        profile = await context.CfgProfiles.AsNoTracking().SingleAsync(candidate => candidate.Id == profile.Id);
+        var publication = new NachaConfigPublicationService(context, new AlwaysValidNachaConfigValidationService());
+
+        var result = await publication.PublishAsync(
+            profile.Id,
+            "publisher",
+            Convert.ToBase64String(profile.RowVersion));
+
+        result.Publicado.Should().BeTrue();
+        result.VersionMajor.Should().Be(profile.VersionMajor);
+        result.VersionMinor.Should().Be(profile.VersionMinor + 1);
+        (await context.HistConfigSnapshots.CountAsync(candidate =>
+            candidate.ProfileId == profile.Id && candidate.SnapshotType == "PUBLISH")).Should().Be(1);
+        (await context.HistConfigChanges.CountAsync(candidate =>
+            candidate.ProfileId == profile.Id && candidate.ChangeType == "PUBLISH")).Should().Be(1);
     }
 
     [Fact]
@@ -914,6 +1099,17 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     }
 
     private Task<AchDbContext> SeedAsync() => _fixture.CreateSeededContextAsync();
+
+    private sealed class AlwaysValidNachaConfigValidationService : INachaConfigValidationService
+    {
+        public Task<NachaConfigValidationResultDto> ValidateBeforePublishAsync(int profileId, CancellationToken ct = default)
+            => Task.FromResult(new NachaConfigValidationResultDto
+            {
+                ProfileId = profileId,
+                IsValid = true,
+                Resumen = "OK"
+            });
+    }
 
     private static Task<NachaConfigResolutionResult> ResolveCtxProfileAsync(AchDbContext context)
         => new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest

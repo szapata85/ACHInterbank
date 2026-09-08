@@ -126,6 +126,26 @@ public sealed class NachaConfigAdminServicesHardeningTests
     }
 
     [Fact]
+    public async Task UpdateDraftAsync_ShouldReject_WhenProfileIsPublished()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        profile = await SetProfileStatusAsync(context, profile.Id, "PUBLICADO");
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+
+        var call = () => command.UpdateDraftAsync(profile.Id, new NachaConfigUpdateProfileRequest
+        {
+            NombreEs = "No permitido",
+            ContextPriority = 10,
+            EffectiveFrom = profile.EffectiveFrom,
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "tester");
+
+        var exception = await Assert.ThrowsAsync<NachaConfigException>(call);
+        exception.ErrorCode.Should().Be("INVALID_PROFILE_STATE");
+    }
+
+    [Fact]
     public async Task UpdateLayoutVariantAsync_ShouldAllowEdit_WhenBorrador()
     {
         await using var context = await CreateSqliteContextAsync();
@@ -806,6 +826,57 @@ public sealed class NachaConfigAdminServicesHardeningTests
 
         var ex = await Assert.ThrowsAsync<NachaConfigException>(call);
         ex.ErrorCode.Should().Be("INVALID_SEQUENCE");
+    }
+
+    [Fact]
+    public async Task UpdateRecordSequenceAsync_ShouldAllowEdit_WhenBorrador()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+        var record = await context.CfgProfileRecords
+            .Where(x => x.ProfileId == profile.Id)
+            .OrderByDescending(x => x.Sequence)
+            .FirstAsync();
+
+        var updated = await command.UpdateRecordSequenceAsync(profile.Id, new NachaConfigRecordSequenceUpdateRequest
+        {
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion),
+            Records =
+            [
+                new NachaConfigProfileRecordSequenceDto { ProfileRecordId = record.Id, Sequence = 60 }
+            ]
+        }, "tester");
+
+        updated.Should().BeTrue();
+        (await context.CfgProfileRecords.AsNoTracking().SingleAsync(x => x.Id == record.Id)).Sequence.Should().Be(60);
+    }
+
+    [Fact]
+    public async Task UpdateRecordSequenceAsync_ShouldReject_WhenProfileIsPublished()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        profile = await SetProfileStatusAsync(context, profile.Id, "PUBLICADO");
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+        var record = await context.CfgProfileRecords
+            .Where(x => x.ProfileId == profile.Id)
+            .OrderByDescending(x => x.Sequence)
+            .FirstAsync();
+        var originalSequence = record.Sequence;
+
+        var call = () => command.UpdateRecordSequenceAsync(profile.Id, new NachaConfigRecordSequenceUpdateRequest
+        {
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion),
+            Records =
+            [
+                new NachaConfigProfileRecordSequenceDto { ProfileRecordId = record.Id, Sequence = 60 }
+            ]
+        }, "tester");
+
+        var exception = await Assert.ThrowsAsync<NachaConfigException>(call);
+        exception.ErrorCode.Should().Be("INVALID_PROFILE_STATE");
+        (await context.CfgProfileRecords.AsNoTracking().SingleAsync(x => x.Id == record.Id)).Sequence.Should().Be(originalSequence);
     }
 
     [Fact]
