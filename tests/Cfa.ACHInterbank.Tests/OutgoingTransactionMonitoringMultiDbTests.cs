@@ -94,6 +94,7 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         await using var fixture = await DatabaseFixture.CreateAsync(provider);
         await using var context = fixture.CreateContext();
         await context.Database.MigrateAsync();
+        await VerifyManagedMftAdministrationMigrationAsync(context);
         var transactionId = await SeedAsync(context);
         var persisted = await context.AchTransactions.AsNoTracking()
             .Where(item => item.Id == transactionId)
@@ -227,6 +228,23 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         (await context.AchTransactions.CountAsync(item => item.Id == ids.RetrySucceeded)).Should().Be(1);
 
         await ValidateProcContrapartidasBootstrapAsync(context, transactionId);
+    }
+
+    private static async Task VerifyManagedMftAdministrationMigrationAsync(AchDbContext context)
+    {
+        const string migrationId = "20260902090000_OpsGap0022BManagedMftAdministration";
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Contain(migrationId);
+
+        _ = await context.AchManagedFileTransferConfigurations.AsNoTracking()
+            .Select(x => new
+            {
+                x.ProfileName, x.Provider, x.Protocol, x.ProfileEnabled, x.Endpoint, x.Port, x.Principal,
+                x.RetryDelaySeconds, x.CredentialType, x.ProtectedCredential, x.CredentialUpdatedAtUtc
+            })
+            .ToListAsync();
+
+        await context.Database.MigrateAsync();
+        (await context.Database.GetAppliedMigrationsAsync()).Count(x => x == migrationId).Should().Be(1);
     }
 
     private static async Task ValidateManagedMftProjectionAsync(AchDbContext context, int templateId, int nonMemberId)
