@@ -549,6 +549,9 @@ public sealed class NachaConfigAdminServicesHardeningTests
         var profile = await SeedProfileGraphAsync(context);
         profile = await context.CfgProfiles.SingleAsync(x => x.Id == profile.Id);
         profile.ClearingHouseId = 2; // CENIT
+        var settlementPolicyTag = await context.CfgProfileTags.SingleAsync(tag =>
+            tag.ProfileId == profile.Id && tag.TagKey == NachaSettlementPolicyMetadata.TagKey);
+        settlementPolicyTag.TagValue = NachaSettlementPolicy.JulianSettlementDate.ToString();
         await context.SaveChangesAsync();
 
         var constante = await context.CatDataSourceTypes.SingleAsync(x => x.Code == "CONSTANTE");
@@ -602,6 +605,21 @@ public sealed class NachaConfigAdminServicesHardeningTests
         result.IsValid.Should().BeFalse();
         result.Issues.Should().Contain(x => x.Codigo == "HEADER_RULE_CENIT_INVALID");
         result.Issues.Should().Contain(x => x.Codigo == "INVALID_SETTLEMENT_POLICY");
+    }
+
+    [Fact]
+    public async Task ValidateBeforePublishAsync_ShouldFailClosed_WhenSettlementPolicyMetadataIsMissing()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        context.CfgProfileTags.Remove(await context.CfgProfileTags.SingleAsync(tag =>
+            tag.ProfileId == profile.Id && tag.TagKey == NachaSettlementPolicyMetadata.TagKey));
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigValidationService(context).ValidateBeforePublishAsync(profile.Id);
+
+        result.IsValid.Should().BeFalse();
+        result.Issues.Should().ContainSingle(issue => issue.Codigo == "MISSING_SETTLEMENT_POLICY");
     }
 
     [Fact]
@@ -919,6 +937,13 @@ public sealed class NachaConfigAdminServicesHardeningTests
             RowVersion = [1, 0, 0]
         };
         context.CfgProfiles.Add(profile);
+        await context.SaveChangesAsync();
+        context.CfgProfileTags.Add(new CfgProfileTag
+        {
+            ProfileId = profile.Id,
+            TagKey = NachaSettlementPolicyMetadata.TagKey,
+            TagValue = NachaSettlementPolicy.SettlementDate.ToString()
+        });
         await context.SaveChangesAsync();
 
         context.CfgProfileRecords.AddRange(

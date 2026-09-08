@@ -107,6 +107,20 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         }
 
         var chamberCode = ResolveChamberCode(profile.ClearingHouse?.Code, profile.ClearingHouse?.Name);
+        var settlementPolicyMetadata = NachaSettlementPolicyMetadata.Resolve(
+            profile.Tags.Select(tag => new KeyValuePair<string, string>(tag.TagKey, tag.TagValue)));
+        if (settlementPolicyMetadata.Status != NachaSettlementPolicyMetadataStatus.Resolved)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = settlementPolicyMetadata.Status == NachaSettlementPolicyMetadataStatus.NotPresent
+                    ? "MISSING_SETTLEMENT_POLICY"
+                    : "INVALID_SETTLEMENT_POLICY",
+                Mensaje = settlementPolicyMetadata.Error
+                    ?? $"El perfil requiere la metadata '{NachaSettlementPolicyMetadata.TagKey}'."
+            });
+        }
         foreach (var variant in profile.LayoutVariants)
         {
             var ordered = variant.Fields.Where(f => f.IsEnabled).OrderBy(f => f.StartPosition).ToList();
@@ -292,7 +306,12 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 });
             }
 
-            ValidateHeaderNormativeRequirements(issues, chamberCode, variant, ordered);
+            ValidateHeaderNormativeRequirements(
+                issues,
+                chamberCode,
+                settlementPolicyMetadata.Policy,
+                variant,
+                ordered);
             if (chamberCode == "ACH")
             {
                 ValidateAchColExactLayoutAndRules(issues, variant, ordered);
@@ -509,6 +528,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
     private static void ValidateHeaderNormativeRequirements(
         ICollection<NachaConfigValidationIssueDto> issues,
         string chamberCode,
+        NachaSettlementPolicy? settlementPolicy,
         CfgLayoutVariant variant,
         IReadOnlyCollection<CfgLayoutField> orderedFields)
     {
@@ -594,7 +614,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         }
         else if (recordCode == "5")
         {
-            ValidateRecord5HeaderRules(issues, chamberCode, fieldsByCode);
+            ValidateRecord5HeaderRules(issues, chamberCode, settlementPolicy, fieldsByCode);
         }
         else
         {
@@ -683,6 +703,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
     private static void ValidateRecord5HeaderRules(
         ICollection<NachaConfigValidationIssueDto> issues,
         string chamberCode,
+        NachaSettlementPolicy? settlementPolicy,
         IReadOnlyDictionary<string, CfgLayoutField> fieldsByCode)
     {
         ValidateFormatMask(issues, fieldsByCode, "EFFECTIVEENTRYDATE", "yyyyMMdd");
@@ -702,45 +723,46 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
         if (fieldsByCode.TryGetValue("SETTLEMENTDATE", out var settlementField))
         {
-            ValidateSettlementPolicy(issues, chamberCode, settlementField);
+            ValidateSettlementPolicy(issues, settlementPolicy, settlementField);
         }
     }
 
     private static void ValidateSettlementPolicy(
         ICollection<NachaConfigValidationIssueDto> issues,
-        string chamberCode,
+        NachaSettlementPolicy? settlementPolicy,
         CfgLayoutField settlementField)
     {
-        var sourceType = settlementField.SourceDefinition?.DataSourceType?.Code ?? string.Empty;
-        var constant = (settlementField.SourceDefinition?.ConstantValue ?? string.Empty).Trim();
-
-        if (chamberCode == "CENIT")
+        if (!settlementPolicy.HasValue)
         {
-            if (sourceType.Equals("CONSTANTE", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(constant))
-            {
-                issues.Add(new NachaConfigValidationIssueDto
-                {
-                    Severidad = "ERROR",
-                    Codigo = "INVALID_SETTLEMENT_POLICY",
-                    Mensaje = "CENIT requiere SettlementDate vacío (lo determina la cámara)."
-                });
-            }
-
             return;
         }
 
-        if (chamberCode == "ACH" && sourceType.Equals("CONSTANTE", StringComparison.OrdinalIgnoreCase))
+        var sourceType = settlementField.SourceDefinition?.DataSourceType?.Code ?? string.Empty;
+        string? calculationType = null;
+        if (sourceType.Equals("EXPRESION", StringComparison.OrdinalIgnoreCase))
         {
-            var valid = string.IsNullOrWhiteSpace(constant) || (constant.Length == 3 && constant.All(char.IsDigit));
-            if (!valid)
+            try
             {
-                issues.Add(new NachaConfigValidationIssueDto
-                {
-                    Severidad = "ERROR",
-                    Codigo = "INVALID_SETTLEMENT_POLICY",
-                    Mensaje = "ACH permite SettlementDate vacío o juliano de 3 dígitos cuando es constante."
-                });
+                using var expression = JsonDocument.Parse(settlementField.SourceDefinition?.ExpressionDsl ?? "{}");
+                calculationType = expression.RootElement.TryGetProperty("calculationType", out var value)
+                    ? value.GetString()
+                    : null;
             }
+            catch (JsonException)
+            {
+                calculationType = null;
+            }
+        }
+
+        if (!sourceType.Equals("EXPRESION", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(calculationType, settlementPolicy.Value.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = "INVALID_SETTLEMENT_POLICY",
+                Mensaje = $"SettlementPolicy={settlementPolicy} no es compatible con el source de SettlementDate."
+            });
         }
     }
 

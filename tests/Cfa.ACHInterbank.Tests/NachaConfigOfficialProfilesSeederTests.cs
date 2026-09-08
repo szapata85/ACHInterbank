@@ -31,6 +31,9 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         profile.Status.Code.Should().Be("PUBLICADO");
         profile.EffectiveFrom.Should().Be(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         profile.EffectiveTo.Should().BeNull();
+        profile.Tags.Should().ContainSingle(tag =>
+            tag.TagKey == NachaSettlementPolicyMetadata.TagKey
+            && tag.TagValue == nameof(NachaSettlementPolicy.SettlementDate));
     }
 
     [Fact]
@@ -46,7 +49,9 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         profile.EffectiveTo.Should().BeNull();
         profile.Tags.Should().Contain(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == "2026-05-07")
             .And.Contain(tag => tag.TagKey == "IsPlaceholder" && tag.TagValue == "false")
-            .And.Contain(tag => tag.TagKey == "IsHomologated" && tag.TagValue == "false");
+            .And.Contain(tag => tag.TagKey == "IsHomologated" && tag.TagValue == "false")
+            .And.ContainSingle(tag => tag.TagKey == NachaSettlementPolicyMetadata.TagKey
+                                      && tag.TagValue == nameof(NachaSettlementPolicy.JulianSettlementDate));
     }
 
     [Fact]
@@ -216,6 +221,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         });
 
         ordinary.Success.Should().BeTrue(string.Join(" | ", ordinary.Trace));
+        ordinary.SettlementPolicy.Should().Be(NachaSettlementPolicy.JulianSettlementDate);
         ordinary.OutboundPolicy.Should().NotBeNull();
         ordinary.OutboundPolicy!.FileAllocation.Should().Be(NachaOutboundFileAllocation.CombineServicePartitionsByIndex);
         ordinary.OutboundPolicy.Services.Single(service => service.ServiceCode == "PPD")

@@ -565,6 +565,10 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         trace.Mode.Should().Be("TABLE_DRIVEN");
         trace.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
         trace.ClearingHouseCode.Should().Be("CENIT");
+        trace.Trace.Should().Contain(entry => entry.Contains(
+            $"SettlementPolicy resuelta desde CfgProfileTag: {NachaSettlementPolicy.JulianSettlementDate}",
+            StringComparison.Ordinal));
+        trace.Trace.Should().NotContain(entry => entry.Contains("CENIT_BLANK_ONLY", StringComparison.Ordinal));
     }
 
     [Fact]

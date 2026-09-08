@@ -935,7 +935,7 @@ public class NachaFileBuilder : INachaFileBuilder
             Mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant(),
             ClearingHouseCode = clearingHouseCode
         };
-        var settlementPolicy = ResolveSettlementPolicyByChamber(audit.ClearingHouseCode);
+        var settlementPolicy = resolution.SettlementPolicy?.ToString() ?? "UNRESOLVED";
         audit.Trace.Add($"HeaderPolicy:Chamber={audit.ClearingHouseCode};SettlementDate={settlementPolicy}");
         audit.Trace.Add($"BatchNumberPolicy:{batchNumberAssignment.PolicyCode};ScopedGroups={batchNumberAssignment.ScopedGroups}");
         foreach (var scopeTrace in batchNumberAssignment.ScopeTrace)
@@ -1900,7 +1900,7 @@ public class NachaFileBuilder : INachaFileBuilder
         CancellationToken ct)
     {
         var mode = (_generationOptions.Mode ?? "LEGACY").Trim().ToUpperInvariant();
-        var settlementPolicy = ResolveSettlementPolicyByChamber(audit.ClearingHouseCode);
+        var settlementPolicy = resolution.SettlementPolicy?.ToString() ?? "UNRESOLVED";
         var shouldUseResolver = mode is "HYBRID" or "TABLE_DRIVEN" or "SHADOW_COMPARE";
 
         if (!shouldUseResolver || _configResolver is null || !resolution.LayoutsByRecordCode.TryGetValue(recordCode, out var layoutVariant))
@@ -4014,13 +4014,6 @@ public class NachaFileBuilder : INachaFileBuilder
         {
             throw new InvalidOperationException($"RecordCode={recordCode} renderizó longitud {rendered.Length} y se esperaba {expectedLength}.");
         }
-    }
-
-    private static string ResolveSettlementPolicyByChamber(string? chamberCode)
-    {
-        return string.Equals(chamberCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-            ? "CENIT_BLANK_ONLY"
-            : "ACH_BLANK_OR_JULIAN3";
     }
 
     private async Task PersistGenerationAuditAsync(

@@ -12,7 +12,60 @@ public enum NachaProfileSelectionStatus
     ProfileVersionUnsupported = 5,
     ClearingHouseUndetermined = 6,
     OutboundPolicyMissing = 7,
-    OutboundPolicyInvalid = 8
+    OutboundPolicyInvalid = 8,
+    SettlementPolicyMissing = 9,
+    SettlementPolicyInvalid = 10
+}
+
+public enum NachaSettlementPolicy
+{
+    SettlementDate = 1,
+    JulianSettlementDate = 2
+}
+
+public enum NachaSettlementPolicyMetadataStatus
+{
+    NotPresent = 0,
+    Resolved = 1,
+    Invalid = 2
+}
+
+public sealed record NachaSettlementPolicyMetadataResult(
+    NachaSettlementPolicyMetadataStatus Status,
+    NachaSettlementPolicy? Policy = null,
+    string? Error = null);
+
+public static class NachaSettlementPolicyMetadata
+{
+    public const string TagKey = "SettlementPolicy";
+
+    public static NachaSettlementPolicyMetadataResult Resolve(IEnumerable<KeyValuePair<string, string>> tags)
+    {
+        var matches = tags
+            .Where(tag => string.Equals(tag.Key, TagKey, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (matches.Length == 0)
+        {
+            return new(NachaSettlementPolicyMetadataStatus.NotPresent);
+        }
+        if (matches.Length != 1)
+        {
+            return Invalid($"La metadata de settlement contiene la clave ambigua '{TagKey}'.");
+        }
+
+        var value = matches[0].Value?.Trim();
+        if (string.IsNullOrWhiteSpace(value)
+            || !Enum.TryParse<NachaSettlementPolicy>(value, true, out var policy)
+            || !Enum.IsDefined(policy))
+        {
+            return Invalid($"La metadata de settlement requiere '{TagKey}' válido.");
+        }
+
+        return new(NachaSettlementPolicyMetadataStatus.Resolved, policy);
+    }
+
+    private static NachaSettlementPolicyMetadataResult Invalid(string error)
+        => new(NachaSettlementPolicyMetadataStatus.Invalid, Error: error);
 }
 
 public class NachaConfigResolutionRequest
@@ -38,6 +91,7 @@ public class NachaConfigResolutionResult
     public bool UsedFallback { get; set; }
     public CfgProfile? Profile { get; init; }
     public NachaOutboundPartitionPolicy? OutboundPolicy { get; init; }
+    public NachaSettlementPolicy? SettlementPolicy { get; init; }
     public IReadOnlyDictionary<string, CfgLayoutVariant> LayoutsByRecordCode { get; init; } = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, IReadOnlyList<CfgLayoutVariant>> LayoutVariantsByRecordCode { get; init; }
         = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>(StringComparer.OrdinalIgnoreCase);

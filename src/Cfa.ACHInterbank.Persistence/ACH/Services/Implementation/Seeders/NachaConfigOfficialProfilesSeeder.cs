@@ -244,6 +244,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateOriginName: "CFA UAT",
             Prefix: "CENIT_ORDINARY_OUT_2026",
             EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
             OutboundPolicy: BuildCenitOrdinaryOutboundPolicy(CenitOrdinaryOutbound2026Layout.OriginalProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
@@ -263,6 +264,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             ImmediateOriginName: "CFA UAT",
             Prefix: "CENIT_ORDINARY_PRENOTE_OUT_2026",
             EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
             OutboundPolicy: BuildCenitOrdinaryOutboundPolicy(CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
@@ -283,6 +285,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Prefix: "CENIT_CTX_OUT_2026",
             ServiceClassCode: "CTX",
             EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
             OutboundPolicy: BuildCenitCtxOutboundPolicy(CenitCtxOutbound2026Layout.OriginalProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
@@ -303,6 +306,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Prefix: "CENIT_CTX_PRENOTE_OUT_2026",
             ServiceClassCode: "CTX",
             EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
             OutboundPolicy: BuildCenitCtxOutboundPolicy(CenitCtxOutbound2026Layout.PrenotificationProfileCode)));
 
         await EnsureProfileAsync(new ProfileSpec(
@@ -323,7 +327,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Prefix: "CENIT_ORDINARY_IN_2026",
             DirectionCode: "ENTRADA",
             VersionMinor: 0,
-            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: CenitOrdinaryInbound2026Layout.PrenotificationProfileCode,
@@ -343,7 +348,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             Prefix: "CENIT_ORDINARY_PRENOTE_IN_2026",
             DirectionCode: "ENTRADA",
             VersionMinor: 0,
-            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode,
@@ -364,7 +370,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             DirectionCode: "ENTRADA",
             VersionMinor: 0,
             ServiceClassCode: "CTX",
-            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate));
 
         await EnsureProfileAsync(new ProfileSpec(
             ProfileCode: CenitOrdinaryInbound2026Layout.CtxPrenotificationProfileCode,
@@ -385,7 +392,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             DirectionCode: "ENTRADA",
             VersionMinor: 0,
             ServiceClassCode: "CTX",
-            EffectiveFromOverride: CenitOrdinaryEffectiveFrom));
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate));
 
         await _context.SaveChangesAsync();
 
@@ -441,6 +449,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             await EnsureTagAsync(profile, "ApprovedRuleMatrix", spec.ApprovedRuleMatrix);
             await EnsureTagAsync(profile, "Phase", spec.IsPlaceholder ? "6B.1" : "NACHA-EXECUTION-2");
             await EnsureTagAsync(profile, "ProductionDecision", "NO-GO");
+            await EnsureTagAsync(profile, NachaSettlementPolicyMetadata.TagKey, spec.SettlementPolicy.ToString());
             if (spec.OutboundPolicy is not null)
             {
                 var outboundPolicyTags = NachaOutboundPolicyMetadata.ToTags(spec.OutboundPolicy);
@@ -1460,6 +1469,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         bool IncludeReturnAddenda99 = false,
         string? ServiceClassCode = null,
         DateTime? EffectiveFromOverride = null,
+        NachaSettlementPolicy SettlementPolicy = NachaSettlementPolicy.SettlementDate,
         NachaOutboundPartitionPolicy? OutboundPolicy = null);
 
     private sealed record CatalogIds(

@@ -30,6 +30,7 @@ public class NachaConfigResolverTests
         result.Success.Should().BeTrue();
         result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileSelected);
         result.Profile.Should().NotBeNull();
+        result.SettlementPolicy.Should().Be(NachaSettlementPolicy.SettlementDate);
         result.LayoutsByRecordCode.Should().ContainKey("1");
         result.LayoutsByRecordCode.Should().ContainKey("5");
     }
@@ -228,6 +229,81 @@ public class NachaConfigResolverTests
         result.OutboundPolicy.Should().BeNull();
     }
 
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenRecord5SettlementPolicyIsMissing()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        context.CfgProfileTags.RemoveRange(context.CfgProfileTags);
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = DateTime.UtcNow,
+            RecordCodes = ["5"]
+        });
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.SettlementPolicyMissing);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("UNSUPPORTED")]
+    public async Task ResolveAsync_ShouldFailClosed_WhenSettlementPolicyIsEmptyOrUnsupported(string value)
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        var tag = await context.CfgProfileTags.SingleAsync();
+        tag.TagValue = value;
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = DateTime.UtcNow,
+            RecordCodes = ["5"]
+        });
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.SettlementPolicyInvalid);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ShouldFailClosed_WhenSettlementPolicyTagIsAmbiguous()
+    {
+        await using var context = CreateContext();
+        await SeedBaseCatalogAsync(context);
+        context.CfgProfileTags.Add(new CfgProfileTag
+        {
+            Id = 9001,
+            ProfileId = 10,
+            TagKey = NachaSettlementPolicyMetadata.TagKey,
+            TagValue = NachaSettlementPolicy.JulianSettlementDate.ToString()
+        });
+        await context.SaveChangesAsync();
+
+        var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "PPD",
+            ProcessDateUtc = DateTime.UtcNow,
+            RecordCodes = ["5"]
+        });
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(NachaProfileSelectionStatus.SettlementPolicyInvalid);
+    }
+
     private static AchDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()
@@ -267,6 +343,13 @@ public class NachaConfigResolverTests
         };
 
         context.CfgProfiles.Add(profile);
+        context.CfgProfileTags.Add(new CfgProfileTag
+        {
+            Id = 9000,
+            ProfileId = 10,
+            TagKey = NachaSettlementPolicyMetadata.TagKey,
+            TagValue = NachaSettlementPolicy.SettlementDate.ToString()
+        });
         context.CfgProfileRecords.AddRange(
             new CfgProfileRecord { Id = 100, ProfileId = 10, RecordCodeId = 1, Sequence = 10, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" },
             new CfgProfileRecord { Id = 101, ProfileId = 10, RecordCodeId = 2, Sequence = 20, IsEnabled = true, MinOccurs = 1, SourceStrategy = "TABLE_DRIVEN" });

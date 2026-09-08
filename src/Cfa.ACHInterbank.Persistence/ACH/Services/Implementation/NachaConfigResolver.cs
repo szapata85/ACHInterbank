@@ -154,6 +154,35 @@ public class NachaConfigResolver : INachaConfigResolver
                 profile);
         }
 
+        var settlementPolicyMetadata = NachaSettlementPolicyMetadata.Resolve(
+            profile.Tags.Select(tag => new KeyValuePair<string, string>(tag.TagKey, tag.TagValue)));
+        if (settlementPolicyMetadata.Status == NachaSettlementPolicyMetadataStatus.Invalid)
+        {
+            return Failure(
+                NachaProfileSelectionStatus.SettlementPolicyInvalid,
+                settlementPolicyMetadata.Error ?? "La política de settlement del perfil es inválida.",
+                trace,
+                warnings,
+                profile);
+        }
+
+        var requiresSettlementPolicy = request.RecordCodes.Count == 0
+            || request.RecordCodes.Contains("5", StringComparer.OrdinalIgnoreCase);
+        if (requiresSettlementPolicy
+            && settlementPolicyMetadata.Status == NachaSettlementPolicyMetadataStatus.NotPresent)
+        {
+            return Failure(
+                NachaProfileSelectionStatus.SettlementPolicyMissing,
+                $"El perfil oficial '{profile.ProfileCode}' no publica la política de settlement requerida.",
+                trace,
+                warnings,
+                profile);
+        }
+        if (settlementPolicyMetadata.Policy.HasValue)
+        {
+            trace.Add($"SettlementPolicy resuelta desde CfgProfileTag: {settlementPolicyMetadata.Policy.Value}.");
+        }
+
         var neededRecordCodes = request.RecordCodes.Count > 0
             ? request.RecordCodes.ToHashSet(StringComparer.OrdinalIgnoreCase)
             : profile.Records.Where(x => x.IsEnabled).Select(x => x.RecordCode.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -237,6 +266,7 @@ public class NachaConfigResolver : INachaConfigResolver
             UsedFallback = false,
             Profile = profile,
             OutboundPolicy = outboundPolicyMetadata.Policy,
+            SettlementPolicy = settlementPolicyMetadata.Policy,
             LayoutsByRecordCode = selectedLayouts,
             LayoutVariantsByRecordCode = variantsByRecordCode,
             Trace = trace,
