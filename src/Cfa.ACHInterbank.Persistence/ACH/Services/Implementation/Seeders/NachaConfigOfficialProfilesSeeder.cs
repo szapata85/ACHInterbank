@@ -447,11 +447,11 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profile.ContextPriority = 10;
             profile.EffectiveFrom = spec.EffectiveFromOverride ?? EffectiveFrom;
             profile.EffectiveTo = null;
-            profile.StatusId = catalog.Statuses["PUBLICADO"];
+            profile.StatusId = catalog.Statuses["BORRADOR"];
             profile.VersionMajor = spec.VersionMajor;
             profile.VersionMinor = spec.VersionMinor;
-            profile.PublishedAt = PublishedAt;
-            profile.PublishedBy = spec.IsPlaceholder ? "system-phase-6b1" : "system-nacha-execution-2";
+            profile.PublishedAt = null;
+            profile.PublishedBy = null;
             profile.RowVersion = BuildRowVersion(spec.Prefix);
             profile.UpdatedAt = AuditTimestamp;
 
@@ -539,6 +539,73 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 }
             }
 
+            await _context.SaveChangesAsync();
+            _context.ChangeTracker.Clear();
+
+            var publicationProfile = await _context.CfgProfiles
+                .AsSplitQuery()
+                .Include(candidate => candidate.ClearingHouse)
+                .Include(candidate => candidate.FlowType)
+                .Include(candidate => candidate.Direction)
+                .Include(candidate => candidate.ServiceClass)
+                .Include(candidate => candidate.Status)
+                .Include(candidate => candidate.Tags)
+                .Include(candidate => candidate.Records)
+                    .ThenInclude(record => record.RecordCode)
+                .Include(candidate => candidate.Records)
+                    .ThenInclude(record => record.LayoutVariant)
+                .Include(candidate => candidate.Records)
+                    .ThenInclude(record => record.SemanticRuleSet)
+                        .ThenInclude(ruleSet => ruleSet!.Rules)
+                            .ThenInclude(rule => rule.RuleType)
+                .Include(candidate => candidate.LayoutVariants)
+                    .ThenInclude(variant => variant.RecordCode)
+                .Include(candidate => candidate.LayoutVariants)
+                    .ThenInclude(variant => variant.Status)
+                .Include(candidate => candidate.LayoutVariants)
+                    .ThenInclude(variant => variant.Fields)
+                        .ThenInclude(field => field.SourceDefinition)
+                            .ThenInclude(source => source.DataSourceType)
+                .Include(candidate => candidate.LayoutVariants)
+                    .ThenInclude(variant => variant.Fields)
+                        .ThenInclude(field => field.Rules)
+                            .ThenInclude(rule => rule.RuleType)
+                .SingleAsync(candidate => candidate.Id == profile.Id);
+            var publishedBy = spec.IsPlaceholder ? "system-phase-6b1" : "system-nacha-execution-2";
+            var publicationSnapshot = NachaPublicationSnapshotSerializer.Build(
+                publicationProfile,
+                spec.VersionMajor,
+                spec.VersionMinor,
+                PublishedAt,
+                publishedBy);
+            var snapshotJson = NachaPublicationSnapshotSerializer.Serialize(publicationSnapshot);
+            var snapshotRead = NachaPublicationSnapshotSerializer.Read(snapshotJson);
+            if (!snapshotRead.IsSupported)
+            {
+                throw new InvalidOperationException($"OFFICIAL_PUBLICATION_SNAPSHOT_INVALID: {snapshotRead.Status}: {snapshotRead.Error}");
+            }
+
+            await using var publicationTransaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+            publicationProfile.StatusId = catalog.Statuses["PUBLICADO"];
+            publicationProfile.PublishedAt = PublishedAt;
+            publicationProfile.PublishedBy = publishedBy;
+            _context.HistConfigSnapshots.Add(new HistConfigSnapshot
+            {
+                ProfileId = publicationProfile.Id,
+                VersionMajor = spec.VersionMajor,
+                VersionMinor = spec.VersionMinor,
+                SnapshotType = "PUBLISH",
+                SnapshotJson = snapshotJson,
+                CreatedAtUtc = PublishedAt,
+                CreatedBy = publishedBy
+            });
+            await _context.SaveChangesAsync();
+            if (publicationTransaction is not null)
+            {
+                await publicationTransaction.CommitAsync();
+            }
             _context.ChangeTracker.Clear();
         }
 

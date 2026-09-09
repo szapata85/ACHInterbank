@@ -100,6 +100,13 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
             issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "AMBIGUOUS_LAYOUT", Mensaje = $"Más de un layout default para record {ambiguous.Key}." });
         }
 
+        foreach (var duplicate in profile.LayoutVariants
+                     .GroupBy(x => x.VariantCode, StringComparer.OrdinalIgnoreCase)
+                     .Where(group => group.Count() > 1))
+        {
+            issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "DUPLICATE_VARIANT_CODE", Mensaje = $"VariantCode duplicado: {duplicate.Key}." });
+        }
+
         var missingVariant = enabledRecords
             .Where(r => !profile.LayoutVariants.Any(v => v.RecordCodeId == r.RecordCodeId))
             .Select(r => r.RecordCode.Code)
@@ -140,6 +147,36 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
         {
             var ordered = variant.Fields.Where(f => f.IsEnabled).OrderBy(f => f.StartPosition).ToList();
             var canonicalUsages = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            if (variant.TotalLength <= 0)
+            {
+                issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "INVALID_RECORD_LENGTH", Mensaje = $"La variante {variant.VariantCode} tiene longitud inválida." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(variant.SelectionPredicateJson))
+            {
+                try
+                {
+                    var predicate = JsonSerializer.Deserialize<Dictionary<string, string>>(variant.SelectionPredicateJson);
+                    if (predicate is null || predicate.Count == 0 || predicate.Any(item => string.IsNullOrWhiteSpace(item.Key) || item.Value is null))
+                    {
+                        throw new JsonException();
+                    }
+                }
+                catch (JsonException)
+                {
+                    issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "INVALID_SELECTION_PREDICATE", Mensaje = $"La variante {variant.VariantCode} tiene SelectionPredicateJson inválido." });
+                }
+            }
+
+            foreach (var duplicateField in variant.Fields.GroupBy(field => field.FieldCode, StringComparer.OrdinalIgnoreCase).Where(group => group.Count() > 1))
+            {
+                issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "DUPLICATE_FIELD_CODE", Mensaje = $"La variante {variant.VariantCode} repite el field {duplicateField.Key}." });
+            }
+
+            foreach (var duplicateOrder in variant.Fields.GroupBy(field => field.SortOrder).Where(group => group.Count() > 1))
+            {
+                issues.Add(new NachaConfigValidationIssueDto { Severidad = "ERROR", Codigo = "DUPLICATE_FIELD_ORDER", Mensaje = $"La variante {variant.VariantCode} repite SortOrder={duplicateOrder.Key}." });
+            }
             if (ordered.Count == 0)
             {
                 issues.Add(new NachaConfigValidationIssueDto
@@ -168,6 +205,16 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
             foreach (var field in ordered)
             {
+                if (field.StartPosition <= 0 || field.Length <= 0 || field.StartPosition + field.Length - 1 > variant.TotalLength)
+                {
+                    issues.Add(new NachaConfigValidationIssueDto
+                    {
+                        Severidad = "ERROR",
+                        Codigo = "INVALID_FIELD_RANGE",
+                        Mensaje = $"Field {field.FieldCode} excede el rango de la variante {variant.VariantCode}."
+                    });
+                }
+
                 if (field.SourceDefinitionId == 0 || (string.IsNullOrWhiteSpace(field.SourceDefinition.PropertyPath)
                     && string.IsNullOrWhiteSpace(field.SourceDefinition.ConstantValue)
                     && string.IsNullOrWhiteSpace(field.SourceDefinition.ExpressionDsl)))
@@ -181,7 +228,7 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 }
                 var sourceType = field.SourceDefinition.DataSourceType?.Code ?? string.Empty;
                 ValidateCanonicalPath(issues, variant.RecordCode.Code, field, sourceType, canonicalUsages);
-                if (sourceType is "SQL_VIEW" or "SQL_PROCEDURE")
+                if (sourceType is not ("CONSTANTE" or "ENTIDAD" or "EXPRESION"))
                 {
                     issues.Add(new NachaConfigValidationIssueDto
                     {
@@ -218,6 +265,14 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                             : pipelineDoc.RootElement.TryGetProperty("steps", out var arr) && arr.ValueKind == JsonValueKind.Array
                                 ? arr.EnumerateArray()
                                 : Enumerable.Empty<JsonElement>();
+
+                        if (pipelineDoc.RootElement.ValueKind != JsonValueKind.Array
+                            && (pipelineDoc.RootElement.ValueKind != JsonValueKind.Object
+                                || !pipelineDoc.RootElement.TryGetProperty("steps", out var configuredSteps)
+                                || configuredSteps.ValueKind != JsonValueKind.Array))
+                        {
+                            throw new JsonException();
+                        }
 
                         foreach (var step in steps)
                         {
@@ -307,6 +362,36 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                             Codigo = "UNSUPPORTED_RULE_TYPE",
                             Mensaje = $"Field {field.FieldCode} usa rule type {ruleType} no soportado en fase 1."
                         });
+                    }
+
+                    if (string.IsNullOrWhiteSpace(rule.RuleCode)
+                        || string.IsNullOrWhiteSpace(rule.ErrorCode)
+                        || string.IsNullOrWhiteSpace(rule.ErrorMessageEs)
+                        || string.IsNullOrWhiteSpace(rule.Severity))
+                    {
+                        issues.Add(new NachaConfigValidationIssueDto
+                        {
+                            Severidad = "ERROR",
+                            Codigo = "INCOMPLETE_FIELD_RULE",
+                            Mensaje = $"Field {field.FieldCode} contiene una regla incompleta."
+                        });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(rule.RuleConfigJson))
+                    {
+                        try
+                        {
+                            JsonDocument.Parse(rule.RuleConfigJson).Dispose();
+                        }
+                        catch (JsonException)
+                        {
+                            issues.Add(new NachaConfigValidationIssueDto
+                            {
+                                Severidad = "ERROR",
+                                Codigo = "INVALID_FIELD_RULE_CONFIG",
+                                Mensaje = $"Field {field.FieldCode} contiene RuleConfigJson inválido."
+                            });
+                        }
                     }
                 }
             }

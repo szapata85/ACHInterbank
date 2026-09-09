@@ -42,38 +42,58 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
 
         return await ExecuteInTransactionAsync(async () =>
         {
-            var profile = await _context.CfgProfiles.Include(x => x.Status).FirstOrDefaultAsync(x => x.Id == profileId, ct)
+            var profile = await LoadCompleteProfileAsync(profileId, ct)
                          ?? throw new InvalidOperationException("Perfil no encontrado.");
 
             EnsureExpectedRowVersion(profile, expectedRowVersion);
             EnsureProfileIsBorrador(profile);
 
-            profile.StatusId = await ResolveStatusIdAsync("PUBLICADO", ct);
-            profile.PublishedAt = DateTime.UtcNow;
-            profile.PublishedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor;
-            profile.UpdatedAt = DateTimeOffset.UtcNow;
-            profile.VersionMinor += 1;
+            var currentValidation = await _validation.ValidateBeforePublishAsync(profileId, ct);
+            if (!currentValidation.IsValid)
+            {
+                return new NachaConfigPublicationResultDto
+                {
+                    ProfileId = profileId,
+                    Publicado = false,
+                    Mensaje = currentValidation.Resumen
+                };
+            }
+
+            var publishedAtUtc = DateTime.UtcNow;
+            var publishedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor;
+            var targetVersionMinor = profile.VersionMinor + 1;
+            var snapshotContract = NachaPublicationSnapshotSerializer.Build(
+                profile,
+                profile.VersionMajor,
+                targetVersionMinor,
+                publishedAtUtc,
+                publishedBy);
+            var snapshotJson = NachaPublicationSnapshotSerializer.Serialize(snapshotContract);
+            var snapshotReadResult = NachaPublicationSnapshotSerializer.Read(snapshotJson);
+            if (!snapshotReadResult.IsSupported)
+            {
+                throw new InvalidOperationException(
+                    $"SNAPSHOT_SERIALIZATION_INVALID: {snapshotReadResult.Status}: {snapshotReadResult.Error}");
+            }
 
             var snapshot = new HistConfigSnapshot
             {
                 ProfileId = profile.Id,
                 VersionMajor = profile.VersionMajor,
-                VersionMinor = profile.VersionMinor,
+                VersionMinor = targetVersionMinor,
                 SnapshotType = "PUBLISH",
-                SnapshotJson = JsonSerializer.Serialize(new
-                {
-                    profile.ProfileCode,
-                    profile.VersionMajor,
-                    profile.VersionMinor,
-                    profile.EffectiveFrom,
-                    profile.EffectiveTo,
-                    profile.StatusId
-                }),
-                CreatedAtUtc = DateTime.UtcNow,
-                CreatedBy = profile.PublishedBy ?? "system"
+                SnapshotJson = snapshotJson,
+                CreatedAtUtc = publishedAtUtc,
+                CreatedBy = publishedBy
             };
 
             _context.HistConfigSnapshots.Add(snapshot);
+
+            profile.StatusId = await ResolveStatusIdAsync("PUBLICADO", ct);
+            profile.PublishedAt = publishedAtUtc;
+            profile.PublishedBy = publishedBy;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+            profile.VersionMinor = targetVersionMinor;
             _context.HistConfigChanges.Add(new HistConfigChange
             {
                 ProfileId = profile.Id,
@@ -100,6 +120,37 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
             };
         }, ct);
     }
+
+    private Task<CfgProfile?> LoadCompleteProfileAsync(int profileId, CancellationToken ct)
+        => _context.CfgProfiles
+            .AsSplitQuery()
+            .Include(profile => profile.Status)
+            .Include(profile => profile.ClearingHouse)
+            .Include(profile => profile.FlowType)
+            .Include(profile => profile.Direction)
+            .Include(profile => profile.ServiceClass)
+            .Include(profile => profile.Tags)
+            .Include(profile => profile.Records)
+                .ThenInclude(record => record.RecordCode)
+            .Include(profile => profile.Records)
+                .ThenInclude(record => record.LayoutVariant)
+            .Include(profile => profile.Records)
+                .ThenInclude(record => record.SemanticRuleSet)
+                    .ThenInclude(ruleSet => ruleSet!.Rules)
+                        .ThenInclude(rule => rule.RuleType)
+            .Include(profile => profile.LayoutVariants)
+                .ThenInclude(variant => variant.RecordCode)
+            .Include(profile => profile.LayoutVariants)
+                .ThenInclude(variant => variant.Status)
+            .Include(profile => profile.LayoutVariants)
+                .ThenInclude(variant => variant.Fields)
+                    .ThenInclude(field => field.SourceDefinition)
+                        .ThenInclude(source => source.DataSourceType)
+            .Include(profile => profile.LayoutVariants)
+                .ThenInclude(variant => variant.Fields)
+                    .ThenInclude(field => field.Rules)
+                        .ThenInclude(rule => rule.RuleType)
+            .FirstOrDefaultAsync(profile => profile.Id == profileId, ct);
 
     private static void EnsureExpectedRowVersion(CfgProfile profile, string expectedRowVersion)
     {

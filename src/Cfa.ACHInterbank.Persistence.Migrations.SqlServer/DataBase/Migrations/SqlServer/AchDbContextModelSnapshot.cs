@@ -8095,7 +8095,6 @@ namespace Cfa.ACHInterbank.Persistence.Migrations.SqlServer.DataBase.Migrations.
 
                     b.Property<string>("SnapshotJson")
                         .IsRequired()
-                        .HasMaxLength(16000)
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SnapshotType")

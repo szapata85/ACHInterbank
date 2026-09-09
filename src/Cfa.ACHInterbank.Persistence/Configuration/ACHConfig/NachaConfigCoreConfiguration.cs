@@ -321,7 +321,7 @@ public class HistConfigSnapshotConfiguration : IEntityTypeConfiguration<HistConf
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.SnapshotType).HasMaxLength(30).IsRequired();
-        builder.Property(x => x.SnapshotJson).HasMaxLength(16000).IsRequired();
+        builder.Property(x => x.SnapshotJson).IsRequired();
         builder.Property(x => x.CreatedBy).HasMaxLength(120).IsRequired();
 
         builder.HasIndex(x => new { x.ProfileId, x.VersionMajor, x.VersionMinor, x.CreatedAtUtc });

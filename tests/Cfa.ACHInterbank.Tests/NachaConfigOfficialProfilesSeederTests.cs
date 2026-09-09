@@ -38,6 +38,86 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
     }
 
     [Fact]
+    public async Task OfficialBootstrap_ShouldCreateCompleteVersionedSnapshotForEveryPublishedProfile()
+    {
+        await using var context = await SeedAsync();
+        var publishedProfileIds = await context.CfgProfiles
+            .Where(profile => profile.Status.Code == "PUBLICADO")
+            .Select(profile => profile.Id)
+            .ToArrayAsync();
+        var snapshots = await context.HistConfigSnapshots
+            .Where(snapshot => publishedProfileIds.Contains(snapshot.ProfileId) && snapshot.SnapshotType == "PUBLISH")
+            .ToArrayAsync();
+
+        snapshots.Should().HaveCount(publishedProfileIds.Length);
+        snapshots.Should().OnlyContain(snapshot => NachaPublicationSnapshotSerializer.Read(snapshot.SnapshotJson).IsSupported);
+        snapshots.Should().Contain(snapshot => snapshot.SnapshotJson.Length > 16_000);
+    }
+
+    [Fact]
+    public async Task CompleteSnapshot_ShouldRoundTripDeterministically_AndCaptureSemanticRulesByValue()
+    {
+        await using var context = await SeedAsync();
+        var profileId = await context.CfgProfiles
+            .Where(profile => profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode)
+            .Select(profile => profile.Id)
+            .SingleAsync();
+        var persisted = await context.HistConfigSnapshots
+            .SingleAsync(snapshot => snapshot.ProfileId == profileId && snapshot.SnapshotType == "PUBLISH");
+
+        var read = NachaPublicationSnapshotSerializer.Read(persisted.SnapshotJson);
+
+        read.Status.Should().Be(NachaPublicationSnapshotReadStatus.Supported);
+        NachaPublicationSnapshotSerializer.Serialize(read.Snapshot!).Should().Be(persisted.SnapshotJson);
+        read.Snapshot!.GenerationCriticalTags.Select(tag => tag.Key).Should().BeInAscendingOrder(StringComparer.OrdinalIgnoreCase);
+        read.Snapshot.GenerationCriticalTags.Should().Contain(tag => tag.Key == NachaSettlementPolicyMetadata.TagKey);
+        read.Snapshot.GenerationCriticalTags.Should().Contain(tag => tag.Key.StartsWith(NachaOutboundPolicyMetadata.Prefix, StringComparison.Ordinal));
+        read.Snapshot.Records.Select(record => record.Sequence).Should().BeInAscendingOrder();
+        read.Snapshot.LayoutVariants.Should().Equal(read.Snapshot.LayoutVariants
+            .OrderBy(variant => variant.RecordCode, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(variant => variant.Priority)
+            .ThenBy(variant => variant.VariantCode, StringComparer.OrdinalIgnoreCase));
+        read.Snapshot.LayoutVariants.Should().Contain(variant => variant.SelectionPredicate.HasValue);
+        var fields = read.Snapshot.LayoutVariants.SelectMany(variant => variant.Fields).ToArray();
+        fields.Should().NotBeEmpty();
+        fields.Should().OnlyContain(field => !string.IsNullOrWhiteSpace(field.Source.DataSourceTypeCode));
+        fields.Should().Contain(field => field.Rules.Count > 0);
+        persisted.SnapshotJson.Should().Contain("\"transformationPipeline\"");
+
+        var record5 = read.Snapshot.Records.Single(record => record.RecordCode == "5");
+        record5.SemanticRuleSetId.Should().NotBeNull();
+        var semantic = record5.SemanticRuleSet!;
+        semantic.ResolvedDeclarations.Should().BeEquivalentTo(
+        [
+            new NachaPublicationSnapshotSemanticDeclaration("200", true, true),
+            new NachaPublicationSnapshotSemanticDeclaration("220", true, false),
+            new NachaPublicationSnapshotSemanticDeclaration("225", false, true)
+        ], options => options.WithStrictOrdering());
+
+        var persistedRule = await context.CfgRuleSetRules
+            .SingleAsync(rule => rule.RuleSetId == semantic.RuleSetId && rule.RuleCode.EndsWith("220"));
+        persistedRule.RuleConfigJson = "{\"serviceClassCode\":\"220\",\"allowedDirections\":[\"DEBIT\"]}";
+        await context.SaveChangesAsync();
+
+        var historical = NachaPublicationSnapshotSerializer.Read(persisted.SnapshotJson).Snapshot!;
+        historical.Records.Single(record => record.RecordCode == "5").SemanticRuleSet!.ResolvedDeclarations
+            .Single(rule => rule.ServiceClassCode == "220").AllowsCredit.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("not-json", NachaPublicationSnapshotReadStatus.Malformed)]
+    [InlineData("{\"profileCode\":\"legacy\"}", NachaPublicationSnapshotReadStatus.LegacyOrIncomplete)]
+    [InlineData("{\"snapshotFormatVersion\":999}", NachaPublicationSnapshotReadStatus.UnsupportedVersion)]
+    [InlineData("{\"snapshotFormatVersion\":1}", NachaPublicationSnapshotReadStatus.LegacyOrIncomplete)]
+    public void SnapshotReader_ShouldFailClosed(string json, NachaPublicationSnapshotReadStatus expectedStatus)
+    {
+        var result = NachaPublicationSnapshotSerializer.Read(json);
+
+        result.Status.Should().Be(expectedStatus);
+        result.Snapshot.Should().BeNull();
+    }
+
+    [Fact]
     public async Task NachaConfigSeeds_ShouldCreatePublishedCenitProfile()
     {
         await using var context = await SeedAsync();
@@ -276,10 +356,46 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         result.Publicado.Should().BeTrue();
         result.VersionMajor.Should().Be(profile.VersionMajor);
         result.VersionMinor.Should().Be(profile.VersionMinor + 1);
-        (await context.HistConfigSnapshots.CountAsync(candidate =>
-            candidate.ProfileId == profile.Id && candidate.SnapshotType == "PUBLISH")).Should().Be(1);
+        var snapshots = await context.HistConfigSnapshots
+            .Where(candidate => candidate.ProfileId == profile.Id && candidate.SnapshotType == "PUBLISH")
+            .OrderBy(candidate => candidate.VersionMinor)
+            .ToArrayAsync();
+        snapshots.Should().HaveCount(2);
+        var publicationSnapshot = NachaPublicationSnapshotSerializer.Read(snapshots[^1].SnapshotJson);
+        publicationSnapshot.IsSupported.Should().BeTrue(publicationSnapshot.Error);
+        publicationSnapshot.Snapshot!.Profile.VersionMinor.Should().Be(profile.VersionMinor + 1);
         (await context.HistConfigChanges.CountAsync(candidate =>
             candidate.ProfileId == profile.Id && candidate.ChangeType == "PUBLISH")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PublishAsync_ShouldRollback_WhenCompleteSnapshotCannotBeBuilt()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles
+            .SingleAsync(candidate => candidate.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        profile.StatusId = await context.CatConfigStatuses
+            .Where(candidate => candidate.Code == "BORRADOR")
+            .Select(candidate => candidate.Id)
+            .SingleAsync();
+        profile.PublishedAt = null;
+        profile.PublishedBy = null;
+        var variant = await context.CfgLayoutVariants.FirstAsync(candidate => candidate.ProfileId == profile.Id);
+        variant.SelectionPredicateJson = "not-json";
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        profile = await context.CfgProfiles.AsNoTracking().SingleAsync(candidate => candidate.Id == profile.Id);
+        var snapshotsBefore = await context.HistConfigSnapshots.CountAsync(candidate => candidate.ProfileId == profile.Id);
+        var publication = new NachaConfigPublicationService(context, new AlwaysValidNachaConfigValidationService());
+
+        var call = () => publication.PublishAsync(profile.Id, "publisher", Convert.ToBase64String(profile.RowVersion));
+
+        await call.Should().ThrowAsync<InvalidOperationException>().WithMessage("SNAPSHOT_JSON_INVALID:*");
+        var reloaded = await context.CfgProfiles.Include(candidate => candidate.Status).AsNoTracking().SingleAsync(candidate => candidate.Id == profile.Id);
+        reloaded.Status.Code.Should().Be("BORRADOR");
+        reloaded.PublishedAt.Should().BeNull();
+        (await context.HistConfigSnapshots.CountAsync(candidate => candidate.ProfileId == profile.Id)).Should().Be(snapshotsBefore);
+        (await context.HistConfigChanges.CountAsync(candidate => candidate.ProfileId == profile.Id && candidate.ChangeType == "PUBLISH")).Should().Be(0);
     }
 
     [Fact]
