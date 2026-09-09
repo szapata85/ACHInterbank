@@ -208,29 +208,17 @@ public sealed class OutboundReturnMultiDbTests
     {
         EnsureConfiguration(provider);
         await using var fixture = await DatabaseFixture.CreateAsync(provider);
-        await fixture.InitializeAsync();
+        await fixture.InitializeAsync(PreviousMigration(provider));
 
-        var scenario = await fixture.SeedScenarioAsync("MIGRATION", new DateTime(2026, 8, 15), "82000001", 1);
-        await using (var context = fixture.CreateContext())
-        {
-            var response = await fixture.CreateService(
-                    context,
-                    new IndependentGateLockService(),
-                    builder: ReturnOutNachaFileBuilderFactory.Create())
-                .GenerateReturnsFileAsync(Request(scenario, (0, "R01")));
-            response.TotalReturns.Should().Be(1);
-        }
-
-        await using (var context = fixture.CreateContext())
-        {
-            var migrator = context.GetService<IMigrator>();
-            await migrator.MigrateAsync(PreviousMigration(provider));
-        }
+        var scenario = await fixture.SeedHistoricalReturnScenarioAsync(
+            "MIGRATION",
+            new DateTime(2026, 8, 15),
+            "82000001");
         await fixture.AssertOldReturnIndexAsync();
 
         await using (var context = fixture.CreateContext())
         {
-            await context.Database.MigrateAsync();
+            await context.GetService<IMigrator>().MigrateAsync(ReturnMigration(provider));
             (await context.AchReturnsGenerated.CountAsync(row => row.OriginalTransactionId == scenario.TransactionIds[0]))
                 .Should().Be(1);
             var counter = await context.AchReturnTraceSequences.SingleAsync(row =>
@@ -239,28 +227,31 @@ public sealed class OutboundReturnMultiDbTests
         }
         await fixture.AssertNewReturnIndexesAsync();
 
+        await using (var context = fixture.CreateContext())
+        {
+            await context.GetService<IMigrator>().MigrateAsync(PreviousMigration(provider));
+        }
+        await fixture.AssertOldReturnIndexAsync();
+
+        await using (var context = fixture.CreateContext())
+        {
+            await context.GetService<IMigrator>().MigrateAsync(ReturnMigration(provider));
+        }
+        await fixture.AssertNewReturnIndexesAsync();
+
         // La migración debe fallar cerrado y conservar evidencia si el índice histórico
         // permitía dos devoluciones ordinarias para la misma transacción.
         await using var incompatibleFixture = await DatabaseFixture.CreateAsync(provider);
-        await incompatibleFixture.InitializeAsync();
-        var incompatibleScenario = await incompatibleFixture.SeedScenarioAsync(
+        await incompatibleFixture.InitializeAsync(PreviousMigration(provider));
+        var incompatibleScenario = await incompatibleFixture.SeedHistoricalReturnScenarioAsync(
             "MIGRATION-DUPLICATE",
             new DateTime(2026, 8, 16),
-            "82000002",
-            1);
-        await using (var context = incompatibleFixture.CreateContext())
-        {
-            await incompatibleFixture.CreateService(
-                    context,
-                    new IndependentGateLockService(),
-                    builder: ReturnOutNachaFileBuilderFactory.Create())
-                .GenerateReturnsFileAsync(Request(incompatibleScenario, (0, "R01")));
-            await context.GetService<IMigrator>().MigrateAsync(PreviousMigration(provider));
-        }
+            "82000002");
         await incompatibleFixture.InsertHistoricalDuplicateReturnAsync(incompatibleScenario.TransactionIds[0]);
         await using (var context = incompatibleFixture.CreateContext())
         {
-            await Assert.ThrowsAnyAsync<Exception>(() => context.Database.MigrateAsync());
+            await Assert.ThrowsAnyAsync<Exception>(() =>
+                context.GetService<IMigrator>().MigrateAsync(ReturnMigration(provider)));
         }
         await incompatibleFixture.AssertHistoricalReturnCountAsync(incompatibleScenario.TransactionIds[0], 2);
         await incompatibleFixture.AssertOldReturnIndexAsync();
@@ -334,6 +325,10 @@ public sealed class OutboundReturnMultiDbTests
     private static string PreviousMigration(DatabaseProvider provider) => provider == DatabaseProvider.SqlServer
         ? "20260806203451_SchedulerEnterpriseTasks"
         : "20260806203546_SchedulerEnterpriseTasks";
+
+    private static string ReturnMigration(DatabaseProvider provider) => provider == DatabaseProvider.SqlServer
+        ? "20260808060546_ReturnOutDbFirstConcurrency"
+        : "20260808060637_ReturnOutDbFirstConcurrency";
 
     private enum DatabaseProvider { SqlServer, PostgreSql }
 
@@ -458,13 +453,23 @@ public sealed class OutboundReturnMultiDbTests
             return new AchDbContext(options.Options, timeProvider: new FixedTimeProvider());
         }
 
-        public async Task InitializeAsync()
+        public async Task InitializeAsync(string? targetMigration = null)
         {
             await using var context = CreateContext();
-            await context.Database.MigrateAsync();
+            if (targetMigration is null)
+            {
+                await context.Database.MigrateAsync();
+            }
+            else
+            {
+                await context.GetService<IMigrator>().MigrateAsync(targetMigration);
+            }
             await new ClearingHouseConfigSeeder(context).SeedAsync();
             await EnsureOperationalCatalogAsync(context);
-            await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+            if (targetMigration is null)
+            {
+                await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+            }
             await new NachaFileNamingRuleSeeder(context).SeedAsync();
         }
 
@@ -554,6 +559,187 @@ public sealed class OutboundReturnMultiDbTests
             context.AchTransactions.AddRange(rows);
             await context.SaveChangesAsync();
             return new Scenario(cycleId, processingDate.Date, participantDfi, rows.Select(row => row.Id).ToArray());
+        }
+
+        public async Task<Scenario> SeedHistoricalReturnScenarioAsync(
+            string suffix,
+            DateTime processingDate,
+            string participantDfi)
+        {
+            await using var connection = Provider == DatabaseProvider.SqlServer
+                ? new SqlConnection(_connectionString)
+                : new NpgsqlConnection(_connectionString) as System.Data.Common.DbConnection;
+            await connection.OpenAsync();
+
+            var cycleId = $"OUT-RET-{suffix}";
+            var occurredAt = FixedNow;
+            await ExecuteAsync(
+                Provider == DatabaseProvider.SqlServer
+                    ? """
+                      INSERT INTO dbo.AchCycles
+                          (Id, CycleName, ProcessingDate, StartTime, EndTime, CutoffTime, ClearingHouseId,
+                           AllowsExplicitReprocessing, CalendarDeferralCount, OperationalStatus,
+                           ReceptionToleranceMinutes, RescheduleOnHoliday, CreatedAt, UpdatedAt)
+                      VALUES
+                          (@cycleId, @cycleName, @processingDate, @startTime, @endTime, @cutoffTime, @clearingHouseId,
+                           0, 0, 0, 0, 0, @occurredAt, @occurredAt);
+                      """
+                    : """
+                      INSERT INTO "AchCycles"
+                          ("Id", "CycleName", "ProcessingDate", "StartTime", "EndTime", "CutoffTime", "ClearingHouseId",
+                           "AllowsExplicitReprocessing", "CalendarDeferralCount", "OperationalStatus",
+                           "ReceptionToleranceMinutes", "RescheduleOnHoliday", "CreatedAt", "UpdatedAt")
+                      VALUES
+                          (@cycleId, @cycleName, @processingDate, @startTime, @endTime, @cutoffTime, @clearingHouseId,
+                           FALSE, 0, 0, 0, FALSE, @occurredAt, @occurredAt);
+                      """,
+                ("cycleId", cycleId),
+                ("cycleName", cycleId),
+                ("processingDate", DateTime.SpecifyKind(processingDate.Date, DateTimeKind.Utc)),
+                ("startTime", TimeSpan.FromHours(8)),
+                ("endTime", TimeSpan.FromHours(17)),
+                ("cutoffTime", TimeSpan.FromHours(16)),
+                ("clearingHouseId", _clearingHouseId),
+                ("occurredAt", occurredAt));
+
+            var batchId = Convert.ToInt32(await ExecuteScalarAsync(
+                Provider == DatabaseProvider.SqlServer
+                    ? """
+                      INSERT INTO dbo.AchBatches
+                          (AchCycleId, BatchSequenceNumber, CompanyEntryDescription, CompanyEntryDescriptionId,
+                           CompanyIdentification, CompanyName, EffectiveEntryDate, OriginOrOdfi, ServiceClassCode,
+                           TotalCreditAmount, TotalDebitAmount, CreatedAt, UpdatedAt)
+                      OUTPUT INSERTED.Id
+                      VALUES
+                          (@cycleId, 1, 'PAGOS', @companyEntryDescriptionId,
+                           '900000001', 'ORIGINADOR SINT', @processingDate, @participantDfi, '225',
+                           0, 0, @occurredAt, @occurredAt);
+                      """
+                    : """
+                      INSERT INTO "AchBatches"
+                          ("AchCycleId", "BatchSequenceNumber", "CompanyEntryDescription", "CompanyEntryDescriptionId",
+                           "CompanyIdentification", "CompanyName", "EffectiveEntryDate", "OriginOrOdfi", "ServiceClassCode",
+                           "TotalCreditAmount", "TotalDebitAmount", "CreatedAt", "UpdatedAt")
+                      VALUES
+                          (@cycleId, 1, 'PAGOS', @companyEntryDescriptionId,
+                           '900000001', 'ORIGINADOR SINT', @processingDate, @participantDfi, '225',
+                           0, 0, @occurredAt, @occurredAt)
+                      RETURNING "Id";
+                      """,
+                ("cycleId", cycleId),
+                ("companyEntryDescriptionId", _companyEntryDescriptionId),
+                ("processingDate", DateTime.SpecifyKind(processingDate, DateTimeKind.Utc)),
+                ("participantDfi", participantDfi),
+                ("occurredAt", occurredAt)));
+
+            var transactionId = Convert.ToInt32(await ExecuteScalarAsync(
+                Provider == DatabaseProvider.SqlServer
+                    ? """
+                      INSERT INTO dbo.AchTransactions
+                          (AchBatchId, AchCycleId, AddendaRecordIndicator, Amount, CompanyEntryDescriptionId,
+                           CompanyIdentification, CompanyName, ContrapartidasResponseCode, CreatedAt,
+                           DestinationAccountNumber, DestinationInstitutionId, DiscretionaryData, EffectiveEntryDate,
+                           IsPrenotification, OriginalTraceRef, OriginatingDFI, ReceivingDFI, RecipientIdNumber,
+                           Reference, ReturnReasonCode, ServiceClassCode, SourceAccountNumber, SourceInstitutionId,
+                           StateChangedAtUtc, TraceNumber, TraceSequenceNumber, TransactionCode,
+                           TransactionExternalId, Type, UpdatedAt)
+                      OUTPUT INSERTED.Id
+                      VALUES
+                          (@batchId, @cycleId, 1, 101, @companyEntryDescriptionId,
+                           '900000001', 'ORIGINADOR SINT', '', @occurredAt,
+                           '0000002222', @destinationInstitutionId, '', @processingDate,
+                           0, '', '91000001', @participantDfi, '100000001',
+                           @reference, '', '225', '0000001111', @sourceInstitutionId,
+                           @processingDate, '910000010000001', 1, '27',
+                           @externalId, 'Debit', @occurredAt);
+                      """
+                    : """
+                      INSERT INTO "AchTransactions"
+                          ("AchBatchId", "AchCycleId", "AddendaRecordIndicator", "Amount", "CompanyEntryDescriptionId",
+                           "CompanyIdentification", "CompanyName", "ContrapartidasResponseCode", "CreatedAt",
+                           "DestinationAccountNumber", "DestinationInstitutionId", "DiscretionaryData", "EffectiveEntryDate",
+                           "IsPrenotification", "OriginalTraceRef", "OriginatingDFI", "ReceivingDFI", "RecipientIdNumber",
+                           "Reference", "ReturnReasonCode", "ServiceClassCode", "SourceAccountNumber", "SourceInstitutionId",
+                           "StateChangedAtUtc", "TraceNumber", "TraceSequenceNumber", "TransactionCode",
+                           "TransactionExternalId", "Type", "UpdatedAt")
+                      VALUES
+                          (@batchId, @cycleId, TRUE, 101, @companyEntryDescriptionId,
+                           '900000001', 'ORIGINADOR SINT', '', @occurredAt,
+                           '0000002222', @destinationInstitutionId, '', @processingDate,
+                           FALSE, '', '91000001', @participantDfi, '100000001',
+                           @reference, '', '225', '0000001111', @sourceInstitutionId,
+                           @processingDate, '910000010000001', 1, '27',
+                           @externalId, 'Debit', @occurredAt)
+                      RETURNING "Id";
+                      """,
+                ("batchId", batchId),
+                ("cycleId", cycleId),
+                ("companyEntryDescriptionId", _companyEntryDescriptionId),
+                ("destinationInstitutionId", _destinationInstitutionId),
+                ("processingDate", DateTime.SpecifyKind(processingDate, DateTimeKind.Utc)),
+                ("participantDfi", participantDfi),
+                ("reference", $"REF-{suffix}-1"),
+                ("sourceInstitutionId", _sourceInstitutionId),
+                ("externalId", $"OUT-RET-{suffix}-1"),
+                ("occurredAt", occurredAt)));
+
+            await ExecuteAsync(
+                Provider == DatabaseProvider.SqlServer
+                    ? """
+                      INSERT INTO dbo.AchReturnsGenerated
+                          (OriginalTransactionId, ReturnCycleId, ReturnReasonCode, Amount,
+                           NewSequenceNumber, OriginalSequenceNumber, ReceiverEntityCode,
+                           OriginatorEntityCode, FileName, GeneratedAtUtc)
+                      VALUES
+                          (@transactionId, @cycleId, 'R01', 101,
+                           @newSequenceNumber, '910000010000001', '91000001',
+                           @participantDfi, 'RETURN-MIGRATION.ach', @processingDate);
+                      """
+                    : """
+                      INSERT INTO "AchReturnsGenerated"
+                          ("OriginalTransactionId", "ReturnCycleId", "ReturnReasonCode", "Amount",
+                           "NewSequenceNumber", "OriginalSequenceNumber", "ReceiverEntityCode",
+                           "OriginatorEntityCode", "FileName", "GeneratedAtUtc")
+                      VALUES
+                          (@transactionId, @cycleId, 'R01', 101,
+                           @newSequenceNumber, '910000010000001', '91000001',
+                           @participantDfi, 'RETURN-MIGRATION.ach', @processingDate);
+                      """,
+                ("transactionId", transactionId),
+                ("cycleId", cycleId),
+                ("newSequenceNumber", $"{participantDfi}0000001"),
+                ("participantDfi", participantDfi),
+                ("processingDate", DateTime.SpecifyKind(processingDate, DateTimeKind.Utc)));
+
+            return new Scenario(cycleId, processingDate.Date, participantDfi, [transactionId]);
+
+            async Task<object?> ExecuteScalarAsync(string commandText, params (string Name, object Value)[] parameters)
+            {
+                await using var command = CreateCommand(commandText, parameters);
+                return await command.ExecuteScalarAsync();
+            }
+
+            async Task ExecuteAsync(string commandText, params (string Name, object Value)[] parameters)
+            {
+                await using var command = CreateCommand(commandText, parameters);
+                await command.ExecuteNonQueryAsync();
+            }
+
+            System.Data.Common.DbCommand CreateCommand(
+                string commandText,
+                params (string Name, object Value)[] parameters)
+            {
+                var command = connection.CreateCommand();
+                command.CommandText = commandText;
+                foreach (var (name, value) in parameters)
+                {
+                    var parameter = command.CreateParameter();
+                    parameter.ParameterName = name;
+                    parameter.Value = value;
+                    command.Parameters.Add(parameter);
+                }
+                return command;
+            }
         }
 
         public async Task<Scenario> SeedCenitScenarioAsync(
