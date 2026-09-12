@@ -143,6 +143,25 @@ public static class NachaPublicationSnapshotSerializer
         }
     }
 
+    // V1 without trace lineage remains a readable publication artifact, but it cannot
+    // satisfy the official generation trace contract. No LIVE identity lookup is allowed.
+    public static NachaPublicationSnapshotReadResult ReadForTraceLineage(string? json)
+    {
+        var read = Read(json);
+        if (!read.IsSupported || read.Snapshot is null)
+        {
+            return read;
+        }
+
+        var error = ValidateTraceLineage(read.Snapshot);
+        return error is null
+            ? read
+            : new NachaPublicationSnapshotReadResult(
+                NachaPublicationSnapshotReadStatus.LegacyOrIncomplete,
+                read.Snapshot,
+                error);
+    }
+
     private static NachaPublicationSnapshotSemanticRuleSet? BuildSemanticRuleSet(
         CfgProfileRecord record,
         NachaServiceClassSemanticContract resolvedContract)
@@ -198,7 +217,10 @@ public static class NachaPublicationSnapshotSerializer
                 .ThenBy(field => field.StartPosition)
                 .ThenBy(field => field.FieldCode, StringComparer.OrdinalIgnoreCase)
                 .Select(BuildField)
-                .ToArray());
+                .ToArray())
+        {
+            LayoutVariantId = variant.Id
+        };
 
     private static NachaPublicationSnapshotField BuildField(CfgLayoutField field)
     {
@@ -243,7 +265,11 @@ public static class NachaPublicationSnapshotSerializer
                     ParseOptionalJson(rule.RuleConfigJson, $"rule configuration {rule.RuleCode}"),
                     rule.Order,
                     rule.IsEnabled))
-                .ToArray());
+                .ToArray())
+        {
+            FieldDefinitionId = field.Id,
+            FieldNameEs = field.FieldNameEs
+        };
     }
 
     private static JsonElement? ParseSelectionPredicate(string? json, string variantCode)
@@ -349,6 +375,26 @@ public static class NachaPublicationSnapshotSerializer
             || batchRecord.SemanticRuleSet.ResolvedDeclarations.Select(rule => rule.ServiceClassCode).OrderBy(code => code).SequenceEqual(["200", "220", "225"]) == false)
         {
             return "El contrato semántico T5 por valor está incompleto.";
+        }
+
+        return null;
+    }
+
+    private static string? ValidateTraceLineage(NachaPublicationSnapshot snapshot)
+    {
+        var variants = snapshot.LayoutVariants;
+        if (variants.Any(variant => variant.LayoutVariantId is null or <= 0)
+            || variants.Select(variant => variant.LayoutVariantId).Distinct().Count() != variants.Count)
+        {
+            return "La identidad histórica de las variantes de layout está incompleta o es ambigua.";
+        }
+
+        var fields = variants.SelectMany(variant => variant.Fields).ToArray();
+        if (fields.Any(field => field.FieldDefinitionId is null or <= 0
+                                || string.IsNullOrWhiteSpace(field.FieldNameEs))
+            || fields.Select(field => field.FieldDefinitionId).Distinct().Count() != fields.Length)
+        {
+            return "La identidad histórica de los fields de layout está incompleta o es ambigua.";
         }
 
         return null;

@@ -149,6 +149,106 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
         (await context.HistConfigChanges.CountAsync()).Should().Be(historyCount);
     }
 
+    [Fact]
+    public async Task PersistedPublication_ExposesExactTraceLineageWithoutLiveLookup()
+    {
+        string snapshotJson;
+        (int Id, string Code, (int Id, string Code, string Name)[] Fields)[] expected;
+        {
+            await using var context = await _fixture.CreateSeededContextAsync();
+            var row = await TargetSnapshotAsync(context);
+            snapshotJson = row.SnapshotJson;
+            var variants = await context.CfgLayoutVariants.AsNoTracking()
+                .Include(variant => variant.Fields)
+                .Where(variant => variant.ProfileId == row.ProfileId)
+                .ToArrayAsync();
+            expected = variants.Select(variant => (
+                variant.Id,
+                variant.VariantCode,
+                variant.Fields.Select(field => (field.Id, field.FieldCode, field.FieldNameEs)).ToArray()))
+                .ToArray();
+        }
+
+        var read = NachaPublicationSnapshotSerializer.ReadForTraceLineage(snapshotJson);
+        read.IsSupported.Should().BeTrue(read.Error);
+        read.Snapshot!.LayoutVariants.Should().HaveCount(expected.Length);
+        foreach (var variant in expected)
+        {
+            var actual = read.Snapshot.LayoutVariants.Single(item => item.LayoutVariantId == variant.Id);
+            actual.VariantCode.Should().Be(variant.Code);
+            actual.Fields.Should().HaveCount(variant.Fields.Length);
+            foreach (var field in variant.Fields)
+            {
+                var actualField = actual.Fields.Single(item => item.FieldDefinitionId == field.Id);
+                actualField.FieldCode.Should().Be(field.Code);
+                actualField.FieldNameEs.Should().Be(field.Name);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task HistoricalV1WithoutTraceLineage_RemainsReadableAndIsNotEnriched()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var json = JsonNode.Parse(row.SnapshotJson)!.AsObject();
+        foreach (var variant in json["layoutVariants"]!.AsArray())
+        {
+            variant!.AsObject().Remove("layoutVariantId");
+            foreach (var field in variant["fields"]!.AsArray())
+            {
+                field!.AsObject().Remove("fieldDefinitionId");
+                field.AsObject().Remove("fieldNameEs");
+            }
+        }
+        row.SnapshotJson = json.ToJsonString();
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var semanticRead = NachaPublicationSnapshotSerializer.Read(row.SnapshotJson);
+        semanticRead.IsSupported.Should().BeTrue(semanticRead.Error);
+        var traceRead = NachaPublicationSnapshotSerializer.ReadForTraceLineage(row.SnapshotJson);
+        traceRead.Status.Should().Be(NachaPublicationSnapshotReadStatus.LegacyOrIncomplete);
+        traceRead.Snapshot.Should().NotBeNull();
+
+        await Seeder(context).SeedAsync();
+        var preserved = await TargetSnapshotsAsync(context);
+        preserved.Should().ContainSingle();
+        preserved[0].SnapshotJson.Should().Be(row.SnapshotJson);
+        NachaPublicationSnapshotSerializer.ReadForTraceLineage(preserved[0].SnapshotJson).IsSupported.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DuplicateOrMissingTraceLineage_FailsClosed()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var original = (await TargetSnapshotAsync(context)).SnapshotJson;
+        foreach (var mutation in new[] { "missing-variant", "missing-field", "missing-name", "duplicate-variant", "duplicate-field" })
+        {
+            var json = JsonNode.Parse(original)!.AsObject();
+            var variants = json["layoutVariants"]!.AsArray();
+            var fields = variants[0]!["fields"]!.AsArray();
+            switch (mutation)
+            {
+                case "missing-variant": variants[0]!.AsObject().Remove("layoutVariantId"); break;
+                case "missing-field": fields[0]!.AsObject().Remove("fieldDefinitionId"); break;
+                case "missing-name": fields[0]!.AsObject().Remove("fieldNameEs"); break;
+                case "duplicate-variant":
+                    variants[1]!["layoutVariantId"] = variants[0]!["layoutVariantId"]!.GetValue<int>();
+                    break;
+                case "duplicate-field":
+                    fields[1]!["fieldDefinitionId"] = fields[0]!["fieldDefinitionId"]!.GetValue<int>();
+                    break;
+            }
+
+            var serialized = json.ToJsonString();
+            NachaPublicationSnapshotSerializer.Read(serialized).IsSupported.Should().BeTrue(mutation);
+            var read = NachaPublicationSnapshotSerializer.ReadForTraceLineage(serialized);
+            read.Status.Should().Be(NachaPublicationSnapshotReadStatus.LegacyOrIncomplete, mutation);
+            read.Error.Should().NotBeNullOrWhiteSpace();
+        }
+    }
+
     [Theory]
     [InlineData("duplicate", "SNAPSHOT_COVERAGE_DUPLICATE_V1")]
     [InlineData("malformed", "SNAPSHOT_COVERAGE_MALFORMED")]

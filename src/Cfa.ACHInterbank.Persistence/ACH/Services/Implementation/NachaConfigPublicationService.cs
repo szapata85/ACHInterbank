@@ -70,7 +70,7 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
                 publishedAtUtc,
                 publishedBy);
             var snapshotJson = NachaPublicationSnapshotSerializer.Serialize(snapshotContract);
-            var snapshotReadResult = NachaPublicationSnapshotSerializer.Read(snapshotJson);
+            var snapshotReadResult = NachaPublicationSnapshotSerializer.ReadForTraceLineage(snapshotJson);
             if (!snapshotReadResult.IsSupported)
             {
                 throw new InvalidOperationException(

@@ -579,7 +579,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 PublishedAt,
                 publishedBy);
             var snapshotJson = NachaPublicationSnapshotSerializer.Serialize(publicationSnapshot);
-            var snapshotRead = NachaPublicationSnapshotSerializer.Read(snapshotJson);
+            var snapshotRead = NachaPublicationSnapshotSerializer.ReadForTraceLineage(snapshotJson);
             if (!snapshotRead.IsSupported)
             {
                 throw new InvalidOperationException($"OFFICIAL_PUBLICATION_SNAPSHOT_INVALID: {snapshotRead.Status}: {snapshotRead.Error}");

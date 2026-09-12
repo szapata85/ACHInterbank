@@ -65,7 +65,7 @@ public sealed class NachaPublicationSnapshotCoverageSeeder : IDbSeeder
                         $"SNAPSHOT_COVERAGE_BUILD_INVALID: {Identity(profile)}: {exception.Message}", exception);
                 }
                 var json = NachaPublicationSnapshotSerializer.Serialize(artifact);
-                var read = NachaPublicationSnapshotSerializer.Read(json);
+                var read = NachaPublicationSnapshotSerializer.ReadForTraceLineage(json);
                 if (!read.IsSupported || read.Snapshot is null)
                 {
                     throw new InvalidOperationException(

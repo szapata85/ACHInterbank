@@ -74,7 +74,10 @@ public sealed record NachaPublicationSnapshotLayoutVariant(
     DateTime? EffectiveTo,
     string StatusCode,
     JsonElement? SelectionPredicate,
-    IReadOnlyList<NachaPublicationSnapshotField> Fields);
+    IReadOnlyList<NachaPublicationSnapshotField> Fields)
+{
+    public int? LayoutVariantId { get; init; }
+}
 
 public sealed record NachaPublicationSnapshotField(
     string FieldCode,
@@ -88,7 +91,11 @@ public sealed record NachaPublicationSnapshotField(
     string? FormatMask,
     NachaPublicationSnapshotFieldSource Source,
     JsonElement? TransformationPipeline,
-    IReadOnlyList<NachaPublicationSnapshotFieldRule> Rules);
+    IReadOnlyList<NachaPublicationSnapshotFieldRule> Rules)
+{
+    public int? FieldDefinitionId { get; init; }
+    public string? FieldNameEs { get; init; }
+}
 
 public sealed record NachaPublicationSnapshotFieldSource(
     string DataSourceTypeCode,
