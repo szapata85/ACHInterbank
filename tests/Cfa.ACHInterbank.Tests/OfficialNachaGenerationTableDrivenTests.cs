@@ -147,6 +147,30 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Fact]
+    public async Task OrdinaryAchGeneration_Pre2E2UpgradeKeepsBytesAfterV1CoverageBackfill()
+    {
+        await using var context = await SeedAsync();
+        var profile = await context.CfgProfiles.SingleAsync(item => item.ClearingHouse.Code == "ACH"
+            && item.FlowType.Code == "ORIGINAL" && item.Direction.Code == "SALIDA" && item.VersionMajor == 35);
+        var originalVersion = (profile.VersionMajor, profile.VersionMinor, profile.StatusId);
+        var published = await context.HistConfigSnapshots.SingleAsync(item => item.ProfileId == profile.Id && item.SnapshotType == "PUBLISH");
+        context.HistConfigSnapshots.Remove(published);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        await new NachaPublicationSnapshotCoverageSeeder(context).SeedAsync();
+        var after = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        after.Should().Be(before);
+        (await context.HistConfigSnapshots.CountAsync(item => item.ProfileId == profile.Id && item.SnapshotType == "PUBLISH"))
+            .Should().Be(1);
+        var reloaded = await context.CfgProfiles.AsNoTracking().SingleAsync(item => item.Id == profile.Id);
+        (reloaded.VersionMajor, reloaded.VersionMinor, reloaded.StatusId).Should().Be(originalVersion);
+    }
+
+    [Fact]
     public async Task OfficialNachaGeneration_ShouldUsePublishedCenitProfile()
     {
         await using var context = await SeedAsync();
