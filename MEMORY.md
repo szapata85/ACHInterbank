@@ -338,6 +338,7 @@ STATUS: AWAITING_PRIORITIZATION
 CONTEXT: NACHA-RULE-METADATA.2B and OPS-GAP-002.2C are CLOSED. Select the next authorized slice from the remaining backlog; do not reopen these closed slices. External Managed MFT deployment remains a separate operational dependency.
 
 ## Recent Sessions
+- 2026-09-13: NACHA-RULE-METADATA.2E.3-CI left the snapshot-backed ordinary runtime unchanged. Broad CI exposed a functional fixture that supplied synthetic PAGOS -> PPD only after publication; the fixture now seeds it before official publication, and the CI-equivalent filter passed with 2548 passed, 0 failed, and 15 skipped.
 - 2026-09-12: NACHA-RULE-METADATA.2E.2-TRACE captured the official renderer's layout/field row IDs and field display names in new publication snapshots. Existing V1 artifacts remain semantically readable but fail explicit trace-lineage reads without historical enrichment; ordinary generation remains LIVE-backed pending 2E.3.
 - 2026-09-09: NACHA-RULE-METADATA.2E.2 closed the versioned publication artifact: complete deterministic typed snapshots, by-value semantic authority, atomic publication, fail-closed legacy/version reading, and unbounded PostgreSQL/SQL Server storage; runtime snapshot consumption remains 2E.3.
 - 2026-09-08: NACHA-RULE-METADATA.2E.1 closed the application-level published-generation immutability boundary: BORRADOR-only edits, one-way publication, non-destructive official seed verification, and protection of semantic rule sets shared with published profiles; 2E.2 snapshot architecture remains open.

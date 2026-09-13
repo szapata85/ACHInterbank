@@ -1002,7 +1002,23 @@ public class NachaFunctionalValidationTests
     private static async Task<AchDbContext> SeedOfficialProfilesAsync()
     {
         var context = CreateInMemoryContext();
+        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        {
+            Term = "PAGOS",
+            Description = "Synthetic functional test concept",
+            StandardEntryClassCode = "PPD",
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
         await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+
+        var publication = await context.HistConfigSnapshots.AsNoTracking().SingleAsync(row =>
+            row.SnapshotType == "PUBLISH"
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(publication.SnapshotJson);
+        read.IsSupported.Should().BeTrue();
+        read.Snapshot!.StandardEntryClassMappings!.Single(mapping => mapping.Term == "PAGOS")
+            .StandardEntryClassCode.Should().Be("PPD");
         return context;
     }
 
