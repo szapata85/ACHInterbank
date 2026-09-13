@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -153,13 +154,14 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var profile = await context.CfgProfiles.SingleAsync(item => item.ClearingHouse.Code == "ACH"
             && item.FlowType.Code == "ORIGINAL" && item.Direction.Code == "SALIDA" && item.VersionMajor == 35);
         var originalVersion = (profile.VersionMajor, profile.VersionMinor, profile.StatusId);
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var published = await context.HistConfigSnapshots.SingleAsync(item => item.ProfileId == profile.Id && item.SnapshotType == "PUBLISH");
         context.HistConfigSnapshots.Remove(published);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
-        var setup = CreateOfficialSut(context, "ACH Colombia");
-        var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
         await new NachaPublicationSnapshotCoverageSeeder(context).SeedAsync();
         var after = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
@@ -428,14 +430,14 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task MissingRecord_ShouldReturn_NACHA_REQUIRED_RECORD_MISSING()
     {
         await using var context = await SeedAsync();
-        var record7Variants = await context.CfgLayoutVariants
-            .Include(x => x.RecordCode)
-            .Include(x => x.Profile)
-            .Where(x => x.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode && x.RecordCode.Code == "7")
-            .ToListAsync();
-        var inactiveStatusId = await context.CatConfigStatuses.Where(x => x.Code == "INACTIVO").Select(x => x.Id).FirstAsync();
-        record7Variants.ForEach(variant => variant.StatusId = inactiveStatusId);
-        await context.SaveChangesAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+        {
+            foreach (var variant in snapshot["layoutVariants"]!.AsArray()
+                         .Where(item => item!["recordCode"]!.GetValue<string>() == "7"))
+            {
+                variant!["statusCode"] = "INACTIVO";
+            }
+        });
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -447,9 +449,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task MissingRequiredField_ShouldReturn_NACHA_REQUIRED_FIELD_MISSING()
     {
         await using var context = await SeedAsync();
-        var amountField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "6", "AMOUNT");
-        amountField.IsEnabled = false;
-        await context.SaveChangesAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedField(snapshot, "6", "AMOUNT")["isEnabled"] = false);
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -461,9 +462,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task FieldSourceNotFound_ShouldReturn_NACHA_FIELD_SOURCE_NOT_FOUND()
     {
         await using var context = await SeedAsync();
-        var amountField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "6", "AMOUNT");
-        amountField.SourceDefinition.PropertyPath = "CampoInexistente";
-        await context.SaveChangesAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedField(snapshot, "6", "AMOUNT")["source"]!["propertyPath"] = "CampoInexistente");
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -475,9 +475,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task FieldExceedsLength_ShouldReturn_NACHA_FIELD_LENGTH_INVALID()
     {
         await using var context = await SeedAsync();
-        var destinationField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEDESTINATION");
-        destinationField.SourceDefinition.ConstantValue = "12345678901234567890";
-        await context.SaveChangesAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedField(snapshot, "1", "IMMEDIATEDESTINATION")["source"]!["constantValue"] = "12345678901234567890");
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -489,9 +488,9 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task CalculationFailure_ShouldReturn_NACHA_CALCULATION_FAILED()
     {
         await using var context = await SeedAsync();
-        var field = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "9", "BLOCKCOUNT");
-        field.SourceDefinition.ExpressionDsl = """{"source":"runtime","calculationType":"CalculationNotAvailable"}""";
-        await context.SaveChangesAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedField(snapshot, "9", "BLOCKCOUNT")["source"]!["expressionDsl"] =
+                """{"source":"runtime","calculationType":"CalculationNotAvailable"}""");
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -500,7 +499,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Fact]
-    public async Task ChangingAchColombiaField_ShouldAffectOnlyAchColombiaFile()
+    public async Task ChangingPublishedAchColombiaLiveField_ShouldNotAffectEitherFile()
     {
         await using var context = await SeedAsync();
         var achSetup = CreateOfficialSut(context, "ACH Colombia");
@@ -515,12 +514,12 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var achAfter = await achSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var cenitAfter = await cenitSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        achAfter.Should().NotBe(achBefore);
+        achAfter.Should().Be(achBefore);
         cenitAfter.Should().Be(cenitBefore);
     }
 
     [Fact]
-    public async Task ChangingCenitField_ShouldAffectOnlyCenitFile()
+    public async Task ChangingPublishedCenitLiveField_ShouldNotAffectEitherFile()
     {
         await using var context = await SeedAsync();
         var achSetup = CreateOfficialSut(context, "ACH Colombia");
@@ -536,7 +535,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var cenitAfter = await cenitSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
         achAfter.Should().Be(achBefore);
-        cenitAfter.Should().NotBe(cenitBefore);
+        cenitAfter.Should().Be(cenitBefore);
     }
 
     [Fact]
@@ -864,9 +863,9 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task ValidateOfficialLayout_ShouldCompareCalculatedVsRenderedTotals()
     {
         await using var context = await SeedAsync();
-        var entryHash = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "8", "ENTRYHASH");
-        entryHash.SourceDefinition.ExpressionDsl = JsonSerializer.Serialize(new { source = "runtime", calculationType = "BatchNumber" });
-        await context.SaveChangesAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedField(snapshot, "8", "ENTRYHASH")["source"]!["expressionDsl"] =
+                JsonSerializer.Serialize(new { source = "runtime", calculationType = "BatchNumber" }));
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         var ex = await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -891,9 +890,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task Trace_ShouldCaptureFieldLengthError()
     {
         await using var context = await SeedAsync();
-        var destinationField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEDESTINATION");
-        destinationField.SourceDefinition.ConstantValue = "12345678901234567890";
-        await context.SaveChangesAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedField(snapshot, "1", "IMMEDIATEDESTINATION")["source"]!["constantValue"] = "12345678901234567890");
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -908,9 +906,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task Trace_ShouldCaptureMissingRequiredFieldError()
     {
         await using var context = await SeedAsync();
-        var amountField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "6", "AMOUNT");
-        amountField.IsEnabled = false;
-        await context.SaveChangesAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedField(snapshot, "6", "AMOUNT")["isEnabled"] = false);
         var setup = CreateOfficialSut(context, "ACH Colombia");
 
         await Assert.ThrowsAsync<NachaGenerationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -964,7 +961,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Fact]
-    public async Task AchFieldChange_ShouldAppearOnlyInAchTrace()
+    public async Task PublishedAchTrace_ShouldIgnoreLiveFieldChange()
     {
         await using var context = await SeedAsync();
         var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
@@ -977,13 +974,13 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var cenitTrace = await LoadLatestTraceAsync(context);
 
         achTrace.FieldTraceEntries.Single(x => x.RecordType == "1" && x.FieldName == "IMMEDIATEORIGINNAME")
-            .RawValueSanitized.Should().Contain("Length=14");
+            .RawValueSanitized.Should().Contain("Length=7");
         cenitTrace.FieldTraceEntries.Single(x => x.RecordType == "1" && x.FieldName == "IMMEDIATEORIGINNAME")
             .RawValueSanitized.Should().NotContain("Length=14");
     }
 
     [Fact]
-    public async Task CenitFieldChange_ShouldAppearOnlyInCenitTrace()
+    public async Task PublishedCenitTrace_ShouldIgnoreLiveFieldChange()
     {
         await using var context = await SeedAsync();
         var cenitField = await LoadFieldAsync(context, "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0", "1", "IMMEDIATEORIGINNAME");
@@ -998,7 +995,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         achTrace.FieldTraceEntries.Single(x => x.RecordType == "1" && x.FieldName == "IMMEDIATEORIGINNAME")
             .RawValueSanitized.Should().NotContain("Length=12");
         cenitTrace.FieldTraceEntries.Single(x => x.RecordType == "1" && x.FieldName == "IMMEDIATEORIGINNAME")
-            .RawValueSanitized.Should().Contain("Length=12");
+            .RawValueSanitized.Should().Contain("Length=7");
     }
 
     [Fact]
@@ -1470,6 +1467,140 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         parsedAddenda.AddendumSequence.Should().BeNullOrEmpty();
     }
 
+    [Fact]
+    public async Task PublishedOrdinaryResolver_PreservesSelectedPublicationIdentity()
+    {
+        await using var context = await SeedAsync();
+        var published = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        var request = new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "ACH",
+            FlowTypeCode = "ORIGINAL",
+            DirectionCode = "SALIDA",
+            ServiceClassCode = "220",
+            ProcessDateUtc = BuildContext("ACH Colombia").Cycle.ProcessingDate,
+            RequestedVersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
+            RequestedVersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor,
+            RecordCodes = OfficialRecordCodes
+        };
+        var resolver = new NachaConfigResolver(context);
+
+        var live = await resolver.ResolveAsync(request);
+        var snapshot = await resolver.ResolvePublishedOrdinaryAsync(request);
+
+        live.Success.Should().BeTrue();
+        snapshot.Success.Should().BeTrue();
+        live.Profile!.Id.Should().Be(published.ProfileId);
+        snapshot.Profile!.Id.Should().Be(live.Profile.Id);
+        snapshot.Profile.VersionMajor.Should().Be(live.Profile.VersionMajor);
+        snapshot.Profile.VersionMinor.Should().Be(live.Profile.VersionMinor);
+    }
+
+    [Fact]
+    public async Task PublishedOrdinarySnapshot_KeepsBytesSecAndTraceStableAfterLiveMutationAndCoverageRerun()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var publication = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        var snapshotJson = publication.SnapshotJson;
+        var published = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshotJson).Snapshot!;
+        var expectedSec = published.StandardEntryClassMappings!.Single(item => item.Term == "PAGOS").StandardEntryClassCode;
+        var publishedField = published.LayoutVariants.Single(variant => variant.RecordCode == "1" && variant.IsDefaultForRecord)
+            .Fields.Single(field => field.FieldCode == "IMMEDIATEORIGINNAME");
+
+        var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var beforeTrace = await LoadLatestTraceAsync(context);
+        var liveField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode,
+            "1", "IMMEDIATEORIGINNAME");
+        liveField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
+        liveField.FieldNameEs = "LIVE CHANGED";
+        var liveSec = await context.CompanyEntryDescriptionCatalogs.SingleAsync(item => item.Term == "PAGOS");
+        liveSec.StandardEntryClassCode = expectedSec == "PPD" ? "CCD" : "PPD";
+        await context.SaveChangesAsync();
+
+        await new NachaPublicationSnapshotCoverageSeeder(context).SeedAsync();
+        var after = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var afterTrace = await LoadLatestTraceAsync(context);
+
+        after.Should().Be(before);
+        SplitRecords(after)[1].Substring(50, 3).Should().Be(expectedSec);
+        liveSec.StandardEntryClassCode.Should().NotBe(expectedSec);
+        beforeTrace.ProfileId.Should().Be(published.Profile.ProfileId);
+        afterTrace.ProfileId.Should().Be(beforeTrace.ProfileId);
+        afterTrace.ProfileVersion.Should().Be(beforeTrace.ProfileVersion);
+        var traceField = afterTrace.FieldTraceEntries.Single(entry => entry.RecordType == "1"
+            && entry.FieldName == "IMMEDIATEORIGINNAME");
+        traceField.LayoutVariantId.Should().Be(published.LayoutVariants.Single(variant => variant.RecordCode == "1"
+            && variant.IsDefaultForRecord).LayoutVariantId);
+        traceField.FieldDefinitionId.Should().Be(publishedField.FieldDefinitionId);
+        traceField.DisplayName.Should().Be(publishedField.FieldNameEs);
+        traceField.DisplayName.Should().NotBe(liveField.FieldNameEs);
+        (await context.HistConfigSnapshots.SingleAsync(row => row.Id == publication.Id)).SnapshotJson.Should().Be(snapshotJson);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("duplicate")]
+    [InlineData("corrupt")]
+    [InlineData("trace-incomplete")]
+    [InlineData("sec-incomplete")]
+    public async Task PublishedOrdinarySnapshot_UnavailableOrIncomplete_FailsWithoutLiveFallback(string condition)
+    {
+        await using var context = await SeedAsync();
+        var publication = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        var profileId = publication.ProfileId;
+        if (condition == "missing")
+        {
+            context.HistConfigSnapshots.Remove(publication);
+        }
+        else if (condition == "duplicate")
+        {
+            context.HistConfigSnapshots.Add(new HistConfigSnapshot
+            {
+                ProfileId = publication.ProfileId,
+                VersionMajor = publication.VersionMajor,
+                VersionMinor = publication.VersionMinor,
+                SnapshotType = "PUBLISH",
+                SnapshotJson = publication.SnapshotJson,
+                CreatedAtUtc = publication.CreatedAtUtc,
+                CreatedBy = "test"
+            });
+        }
+        else if (condition == "corrupt")
+        {
+            publication.SnapshotJson = "not-json";
+        }
+        else
+        {
+            var json = JsonNode.Parse(publication.SnapshotJson)!.AsObject();
+            if (condition == "trace-incomplete")
+            {
+                json["layoutVariants"]!.AsArray()[0]!.AsObject().Remove("layoutVariantId");
+            }
+            else
+            {
+                json.Remove("standardEntryClassMappings");
+            }
+            publication.SnapshotJson = json.ToJsonString();
+            NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(publication.SnapshotJson)
+                .IsSupported.Should().BeFalse();
+        }
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        (await context.CfgProfiles.CountAsync(profile => profile.Id == profileId)).Should().Be(1);
+        (await context.CompanyEntryDescriptionCatalogs.CountAsync(item => item.IsActive)).Should().BeGreaterThan(0);
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var auditCount = await context.HistConfigChanges.CountAsync(item => item.ChangeType == "GENERATION_TRACE");
+
+        var action = () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        await action.Should().ThrowAsync<InvalidOperationException>();
+        (await context.HistConfigChanges.CountAsync(item => item.ChangeType == "GENERATION_TRACE"))
+            .Should().Be(auditCount);
+    }
+
     private static OfficialSut CreateOfficialSut(
         AchDbContext context,
         string clearingHouseName,
@@ -1661,10 +1792,29 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var change = await context.HistConfigChanges
             .Where(x => x.EntityName == "NachaFileBuilder" && x.ChangeType == "GENERATION_TRACE")
             .OrderByDescending(x => x.ChangedAtUtc)
+            .ThenByDescending(x => x.Id)
             .FirstAsync();
 
         return JsonSerializer.Deserialize<NachaGenerationAuditResult>(change.AfterJson!)!;
     }
+
+    private static async Task MutatePublishedSnapshotAsync(AchDbContext context, Action<JsonObject> mutate)
+    {
+        var publication = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        var snapshot = JsonNode.Parse(publication.SnapshotJson)!.AsObject();
+        mutate(snapshot);
+        publication.SnapshotJson = snapshot.ToJsonString();
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+    }
+
+    private static JsonObject PublishedField(JsonObject snapshot, string recordCode, string fieldCode)
+        => snapshot["layoutVariants"]!.AsArray()
+            .Where(variant => variant!["recordCode"]!.GetValue<string>() == recordCode)
+            .SelectMany(variant => variant!["fields"]!.AsArray())
+            .Single(field => field!["fieldCode"]!.GetValue<string>() == fieldCode)!
+            .AsObject();
 
     private sealed record OfficialSut(
         NachaFileBuilder Sut,

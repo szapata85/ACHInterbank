@@ -497,7 +497,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 .SelectMany(source => source.Transactions)
                 .OrderBy(transaction => transaction.Id)
                 .ToArray();
-            var resolution = await _configResolver.ResolveAsync(new NachaConfigResolutionRequest
+            var resolution = await _configResolver.ResolvePublishedOrdinaryAsync(new NachaConfigResolutionRequest
             {
                 ClearingHouseCode = "CENIT",
                 FlowTypeCode = NachaProfileDimensionResolver.ResolveFlowCode(serviceTransactions),
@@ -1206,7 +1206,8 @@ public class NachaFileBuilder : INachaFileBuilder
         var fileIdModifier = _controlTotalsCalculator.ResolveFileIdModifier(dailySequence);
         audit.FileIdModifier = new NachaFileIdModifierAudit { DailySequence = dailySequence, ResolvedValue = fileIdModifier };
 
-        var companyEntryDescriptionCatalog = (await _dataLoader.LoadCompanyEntryDescriptionCatalogAsync(ct))
+        var companyEntryDescriptionCatalog = (resolution.StandardEntryClassMappings
+            ?? throw new InvalidOperationException("La publicación ordinaria no contiene el catálogo SEC resuelto."))
             .Select(item => new CompanyEntryDescriptionCatalogItem(item.Term, item.StandardEntryClassCode))
             .ToList();
 
@@ -2366,7 +2367,7 @@ public class NachaFileBuilder : INachaFileBuilder
         }
 
         var request = BuildConfigResolutionRequest(context, clearingHouseCode, recordCodes);
-        var resolution = await _configResolver.ResolveAsync(request, ct);
+        var resolution = await _configResolver.ResolvePublishedOrdinaryAsync(request, ct);
         if (resolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous
             || resolution.Warnings.Any(x => x.Contains("Ambig", StringComparison.OrdinalIgnoreCase)))
         {

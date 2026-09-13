@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -17,6 +18,20 @@ public sealed class OfficialNachaGenerationFixture : IAsyncLifetime
 
         await using var context = CreateContext(TemplatePath);
         await context.Database.EnsureCreatedAsync();
+        foreach (var (term, sec) in new[] { ("PAGOS", "PPD"), ("CONCENTRA", "CCD"), ("CORPORATE", "CTX") })
+        {
+            if (!await context.CompanyEntryDescriptionCatalogs.AnyAsync(item => item.Term == term))
+            {
+                context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+                {
+                    Term = term,
+                    StandardEntryClassCode = sec,
+                    Description = "Test fixture",
+                    IsActive = true
+                });
+            }
+        }
+        await context.SaveChangesAsync();
         await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
         SeedExecutions++;
     }

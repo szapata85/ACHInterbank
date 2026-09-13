@@ -279,6 +279,7 @@ public class NachaConfigResolutionResult
     public NachaOutboundPartitionPolicy? OutboundPolicy { get; init; }
     public NachaSettlementPolicy? SettlementPolicy { get; init; }
     public NachaServiceClassSemanticContract? SemanticContract { get; init; }
+    public IReadOnlyList<NachaPublicationSnapshotSecMapping>? StandardEntryClassMappings { get; init; }
     public IReadOnlyDictionary<string, CfgLayoutVariant> LayoutsByRecordCode { get; init; } = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, IReadOnlyList<CfgLayoutVariant>> LayoutVariantsByRecordCode { get; init; }
         = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>(StringComparer.OrdinalIgnoreCase);

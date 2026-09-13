@@ -18,7 +18,7 @@ public class NachaConfigResolver : INachaConfigResolver
         _context = context;
     }
 
-    public async Task<NachaConfigResolutionResult> ResolveAsync(NachaConfigResolutionRequest request, CancellationToken ct = default)
+    private async Task<NachaConfigResolutionResult> SelectCandidateAsync(NachaConfigResolutionRequest request, CancellationToken ct)
     {
         var trace = new List<string>();
         var warnings = new List<string>();
@@ -134,6 +134,113 @@ public class NachaConfigResolver : INachaConfigResolver
         var profile = topProfiles[0];
 
         trace.Add($"Perfil seleccionado: {profile.ProfileCode} (Id={profile.Id}).");
+        return new NachaConfigResolutionResult
+        {
+            Success = true,
+            SelectionStatus = NachaProfileSelectionStatus.ProfileSelected,
+            Profile = profile,
+            Trace = trace,
+            Warnings = warnings
+        };
+    }
+
+    public async Task<NachaConfigResolutionResult> ResolveAsync(NachaConfigResolutionRequest request, CancellationToken ct = default)
+    {
+        var selection = await SelectCandidateAsync(request, ct);
+        if (!selection.Success || selection.Profile is null)
+        {
+            return selection;
+        }
+
+        var profile = selection.Profile;
+        var trace = selection.Trace;
+        var warnings = selection.Warnings;
+        var date = request.ProcessDateUtc.Date;
+        var neededRecordCodes = request.RecordCodes.Count > 0
+            ? request.RecordCodes.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : profile.Records.Where(x => x.IsEnabled).Select(x => x.RecordCode.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var layouts = await _context.CfgLayoutVariants
+            .AsNoTracking()
+            .Include(x => x.RecordCode)
+            .Include(x => x.Status)
+            .Include(x => x.Fields.Where(f => f.IsEnabled))
+                .ThenInclude(f => f.SourceDefinition)
+                    .ThenInclude(sd => sd.DataSourceType)
+            .Include(x => x.Fields.Where(f => f.IsEnabled))
+                .ThenInclude(f => f.Rules.Where(r => r.IsEnabled))
+                    .ThenInclude(r => r.RuleType)
+            .Where(x => x.ProfileId == profile.Id
+                        && neededRecordCodes.Contains(x.RecordCode.Code)
+                        && x.Status.Code == "PUBLICADO"
+                        && x.EffectiveFrom.Date <= date
+                        && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date))
+            .ToListAsync(ct);
+        return ResolveGraph(request, profile, layouts, trace, warnings);
+    }
+
+    public async Task<NachaConfigResolutionResult> ResolvePublishedOrdinaryAsync(
+        NachaConfigResolutionRequest request,
+        CancellationToken ct = default)
+    {
+        var selection = await SelectCandidateAsync(request, ct);
+        if (!selection.Success || selection.Profile is null)
+        {
+            return selection;
+        }
+
+        var selected = selection.Profile;
+        var matches = await _context.HistConfigSnapshots.AsNoTracking()
+            .Where(row => row.ProfileId == selected.Id
+                          && row.VersionMajor == selected.VersionMajor
+                          && row.VersionMinor == selected.VersionMinor
+                          && row.SnapshotType == "PUBLISH")
+            .Select(row => row.SnapshotJson)
+            .ToListAsync(ct);
+        if (matches.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"La publicación {selected.ProfileCode} {selected.VersionMajor}.{selected.VersionMinor} requiere exactamente un snapshot PUBLISH; encontrados: {matches.Count}.");
+        }
+
+        var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(matches[0]);
+        if (!read.IsSupported || read.Snapshot is null)
+        {
+            throw new InvalidOperationException(
+                $"El snapshot PUBLISH seleccionado no está completo para generación ordinaria: {read.Status}: {read.Error}");
+        }
+
+        var snapshot = read.Snapshot;
+        if (snapshot.Profile.ProfileId != selected.Id
+            || snapshot.Profile.VersionMajor != selected.VersionMajor
+            || snapshot.Profile.VersionMinor != selected.VersionMinor
+            || !string.Equals(snapshot.Profile.ProfileCode, selected.ProfileCode, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("La identidad del snapshot PUBLISH no coincide con la publicación seleccionada.");
+        }
+
+        var (profile, variants) = NachaPublicationSnapshotMaterializer.Materialize(snapshot);
+        var date = request.ProcessDateUtc.Date;
+        var neededRecordCodes = request.RecordCodes.Count > 0
+            ? request.RecordCodes.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : profile.Records.Where(record => record.IsEnabled)
+                .Select(record => record.RecordCode.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var applicable = variants.Where(variant => neededRecordCodes.Contains(variant.RecordCode.Code)
+                                                   && string.Equals(variant.Status.Code, "PUBLICADO", StringComparison.OrdinalIgnoreCase)
+                                                   && variant.EffectiveFrom.Date <= date
+                                                   && (!variant.EffectiveTo.HasValue || variant.EffectiveTo.Value.Date >= date))
+            .ToList();
+        return ResolveGraph(request, profile, applicable, selection.Trace, selection.Warnings,
+            snapshot.StandardEntryClassMappings);
+    }
+
+    private static NachaConfigResolutionResult ResolveGraph(
+        NachaConfigResolutionRequest request,
+        CfgProfile profile,
+        List<CfgLayoutVariant> layouts,
+        List<string> trace,
+        List<string> warnings,
+        IReadOnlyList<NachaPublicationSnapshotSecMapping>? standardEntryClassMappings = null)
+    {
 
         var outboundPolicyMetadata = NachaOutboundPolicyMetadata.Resolve(
             profile.ProfileCode,
@@ -211,23 +318,6 @@ public class NachaConfigResolver : INachaConfigResolver
             trace.Add($"Contrato semántico ServiceClassCode resuelto desde CfgRuleSet: {string.Join(",", semanticContract!.Rules.Select(rule => rule.ServiceClassCode))}.");
         }
 
-        var layouts = await _context.CfgLayoutVariants
-            .AsNoTracking()
-            .Include(x => x.RecordCode)
-            .Include(x => x.Status)
-            .Include(x => x.Fields.Where(f => f.IsEnabled))
-                .ThenInclude(f => f.SourceDefinition)
-                    .ThenInclude(sd => sd.DataSourceType)
-            .Include(x => x.Fields.Where(f => f.IsEnabled))
-                .ThenInclude(f => f.Rules.Where(r => r.IsEnabled))
-                    .ThenInclude(r => r.RuleType)
-            .Where(x => x.ProfileId == profile.Id
-                        && neededRecordCodes.Contains(x.RecordCode.Code)
-                        && x.Status.Code == "PUBLICADO"
-                        && x.EffectiveFrom.Date <= date
-                        && (!x.EffectiveTo.HasValue || x.EffectiveTo.Value.Date >= date))
-            .ToListAsync(ct);
-
         var selectedLayouts = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
         var variantsByRecordCode = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>(StringComparer.OrdinalIgnoreCase);
 
@@ -292,6 +382,7 @@ public class NachaConfigResolver : INachaConfigResolver
             OutboundPolicy = outboundPolicyMetadata.Policy,
             SettlementPolicy = settlementPolicyMetadata.Policy,
             SemanticContract = semanticContract,
+            StandardEntryClassMappings = standardEntryClassMappings,
             LayoutsByRecordCode = selectedLayouts,
             LayoutVariantsByRecordCode = variantsByRecordCode,
             Trace = trace,
