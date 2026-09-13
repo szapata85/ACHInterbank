@@ -68,9 +68,10 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
                 profile.VersionMajor,
                 targetVersionMinor,
                 publishedAtUtc,
-                publishedBy);
+                publishedBy,
+                await _context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync(ct));
             var snapshotJson = NachaPublicationSnapshotSerializer.Serialize(snapshotContract);
-            var snapshotReadResult = NachaPublicationSnapshotSerializer.ReadForTraceLineage(snapshotJson);
+            var snapshotReadResult = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshotJson);
             if (!snapshotReadResult.IsSupported)
             {
                 throw new InvalidOperationException(

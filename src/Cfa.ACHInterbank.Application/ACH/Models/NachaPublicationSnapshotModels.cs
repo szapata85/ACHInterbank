@@ -12,7 +12,13 @@ public sealed record NachaPublicationSnapshot(
     NachaPublicationSnapshotProfile Profile,
     IReadOnlyList<NachaPublicationSnapshotTag> GenerationCriticalTags,
     IReadOnlyList<NachaPublicationSnapshotRecord> Records,
-    IReadOnlyList<NachaPublicationSnapshotLayoutVariant> LayoutVariants);
+    IReadOnlyList<NachaPublicationSnapshotLayoutVariant> LayoutVariants)
+{
+    // Absent in historical V1 artifacts; required by the ordinary-generation reader.
+    public IReadOnlyList<NachaPublicationSnapshotSecMapping>? StandardEntryClassMappings { get; init; }
+}
+
+public sealed record NachaPublicationSnapshotSecMapping(string Term, string StandardEntryClassCode);
 
 public sealed record NachaPublicationSnapshotProfile(
     int ProfileId,

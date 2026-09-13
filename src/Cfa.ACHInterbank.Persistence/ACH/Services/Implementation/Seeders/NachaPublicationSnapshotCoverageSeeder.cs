@@ -57,7 +57,8 @@ public sealed class NachaPublicationSnapshotCoverageSeeder : IDbSeeder
                         ? DateTime.SpecifyKind(profile.PublishedAt.Value, DateTimeKind.Utc)
                         : profile.PublishedAt.Value.ToUniversalTime();
                     artifact = NachaPublicationSnapshotSerializer.Build(profile, profile.VersionMajor,
-                        profile.VersionMinor, publishedAtUtc, profile.PublishedBy);
+                        profile.VersionMinor, publishedAtUtc, profile.PublishedBy,
+                        await _context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync());
                 }
                 catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
                 {
@@ -65,7 +66,7 @@ public sealed class NachaPublicationSnapshotCoverageSeeder : IDbSeeder
                         $"SNAPSHOT_COVERAGE_BUILD_INVALID: {Identity(profile)}: {exception.Message}", exception);
                 }
                 var json = NachaPublicationSnapshotSerializer.Serialize(artifact);
-                var read = NachaPublicationSnapshotSerializer.ReadForTraceLineage(json);
+                var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(json);
                 if (!read.IsSupported || read.Snapshot is null)
                 {
                     throw new InvalidOperationException(

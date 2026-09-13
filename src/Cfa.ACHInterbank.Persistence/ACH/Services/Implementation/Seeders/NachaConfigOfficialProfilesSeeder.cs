@@ -577,9 +577,10 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 spec.VersionMajor,
                 spec.VersionMinor,
                 PublishedAt,
-                publishedBy);
+                publishedBy,
+                await _context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync());
             var snapshotJson = NachaPublicationSnapshotSerializer.Serialize(publicationSnapshot);
-            var snapshotRead = NachaPublicationSnapshotSerializer.ReadForTraceLineage(snapshotJson);
+            var snapshotRead = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshotJson);
             if (!snapshotRead.IsSupported)
             {
                 throw new InvalidOperationException($"OFFICIAL_PUBLICATION_SNAPSHOT_INVALID: {snapshotRead.Status}: {snapshotRead.Error}");

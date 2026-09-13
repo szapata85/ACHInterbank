@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -32,9 +33,23 @@ public static class NachaPublicationSnapshotSerializer
         int versionMajor,
         int versionMinor,
         DateTime publishedAtUtc,
-        string publishedBy)
+        string publishedBy,
+        IEnumerable<CompanyEntryDescriptionCatalog> companyEntryDescriptions)
     {
         ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(companyEntryDescriptions);
+
+        var secMappings = companyEntryDescriptions
+            .Where(item => item.IsActive)
+            .Select(item => new NachaPublicationSnapshotSecMapping(item.Term, item.StandardEntryClassCode))
+            .OrderBy(item => item.Term, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Term, StringComparer.Ordinal)
+            .ToArray();
+        var secError = ValidateSecMappings(secMappings);
+        if (secError is not null)
+        {
+            throw new InvalidOperationException($"El catálogo SEC no permite construir un snapshot ordinario: {secError}");
+        }
 
         var semanticMetadata = NachaSemanticContractMetadata.Resolve(profile.Records);
         if (semanticMetadata.Status != NachaSemanticContractMetadataStatus.Resolved)
@@ -92,7 +107,10 @@ public static class NachaPublicationSnapshotSerializer
                 publishedBy),
             tags,
             records,
-            variants);
+            variants)
+        {
+            StandardEntryClassMappings = secMappings
+        };
     }
 
     public static string Serialize(NachaPublicationSnapshot snapshot)
@@ -160,6 +178,43 @@ public static class NachaPublicationSnapshotSerializer
                 NachaPublicationSnapshotReadStatus.LegacyOrIncomplete,
                 read.Snapshot,
                 error);
+    }
+
+    public static NachaPublicationSnapshotReadResult ReadForOrdinaryGeneration(string? json)
+    {
+        var read = ReadForTraceLineage(json);
+        if (!read.IsSupported || read.Snapshot is null)
+        {
+            return read;
+        }
+
+        var error = ValidateSecMappings(read.Snapshot.StandardEntryClassMappings);
+        return error is null
+            ? read
+            : new NachaPublicationSnapshotReadResult(
+                NachaPublicationSnapshotReadStatus.LegacyOrIncomplete,
+                read.Snapshot,
+                error);
+    }
+
+    private static string? ValidateSecMappings(IReadOnlyList<NachaPublicationSnapshotSecMapping>? mappings)
+    {
+        if (mappings is null || mappings.Count == 0)
+        {
+            return "El snapshot no conserva el catálogo SEC activo requerido para generación ordinaria.";
+        }
+        if (mappings.Any(item => item is null
+                                 || string.IsNullOrWhiteSpace(item.Term)
+                                 || string.IsNullOrWhiteSpace(item.StandardEntryClassCode)))
+        {
+            return "El catálogo SEC publicado contiene términos o códigos incompletos.";
+        }
+        if (mappings.GroupBy(item => item.Term, StringComparer.OrdinalIgnoreCase)
+            .Any(group => group.Count() != 1))
+        {
+            return "El catálogo SEC publicado contiene términos ambiguos para la búsqueda ordinaria.";
+        }
+        return null;
     }
 
     private static NachaPublicationSnapshotSemanticRuleSet? BuildSemanticRuleSet(

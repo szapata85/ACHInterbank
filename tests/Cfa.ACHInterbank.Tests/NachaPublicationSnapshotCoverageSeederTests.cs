@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
@@ -147,6 +148,120 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
             .Select(row => new { row.Id, row.SnapshotJson, row.CreatedAtUtc, row.CreatedBy }).ToArrayAsync();
         after.Should().Equal(before);
         (await context.HistConfigChanges.CountAsync()).Should().Be(historyCount);
+    }
+
+    [Fact]
+    public async Task PublishedSecCatalog_RoundTripsEveryActiveTermAndPreservesLookupSemantics()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var catalog = await context.CompanyEntryDescriptionCatalogs.AsNoTracking()
+            .Where(item => item.IsActive).ToArrayAsync();
+        var snapshot = (await TargetSnapshotAsync(context)).SnapshotJson;
+        var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshot);
+
+        read.IsSupported.Should().BeTrue(read.Error);
+        var mappings = read.Snapshot!.StandardEntryClassMappings!;
+        mappings.Should().HaveCount(catalog.Length);
+        catalog.Select(item => new NachaPublicationSnapshotSecMapping(item.Term, item.StandardEntryClassCode))
+            .Should().BeEquivalentTo(mappings);
+        mappings.Select(item => item.StandardEntryClassCode).Distinct().Should().HaveCountGreaterThan(1);
+        foreach (var item in catalog)
+        {
+            var input = $"  {item.Term.ToLowerInvariant()}  ";
+            var normalized = input.Trim().ToUpperInvariant();
+            mappings.First(candidate => string.Equals(candidate.Term, normalized, StringComparison.OrdinalIgnoreCase))
+                .StandardEntryClassCode.Should().Be(item.StandardEntryClassCode);
+        }
+        NachaPublicationSnapshotSerializer.Serialize(read.Snapshot).Should().Be(snapshot);
+    }
+
+    [Fact]
+    public async Task PublishedSecCatalog_RemainsFrozenAfterLiveMutationAndCoverageRerun()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var before = (await TargetSnapshotAsync(context)).SnapshotJson;
+        var live = await context.CompanyEntryDescriptionCatalogs.FirstAsync(item => item.IsActive);
+        var original = live.StandardEntryClassCode;
+        live.StandardEntryClassCode = original == "PPD" ? "CCD" : "PPD";
+        await context.SaveChangesAsync();
+
+        await Seeder(context).SeedAsync();
+
+        var after = (await TargetSnapshotAsync(context)).SnapshotJson;
+        after.Should().Be(before);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(after).Snapshot!
+            .StandardEntryClassMappings!.Single(item => item.Term == live.Term)
+            .StandardEntryClassCode.Should().Be(original);
+    }
+
+    [Fact]
+    public async Task HistoricalV1WithoutSecCatalog_RemainsTraceReadableButOrdinaryIncomplete()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var json = JsonNode.Parse(row.SnapshotJson)!.AsObject();
+        json.Remove("standardEntryClassMappings").Should().BeTrue();
+        row.SnapshotJson = json.ToJsonString();
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        NachaPublicationSnapshotSerializer.Read(row.SnapshotJson).IsSupported.Should().BeTrue();
+        NachaPublicationSnapshotSerializer.ReadForTraceLineage(row.SnapshotJson).IsSupported.Should().BeTrue();
+        var ordinary = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(row.SnapshotJson);
+        ordinary.Status.Should().Be(NachaPublicationSnapshotReadStatus.LegacyOrIncomplete);
+        ordinary.Snapshot.Should().NotBeNull();
+        (await context.CompanyEntryDescriptionCatalogs.CountAsync(item => item.IsActive)).Should().BeGreaterThan(0);
+
+        await Seeder(context).SeedAsync();
+        (await TargetSnapshotAsync(context)).SnapshotJson.Should().Be(row.SnapshotJson);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(row.SnapshotJson).IsSupported.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AmbiguousSecTerms_AreRejectedByOrdinaryReadAndNewCapture()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var json = JsonNode.Parse(row.SnapshotJson)!.AsObject();
+        var mappings = json["standardEntryClassMappings"]!.AsArray();
+        var duplicate = JsonNode.Parse(mappings[0]!.ToJsonString())!;
+        duplicate["term"] = duplicate["term"]!.GetValue<string>().ToLowerInvariant();
+        mappings.Add(duplicate);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(json.ToJsonString())
+            .Status.Should().Be(NachaPublicationSnapshotReadStatus.LegacyOrIncomplete);
+
+        var profile = await NachaCompleteProfileQuery.Create(context).AsNoTracking()
+            .SingleAsync(item => item.Id == row.ProfileId);
+        var catalog = await context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync();
+        catalog.Add(new CompanyEntryDescriptionCatalog
+        {
+            Term = catalog.First(item => item.IsActive).Term.ToLowerInvariant(),
+            StandardEntryClassCode = "CCD", IsActive = true
+        });
+        var capture = () => NachaPublicationSnapshotSerializer.Build(profile, profile.VersionMajor,
+            profile.VersionMinor, DateTime.UtcNow, "test", catalog);
+        capture.Should().Throw<InvalidOperationException>().WithMessage("El catálogo SEC no permite construir*");
+    }
+
+    [Fact]
+    public async Task NewSecCapture_ExcludesInactiveTermsAndRejectsMissingAuthority()
+    {
+        await using var context = await _fixture.CreateSeededContextAsync();
+        var row = await TargetSnapshotAsync(context);
+        var profile = await NachaCompleteProfileQuery.Create(context).AsNoTracking()
+            .SingleAsync(item => item.Id == row.ProfileId);
+        var catalog = await context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync();
+        var inactive = catalog.First(item => item.IsActive);
+        inactive.IsActive = false;
+        var artifact = NachaPublicationSnapshotSerializer.Build(profile, profile.VersionMajor,
+            profile.VersionMinor, DateTime.UtcNow, "test", catalog);
+        artifact.StandardEntryClassMappings.Should().NotContain(item => item.Term == inactive.Term);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(
+            NachaPublicationSnapshotSerializer.Serialize(artifact)).IsSupported.Should().BeTrue();
+
+        var missing = () => NachaPublicationSnapshotSerializer.Build(profile, profile.VersionMajor,
+            profile.VersionMinor, DateTime.UtcNow, "test", Array.Empty<CompanyEntryDescriptionCatalog>());
+        missing.Should().Throw<InvalidOperationException>().WithMessage("El catálogo SEC no permite construir*");
     }
 
     [Fact]

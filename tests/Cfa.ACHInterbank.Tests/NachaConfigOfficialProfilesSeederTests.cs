@@ -50,7 +50,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .ToArrayAsync();
 
         snapshots.Should().HaveCount(publishedProfileIds.Length);
-        snapshots.Should().OnlyContain(snapshot => NachaPublicationSnapshotSerializer.Read(snapshot.SnapshotJson).IsSupported);
+        snapshots.Should().OnlyContain(snapshot => NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshot.SnapshotJson).IsSupported);
         snapshots.Should().Contain(snapshot => snapshot.SnapshotJson.Length > 16_000);
     }
 
@@ -363,6 +363,12 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         snapshots.Should().HaveCount(2);
         var publicationSnapshot = NachaPublicationSnapshotSerializer.Read(snapshots[^1].SnapshotJson);
         publicationSnapshot.IsSupported.Should().BeTrue(publicationSnapshot.Error);
+        NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshots[^1].SnapshotJson)
+            .IsSupported.Should().BeTrue();
+        publicationSnapshot.Snapshot!.StandardEntryClassMappings.Should().NotBeEmpty();
+        var activeCatalog = await context.CompanyEntryDescriptionCatalogs.AsNoTracking()
+            .Where(item => item.IsActive).Select(item => new { item.Term, item.StandardEntryClassCode }).ToArrayAsync();
+        publicationSnapshot.Snapshot.StandardEntryClassMappings.Should().BeEquivalentTo(activeCatalog);
         publicationSnapshot.Snapshot!.Profile.VersionMinor.Should().Be(profile.VersionMinor + 1);
         (await context.HistConfigChanges.CountAsync(candidate =>
             candidate.ProfileId == profile.Id && candidate.ChangeType == "PUBLISH")).Should().Be(1);
