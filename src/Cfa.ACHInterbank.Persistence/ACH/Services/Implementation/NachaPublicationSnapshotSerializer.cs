@@ -240,13 +240,15 @@ public static class NachaPublicationSnapshotSerializer
                 rule.ErrorCode,
                 rule.ErrorMessageEs))
             .ToArray();
-        var declarations = resolvedContract.Rules
-            .OrderBy(rule => rule.ServiceClassCode, StringComparer.Ordinal)
-            .Select(rule => new NachaPublicationSnapshotSemanticDeclaration(
-                rule.ServiceClassCode,
-                rule.AllowsCredit,
-                rule.AllowsDebit))
-            .ToArray();
+        var declarations = string.Equals(record.RecordCode?.Code, "5", StringComparison.OrdinalIgnoreCase)
+            ? resolvedContract.Rules
+                .OrderBy(rule => rule.ServiceClassCode, StringComparer.Ordinal)
+                .Select(rule => new NachaPublicationSnapshotSemanticDeclaration(
+                    rule.ServiceClassCode,
+                    rule.AllowsCredit,
+                    rule.AllowsDebit))
+                .ToArray()
+            : [];
 
         return new NachaPublicationSnapshotSemanticRuleSet(
             ruleSet.Id,
@@ -430,6 +432,12 @@ public static class NachaPublicationSnapshotSerializer
             || batchRecord.SemanticRuleSet.ResolvedDeclarations.Select(rule => rule.ServiceClassCode).OrderBy(code => code).SequenceEqual(["200", "220", "225"]) == false)
         {
             return "El contrato semántico T5 por valor está incompleto.";
+        }
+
+        var transactionCodeMetadata = NachaTransactionCodeSemanticMetadata.Resolve(snapshot.Records);
+        if (transactionCodeMetadata.Status == NachaTransactionCodeSemanticMetadataStatus.Invalid)
+        {
+            return $"El contrato semántico T6 por valor es inválido: {transactionCodeMetadata.ErrorCode}: {transactionCodeMetadata.Error}";
         }
 
         return null;

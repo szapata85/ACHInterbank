@@ -53,11 +53,14 @@ internal static class AchColOfficialNachaLayout
 
     public const string OutboundOriginalProfileCode = "OFFICIAL_ACH_SALIDA_ORIGINAL_V35_0";
     public const string OutboundPrenotificationProfileCode = "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V35_0";
+    public const string TxCodeAwareOutboundOriginalProfileCode = "OFFICIAL_ACH_SALIDA_ORIGINAL_V35_1";
+    public const string TxCodeAwareOutboundPrenotificationProfileCode = "OFFICIAL_ACH_SALIDA_PRENOTIFICACION_V35_1";
     public const string InboundOriginalProfileCode = "OFFICIAL_ACH_ENTRADA_ORIGINAL_V35_0";
     public const string InboundPrenotificationProfileCode = "OFFICIAL_ACH_ENTRADA_PRENOTIFICACION_V35_0";
     public const string NormativeVersion = "V35";
     public const int ProfileVersionMajor = 35;
     public const int ProfileVersionMinor = 0;
+    public const int TxCodeAwareProfileVersionMinor = 1;
 
     public const string Type7CreditMonetaryVariant = "ACH_R7_CREDIT_MONETARY_V35";
     public const string Type7CreditPrenotificationVariant = "ACH_R7_CREDIT_PRENOTE_V35";

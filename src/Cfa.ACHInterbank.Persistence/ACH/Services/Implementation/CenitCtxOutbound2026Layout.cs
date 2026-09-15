@@ -14,6 +14,8 @@ internal static class CenitCtxOutbound2026Layout
     public const int MaxAddendaPerEntry = 9_999;
     public const string OriginalProfileCode = "OFFICIAL_CENIT_CTX_SALIDA_ORIGINAL_V1_0";
     public const string PrenotificationProfileCode = "OFFICIAL_CENIT_CTX_SALIDA_PRENOTIFICACION_V1_0";
+    public const string TxCodeAwareOriginalProfileCode = "OFFICIAL_CENIT_CTX_SALIDA_ORIGINAL_V1_2";
+    public const string TxCodeAwarePrenotificationProfileCode = "OFFICIAL_CENIT_CTX_SALIDA_PRENOTIFICACION_V1_2";
     public const string NormativeVersion = CenitOrdinaryOutbound2026Layout.NormativeVersion;
     public const string VariantPrefix = "CENIT_CTX_OUT_2026_R";
 
@@ -74,7 +76,9 @@ internal static class CenitCtxOutbound2026Layout
 
     internal static bool IsProfile(string? profileCode)
         => string.Equals(profileCode, OriginalProfileCode, StringComparison.Ordinal)
-           || string.Equals(profileCode, PrenotificationProfileCode, StringComparison.Ordinal);
+           || string.Equals(profileCode, PrenotificationProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, TxCodeAwareOriginalProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, TxCodeAwarePrenotificationProfileCode, StringComparison.Ordinal);
 
     internal static bool IsVariant(string? variantCode)
         => !string.IsNullOrWhiteSpace(variantCode)

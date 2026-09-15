@@ -2503,7 +2503,7 @@ public class NachaFileBuilder : INachaFileBuilder
             ServiceClassCode = serviceClassCode,
             ProcessDateUtc = context.Cycle.ProcessingDate,
             RequestedVersionMajor = requiresAchColV35 ? AchColOfficialNachaLayout.ProfileVersionMajor : null,
-            RequestedVersionMinor = requiresAchColV35 ? AchColOfficialNachaLayout.ProfileVersionMinor : null,
+            RequestedVersionMinor = null,
             RecordCodes = recordCodes.ToList(),
             SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {

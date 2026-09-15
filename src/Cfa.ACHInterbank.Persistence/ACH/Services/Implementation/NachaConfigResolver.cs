@@ -318,6 +318,27 @@ public class NachaConfigResolver : INachaConfigResolver
             trace.Add($"Contrato semántico ServiceClassCode resuelto desde CfgRuleSet: {string.Join(",", semanticContract!.Rules.Select(rule => rule.ServiceClassCode))}.");
         }
 
+        NachaTransactionCodeSemanticContract? transactionCodeContract = null;
+        if (neededRecordCodes.Contains("6"))
+        {
+            var transactionCodeMetadata = NachaTransactionCodeSemanticMetadata.Resolve(profile.Records);
+            if (transactionCodeMetadata.Status == NachaTransactionCodeSemanticMetadataStatus.Invalid)
+            {
+                return Failure(
+                    NachaProfileSelectionStatus.SemanticContractInvalid,
+                    $"{transactionCodeMetadata.ErrorCode}: {transactionCodeMetadata.Error}",
+                    trace,
+                    warnings,
+                    profile);
+            }
+
+            transactionCodeContract = transactionCodeMetadata.Contract;
+            if (transactionCodeContract is not null)
+            {
+                trace.Add($"Contrato semántico TransactionCode resuelto desde CfgRuleSet T6: {transactionCodeContract.Rules.Count} tuplas.");
+            }
+        }
+
         var selectedLayouts = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
         var variantsByRecordCode = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>(StringComparer.OrdinalIgnoreCase);
 
@@ -382,6 +403,7 @@ public class NachaConfigResolver : INachaConfigResolver
             OutboundPolicy = outboundPolicyMetadata.Policy,
             SettlementPolicy = settlementPolicyMetadata.Policy,
             SemanticContract = semanticContract,
+            TransactionCodeContract = transactionCodeContract,
             StandardEntryClassMappings = standardEntryClassMappings,
             LayoutsByRecordCode = selectedLayouts,
             LayoutVariantsByRecordCode = variantsByRecordCode,

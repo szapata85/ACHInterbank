@@ -22,9 +22,8 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
     {
         await using var context = await _fixture.CreateSeededContextAsync();
         var profiles = await SelectionProfilesAsync(context);
-        var achOriginal = profiles.Single(profile => profile.ClearingHouse.Code == "ACH"
-                                                     && profile.FlowType.Code == "ORIGINAL"
-                                                     && profile.Direction.Code == "SALIDA");
+        var achOriginal = profiles.Single(profile =>
+            profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         var legacy = Clone(achOriginal, 90001, 1, 0, new DateTime(2020, 1, 1), null, 100);
         legacy.ProfileCode = "LEGACY_ACH_SALIDA_ORIGINAL_V1_0";
         profiles.Add(legacy);
@@ -32,12 +31,13 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
         var winners = NachaOrdinaryProductionProfileScope.FindMandatoryWinners(profiles);
         winners.Should().HaveCount(12);
         winners.Should().OnlyContain(profile => profile.FlowType.Code == "ORIGINAL" || profile.FlowType.Code == "PRENOTIFICACION");
-        winners.Should().OnlyContain(profile => profile.ClearingHouse.Code == "ACH" ? profile.VersionMajor == 35 && profile.VersionMinor == 0
+        winners.Should().OnlyContain(profile => profile.ClearingHouse.Code == "ACH" ? profile.VersionMajor == 35
+                && (profile.Direction.Code == "SALIDA" ? profile.VersionMinor == 1 : profile.VersionMinor == 0)
             : profile.ClearingHouse.Code == "CENIT" && (profile.Direction.Code == "SALIDA" || profile.VersionMajor == 1 && profile.VersionMinor == 0));
         winners.Should().ContainSingle(profile => profile.ClearingHouse.Code == "ACH" && profile.Direction.Code == "SALIDA"
-            && profile.FlowType.Code == "ORIGINAL" && profile.VersionMajor == 35);
+            && profile.FlowType.Code == "ORIGINAL" && profile.VersionMajor == 35 && profile.VersionMinor == 1);
         winners.Should().ContainSingle(profile => profile.ClearingHouse.Code == "ACH" && profile.Direction.Code == "SALIDA"
-            && profile.FlowType.Code == "PRENOTIFICACION" && profile.VersionMajor == 35);
+            && profile.FlowType.Code == "PRENOTIFICACION" && profile.VersionMajor == 35 && profile.VersionMinor == 1);
         winners.Should().Contain(profile => profile.ClearingHouse.Code == "ACH" && profile.Direction.Code == "ENTRADA"
             && profile.VersionMajor == 35);
         winners.Should().Contain(profile => profile.ClearingHouse.Code == "CENIT" && profile.Direction.Code == "ENTRADA"
@@ -49,8 +49,8 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
     public async Task CenitUnpinnedDomain_UsesEffectiveBoundariesPriorityAndHighestVersion()
     {
         await using var context = await _fixture.CreateSeededContextAsync();
-        var source = (await SelectionProfilesAsync(context)).Single(profile => profile.ClearingHouse.Code == "CENIT"
-            && profile.FlowType.Code == "ORIGINAL" && profile.Direction.Code == "SALIDA" && profile.ServiceClass is null);
+        var source = (await SelectionProfilesAsync(context)).Single(profile =>
+            profile.ProfileCode == CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
         var old = Clone(source, 90010, 1, 0, new DateTime(2026, 1, 1), new DateTime(2026, 2, 28), 100);
         var newer = Clone(source, 90011, 2, 0, new DateTime(2026, 3, 1), null, 100);
         var superseded = Clone(source, 90012, 1, 1, new DateTime(2026, 3, 1), null, 100);
@@ -70,10 +70,10 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
     {
         await using var context = await _fixture.CreateSeededContextAsync();
         var profiles = await SelectionProfilesAsync(context);
-        var generic = profiles.Single(profile => profile.ClearingHouse.Code == "CENIT"
-            && profile.FlowType.Code == "ORIGINAL" && profile.Direction.Code == "SALIDA" && profile.ServiceClass is null);
-        var ctxSource = profiles.Single(profile => profile.ClearingHouse.Code == "CENIT"
-            && profile.FlowType.Code == "ORIGINAL" && profile.Direction.Code == "SALIDA" && profile.ServiceClass?.Code == "CTX");
+        var generic = profiles.Single(profile =>
+            profile.ProfileCode == CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
+        var ctxSource = profiles.Single(profile =>
+            profile.ProfileCode == CenitCtxOutbound2026Layout.TxCodeAwareOriginalProfileCode);
         var ctx = Clone(ctxSource, 90020, 2, 0, new DateTime(2026, 1, 1), null, 100);
         var ppdScope = new NachaOrdinaryProductionProfileScope("CENIT", "ORIGINAL", "SALIDA", "PPD", null, null);
         var ctxScope = ppdScope with { ServiceClassCode = "CTX" };
@@ -422,8 +422,8 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
     public async Task PublishedLegacyVersion_IsOutsideDomainAndRemainsUntouched()
     {
         await using var context = await _fixture.CreateSeededContextAsync();
-        var ach = (await SelectionProfilesAsync(context)).Single(profile => profile.ClearingHouse.Code == "ACH"
-            && profile.FlowType.Code == "ORIGINAL" && profile.Direction.Code == "SALIDA");
+        var ach = (await SelectionProfilesAsync(context)).Single(profile =>
+            profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         var legacy = Clone(ach, 0, 1, 0, new DateTime(2020, 1, 1), null, 100);
         legacy.ProfileCode = "LEGACY_ACH_SALIDA_ORIGINAL_V1_0";
         legacy.PublishedAt = new DateTime(2020, 1, 1);
@@ -477,15 +477,15 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
 
     private static async Task<HistConfigSnapshot> TargetSnapshotAsync(AchDbContext context)
     {
-        var profile = await context.CfgProfiles.SingleAsync(item => item.ClearingHouse.Code == "ACH"
-            && item.FlowType.Code == "ORIGINAL" && item.Direction.Code == "SALIDA" && item.VersionMajor == 35);
+        var profile = await context.CfgProfiles.SingleAsync(item =>
+            item.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         return await context.HistConfigSnapshots.SingleAsync(row => row.ProfileId == profile.Id && row.SnapshotType == "PUBLISH");
     }
 
     private static async Task<HistConfigSnapshot[]> TargetSnapshotsAsync(AchDbContext context)
     {
-        var profileId = await context.CfgProfiles.Where(item => item.ClearingHouse.Code == "ACH"
-            && item.FlowType.Code == "ORIGINAL" && item.Direction.Code == "SALIDA" && item.VersionMajor == 35)
+        var profileId = await context.CfgProfiles.Where(item =>
+                item.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode)
             .Select(item => item.Id).SingleAsync();
         return await context.HistConfigSnapshots.AsNoTracking().Where(row => row.ProfileId == profileId && row.SnapshotType == "PUBLISH")
             .OrderBy(row => row.Id).ToArrayAsync();

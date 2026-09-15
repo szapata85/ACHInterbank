@@ -143,6 +143,38 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
                 Mensaje = semanticMetadata.Error ?? "El perfil requiere un contrato semántico ServiceClassCode válido."
             });
         }
+
+        var transactionCodeMetadata = NachaTransactionCodeSemanticMetadata.Resolve(profile.Records);
+        if (transactionCodeMetadata.Status == NachaTransactionCodeSemanticMetadataStatus.Invalid)
+        {
+            issues.Add(new NachaConfigValidationIssueDto
+            {
+                Severidad = "ERROR",
+                Codigo = transactionCodeMetadata.ErrorCode ?? "INVALID_TRANSACTION_CODE_CONTRACT",
+                Mensaje = transactionCodeMetadata.Error ?? "El contrato semántico TransactionCode de T6 es inválido."
+            });
+        }
+        else if (transactionCodeMetadata.Status == NachaTransactionCodeSemanticMetadataStatus.Resolved)
+        {
+            if (string.Equals(chamberCode, "ACH", StringComparison.Ordinal)
+                && (profile.Tags.Count(tag => string.Equals(tag.TagKey, "NormativeVersion", StringComparison.OrdinalIgnoreCase)) != 1
+                    || !profile.Tags.Any(tag => string.Equals(tag.TagKey, "NormativeVersion", StringComparison.OrdinalIgnoreCase)
+                                               && string.Equals(tag.TagValue, AchColOfficialNachaLayout.NormativeVersion, StringComparison.Ordinal))))
+            {
+                issues.Add(new NachaConfigValidationIssueDto
+                {
+                    Severidad = "ERROR",
+                    Codigo = "ACH_TRANSACTION_CODE_NORMATIVE_VERSION_INVALID",
+                    Mensaje = "Un perfil ACH TXCODE-aware bajo la versión mayor 35 debe conservar NormativeVersion=V35."
+                });
+            }
+
+            await ValidateHistoricalTransactionCodeAssignmentsAsync(
+                issues,
+                profile.ClearingHouseId,
+                transactionCodeMetadata.Contract!,
+                ct);
+        }
         foreach (var variant in profile.LayoutVariants)
         {
             var ordered = variant.Fields.Where(f => f.IsEnabled).OrderBy(f => f.StartPosition).ToList();
@@ -990,6 +1022,48 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
         constant = (field.SourceDefinition?.ConstantValue ?? string.Empty).Trim();
         return !string.IsNullOrWhiteSpace(constant);
+    }
+
+    private async Task ValidateHistoricalTransactionCodeAssignmentsAsync(
+        ICollection<NachaConfigValidationIssueDto> issues,
+        int clearingHouseId,
+        NachaTransactionCodeSemanticContract candidate,
+        CancellationToken ct)
+    {
+        var snapshotJsons = await _context.HistConfigSnapshots
+            .AsNoTracking()
+            .Where(snapshot => snapshot.SnapshotType == "PUBLISH"
+                               && snapshot.Profile.ClearingHouseId == clearingHouseId)
+            .Select(snapshot => snapshot.SnapshotJson)
+            .ToListAsync(ct);
+        foreach (var snapshotJson in snapshotJsons)
+        {
+            var read = NachaPublicationSnapshotSerializer.Read(snapshotJson);
+            if (!read.IsSupported || read.Snapshot is null)
+            {
+                continue;
+            }
+
+            var historical = NachaTransactionCodeSemanticMetadata.Resolve(read.Snapshot.Records);
+            if (historical.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved)
+            {
+                continue;
+            }
+
+            foreach (var previous in historical.Contract!.Rules)
+            {
+                if (candidate.TryGetRule(previous.TransactionCode, out var current)
+                    && current != previous)
+                {
+                    issues.Add(new NachaConfigValidationIssueDto
+                    {
+                        Severidad = "ERROR",
+                        Codigo = "HISTORICAL_TRANSACTION_CODE_REASSIGNMENT",
+                        Mensaje = $"TransactionCode {previous.TransactionCode} no puede cambiar de significado dentro de la misma cámara."
+                    });
+                }
+            }
+        }
     }
 
     private static string Normalize(string? value)

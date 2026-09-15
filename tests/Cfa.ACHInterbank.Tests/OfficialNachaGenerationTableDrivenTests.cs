@@ -151,8 +151,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task OrdinaryAchGeneration_Pre2E2UpgradeKeepsBytesAfterV1CoverageBackfill()
     {
         await using var context = await SeedAsync();
-        var profile = await context.CfgProfiles.SingleAsync(item => item.ClearingHouse.Code == "ACH"
-            && item.FlowType.Code == "ORIGINAL" && item.Direction.Code == "SALIDA" && item.VersionMajor == 35);
+        var profile = await context.CfgProfiles.SingleAsync(item =>
+            item.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         var originalVersion = (profile.VersionMajor, profile.VersionMinor, profile.StatusId);
         var setup = CreateOfficialSut(context, "ACH Colombia");
         var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
@@ -183,6 +183,30 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         content.Should().NotBeNullOrWhiteSpace();
         SplitRecords(content).Select(x => x[0]).Should().Contain(['1', '5', '6', '7', '8', '9']);
         content.Should().Contain("CENIT");
+    }
+
+    [Theory]
+    [InlineData("ACH Colombia", AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode)]
+    [InlineData("CENIT", CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode)]
+    public async Task TxCodeAwareSuccessorSelection_ShouldPreserveOrdinaryBytes(
+        string clearingHouseName,
+        string successorProfileCode)
+    {
+        await using var context = await SeedAsync();
+        var successor = await context.CfgProfiles.SingleAsync(profile => profile.ProfileCode == successorProfileCode);
+        var publishedStatusId = successor.StatusId;
+        successor.StatusId = await context.CatConfigStatuses.Where(status => status.Code == "INACTIVO")
+            .Select(status => status.Id)
+            .SingleAsync();
+        await context.SaveChangesAsync();
+        var setup = CreateOfficialSut(context, clearingHouseName);
+        var predecessorContent = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        successor.StatusId = publishedStatusId;
+        await context.SaveChangesAsync();
+        var successorContent = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        successorContent.Should().Be(predecessorContent);
     }
 
     [Theory]
@@ -281,7 +305,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var result = await setup.Sut.BuildNachaFilesByCycleAsync(model.Cycle.Id, CancellationToken.None);
 
         var artifact = result.Files.Should().ContainSingle().Subject;
-        artifact.ProfileIdentity.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
+        artifact.ProfileIdentity.Should().Be(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
         artifact.ServiceCodes.Should().Equal(serviceCode);
         artifact.Batches.Should().HaveCount(expectedBatchCount);
         if (serviceCode == "CCD")
@@ -351,7 +375,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var result = await setup.Sut.BuildNachaFilesByCycleAsync(model.Cycle.Id, CancellationToken.None);
 
         var artifact = result.Files.Should().ContainSingle().Subject;
-        artifact.ProfileIdentity.Should().Be(CenitCtxOutbound2026Layout.OriginalProfileCode);
+        artifact.ProfileIdentity.Should().Be(CenitCtxOutbound2026Layout.TxCodeAwareOriginalProfileCode);
         artifact.ServiceCodes.Should().Equal("CTX");
         artifact.Batches.Should().ContainSingle().Which.AchTransactionIds.Should().HaveCount(2);
 
@@ -507,7 +531,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var achBefore = await achSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var cenitBefore = await cenitSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
+        var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         achField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
         await context.SaveChangesAsync();
 
@@ -527,7 +551,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var achBefore = await achSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var cenitBefore = await cenitSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        var cenitField = await LoadFieldAsync(context, "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0", "1", "IMMEDIATEORIGINNAME");
+        var cenitField = await LoadFieldAsync(context, CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         cenitField.SourceDefinition.ConstantValue = "CENIT-CAMBIO";
         await context.SaveChangesAsync();
 
@@ -572,7 +596,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var trace = await LoadLatestTraceAsync(context);
 
         trace.Mode.Should().Be("TABLE_DRIVEN");
-        trace.ProfileCode.Should().Be(AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+        trace.ProfileCode.Should().Be(AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         trace.FieldTraceEntries.Should().NotBeEmpty();
     }
 
@@ -586,7 +610,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var trace = await LoadLatestTraceAsync(context);
 
         trace.Mode.Should().Be("TABLE_DRIVEN");
-        trace.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
+        trace.ProfileCode.Should().Be(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
         trace.ClearingHouseCode.Should().Be("CENIT");
         trace.Trace.Should().Contain(entry => entry.Contains(
             $"SettlementPolicy resuelta desde CfgProfileTag: {NachaSettlementPolicy.JulianSettlementDate}",
@@ -604,8 +628,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var trace = await LoadLatestTraceAsync(context);
 
         trace.ProfileId.Should().NotBeNull();
-        trace.ProfileCode.Should().Be(AchColOfficialNachaLayout.OutboundOriginalProfileCode);
-        trace.ProfileVersion.Should().Be("35.0");
+        trace.ProfileCode.Should().Be(AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
+        trace.ProfileVersion.Should().Be("35.1");
         trace.ProfileStatus.Should().Be("PUBLICADO");
         trace.EffectiveDate.Should().Be(new DateTime(2026, 5, 24, 0, 0, 0, DateTimeKind.Utc));
     }
@@ -964,7 +988,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task PublishedAchTrace_ShouldIgnoreLiveFieldChange()
     {
         await using var context = await SeedAsync();
-        var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
+        var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         achField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
         await context.SaveChangesAsync();
 
@@ -983,7 +1007,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     public async Task PublishedCenitTrace_ShouldIgnoreLiveFieldChange()
     {
         await using var context = await SeedAsync();
-        var cenitField = await LoadFieldAsync(context, "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0", "1", "IMMEDIATEORIGINNAME");
+        var cenitField = await LoadFieldAsync(context, CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         cenitField.SourceDefinition.ConstantValue = "CENIT-CAMBIO";
         await context.SaveChangesAsync();
 
@@ -1066,10 +1090,10 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Theory]
-    [InlineData("CREDIT", "22", false, AchColOfficialNachaLayout.OutboundOriginalProfileCode)]
-    [InlineData("DEBIT", "27", false, AchColOfficialNachaLayout.OutboundOriginalProfileCode)]
-    [InlineData("CREDIT", "23", true, AchColOfficialNachaLayout.OutboundPrenotificationProfileCode)]
-    [InlineData("DEBIT", "28", true, AchColOfficialNachaLayout.OutboundPrenotificationProfileCode)]
+    [InlineData("CREDIT", "22", false, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode)]
+    [InlineData("DEBIT", "27", false, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode)]
+    [InlineData("CREDIT", "23", true, AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode)]
+    [InlineData("DEBIT", "28", true, AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode)]
     public async Task AchColV35_ShouldGenerateEverySupportedOutboundOrdinaryFamily(
         string businessType,
         string transactionCode,
@@ -1108,7 +1132,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var trace = await LoadLatestTraceAsync(context);
 
         trace.ProfileCode.Should().Be(expectedProfileCode);
-        trace.ProfileVersion.Should().Be("35.0");
+        trace.ProfileVersion.Should().Be("35.1");
         type6.Substring(1, 2).Should().Be(transactionCode);
         type6.Substring(29, 18).Should().Be(isPrenotification
             ? new string('0', 18)
@@ -1472,7 +1496,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     {
         await using var context = await SeedAsync();
         var published = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
-            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         var request = new NachaConfigResolutionRequest
         {
             ClearingHouseCode = "ACH",
@@ -1481,7 +1505,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             ServiceClassCode = "220",
             ProcessDateUtc = BuildContext("ACH Colombia").Cycle.ProcessingDate,
             RequestedVersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
-            RequestedVersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor,
+            RequestedVersionMinor = null,
             RecordCodes = OfficialRecordCodes
         };
         var resolver = new NachaConfigResolver(context);
@@ -1503,7 +1527,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         await using var context = await SeedAsync();
         var setup = CreateOfficialSut(context, "ACH Colombia");
         var publication = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
-            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         var snapshotJson = publication.SnapshotJson;
         var published = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshotJson).Snapshot!;
         var expectedSec = published.StandardEntryClassMappings!.Single(item => item.Term == "PAGOS").StandardEntryClassCode;
@@ -1512,7 +1536,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
 
         var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var beforeTrace = await LoadLatestTraceAsync(context);
-        var liveField = await LoadFieldAsync(context, AchColOfficialNachaLayout.OutboundOriginalProfileCode,
+        var liveField = await LoadFieldAsync(context, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode,
             "1", "IMMEDIATEORIGINNAME");
         liveField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
         liveField.FieldNameEs = "LIVE CHANGED";
@@ -1550,7 +1574,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     {
         await using var context = await SeedAsync();
         var publication = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
-            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         var profileId = publication.ProfileId;
         if (condition == "missing")
         {
@@ -1801,7 +1825,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     private static async Task MutatePublishedSnapshotAsync(AchDbContext context, Action<JsonObject> mutate)
     {
         var publication = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
-            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         var snapshot = JsonNode.Parse(publication.SnapshotJson)!.AsObject();
         mutate(snapshot);
         publication.SnapshotJson = snapshot.ToJsonString();

@@ -83,6 +83,7 @@ public static class NachaSemanticContractMetadata
         }
 
         if (records.Any(record => !string.Equals(record.RecordCode?.Code, "5", StringComparison.OrdinalIgnoreCase)
+                                  && !string.Equals(record.RecordCode?.Code, "6", StringComparison.OrdinalIgnoreCase)
                                   && record.SemanticRuleSetId.HasValue))
         {
             return Invalid("INCOMPATIBLE_SEMANTIC_RULE_SET_REFERENCE", "El contrato ServiceClassCode solo es compatible con el record T5.");
@@ -279,6 +280,7 @@ public class NachaConfigResolutionResult
     public NachaOutboundPartitionPolicy? OutboundPolicy { get; init; }
     public NachaSettlementPolicy? SettlementPolicy { get; init; }
     public NachaServiceClassSemanticContract? SemanticContract { get; init; }
+    public NachaTransactionCodeSemanticContract? TransactionCodeContract { get; init; }
     public IReadOnlyList<NachaPublicationSnapshotSecMapping>? StandardEntryClassMappings { get; init; }
     public IReadOnlyDictionary<string, CfgLayoutVariant> LayoutsByRecordCode { get; init; } = new Dictionary<string, CfgLayoutVariant>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyDictionary<string, IReadOnlyList<CfgLayoutVariant>> LayoutVariantsByRecordCode { get; init; }

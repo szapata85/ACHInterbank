@@ -93,7 +93,7 @@ internal sealed record NachaOrdinaryProductionProfileScope(
             // ACH outbound supplies the batch service; ACH inbound currently supplies null.
             foreach (var service in new[] { "PPD", "CCD", "CTX" })
             {
-                scopes.Add(new("ACH", flow, "SALIDA", service, 35, 0));
+                scopes.Add(new("ACH", flow, "SALIDA", service, 35, null));
             }
             scopes.Add(new("ACH", flow, "ENTRADA", null, 35, 0));
 

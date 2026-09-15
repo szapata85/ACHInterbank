@@ -82,9 +82,9 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
         var files = CenitOutboundFilePartitioner.Partition([ppd, ctx], policies);
 
         Assert.Equal(2, files.Count);
-        Assert.Equal(CenitOrdinaryOutbound2026Layout.OriginalProfileCode, files[0].ProfileIdentity);
+        Assert.Equal(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, files[0].ProfileIdentity);
         Assert.Equal(["PPD"], files[0].ServiceCodes);
-        Assert.Equal(CenitCtxOutbound2026Layout.OriginalProfileCode, files[1].ProfileIdentity);
+        Assert.Equal(CenitCtxOutbound2026Layout.TxCodeAwareOriginalProfileCode, files[1].ProfileIdentity);
         Assert.Equal(["CTX"], files[1].ServiceCodes);
         Assert.Single(files[1].Batches);
         Assert.Equal(2, files[1].Batches[0].Transactions.Count);
@@ -101,7 +101,7 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
             [ppd, ccd],
             await ResolvePoliciesAsync("PPD", "CCD")));
 
-        Assert.Equal(CenitOrdinaryOutbound2026Layout.OriginalProfileCode, file.ProfileIdentity);
+        Assert.Equal(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, file.ProfileIdentity);
         Assert.Equal(["PPD", "CCD"], file.ServiceCodes);
         AssertMembership([file], 2);
     }

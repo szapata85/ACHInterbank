@@ -189,7 +189,7 @@ public class NachaFunctionalValidationTests
         });
 
         resolution.Success.Should().BeTrue();
-        resolution.Profile!.ProfileCode.Should().Be("OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0");
+        resolution.Profile!.ProfileCode.Should().Be(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
         resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "IsPlaceholder" && tag.TagValue == "false");
         resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == "2026-05-07");
         resolution.Profile.Tags.Should().Contain(tag => tag.TagKey == "IsHomologated" && tag.TagValue == "false");
@@ -886,7 +886,7 @@ public class NachaFunctionalValidationTests
         {
             ScenarioId = "ACH-CO-OUT-001",
             ClearingHouseCode = "ACH",
-            ProfileCode = AchColOfficialNachaLayout.OutboundOriginalProfileCode,
+            ProfileCode = AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode,
             FlowType = "Outgoing",
             ExpectedFileName = "1234567.001.1",
             ExpectedGoldenFilePath = "fixtures/nacha-m/ACHCOL/valid/achcol-v32-minimal.nacha.b64",
@@ -898,7 +898,7 @@ public class NachaFunctionalValidationTests
         {
             ScenarioId = "CENIT-OUT-001",
             ClearingHouseCode = "CENIT",
-            ProfileCode = "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_0",
+            ProfileCode = CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode,
             FlowType = "Outgoing",
             ExpectedFileName = "8765432.001.1",
             ExpectedGoldenFilePath = "TestData/Nacha/CENIT/CENIT-OUT-001.ach",
@@ -1014,7 +1014,7 @@ public class NachaFunctionalValidationTests
 
         var publication = await context.HistConfigSnapshots.AsNoTracking().SingleAsync(row =>
             row.SnapshotType == "PUBLISH"
-            && row.Profile.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(publication.SnapshotJson);
         read.IsSupported.Should().BeTrue();
         read.Snapshot!.StandardEntryClassMappings!.Single(mapping => mapping.Term == "PAGOS")

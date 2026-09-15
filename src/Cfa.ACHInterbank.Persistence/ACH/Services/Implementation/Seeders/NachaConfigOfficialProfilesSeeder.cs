@@ -1,7 +1,11 @@
 using System.Text.Json;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
+using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
@@ -395,6 +399,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
             SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate));
 
+        await AuditHistoricalOrdinaryTransactionsAsync();
+        foreach (var successor in BuildTransactionCodeSuccessorSpecs())
+        {
+            await EnsureProfileAsync(successor);
+        }
+        await AssertTransactionCodeSuccessorCohortAsync();
+
         await _context.SaveChangesAsync();
 
         async Task EnsureProfileAsync(ProfileSpec spec)
@@ -412,17 +423,32 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     .ThenInclude(x => x.Fields)
                         .ThenInclude(x => x.Rules)
                 .FirstOrDefaultAsync(x => x.ProfileCode == spec.ProfileCode);
+            var predecessor = spec.SupersedesProfileCode is null
+                ? null
+                : await ResolveCutoverPredecessorAsync(spec, catalog, requirePublished: profile?.PublishedAt is null);
+            spec = spec with { ExpectedSupersedesProfileId = predecessor?.Id };
 
             if (profile?.PublishedAt is not null)
             {
-                if (!PublishedProfileMatchesSeed(profile, spec, catalog))
+                var comparisonSpec = ReconcileSupportedHistoricalPredecessor(profile, spec);
+                if (!PublishedProfileMatchesSeed(profile, comparisonSpec, catalog))
                 {
                     throw new InvalidOperationException(
                         $"OFFICIAL_PUBLISHED_PROFILE_CONFLICT: {spec.ProfileCode} v{spec.VersionMajor}.{spec.VersionMinor} differs from the authoritative seed. NEW PROFILE VERSION REQUIRED.");
                 }
 
+                if (spec.IsTransactionCodeAware)
+                {
+                    await EnsurePublishedSuccessorSnapshotMatchesSeedAsync(profile);
+                }
+
                 _context.ChangeTracker.Clear();
                 return;
+            }
+
+            if (spec.IsTransactionCodeAware)
+            {
+                await EnsureUniqueSuccessorSelectionIdentityAsync(profile?.Id, spec, catalog);
             }
 
             if (profile is null)
@@ -450,6 +476,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profile.StatusId = catalog.Statuses["BORRADOR"];
             profile.VersionMajor = spec.VersionMajor;
             profile.VersionMinor = spec.VersionMinor;
+            profile.SupersedesProfileId = predecessor?.Id;
             profile.PublishedAt = null;
             profile.PublishedBy = null;
             profile.RowVersion = BuildRowVersion(spec.Prefix);
@@ -486,6 +513,9 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             }
 
             var semanticRuleSetId = await EnsureServiceClassSemanticRuleSetAsync(spec.ClearingHouseCode, catalog);
+            var transactionCodeRuleSetId = spec.IsTransactionCodeAware
+                ? await EnsureTransactionCodeSemanticRuleSetAsync(spec.ClearingHouseCode, catalog)
+                : (int?)null;
             var expectedVariants = BuildExpectedVariants(spec);
             foreach (var recordCode in RecordCodes)
             {
@@ -512,6 +542,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     expectedVariants.Single(candidate => candidate.RecordCode == recordCode && candidate.IsDefault).Sequence,
                     defaultVariant!.Id,
                     semanticRuleSetId,
+                    transactionCodeRuleSetId,
                     catalog);
             }
 
@@ -584,6 +615,11 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             if (!snapshotRead.IsSupported)
             {
                 throw new InvalidOperationException($"OFFICIAL_PUBLICATION_SNAPSHOT_INVALID: {snapshotRead.Status}: {snapshotRead.Error}");
+            }
+            if (spec.IsTransactionCodeAware)
+            {
+                EnsureTransactionCodeBaselineParity(snapshotRead.Snapshot!);
+                await EnsureNoHistoricalTransactionCodeReassignmentAsync(snapshotRead.Snapshot!);
             }
 
             await using var publicationTransaction = _context.Database.IsRelational()
@@ -690,6 +726,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             int sequence,
             int layoutVariantId,
             int semanticRuleSetId,
+            int? transactionCodeRuleSetId,
             CatalogIds catalog)
         {
             var recordCodeId = catalog.RecordCodes[recordCode];
@@ -712,7 +749,12 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             profileRecord.MaxOccurs = null;
             profileRecord.SourceStrategy = "TABLE_DRIVEN";
             profileRecord.LayoutVariantId = layoutVariantId;
-            profileRecord.SemanticRuleSetId = recordCode == "5" ? semanticRuleSetId : null;
+            profileRecord.SemanticRuleSetId = recordCode switch
+            {
+                "5" => semanticRuleSetId,
+                "6" => transactionCodeRuleSetId,
+                _ => null
+            };
             profileRecord.UpdatedAt = AuditTimestamp;
             await _context.SaveChangesAsync();
         }
@@ -879,6 +921,286 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         return ruleSet.Id;
     }
 
+    private async Task<int> EnsureTransactionCodeSemanticRuleSetAsync(string clearingHouseCode, CatalogIds catalog)
+    {
+        var ruleSetCode = $"NACHA_{clearingHouseCode}_TRANSACTION_CODE_V1";
+        var ruleSet = await _context.CfgRuleSets
+            .Include(candidate => candidate.Rules)
+            .SingleOrDefaultAsync(candidate => candidate.RuleSetCode == ruleSetCode);
+        if (ruleSet is null)
+        {
+            ruleSet = new CfgRuleSet
+            {
+                RuleSetCode = ruleSetCode,
+                CreatedAt = AuditTimestamp
+            };
+            _context.CfgRuleSets.Add(ruleSet);
+        }
+        else if (await _context.CfgProfileRecords.AnyAsync(candidate =>
+                     candidate.SemanticRuleSetId == ruleSet.Id
+                     && candidate.Profile.PublishedAt != null))
+        {
+            if (!TransactionCodeRuleSetMatchesSeed(ruleSet, clearingHouseCode, catalog))
+            {
+                throw new InvalidOperationException(
+                    $"OFFICIAL_PUBLISHED_TRANSACTION_CODE_RULE_SET_CONFLICT: {ruleSetCode} is referenced by a PUBLICADO profile and differs from the baseline. NEW PROFILE VERSION REQUIRED.");
+            }
+
+            return ruleSet.Id;
+        }
+
+        ruleSet.NameEs = $"Contrato de códigos de transacción {clearingHouseCode}";
+        ruleSet.Description = "Contrato semántico T6 publicado para las 12 tuplas ordinarias soportadas.";
+        ruleSet.Scope = NachaTransactionCodeSemanticMetadata.RequiredScope;
+        ruleSet.UpdatedAt = AuditTimestamp;
+        await _context.SaveChangesAsync();
+
+        var declarations = NachaTransactionCodeTaxonomy.GetSupportedOrdinaryRules();
+        for (var index = 0; index < declarations.Count; index++)
+        {
+            var declaration = declarations[index];
+            var ruleCode = NachaTransactionCodeSemanticMetadata.RuleCodePrefix + declaration.TransactionCode;
+            var rule = ruleSet.Rules.SingleOrDefault(candidate => candidate.RuleCode == ruleCode);
+            if (rule is null)
+            {
+                rule = new CfgRuleSetRule
+                {
+                    RuleSetId = ruleSet.Id,
+                    RuleCode = ruleCode,
+                    CreatedAt = AuditTimestamp
+                };
+                _context.CfgRuleSetRules.Add(rule);
+            }
+
+            rule.RuleTypeId = catalog.RuleTypes[NachaTransactionCodeSemanticMetadata.RequiredRuleType];
+            rule.ConditionDsl = null;
+            rule.RuleConfigJson = BuildTransactionCodeRuleConfig(declaration);
+            rule.ErrorCode = "NACHA_TRANSACTION_CODE_SEMANTIC_MISMATCH";
+            rule.ErrorMessageEs = "El código de transacción no corresponde a la semántica ordinaria declarada.";
+            rule.Order = (index + 1) * 10;
+            rule.UpdatedAt = AuditTimestamp;
+        }
+
+        await _context.SaveChangesAsync();
+        return ruleSet.Id;
+    }
+
+    private async Task<CfgProfile> ResolveCutoverPredecessorAsync(
+        ProfileSpec successor,
+        CatalogIds catalog,
+        bool requirePublished)
+    {
+        var predecessor = await _context.CfgProfiles
+            .AsNoTracking()
+            .Include(profile => profile.Status)
+            .Include(profile => profile.Tags)
+            .SingleOrDefaultAsync(profile => profile.ProfileCode == successor.SupersedesProfileCode)
+            ?? throw new InvalidOperationException($"TXCODE_PREDECESSOR_MISSING: {successor.SupersedesProfileCode}.");
+        var supported = successor.AcceptedPredecessorVersions?.Contains(
+            new ProfileVersion(predecessor.VersionMajor, predecessor.VersionMinor)) == true;
+        var normativeSource = predecessor.Tags.SingleOrDefault(tag =>
+            string.Equals(tag.TagKey, "NormativeSource", StringComparison.OrdinalIgnoreCase))?.TagValue;
+        var normativeVersion = predecessor.Tags.SingleOrDefault(tag =>
+            string.Equals(tag.TagKey, "NormativeVersion", StringComparison.OrdinalIgnoreCase))?.TagValue;
+        if (!supported
+            || (requirePublished && !string.Equals(predecessor.Status.Code, "PUBLICADO", StringComparison.OrdinalIgnoreCase))
+            || (requirePublished && !predecessor.PublishedAt.HasValue)
+            || predecessor.ClearingHouseId != catalog.ClearingHouses[successor.ClearingHouseCode]
+            || predecessor.FlowTypeId != catalog.FlowTypes[successor.FlowTypeCode]
+            || predecessor.DirectionId != catalog.Directions[successor.DirectionCode]
+            || predecessor.ServiceClassId != (successor.ServiceClassCode is null ? null : catalog.ServiceClasses[successor.ServiceClassCode])
+            || !string.Equals(normativeSource, successor.NormativeSource, StringComparison.Ordinal)
+            || !string.Equals(normativeVersion, successor.NormativeVersion, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"TXCODE_PREDECESSOR_UNSUPPORTED: {successor.SupersedesProfileCode} v{predecessor.VersionMajor}.{predecessor.VersionMinor}.");
+        }
+
+        return predecessor;
+    }
+
+    private async Task EnsureUniqueSuccessorSelectionIdentityAsync(int? currentProfileId, ProfileSpec spec, CatalogIds catalog)
+    {
+        int? serviceClassId = spec.ServiceClassCode is null ? null : catalog.ServiceClasses[spec.ServiceClassCode];
+        var conflict = await _context.CfgProfiles.AsNoTracking().AnyAsync(profile =>
+            profile.Id != currentProfileId
+            && profile.ClearingHouseId == catalog.ClearingHouses[spec.ClearingHouseCode]
+            && profile.FlowTypeId == catalog.FlowTypes[spec.FlowTypeCode]
+            && profile.DirectionId == catalog.Directions[spec.DirectionCode]
+            && profile.ServiceClassId == serviceClassId
+            && profile.VersionMajor == spec.VersionMajor
+            && profile.VersionMinor == spec.VersionMinor);
+        if (conflict)
+        {
+            throw new InvalidOperationException(
+                $"TXCODE_SUCCESSOR_SELECTION_IDENTITY_CONFLICT: {spec.ClearingHouseCode}/{spec.FlowTypeCode}/{spec.DirectionCode}/{spec.ServiceClassCode ?? "*"} v{spec.VersionMajor}.{spec.VersionMinor}.");
+        }
+    }
+
+    private async Task EnsurePublishedSuccessorSnapshotMatchesSeedAsync(CfgProfile profile)
+    {
+        var complete = await NachaCompleteProfileQuery.Create(_context).AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == profile.Id);
+        var snapshots = await _context.HistConfigSnapshots.AsNoTracking()
+            .Where(snapshot => snapshot.ProfileId == profile.Id && snapshot.SnapshotType == "PUBLISH")
+            .ToArrayAsync();
+        if (snapshots.Length != 1
+            || snapshots[0].VersionMajor != profile.VersionMajor
+            || snapshots[0].VersionMinor != profile.VersionMinor
+            || !profile.PublishedAt.HasValue
+            || string.IsNullOrWhiteSpace(profile.PublishedBy))
+        {
+            throw new InvalidOperationException($"TXCODE_SUCCESSOR_PUBLISH_SNAPSHOT_CONFLICT: {profile.ProfileCode}.");
+        }
+
+        var publishedAtUtc = profile.PublishedAt.Value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(profile.PublishedAt.Value, DateTimeKind.Utc)
+            : profile.PublishedAt.Value.ToUniversalTime();
+        var expected = NachaPublicationSnapshotSerializer.Serialize(
+            NachaPublicationSnapshotSerializer.Build(
+                complete,
+                profile.VersionMajor,
+                profile.VersionMinor,
+                publishedAtUtc,
+                profile.PublishedBy,
+                await _context.CompanyEntryDescriptionCatalogs.AsNoTracking().ToListAsync()));
+        if (!string.Equals(snapshots[0].SnapshotJson, expected, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"TXCODE_SUCCESSOR_PUBLISH_SNAPSHOT_CONFLICT: {profile.ProfileCode}.");
+        }
+    }
+
+    private async Task EnsureNoHistoricalTransactionCodeReassignmentAsync(NachaPublicationSnapshot candidate)
+    {
+        var candidateMetadata = NachaTransactionCodeSemanticMetadata.Resolve(candidate.Records);
+        if (candidateMetadata.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved)
+        {
+            throw new InvalidOperationException($"TXCODE_SUCCESSOR_CONTRACT_INVALID: {candidateMetadata.ErrorCode}: {candidateMetadata.Error}");
+        }
+
+        var chamberId = await _context.CatClearingHouses
+            .Where(chamber => chamber.Code == candidate.Profile.ClearingHouseCode)
+            .Select(chamber => chamber.Id)
+            .SingleAsync();
+        var history = await _context.HistConfigSnapshots.AsNoTracking()
+            .Where(snapshot => snapshot.SnapshotType == "PUBLISH"
+                               && snapshot.Profile.ClearingHouseId == chamberId)
+            .Select(snapshot => snapshot.SnapshotJson)
+            .ToArrayAsync();
+        foreach (var json in history)
+        {
+            var read = NachaPublicationSnapshotSerializer.Read(json);
+            if (!read.IsSupported || read.Snapshot is null)
+            {
+                continue;
+            }
+            var previousMetadata = NachaTransactionCodeSemanticMetadata.Resolve(read.Snapshot.Records);
+            if (previousMetadata.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved)
+            {
+                continue;
+            }
+
+            foreach (var previous in previousMetadata.Contract!.Rules)
+            {
+                if (candidateMetadata.Contract!.TryGetRule(previous.TransactionCode, out var current)
+                    && current != previous)
+                {
+                    throw new InvalidOperationException(
+                        $"HISTORICAL_TRANSACTION_CODE_REASSIGNMENT: {candidate.Profile.ClearingHouseCode}/{previous.TransactionCode}.");
+                }
+            }
+        }
+    }
+
+    private static void EnsureTransactionCodeBaselineParity(NachaPublicationSnapshot snapshot)
+    {
+        var metadata = NachaTransactionCodeSemanticMetadata.Resolve(snapshot.Records);
+        if (metadata.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved)
+        {
+            throw new InvalidOperationException($"TXCODE_BASELINE_INVALID: {metadata.ErrorCode}: {metadata.Error}");
+        }
+
+        var expected = NachaTransactionCodeTaxonomy.GetSupportedOrdinaryRules();
+        if (metadata.Contract!.Rules.OrderBy(rule => rule.TransactionCode)
+            .SequenceEqual(expected.OrderBy(rule => rule.TransactionCode)) == false)
+        {
+            throw new InvalidOperationException($"TXCODE_BASELINE_PARITY_MISMATCH: {snapshot.Profile.ProfileCode}.");
+        }
+    }
+
+    private async Task AuditHistoricalOrdinaryTransactionsAsync()
+    {
+        var contract = new NachaTransactionCodeSemanticContract(NachaTransactionCodeTaxonomy.GetSupportedOrdinaryRules());
+        var transactions = await _context.AchTransactions.AsNoTracking()
+            .Include(transaction => transaction.AchCycle)
+                .ThenInclude(cycle => cycle!.ClearingHouse)
+            .Where(transaction => transaction.Direction == AchTransactionDirection.Outgoing
+                                  && NachaExportEligibility.ExportableStates.Contains(transaction.State)
+                                  && (transaction.Type == TransactionTypeEnum.Credit
+                                      || transaction.Type == TransactionTypeEnum.Debit
+                                      || transaction.Type == TransactionTypeEnum.Prenotification)
+                                  && (transaction.AchCycle.ClearingHouse!.Code == RegulatoryCycleScheduleCatalog.AchColombiaCode
+                                      || transaction.AchCycle.ClearingHouse.Code == RegulatoryCycleScheduleCatalog.CenitCode))
+            .ToArrayAsync();
+        foreach (var transaction in transactions)
+        {
+            if (!contract.TryGetRule(transaction.TransactionCode, out var semantic))
+            {
+                throw new InvalidOperationException($"HISTORICAL_ORDINARY_TXCODE_UNKNOWN: TransactionId={transaction.Id}.");
+            }
+            if (semantic.IsPrenotification != transaction.IsPrenotification
+                || (transaction.Type == TransactionTypeEnum.Prenotification && !transaction.IsPrenotification))
+            {
+                throw new InvalidOperationException($"HISTORICAL_ORDINARY_TXCODE_PRENOTE_MISMATCH: TransactionId={transaction.Id}.");
+            }
+
+            var persistedDirection = transaction.Type switch
+            {
+                TransactionTypeEnum.Credit => NachaEntryDirection.Credit,
+                TransactionTypeEnum.Debit => NachaEntryDirection.Debit,
+                _ => (NachaEntryDirection?)null
+            };
+            if (persistedDirection.HasValue && persistedDirection.Value != semantic.Direction)
+            {
+                throw new InvalidOperationException($"HISTORICAL_ORDINARY_TXCODE_DIRECTION_MISMATCH: TransactionId={transaction.Id}.");
+            }
+        }
+    }
+
+    private async Task AssertTransactionCodeSuccessorCohortAsync()
+    {
+        var expectedCodes = BuildTransactionCodeSuccessorSpecs()
+            .Select(spec => spec.ProfileCode)
+            .ToArray();
+        var profiles = await NachaCompleteProfileQuery.Create(_context).AsNoTracking()
+            .Where(profile => expectedCodes.Contains(profile.ProfileCode))
+            .ToArrayAsync();
+        if (profiles.Length != expectedCodes.Length
+            || profiles.Any(profile => !string.Equals(profile.Status.Code, "PUBLICADO", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("TXCODE_SUCCESSOR_COHORT_INCOMPLETE.");
+        }
+
+        foreach (var profile in profiles)
+        {
+            var snapshot = await _context.HistConfigSnapshots.AsNoTracking()
+                .SingleOrDefaultAsync(row => row.ProfileId == profile.Id
+                                             && row.VersionMajor == profile.VersionMajor
+                                             && row.VersionMinor == profile.VersionMinor
+                                             && row.SnapshotType == "PUBLISH");
+            if (snapshot is null)
+            {
+                throw new InvalidOperationException($"TXCODE_SUCCESSOR_COHORT_INCOMPLETE: {profile.ProfileCode}.");
+            }
+            var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshot.SnapshotJson);
+            if (!read.IsSupported || read.Snapshot is null)
+            {
+                throw new InvalidOperationException($"TXCODE_SUCCESSOR_COHORT_INVALID: {profile.ProfileCode}: {read.Error}");
+            }
+            EnsureTransactionCodeBaselineParity(read.Snapshot);
+        }
+    }
+
     private async Task<CatalogIds> LoadCatalogAsync()
     {
         return new CatalogIds(
@@ -943,6 +1265,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
     {
         if (profile.VersionMajor != spec.VersionMajor
             || profile.VersionMinor != spec.VersionMinor
+            || profile.SupersedesProfileId != spec.ExpectedSupersedesProfileId
             || profile.ClearingHouseId != catalog.ClearingHouses[spec.ClearingHouseCode]
             || profile.FlowTypeId != catalog.FlowTypes[spec.FlowTypeCode]
             || profile.DirectionId != catalog.Directions[spec.DirectionCode]
@@ -1052,6 +1375,16 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             return false;
         }
 
+        var transactionCodeRuleSet = profile.Records
+            .SingleOrDefault(record => record.RecordCodeId == catalog.RecordCodes["6"])
+            ?.SemanticRuleSet;
+        if (spec.IsTransactionCodeAware != (transactionCodeRuleSet is not null)
+            || (transactionCodeRuleSet is not null
+                && !TransactionCodeRuleSetMatchesSeed(transactionCodeRuleSet, spec.ClearingHouseCode, catalog)))
+        {
+            return false;
+        }
+
         var sequence = 10;
         foreach (var recordCode in RecordCodes)
         {
@@ -1066,7 +1399,12 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 || record.MaxOccurs is not null
                 || record.SourceStrategy != "TABLE_DRIVEN"
                 || record.LayoutVariantId != actualVariant.Id
-                || record.SemanticRuleSetId != (recordCode == "5" ? semanticRuleSet.Id : null))
+                || record.SemanticRuleSetId != (recordCode switch
+                {
+                    "5" => semanticRuleSet.Id,
+                    "6" => transactionCodeRuleSet?.Id,
+                    _ => null
+                }))
             {
                 return false;
             }
@@ -1136,6 +1474,59 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         }
 
         return true;
+    }
+
+    private static bool TransactionCodeRuleSetMatchesSeed(CfgRuleSet ruleSet, string clearingHouseCode, CatalogIds catalog)
+    {
+        var declarations = NachaTransactionCodeTaxonomy.GetSupportedOrdinaryRules();
+        if (ruleSet.RuleSetCode != $"NACHA_{clearingHouseCode}_TRANSACTION_CODE_V1"
+            || ruleSet.NameEs != $"Contrato de códigos de transacción {clearingHouseCode}"
+            || ruleSet.Description != "Contrato semántico T6 publicado para las 12 tuplas ordinarias soportadas."
+            || ruleSet.Scope != NachaTransactionCodeSemanticMetadata.RequiredScope
+            || ruleSet.Rules.Count != declarations.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < declarations.Count; index++)
+        {
+            var declaration = declarations[index];
+            var rule = ruleSet.Rules.SingleOrDefault(candidate =>
+                candidate.RuleCode == NachaTransactionCodeSemanticMetadata.RuleCodePrefix + declaration.TransactionCode);
+            if (rule is null
+                || rule.RuleTypeId != catalog.RuleTypes[NachaTransactionCodeSemanticMetadata.RequiredRuleType]
+                || rule.ConditionDsl is not null
+                || rule.RuleConfigJson != BuildTransactionCodeRuleConfig(declaration)
+                || rule.ErrorCode != "NACHA_TRANSACTION_CODE_SEMANTIC_MISMATCH"
+                || rule.ErrorMessageEs != "El código de transacción no corresponde a la semántica ordinaria declarada."
+                || rule.Order != (index + 1) * 10)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string BuildTransactionCodeRuleConfig(NachaTransactionCodeSemanticRule rule)
+        => JsonSerializer.Serialize(new
+        {
+            transactionCode = rule.TransactionCode,
+            direction = rule.Direction.ToString().ToUpperInvariant(),
+            accountType = rule.AccountType.ToString(),
+            isPrenotification = rule.IsPrenotification
+        });
+
+    private static ProfileSpec ReconcileSupportedHistoricalPredecessor(CfgProfile profile, ProfileSpec spec)
+    {
+        var ordinary = string.Equals(spec.ProfileCode, CenitOrdinaryOutbound2026Layout.OriginalProfileCode, StringComparison.Ordinal)
+                       || string.Equals(spec.ProfileCode, CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode, StringComparison.Ordinal);
+        var ctx = string.Equals(spec.ProfileCode, CenitCtxOutbound2026Layout.OriginalProfileCode, StringComparison.Ordinal)
+                  || string.Equals(spec.ProfileCode, CenitCtxOutbound2026Layout.PrenotificationProfileCode, StringComparison.Ordinal);
+        var accepted = profile.VersionMajor == 1
+                       && ((ordinary && profile.VersionMinor is 0 or 1)
+                           || (ctx && profile.VersionMinor == 1));
+        return accepted ? spec with { VersionMinor = profile.VersionMinor } : spec;
     }
 
     private static string BuildSemanticRuleConfig(string serviceClassCode, IReadOnlyList<string> allowedDirections)
@@ -1390,11 +1781,15 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
            || string.Equals(profile.ProfileCode, CenitReturnOfReturn2026Layout.OutProfileCode, StringComparison.Ordinal);
 
     private static bool IsCenitOrdinaryOutbound2026(ProfileSpec profile)
-        => CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode)
+        => (CenitOrdinaryOutbound2026Layout.IsProfile(profile.ProfileCode)
+            || string.Equals(profile.ProfileCode, CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, StringComparison.Ordinal)
+            || string.Equals(profile.ProfileCode, CenitOrdinaryOutbound2026Layout.TxCodeAwarePrenotificationProfileCode, StringComparison.Ordinal))
            && string.Equals(profile.NormativeVersion, CenitOrdinaryOutbound2026Layout.NormativeVersion, StringComparison.Ordinal);
 
     private static bool IsCenitCtxOutbound2026(ProfileSpec profile)
-        => CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode)
+        => (CenitCtxOutbound2026Layout.IsProfile(profile.ProfileCode)
+            || string.Equals(profile.ProfileCode, CenitCtxOutbound2026Layout.TxCodeAwareOriginalProfileCode, StringComparison.Ordinal)
+            || string.Equals(profile.ProfileCode, CenitCtxOutbound2026Layout.TxCodeAwarePrenotificationProfileCode, StringComparison.Ordinal))
            && string.Equals(profile.NormativeVersion, CenitCtxOutbound2026Layout.NormativeVersion, StringComparison.Ordinal);
 
     private static bool IsCenitOrdinaryInbound2026(ProfileSpec profile)
@@ -1853,6 +2248,153 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         return new FieldSpec(code, code, start, length, ' ', 'L', null, "EXPRESION", null, null, null, expression, null);
     }
 
+    private static IReadOnlyList<ProfileSpec> BuildTransactionCodeSuccessorSpecs()
+        =>
+        [
+            new(
+                ProfileCode: AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode,
+                Name: "Perfil oficial ACH Colombia V35 salida original",
+                Description: "Perfil ordinario table-driven ACH Colombia V35 para créditos y débitos monetarios de salida.",
+                ClearingHouseCode: "ACH",
+                FlowTypeCode: "ORIGINAL",
+                NormativeSource: "DDS-DIS-MAN-004, ACH Colombia Manual de Servicio V35, secciones 6.4 y 6.5",
+                NormativeVersion: AchColOfficialNachaLayout.NormativeVersion,
+                ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.4-6.5",
+                IsPlaceholder: false,
+                IsHomologated: false,
+                RoutingOrigin: "000128300",
+                RoutingDestination: "000101006",
+                ImmediateDestinationName: "ACH COLOMBIA",
+                ImmediateOriginName: "CFA UAT",
+                Prefix: "ACH_ORIGINAL_V35",
+                VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
+                VersionMinor: AchColOfficialNachaLayout.TxCodeAwareProfileVersionMinor,
+                OutboundPolicy: BuildAchColombiaOutboundBatchNumberPolicy(AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode),
+                SupersedesProfileCode: AchColOfficialNachaLayout.OutboundOriginalProfileCode,
+                AcceptedPredecessorVersions: [new(35, 0)],
+                IsTransactionCodeAware: true),
+            new(
+                ProfileCode: AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode,
+                Name: "Perfil oficial ACH Colombia V35 salida prenotificación",
+                Description: "Perfil ordinario table-driven ACH Colombia V35 para prenotificaciones crédito y débito de salida.",
+                ClearingHouseCode: "ACH",
+                FlowTypeCode: "PRENOTIFICACION",
+                NormativeSource: "DDS-DIS-MAN-004, ACH Colombia Manual de Servicio V35, secciones 6.4 y 6.5",
+                NormativeVersion: AchColOfficialNachaLayout.NormativeVersion,
+                ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.4-6.5",
+                IsPlaceholder: false,
+                IsHomologated: false,
+                RoutingOrigin: "000128300",
+                RoutingDestination: "000101006",
+                ImmediateDestinationName: "ACH COLOMBIA",
+                ImmediateOriginName: "CFA UAT",
+                Prefix: "ACH_PRENOTE_V35",
+                VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
+                VersionMinor: AchColOfficialNachaLayout.TxCodeAwareProfileVersionMinor,
+                OutboundPolicy: BuildAchColombiaOutboundBatchNumberPolicy(AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode),
+                SupersedesProfileCode: AchColOfficialNachaLayout.OutboundPrenotificationProfileCode,
+                AcceptedPredecessorVersions: [new(35, 0)],
+                IsTransactionCodeAware: true),
+            new(
+                ProfileCode: CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode,
+                Name: "Perfil oficial CENIT salida original mayo 2026",
+                Description: "Perfil ordinario table-driven CENIT para PPD/CCD conforme al formato NACHA-M del 07-may-2026; homologacion externa pendiente.",
+                ClearingHouseCode: "CENIT",
+                FlowTypeCode: "ORIGINAL",
+                NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+                NormativeVersion: CenitOrdinaryOutbound2026Layout.NormativeVersion,
+                ApprovedRuleMatrix: "6.1;6.2;7.1.1;Anexo 1.1-1.3;Anexo 1.5;Anexo 1.8-1.9",
+                IsPlaceholder: false,
+                IsHomologated: false,
+                RoutingOrigin: "01111111",
+                RoutingDestination: "02222222",
+                ImmediateDestinationName: "CENIT",
+                ImmediateOriginName: "CFA UAT",
+                Prefix: "CENIT_ORDINARY_OUT_2026",
+                VersionMajor: 1,
+                VersionMinor: 2,
+                EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+                SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
+                OutboundPolicy: BuildCenitOrdinaryOutboundPolicy(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode),
+                SupersedesProfileCode: CenitOrdinaryOutbound2026Layout.OriginalProfileCode,
+                AcceptedPredecessorVersions: [new(1, 0), new(1, 1)],
+                IsTransactionCodeAware: true),
+            new(
+                ProfileCode: CenitOrdinaryOutbound2026Layout.TxCodeAwarePrenotificationProfileCode,
+                Name: "Perfil oficial CENIT salida prenotificacion mayo 2026",
+                Description: "Perfil table-driven para prenotificaciones PPD/CCD CENIT conforme al formato NACHA-M del 07-may-2026; homologacion externa pendiente.",
+                ClearingHouseCode: "CENIT",
+                FlowTypeCode: "PRENOTIFICACION",
+                NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+                NormativeVersion: CenitOrdinaryOutbound2026Layout.NormativeVersion,
+                ApprovedRuleMatrix: "6.1;6.2;7.1.1;Anexo 1.1-1.3;Anexo 1.5;Anexo 1.8-1.9",
+                IsPlaceholder: false,
+                IsHomologated: false,
+                RoutingOrigin: "01111111",
+                RoutingDestination: "02222222",
+                ImmediateDestinationName: "CENIT",
+                ImmediateOriginName: "CFA UAT",
+                Prefix: "CENIT_ORDINARY_PRENOTE_OUT_2026",
+                VersionMajor: 1,
+                VersionMinor: 2,
+                EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+                SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
+                OutboundPolicy: BuildCenitOrdinaryOutboundPolicy(CenitOrdinaryOutbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+                SupersedesProfileCode: CenitOrdinaryOutbound2026Layout.PrenotificationProfileCode,
+                AcceptedPredecessorVersions: [new(1, 0), new(1, 1)],
+                IsTransactionCodeAware: true),
+            new(
+                ProfileCode: CenitCtxOutbound2026Layout.TxCodeAwareOriginalProfileCode,
+                Name: "Perfil oficial CENIT CTX salida original mayo 2026",
+                Description: "Perfil CTX table-driven CENIT conforme al formato NACHA-M del 07-may-2026; homologacion externa pendiente.",
+                ClearingHouseCode: "CENIT",
+                FlowTypeCode: "ORIGINAL",
+                NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+                NormativeVersion: CenitCtxOutbound2026Layout.NormativeVersion,
+                ApprovedRuleMatrix: "3.2;5.1;5.2;6.2;Anexo 1.2;Anexo 1.4-1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+                IsPlaceholder: false,
+                IsHomologated: false,
+                RoutingOrigin: "01111111",
+                RoutingDestination: "02222222",
+                ImmediateDestinationName: "CENIT",
+                ImmediateOriginName: "CFA UAT",
+                Prefix: "CENIT_CTX_OUT_2026",
+                ServiceClassCode: "CTX",
+                VersionMajor: 1,
+                VersionMinor: 2,
+                EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+                SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
+                OutboundPolicy: BuildCenitCtxOutboundPolicy(CenitCtxOutbound2026Layout.TxCodeAwareOriginalProfileCode),
+                SupersedesProfileCode: CenitCtxOutbound2026Layout.OriginalProfileCode,
+                AcceptedPredecessorVersions: [new(1, 1)],
+                IsTransactionCodeAware: true),
+            new(
+                ProfileCode: CenitCtxOutbound2026Layout.TxCodeAwarePrenotificationProfileCode,
+                Name: "Perfil oficial CENIT CTX salida prenotificacion mayo 2026",
+                Description: "Perfil CTX table-driven para prenotificaciones CENIT conforme al formato NACHA-M del 07-may-2026; homologacion externa pendiente.",
+                ClearingHouseCode: "CENIT",
+                FlowTypeCode: "PRENOTIFICACION",
+                NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+                NormativeVersion: CenitCtxOutbound2026Layout.NormativeVersion,
+                ApprovedRuleMatrix: "3.2;5.1;5.2;6.2;Anexo 1.2;Anexo 1.4-1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+                IsPlaceholder: false,
+                IsHomologated: false,
+                RoutingOrigin: "01111111",
+                RoutingDestination: "02222222",
+                ImmediateDestinationName: "CENIT",
+                ImmediateOriginName: "CFA UAT",
+                Prefix: "CENIT_CTX_PRENOTE_OUT_2026",
+                ServiceClassCode: "CTX",
+                VersionMajor: 1,
+                VersionMinor: 2,
+                EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+                SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
+                OutboundPolicy: BuildCenitCtxOutboundPolicy(CenitCtxOutbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+                SupersedesProfileCode: CenitCtxOutbound2026Layout.PrenotificationProfileCode,
+                AcceptedPredecessorVersions: [new(1, 1)],
+                IsTransactionCodeAware: true)
+        ];
+
     private sealed record ProfileSpec(
         string ProfileCode,
         string Name,
@@ -1876,7 +2418,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         string? ServiceClassCode = null,
         DateTime? EffectiveFromOverride = null,
         NachaSettlementPolicy SettlementPolicy = NachaSettlementPolicy.SettlementDate,
-        NachaOutboundPartitionPolicy? OutboundPolicy = null);
+        NachaOutboundPartitionPolicy? OutboundPolicy = null,
+        string? SupersedesProfileCode = null,
+        IReadOnlyList<ProfileVersion>? AcceptedPredecessorVersions = null,
+        bool IsTransactionCodeAware = false,
+        int? ExpectedSupersedesProfileId = null);
+
+    private sealed record ProfileVersion(int Major, int Minor);
 
     private sealed record CatalogIds(
         IReadOnlyDictionary<string, int> ClearingHouses,

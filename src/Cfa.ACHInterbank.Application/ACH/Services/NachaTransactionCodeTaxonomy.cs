@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
+using Cfa.ACHInterbank.Application.ACH.Models;
 
 namespace Cfa.ACHInterbank.Application.ACH.Services;
 
@@ -36,6 +37,17 @@ public static class NachaTransactionCodeTaxonomy
         bool isPrenotification,
         out string code)
         => Codes.TryGetValue((type, account, isPrenotification), out code!);
+
+    public static IReadOnlyList<NachaTransactionCodeSemanticRule> GetSupportedOrdinaryRules()
+        => Codes
+            .Where(item => item.Key.Type is TransactionTypeEnum.Credit or TransactionTypeEnum.Debit)
+            .Select(item => new NachaTransactionCodeSemanticRule(
+                item.Key.Type == TransactionTypeEnum.Credit ? NachaEntryDirection.Credit : NachaEntryDirection.Debit,
+                item.Key.Account,
+                item.Key.IsPrenotification,
+                item.Value))
+            .OrderBy(item => item.TransactionCode, StringComparer.Ordinal)
+            .ToArray();
 
     public static TransactionTypeEnum? ResolvePrenotificationDirection(string? code)
     {
