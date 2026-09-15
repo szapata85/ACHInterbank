@@ -21,6 +21,7 @@ public class BatchResolver : IBatchResolver
     private readonly TimeProvider _timeProvider;
     private readonly IOperationalCycleWindowResolver _windowResolver;
     private readonly ICycleTransactionPolicy _cycleTransactionPolicy;
+    private readonly IOrdinaryTransactionCodeAuthority _transactionCodeAuthority;
 
     public BatchResolver(
         AchDbContext context,
@@ -28,7 +29,8 @@ public class BatchResolver : IBatchResolver
         IRoutingStrategyService routing,
         TimeProvider? timeProvider = null,
         IOperationalCycleWindowResolver? windowResolver = null,
-        ICycleTransactionPolicy? cycleTransactionPolicy = null)
+        ICycleTransactionPolicy? cycleTransactionPolicy = null,
+        IOrdinaryTransactionCodeAuthority? transactionCodeAuthority = null)
     {
         _context = context;
         _batchRepository = batchRepository;
@@ -39,6 +41,8 @@ public class BatchResolver : IBatchResolver
             new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver()),
             new ClearingHouseToPaymentRailMapper(),
             new CycleNumberResolver());
+        _transactionCodeAuthority = transactionCodeAuthority
+            ?? new OrdinaryTransactionCodeAuthority(new NachaConfigResolver(context));
     }
 
     public async Task<TransactionBatchContext> ResolveAsync(AchTransactionRequestData request, CancellationToken ct = default)
@@ -155,11 +159,25 @@ public class BatchResolver : IBatchResolver
         var companyEntryDescriptionCatalog = await _context.CompanyEntryDescriptionCatalogs
             .AsNoTracking()
             .Where(item => item.Id == request.CompanyEntryDescriptionId && item.IsActive)
-            .Select(item => new { item.Id, item.Term })
+            .Select(item => new { item.Id, item.Term, item.StandardEntryClassCode })
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("El concepto de lote seleccionado no existe o está inactivo.");
 
         string companyEntryDescription = companyEntryDescriptionCatalog.Term.Trim().ToUpperInvariant();
+        var clearingHouseCode = await NachaClearingHouseProfileCodeResolver.ResolveAsync(_context, cycle, ct);
+        var sourceServiceClassCode = companyEntryDescriptionCatalog.StandardEntryClassCode.Trim().ToUpperInvariant();
+        var resolvedTransactionCode = await _transactionCodeAuthority.ResolveAsync(
+            new OrdinaryTransactionCodeAuthorityContext(
+                clearingHouseCode,
+                cycle.ClearingHouseId,
+                cycle.CycleName ?? string.Empty,
+                cycle.ProcessingDate,
+                sourceServiceClassCode),
+            new OrdinaryTransactionCodeSemanticRequest(
+                request.Type,
+                request.AccountType,
+                request.IsPrenotification),
+            ct);
 
         var batch = await _batchRepository.FindForTransactionAsync(
             achCycleId,
@@ -188,6 +206,8 @@ public class BatchResolver : IBatchResolver
         {
             Batch = batch,
             AchCycleId = achCycleId,
+            ClearingHouseCode = clearingHouseCode,
+            CycleName = cycle.CycleName ?? string.Empty,
             EffectiveEntryDate = effectiveEntryDate,
             OriginatingDfi = originBase,
             ReceivingDfi = destinationBase,
@@ -197,6 +217,8 @@ public class BatchResolver : IBatchResolver
             CompanyEntryDescriptionId = companyEntryDescriptionCatalog.Id,
             ReturnSlaDeadlineAtUtc = await CalculateReturnSlaDeadlineAtUtcAsync(cycle, ct),
             ServiceClassCode = "200",
+            SourceServiceClassCode = sourceServiceClassCode,
+            ResolvedTransactionCode = resolvedTransactionCode,
             SourceInstitutionId = source.Id,
             SourceInstitutionIsDefault = source.IsDefaultSource,
             DestinationInstitutionId = dest.Id,

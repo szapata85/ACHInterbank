@@ -188,7 +188,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     [Theory]
     [InlineData("ACH Colombia", AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode)]
     [InlineData("CENIT", CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode)]
-    public async Task TxCodeAwareSuccessorSelection_ShouldPreserveOrdinaryBytes(
+    public async Task TxCodeAwareSuccessorSelection_ShouldRejectPredecessorWithoutAuthority(
         string clearingHouseName,
         string successorProfileCode)
     {
@@ -200,13 +200,16 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             .SingleAsync();
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, clearingHouseName);
-        var predecessorContent = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        var predecessorAct = () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        (await predecessorAct.Should().ThrowAsync<NachaGenerationException>())
+            .Which.Code.Should().Be("NACHA_TRANSACTION_CODE_CONTRACT_MISSING");
 
         successor.StatusId = publishedStatusId;
         await context.SaveChangesAsync();
         var successorContent = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
-        successorContent.Should().Be(predecessorContent);
+        successorContent.Should().NotBeNullOrWhiteSpace();
     }
 
     [Theory]
@@ -1106,6 +1109,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         transaction.Type = isPrenotification
             ? TransactionTypeEnum.Prenotification
             : businessType == "DEBIT" ? TransactionTypeEnum.Debit : TransactionTypeEnum.Credit;
+        transaction.IsPrenotification = isPrenotification;
         transaction.TransactionCode = transactionCode;
         transaction.Amount = isPrenotification ? 0m : 100m;
         transaction.AchBatch!.ServiceClassCode = businessType == "DEBIT" ? "225" : "220";
@@ -1151,6 +1155,58 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             type7.Substring(30, 24).Should().Be("FACTURA0001INFORMACIONLI");
             type7.Substring(56, 24).TrimEnd().Should().Be("BRE");
         }
+    }
+
+    [Fact]
+    public async Task OrdinaryGeneration_ShouldRejectUnknownPersistedCodeWithoutMutationOrRecomputation()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        var transaction = model.Transactions.Single();
+        transaction.TransactionCode = "99";
+        var setup = CreateOfficialSut(context, "ACH Colombia", model);
+
+        var act = () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        (await act.Should().ThrowAsync<NachaGenerationException>())
+            .Which.Code.Should().Be("NACHA_TRANSACTION_CODE_NOT_ACCEPTED");
+        transaction.TransactionCode.Should().Be("99");
+    }
+
+    [Fact]
+    public async Task OrdinaryGeneration_ShouldRejectLiteralPrenoteCodeWhenPersistedSemanticStateIsMonetary()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        var transaction = model.Transactions.Single();
+        transaction.Type = TransactionTypeEnum.Credit;
+        transaction.IsPrenotification = false;
+        transaction.TransactionCode = "23";
+        var setup = CreateOfficialSut(context, "ACH Colombia", model);
+
+        var act = () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        (await act.Should().ThrowAsync<NachaGenerationException>())
+            .Which.Code.Should().Be("NACHA_TRANSACTION_CODE_PRENOTE_MISMATCH");
+        transaction.TransactionCode.Should().Be("23");
+    }
+
+    [Fact]
+    public async Task OrdinaryGeneration_ShouldRejectPersistedDirectionMismatchWithoutMutation()
+    {
+        await using var context = await SeedAsync();
+        var model = BuildContext("ACH Colombia");
+        var transaction = model.Transactions.Single();
+        transaction.Type = TransactionTypeEnum.Credit;
+        transaction.IsPrenotification = false;
+        transaction.TransactionCode = "27";
+        var setup = CreateOfficialSut(context, "ACH Colombia", model);
+
+        var act = () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        (await act.Should().ThrowAsync<NachaGenerationException>())
+            .Which.Code.Should().Be("NACHA_TRANSACTION_CODE_DIRECTION_MISMATCH");
+        transaction.TransactionCode.Should().Be("27");
     }
 
     [Fact]
@@ -1395,6 +1451,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var model = BuildContext("ACH Colombia");
         var transaction = model.Transactions.Single();
         transaction.Type = TransactionTypeEnum.Prenotification;
+        transaction.IsPrenotification = true;
         transaction.TransactionCode = "23";
         transaction.Amount = 0m;
         transaction.Addendas =

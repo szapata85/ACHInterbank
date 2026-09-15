@@ -1497,7 +1497,20 @@ public class AchTransactionNachaTests
         var validator = new TransactionValidator(context);
         var achBatchRepository = new AchBatchRepository(context);
         var achTransactionRepository = new AchTransactionRepository(context);
-        var batchResolver = new BatchResolver(context, achBatchRepository, routing.Object, timeProvider: TestClock.Create());
+        var transactionCodeAuthority = new Mock<IOrdinaryTransactionCodeAuthority>();
+        transactionCodeAuthority
+            .Setup(authority => authority.ResolveAsync(
+                It.IsAny<OrdinaryTransactionCodeAuthorityContext>(),
+                It.IsAny<OrdinaryTransactionCodeSemanticRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OrdinaryTransactionCodeAuthorityContext _, OrdinaryTransactionCodeSemanticRequest semantic, CancellationToken _) =>
+                validator.ResolveTransactionCode(semantic.Type, semantic.AccountType, semantic.IsPrenotification));
+        var batchResolver = new BatchResolver(
+            context,
+            achBatchRepository,
+            routing.Object,
+            timeProvider: TestClock.Create(),
+            transactionCodeAuthority: transactionCodeAuthority.Object);
         var persister = new TransactionPersister(achTransactionRepository, achBatchRepository, validator);
         var customerRepo = new AchCustomerRepository(context);
         var thirdPartyRepo = new CustomerThirdPartyRepository(context);

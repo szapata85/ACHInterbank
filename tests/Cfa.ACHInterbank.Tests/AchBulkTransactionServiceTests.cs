@@ -181,6 +181,7 @@ public class AchBulkTransactionServiceTests
                 CompanyEntryDescriptionId = companyEntryDescriptionId,
                 ServiceClassCode = "200",
                 SourceInstitutionId = TestSourceInstitutionId,
+                SourceInstitutionIsDefault = true,
                 DestinationInstitutionId = TestDestinationInstitutionId
             });
 
@@ -224,7 +225,7 @@ public class AchBulkTransactionServiceTests
         {
             Amount = 1000 + i,
             Reference = $"{prefix}-{i:0000}",
-            Type = TransactionTypeEnum.Credit,
+            Type = TransactionTypeEnum.Debit,
             AccountType = AccountTypeEnum.Checking,
             IsPrenotification = false,
             DestinationInstitutionId = TestDestinationInstitutionId,

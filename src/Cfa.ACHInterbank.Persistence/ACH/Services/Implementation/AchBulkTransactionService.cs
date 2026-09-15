@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -28,6 +29,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
     private readonly IContrapartidaDispatchPersistenceService _contrapartidaDispatchPersistenceService;
     private readonly ICenitCycleQueueService? _cenitCycleQueueService;
     private readonly IAchRegulatoryCatalogService? _catalogService;
+    private readonly IAchTransactionClassificationPolicy _classificationPolicy;
 
     public AchBulkTransactionService(
         AchDbContext context,
@@ -41,7 +43,8 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         IContrapartidaDispatchPersistenceService contrapartidaDispatchPersistenceService,
         ICenitCycleQueueService? cenitCycleQueueService = null,
         IAchRegulatoryCatalogService? catalogService = null,
-        ITransactionPolicyService? transactionPolicyService = null)
+        ITransactionPolicyService? transactionPolicyService = null,
+        IAchTransactionClassificationPolicy? classificationPolicy = null)
     {
         _context = context;
         _unitOfWork = unitOfWork;
@@ -55,6 +58,7 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
         _cenitCycleQueueService = cenitCycleQueueService;
         _catalogService = catalogService;
         _transactionPolicyService = transactionPolicyService;
+        _classificationPolicy = classificationPolicy ?? new AchTransactionClassificationPolicy();
     }
 
     public async Task<BulkAchTransactionResponse> RegisterBulkAsync(BulkAchTransactionRequest request, CancellationToken ct = default)
@@ -151,6 +155,18 @@ public sealed class AchBulkTransactionService : IAchBulkTransactionService
                     await EnsureCustomerAndAccountsAsync(record.Data, customerCache, documentTypeByDefault, personTypeByDefault, ct);
 
                     var batchContext = await _batchResolver.ResolveAsync(record.Data, ct);
+                    var classification = _classificationPolicy.Classify(new AchTransactionClassificationRequest(
+                        record.Data.Type,
+                        record.Data.IsPrenotification,
+                        batchContext.SourceInstitutionIsDefault,
+                        batchContext.DestinationInstitutionIsDefault));
+                    if (!classification.CanCreate)
+                    {
+                        throw new InvalidOperationException(classification.RejectionMessage
+                            ?? "La combinación seleccionada no corresponde a un flujo ACH válido.");
+                    }
+
+                    batchContext = batchContext with { Classification = classification };
                     var persisted = await _transactionPersister.PersistAsync(record.Data, batchContext, ct);
 
                     if (batchContext.MustQueueForTargetCycle && _cenitCycleQueueService is not null)

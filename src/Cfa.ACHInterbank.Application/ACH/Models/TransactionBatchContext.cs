@@ -6,6 +6,8 @@ public record TransactionBatchContext
 {
     public AchBatch Batch { get; init; } = null!;
     public string AchCycleId { get; init; } = string.Empty;
+    public string ClearingHouseCode { get; init; } = string.Empty;
+    public string CycleName { get; init; } = string.Empty;
     public DateTime EffectiveEntryDate { get; init; }
     public string OriginatingDfi { get; init; } = string.Empty;
     public string ReceivingDfi { get; init; } = string.Empty;
@@ -15,6 +17,8 @@ public record TransactionBatchContext
     public int CompanyEntryDescriptionId { get; init; }
     public DateTime? ReturnSlaDeadlineAtUtc { get; init; }
     public string ServiceClassCode { get; init; } = "200";
+    public string SourceServiceClassCode { get; init; } = string.Empty;
+    public string ResolvedTransactionCode { get; init; } = string.Empty;
     public int SourceInstitutionId { get; init; }
     public bool SourceInstitutionIsDefault { get; init; }
     public int DestinationInstitutionId { get; init; }

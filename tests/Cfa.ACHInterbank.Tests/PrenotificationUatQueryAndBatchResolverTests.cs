@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Tests.TestSupport;
@@ -113,6 +114,7 @@ public class PrenotificationUatQueryAndBatchResolverTests
         context.ClearingHouseConfigs.Add(clearingHouseConfig);
         context.ClearingHouses.Add(clearingHouse);
         context.ClearingHouseCycleConfigs.Add(cycleConfig);
+        context.CatClearingHouses.Add(new CatClearingHouse { Code = "ACH", Name = "ACH Colombia", IsActive = true });
         context.AchCycles.Add(cycle);
         context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog { Id = 1, Term = "PAGOS PSE", IsActive = true });
         var defaultSource = new FinancialInstitution { Id = 34, Name = "Cooperativa Financiera de Antioquia", RoutingNumber = "00001", TransitCode = "283", IsDefaultSource = true, Status = FinancialInstitutionStatus.Active };
@@ -141,7 +143,19 @@ public class PrenotificationUatQueryAndBatchResolverTests
         var fixedClock = new FixedTimeProvider(
             new DateTimeOffset(2026, 8, 4, 22, 0, 0, TimeSpan.Zero),
             TimeZoneInfo.Utc);
-        var sut = new BatchResolver(context, batchRepository.Object, routing.Object, fixedClock);
+        var transactionCodeAuthority = new Mock<IOrdinaryTransactionCodeAuthority>();
+        transactionCodeAuthority
+            .Setup(authority => authority.ResolveAsync(
+                It.IsAny<OrdinaryTransactionCodeAuthorityContext>(),
+                It.IsAny<OrdinaryTransactionCodeSemanticRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("28");
+        var sut = new BatchResolver(
+            context,
+            batchRepository.Object,
+            routing.Object,
+            fixedClock,
+            transactionCodeAuthority: transactionCodeAuthority.Object);
         var request = new AchTransactionRequestData
         {
             Type = TransactionTypeEnum.Debit,
@@ -162,6 +176,14 @@ public class PrenotificationUatQueryAndBatchResolverTests
         Assert.Equal("cycle-five", result.AchCycleId);
         Assert.Equal(34, result.SourceInstitutionId);
         Assert.Equal(93, result.DestinationInstitutionId);
+        Assert.Equal("28", result.ResolvedTransactionCode);
+        transactionCodeAuthority.Verify(authority => authority.ResolveAsync(
+            It.IsAny<OrdinaryTransactionCodeAuthorityContext>(),
+            It.Is<OrdinaryTransactionCodeSemanticRequest>(semantic =>
+                semantic.Type == TransactionTypeEnum.Debit
+                && semantic.AccountType == AccountTypeEnum.Checking
+                && semantic.IsPrenotification),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static AchDbContext CreateContext()

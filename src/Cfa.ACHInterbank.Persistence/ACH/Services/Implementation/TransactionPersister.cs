@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -33,10 +34,10 @@ public class TransactionPersister : ITransactionPersister
             ? TransactionTypeEnum.Prenotification
             : request.Type;
 
-        var codeType = effectiveType == TransactionTypeEnum.Prenotification && request.Type != TransactionTypeEnum.Prenotification
-            ? request.Type
-            : effectiveType;
-        var transactionCode = _validator.ResolveTransactionCode(codeType, request.AccountType, request.IsPrenotification || effectiveType == TransactionTypeEnum.Prenotification);
+        var transactionCode = string.IsNullOrWhiteSpace(context.ResolvedTransactionCode)
+            ? throw new InvalidOperationException(
+                "ORDINARY_TXCODE_AUTHORITY_REQUIRED: la transacción ordinaria no puede persistirse sin un código resuelto desde publicaciones inmutables.")
+            : context.ResolvedTransactionCode.Trim();
 
         string traceOriginatingDfi = context.OriginatingDfi.Length >= 8
             ? context.OriginatingDfi[..8]
@@ -197,10 +198,7 @@ public class TransactionPersister : ITransactionPersister
             return;
         }
 
-        bool allCredits = transactions.All(t => t is TransactionTypeEnum.Credit or TransactionTypeEnum.Prenotification);
-        bool allDebits = transactions.All(t => t is TransactionTypeEnum.Debit or TransactionTypeEnum.Return or TransactionTypeEnum.Reversal);
-
-        string newCode = allCredits ? "220" : allDebits ? "225" : "200";
+        string newCode = AchBatchServiceClassPolicy.Resolve(transactions);
 
         if (batch.ServiceClassCode != newCode)
         {

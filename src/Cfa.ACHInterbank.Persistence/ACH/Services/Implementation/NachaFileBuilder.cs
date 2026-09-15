@@ -1164,6 +1164,7 @@ public class NachaFileBuilder : INachaFileBuilder
         var officialRecordCodes = new[] { "1", "5", "6", "7", "8", "9" };
         var clearingHouseCode = await ResolveClearingHouseCodeAsync(context, ct);
         var resolution = await ResolveOfficialRuntimeConfigAsync(context, clearingHouseCode, officialRecordCodes, ct);
+        ValidatePersistedTransactionCodes(context.Transactions, resolution);
         var lineLength = RequireOfficialLayout(resolution, "9").TotalLength;
         var batchNumberAssignment = await ResolveBatchNumberAssignmentAsync(
             orderedBatches,
@@ -1568,6 +1569,48 @@ public class NachaFileBuilder : INachaFileBuilder
         return records;
     }
 
+    private static void ValidatePersistedTransactionCodes(
+        IReadOnlyCollection<AchTransaction> transactions,
+        NachaConfigResolutionResult resolution)
+    {
+        var contract = resolution.TransactionCodeContract
+            ?? throw new NachaGenerationException(
+                "NACHA_TRANSACTION_CODE_CONTRACT_MISSING",
+                "La publicación seleccionada no contiene autoridad semántica TransactionCode para generación ordinaria.");
+
+        foreach (var transaction in transactions)
+        {
+            var persistedCode = transaction.TransactionCode?.Trim() ?? string.Empty;
+            if (!contract.TryGetRule(persistedCode, out var rule))
+            {
+                throw new NachaGenerationException(
+                    "NACHA_TRANSACTION_CODE_NOT_ACCEPTED",
+                    $"La publicación seleccionada no acepta el TransactionCode persistido de la transacción {transaction.Id}.");
+            }
+
+            if (rule.IsPrenotification != transaction.IsPrenotification
+                || (transaction.Type == TransactionTypeEnum.Prenotification && !transaction.IsPrenotification))
+            {
+                throw new NachaGenerationException(
+                    "NACHA_TRANSACTION_CODE_PRENOTE_MISMATCH",
+                    $"El TransactionCode persistido no coincide con el estado de prenotificación de la transacción {transaction.Id}.");
+            }
+
+            var persistedDirection = transaction.Type switch
+            {
+                TransactionTypeEnum.Credit => NachaEntryDirection.Credit,
+                TransactionTypeEnum.Debit => NachaEntryDirection.Debit,
+                _ => (NachaEntryDirection?)null
+            };
+            if (persistedDirection.HasValue && persistedDirection.Value != rule.Direction)
+            {
+                throw new NachaGenerationException(
+                    "NACHA_TRANSACTION_CODE_DIRECTION_MISMATCH",
+                    $"El TransactionCode persistido no coincide con la dirección de la transacción {transaction.Id}.");
+            }
+        }
+    }
+
     private static CfgLayoutVariant ResolveType7Layout(
         NachaConfigResolutionResult resolution,
         NachaType7RecordCandidate candidate)
@@ -1586,9 +1629,7 @@ public class NachaFileBuilder : INachaFileBuilder
                 expectedLength: 2);
         }
 
-        string[] prenotificationCodes = ["23", "28", "33", "38", "53", "57"];
-        var transactionCode = candidate.Transaction.TransactionCode?.Trim() ?? string.Empty;
-        var creditVariantCode = prenotificationCodes.Contains(transactionCode, StringComparer.Ordinal)
+        var creditVariantCode = candidate.Transaction.IsPrenotification
             ? AchColOfficialNachaLayout.Type7CreditPrenotificationVariant
             : AchColOfficialNachaLayout.Type7CreditMonetaryVariant;
         var variantCode = candidate.Addenda.BusinessType switch
@@ -2539,40 +2580,7 @@ public class NachaFileBuilder : INachaFileBuilder
     }
 
     private async Task<string> ResolveClearingHouseCodeAsync(NachaBuildContext context, CancellationToken ct)
-    {
-        var configuredProfileCode = await _context.ClearingHouseConfigs
-            .AsNoTracking()
-            .Where(x => x.ClearingHouseId == context.Cycle.ClearingHouseId && x.NachaProfileId != null)
-            .Select(x => x.NachaProfile!.ClearingHouse.Code)
-            .FirstOrDefaultAsync(ct);
-        if (!string.IsNullOrWhiteSpace(configuredProfileCode))
-        {
-            return configuredProfileCode;
-        }
-
-        var operationalCode = context.Cycle.ClearingHouse?.Code?.Trim();
-        var operationalName = context.Cycle.ClearingHouse?.Name?.Trim();
-        var candidates = await _context.CatClearingHouses
-            .AsNoTracking()
-            .Where(x => x.IsActive
-                        && ((!string.IsNullOrEmpty(operationalCode) && x.Code == operationalCode)
-                            || (!string.IsNullOrEmpty(operationalName) && x.Name == operationalName)))
-            .Select(x => x.Code)
-            .Distinct()
-            .Take(2)
-            .ToListAsync(ct);
-
-        if (candidates.Count == 1)
-        {
-            return candidates[0];
-        }
-
-        throw new NachaGenerationException(
-            candidates.Count == 0 ? "NACHA_CLEARING_HOUSE_PROFILE_NOT_CONFIGURED" : "NACHA_CLEARING_HOUSE_PROFILE_AMBIGUOUS",
-            candidates.Count == 0
-                ? "La cámara del ciclo no está asociada a un catálogo de perfiles NACHA-M."
-                : "La cámara del ciclo coincide con más de un catálogo de perfiles NACHA-M.");
-    }
+        => await NachaClearingHouseProfileCodeResolver.ResolveAsync(_context, context.Cycle, ct);
 
     private static CfgLayoutVariant RequireOfficialLayout(NachaConfigResolutionResult resolution, string recordCode)
     {

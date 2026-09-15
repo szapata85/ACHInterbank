@@ -1,4 +1,5 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Repositories;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
@@ -90,8 +91,19 @@ public class CenitOperationalGovernanceTests
         var routing = new Mock<IRoutingStrategyService>();
         routing.Setup(x => x.ResolveClearingHouseForTransactionAsync(2, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("cycle-1");
+        var transactionCodeAuthority = new Mock<IOrdinaryTransactionCodeAuthority>();
+        transactionCodeAuthority.Setup(x => x.ResolveAsync(
+                It.IsAny<OrdinaryTransactionCodeAuthorityContext>(),
+                It.IsAny<OrdinaryTransactionCodeSemanticRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("22");
 
-        var sut = new BatchResolver(context, batchRepo.Object, routing.Object, new FixedTimeProvider(fixedInstant, TimeZoneInfo.Utc));
+        var sut = new BatchResolver(
+            context,
+            batchRepo.Object,
+            routing.Object,
+            new FixedTimeProvider(fixedInstant, TimeZoneInfo.Utc),
+            transactionCodeAuthority: transactionCodeAuthority.Object);
         var result = await sut.ResolveAsync(new AchTransactionRequestData
         {
             Amount = 10,
