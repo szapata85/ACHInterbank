@@ -405,6 +405,11 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             await EnsureProfileAsync(successor);
         }
         await AssertTransactionCodeSuccessorCohortAsync();
+        foreach (var successor in BuildInboundTransactionCodeSuccessorSpecs())
+        {
+            await EnsureProfileAsync(successor);
+        }
+        await AssertInboundTransactionCodeSuccessorCohortAsync();
 
         await _context.SaveChangesAsync();
 
@@ -1168,8 +1173,18 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
     }
 
     private async Task AssertTransactionCodeSuccessorCohortAsync()
+        => await AssertTransactionCodeSuccessorCohortAsync(
+            BuildTransactionCodeSuccessorSpecs(), "TXCODE_SUCCESSOR");
+
+    private async Task AssertInboundTransactionCodeSuccessorCohortAsync()
+        => await AssertTransactionCodeSuccessorCohortAsync(
+            BuildInboundTransactionCodeSuccessorSpecs(), "INBOUND_TXCODE_SUCCESSOR");
+
+    private async Task AssertTransactionCodeSuccessorCohortAsync(
+        IReadOnlyList<ProfileSpec> specs,
+        string errorPrefix)
     {
-        var expectedCodes = BuildTransactionCodeSuccessorSpecs()
+        var expectedCodes = specs
             .Select(spec => spec.ProfileCode)
             .ToArray();
         var profiles = await NachaCompleteProfileQuery.Create(_context).AsNoTracking()
@@ -1178,7 +1193,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         if (profiles.Length != expectedCodes.Length
             || profiles.Any(profile => !string.Equals(profile.Status.Code, "PUBLICADO", StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidOperationException("TXCODE_SUCCESSOR_COHORT_INCOMPLETE.");
+            throw new InvalidOperationException($"{errorPrefix}_COHORT_INCOMPLETE.");
         }
 
         foreach (var profile in profiles)
@@ -1190,12 +1205,12 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                                              && row.SnapshotType == "PUBLISH");
             if (snapshot is null)
             {
-                throw new InvalidOperationException($"TXCODE_SUCCESSOR_COHORT_INCOMPLETE: {profile.ProfileCode}.");
+                throw new InvalidOperationException($"{errorPrefix}_COHORT_INCOMPLETE: {profile.ProfileCode}.");
             }
             var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshot.SnapshotJson);
             if (!read.IsSupported || read.Snapshot is null)
             {
-                throw new InvalidOperationException($"TXCODE_SUCCESSOR_COHORT_INVALID: {profile.ProfileCode}: {read.Error}");
+                throw new InvalidOperationException($"{errorPrefix}_COHORT_INVALID: {profile.ProfileCode}: {read.Error}");
             }
             EnsureTransactionCodeBaselineParity(read.Snapshot);
         }
@@ -2394,6 +2409,115 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 AcceptedPredecessorVersions: [new(1, 1)],
                 IsTransactionCodeAware: true)
         ];
+
+    private static IReadOnlyList<ProfileSpec> BuildInboundTransactionCodeSuccessorSpecs()
+        =>
+        [
+            AchInboundSuccessor(
+                AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode,
+                AchColOfficialNachaLayout.InboundOriginalProfileCode,
+                "ORIGINAL",
+                "Perfil oficial ACH Colombia V35 entrada original",
+                "Perfil ordinario table-driven ACH Colombia V35 para créditos y débitos monetarios de entrada.",
+                "ACH_IN_ORIGINAL_V35"),
+            AchInboundSuccessor(
+                AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode,
+                AchColOfficialNachaLayout.InboundPrenotificationProfileCode,
+                "PRENOTIFICACION",
+                "Perfil oficial ACH Colombia V35 entrada prenotificación",
+                "Perfil ordinario table-driven ACH Colombia V35 para prenotificaciones crédito y débito de entrada.",
+                "ACH_IN_PRENOTE_V35"),
+            CenitInboundSuccessor(
+                CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode,
+                CenitOrdinaryInbound2026Layout.OriginalProfileCode,
+                "ORIGINAL",
+                "Perfil oficial CENIT entrada original mayo 2026",
+                "Perfil ordinario table-driven CENIT para aplicación de transacciones PPD/CCD recibidas del Operador ACH.",
+                "3.1;5.1;6.2;7.3;7.3.1;Anexo 1.1-1.3;Anexo 1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+                "CENIT_ORDINARY_IN_2026"),
+            CenitInboundSuccessor(
+                CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode,
+                CenitOrdinaryInbound2026Layout.PrenotificationProfileCode,
+                "PRENOTIFICACION",
+                "Perfil oficial CENIT entrada prenotificacion mayo 2026",
+                "Perfil table-driven CENIT para aplicación de prenotificaciones PPD/CCD recibidas del Operador ACH.",
+                "3.1;5.1;6.2;7.3;7.3.1;Anexo 1.1-1.3;Anexo 1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+                "CENIT_ORDINARY_PRENOTE_IN_2026"),
+            CenitInboundSuccessor(
+                CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode,
+                CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode,
+                "ORIGINAL",
+                "Perfil oficial CENIT CTX entrada original mayo 2026",
+                "Perfil CTX table-driven CENIT para aplicación de transacciones recibidas del Operador ACH.",
+                "3.2;5.1;5.2;6.2;7.3;7.3.1;Anexo 1.1-1.2;Anexo 1.4-1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+                "CENIT_CTX_IN_2026",
+                "CTX"),
+            CenitInboundSuccessor(
+                CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode,
+                CenitOrdinaryInbound2026Layout.CtxPrenotificationProfileCode,
+                "PRENOTIFICACION",
+                "Perfil oficial CENIT CTX entrada prenotificacion mayo 2026",
+                "Perfil CTX table-driven CENIT para aplicación de prenotificaciones recibidas del Operador ACH.",
+                "3.2;5.1;5.2;6.2;7.3;7.3.1;Anexo 1.1-1.2;Anexo 1.4-1.5;Anexo 1.8-1.9;Anexo 2 Tablas 4-6,8-10",
+                "CENIT_CTX_PRENOTE_IN_2026",
+                "CTX")
+        ];
+
+    private static ProfileSpec AchInboundSuccessor(
+        string profileCode, string predecessorCode, string flowCode,
+        string name, string description, string prefix)
+        => new(
+            ProfileCode: profileCode,
+            Name: name,
+            Description: description,
+            ClearingHouseCode: "ACH",
+            FlowTypeCode: flowCode,
+            NormativeSource: "DDS-DIS-MAN-004, ACH Colombia Manual de Servicio V35, secciones 6.4 y 6.5",
+            NormativeVersion: AchColOfficialNachaLayout.NormativeVersion,
+            ApprovedRuleMatrix: "ACH-Colombia-V35.md#6.4-6.5",
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "000101006",
+            RoutingDestination: "000128300",
+            ImmediateDestinationName: "CFA UAT",
+            ImmediateOriginName: "ACH COLOMBIA",
+            Prefix: prefix,
+            DirectionCode: "ENTRADA",
+            VersionMajor: AchColOfficialNachaLayout.ProfileVersionMajor,
+            VersionMinor: AchColOfficialNachaLayout.TxCodeAwareProfileVersionMinor,
+            SupersedesProfileCode: predecessorCode,
+            AcceptedPredecessorVersions: [new(35, 0)],
+            IsTransactionCodeAware: true);
+
+    private static ProfileSpec CenitInboundSuccessor(
+        string profileCode, string predecessorCode, string flowCode,
+        string name, string description, string ruleMatrix, string prefix,
+        string? serviceClassCode = null)
+        => new(
+            ProfileCode: profileCode,
+            Name: name,
+            Description: description,
+            ClearingHouseCode: "CENIT",
+            FlowTypeCode: flowCode,
+            NormativeSource: "Manual de Especificaciones Formato NACHA-M CENIT, 07-may-2026",
+            NormativeVersion: CenitOrdinaryInbound2026Layout.NormativeVersion,
+            ApprovedRuleMatrix: ruleMatrix,
+            IsPlaceholder: false,
+            IsHomologated: false,
+            RoutingOrigin: "",
+            RoutingDestination: "",
+            ImmediateDestinationName: "CFA UAT",
+            ImmediateOriginName: "CENIT",
+            Prefix: prefix,
+            DirectionCode: "ENTRADA",
+            VersionMajor: 1,
+            VersionMinor: 1,
+            ServiceClassCode: serviceClassCode,
+            EffectiveFromOverride: CenitOrdinaryEffectiveFrom,
+            SettlementPolicy: NachaSettlementPolicy.JulianSettlementDate,
+            SupersedesProfileCode: predecessorCode,
+            AcceptedPredecessorVersions: [new(1, 0)],
+            IsTransactionCodeAware: true);
 
     private sealed record ProfileSpec(
         string ProfileCode,

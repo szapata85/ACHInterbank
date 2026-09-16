@@ -12,6 +12,10 @@ internal static class CenitOrdinaryInbound2026Layout
     public const string PrenotificationProfileCode = "OFFICIAL_CENIT_ENTRADA_PRENOTIFICACION_V1_0";
     public const string CtxOriginalProfileCode = "OFFICIAL_CENIT_CTX_ENTRADA_ORIGINAL_V1_0";
     public const string CtxPrenotificationProfileCode = "OFFICIAL_CENIT_CTX_ENTRADA_PRENOTIFICACION_V1_0";
+    public const string TxCodeAwareOriginalProfileCode = "OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_1";
+    public const string TxCodeAwarePrenotificationProfileCode = "OFFICIAL_CENIT_ENTRADA_PRENOTIFICACION_V1_1";
+    public const string TxCodeAwareCtxOriginalProfileCode = "OFFICIAL_CENIT_CTX_ENTRADA_ORIGINAL_V1_1";
+    public const string TxCodeAwareCtxPrenotificationProfileCode = "OFFICIAL_CENIT_CTX_ENTRADA_PRENOTIFICACION_V1_1";
     public const string NormativeVersion = CenitOrdinaryOutbound2026Layout.NormativeVersion;
     public const string VariantPrefix = "CENIT_ORDINARY_IN_2026_R";
     public const string CtxVariantPrefix = "CENIT_CTX_IN_2026_R";
@@ -21,15 +25,21 @@ internal static class CenitOrdinaryInbound2026Layout
 
     internal static bool IsPpdCcdProfile(string? profileCode)
         => string.Equals(profileCode, OriginalProfileCode, StringComparison.Ordinal)
-           || string.Equals(profileCode, PrenotificationProfileCode, StringComparison.Ordinal);
+           || string.Equals(profileCode, PrenotificationProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, TxCodeAwareOriginalProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, TxCodeAwarePrenotificationProfileCode, StringComparison.Ordinal);
 
     internal static bool IsCtxProfile(string? profileCode)
         => string.Equals(profileCode, CtxOriginalProfileCode, StringComparison.Ordinal)
-           || string.Equals(profileCode, CtxPrenotificationProfileCode, StringComparison.Ordinal);
+           || string.Equals(profileCode, CtxPrenotificationProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, TxCodeAwareCtxOriginalProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, TxCodeAwareCtxPrenotificationProfileCode, StringComparison.Ordinal);
 
     internal static bool IsPrenotificationProfile(string? profileCode)
         => string.Equals(profileCode, PrenotificationProfileCode, StringComparison.Ordinal)
-           || string.Equals(profileCode, CtxPrenotificationProfileCode, StringComparison.Ordinal);
+           || string.Equals(profileCode, CtxPrenotificationProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, TxCodeAwarePrenotificationProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, TxCodeAwareCtxPrenotificationProfileCode, StringComparison.Ordinal);
 
     internal static string Variant(string profileCode, string recordCode)
         => $"{(IsCtxProfile(profileCode) ? CtxVariantPrefix : VariantPrefix)}{recordCode}";

@@ -469,7 +469,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
                               && (profile.FlowType.Code == "ORIGINAL" || profile.FlowType.Code == "PRENOTIFICACION")
                               && profile.Status.Code == "PUBLICADO")
             .ToListAsync();
-        activeOrdinary.Should().HaveCount(6)
+        activeOrdinary.Should().HaveCount(8)
             .And.OnlyContain(profile => profile.VersionMajor == 35
                                         && (profile.VersionMinor == 0 || profile.VersionMinor == 1)
                                         && profile.Tags.Any(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == "V35"));
@@ -1286,6 +1286,233 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         });
         inbound.Profile!.ProfileCode.Should().Be(AchColOfficialNachaLayout.InboundOriginalProfileCode);
         inbound.TransactionCodeContract.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task InboundTxCodeSuccessors_ShouldPublishCompleteContractsWithPhysicalAndReaderParity()
+    {
+        await using var context = await SeedAsync();
+        var expected = new[]
+        {
+            new { Predecessor = AchColOfficialNachaLayout.InboundOriginalProfileCode, Successor = AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode, Major = 35, Minor = 1, Chamber = "ACH", Service = (string?)null, Normative = "V35", Effective = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new { Predecessor = AchColOfficialNachaLayout.InboundPrenotificationProfileCode, Successor = AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode, Major = 35, Minor = 1, Chamber = "ACH", Service = (string?)null, Normative = "V35", Effective = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new { Predecessor = CenitOrdinaryInbound2026Layout.OriginalProfileCode, Successor = CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode, Major = 1, Minor = 1, Chamber = "CENIT", Service = (string?)null, Normative = "2026-05-07", Effective = new DateTime(2026, 5, 7, 0, 0, 0, DateTimeKind.Utc) },
+            new { Predecessor = CenitOrdinaryInbound2026Layout.PrenotificationProfileCode, Successor = CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode, Major = 1, Minor = 1, Chamber = "CENIT", Service = (string?)null, Normative = "2026-05-07", Effective = new DateTime(2026, 5, 7, 0, 0, 0, DateTimeKind.Utc) },
+            new { Predecessor = CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode, Successor = CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode, Major = 1, Minor = 1, Chamber = "CENIT", Service = (string?)"CTX", Normative = "2026-05-07", Effective = new DateTime(2026, 5, 7, 0, 0, 0, DateTimeKind.Utc) },
+            new { Predecessor = CenitOrdinaryInbound2026Layout.CtxPrenotificationProfileCode, Successor = CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode, Major = 1, Minor = 1, Chamber = "CENIT", Service = (string?)"CTX", Normative = "2026-05-07", Effective = new DateTime(2026, 5, 7, 0, 0, 0, DateTimeKind.Utc) }
+        };
+        var outboundByChamber = new Dictionary<string, NachaTransactionCodeSemanticContract>();
+
+        foreach (var item in expected)
+        {
+            var predecessor = (await LoadProfileAsync(context, item.Predecessor))!;
+            var successor = (await LoadProfileAsync(context, item.Successor))!;
+            predecessor.VersionMajor.Should().Be(item.Major);
+            predecessor.VersionMinor.Should().Be(0);
+            successor.VersionMajor.Should().Be(item.Major);
+            successor.VersionMinor.Should().Be(item.Minor);
+            successor.Direction.Code.Should().Be("ENTRADA");
+            successor.ClearingHouse.Code.Should().Be(item.Chamber);
+            successor.ServiceClass?.Code.Should().Be(item.Service);
+            successor.FlowType.Code.Should().Be(predecessor.FlowType.Code);
+            successor.Status.Code.Should().Be("PUBLICADO");
+            successor.SupersedesProfileId.Should().Be(predecessor.Id);
+            successor.EffectiveFrom.Should().Be(predecessor.EffectiveFrom).And.Be(item.Effective);
+            successor.ContextPriority.Should().Be(predecessor.ContextPriority).And.Be(10);
+            successor.Tags.Should().ContainSingle(tag => tag.TagKey == "NormativeVersion" && tag.TagValue == item.Normative);
+
+            var predecessorJson = await context.HistConfigSnapshots.AsNoTracking()
+                .Where(snapshot => snapshot.ProfileId == predecessor.Id && snapshot.SnapshotType == "PUBLISH")
+                .Select(snapshot => snapshot.SnapshotJson).SingleAsync();
+            var successorJson = await context.HistConfigSnapshots.AsNoTracking()
+                .Where(snapshot => snapshot.ProfileId == successor.Id && snapshot.SnapshotType == "PUBLISH")
+                .Select(snapshot => snapshot.SnapshotJson).SingleAsync();
+            var before = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(predecessorJson).Snapshot!;
+            var after = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(successorJson).Snapshot!;
+            after.SnapshotFormatVersion.Should().Be(1);
+            before.Profile.ClearingHouseCode.Should().Be(after.Profile.ClearingHouseCode);
+            before.Profile.FlowTypeCode.Should().Be(after.Profile.FlowTypeCode);
+            before.Profile.DirectionCode.Should().Be(after.Profile.DirectionCode);
+            before.Profile.ServiceClassCode.Should().Be(after.Profile.ServiceClassCode);
+            before.Profile.EffectiveFrom.Should().Be(after.Profile.EffectiveFrom);
+            before.Profile.ContextPriority.Should().Be(after.Profile.ContextPriority);
+            before.GenerationCriticalTags.Should().BeEquivalentTo(after.GenerationCriticalTags);
+            PhysicalSnapshot(after).Should().Be(PhysicalSnapshot(before));
+            RecordSnapshot(after).Should().Be(RecordSnapshot(before));
+
+            NachaTransactionCodeSemanticMetadata.Resolve(before.Records).Status
+                .Should().Be(NachaTransactionCodeSemanticMetadataStatus.NotPresent);
+            var metadata = NachaTransactionCodeSemanticMetadata.Resolve(after.Records);
+            metadata.Status.Should().Be(NachaTransactionCodeSemanticMetadataStatus.Resolved);
+            metadata.Contract!.Rules.Should().HaveCount(12);
+            foreach (var rule in NachaTransactionCodeTaxonomy.GetSupportedOrdinaryRules())
+            {
+                metadata.Contract.TryGetRule(rule.TransactionCode, out var found).Should().BeTrue();
+                found.Should().Be(rule);
+            }
+
+            if (!outboundByChamber.TryGetValue(item.Chamber, out var outbound))
+            {
+                var outboundCode = item.Chamber == "ACH"
+                    ? AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode
+                    : CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode;
+                var outboundProfile = (await LoadProfileAsync(context, outboundCode))!;
+                var outboundJson = await context.HistConfigSnapshots.AsNoTracking()
+                    .Where(snapshot => snapshot.ProfileId == outboundProfile.Id && snapshot.SnapshotType == "PUBLISH")
+                    .Select(snapshot => snapshot.SnapshotJson).SingleAsync();
+                var outboundSnapshot = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(outboundJson).Snapshot!;
+                outbound = NachaTransactionCodeSemanticMetadata.Resolve(outboundSnapshot.Records).Contract!;
+                outboundByChamber.Add(item.Chamber, outbound);
+            }
+            foreach (var rule in metadata.Contract.Rules)
+            {
+                outbound.TryGetRule(rule.TransactionCode, out var outboundRule).Should().BeTrue();
+                outboundRule.Should().Be(rule);
+            }
+
+            var predecessorReader = await NachaProfileRecordReader.LoadAsync(context, predecessor.Id, default);
+            var successorReader = await NachaProfileRecordReader.LoadAsync(context, successor.Id, default);
+            foreach (var (recordCode, fieldCode, value) in new[]
+                     {
+                         ("1", "IMMEDIATEORIGIN", "1234567890"),
+                         ("5", "STANDARDENTRYCLASSCODE", item.Service ?? "PPD"),
+                         ("6", "TRANSACTIONCODE", "23")
+                     })
+            {
+                var field = after.LayoutVariants.Single(variant => variant.RecordCode == recordCode && variant.IsDefaultForRecord)
+                    .Fields.Single(candidate => candidate.FieldCode == fieldCode);
+                var record = new string(' ', 106).ToCharArray();
+                record[0] = recordCode[0];
+                value.CopyTo(0, record, field.StartPosition - 1, value.Length);
+                predecessorReader.Read(new string(record), recordCode, fieldCode)
+                    .Should().Be(successorReader.Read(new string(record), recordCode, fieldCode));
+            }
+        }
+
+        foreach (var chamber in new[] { "ACH", "CENIT" })
+        {
+            var selected = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
+            {
+                ClearingHouseCode = chamber,
+                FlowTypeCode = "ORIGINAL",
+                DirectionCode = "ENTRADA",
+                ProcessDateUtc = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc),
+                RequestedVersionMajor = chamber == "ACH" ? 35 : 1,
+                RequestedVersionMinor = 0,
+                RecordCodes = RequiredRecords
+            });
+            selected.Success.Should().BeTrue();
+            selected.Profile!.VersionMinor.Should().Be(0);
+            selected.TransactionCodeContract.Should().BeNull();
+        }
+    }
+
+    private static string PhysicalSnapshot(NachaPublicationSnapshot snapshot)
+        => JsonSerializer.Serialize(snapshot.LayoutVariants.Select(variant => variant with
+        {
+            LayoutVariantId = null,
+            Fields = variant.Fields.Select(field => field with { FieldDefinitionId = null }).ToArray()
+        }).ToArray());
+
+    private static string RecordSnapshot(NachaPublicationSnapshot snapshot)
+        => JsonSerializer.Serialize(snapshot.Records.Select(record => record.RecordCode == "6"
+            ? record with { SemanticRuleSetId = null, SemanticRuleSet = null }
+            : record).ToArray());
+
+    [Fact]
+    public async Task InboundTxCodeSuccessors_UpgradeAndPartialRerun_ShouldPreservePredecessorsAndSnapshots()
+    {
+        await using var context = await SeedAsync();
+        var pairs = new[]
+        {
+            (AchColOfficialNachaLayout.InboundOriginalProfileCode, AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
+            (AchColOfficialNachaLayout.InboundPrenotificationProfileCode, AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
+            (CenitOrdinaryInbound2026Layout.OriginalProfileCode, CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
+            (CenitOrdinaryInbound2026Layout.PrenotificationProfileCode, CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+            (CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode, CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
+            (CenitOrdinaryInbound2026Layout.CtxPrenotificationProfileCode, CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode)
+        };
+        var predecessorIds = await context.CfgProfiles.AsNoTracking()
+            .Where(profile => pairs.Select(pair => pair.Item1).Contains(profile.ProfileCode))
+            .ToDictionaryAsync(profile => profile.ProfileCode, profile => profile.Id);
+        var predecessorJson = await context.HistConfigSnapshots.AsNoTracking()
+            .Where(snapshot => predecessorIds.Values.Contains(snapshot.ProfileId) && snapshot.SnapshotType == "PUBLISH")
+            .ToDictionaryAsync(snapshot => snapshot.ProfileId, snapshot => snapshot.SnapshotJson);
+        var successorIds = await context.CfgProfiles.AsNoTracking()
+            .Where(profile => pairs.Select(pair => pair.Item2).Contains(profile.ProfileCode))
+            .Select(profile => profile.Id).ToArrayAsync();
+        successorIds.Should().HaveCount(6);
+        await context.HistConfigSnapshots.Where(snapshot => successorIds.Contains(snapshot.ProfileId)).ExecuteDeleteAsync();
+        await context.CfgProfiles.Where(profile => successorIds.Contains(profile.Id)).ExecuteDeleteAsync();
+        context.ChangeTracker.Clear();
+
+        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+        var published = await context.CfgProfiles.AsNoTracking()
+            .Where(profile => pairs.Select(pair => pair.Item2).Contains(profile.ProfileCode))
+            .ToDictionaryAsync(profile => profile.ProfileCode, profile => new { profile.Id, profile.SupersedesProfileId });
+        published.Should().HaveCount(6);
+        foreach (var (predecessorCode, successorCode) in pairs)
+        {
+            published[successorCode].SupersedesProfileId.Should().Be(predecessorIds[predecessorCode]);
+        }
+        var successorJson = await context.HistConfigSnapshots.AsNoTracking()
+            .Where(snapshot => published.Values.Select(value => value.Id).Contains(snapshot.ProfileId)
+                               && snapshot.SnapshotType == "PUBLISH")
+            .ToDictionaryAsync(snapshot => snapshot.ProfileId, snapshot => snapshot.SnapshotJson);
+        successorJson.Should().HaveCount(6);
+
+        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+        var partialId = published[CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode].Id;
+        await context.HistConfigSnapshots.Where(snapshot => snapshot.ProfileId == partialId).ExecuteDeleteAsync();
+        await context.CfgProfiles.Where(profile => profile.Id == partialId).ExecuteDeleteAsync();
+        context.ChangeTracker.Clear();
+        await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+
+        foreach (var (predecessorCode, successorCode) in pairs)
+        {
+            var predecessorId = predecessorIds[predecessorCode];
+            var predecessor = await context.CfgProfiles.AsNoTracking().SingleAsync(profile => profile.Id == predecessorId);
+            predecessor.VersionMinor.Should().Be(0);
+            predecessor.SupersedesProfileId.Should().BeNull();
+            (await context.HistConfigSnapshots.AsNoTracking().SingleAsync(snapshot =>
+                snapshot.ProfileId == predecessorId && snapshot.SnapshotType == "PUBLISH"))
+                .SnapshotJson.Should().Be(predecessorJson[predecessorId]);
+            (await context.CfgProfiles.CountAsync(profile => profile.ProfileCode == successorCode)).Should().Be(1);
+        }
+        foreach (var (id, json) in successorJson)
+        {
+            if (id == partialId) continue;
+            (await context.HistConfigSnapshots.AsNoTracking().SingleAsync(snapshot =>
+                snapshot.ProfileId == id && snapshot.SnapshotType == "PUBLISH"))
+                .SnapshotJson.Should().Be(json);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InboundTxCodeSuccessorConflict_ShouldFailClosed(bool corruptSnapshot)
+    {
+        await using var context = await SeedAsync();
+        var successor = await context.CfgProfiles.Include(profile => profile.Tags).SingleAsync(profile =>
+            profile.ProfileCode == CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode);
+        if (corruptSnapshot)
+        {
+            var snapshot = await context.HistConfigSnapshots.SingleAsync(item =>
+                item.ProfileId == successor.Id && item.SnapshotType == "PUBLISH");
+            snapshot.SnapshotJson += " ";
+        }
+        else
+        {
+            successor.Tags.Single(tag => tag.TagKey == "NormativeVersion").TagValue = "INCOMPATIBLE";
+        }
+        await context.SaveChangesAsync();
+
+        var act = () => new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage(corruptSnapshot
+                ? "*TXCODE_SUCCESSOR_PUBLISH_SNAPSHOT_CONFLICT*"
+                : "*OFFICIAL_PUBLISHED_PROFILE_CONFLICT*");
     }
 
     [Fact]
