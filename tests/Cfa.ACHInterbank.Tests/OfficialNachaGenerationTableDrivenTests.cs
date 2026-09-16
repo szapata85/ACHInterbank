@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -1093,15 +1094,16 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Theory]
-    [InlineData("CREDIT", "22", false, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode)]
-    [InlineData("DEBIT", "27", false, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode)]
-    [InlineData("CREDIT", "23", true, AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode)]
-    [InlineData("DEBIT", "28", true, AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode)]
+    [InlineData("CREDIT", "22", false, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode, "AB09B7C3F3422EF810D4AF41F389E5D4B26651804005D7943F09B8A7AD885724")]
+    [InlineData("DEBIT", "27", false, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode, "33F0E773FDF02E6211DB0652D426556DFB24F5627492E243549E9C77C1B1EF16")]
+    [InlineData("CREDIT", "23", true, AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode, "A3D1FCD5A488243219687146AFC6799984A7E40B82E25B8E30D6BE7DE85E49B8")]
+    [InlineData("DEBIT", "28", true, AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode, "501236C903A15CF7BC340E2C7B5371047D246839601171412E192473135B2C40")]
     public async Task AchColV35_ShouldGenerateEverySupportedOutboundOrdinaryFamily(
         string businessType,
         string transactionCode,
         bool isPrenotification,
-        string expectedProfileCode)
+        string expectedProfileCode,
+        string expectedSha256)
     {
         await using var context = await SeedAsync();
         var model = BuildContext("ACH Colombia");
@@ -1135,6 +1137,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var type7 = records.Single(record => record[0] == '7');
         var trace = await LoadLatestTraceAsync(context);
 
+        Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(content)))
+            .Should().Be(expectedSha256);
         trace.ProfileCode.Should().Be(expectedProfileCode);
         trace.ProfileVersion.Should().Be("35.1");
         type6.Substring(1, 2).Should().Be(transactionCode);
@@ -1155,6 +1159,129 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             type7.Substring(30, 24).Should().Be("FACTURA0001INFORMACIONLI");
             type7.Substring(56, 24).TrimEnd().Should().Be("BRE");
         }
+    }
+
+    [Fact]
+    public async Task PublishedAchType7Selector_ShouldSelectEquivalentMaterializedVariantWhenVariantCodeChanges()
+    {
+        await using var context = await SeedAsync();
+        var publication = await context.HistConfigSnapshots.SingleAsync(row => row.SnapshotType == "PUBLISH"
+            && row.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
+        var snapshot = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(publication.SnapshotJson).Snapshot!;
+        var materialized = NachaPublicationSnapshotMaterializer.Materialize(snapshot).Variants
+            .Where(variant => variant.RecordCode.Code == "7")
+            .ToList();
+        var publishedDebit = materialized.Single(variant => PredicateEquals(variant, "BusinessType", "DEBIT"));
+        const string renamedVariantCode = "SYNTHETIC_T7_DEBIT_VARIANT_ID";
+        var renamedDebit = new CfgLayoutVariant
+        {
+            Id = publishedDebit.Id,
+            ProfileId = publishedDebit.ProfileId,
+            RecordCode = publishedDebit.RecordCode,
+            VariantCode = renamedVariantCode,
+            Priority = publishedDebit.Priority,
+            IsDefaultForRecord = publishedDebit.IsDefaultForRecord,
+            TotalLength = publishedDebit.TotalLength,
+            EffectiveFrom = publishedDebit.EffectiveFrom,
+            EffectiveTo = publishedDebit.EffectiveTo,
+            Status = publishedDebit.Status,
+            SelectionPredicateJson = publishedDebit.SelectionPredicateJson,
+            Fields = publishedDebit.Fields
+        };
+        materialized[materialized.IndexOf(publishedDebit)] = renamedDebit;
+        var resolution = new NachaConfigResolutionResult
+        {
+            LayoutVariantsByRecordCode = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>
+            {
+                ["7"] = materialized
+            }
+        };
+        var candidate = new NachaType7RecordCandidate
+        {
+            Batch = new AchBatch(),
+            Transaction = new AchTransaction { IsPrenotification = false },
+            Addenda = new AchTransactionAddenda { BusinessType = AchAddendaBusinessType.Debit },
+            FieldValues = new Dictionary<string, object?>()
+        };
+
+        var selected = NachaFileBuilder.ResolveType7Layout(resolution, candidate);
+
+        selected.Should().BeSameAs(renamedDebit);
+        selected.VariantCode.Should().Be(renamedVariantCode);
+        selected.SelectionPredicateJson.Should().Be(publishedDebit.SelectionPredicateJson);
+        selected.IsDefaultForRecord.Should().Be(publishedDebit.IsDefaultForRecord);
+        selected.Priority.Should().Be(publishedDebit.Priority);
+        selected.Fields.Should().BeSameAs(publishedDebit.Fields);
+    }
+
+    [Fact]
+    public async Task PublishedAchType7Selector_ShouldHonorOriginalAndPrenotificationPredicateContracts()
+    {
+        await using var context = await SeedAsync();
+        var publications = await context.HistConfigSnapshots
+            .Include(row => row.Profile)
+            .Where(row => row.SnapshotType == "PUBLISH"
+                          && (row.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode
+                              || row.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode))
+            .ToDictionaryAsync(row => row.Profile.ProfileCode, row => row.SnapshotJson);
+        var original = MaterializeType7(publications[AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode]);
+        var prenotification = MaterializeType7(publications[AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode]);
+        var originalDefault = original.Single(variant => variant.IsDefaultForRecord);
+        var originalDebit = original.Single(variant => PredicateEquals(variant, "BusinessType", "DEBIT"));
+        var originalCreditPrenote = original.Single(variant => PredicateEquals(variant, "BusinessType", "CREDIT")
+                                                               && PredicateEquals(variant, "TransactionFamily", "PRENOTIFICATION"));
+        var prenotificationDefault = prenotification.Single(variant => variant.IsDefaultForRecord);
+        var prenotificationDebit = prenotification.Single(variant => PredicateEquals(variant, "BusinessType", "DEBIT"));
+
+        SelectType7(original, AchAddendaBusinessType.Credit, false).Should().BeSameAs(originalDefault);
+        SelectType7(original, AchAddendaBusinessType.Credit, true).Should().BeSameAs(originalCreditPrenote);
+        SelectType7(original, AchAddendaBusinessType.Debit, false).Should().BeSameAs(originalDebit);
+        SelectType7(original, AchAddendaBusinessType.Debit, true).Should().BeSameAs(originalDebit);
+        SelectType7(prenotification, AchAddendaBusinessType.Credit, true).Should().BeSameAs(prenotificationDefault);
+        SelectType7(prenotification, AchAddendaBusinessType.Debit, true).Should().BeSameAs(prenotificationDebit);
+        originalDefault.SelectionPredicateJson.Should().BeNull();
+        prenotificationDefault.SelectionPredicateJson.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PublishedAchType7Selector_ShouldIgnoreLaterLivePredicateMutation()
+    {
+        await using var context = await SeedAsync();
+        var liveDebit = await context.CfgLayoutVariants
+            .Include(variant => variant.Profile)
+            .Include(variant => variant.RecordCode)
+            .SingleAsync(variant => variant.Profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode
+                                    && variant.RecordCode.Code == "7"
+                                    && variant.SelectionPredicateJson != null
+                                    && variant.SelectionPredicateJson.Contains("DEBIT"));
+        liveDebit.SelectionPredicateJson = """{"BusinessType":"CREDIT"}""";
+        await context.SaveChangesAsync();
+        var model = BuildContext("ACH Colombia");
+        var transaction = model.Transactions.Single();
+        transaction.Type = TransactionTypeEnum.Debit;
+        transaction.TransactionCode = "27";
+        transaction.AchBatch!.ServiceClassCode = "225";
+        transaction.Addendas =
+        [
+            new AchTransactionAddenda
+            {
+                AddendaType = "05",
+                BusinessType = AchAddendaBusinessType.Debit,
+                Purpose = "PAGOS",
+                CollectorId = "9001234567890",
+                ReceiverCustomerCode = "CLIENTE-SINTETICO",
+                ServiceDescription = "RECAUDO",
+                SequenceNumber = 1
+            }
+        ];
+
+        var content = await CreateOfficialSut(context, "ACH Colombia", model).Sut
+            .BuildNachaFileAsync([100], CancellationToken.None);
+        var type7 = SplitRecords(content).Single(record => record[0] == '7');
+
+        type7.Substring(3, 13).Should().Be("9001234567890");
+        type7.Substring(16, 30).TrimEnd().Should().Be("CLIENTE-SINTETICO");
+        liveDebit.SelectionPredicateJson.Should().Be("""{"BusinessType":"CREDIT"}""");
     }
 
     [Fact]
@@ -1849,6 +1976,45 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     private Task<AchDbContext> SeedAsync() => _fixture.CreateSeededContextAsync();
 
     private Task<AchDbContext> CreateContextAsync() => _fixture.CreateEmptyContextAsync();
+
+    private static List<CfgLayoutVariant> MaterializeType7(string snapshotJson)
+        => NachaPublicationSnapshotMaterializer.Materialize(
+                NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshotJson).Snapshot!)
+            .Variants
+            .Where(variant => variant.RecordCode.Code == "7")
+            .ToList();
+
+    private static CfgLayoutVariant SelectType7(
+        IReadOnlyList<CfgLayoutVariant> variants,
+        AchAddendaBusinessType businessType,
+        bool isPrenotification)
+        => NachaFileBuilder.ResolveType7Layout(
+            new NachaConfigResolutionResult
+            {
+                LayoutVariantsByRecordCode = new Dictionary<string, IReadOnlyList<CfgLayoutVariant>>
+                {
+                    ["7"] = variants
+                }
+            },
+            new NachaType7RecordCandidate
+            {
+                Batch = new AchBatch(),
+                Transaction = new AchTransaction { IsPrenotification = isPrenotification },
+                Addenda = new AchTransactionAddenda { BusinessType = businessType },
+                FieldValues = new Dictionary<string, object?>()
+            });
+
+    private static bool PredicateEquals(CfgLayoutVariant variant, string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(variant.SelectionPredicateJson))
+        {
+            return false;
+        }
+
+        var predicate = JsonSerializer.Deserialize<Dictionary<string, string>>(variant.SelectionPredicateJson);
+        return predicate?.TryGetValue(key, out var actual) == true
+               && string.Equals(actual, value, StringComparison.OrdinalIgnoreCase);
+    }
 
     private static async Task<CfgLayoutField> LoadFieldAsync(AchDbContext context, string profileCode, string recordCode, string fieldCode)
     {

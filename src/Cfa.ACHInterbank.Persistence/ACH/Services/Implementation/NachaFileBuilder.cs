@@ -1611,7 +1611,7 @@ public class NachaFileBuilder : INachaFileBuilder
         }
     }
 
-    private static CfgLayoutVariant ResolveType7Layout(
+    internal static CfgLayoutVariant ResolveType7Layout(
         NachaConfigResolutionResult resolution,
         NachaType7RecordCandidate candidate)
     {
@@ -1629,20 +1629,8 @@ public class NachaFileBuilder : INachaFileBuilder
                 expectedLength: 2);
         }
 
-        var creditVariantCode = candidate.Transaction.IsPrenotification
-            ? AchColOfficialNachaLayout.Type7CreditPrenotificationVariant
-            : AchColOfficialNachaLayout.Type7CreditMonetaryVariant;
-        var variantCode = candidate.Addenda.BusinessType switch
-        {
-            Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Credit => variants
-                .Select(variant => variant.VariantCode)
-                .SingleOrDefault(code => string.Equals(code, creditVariantCode, StringComparison.OrdinalIgnoreCase)) ?? string.Empty,
-            Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Debit => AchColOfficialNachaLayout.Type7DebitVariant,
-            _ => string.Empty
-        };
-
-        if (string.IsNullOrWhiteSpace(variantCode)
-            || variants.FirstOrDefault(variant => string.Equals(variant.VariantCode, variantCode, StringComparison.OrdinalIgnoreCase)) is not { } selected)
+        if (candidate.Addenda.BusinessType is not (Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Credit
+            or Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.AchAddendaBusinessType.Debit))
         {
             throw BuildCrossFieldException(
                 "ACHCOL-T7-ADDENDA-TYPE",
@@ -1653,7 +1641,10 @@ public class NachaFileBuilder : INachaFileBuilder
                 "La variante de adenda no está demostrada o publicada para ACHCOL.");
         }
 
-        return selected;
+        return AchOutboundType7LayoutSelector.Select(
+            variants,
+            candidate.Addenda.BusinessType,
+            candidate.Transaction.IsPrenotification);
     }
 
     private static void ValidateCtxAddendaSequences(
