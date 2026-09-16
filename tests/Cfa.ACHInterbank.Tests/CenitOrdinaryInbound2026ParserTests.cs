@@ -132,6 +132,39 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         control.BlockCount.Should().Be(2);
     }
 
+    [Theory]
+    [InlineData(false, CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode, 2)]
+    [InlineData(true, CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode, 5)]
+    public async Task PublishedSuccessorReader_ShouldPreserveAcceptedInboundParsing(
+        bool ctx,
+        string profileCode,
+        int expectedAddendas)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var content = ctx ? BuildCtxFile() : BuildTwoOriginatingParticipantFile();
+
+        var result = await ParseAsync(context, clearingHouse, profileCode, content,
+            ctx ? "cenit-published-ctx" : "cenit-published-ppd-ccd", requirePublishedSnapshot: true);
+
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(2);
+        result.TotalAddendas.Should().Be(expectedAddendas);
+        var entries = await context.EntryDetails.AsNoTracking()
+            .Include(entry => entry.AddendaRecords)
+            .OrderBy(entry => entry.SequenceNumber).ToListAsync();
+        entries.Should().HaveCount(2);
+        if (ctx)
+        {
+            entries[0].AddendaRecords.Should().HaveCount(2);
+            entries[1].AddendaRecords.Should().HaveCount(3);
+        }
+        else
+        {
+            entries.Should().OnlyContain(entry => entry.AddendaRecords.Count == 1);
+        }
+    }
+
     [Fact]
     public async Task Parser_ShouldReadCtxCreditAndDebitPrenotifications()
     {
@@ -195,17 +228,30 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
     }
 
     [Fact]
-    public void ApplicationProfileServiceDetection_ShouldIsolateCtxAndRejectUnsupportedMixes()
+    public async Task PublishedProfileServiceSelection_ShouldIsolateCtxAndRejectUnsupportedMixes()
     {
-        IncomingNachaIngestionAppService.ResolveCenitInboundProfileService([BuildType5("PPD", "220", "87654321", 1)])
-            .Should().BeNull();
-        IncomingNachaIngestionAppService.ResolveCenitInboundProfileService([BuildType5("CCD", "225", "87654321", 1)])
-            .Should().BeNull();
-        IncomingNachaIngestionAppService.ResolveCenitInboundProfileService([BuildType5("CTX", "200", "87654321", 1)])
-            .Should().Be("CTX");
-        IncomingNachaIngestionAppService.ResolveCenitInboundProfileService(
-                [BuildType5("PPD", "220", "87654321", 1), BuildType5("CTX", "200", "76543210", 2)])
-            .Should().Be("CENIT_INBOUND_SERVICE_UNSUPPORTED");
+        await using var context = await CreateContextAsync();
+        var resolver = new NachaConfigResolver(context);
+        var request = new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = "CENIT",
+            DirectionCode = "ENTRADA",
+            RequestedVersionMajor = 1,
+            ProcessDateUtc = new DateTime(2026, 8, 15),
+            RecordCodes = ["5", "6"]
+        };
+        var entry = "622" + new string(' ', 103);
+        foreach (var service in new[] { "PPD", "CCD", "CTX" })
+        {
+            var result = await resolver.ResolvePublishedInboundAsync(request,
+                [BuildType5(service, "200", "87654321", 1), entry]);
+            result.Success.Should().BeTrue(string.Join("; ", result.Warnings));
+            result.Profile!.ServiceClass?.Code.Should().Be(service == "CTX" ? "CTX" : null);
+        }
+        var mixed = await resolver.ResolvePublishedInboundAsync(request,
+            [BuildType5("PPD", "220", "87654321", 1), BuildType5("CTX", "200", "76543210", 2), entry]);
+        mixed.Success.Should().BeFalse();
+        mixed.SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileNotFound);
     }
 
     private async Task<NachaParseResult> ParseAsync(
@@ -213,7 +259,8 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         ClearingHouse clearingHouse,
         string profileCode,
         string content,
-        string correlationId)
+        string correlationId,
+        bool requirePublishedSnapshot = false)
     {
         var profile = await context.CfgProfiles.SingleAsync(profile => profile.ProfileCode == profileCode);
         var parser = new NachaParserService(
@@ -229,6 +276,7 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
             CorrelationId = correlationId,
             SelectedProfileId = profile.Id,
             SelectedProfileCode = profile.ProfileCode,
+            RequirePublishedProfileSnapshot = requirePublishedSnapshot,
             IncomingNachaFileIngestionId = Guid.NewGuid()
         }, CancellationToken.None);
     }

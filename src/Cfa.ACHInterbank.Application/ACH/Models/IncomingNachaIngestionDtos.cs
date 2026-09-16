@@ -66,6 +66,7 @@ public sealed class NachaParseRequest
     public Guid? IncomingNachaFileIngestionId { get; init; }
     public int? SelectedProfileId { get; init; }
     public string? SelectedProfileCode { get; init; }
+    public bool RequirePublishedProfileSnapshot { get; init; }
     public int? ResolvedClearingHouseId { get; init; }
     public string? ResolvedAchCycleId { get; init; }
     public DateTime? OperationalDate { get; init; }

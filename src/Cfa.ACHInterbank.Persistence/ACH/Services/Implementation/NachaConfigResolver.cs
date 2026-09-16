@@ -233,6 +233,262 @@ public class NachaConfigResolver : INachaConfigResolver
             snapshot.StandardEntryClassMappings);
     }
 
+    public async Task<NachaConfigResolutionResult> ResolvePublishedInboundAsync(
+        NachaConfigResolutionRequest request,
+        IReadOnlyList<string> physicalRecords,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ClearingHouseCode))
+        {
+            return InboundFailure(NachaProfileSelectionStatus.ClearingHouseUndetermined, "INBOUND_CHAMBER_MISSING");
+        }
+        if (!string.Equals(request.DirectionCode, "ENTRADA", StringComparison.OrdinalIgnoreCase))
+        {
+            return InboundFailure(NachaProfileSelectionStatus.ProfileNotFound, "INBOUND_DIRECTION_REQUIRED");
+        }
+
+        var date = request.ProcessDateUtc.Date;
+        var profiles = await _context.CfgProfiles.AsNoTracking()
+            .Include(profile => profile.Status)
+            .Include(profile => profile.ClearingHouse)
+            .Include(profile => profile.Direction)
+            .Include(profile => profile.FlowType)
+            .Include(profile => profile.ServiceClass)
+            .Where(profile => profile.ClearingHouse.Code == request.ClearingHouseCode
+                              && profile.Direction.Code == "ENTRADA"
+                              && (profile.FlowType.Code == "ORIGINAL" || profile.FlowType.Code == "PRENOTIFICACION")
+                              && (!request.RequestedVersionMajor.HasValue || profile.VersionMajor == request.RequestedVersionMajor.Value)
+                              && (!request.RequestedVersionMinor.HasValue || profile.VersionMinor == request.RequestedVersionMinor.Value))
+            .ToListAsync(ct);
+        var active = profiles.Where(profile => profile.Status.Code == "PUBLICADO"
+                                               && profile.EffectiveFrom.Date <= date
+                                               && (!profile.EffectiveTo.HasValue || profile.EffectiveTo.Value.Date >= date))
+            .ToArray();
+        if (active.Length == 0)
+        {
+            return InboundFailure(NachaProfileSelectionStatus.ProfileNotFound, "INBOUND_PUBLISH_AUTHORITY_MISSING");
+        }
+
+        var winners = new List<CfgProfile>();
+        foreach (var group in active.GroupBy(profile => (profile.FlowType.Code, Service: profile.ServiceClass?.Code)))
+        {
+            var selection = await SelectCandidateAsync(new NachaConfigResolutionRequest
+            {
+                ClearingHouseCode = request.ClearingHouseCode,
+                FlowTypeCode = group.Key.Code,
+                DirectionCode = "ENTRADA",
+                ServiceClassCode = group.Key.Service,
+                ProcessDateUtc = request.ProcessDateUtc,
+                RequestedVersionMajor = request.RequestedVersionMajor,
+                RequestedVersionMinor = request.RequestedVersionMinor,
+                RecordCodes = request.RecordCodes
+            }, ct);
+            if (!selection.Success || selection.Profile is null)
+            {
+                return InboundFailure(selection.SelectionStatus, "INBOUND_PUBLICATION_AMBIGUOUS");
+            }
+            winners.Add(selection.Profile);
+        }
+
+        var selected = new List<(CfgProfile Profile, NachaPublicationSnapshot Snapshot, string? Service)>();
+        var meanings = new Dictionary<string, NachaTransactionCodeSemanticRule>(StringComparer.Ordinal);
+        var readableCodes = false;
+        var recognizedCodes = false;
+        var batchRecords = physicalRecords.Where(record => record.Length > 0 && record[0] == '5').ToArray();
+        var entryRecords = physicalRecords.Where(record => record.Length > 0 && record[0] == '6').ToArray();
+        if (batchRecords.Length == 0 || entryRecords.Length == 0)
+        {
+            return InboundFailure(NachaProfileSelectionStatus.ProfileNotFound, "INBOUND_BOOTSTRAP_RECORDS_MISSING");
+        }
+
+        foreach (var profile in winners)
+        {
+            var publications = await _context.HistConfigSnapshots.AsNoTracking()
+                .Where(row => row.ProfileId == profile.Id && row.SnapshotType == "PUBLISH")
+                .Select(row => row.SnapshotJson)
+                .ToListAsync(ct);
+            if (publications.Count != 1)
+            {
+                return InboundFailure(NachaProfileSelectionStatus.SemanticContractMissing, "INBOUND_PUBLISH_SNAPSHOT_MISSING");
+            }
+            var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(publications[0]);
+            if (!read.IsSupported || read.Snapshot is null)
+            {
+                return InboundFailure(NachaProfileSelectionStatus.SemanticContractInvalid, $"INBOUND_PUBLISH_SNAPSHOT_INVALID: {read.Status}");
+            }
+            var snapshot = read.Snapshot;
+            if (snapshot.Profile.ProfileId != profile.Id
+                || snapshot.Profile.ProfileCode != profile.ProfileCode
+                || snapshot.Profile.VersionMajor != profile.VersionMajor
+                || snapshot.Profile.VersionMinor != profile.VersionMinor
+                || snapshot.Profile.ClearingHouseCode != request.ClearingHouseCode
+                || snapshot.Profile.DirectionCode != "ENTRADA"
+                || snapshot.Profile.FlowTypeCode != profile.FlowType.Code
+                || snapshot.Profile.ServiceClassCode != profile.ServiceClass?.Code)
+            {
+                return InboundFailure(NachaProfileSelectionStatus.SemanticContractInvalid, "INBOUND_PUBLISH_IDENTITY_CONFLICT");
+            }
+            var semantic = NachaTransactionCodeSemanticMetadata.Resolve(snapshot.Records);
+            if (semantic.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved || semantic.Contract is null)
+            {
+                return InboundFailure(
+                    semantic.Status == NachaTransactionCodeSemanticMetadataStatus.NotPresent
+                        ? NachaProfileSelectionStatus.SemanticContractMissing
+                        : NachaProfileSelectionStatus.SemanticContractInvalid,
+                    $"INBOUND_TXCODE_METADATA_INVALID: {semantic.ErrorCode ?? semantic.Status.ToString()}");
+            }
+
+            NachaProfileRecordReader reader;
+            try
+            {
+                reader = NachaProfileRecordReader.FromPublication(snapshot);
+            }
+            catch (InvalidOperationException)
+            {
+                return InboundFailure(NachaProfileSelectionStatus.SemanticContractInvalid, "INBOUND_PUBLISH_LAYOUT_INVALID");
+            }
+            if (!TryGetPublishedSecValues(snapshot, out var allowedServices))
+            {
+                return InboundFailure(NachaProfileSelectionStatus.SemanticContractInvalid, "INBOUND_PUBLISH_SERVICE_METADATA_MISSING");
+            }
+
+            string[] services;
+            string[] codes;
+            try
+            {
+                services = batchRecords.Select(record => reader.Read(record, "5", "STANDARDENTRYCLASSCODE").Trim().ToUpperInvariant()).ToArray();
+                codes = entryRecords.Select(record => reader.Read(record, "6", "TRANSACTIONCODE").Trim()).ToArray();
+            }
+            catch (InvalidOperationException)
+            {
+                continue;
+            }
+            readableCodes = true;
+
+            var rules = new List<NachaTransactionCodeSemanticRule>(codes.Length);
+            foreach (var code in codes)
+            {
+                if (!semantic.Contract.TryGetRule(code, out var rule))
+                {
+                    rules.Clear();
+                    break;
+                }
+                if (meanings.TryGetValue(code, out var existing) && existing != rule)
+                {
+                    return InboundFailure(NachaProfileSelectionStatus.ProfileAmbiguous, "INBOUND_TXCODE_AUTHORITY_CONFLICT");
+                }
+                meanings[code] = rule;
+                rules.Add(rule);
+            }
+            if (rules.Count == codes.Length)
+            {
+                recognizedCodes = true;
+            }
+            if (rules.Count != codes.Length || !services.All(allowedServices.Contains))
+            {
+                continue;
+            }
+            if (snapshot.Profile.ServiceClassCode is { } requiredService
+                && !services.All(service => string.Equals(service, requiredService, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+            var flow = rules.All(rule => rule.IsPrenotification) ? "PRENOTIFICACION" : "ORIGINAL";
+            if (snapshot.Profile.FlowTypeCode != flow)
+            {
+                continue;
+            }
+            selected.Add((profile, snapshot, services.Distinct(StringComparer.Ordinal).Count() == 1 ? services[0] : null));
+        }
+
+        if (selected.Count != 1)
+        {
+            return InboundFailure(selected.Count == 0
+                    ? NachaProfileSelectionStatus.ProfileNotFound
+                    : NachaProfileSelectionStatus.ProfileAmbiguous,
+                selected.Count == 0
+                    ? readableCodes && !recognizedCodes
+                        ? "INBOUND_TXCODE_UNSUPPORTED"
+                        : "INBOUND_PUBLICATION_NO_COMPATIBLE_AUTHORITY"
+                    : "INBOUND_PUBLICATION_AMBIGUOUS");
+        }
+
+        var authority = selected[0];
+        var resolved = await ResolvePublishedOrdinaryAsync(new NachaConfigResolutionRequest
+        {
+            ClearingHouseCode = request.ClearingHouseCode,
+            FlowTypeCode = authority.Snapshot.Profile.FlowTypeCode,
+            DirectionCode = "ENTRADA",
+            ServiceClassCode = authority.Service,
+            ProcessDateUtc = request.ProcessDateUtc,
+            RequestedVersionMajor = authority.Profile.VersionMajor,
+            RequestedVersionMinor = authority.Profile.VersionMinor,
+            RecordCodes = request.RecordCodes,
+            SelectionContext = new Dictionary<string, string>(request.SelectionContext, StringComparer.OrdinalIgnoreCase)
+            {
+                ["MessageType"] = authority.Snapshot.Profile.FlowTypeCode == "PRENOTIFICACION"
+                    ? "Prenotification"
+                    : "Original",
+                ["AddendaType"] = "05"
+            }
+        }, ct);
+        return resolved.Success && resolved.Profile?.Id == authority.Profile.Id && !resolved.UsedFallback
+            ? resolved
+            : InboundFailure(NachaProfileSelectionStatus.ProfileAmbiguous, "INBOUND_PUBLISH_RESOLUTION_CONFLICT");
+    }
+
+    private static bool TryGetPublishedSecValues(
+        NachaPublicationSnapshot snapshot,
+        out HashSet<string> allowed)
+    {
+        allowed = new HashSet<string>(StringComparer.Ordinal);
+        var entryVariants = snapshot.LayoutVariants.Where(variant => variant.RecordCode == "6").ToArray();
+        if (entryVariants.Length != 1 || !entryVariants[0].IsDefaultForRecord)
+        {
+            return false;
+        }
+        var variants = snapshot.LayoutVariants.Where(variant => variant.RecordCode == "5" && variant.IsDefaultForRecord).ToArray();
+        if (variants.Length != 1
+            || snapshot.LayoutVariants.Count(variant => variant.RecordCode == "5") != 1)
+        {
+            return false;
+        }
+        var fields = variants[0].Fields.Where(field => field.IsEnabled && field.FieldCode == "STANDARDENTRYCLASSCODE").ToArray();
+        if (fields.Length != 1)
+        {
+            return false;
+        }
+        var rules = fields[0].Rules.Where(rule => rule.IsEnabled && rule.RuleTypeCode == "ENUM").ToArray();
+        if (rules.Length != 1 || rules[0].RuleConfiguration is not { } configuration
+            || configuration.ValueKind != JsonValueKind.Object
+            || !configuration.TryGetProperty("allowedValues", out var values)
+            || values.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+        foreach (var value in values.EnumerateArray())
+        {
+            if (value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString()))
+            {
+                return false;
+            }
+            if (!allowed.Add(value.GetString()!.Trim().ToUpperInvariant()))
+            {
+                return false;
+            }
+        }
+        return allowed.Count > 0;
+    }
+
+    private static NachaConfigResolutionResult InboundFailure(NachaProfileSelectionStatus status, string code)
+        => new()
+        {
+            Success = false,
+            SelectionStatus = status,
+            Warnings = [code],
+            Trace = [$"Selección cerrada: {code}."]
+        };
+
     private static NachaConfigResolutionResult ResolveGraph(
         NachaConfigResolutionRequest request,
         CfgProfile profile,

@@ -1746,6 +1746,209 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         result.Issues.Should().NotContain(issue => issue.Codigo == "HISTORICAL_TRANSACTION_CODE_REASSIGNMENT");
     }
 
+    [Fact]
+    public async Task PublishedInboundPreselection_ShouldSelectAllAcceptedSuccessorsAndIgnoreLiveMutation()
+    {
+        await using var context = await SeedAsync();
+        var resolver = new NachaConfigResolver(context);
+        var cases = new[]
+        {
+            ("ACH", "PPD", "22", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
+            ("ACH", "PPD", "27", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
+            ("ACH", "PPD", "23", AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
+            ("ACH", "PPD", "28", AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
+            ("ACH", "PPD", "32", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
+            ("ACH", "PPD", "37", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
+            ("ACH", "PPD", "33", AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
+            ("ACH", "PPD", "38", AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
+            ("ACH", "PPD", "52", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
+            ("ACH", "PPD", "55", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
+            ("ACH", "PPD", "53", AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
+            ("ACH", "PPD", "57", AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
+            ("CENIT", "PPD", "22", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
+            ("CENIT", "CCD", "27", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
+            ("CENIT", "CCD", "23", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+            ("CENIT", "PPD", "28", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+            ("CENIT", "CCD", "32", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
+            ("CENIT", "PPD", "37", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
+            ("CENIT", "PPD", "33", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+            ("CENIT", "CCD", "38", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+            ("CENIT", "PPD", "52", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
+            ("CENIT", "CCD", "55", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
+            ("CENIT", "CCD", "53", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+            ("CENIT", "PPD", "57", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
+            ("CENIT", "CTX", "22", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
+            ("CENIT", "CTX", "27", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
+            ("CENIT", "CTX", "23", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "28", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "32", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
+            ("CENIT", "CTX", "37", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
+            ("CENIT", "CTX", "33", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "38", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "52", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
+            ("CENIT", "CTX", "55", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
+            ("CENIT", "CTX", "53", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "57", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode)
+        };
+        foreach (var (chamber, service, code, expected) in cases)
+        {
+            var result = await resolver.ResolvePublishedInboundAsync(
+                InboundRequest(chamber), InboundEvidence(service, code));
+            result.Success.Should().BeTrue(string.Join("; ", result.Warnings));
+            result.Profile!.ProfileCode.Should().Be(expected);
+            result.TransactionCodeContract!.TryGetRule(code, out var rule).Should().BeTrue();
+            rule.IsPrenotification.Should().Be(code is "23" or "28" or "33" or "38" or "53" or "57");
+        }
+
+        var liveRule = await context.CfgRuleSetRules.SingleAsync(rule =>
+            rule.RuleSet.RuleSetCode == "NACHA_ACH_TRANSACTION_CODE_V1"
+            && rule.RuleCode == "TRANSACTION_CODE_22");
+        liveRule.RuleConfigJson = "{\"transactionCode\":\"99\",\"direction\":\"CREDIT\",\"accountType\":\"Checking\",\"isPrenotification\":false}";
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var after = await resolver.ResolvePublishedInboundAsync(InboundRequest("ACH"), InboundEvidence("PPD", "22"));
+        after.Success.Should().BeTrue(string.Join("; ", after.Warnings));
+        after.Profile!.ProfileCode.Should().Be(AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode);
+        after.TransactionCodeContract!.TryGetRule("22", out var unchanged).Should().BeTrue();
+        unchanged.AccountType.Should().Be(AccountTypeEnum.Checking);
+
+        var liveField = await context.CfgLayoutFields.SingleAsync(field =>
+            field.LayoutVariant.ProfileId == after.Profile.Id
+            && field.LayoutVariant.RecordCode.Code == "6"
+            && field.FieldCode == "TRANSACTIONCODE");
+        liveField.StartPosition = 3;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var publishedReader = await NachaProfileRecordReader.LoadPublishedAsync(context, after.Profile.Id, default);
+        publishedReader.Read(InboundEvidence("PPD", "22")[1], "6", "TRANSACTIONCODE").Should().Be("22");
+    }
+
+    [Theory]
+    [InlineData("missing-snapshot", NachaProfileSelectionStatus.SemanticContractMissing, "INBOUND_PUBLISH_SNAPSHOT_MISSING")]
+    [InlineData("missing-metadata", NachaProfileSelectionStatus.SemanticContractMissing, "INBOUND_TXCODE_METADATA_INVALID")]
+    [InlineData("malformed-snapshot", NachaProfileSelectionStatus.SemanticContractInvalid, "INBOUND_PUBLISH_SNAPSHOT_INVALID")]
+    [InlineData("unsupported-code", NachaProfileSelectionStatus.ProfileNotFound, "INBOUND_TXCODE_UNSUPPORTED")]
+    [InlineData("ambiguous", NachaProfileSelectionStatus.ProfileAmbiguous, "INBOUND_PUBLICATION_AMBIGUOUS")]
+    [InlineData("live-only", NachaProfileSelectionStatus.ProfileNotFound, "INBOUND_PUBLICATION_NO_COMPATIBLE_AUTHORITY")]
+    [InlineData("conflicting", NachaProfileSelectionStatus.ProfileAmbiguous, "INBOUND_TXCODE_AUTHORITY_CONFLICT")]
+    public async Task PublishedInboundPreselection_ShouldFailClosed(
+        string mode,
+        NachaProfileSelectionStatus expectedStatus,
+        string expectedCode)
+    {
+        await using var context = await SeedAsync();
+        var profile = (await LoadProfileAsync(context, AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode))!;
+        var publication = await context.HistConfigSnapshots.SingleAsync(row =>
+            row.ProfileId == profile.Id && row.SnapshotType == "PUBLISH");
+        switch (mode)
+        {
+            case "missing-snapshot":
+                context.HistConfigSnapshots.Remove(publication);
+                break;
+            case "missing-metadata":
+                var snapshot = NachaPublicationSnapshotSerializer.Read(publication.SnapshotJson).Snapshot!;
+                publication.SnapshotJson = NachaPublicationSnapshotSerializer.Serialize(snapshot with
+                {
+                    Records = snapshot.Records.Select(record => record.RecordCode == "6"
+                        ? record with { SemanticRuleSetId = null, SemanticRuleSet = null }
+                        : record).ToArray()
+                });
+                break;
+            case "malformed-snapshot":
+                publication.SnapshotJson = "{";
+                break;
+            case "ambiguous":
+                context.CfgProfiles.Add(new CfgProfile
+                {
+                    ProfileCode = "TEST_DUPLICATE_INBOUND_PUBLICATION",
+                    NameEs = "Ambiguous inbound test authority",
+                    ClearingHouseId = profile.ClearingHouseId,
+                    FlowTypeId = profile.FlowTypeId,
+                    DirectionId = profile.DirectionId,
+                    ServiceClassId = profile.ServiceClassId,
+                    ContextPriority = profile.ContextPriority,
+                    EffectiveFrom = profile.EffectiveFrom,
+                    StatusId = profile.StatusId,
+                    VersionMajor = profile.VersionMajor,
+                    VersionMinor = profile.VersionMinor
+                });
+                break;
+            case "live-only":
+                var draftId = await context.CatConfigStatuses.Where(status => status.Code == "BORRADOR")
+                    .Select(status => status.Id).SingleAsync();
+                var originals = await context.CfgProfiles.Where(candidate =>
+                    candidate.ClearingHouse.Code == "ACH"
+                    && candidate.Direction.Code == "ENTRADA"
+                    && candidate.FlowType.Code == "ORIGINAL").ToListAsync();
+                foreach (var original in originals)
+                {
+                    original.StatusId = draftId;
+                }
+                break;
+            case "conflicting":
+                var ctx = (await LoadProfileAsync(context, CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode))!;
+                var ctxPublication = await context.HistConfigSnapshots.SingleAsync(row =>
+                    row.ProfileId == ctx.Id && row.SnapshotType == "PUBLISH");
+                var ctxSnapshot = NachaPublicationSnapshotSerializer.Read(ctxPublication.SnapshotJson).Snapshot!;
+                ctxPublication.SnapshotJson = NachaPublicationSnapshotSerializer.Serialize(ctxSnapshot with
+                {
+                    Records = ctxSnapshot.Records.Select(record => record.RecordCode == "6"
+                        ? record with
+                        {
+                            SemanticRuleSet = record.SemanticRuleSet! with
+                            {
+                                Rules = record.SemanticRuleSet.Rules.Select(rule => rule.RuleCode switch
+                                {
+                                    "TRANSACTION_CODE_22" => rule with
+                                    {
+                                        RuleConfiguration = JsonDocument.Parse("{\"transactionCode\":\"22\",\"direction\":\"Credit\",\"accountType\":\"Savings\",\"isPrenotification\":false}").RootElement.Clone()
+                                    },
+                                    "TRANSACTION_CODE_32" => rule with
+                                    {
+                                        RuleConfiguration = JsonDocument.Parse("{\"transactionCode\":\"32\",\"direction\":\"Credit\",\"accountType\":\"Checking\",\"isPrenotification\":false}").RootElement.Clone()
+                                    },
+                                    _ => rule
+                                }).ToArray()
+                            }
+                        }
+                        : record).ToArray()
+                });
+                break;
+        }
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var chamber = mode == "conflicting" ? "CENIT" : "ACH";
+        var result = await new NachaConfigResolver(context).ResolvePublishedInboundAsync(
+            InboundRequest(chamber), InboundEvidence("PPD", mode == "unsupported-code" ? "99" : "22"));
+
+        result.Success.Should().BeFalse();
+        result.SelectionStatus.Should().Be(expectedStatus);
+        result.Warnings.Should().ContainSingle();
+        result.Warnings[0].Should().StartWith(expectedCode);
+    }
+
+    private static NachaConfigResolutionRequest InboundRequest(string chamber)
+        => new()
+        {
+            ClearingHouseCode = chamber,
+            DirectionCode = "ENTRADA",
+            RequestedVersionMajor = chamber == "ACH" ? 35 : 1,
+            ProcessDateUtc = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc),
+            RecordCodes = ["5", "6"]
+        };
+
+    private static IReadOnlyList<string> InboundEvidence(string service, string transactionCode)
+    {
+        var batch = new string(' ', 106).ToCharArray();
+        batch[0] = '5';
+        service.CopyTo(0, batch, 50, service.Length);
+        var entry = new string(' ', 106).ToCharArray();
+        entry[0] = '6';
+        transactionCode.CopyTo(0, entry, 1, transactionCode.Length);
+        return [new string(batch), new string(entry)];
+    }
+
     private Task<AchDbContext> SeedAsync() => _fixture.CreateSeededContextAsync();
 
     private sealed class AlwaysValidNachaConfigValidationService : INachaConfigValidationService

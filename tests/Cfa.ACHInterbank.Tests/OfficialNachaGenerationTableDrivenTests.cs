@@ -1558,8 +1558,10 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         exception.Message.Should().Contain("ACHCOL-PHYSICAL-ASCII-REPERTOIRE");
     }
 
-    [Fact]
-    public async Task AchColOfficial_ShouldRoundTripThroughProductParserWithSyntheticData()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AchColOfficial_ShouldRoundTripThroughProductParserWithSyntheticData(bool publishedSuccessor)
     {
         await using var context = await SeedAsync();
         var model = BuildContext("ACH Colombia");
@@ -1575,7 +1577,9 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             Mock.Of<ILogger<NachaParserService>>(),
             Mock.Of<IAchStateTransitionService>());
         var profile = await context.CfgProfiles.AsNoTracking().SingleAsync(item =>
-            item.ProfileCode == AchColOfficialNachaLayout.InboundOriginalProfileCode);
+            item.ProfileCode == (publishedSuccessor
+                ? AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode
+                : AchColOfficialNachaLayout.InboundOriginalProfileCode));
         await using var stream = new MemoryStream(Encoding.ASCII.GetBytes(content));
         var result = await parser.ParseAndSaveDetailedAsync(
             stream,
@@ -1587,7 +1591,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
                 OperationalDate = model.Cycle.ProcessingDate,
                 CorrelationId = "synthetic-roundtrip-execution-2",
                 SelectedProfileId = profile.Id,
-                SelectedProfileCode = profile.ProfileCode
+                SelectedProfileCode = profile.ProfileCode,
+                RequirePublishedProfileSnapshot = publishedSuccessor
             },
             CancellationToken.None);
 
@@ -1615,8 +1620,10 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         parsedBatchControl.BatchNumber.Should().Be("0000001");
     }
 
-    [Fact]
-    public async Task AchColV35Prenotification_ShouldParseWithExplicitInboundProfile()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AchColV35Prenotification_ShouldParseWithExplicitInboundProfile(bool publishedSuccessor)
     {
         await using var context = await SeedAsync();
         var model = BuildContext("ACH Colombia");
@@ -1643,7 +1650,9 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         context.AchCycles.Add(model.Cycle);
         await context.SaveChangesAsync();
         var profile = await context.CfgProfiles.AsNoTracking().SingleAsync(item =>
-            item.ProfileCode == AchColOfficialNachaLayout.InboundPrenotificationProfileCode);
+            item.ProfileCode == (publishedSuccessor
+                ? AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode
+                : AchColOfficialNachaLayout.InboundPrenotificationProfileCode));
         var parser = new NachaParserService(
             context,
             Mock.Of<ILogger<NachaParserService>>(),
@@ -1660,7 +1669,8 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
                 OperationalDate = model.Cycle.ProcessingDate,
                 CorrelationId = "synthetic-prenote-v35",
                 SelectedProfileId = profile.Id,
-                SelectedProfileCode = profile.ProfileCode
+                SelectedProfileCode = profile.ProfileCode,
+                RequirePublishedProfileSnapshot = publishedSuccessor
             },
             CancellationToken.None);
 

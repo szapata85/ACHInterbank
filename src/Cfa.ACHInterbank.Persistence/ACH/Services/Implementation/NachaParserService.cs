@@ -83,7 +83,9 @@ public class NachaParserService : INachaParserService
                 .ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase, ct);
 
             var profileReader = request?.SelectedProfileId is int selectedProfileId
-                ? await NachaProfileRecordReader.LoadAsync(_context, selectedProfileId, ct)
+                ? request.RequirePublishedProfileSnapshot
+                    ? await NachaProfileRecordReader.LoadPublishedAsync(_context, selectedProfileId, ct)
+                    : await NachaProfileRecordReader.LoadAsync(_context, selectedProfileId, ct)
                 : null;
             if (profileReader is not null
                 && !string.IsNullOrWhiteSpace(request?.SelectedProfileCode)

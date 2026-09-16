@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.EntityFrameworkCore;
 
@@ -52,6 +54,43 @@ internal sealed class NachaProfileRecordReader
             .ThenBy(variant => variant.Id)
             .ToListAsync(cancellationToken);
 
+        return FromVariants(profileId, profileCode, variants);
+    }
+
+    public static async Task<NachaProfileRecordReader> LoadPublishedAsync(
+        AchDbContext context,
+        int profileId,
+        CancellationToken cancellationToken)
+    {
+        var publications = await context.HistConfigSnapshots.AsNoTracking()
+            .Where(snapshot => snapshot.ProfileId == profileId && snapshot.SnapshotType == "PUBLISH")
+            .Select(snapshot => snapshot.SnapshotJson)
+            .ToListAsync(cancellationToken);
+        if (publications.Count != 1)
+        {
+            throw new InvalidOperationException("NACHA_PROFILE_PUBLISH_MISSING: se requiere exactamente un snapshot PUBLISH.");
+        }
+
+        var read = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(publications[0]);
+        if (!read.IsSupported || read.Snapshot is null || read.Snapshot.Profile.ProfileId != profileId)
+        {
+            throw new InvalidOperationException($"NACHA_PROFILE_PUBLISH_INVALID: {read.Status}: {read.Error}");
+        }
+
+        return FromPublication(read.Snapshot);
+    }
+
+    public static NachaProfileRecordReader FromPublication(NachaPublicationSnapshot snapshot)
+    {
+        var (profile, variants) = NachaPublicationSnapshotMaterializer.Materialize(snapshot);
+        return FromVariants(profile.Id, profile.ProfileCode, variants);
+    }
+
+    private static NachaProfileRecordReader FromVariants(
+        int profileId,
+        string profileCode,
+        IReadOnlyList<CfgLayoutVariant> variants)
+    {
         if (variants.Count == 0)
         {
             throw new InvalidOperationException($"NACHA_PROFILE_LAYOUT_EMPTY: el perfil {profileCode} no contiene variantes.");

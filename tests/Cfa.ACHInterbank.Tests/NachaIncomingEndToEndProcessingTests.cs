@@ -27,7 +27,7 @@ public class NachaIncomingEndToEndProcessingTests
         var result = await fixture.Sut.ProcessAsync(BuildRequest(
             NachaTestDataPaths.AchColombiaIncoming001,
             "ACH",
-            AchColOfficialNachaLayout.InboundOriginalProfileCode));
+            AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode));
 
         result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
         result.PersistencePassed.Should().BeTrue();
@@ -36,8 +36,8 @@ public class NachaIncomingEndToEndProcessingTests
         result.AddendaCount.Should().Be(1);
         result.BatchCount.Should().Be(1);
         result.FileControlCount.Should().Be(1);
-        result.ProfileCode.Should().Be(AchColOfficialNachaLayout.InboundOriginalProfileCode);
-        (await fixture.Context.IncomingNachaFileIngestions.SingleAsync()).ProfileVersion.Should().Be("35.0");
+        result.ProfileCode.Should().Be(AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode);
+        (await fixture.Context.IncomingNachaFileIngestions.SingleAsync()).ProfileVersion.Should().Be("35.1");
         result.Decisions.Should().ContainSingle(x =>
             x.DecisionType == NachaIncomingDecisionType.ApplyCreditMovement
             && x.SoapOperation == NachaSoapOperationCandidate.ProcTransacciones
@@ -54,12 +54,12 @@ public class NachaIncomingEndToEndProcessingTests
         var result = await fixture.Sut.ProcessAsync(BuildRequest(
             NachaTestDataPaths.CenitIncoming001,
             "CENIT",
-            "OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_0"));
+            CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode));
 
         result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
         result.PersistencePassed.Should().BeTrue();
         result.ClearingHouseCode.Should().Be("CENIT");
-        result.ProfileCode.Should().Be("OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_0");
+        result.ProfileCode.Should().Be(CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode);
         result.Decisions.Should().ContainSingle(x => x.SoapOperation == NachaSoapOperationCandidate.ProcTransacciones);
     }
 
@@ -94,7 +94,7 @@ public class NachaIncomingEndToEndProcessingTests
         var request = BuildPathRequest(
             NachaTestDataPaths.AchColombiaIncoming001,
             "ACH",
-            AchColOfficialNachaLayout.InboundOriginalProfileCode,
+            AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode,
             fileNameOverride: "nombre-invalido.txt",
             isSimulation: false);
 
@@ -147,13 +147,13 @@ public class NachaIncomingEndToEndProcessingTests
     public async Task ProcessIncomingFile_ShouldDetectDuplicateFile()
     {
         await using var fixture = BuildFixture("ACH", 1, "12345678");
-        var request = BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.InboundOriginalProfileCode);
+        var request = BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode);
 
         var first = await fixture.Sut.ProcessAsync(request);
         var second = await fixture.Sut.ProcessAsync(BuildPathRequest(
             NachaTestDataPaths.AchColombiaIncoming001,
             "ACH",
-            AchColOfficialNachaLayout.InboundOriginalProfileCode,
+            AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode,
             correlationId: "phase-6b4-duplicate"));
 
         first.ValidationPassed.Should().BeTrue();
@@ -190,7 +190,7 @@ public class NachaIncomingEndToEndProcessingTests
         var result = await fixture.Sut.ProcessAsync(BuildContentRequest("1234567.001.1.ach", BuildPrenotificationContent(), "ACH"));
 
         result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
-        result.ProfileCode.Should().Be(AchColOfficialNachaLayout.InboundPrenotificationProfileCode);
+        result.ProfileCode.Should().Be(AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode);
         result.FlowType.Should().Be(NachaIncomingFlowType.PrenotificationResponse);
         result.Decisions.Should().ContainSingle(x =>
             x.DecisionType == NachaIncomingDecisionType.ApprovePrenotification
@@ -202,7 +202,7 @@ public class NachaIncomingEndToEndProcessingTests
     public async Task IncomingExternalCredit_ShouldPrepareProcTransacciones()
     {
         await using var fixture = BuildFixture("ACH", 1, "12345678");
-        var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.InboundOriginalProfileCode));
+        var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode));
 
         result.Decisions.Should().ContainSingle(x =>
             x.DecisionType == NachaIncomingDecisionType.ApplyCreditMovement
@@ -243,7 +243,7 @@ public class NachaIncomingEndToEndProcessingTests
     public async Task ProcessIncomingFile_ShouldWritePhase6B4Trace()
     {
         await using var fixture = BuildFixture("ACH", 1, "12345678");
-        var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.InboundOriginalProfileCode));
+        var result = await fixture.Sut.ProcessAsync(BuildRequest(NachaTestDataPaths.AchColombiaIncoming001, "ACH", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode));
 
         result.Trace["Phase"].Should().Be("6B.4");
         result.Trace["ProductiveExecution"].Should().Be("false");
@@ -478,7 +478,7 @@ public class NachaIncomingEndToEndProcessingTests
             Content = content,
             ClearingHouseCode = clearingHouseCode,
             ExpectedProfileCode = clearingHouseCode == "CENIT"
-                ? "OFFICIAL_CENIT_ENTRADA_ORIGINAL_V1_0"
+                ? CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode
                 : ResolveExpectedAchProfileCode(content),
             ReceivedAt = new DateTime(2026, 5, 24, 12, 0, 0),
             Source = "GoldenMutation",
@@ -522,8 +522,8 @@ public class NachaIncomingEndToEndProcessingTests
             .Select(record => record.Substring(1, 2))
             .ToArray();
         return transactionCodes.Length > 0 && transactionCodes.All(prenotificationCodes.Contains)
-            ? AchColOfficialNachaLayout.InboundPrenotificationProfileCode
-            : AchColOfficialNachaLayout.InboundOriginalProfileCode;
+            ? AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode
+            : AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode;
     }
 
     private static List<string> Split(string content)

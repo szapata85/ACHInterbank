@@ -268,5 +268,11 @@ public sealed class OrdinaryTransactionCodeAuthorityTests : IClassFixture<Offici
             Requests.Add(request);
             return Task.FromResult(_resolve(request));
         }
+
+        public Task<NachaConfigResolutionResult> ResolvePublishedInboundAsync(
+            NachaConfigResolutionRequest request,
+            IReadOnlyList<string> physicalRecords,
+            CancellationToken ct = default)
+            => Task.FromResult(_resolve(request));
     }
 }

@@ -73,7 +73,8 @@ public class IncomingNachaIngestionAppServiceTests
         parser.Setup(x => x.ParseAndSaveDetailedAsync(
                 It.IsAny<Stream>(),
                 canonicalName,
-                It.IsAny<NachaParseRequest>(),
+                It.Is<NachaParseRequest>(request => request.RequirePublishedProfileSnapshot
+                    && request.SelectedProfileCode == AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
                 It.IsAny<CancellationToken>()))
             .Returns((Stream stream, string _, NachaParseRequest _, CancellationToken _) =>
             {
@@ -84,7 +85,10 @@ public class IncomingNachaIngestionAppServiceTests
             });
 
         var profileResolver = new Mock<INachaConfigResolver>();
-        profileResolver.Setup(x => x.ResolveAsync(It.IsAny<NachaConfigResolutionRequest>(), It.IsAny<CancellationToken>()))
+        profileResolver.Setup(x => x.ResolvePublishedInboundAsync(
+                It.IsAny<NachaConfigResolutionRequest>(),
+                It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new NachaConfigResolutionResult
             {
                 Success = true,
@@ -92,9 +96,9 @@ public class IncomingNachaIngestionAppServiceTests
                 Profile = new CfgProfile
                 {
                     Id = 1,
-                    ProfileCode = AchColOfficialNachaLayout.InboundOriginalProfileCode,
+                    ProfileCode = AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode,
                     VersionMajor = AchColOfficialNachaLayout.ProfileVersionMajor,
-                    VersionMinor = AchColOfficialNachaLayout.ProfileVersionMinor
+                    VersionMinor = AchColOfficialNachaLayout.TxCodeAwareProfileVersionMinor
                 }
             });
 
