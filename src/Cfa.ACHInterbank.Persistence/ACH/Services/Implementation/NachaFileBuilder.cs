@@ -26,6 +26,8 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 [Scoped]
 public class NachaFileBuilder : INachaFileBuilder
 {
+    private const int FixedWidthRecordLength = 106;
+
     private static readonly ConcurrentDictionary<string, string> NormalizedIdentifierCache = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, string[]> IdentifierCandidatesCache = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<Type, PropertyResolutionCache> PropertyCacheByType = new();
@@ -1272,7 +1274,7 @@ public class NachaFileBuilder : INachaFileBuilder
         {
             foreach (var recordCode in officialRecordCodes)
             {
-                ValidateOfficialLayout(recordCode, RequireOfficialLayout(resolution, recordCode), audit);
+                ValidateMaterializedLayoutStructure(recordCode, RequireOfficialLayout(resolution, recordCode), audit);
             }
 
             if (string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
@@ -1280,7 +1282,7 @@ public class NachaFileBuilder : INachaFileBuilder
             {
                 foreach (var type7Layout in type7Layouts)
                 {
-                    ValidateOfficialLayout("7", type7Layout, audit);
+                    ValidateMaterializedLayoutStructure("7", type7Layout, audit);
                 }
             }
 
@@ -2585,6 +2587,41 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private static void ValidateOfficialLayout(string recordCode, CfgLayoutVariant layout, NachaGenerationAuditResult? audit = null)
     {
+        ValidateMaterializedLayoutStructure(recordCode, layout, audit);
+
+        if (string.Equals(audit?.ClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateAchColOfficialLayoutSnapshot(recordCode, layout);
+        }
+        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+                 && CenitReturnOut2026Layout.IsVariant(layout.VariantCode))
+        {
+            ValidateCenitReturnOut2026LayoutSnapshot(recordCode, layout);
+        }
+        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+                 && CenitOrdinaryOutbound2026Layout.IsVariant(layout.VariantCode))
+        {
+            ValidateCenitOrdinaryOutbound2026LayoutSnapshot(recordCode, layout);
+        }
+        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
+                 && CenitCtxOutbound2026Layout.IsVariant(layout.VariantCode))
+        {
+            ValidateCenitCtxOutbound2026LayoutSnapshot(recordCode, layout);
+        }
+    }
+
+    private static void ValidateMaterializedLayoutStructure(
+        string recordCode,
+        CfgLayoutVariant layout,
+        NachaGenerationAuditResult? audit = null)
+    {
+        if (layout.TotalLength != FixedWidthRecordLength)
+        {
+            throw new NachaGenerationException(
+                "NACHA_RECORD_LENGTH_INVALID",
+                $"RecordCode={recordCode} debe tener longitud fija de {FixedWidthRecordLength} caracteres.");
+        }
+
         var enabledFields = layout.Fields.Where(x => x.IsEnabled).OrderBy(x => x.StartPosition).ToList();
         if (enabledFields.Count == 0)
         {
@@ -2660,25 +2697,6 @@ public class NachaFileBuilder : INachaFileBuilder
             }
         }
 
-        if (string.Equals(audit?.ClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase))
-        {
-            ValidateAchColOfficialLayoutSnapshot(recordCode, layout);
-        }
-        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-                 && CenitReturnOut2026Layout.IsVariant(layout.VariantCode))
-        {
-            ValidateCenitReturnOut2026LayoutSnapshot(recordCode, layout);
-        }
-        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-                 && CenitOrdinaryOutbound2026Layout.IsVariant(layout.VariantCode))
-        {
-            ValidateCenitOrdinaryOutbound2026LayoutSnapshot(recordCode, layout);
-        }
-        else if (string.Equals(audit?.ClearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-                 && CenitCtxOutbound2026Layout.IsVariant(layout.VariantCode))
-        {
-            ValidateCenitCtxOutbound2026LayoutSnapshot(recordCode, layout);
-        }
     }
 
     private static void ValidateCenitCtxOutbound2026LayoutSnapshot(string recordCode, CfgLayoutVariant layout)
@@ -2964,23 +2982,15 @@ public class NachaFileBuilder : INachaFileBuilder
         string? clearingHouseCode)
     {
         var rules = field.Rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.Order).ToList();
-        var isCenitOrdinary = CenitOrdinaryOutbound2026Layout.IsVariant(field.LayoutVariant?.VariantCode);
-        var isCenitCtx = CenitCtxOutbound2026Layout.IsVariant(field.LayoutVariant?.VariantCode);
-        if ((string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
-             || (string.Equals(clearingHouseCode, "CENIT", StringComparison.OrdinalIgnoreCase)
-                 && (CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode) || isCenitOrdinary || isCenitCtx)))
-            && rules.Count == 0)
+        if (rules.Count == 0)
         {
-            var descriptor = isCenitCtx
-                ? CenitCtxOutbound2026Layout.Field(recordCode, field.FieldCode)
-                : isCenitOrdinary
-                ? CenitOrdinaryOutbound2026Layout.Field(recordCode, field.FieldCode)
-                : CenitReturnOut2026Layout.IsVariant(field.LayoutVariant?.VariantCode)
-                ? CenitReturnOut2026Layout.Field(recordCode, field.FieldCode)
-                : AchColReturnOutV35Layout.IsVariant(field.LayoutVariant?.VariantCode)
-                ? AchColReturnOutV35Layout.Field(recordCode, field.FieldCode)
-                : AchColOfficialNachaLayout.Field(recordCode, field.FieldCode, field.LayoutVariant?.VariantCode);
-            throw BuildFieldRuleException("NACHA_REQUIRED_RULE_MISSING", descriptor, "CfgFieldRule ejecutable ausente.");
+            throw BuildRuleException(
+                "NACHA_REQUIRED_RULE_MISSING",
+                "NACHA-RULE-METADATA",
+                clearingHouseCode,
+                recordCode,
+                field,
+                "CfgFieldRule ejecutable ausente.");
         }
 
         var current = value;

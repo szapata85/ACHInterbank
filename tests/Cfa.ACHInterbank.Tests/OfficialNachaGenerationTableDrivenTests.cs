@@ -567,6 +567,50 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
     }
 
     [Fact]
+    public async Task OrdinaryRuntime_ShouldUseStructurallyValidPublishedVariantWithoutStaticIdentityRecognition()
+    {
+        await using var context = await SeedAsync();
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+        var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedVariant(snapshot, "1")["variantCode"] = "SNAPSHOT_ONLY_T1");
+
+        var after = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
+
+        after.Should().Be(before);
+    }
+
+    [Fact]
+    public async Task OrdinaryRuntime_ShouldFailClosed_WhenPublishedFieldExceedsRecordBounds()
+    {
+        await using var context = await SeedAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+        {
+            var field = PublishedField(snapshot, "1", "IMMEDIATEORIGINNAME");
+            field["startPosition"] = 106;
+            field["length"] = 2;
+        });
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+
+        ex.Message.Should().Contain("LegacyOrIncomplete");
+    }
+
+    [Fact]
+    public async Task OrdinaryRuntime_ShouldFailClosed_WhenPublishedFieldsOverlap()
+    {
+        await using var context = await SeedAsync();
+        await MutatePublishedSnapshotAsync(context, snapshot =>
+            PublishedField(snapshot, "1", "IMMEDIATEORIGINNAME")["startPosition"] = 40);
+        var setup = CreateOfficialSut(context, "ACH Colombia");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
+
+        ex.Message.Should().Contain("LegacyOrIncomplete");
+    }
+
+    [Fact]
     public async Task OfficialGeneration_ShouldGenerateNonEmptyFile_ForAchColombia()
     {
         await using var context = await SeedAsync();
@@ -2061,6 +2105,11 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             .Where(variant => variant!["recordCode"]!.GetValue<string>() == recordCode)
             .SelectMany(variant => variant!["fields"]!.AsArray())
             .Single(field => field!["fieldCode"]!.GetValue<string>() == fieldCode)!
+            .AsObject();
+
+    private static JsonObject PublishedVariant(JsonObject snapshot, string recordCode)
+        => snapshot["layoutVariants"]!.AsArray()
+            .Single(variant => variant!["recordCode"]!.GetValue<string>() == recordCode)!
             .AsObject();
 
     private sealed record OfficialSut(
