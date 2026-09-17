@@ -135,6 +135,8 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
     [Theory]
     [InlineData(false, CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode, 2)]
     [InlineData(true, CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode, 5)]
+    [InlineData(false, CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode, 2)]
+    [InlineData(true, CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode, 5)]
     public async Task PublishedSuccessorReader_ShouldPreserveAcceptedInboundParsing(
         bool ctx,
         string profileCode,
@@ -185,6 +187,87 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         var entries = await context.EntryDetails.AsNoTracking().OrderBy(entry => entry.SequenceNumber).ToListAsync();
         entries.Select(entry => entry.TransactionCode).Should().Equal("23", "28");
         entries.Should().OnlyContain(entry => entry.Amount == 0m);
+    }
+
+    [Theory]
+    [InlineData("PPD", "23", 0, true, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    [InlineData("PPD", "23", 1, true, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    [InlineData("PPD", "23", 2, false, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    [InlineData("PPD", "28", 0, false, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    [InlineData("PPD", "28", 1, true, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    [InlineData("PPD", "28", 2, false, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    [InlineData("CCD", "22", 0, false, CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode)]
+    [InlineData("CCD", "22", 1, true, CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode)]
+    [InlineData("CCD", "22", 2, false, CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode)]
+    [InlineData("CCD", "28", 0, false, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    [InlineData("CCD", "28", 1, true, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    [InlineData("CCD", "28", 2, false, CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode)]
+    public async Task PublishedCardinality_ShouldGovernOrdinaryInbound(
+        string service, string code, int count, bool valid, string profileCode)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var content = BuildSingleEntryFile(service, code, code is "28" ? "225" : "220",
+            code is "23" or "28" ? 0 : 10_000, count);
+        var action = () => ParseAsync(context, clearingHouse, profileCode, content,
+            $"published-cardinality-{service}-{code}-{count}", requirePublishedSnapshot: true);
+        if (!valid)
+        {
+            await action.Should().ThrowAsync<InvalidOperationException>();
+            return;
+        }
+        var result = await action();
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(1);
+        result.TotalAddendas.Should().Be(count);
+    }
+
+    [Theory]
+    [InlineData(false, 0, false)]
+    [InlineData(false, 1, true)]
+    [InlineData(false, 2, true)]
+    [InlineData(true, 0, false)]
+    [InlineData(true, 1, true)]
+    [InlineData(true, 2, false)]
+    public async Task PublishedCardinality_ShouldGovernCtxInbound(bool prenotification, int count, bool valid)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var profileCode = prenotification
+            ? CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode
+            : CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode;
+        var content = prenotification
+            ? BuildCtxFile("23", 0, "28", 0, count, 1)
+            : BuildCtxFile("22", 10_000, "27", 5_000, count, 1);
+        var action = () => ParseAsync(context, clearingHouse, profileCode, content,
+            $"published-ctx-{prenotification}-{count}", requirePublishedSnapshot: true);
+        if (!valid)
+        {
+            await action.Should().ThrowAsync<InvalidOperationException>();
+            return;
+        }
+        var result = await action();
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task PublishedPpdPrenote_ShouldIgnoreLaterLiveCardinalityMutation()
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var profile = await context.CfgProfiles.Include(item => item.Tags).SingleAsync(item =>
+            item.ProfileCode == CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode);
+        profile.Tags.Single(tag => tag.TagKey == NachaAddendaCardinalityMetadata.Prefix + "PPD")
+            .TagValue = "Credit=1:1;Debit=1:1";
+        await context.SaveChangesAsync();
+
+        var result = await ParseAsync(context, clearingHouse, profile.ProfileCode,
+            BuildSingleEntryFile("PPD", "23", "220", 0, 0),
+            "published-ppd-live-mutation", requirePublishedSnapshot: true);
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(1);
+        result.TotalAddendas.Should().Be(0);
     }
 
     [Theory]

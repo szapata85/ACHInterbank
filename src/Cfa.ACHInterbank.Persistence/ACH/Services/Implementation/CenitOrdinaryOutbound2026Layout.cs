@@ -15,6 +15,8 @@ internal static class CenitOrdinaryOutbound2026Layout
     public const string PrenotificationProfileCode = "OFFICIAL_CENIT_SALIDA_PRENOTIFICACION_V1_0";
     public const string TxCodeAwareOriginalProfileCode = "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_2";
     public const string TxCodeAwarePrenotificationProfileCode = "OFFICIAL_CENIT_SALIDA_PRENOTIFICACION_V1_2";
+    public const string CardinalityOriginalProfileCode = "OFFICIAL_CENIT_SALIDA_ORIGINAL_V1_3";
+    public const string CardinalityPrenotificationProfileCode = "OFFICIAL_CENIT_SALIDA_PRENOTIFICACION_V1_3";
     public const string NormativeVersion = "2026-05-07";
     public const string VariantPrefix = "CENIT_ORDINARY_OUT_2026_R";
     public const string Addenda05Variant = "CENIT_ORDINARY_OUT_2026_R7_ADDENDA_05";
@@ -116,7 +118,9 @@ internal static class CenitOrdinaryOutbound2026Layout
         => string.Equals(profileCode, OriginalProfileCode, StringComparison.Ordinal)
            || string.Equals(profileCode, PrenotificationProfileCode, StringComparison.Ordinal)
            || string.Equals(profileCode, TxCodeAwareOriginalProfileCode, StringComparison.Ordinal)
-           || string.Equals(profileCode, TxCodeAwarePrenotificationProfileCode, StringComparison.Ordinal);
+           || string.Equals(profileCode, TxCodeAwarePrenotificationProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, CardinalityOriginalProfileCode, StringComparison.Ordinal)
+           || string.Equals(profileCode, CardinalityPrenotificationProfileCode, StringComparison.Ordinal);
 
     internal static bool IsVariant(string? variantCode)
         => !string.IsNullOrWhiteSpace(variantCode)

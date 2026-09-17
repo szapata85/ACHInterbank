@@ -17,7 +17,12 @@ public sealed record CenitOutboundFilePartition(
     string ProfileIdentity,
     string StandardEntryClassCode,
     IReadOnlyList<string> ServiceCodes,
-    IReadOnlyList<CenitOutboundBatchPartition> Batches);
+    IReadOnlyList<CenitOutboundBatchPartition> Batches)
+{
+    public int? SelectedProfileId { get; init; }
+    public int? SelectedVersionMajor { get; init; }
+    public int? SelectedVersionMinor { get; init; }
+}
 
 public static class CenitOutboundFilePartitioner
 {
@@ -52,7 +57,8 @@ public static class CenitOutboundFilePartitioner
                             source.ServiceCode,
                             service.ServiceCode,
                             StringComparison.OrdinalIgnoreCase)),
-                        service)
+                        service,
+                        policy)
                 })
                 .Where(item => item.Files.Count > 0)
                 .ToArray();
@@ -86,10 +92,11 @@ public static class CenitOutboundFilePartitioner
 
     private static IReadOnlyList<IReadOnlyList<CenitOutboundBatchPartition>> PartitionService(
         IEnumerable<CenitOutboundSourceBatch> sourceBatches,
-        NachaOutboundServicePartitionPolicy policy)
+        NachaOutboundServicePartitionPolicy policy,
+        NachaOutboundPartitionPolicy profilePolicy)
     {
         var sources = sourceBatches.ToArray();
-        ValidateAddendaCardinality(sources, policy);
+        ValidateAddendaCardinality(sources, policy, profilePolicy);
 
         return policy.Strategy switch
         {
@@ -180,20 +187,37 @@ public static class CenitOutboundFilePartitioner
 
     private static void ValidateAddendaCardinality(
         IEnumerable<CenitOutboundSourceBatch> sources,
-        NachaOutboundServicePartitionPolicy policy)
+        NachaOutboundServicePartitionPolicy policy,
+        NachaOutboundPartitionPolicy profilePolicy)
     {
-        if (!policy.MinAddendaPerEntry.HasValue && !policy.MaxAddendaPerEntry.HasValue)
-        {
-            return;
-        }
-
         foreach (var transaction in sources.SelectMany(source => source.Transactions))
         {
-            if (transaction.Addendas.Count < (policy.MinAddendaPerEntry ?? 0)
-                || transaction.Addendas.Count > (policy.MaxAddendaPerEntry ?? int.MaxValue))
+            NachaAddendaBounds? bounds;
+            if (profilePolicy.CardinalityPolicy is { } publishedPolicy)
+            {
+                if (profilePolicy.TransactionCodeContract is null
+                    || string.IsNullOrWhiteSpace(transaction.TransactionCode)
+                    || !profilePolicy.TransactionCodeContract.TryGetRule(transaction.TransactionCode, out var semantic)
+                    || semantic.IsPrenotification != transaction.IsPrenotification
+                    || !publishedPolicy.TryResolve(policy.ServiceCode, semantic.Direction, out bounds))
+                {
+                    throw InvalidPolicy("CARDINALITY_POLICY_UNRESOLVED");
+                }
+            }
+            else if (policy.MinAddendaPerEntry.HasValue || policy.MaxAddendaPerEntry.HasValue)
+            {
+                bounds = new NachaAddendaBounds(
+                    policy.MinAddendaPerEntry ?? 0,
+                    policy.MaxAddendaPerEntry ?? int.MaxValue);
+            }
+            else
+            {
+                continue;
+            }
+            if (transaction.Addendas.Count < bounds.Minimum || transaction.Addendas.Count > bounds.Maximum)
             {
                 throw new NachaGenerationException(
-                    policy.AddendaCardinalityErrorCode!,
+                    policy.AddendaCardinalityErrorCode ?? "CENIT_ADDENDA_CARDINALITY_INVALID",
                     $"La entrada del servicio {policy.ServiceCode} no cumple la cardinalidad de adendas publicada.");
             }
         }
@@ -255,7 +279,12 @@ public static class CenitOutboundFilePartitioner
             policy.ProfileCode,
             standardEntryClassCode,
             serviceCodes,
-            batches));
+            batches)
+        {
+            SelectedProfileId = policy.SelectedProfileId,
+            SelectedVersionMajor = policy.SelectedVersionMajor,
+            SelectedVersionMinor = policy.SelectedVersionMinor
+        });
     }
 
     private static CenitOutboundBatchPartition ToPartition(CenitOutboundSourceBatch source)

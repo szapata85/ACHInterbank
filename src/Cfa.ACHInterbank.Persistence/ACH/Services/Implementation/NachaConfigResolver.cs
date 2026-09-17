@@ -213,7 +213,11 @@ public class NachaConfigResolver : INachaConfigResolver
         if (snapshot.Profile.ProfileId != selected.Id
             || snapshot.Profile.VersionMajor != selected.VersionMajor
             || snapshot.Profile.VersionMinor != selected.VersionMinor
-            || !string.Equals(snapshot.Profile.ProfileCode, selected.ProfileCode, StringComparison.Ordinal))
+            || !string.Equals(snapshot.Profile.ProfileCode, selected.ProfileCode, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Profile.ClearingHouseCode, selected.ClearingHouse.Code, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Profile.DirectionCode, selected.Direction.Code, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Profile.FlowTypeCode, selected.FlowType.Code, StringComparison.Ordinal)
+            || !string.Equals(snapshot.Profile.ServiceClassCode, selected.ServiceClass?.Code, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("La identidad del snapshot PUBLISH no coincide con la publicación seleccionada.");
         }
@@ -437,7 +441,7 @@ public class NachaConfigResolver : INachaConfigResolver
             : InboundFailure(NachaProfileSelectionStatus.ProfileAmbiguous, "INBOUND_PUBLISH_RESOLUTION_CONFLICT");
     }
 
-    private static bool TryGetPublishedSecValues(
+    internal static bool TryGetPublishedSecValues(
         NachaPublicationSnapshot snapshot,
         out HashSet<string> allowed)
     {
@@ -501,6 +505,30 @@ public class NachaConfigResolver : INachaConfigResolver
         var outboundPolicyMetadata = NachaOutboundPolicyMetadata.Resolve(
             profile.ProfileCode,
             profile.Tags.Select(tag => new KeyValuePair<string, string>(tag.TagKey, tag.TagValue)));
+        var cardinalityMetadata = NachaAddendaCardinalityMetadata.Resolve(
+            profile.Tags.Select(tag => new KeyValuePair<string, string>(tag.TagKey, tag.TagValue)));
+        if (cardinalityMetadata.Status == NachaAddendaCardinalityMetadataStatus.Invalid
+            || (request.RequireCardinalityPolicy
+                && cardinalityMetadata.Status == NachaAddendaCardinalityMetadataStatus.NotPresent))
+        {
+            return Failure(
+                NachaProfileSelectionStatus.SemanticContractInvalid,
+                cardinalityMetadata.Error ?? "CARDINALITY_POLICY_UNRESOLVED",
+                trace,
+                warnings,
+                profile);
+        }
+        if (cardinalityMetadata.Policy is { } cardinalityPolicy
+            && (cardinalityPolicy.DirectionCode != profile.Direction.Code
+                || cardinalityPolicy.FlowTypeCode != profile.FlowType.Code))
+        {
+            return Failure(
+                NachaProfileSelectionStatus.SemanticContractInvalid,
+                "CARDINALITY_POLICY_CONTEXT_MISMATCH",
+                trace,
+                warnings,
+                profile);
+        }
         if (outboundPolicyMetadata.Status == NachaOutboundPolicyMetadataStatus.Invalid)
         {
             return Failure(
@@ -657,6 +685,7 @@ public class NachaConfigResolver : INachaConfigResolver
             UsedFallback = false,
             Profile = profile,
             OutboundPolicy = outboundPolicyMetadata.Policy,
+            CardinalityPolicy = cardinalityMetadata.Policy,
             SettlementPolicy = settlementPolicyMetadata.Policy,
             SemanticContract = semanticContract,
             TransactionCodeContract = transactionCodeContract,

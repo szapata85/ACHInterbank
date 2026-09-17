@@ -27,11 +27,11 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
         var sources = entryCount == 20_000
             ? new[]
             {
-                SourceBatch(10, "PPD", CreateTransactions(7_000, withAddenda: false)),
-                SourceBatch(11, "PPD", CreateTransactions(7_000, withAddenda: false, firstId: 7_001)),
-                SourceBatch(12, "PPD", CreateTransactions(6_000, withAddenda: false, firstId: 14_001))
+                SourceBatch(10, "PPD", CreateTransactions(7_000, withAddenda: true)),
+                SourceBatch(11, "PPD", CreateTransactions(7_000, withAddenda: true, firstId: 7_001)),
+                SourceBatch(12, "PPD", CreateTransactions(6_000, withAddenda: true, firstId: 14_001))
             }
-            : [SourceBatch(10, "PPD", CreateTransactions(entryCount, withAddenda: false))];
+            : [SourceBatch(10, "PPD", CreateTransactions(entryCount, withAddenda: true))];
 
         var policies = await ResolvePoliciesAsync("PPD");
         var entryLimit = policies.Single().Services.Single(service => service.ServiceCode == "PPD").MaxEntriesPerFile!.Value;
@@ -75,14 +75,14 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
     [Fact]
     public async Task MixedOrdinaryAndCtx_ProducesIndependentProfilePartitions()
     {
-        var ppd = SourceBatch(10, "PPD", CreateTransactions(2, withAddenda: false, firstId: 1));
+        var ppd = SourceBatch(10, "PPD", CreateTransactions(2, withAddenda: true, firstId: 1));
         var ctx = SourceBatch(20, "CTX", CreateTransactions(2, withAddenda: true, firstId: 3));
 
         var policies = await ResolvePoliciesAsync("PPD", "CTX");
         var files = CenitOutboundFilePartitioner.Partition([ppd, ctx], policies);
 
         Assert.Equal(2, files.Count);
-        Assert.Equal(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, files[0].ProfileIdentity);
+        Assert.Equal(CenitOrdinaryOutbound2026Layout.CardinalityOriginalProfileCode, files[0].ProfileIdentity);
         Assert.Equal(["PPD"], files[0].ServiceCodes);
         Assert.Equal(CenitCtxOutbound2026Layout.TxCodeAwareOriginalProfileCode, files[1].ProfileIdentity);
         Assert.Equal(["CTX"], files[1].ServiceCodes);
@@ -94,14 +94,14 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
     [Fact]
     public async Task MixedPpdAndCcd_SharesTheOrdinaryProfilePartition()
     {
-        var ppd = SourceBatch(10, "PPD", CreateTransactions(1, withAddenda: false, firstId: 1));
+        var ppd = SourceBatch(10, "PPD", CreateTransactions(1, withAddenda: true, firstId: 1));
         var ccd = SourceBatch(20, "CCD", CreateTransactions(1, withAddenda: true, firstId: 2));
 
         var file = Assert.Single(CenitOutboundFilePartitioner.Partition(
             [ppd, ccd],
             await ResolvePoliciesAsync("PPD", "CCD")));
 
-        Assert.Equal(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, file.ProfileIdentity);
+        Assert.Equal(CenitOrdinaryOutbound2026Layout.CardinalityOriginalProfileCode, file.ProfileIdentity);
         Assert.Equal(["PPD", "CCD"], file.ServiceCodes);
         AssertMembership([file], 2);
     }
@@ -157,7 +157,7 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
         var testPolicy = resolved with { Services = services };
 
         var files = CenitOutboundFilePartitioner.Partition(
-            [SourceBatch(10, "PPD", CreateTransactions(3, withAddenda: false))],
+            [SourceBatch(10, "PPD", CreateTransactions(3, withAddenda: true))],
             [testPolicy]);
 
         Assert.Equal(2, files.Count);
@@ -171,7 +171,7 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
         var policies = new Dictionary<int, NachaOutboundPartitionPolicy>();
         foreach (var serviceCode in serviceCodes)
         {
-            var result = await resolver.ResolveAsync(new NachaConfigResolutionRequest
+            var result = await resolver.ResolvePublishedOrdinaryAsync(new NachaConfigResolutionRequest
             {
                 ClearingHouseCode = "CENIT",
                 FlowTypeCode = "ORIGINAL",
@@ -181,7 +181,11 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
                 RequireOutboundPolicy = true
             });
             Assert.True(result.Success, string.Join(" | ", result.Trace));
-            policies.TryAdd(result.Profile!.Id, result.OutboundPolicy!);
+            policies.TryAdd(result.Profile!.Id, result.OutboundPolicy! with
+            {
+                CardinalityPolicy = result.CardinalityPolicy,
+                TransactionCodeContract = result.TransactionCodeContract
+            });
         }
 
         return policies.Values.OrderBy(policy => policy.FileOrder).ToArray();
@@ -219,6 +223,7 @@ public sealed class CenitOutboundFilePartitionerTests : IClassFixture<OfficialNa
         {
             Id = id,
             Type = TransactionTypeEnum.Credit,
+            TransactionCode = "22",
             Amount = 1m,
             ReceivingDFI = "00000000"
         };

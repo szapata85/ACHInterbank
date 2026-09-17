@@ -647,7 +647,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .Should().Contain(t => t.TagKey == "NormativeVersion" && t.TagValue == "V35")
             .And.Contain(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("sección 6.6"));
         profiles.Where(x => CenitOrdinaryOutbound2026Layout.IsProfile(x.ProfileCode))
-            .Should().HaveCount(4)
+            .Should().HaveCount(6)
             .And.OnlyContain(x => x.Tags.Any(t => t.TagKey == "NormativeVersion" && t.TagValue == "2026-05-07")
                                   && x.Tags.Any(t => t.TagKey == "NormativeSource" && t.TagValue.Contains("Formato NACHA-M CENIT"))
                                   && x.Tags.Any(t => t.TagKey == "IsPlaceholder" && t.TagValue == "false")
@@ -795,7 +795,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
 
         result.Success.Should().BeTrue();
         result.UsedFallback.Should().BeFalse();
-        result.Profile!.ProfileCode.Should().Be(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
+        result.Profile!.ProfileCode.Should().Be(CenitOrdinaryOutbound2026Layout.CardinalityOriginalProfileCode);
         result.LayoutsByRecordCode.Keys.Should().BeEquivalentTo(RequiredRecords);
     }
 
@@ -1212,7 +1212,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
 
     [Theory]
     [InlineData("ACH", AchColOfficialNachaLayout.TxCodeAwareOutboundPrenotificationProfileCode)]
-    [InlineData("CENIT", CenitOrdinaryOutbound2026Layout.TxCodeAwarePrenotificationProfileCode)]
+    [InlineData("CENIT", CenitOrdinaryOutbound2026Layout.CardinalityPrenotificationProfileCode)]
     public async Task PrenotificationProfiles_ShouldBeResolvable(
         string clearingHouseCode,
         string expectedProfileCode)
@@ -1442,6 +1442,18 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .Where(profile => pairs.Select(pair => pair.Item2).Contains(profile.ProfileCode))
             .Select(profile => profile.Id).ToArrayAsync();
         successorIds.Should().HaveCount(6);
+        var cardinalityCodes = new[]
+        {
+            CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode,
+            CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode,
+            CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode,
+            CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode
+        };
+        var cardinalityIds = await context.CfgProfiles.AsNoTracking()
+            .Where(profile => cardinalityCodes.Contains(profile.ProfileCode))
+            .Select(profile => profile.Id).ToArrayAsync();
+        await context.HistConfigSnapshots.Where(snapshot => cardinalityIds.Contains(snapshot.ProfileId)).ExecuteDeleteAsync();
+        await context.CfgProfiles.Where(profile => cardinalityIds.Contains(profile.Id)).ExecuteDeleteAsync();
         await context.HistConfigSnapshots.Where(snapshot => successorIds.Contains(snapshot.ProfileId)).ExecuteDeleteAsync();
         await context.CfgProfiles.Where(profile => successorIds.Contains(profile.Id)).ExecuteDeleteAsync();
         context.ChangeTracker.Clear();
@@ -1463,6 +1475,11 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
 
         await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
         var partialId = published[CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode].Id;
+        var dependentId = await context.CfgProfiles.AsNoTracking()
+            .Where(profile => profile.ProfileCode == CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode)
+            .Select(profile => profile.Id).SingleAsync();
+        await context.HistConfigSnapshots.Where(snapshot => snapshot.ProfileId == dependentId).ExecuteDeleteAsync();
+        await context.CfgProfiles.Where(profile => profile.Id == dependentId).ExecuteDeleteAsync();
         await context.HistConfigSnapshots.Where(snapshot => snapshot.ProfileId == partialId).ExecuteDeleteAsync();
         await context.CfgProfiles.Where(profile => profile.Id == partialId).ExecuteDeleteAsync();
         context.ChangeTracker.Clear();
@@ -1568,6 +1585,12 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
                 profile.ProfileCode == CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode)
             .Select(profile => profile.Id)
             .SingleAsync();
+        var cardinalitySuccessorId = await context.CfgProfiles.Where(profile =>
+                profile.ProfileCode == CenitOrdinaryOutbound2026Layout.CardinalityOriginalProfileCode)
+            .Select(profile => profile.Id)
+            .SingleAsync();
+        await context.HistConfigSnapshots.Where(snapshot => snapshot.ProfileId == cardinalitySuccessorId).ExecuteDeleteAsync();
+        await context.CfgProfiles.Where(profile => profile.Id == cardinalitySuccessorId).ExecuteDeleteAsync();
         await context.HistConfigSnapshots.Where(snapshot => snapshot.ProfileId == oldSuccessorId).ExecuteDeleteAsync();
         await context.CfgProfiles.Where(profile => profile.Id == oldSuccessorId).ExecuteDeleteAsync();
         await context.SaveChangesAsync();
@@ -1765,30 +1788,30 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             ("ACH", "PPD", "55", AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode),
             ("ACH", "PPD", "53", AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
             ("ACH", "PPD", "57", AchColOfficialNachaLayout.TxCodeAwareInboundPrenotificationProfileCode),
-            ("CENIT", "PPD", "22", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
-            ("CENIT", "CCD", "27", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
-            ("CENIT", "CCD", "23", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
-            ("CENIT", "PPD", "28", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
-            ("CENIT", "CCD", "32", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
-            ("CENIT", "PPD", "37", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
-            ("CENIT", "PPD", "33", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
-            ("CENIT", "CCD", "38", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
-            ("CENIT", "PPD", "52", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
-            ("CENIT", "CCD", "55", CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode),
-            ("CENIT", "CCD", "53", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
-            ("CENIT", "PPD", "57", CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode),
-            ("CENIT", "CTX", "22", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
-            ("CENIT", "CTX", "27", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
-            ("CENIT", "CTX", "23", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
-            ("CENIT", "CTX", "28", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
-            ("CENIT", "CTX", "32", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
-            ("CENIT", "CTX", "37", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
-            ("CENIT", "CTX", "33", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
-            ("CENIT", "CTX", "38", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
-            ("CENIT", "CTX", "52", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
-            ("CENIT", "CTX", "55", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode),
-            ("CENIT", "CTX", "53", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode),
-            ("CENIT", "CTX", "57", CenitOrdinaryInbound2026Layout.TxCodeAwareCtxPrenotificationProfileCode)
+            ("CENIT", "PPD", "22", CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode),
+            ("CENIT", "CCD", "27", CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode),
+            ("CENIT", "CCD", "23", CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode),
+            ("CENIT", "PPD", "28", CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode),
+            ("CENIT", "CCD", "32", CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode),
+            ("CENIT", "PPD", "37", CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode),
+            ("CENIT", "PPD", "33", CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode),
+            ("CENIT", "CCD", "38", CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode),
+            ("CENIT", "PPD", "52", CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode),
+            ("CENIT", "CCD", "55", CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode),
+            ("CENIT", "CCD", "53", CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode),
+            ("CENIT", "PPD", "57", CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode),
+            ("CENIT", "CTX", "22", CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode),
+            ("CENIT", "CTX", "27", CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode),
+            ("CENIT", "CTX", "23", CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "28", CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "32", CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode),
+            ("CENIT", "CTX", "37", CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode),
+            ("CENIT", "CTX", "33", CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "38", CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "52", CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode),
+            ("CENIT", "CTX", "55", CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode),
+            ("CENIT", "CTX", "53", CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode),
+            ("CENIT", "CTX", "57", CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode)
         };
         foreach (var (chamber, service, code, expected) in cases)
         {
@@ -1886,7 +1909,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
                 }
                 break;
             case "conflicting":
-                var ctx = (await LoadProfileAsync(context, CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode))!;
+                var ctx = (await LoadProfileAsync(context, CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode))!;
                 var ctxPublication = await context.HistConfigSnapshots.SingleAsync(row =>
                     row.ProfileId == ctx.Id && row.SnapshotType == "PUBLISH");
                 var ctxSnapshot = NachaPublicationSnapshotSerializer.Read(ctxPublication.SnapshotJson).Snapshot!;

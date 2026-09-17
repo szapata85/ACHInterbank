@@ -196,9 +196,18 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         await using var context = await SeedAsync();
         var successor = await context.CfgProfiles.SingleAsync(profile => profile.ProfileCode == successorProfileCode);
         var publishedStatusId = successor.StatusId;
-        successor.StatusId = await context.CatConfigStatuses.Where(status => status.Code == "INACTIVO")
+        var inactiveStatusId = await context.CatConfigStatuses.Where(status => status.Code == "INACTIVO")
             .Select(status => status.Id)
             .SingleAsync();
+        successor.StatusId = inactiveStatusId;
+        var cardinalitySuccessor = clearingHouseName == "CENIT"
+            ? await context.CfgProfiles.SingleAsync(profile =>
+                profile.ProfileCode == CenitOrdinaryOutbound2026Layout.CardinalityOriginalProfileCode)
+            : null;
+        if (cardinalitySuccessor is not null)
+        {
+            cardinalitySuccessor.StatusId = inactiveStatusId;
+        }
         await context.SaveChangesAsync();
         var setup = CreateOfficialSut(context, clearingHouseName);
         var predecessorAct = () => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
@@ -207,6 +216,10 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             .Which.Code.Should().Be("NACHA_TRANSACTION_CODE_CONTRACT_MISSING");
 
         successor.StatusId = publishedStatusId;
+        if (cardinalitySuccessor is not null)
+        {
+            cardinalitySuccessor.StatusId = publishedStatusId;
+        }
         await context.SaveChangesAsync();
         var successorContent = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
@@ -309,7 +322,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var result = await setup.Sut.BuildNachaFilesByCycleAsync(model.Cycle.Id, CancellationToken.None);
 
         var artifact = result.Files.Should().ContainSingle().Subject;
-        artifact.ProfileIdentity.Should().Be(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
+        artifact.ProfileIdentity.Should().Be(CenitOrdinaryOutbound2026Layout.CardinalityOriginalProfileCode);
         artifact.ServiceCodes.Should().Equal(serviceCode);
         artifact.Batches.Should().HaveCount(expectedBatchCount);
         if (serviceCode == "CCD")
@@ -658,7 +671,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var trace = await LoadLatestTraceAsync(context);
 
         trace.Mode.Should().Be("TABLE_DRIVEN");
-        trace.ProfileCode.Should().Be(CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
+        trace.ProfileCode.Should().Be(CenitOrdinaryOutbound2026Layout.CardinalityOriginalProfileCode);
         trace.ClearingHouseCode.Should().Be("CENIT");
         trace.Trace.Should().Contain(entry => entry.Contains(
             $"SettlementPolicy resuelta desde CfgProfileTag: {NachaSettlementPolicy.JulianSettlementDate}",

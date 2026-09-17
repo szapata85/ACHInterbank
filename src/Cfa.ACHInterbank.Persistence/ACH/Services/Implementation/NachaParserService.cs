@@ -82,11 +82,15 @@ public class NachaParserService : INachaParserService
                 .Where(x => x.IsActive)
                 .ToDictionaryAsync(x => x.Code, StringComparer.OrdinalIgnoreCase, ct);
 
-            var profileReader = request?.SelectedProfileId is int selectedProfileId
-                ? request.RequirePublishedProfileSnapshot
-                    ? await NachaProfileRecordReader.LoadPublishedAsync(_context, selectedProfileId, ct)
-                    : await NachaProfileRecordReader.LoadAsync(_context, selectedProfileId, ct)
-                : null;
+            var selectedPublication = request?.SelectedProfileId is int publishedProfileId
+                && request.RequirePublishedProfileSnapshot
+                    ? await NachaProfileRecordReader.LoadPublishedSnapshotAsync(_context, publishedProfileId, ct)
+                    : null;
+            var profileReader = selectedPublication is not null
+                ? NachaProfileRecordReader.FromPublication(selectedPublication)
+                : request?.SelectedProfileId is int selectedProfileId
+                    ? await NachaProfileRecordReader.LoadAsync(_context, selectedProfileId, ct)
+                    : null;
             if (profileReader is not null
                 && !string.IsNullOrWhiteSpace(request?.SelectedProfileCode)
                 && !string.Equals(profileReader.ProfileCode, request.SelectedProfileCode, StringComparison.Ordinal))
@@ -95,6 +99,48 @@ public class NachaParserService : INachaParserService
             }
             var isCenitInboundProfile = CenitOrdinaryInbound2026Layout.IsProfile(profileReader?.ProfileCode);
             var isCenitCtxInboundProfile = CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode);
+            NachaAddendaCardinalityPolicy? publishedCardinality = null;
+            NachaTransactionCodeSemanticContract? publishedTransactionCodes = null;
+            if (isCenitInboundProfile && selectedPublication is not null)
+            {
+                var selectedProfile = await _context.CfgProfiles.AsNoTracking()
+                    .Include(profile => profile.ClearingHouse)
+                    .Include(profile => profile.Direction)
+                    .Include(profile => profile.FlowType)
+                    .Include(profile => profile.ServiceClass)
+                    .SingleOrDefaultAsync(profile => profile.Id == request!.SelectedProfileId, ct);
+                if (selectedPublication.Profile.ProfileId != request!.SelectedProfileId
+                    || selectedPublication.Profile.ProfileCode != request.SelectedProfileCode
+                    || selectedPublication.Profile.ClearingHouseCode != "CENIT"
+                    || selectedPublication.Profile.DirectionCode != "ENTRADA"
+                    || selectedProfile is null
+                    || selectedPublication.Profile.VersionMajor != selectedProfile.VersionMajor
+                    || selectedPublication.Profile.VersionMinor != selectedProfile.VersionMinor
+                    || selectedPublication.Profile.ClearingHouseCode != selectedProfile.ClearingHouse.Code
+                    || selectedPublication.Profile.DirectionCode != selectedProfile.Direction.Code
+                    || selectedPublication.Profile.FlowTypeCode != selectedProfile.FlowType.Code
+                    || selectedPublication.Profile.ServiceClassCode != selectedProfile.ServiceClass?.Code)
+                {
+                    throw new InvalidOperationException("CARDINALITY_POLICY_PUBLISH_IDENTITY_MISMATCH");
+                }
+                if (selectedProfile.VersionMajor == 1 && selectedProfile.VersionMinor >= 2)
+                {
+                    var cardinality = NachaAddendaCardinalityMetadata.Resolve(
+                        selectedPublication.GenerationCriticalTags.Select(tag => new KeyValuePair<string, string>(tag.Key, tag.Value)));
+                    var semantics = NachaTransactionCodeSemanticMetadata.Resolve(selectedPublication.Records);
+                    if (cardinality.Status != NachaAddendaCardinalityMetadataStatus.Resolved
+                        || cardinality.Policy is null
+                        || cardinality.Policy.DirectionCode != selectedPublication.Profile.DirectionCode
+                        || cardinality.Policy.FlowTypeCode != selectedPublication.Profile.FlowTypeCode
+                        || semantics.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved
+                        || semantics.Contract is null)
+                    {
+                        throw new InvalidOperationException("CARDINALITY_POLICY_UNRESOLVED");
+                    }
+                    publishedCardinality = cardinality.Policy;
+                    publishedTransactionCodes = semantics.Contract;
+                }
+            }
 
             var lines = await ReadPhysicalRecordsAsync(nachaStream, ct, profileReader);
 
@@ -229,10 +275,24 @@ public class NachaParserService : INachaParserService
                             ValidateCenitInboundEntry(profileReader!.ProfileCode, entry);
                         }
 
-                        var optionalAddenda = isCenitInboundProfile
-                            && string.Equals(currentBatch?.StandardEntryClassCode?.Trim(), "PPD", StringComparison.Ordinal)
-                            && PrenoteCodes.Contains(entry.TransactionCode ?? string.Empty)
-                            && CreditCodes.Contains(entry.TransactionCode ?? string.Empty);
+                        NachaAddendaBounds? publishedBounds = null;
+                        if (publishedCardinality is not null)
+                        {
+                            var serviceCode = currentBatch?.StandardEntryClassCode?.Trim() ?? string.Empty;
+                            if (publishedTransactionCodes is null
+                                || !publishedTransactionCodes.TryGetRule(entry.TransactionCode ?? string.Empty, out var semantic)
+                                || semantic.IsPrenotification != (selectedPublication!.Profile.FlowTypeCode == "PRENOTIFICACION")
+                                || !publishedCardinality.TryResolve(serviceCode, semantic.Direction, out publishedBounds))
+                            {
+                                throw new InvalidOperationException("CARDINALITY_POLICY_UNRESOLVED");
+                            }
+                        }
+                        var optionalAddenda = publishedBounds is not null
+                            ? publishedBounds.Minimum == 0
+                            : isCenitInboundProfile
+                              && string.Equals(currentBatch?.StandardEntryClassCode?.Trim(), "PPD", StringComparison.Ordinal)
+                              && PrenoteCodes.Contains(entry.TransactionCode ?? string.Empty)
+                              && CreditCodes.Contains(entry.TransactionCode ?? string.Empty);
 
                         var isReturnEntry = profileReader is not null
                                             && lineIndex + 1 < lines.Count
@@ -246,7 +306,7 @@ public class NachaParserService : INachaParserService
                             ct);
                         lastEntry = entry;
                         lastEntryAccepted = isValid;
-                        expectedAddendaCount = ResolveExpectedAddendaCount(profileReader, line, entry);
+                        expectedAddendaCount = ResolveExpectedAddendaCount(profileReader, line, entry, publishedBounds);
                         parsedAddendaCount = 0;
                         lastEntryAwaitingAddenda = expectedAddendaCount > 0;
                         if (isValid)
@@ -497,11 +557,14 @@ public class NachaParserService : INachaParserService
     private static int ResolveExpectedAddendaCount(
         NachaProfileRecordReader? profileReader,
         string record,
-        EntryDetail entry)
+        EntryDetail entry,
+        NachaAddendaBounds? publishedBounds = null)
     {
         if (!CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode))
         {
-            return string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal) ? 1 : 0;
+            var declared = string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal) ? 1 : 0;
+            ValidatePublishedAddendaCount(declared, publishedBounds);
+            return declared;
         }
 
         if (!profileReader!.TryRead(record, "6", "ADDENDACOUNT", null, out var rawCount)
@@ -510,10 +573,17 @@ public class NachaParserService : INachaParserService
             throw new InvalidOperationException("CENIT-2026-CTX-IN-T6-ADDENDA-COUNT: el número de adendas debe ser numérico de cuatro posiciones.");
         }
 
-        ValidateCenitCtxAddendaCardinality(count);
-        if (CenitOrdinaryInbound2026Layout.IsPrenotificationProfile(profileReader.ProfileCode) && count != 1)
+        if (publishedBounds is not null)
         {
-            throw new InvalidOperationException("CENIT-2026-CTX-IN-T6-ADDENDA-COUNT: la prenotificación CTX requiere exactamente una adenda.");
+            ValidatePublishedAddendaCount(count, publishedBounds);
+        }
+        else
+        {
+            ValidateCenitCtxAddendaCardinality(count);
+            if (CenitOrdinaryInbound2026Layout.IsPrenotificationProfile(profileReader.ProfileCode) && count != 1)
+            {
+                throw new InvalidOperationException("CENIT-2026-CTX-IN-T6-ADDENDA-COUNT: la prenotificación CTX requiere exactamente una adenda.");
+            }
         }
         if (!string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal))
         {
@@ -521,6 +591,14 @@ public class NachaParserService : INachaParserService
         }
 
         return count;
+    }
+
+    private static void ValidatePublishedAddendaCount(int count, NachaAddendaBounds? bounds)
+    {
+        if (bounds is not null && (count < bounds.Minimum || count > bounds.Maximum))
+        {
+            throw new InvalidOperationException("CENIT_ADDENDA_CARDINALITY_INVALID: la cantidad declarada de adendas no cumple la política publicada.");
+        }
     }
 
     internal static void ValidateCenitCtxAddendaCardinality(int count)

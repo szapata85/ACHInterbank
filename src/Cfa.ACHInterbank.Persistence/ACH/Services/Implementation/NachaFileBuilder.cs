@@ -517,7 +517,14 @@ public class NachaFileBuilder : INachaFileBuilder
                     ?? $"No se resolvió política outbound para el servicio '{serviceGroup.Key}'.");
             }
 
-            policies.TryAdd(resolution.Profile.Id, resolution.OutboundPolicy);
+            policies.TryAdd(resolution.Profile.Id, resolution.OutboundPolicy with
+            {
+                CardinalityPolicy = resolution.CardinalityPolicy,
+                TransactionCodeContract = resolution.TransactionCodeContract,
+                SelectedProfileId = resolution.Profile.Id,
+                SelectedVersionMajor = resolution.Profile.VersionMajor,
+                SelectedVersionMinor = resolution.Profile.VersionMinor
+            });
         }
 
         return policies.Values.OrderBy(policy => policy.FileOrder).ToArray();
@@ -569,7 +576,11 @@ public class NachaFileBuilder : INachaFileBuilder
             Cycle = source.Cycle,
             Batches = batches,
             Transactions = batches.SelectMany(batch => batch.Transactions).ToArray(),
-            StandardEntryClassCode = partition.StandardEntryClassCode
+            StandardEntryClassCode = partition.StandardEntryClassCode,
+            SelectedProfileId = partition.SelectedProfileId,
+            SelectedProfileCode = partition.ProfileIdentity,
+            SelectedVersionMajor = partition.SelectedVersionMajor,
+            SelectedVersionMinor = partition.SelectedVersionMinor
         };
     }
 
@@ -1311,7 +1322,8 @@ public class NachaFileBuilder : INachaFileBuilder
                     .ToDictionary(group => group.Key, group => group.ToList());
                 if (isCenitCtx)
                 {
-                    ValidateCtxAddendaSequences(calculation.Transactions, type7ByTransaction);
+                    ValidateCtxAddendaSequences(calculation.Transactions, type7ByTransaction,
+                        resolution.CardinalityPolicy, resolution.TransactionCodeContract);
                 }
                 var entryDetails = await BuildEntryDetailRecordsOfficialAsync(
                     calculation.Transactions,
@@ -1651,23 +1663,48 @@ public class NachaFileBuilder : INachaFileBuilder
 
     private static void ValidateCtxAddendaSequences(
         IReadOnlyList<AchTransaction> transactions,
-        IReadOnlyDictionary<int, List<NachaType7RecordCandidate>> type7ByTransaction)
+        IReadOnlyDictionary<int, List<NachaType7RecordCandidate>> type7ByTransaction,
+        NachaAddendaCardinalityPolicy? cardinalityPolicy,
+        NachaTransactionCodeSemanticContract? transactionCodeContract)
     {
         foreach (var transaction in transactions.OrderBy(item => item.Id))
         {
             if (!type7ByTransaction.TryGetValue(transaction.Id, out var addendas)
-                || addendas.Count is < 1 or > CenitCtxOutbound2026Layout.MaxAddendaPerEntry)
+                || addendas.Count > CenitCtxOutbound2026Layout.MaxAddendaPerEntry)
             {
                 throw new NachaGenerationException(
                     "CENIT_CTX_ADDENDA_CARDINALITY_INVALID",
-                    $"La transacción CTX {transaction.Id} debe contener entre 1 y {CenitCtxOutbound2026Layout.MaxAddendaPerEntry} adendas.");
+                    $"La transacción CTX {transaction.Id} supera la capacidad física de {CenitCtxOutbound2026Layout.MaxAddendaPerEntry} adendas.");
             }
-
-            if (transaction.Type == TransactionTypeEnum.Prenotification && addendas.Count != 1)
+            if (cardinalityPolicy is not null)
+            {
+                if (transactionCodeContract is null
+                    || string.IsNullOrWhiteSpace(transaction.TransactionCode)
+                    || !transactionCodeContract.TryGetRule(transaction.TransactionCode, out var semantic)
+                    || semantic.IsPrenotification != transaction.IsPrenotification
+                    || !cardinalityPolicy.TryResolve("CTX", semantic.Direction, out var bounds))
+                {
+                    throw new NachaGenerationException(
+                        "CARDINALITY_POLICY_UNRESOLVED",
+                        $"La transacción CTX {transaction.Id} no tiene una cardinalidad publicada resoluble.");
+                }
+                if (addendas.Count < bounds.Minimum || addendas.Count > bounds.Maximum)
+                {
+                    throw new NachaGenerationException(
+                        semantic.IsPrenotification
+                            ? "CENIT_CTX_PRENOTE_ADDENDA_CARDINALITY_INVALID"
+                            : "CENIT_CTX_ADDENDA_CARDINALITY_INVALID",
+                        $"La transacción CTX {transaction.Id} no cumple la cardinalidad publicada.");
+                }
+            }
+            else if (addendas.Count < 1
+                     || (transaction.Type == TransactionTypeEnum.Prenotification && addendas.Count != 1))
             {
                 throw new NachaGenerationException(
-                    "CENIT_CTX_PRENOTE_ADDENDA_CARDINALITY_INVALID",
-                    $"La prenotificación CTX {transaction.Id} debe contener exactamente una adenda.");
+                    transaction.Type == TransactionTypeEnum.Prenotification
+                        ? "CENIT_CTX_PRENOTE_ADDENDA_CARDINALITY_INVALID"
+                        : "CENIT_CTX_ADDENDA_CARDINALITY_INVALID",
+                    $"La transacción CTX {transaction.Id} no cumple la cardinalidad histórica.");
             }
 
             var ordered = addendas.OrderBy(item => item.Addenda.SequenceNumber).ToArray();
@@ -2402,6 +2439,16 @@ public class NachaFileBuilder : INachaFileBuilder
 
         var request = BuildConfigResolutionRequest(context, clearingHouseCode, recordCodes);
         var resolution = await _configResolver.ResolvePublishedOrdinaryAsync(request, ct);
+        if (context.SelectedProfileId.HasValue
+            && (resolution.Profile?.Id != context.SelectedProfileId
+                || resolution.Profile.ProfileCode != context.SelectedProfileCode
+                || resolution.Profile.VersionMajor != context.SelectedVersionMajor
+                || resolution.Profile.VersionMinor != context.SelectedVersionMinor))
+        {
+            throw new NachaGenerationException(
+                "NACHA_PUBLISH_IDENTITY_MISMATCH",
+                "La autoridad PUBLISH del archivo no coincide con la política seleccionada para su partición.");
+        }
         if (resolution.SelectionStatus == NachaProfileSelectionStatus.ProfileAmbiguous
             || resolution.Warnings.Any(x => x.Contains("Ambig", StringComparison.OrdinalIgnoreCase)))
         {
@@ -2536,8 +2583,9 @@ public class NachaFileBuilder : INachaFileBuilder
             DirectionCode = NachaProfileDimensionResolver.ResolveDirectionCode(context.Transactions),
             ServiceClassCode = serviceClassCode,
             ProcessDateUtc = context.Cycle.ProcessingDate,
-            RequestedVersionMajor = requiresAchColV35 ? AchColOfficialNachaLayout.ProfileVersionMajor : null,
-            RequestedVersionMinor = null,
+            RequestedVersionMajor = context.SelectedVersionMajor
+                ?? (requiresAchColV35 ? AchColOfficialNachaLayout.ProfileVersionMajor : null),
+            RequestedVersionMinor = context.SelectedVersionMinor,
             RecordCodes = recordCodes.ToList(),
             SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {

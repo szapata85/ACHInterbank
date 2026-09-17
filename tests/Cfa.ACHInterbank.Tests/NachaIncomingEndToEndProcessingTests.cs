@@ -54,12 +54,12 @@ public class NachaIncomingEndToEndProcessingTests
         var result = await fixture.Sut.ProcessAsync(BuildRequest(
             NachaTestDataPaths.CenitIncoming001,
             "CENIT",
-            CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode));
+            CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode));
 
         result.ValidationPassed.Should().BeTrue(string.Join(" | ", result.Errors));
         result.PersistencePassed.Should().BeTrue();
         result.ClearingHouseCode.Should().Be("CENIT");
-        result.ProfileCode.Should().Be(CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode);
+        result.ProfileCode.Should().Be(CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode);
         result.Decisions.Should().ContainSingle(x => x.SoapOperation == NachaSoapOperationCandidate.ProcTransacciones);
     }
 

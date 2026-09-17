@@ -61,6 +61,12 @@ internal sealed class NachaProfileRecordReader
         AchDbContext context,
         int profileId,
         CancellationToken cancellationToken)
+        => FromPublication(await LoadPublishedSnapshotAsync(context, profileId, cancellationToken));
+
+    public static async Task<NachaPublicationSnapshot> LoadPublishedSnapshotAsync(
+        AchDbContext context,
+        int profileId,
+        CancellationToken cancellationToken)
     {
         var publications = await context.HistConfigSnapshots.AsNoTracking()
             .Where(snapshot => snapshot.ProfileId == profileId && snapshot.SnapshotType == "PUBLISH")
@@ -77,7 +83,7 @@ internal sealed class NachaProfileRecordReader
             throw new InvalidOperationException($"NACHA_PROFILE_PUBLISH_INVALID: {read.Status}: {read.Error}");
         }
 
-        return FromPublication(read.Snapshot);
+        return read.Snapshot;
     }
 
     public static NachaProfileRecordReader FromPublication(NachaPublicationSnapshot snapshot)

@@ -37,7 +37,14 @@ public sealed record NachaOutboundPartitionPolicy(
     int FileOrder,
     NachaOutboundFileAllocation FileAllocation,
     IReadOnlyList<NachaOutboundServicePartitionPolicy> Services,
-    NachaOutboundBatchNumberAssignmentPolicy? BatchNumberAssignment = null);
+    NachaOutboundBatchNumberAssignmentPolicy? BatchNumberAssignment = null)
+{
+    public NachaAddendaCardinalityPolicy? CardinalityPolicy { get; init; }
+    public NachaTransactionCodeSemanticContract? TransactionCodeContract { get; init; }
+    public int? SelectedProfileId { get; init; }
+    public int? SelectedVersionMajor { get; init; }
+    public int? SelectedVersionMinor { get; init; }
+}
 
 public sealed record NachaOutboundServicePartitionPolicy(
     string ServiceCode,

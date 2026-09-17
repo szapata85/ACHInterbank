@@ -410,6 +410,10 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             await EnsureProfileAsync(successor);
         }
         await AssertInboundTransactionCodeSuccessorCohortAsync();
+        foreach (var successor in BuildCardinalitySuccessorSpecs())
+        {
+            await EnsureProfileAsync(successor);
+        }
 
         await _context.SaveChangesAsync();
 
@@ -514,6 +518,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 {
                     _context.CfgProfileTags.RemoveRange(obsoleteTags);
                     await _context.SaveChangesAsync();
+                }
+            }
+            if (spec.CardinalityPolicy is not null)
+            {
+                foreach (var tag in NachaAddendaCardinalityMetadata.ToTags(spec.CardinalityPolicy))
+                {
+                    await EnsureTagAsync(profile, tag.Key, tag.Value);
                 }
             }
 
@@ -1310,6 +1321,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 expectedTags[tag.Key] = tag.Value;
             }
         }
+        if (spec.CardinalityPolicy is not null)
+        {
+            foreach (var tag in NachaAddendaCardinalityMetadata.ToTags(spec.CardinalityPolicy))
+            {
+                expectedTags[tag.Key] = tag.Value;
+            }
+        }
 
         if (expectedTags.Any(expected => profile.Tags.Count(tag =>
                 string.Equals(tag.TagKey, expected.Key, StringComparison.OrdinalIgnoreCase)) != 1
@@ -1317,7 +1335,8 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                     string.Equals(tag.TagKey, expected.Key, StringComparison.OrdinalIgnoreCase)
                     && string.Equals(tag.TagValue, expected.Value, StringComparison.Ordinal)))
             || profile.Tags.Any(tag =>
-                tag.TagKey.StartsWith(NachaOutboundPolicyMetadata.Prefix, StringComparison.OrdinalIgnoreCase)
+                (tag.TagKey.StartsWith(NachaOutboundPolicyMetadata.Prefix, StringComparison.OrdinalIgnoreCase)
+                 || tag.TagKey.StartsWith(NachaAddendaCardinalityMetadata.RootPrefix, StringComparison.OrdinalIgnoreCase))
                 && !expectedTags.ContainsKey(tag.TagKey)))
         {
             return false;
@@ -2463,6 +2482,96 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 "CTX")
         ];
 
+    private static IReadOnlyList<ProfileSpec> BuildCardinalitySuccessorSpecs()
+    {
+        var outbound = BuildTransactionCodeSuccessorSpecs()
+            .Where(spec => spec.ProfileCode is
+                CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode
+                or CenitOrdinaryOutbound2026Layout.TxCodeAwarePrenotificationProfileCode
+                or CenitCtxOutbound2026Layout.TxCodeAwarePrenotificationProfileCode)
+            .Select(spec =>
+            {
+                var successorCode = spec.ProfileCode switch
+                {
+                    CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode => CenitOrdinaryOutbound2026Layout.CardinalityOriginalProfileCode,
+                    CenitOrdinaryOutbound2026Layout.TxCodeAwarePrenotificationProfileCode => CenitOrdinaryOutbound2026Layout.CardinalityPrenotificationProfileCode,
+                    _ => CenitCtxOutbound2026Layout.CardinalityPrenotificationProfileCode
+                };
+                return spec with
+                {
+                    ProfileCode = successorCode,
+                    VersionMinor = 3,
+                    SupersedesProfileCode = spec.ProfileCode,
+                    AcceptedPredecessorVersions = [new(1, 2)],
+                    CardinalityPolicy = BuildCenitCardinalityPolicy(spec),
+                    OutboundPolicy = BuildCenitCorrectedOutboundPolicy(spec, successorCode)
+                };
+            });
+        var inbound = BuildInboundTransactionCodeSuccessorSpecs()
+            .Where(spec => spec.ClearingHouseCode == "CENIT")
+            .Select(spec => spec with
+            {
+                ProfileCode = spec.ProfileCode switch
+                {
+                    CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode => CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode,
+                    CenitOrdinaryInbound2026Layout.TxCodeAwarePrenotificationProfileCode => CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode,
+                    CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode => CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode,
+                    _ => CenitOrdinaryInbound2026Layout.CardinalityCtxPrenotificationProfileCode
+                },
+                VersionMinor = 2,
+                SupersedesProfileCode = spec.ProfileCode,
+                AcceptedPredecessorVersions = [new(1, 1)],
+                CardinalityPolicy = BuildCenitCardinalityPolicy(spec)
+            });
+        return outbound.Concat(inbound).ToArray();
+    }
+
+    private static NachaAddendaCardinalityPolicy BuildCenitCardinalityPolicy(ProfileSpec spec)
+    {
+        var exactOne = new NachaAddendaBounds(1, 1);
+        if (spec.ServiceClassCode == "CTX")
+        {
+            var bounds = spec.FlowTypeCode == "ORIGINAL"
+                ? new NachaAddendaBounds(1, 9_999)
+                : exactOne;
+            return new NachaAddendaCardinalityPolicy(spec.DirectionCode, spec.FlowTypeCode,
+                [new NachaAddendaServiceCardinality("CTX", bounds, bounds)]);
+        }
+
+        var ppdCredit = spec.FlowTypeCode == "PRENOTIFICACION"
+            ? new NachaAddendaBounds(0, 1)
+            : exactOne;
+        return new NachaAddendaCardinalityPolicy(spec.DirectionCode, spec.FlowTypeCode,
+        [
+            new NachaAddendaServiceCardinality("PPD", ppdCredit, exactOne),
+            new NachaAddendaServiceCardinality("CCD", exactOne, exactOne)
+        ]);
+    }
+
+    private static NachaOutboundPartitionPolicy BuildCenitCorrectedOutboundPolicy(ProfileSpec spec, string successorCode)
+    {
+        var policy = spec.OutboundPolicy!;
+        var services = policy.Services.Select(service =>
+        {
+            if (service.ServiceCode == "PPD" && spec.FlowTypeCode == "PRENOTIFICACION")
+            {
+                return service with { MinAddendaPerEntry = null, MaxAddendaPerEntry = null, AddendaCardinalityErrorCode = null };
+            }
+
+            return service with
+            {
+                MinAddendaPerEntry = 1,
+                MaxAddendaPerEntry = 1,
+                AddendaCardinalityErrorCode = service.ServiceCode == "CCD"
+                    ? "CENIT_CCD_ADDENDA_REQUIRED"
+                    : service.ServiceCode == "CTX"
+                        ? "CENIT_CTX_ADDENDA_CARDINALITY_INVALID"
+                        : "CENIT_PPD_ADDENDA_CARDINALITY_INVALID"
+            };
+        }).ToArray();
+        return policy with { ProfileCode = successorCode, Services = services };
+    }
+
     private static ProfileSpec AchInboundSuccessor(
         string profileCode, string predecessorCode, string flowCode,
         string name, string description, string prefix)
@@ -2543,6 +2652,7 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
         DateTime? EffectiveFromOverride = null,
         NachaSettlementPolicy SettlementPolicy = NachaSettlementPolicy.SettlementDate,
         NachaOutboundPartitionPolicy? OutboundPolicy = null,
+        NachaAddendaCardinalityPolicy? CardinalityPolicy = null,
         string? SupersedesProfileCode = null,
         IReadOnlyList<ProfileVersion>? AcceptedPredecessorVersions = null,
         bool IsTransactionCodeAware = false,

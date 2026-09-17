@@ -60,7 +60,8 @@ public static class NachaPublicationSnapshotSerializer
 
         var tags = profile.Tags
             .Where(tag => GenerationCriticalTagKeys.Contains(tag.TagKey)
-                          || tag.TagKey.StartsWith(NachaOutboundPolicyMetadata.Prefix, StringComparison.OrdinalIgnoreCase))
+                          || tag.TagKey.StartsWith(NachaOutboundPolicyMetadata.Prefix, StringComparison.OrdinalIgnoreCase)
+                          || tag.TagKey.StartsWith(NachaAddendaCardinalityMetadata.RootPrefix, StringComparison.OrdinalIgnoreCase))
             .OrderBy(tag => tag.TagKey, StringComparer.OrdinalIgnoreCase)
             .ThenBy(tag => tag.TagValue, StringComparer.Ordinal)
             .Select(tag => new NachaPublicationSnapshotTag(tag.TagKey, tag.TagValue))
@@ -438,6 +439,34 @@ public static class NachaPublicationSnapshotSerializer
         if (transactionCodeMetadata.Status == NachaTransactionCodeSemanticMetadataStatus.Invalid)
         {
             return $"El contrato semántico T6 por valor es inválido: {transactionCodeMetadata.ErrorCode}: {transactionCodeMetadata.Error}";
+        }
+
+        var isCenitOrdinary = snapshot.Profile.ClearingHouseCode == "CENIT"
+            && snapshot.Profile.FlowTypeCode is "ORIGINAL" or "PRENOTIFICACION";
+        var requiresCardinality = isCenitOrdinary
+            && snapshot.Profile.VersionMajor == 1
+            && ((snapshot.Profile.DirectionCode == "ENTRADA" && snapshot.Profile.VersionMinor >= 2)
+                || (snapshot.Profile.DirectionCode == "SALIDA" && snapshot.Profile.VersionMinor >= 3));
+        var cardinality = NachaAddendaCardinalityMetadata.Resolve(
+            snapshot.GenerationCriticalTags.Select(tag => new KeyValuePair<string, string>(tag.Key, tag.Value)));
+        if (cardinality.Status == NachaAddendaCardinalityMetadataStatus.Invalid
+            || (requiresCardinality && cardinality.Status != NachaAddendaCardinalityMetadataStatus.Resolved))
+        {
+            return $"CARDINALITY_POLICY_UNRESOLVED: {cardinality.Error ?? cardinality.Status.ToString()}";
+        }
+        if (cardinality.Policy is not null)
+        {
+            if (!isCenitOrdinary
+                || transactionCodeMetadata.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved
+                || cardinality.Policy.DirectionCode != snapshot.Profile.DirectionCode
+                || cardinality.Policy.FlowTypeCode != snapshot.Profile.FlowTypeCode
+                || !NachaConfigResolver.TryGetPublishedSecValues(snapshot, out var services)
+                || !services.SetEquals(cardinality.Policy.Services.Select(service => service.ServiceCode))
+                || (snapshot.Profile.ServiceClassCode is not null
+                    && (services.Count != 1 || !services.Contains(snapshot.Profile.ServiceClassCode))))
+            {
+                return "CARDINALITY_POLICY_PROFILE_MISMATCH";
+            }
         }
 
         return null;

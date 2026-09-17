@@ -265,6 +265,7 @@ public class NachaConfigResolutionRequest
     public int? RequestedVersionMinor { get; init; }
     public bool RequireHomologated { get; init; }
     public bool RequireOutboundPolicy { get; init; }
+    public bool RequireCardinalityPolicy { get; init; }
     public DateTime ProcessDateUtc { get; init; }
     public IReadOnlyCollection<string> RecordCodes { get; init; } = Array.Empty<string>();
     public IReadOnlyDictionary<string, string> SelectionContext { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -278,6 +279,7 @@ public class NachaConfigResolutionResult
     public bool UsedFallback { get; set; }
     public CfgProfile? Profile { get; init; }
     public NachaOutboundPartitionPolicy? OutboundPolicy { get; init; }
+    public NachaAddendaCardinalityPolicy? CardinalityPolicy { get; init; }
     public NachaSettlementPolicy? SettlementPolicy { get; init; }
     public NachaServiceClassSemanticContract? SemanticContract { get; init; }
     public NachaTransactionCodeSemanticContract? TransactionCodeContract { get; init; }
