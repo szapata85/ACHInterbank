@@ -125,9 +125,9 @@ public class NachaParserService : INachaParserService
             var lastEntryAccepted = false;
             var expectedAddendaCount = 0;
             var parsedAddendaCount = 0;
-            int? lastCenitEntrySequence = null;
             var entryDetails = new List<EntryDetail>();
             var addendaRecords = new List<AddendaRecord>();
+            var optionalAddendaEntries = new HashSet<string>(StringComparer.Ordinal);
             var batchControls = new List<BatchControl>();
             var fileControls = new List<FileControl>();
             var lastConsecutiveByBatch = new Dictionary<int, int>();
@@ -222,11 +222,17 @@ public class NachaParserService : INachaParserService
                         UpdateBatchMetricsForEntry(currentBatchMetrics, entry);
                         fileMetrics.RegisterEntry(entry, CreditCodes, DebitCodes);
 
-                        await ValidateEntrySequencePolicyAsync(entry, currentBatch, currentHeader, lastConsecutiveByBatch, seenSequenceNumbers, ct);
+                        await ValidateEntrySequencePolicyAsync(entry, currentBatch, currentHeader, lastConsecutiveByBatch,
+                            seenSequenceNumbers, !isCenitInboundProfile, ct);
                         if (isCenitInboundProfile)
                         {
-                            ValidateCenitInboundEntry(profileReader!.ProfileCode, entry, ref lastCenitEntrySequence);
+                            ValidateCenitInboundEntry(profileReader!.ProfileCode, entry);
                         }
+
+                        var optionalAddenda = isCenitInboundProfile
+                            && string.Equals(currentBatch?.StandardEntryClassCode?.Trim(), "PPD", StringComparison.Ordinal)
+                            && PrenoteCodes.Contains(entry.TransactionCode ?? string.Empty)
+                            && CreditCodes.Contains(entry.TransactionCode ?? string.Empty);
 
                         var isReturnEntry = profileReader is not null
                                             && lineIndex + 1 < lines.Count
@@ -236,6 +242,7 @@ public class NachaParserService : INachaParserService
                             currentBatch,
                             isReturnEntry,
                             failures,
+                            optionalAddenda,
                             ct);
                         lastEntry = entry;
                         lastEntryAccepted = isValid;
@@ -245,6 +252,10 @@ public class NachaParserService : INachaParserService
                         if (isValid)
                         {
                             entryDetails.Add(entry);
+                            if (optionalAddenda && !string.IsNullOrEmpty(entry.SequenceNumber))
+                            {
+                                optionalAddendaEntries.Add(entry.SequenceNumber);
+                            }
                             totalEntries++;
                         }
 
@@ -320,7 +331,7 @@ public class NachaParserService : INachaParserService
                 }
             }
 
-            var validEntries = EnforceAddendaRequirements(entryDetails, addendaRecords, failures);
+            var validEntries = EnforceAddendaRequirements(entryDetails, addendaRecords, failures, optionalAddendaEntries);
             ValidateBatchSequenceAndControlConsistency(headers.SelectMany(h => h.Batches ?? []), batchControls);
             ValidateFileControlConsistency(headers.SelectMany(h => h.Batches ?? []), batchControls, fileControls, fileMetrics, lines, fileControlLineIndex);
 
@@ -375,6 +386,7 @@ public class NachaParserService : INachaParserService
         NachaHeader? header,
         Dictionary<int, int> lastConsecutiveByBatch,
         HashSet<string> seenSequenceNumbers,
+        bool enforceBatchSequenceOrder,
         CancellationToken ct)
     {
         if (batch is null)
@@ -418,12 +430,17 @@ public class NachaParserService : INachaParserService
             throw new InvalidOperationException("Error Fatal ID 7: el segmento consecutivo del Número de Secuencia excede 6999999. El rango 7000001-9999999 está reservado para PSE.");
         }
 
-        if (lastConsecutiveByBatch.TryGetValue(batch.BatchNumber, out var previousConsecutive) && consecutiveValue <= previousConsecutive)
+        if (enforceBatchSequenceOrder
+            && lastConsecutiveByBatch.TryGetValue(batch.BatchNumber, out var previousConsecutive)
+            && consecutiveValue <= previousConsecutive)
         {
             ThrowRegulatory("D04", "La secuencia del lote no es estrictamente ascendente.");
         }
 
-        lastConsecutiveByBatch[batch.BatchNumber] = consecutiveValue;
+        if (enforceBatchSequenceOrder)
+        {
+            lastConsecutiveByBatch[batch.BatchNumber] = consecutiveValue;
+        }
 
         var processingDate = ParseNachaProcessingDate(header?.FileCreationDate)
             ?? throw new InvalidOperationException(
@@ -494,6 +511,10 @@ public class NachaParserService : INachaParserService
         }
 
         ValidateCenitCtxAddendaCardinality(count);
+        if (CenitOrdinaryInbound2026Layout.IsPrenotificationProfile(profileReader.ProfileCode) && count != 1)
+        {
+            throw new InvalidOperationException("CENIT-2026-CTX-IN-T6-ADDENDA-COUNT: la prenotificación CTX requiere exactamente una adenda.");
+        }
         if (!string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("CENIT-2026-CTX-IN-T6-ADDENDA-INDICATOR: el indicador debe ser 1 cuando la transacción declara adendas.");
@@ -528,10 +549,7 @@ public class NachaParserService : INachaParserService
         }
     }
 
-    private static void ValidateCenitInboundEntry(
-        string profileCode,
-        EntryDetail entry,
-        ref int? lastSequence)
+    private static void ValidateCenitInboundEntry(string profileCode, EntryDetail entry)
     {
         var transactionCode = (entry.TransactionCode ?? string.Empty).Trim();
         var descriptor = CenitOrdinaryInbound2026Layout.Field(profileCode, "6", "TRANSACTIONCODE");
@@ -546,16 +564,6 @@ public class NachaParserService : INachaParserService
         {
             throw new InvalidOperationException("CENIT_INBOUND_PROFILE_FLOW_MISMATCH: la familia monetaria/prenotificación no corresponde al perfil seleccionado.");
         }
-
-        var rawSequence = (entry.SequenceNumber ?? string.Empty).Trim();
-        var consecutive = int.Parse(rawSequence[8..], CultureInfo.InvariantCulture);
-        var expected = lastSequence.HasValue ? lastSequence.Value + 1 : 1;
-        if (consecutive != expected)
-        {
-            throw new InvalidOperationException("CENIT-2026-T6-FILE-SEQUENCE: los registros de detalle deben ser consecutivos dentro del archivo.");
-        }
-
-        lastSequence = consecutive;
     }
 
     private static void ValidateCenitInboundAddenda(
@@ -1272,6 +1280,7 @@ public class NachaParserService : INachaParserService
         BatchHeader? batch,
         bool isReturnEntry,
         List<NachaValidationFailure> failures,
+        bool optionalAddenda,
         CancellationToken ct)
     {
         var code = entry.TransactionCode ?? string.Empty;
@@ -1309,7 +1318,8 @@ public class NachaParserService : INachaParserService
             return (false, reason);
         }
 
-        if (!string.Equals(entry.AddendumIndicator, "1", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(entry.AddendumIndicator, "1", StringComparison.OrdinalIgnoreCase)
+            && !(optionalAddenda && string.Equals(entry.AddendumIndicator, "0", StringComparison.Ordinal)))
         {
             const string reason = "El registro 7 es obligatorio para todas las transacciones.";
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
@@ -1572,7 +1582,8 @@ public class NachaParserService : INachaParserService
     private static List<EntryDetail> EnforceAddendaRequirements(
         List<EntryDetail> entries,
         List<AddendaRecord> addendaRecords,
-        List<NachaValidationFailure> failures)
+        List<NachaValidationFailure> failures,
+        HashSet<string> optionalAddendaEntries)
     {
         var validEntries = new List<EntryDetail>();
         foreach (var entry in entries)
@@ -1581,7 +1592,8 @@ public class NachaParserService : INachaParserService
                 .Where(addenda => IsAddendaForEntry(entry, addenda))
                 .ToList();
 
-            if (!relatedAddendas.Any())
+            if (!relatedAddendas.Any()
+                && !optionalAddendaEntries.Contains(entry.SequenceNumber ?? string.Empty))
             {
                 failures.Add(new NachaValidationFailure("6", null, entry.SequenceNumber, entry.TransactionCode,
                     "No se encontró registro 7 asociado al detalle."));

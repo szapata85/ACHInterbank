@@ -170,7 +170,7 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
     {
         await using var context = await CreateContextAsync();
         var clearingHouse = await EnsureCenitOperationalContextAsync(context);
-        var content = BuildCtxFile("23", 0, "28", 0);
+        var content = BuildCtxFile("23", 0, "28", 0, 1, 1);
 
         var result = await ParseAsync(
             context,
@@ -181,10 +181,170 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
 
         result.Failures.Should().BeEmpty();
         result.TotalEntries.Should().Be(2);
-        result.TotalAddendas.Should().Be(5);
+        result.TotalAddendas.Should().Be(2);
         var entries = await context.EntryDetails.AsNoTracking().OrderBy(entry => entry.SequenceNumber).ToListAsync();
         entries.Select(entry => entry.TransactionCode).Should().Equal("23", "28");
         entries.Should().OnlyContain(entry => entry.Amount == 0m);
+    }
+
+    [Theory]
+    [InlineData("23", 0, true)]
+    [InlineData("23", 1, true)]
+    [InlineData("23", 2, false)]
+    [InlineData("28", 0, false)]
+    [InlineData("28", 1, true)]
+    [InlineData("28", 2, false)]
+    [InlineData("22", 1, true)]
+    [InlineData("22", 0, false)]
+    [InlineData("27", 1, true)]
+    public async Task PpdAddendaCardinality_ShouldFollowReceivingSemantics(string code, int count, bool valid)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var content = BuildSingleEntryFile("PPD", code, code is "27" or "28" ? "225" : "220",
+            code is "23" or "28" ? 0 : 10_000, count);
+        var profile = code is "23" or "28"
+            ? CenitOrdinaryInbound2026Layout.PrenotificationProfileCode
+            : CenitOrdinaryInbound2026Layout.OriginalProfileCode;
+
+        if (count > 1)
+        {
+            var action = () => ParseAsync(context, clearingHouse, profile, content, $"ppd-{code}-{count}");
+            await action.Should().ThrowAsync<InvalidOperationException>();
+            return;
+        }
+
+        var result = await ParseAsync(context, clearingHouse, profile, content, $"ppd-{code}-{count}");
+        if (valid)
+        {
+            result.Failures.Should().BeEmpty();
+            result.TotalEntries.Should().Be(1);
+            result.TotalAddendas.Should().Be(count);
+        }
+        else
+        {
+            result.Failures.Should().NotBeEmpty();
+            result.TotalEntries.Should().Be(0);
+        }
+    }
+
+    [Theory]
+    [InlineData("22", 0, false)]
+    [InlineData("22", 1, true)]
+    [InlineData("22", 2, false)]
+    [InlineData("28", 0, false)]
+    [InlineData("28", 1, true)]
+    [InlineData("28", 2, false)]
+    public async Task CcdAddendaCardinality_ShouldRemainExactlyOne(string code, int count, bool valid)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var profile = code == "28"
+            ? CenitOrdinaryInbound2026Layout.PrenotificationProfileCode
+            : CenitOrdinaryInbound2026Layout.OriginalProfileCode;
+        var content = BuildSingleEntryFile("CCD", code, code == "28" ? "225" : "220",
+            code == "28" ? 0 : 10_000, count);
+
+        if (count > 1)
+        {
+            var action = () => ParseAsync(context, clearingHouse, profile, content, $"ccd-{code}-{count}");
+            await action.Should().ThrowAsync<InvalidOperationException>();
+            return;
+        }
+
+        var result = await ParseAsync(context, clearingHouse, profile, content, $"ccd-{code}-{count}");
+        if (valid)
+        {
+            result.Failures.Should().BeEmpty();
+            result.TotalEntries.Should().Be(1);
+        }
+        else
+        {
+            result.Failures.Should().NotBeEmpty();
+            result.TotalEntries.Should().Be(0);
+        }
+    }
+
+    [Fact]
+    public async Task OperatorFile_ShouldAcceptIndependentOriginatorTraceSequences()
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var result = await ParseAsync(context, clearingHouse,
+            CenitOrdinaryInbound2026Layout.OriginalProfileCode,
+            BuildTwoOriginatingParticipantFile(501, 20), "cenit-independent-traces");
+
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(2);
+        var traces = await context.EntryDetails.AsNoTracking().OrderBy(entry => entry.BatchNumber)
+            .Select(entry => entry.SequenceNumber).ToListAsync();
+        traces.Should().Equal("876543210000501", "765432100000020");
+    }
+
+    [Fact]
+    public async Task OperatorBatch_ShouldAcceptNonAscendingDistinctTraces()
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var result = await ParseAsync(context, clearingHouse,
+            CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode,
+            BuildCtxFile(firstSequence: 501, secondSequence: 20), "cenit-nonascending-batch");
+
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(2);
+        result.TotalAddendas.Should().Be(5);
+    }
+
+    [Theory]
+    [InlineData("bad-shape", "15 dígitos")]
+    [InlineData("wrong-origin", "no coincide")]
+    [InlineData("duplicate", "duplicado")]
+    public async Task OperatorTraceSafeguards_ShouldRemainActive(string mutation, string expectedMessage)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var content = mutation switch
+        {
+            "bad-shape" => ReplaceFieldInRecord(BuildCtxFile(), 2, 88, 15, "INVALIDTRACE001"),
+            "wrong-origin" => ReplaceFieldInRecord(BuildCtxFile(), 2, 88, 8, "11111111"),
+            _ => BuildCtxFile(firstSequence: 17, secondSequence: 17)
+        };
+
+        var action = () => ParseAsync(context, clearingHouse,
+            CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode, content, $"cenit-trace-{mutation}");
+        var exception = await action.Should().ThrowAsync<InvalidOperationException>();
+        exception.Which.Message.Should().Contain(expectedMessage);
+    }
+
+    [Theory]
+    [InlineData("23", 0, false)]
+    [InlineData("23", 1, true)]
+    [InlineData("23", 2, false)]
+    [InlineData("28", 0, false)]
+    [InlineData("28", 1, true)]
+    [InlineData("28", 2, false)]
+    [InlineData("22", 1, true)]
+    [InlineData("22", 2, true)]
+    public async Task CtxAddendaCardinality_ShouldFollowReceivingSemantics(string code, int count, bool valid)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var profile = code is "23" or "28"
+            ? CenitOrdinaryInbound2026Layout.CtxPrenotificationProfileCode
+            : CenitOrdinaryInbound2026Layout.CtxOriginalProfileCode;
+        var content = BuildCtxFile(code, code == "22" ? 10_000 : 0, code == "22" ? "27" : "28",
+            code == "22" ? 5_000 : 0, count, 1);
+
+        if (!valid)
+        {
+            var action = () => ParseAsync(context, clearingHouse, profile, content, $"ctx-{code}-{count}");
+            await action.Should().ThrowAsync<InvalidOperationException>();
+            return;
+        }
+
+        var result = await ParseAsync(context, clearingHouse, profile, content, $"ctx-{code}-{count}");
+        result.Failures.Should().BeEmpty();
+        result.TotalAddendas.Should().Be(count + 1);
     }
 
     [Theory]
@@ -334,7 +494,8 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
             ]
         };
 
-    private static string BuildSingleEntryFile(string service, string transactionCode, string serviceClass, long amount)
+    private static string BuildSingleEntryFile(string service, string transactionCode, string serviceClass, long amount,
+        int addendaCount = 1)
     {
         const string origin = "87654321";
         const string receiving = "12345678";
@@ -344,27 +505,30 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         {
             BuildType1(),
             BuildType5(service, serviceClass, origin, 1),
-            BuildOrdinaryType6(transactionCode, receiving, origin, amount, 1),
-            BuildType7("INFORMACION CENIT", 1, 1),
-            BuildType8(serviceClass, receiving, origin, 1, 2, debit, credit),
-            BuildType9(1, 1, 2, receiving, debit, credit)
+            BuildOrdinaryType6(transactionCode, receiving, origin, amount, 1, addendaCount > 0)
         };
-        records.AddRange(Enumerable.Repeat(new string('9', 106), 4));
+        for (var index = 0; index < addendaCount; index++)
+        {
+            records.Add(BuildType7("INFORMACION CENIT", index + 1, 1));
+        }
+        records.Add(BuildType8(serviceClass, receiving, origin, 1, 1 + addendaCount, debit, credit));
+        records.Add(BuildType9(1, 1, 1 + addendaCount, receiving, debit, credit));
+        records.AddRange(Enumerable.Repeat(new string('9', 106), 10 - records.Count));
         return string.Concat(records);
     }
 
-    private static string BuildTwoOriginatingParticipantFile()
+    private static string BuildTwoOriginatingParticipantFile(int firstSequence = 1, int secondSequence = 2)
     {
         var records = new List<string>
         {
             BuildType1(),
             BuildType5("PPD", "220", "87654321", 1),
-            BuildOrdinaryType6("22", "12345678", "87654321", 10_000, 1),
-            BuildType7("PAGO ORIGINADOR A", 1, 1),
+            BuildOrdinaryType6("22", "12345678", "87654321", 10_000, 1, traceSequence: firstSequence),
+            BuildType7("PAGO ORIGINADOR A", 1, firstSequence),
             BuildType8("220", "12345678", "87654321", 1, 2, 0, 10_000),
             BuildType5("CCD", "225", "76543210", 2),
-            BuildOrdinaryType6("27", "23456789", "76543210", 5_000, 2),
-            BuildType7("PAGO ORIGINADOR B", 1, 2),
+            BuildOrdinaryType6("27", "23456789", "76543210", 5_000, 2, traceSequence: secondSequence),
+            BuildType7("PAGO ORIGINADOR B", 1, secondSequence),
             BuildType8("225", "23456789", "76543210", 2, 2, 5_000, 0),
             BuildType9(2, 1, 4, "35802467", 5_000, 10_000)
         };
@@ -375,23 +539,34 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         string firstTransactionCode = "22",
         long firstAmount = 10_000,
         string secondTransactionCode = "27",
-        long secondAmount = 5_000)
+        long secondAmount = 5_000,
+        int firstAddendaCount = 2,
+        int secondAddendaCount = 3,
+        int firstSequence = 1,
+        int secondSequence = 2)
     {
         var records = new List<string>
         {
             BuildType1(),
             BuildType5("CTX", "200", "87654321", 1),
-            BuildCtxType6(firstTransactionCode, "12345678", "87654321", firstAmount, 2, 1),
-            BuildType7("CTX A UNO", 1, 1),
-            BuildType7("CTX A DOS", 2, 1),
-            BuildCtxType6(secondTransactionCode, "23456789", "87654321", secondAmount, 3, 2),
-            BuildType7("CTX B UNO", 1, 2),
-            BuildType7("CTX B DOS", 2, 2),
-            BuildType7("CTX B TRES", 3, 2),
-            BuildType8("200", "35802467", "87654321", 1, 7, secondAmount, firstAmount),
-            BuildType9(1, 2, 7, "35802467", secondAmount, firstAmount)
+            BuildCtxType6(firstTransactionCode, "12345678", "87654321", firstAmount, firstAddendaCount, 1,
+                firstSequence)
         };
-        records.AddRange(Enumerable.Repeat(new string('9', 106), 9));
+        for (var index = 0; index < firstAddendaCount; index++)
+        {
+            records.Add(BuildType7($"CTX A {index + 1}", index + 1, firstSequence));
+        }
+        records.Add(BuildCtxType6(secondTransactionCode, "23456789", "87654321", secondAmount,
+            secondAddendaCount, 2, secondSequence));
+        for (var index = 0; index < secondAddendaCount; index++)
+        {
+            records.Add(BuildType7($"CTX B {index + 1}", index + 1, secondSequence));
+        }
+        var entryAddendaCount = 2 + firstAddendaCount + secondAddendaCount;
+        var blockCount = (records.Count + 2 + 9) / 10;
+        records.Add(BuildType8("200", "35802467", "87654321", 1, entryAddendaCount, secondAmount, firstAmount));
+        records.Add(BuildType9(1, blockCount, entryAddendaCount, "35802467", secondAmount, firstAmount));
+        records.AddRange(Enumerable.Repeat(new string('9', 106), blockCount * 10 - records.Count));
         return string.Concat(records);
     }
 
@@ -464,7 +639,9 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         string receiving,
         string origin,
         long amount,
-        int sequence)
+        int sequence,
+        bool hasAddenda = true,
+        int? traceSequence = null)
     {
         var line = Blank('6');
         Put(line, 2, 2, transactionCode);
@@ -474,8 +651,8 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         Put(line, 30, 18, amount.ToString("000000000000000000"));
         Put(line, 48, 15, $"DOC{sequence:000000000000}");
         Put(line, 63, 22, $"RECEPTOR {sequence}");
-        Put(line, 87, 1, "1");
-        Put(line, 88, 15, $"{origin}{sequence:0000000}");
+        Put(line, 87, 1, hasAddenda ? "1" : "0");
+        Put(line, 88, 15, $"{origin}{traceSequence.GetValueOrDefault(sequence):0000000}");
         return new string(line);
     }
 
@@ -485,7 +662,8 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         string origin,
         long amount,
         int addendaCount,
-        int sequence)
+        int sequence,
+        int? traceSequence = null)
     {
         var line = Blank('6');
         Put(line, 2, 2, transactionCode);
@@ -497,7 +675,7 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         Put(line, 63, 4, addendaCount.ToString("0000"));
         Put(line, 67, 16, $"RECEPTOR {sequence}");
         Put(line, 87, 1, "1");
-        Put(line, 88, 15, $"{origin}{sequence:0000000}");
+        Put(line, 88, 15, $"{origin}{traceSequence.GetValueOrDefault(sequence):0000000}");
         return new string(line);
     }
 
@@ -561,6 +739,16 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
     {
         var formatted = value.Length >= length ? value[..length] : value.PadRight(length);
         Array.Copy(formatted.ToCharArray(), 0, target, startPosition - 1, length);
+    }
+
+    private static string ReplaceFieldInRecord(string content, int recordIndex, int startPosition, int length,
+        string value)
+    {
+        var records = Enumerable.Range(0, content.Length / 106)
+            .Select(index => content.Substring(index * 106, 106).ToCharArray())
+            .ToArray();
+        Put(records[recordIndex], startPosition, length, value);
+        return string.Concat(records.Select(record => new string(record)));
     }
 
     public enum CtxMutation
