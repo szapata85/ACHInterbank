@@ -296,10 +296,12 @@ jobs:
           set -euo pipefail
           sql_password="ConfigSql$(openssl rand -hex 12)!9"
           pg_password="ConfigPg$(openssl rand -hex 12)!9"
+          jwt_secret="ci-$(openssl rand -hex 32)"
           sql_connection="Server=127.0.0.1,1433;Database=achinterbank_immutability;User Id=sa;Password=${sql_password};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true;Connect Timeout=15"
           pg_connection="Host=127.0.0.1;Port=5433;Database=achinterbank_immutability;Username=ach_test;Password=${pg_password};Timeout=15;Command Timeout=30"
           echo "::add-mask::${sql_password}"
           echo "::add-mask::${pg_password}"
+          echo "::add-mask::${jwt_secret}"
           echo "::add-mask::${sql_connection}"
           echo "::add-mask::${pg_connection}"
           docker run -d --name config-immutability-sqlserver \
@@ -313,6 +315,7 @@ jobs:
           echo "NACHA_CONFIG_SQLSERVER_CONNECTION_STRING=${sql_connection}" >> "$GITHUB_ENV"
           echo "NACHA_CONFIG_POSTGRES_CONNECTION_STRING=${pg_connection}" >> "$GITHUB_ENV"
           echo "NACHA_CONFIG_SQLSERVER_PASSWORD=${sql_password}" >> "$GITHUB_ENV"
+          echo "appSettings__tokenManager__secretKetJwt=${jwt_secret}" >> "$GITHUB_ENV"
 
       - name: Wait for provider databases
         shell: bash
