@@ -101,7 +101,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         var persistedRule = await context.CfgRuleSetRules
             .SingleAsync(rule => rule.RuleSetId == semantic.RuleSetId && rule.RuleCode.EndsWith("220"));
         persistedRule.RuleConfigJson = "{\"serviceClassCode\":\"220\",\"allowedDirections\":[\"DEBIT\"]}";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var historical = NachaPublicationSnapshotSerializer.Read(persisted.SnapshotJson).Snapshot!;
         historical.Records.Single(record => record.RecordCode == "5").SemanticRuleSet!.ResolvedDeclarations
@@ -193,7 +193,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .FirstAsync();
         var preservedAuditTimestamp = new DateTimeOffset(2030, 1, 2, 3, 4, 5, TimeSpan.Zero);
         field.UpdatedAt = preservedAuditTimestamp;
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
         preservedAuditTimestamp = await context.CfgLayoutFields
             .Where(candidate => candidate.Id == field.Id)
@@ -217,7 +217,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .FirstAsync();
         field.Length += 1;
         var conflictingLength = field.Length;
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         var call = () => new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
@@ -238,7 +238,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .FirstAsync();
         rule.RuleConfigJson = """{"serviceClassCode":"200","allowedDirections":["CREDIT"]}""";
         var conflictingRule = rule.RuleConfigJson;
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         var call = () => new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
@@ -267,7 +267,11 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .FirstAsync();
         var authoritativeLength = field.Length;
         field.Length += 1;
-        await context.SaveChangesAsync();
+        // Reconstruct a genuinely unpublished draft; status alone cannot erase publication.
+        context.HistConfigSnapshots.RemoveRange(await context.HistConfigSnapshots
+            .Where(snapshot => snapshot.ProfileId == profile.Id && snapshot.SnapshotType == "PUBLISH")
+            .ToListAsync());
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
@@ -347,7 +351,10 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .SingleAsync();
         profile.PublishedAt = null;
         profile.PublishedBy = null;
-        await context.SaveChangesAsync();
+        context.HistConfigSnapshots.RemoveRange(await context.HistConfigSnapshots
+            .Where(snapshot => snapshot.ProfileId == profile.Id && snapshot.SnapshotType == "PUBLISH")
+            .ToListAsync());
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
         profile = await context.CfgProfiles.AsNoTracking().SingleAsync(candidate => candidate.Id == profile.Id);
         var publication = new NachaConfigPublicationService(context, new AlwaysValidNachaConfigValidationService());
@@ -364,7 +371,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .Where(candidate => candidate.ProfileId == profile.Id && candidate.SnapshotType == "PUBLISH")
             .OrderBy(candidate => candidate.VersionMinor)
             .ToArrayAsync();
-        snapshots.Should().HaveCount(2);
+        snapshots.Should().HaveCount(1);
         var publicationSnapshot = NachaPublicationSnapshotSerializer.Read(snapshots[^1].SnapshotJson);
         publicationSnapshot.IsSupported.Should().BeTrue(publicationSnapshot.Error);
         NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(snapshots[^1].SnapshotJson)
@@ -392,7 +399,10 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         profile.PublishedBy = null;
         var variant = await context.CfgLayoutVariants.FirstAsync(candidate => candidate.ProfileId == profile.Id);
         variant.SelectionPredicateJson = "not-json";
-        await context.SaveChangesAsync();
+        context.HistConfigSnapshots.RemoveRange(await context.HistConfigSnapshots
+            .Where(snapshot => snapshot.ProfileId == profile.Id && snapshot.SnapshotType == "PUBLISH")
+            .ToListAsync());
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
         profile = await context.CfgProfiles.AsNoTracking().SingleAsync(candidate => candidate.Id == profile.Id);
         var snapshotsBefore = await context.HistConfigSnapshots.CountAsync(candidate => candidate.ProfileId == profile.Id);
@@ -594,7 +604,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .SingleAsync(candidate => candidate.ProfileCode == AchColOfficialNachaLayout.OutboundOriginalProfileCode);
         context.CfgProfileTags.Remove(profile.Tags.Single(tag =>
             tag.TagKey == NachaOutboundPolicyMetadata.BatchNumberMaximumKey));
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var result = await new NachaConfigResolver(context).ResolveAsync(new NachaConfigResolutionRequest
         {
@@ -889,7 +899,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             CreatedAt = source.CreatedAt,
             UpdatedAt = source.UpdatedAt
         });
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var result = await ResolveCenitInboundAsync(context, "ORIGINAL", "CTX");
 
@@ -945,7 +955,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             CreatedAt = source.CreatedAt,
             UpdatedAt = source.UpdatedAt
         });
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var result = await ResolveCtxProfileAsync(context);
 
@@ -1523,7 +1533,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         {
             successor.Tags.Single(tag => tag.TagKey == "NormativeVersion").TagValue = "INCOMPATIBLE";
         }
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var act = () => new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
         await act.Should().ThrowAsync<InvalidOperationException>()
@@ -1593,7 +1603,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         await context.CfgProfiles.Where(profile => profile.Id == cardinalitySuccessorId).ExecuteDeleteAsync();
         await context.HistConfigSnapshots.Where(snapshot => snapshot.ProfileId == oldSuccessorId).ExecuteDeleteAsync();
         await context.CfgProfiles.Where(profile => profile.Id == oldSuccessorId).ExecuteDeleteAsync();
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         await new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
@@ -1622,7 +1632,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         var successor = await context.CfgProfiles.Include(profile => profile.Tags).SingleAsync(profile =>
             profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode);
         successor.Tags.Single(tag => tag.TagKey == "NormativeVersion").TagValue = "INCOMPATIBLE";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var act = () => new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
 
@@ -1639,7 +1649,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         var snapshot = await context.HistConfigSnapshots.SingleAsync(item =>
             item.ProfileId == successor.Id && item.SnapshotType == "PUBLISH");
         snapshot.SnapshotJson += " ";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var act = () => new NachaConfigOfficialProfilesSeeder(context).SeedAsync();
 
@@ -1720,7 +1730,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             "{\"transactionCode\":\"22\",\"direction\":\"CREDIT\",\"accountType\":\"Savings\",\"isPrenotification\":false}";
         ruleSet.Rules.Single(rule => rule.RuleCode == "TRANSACTION_CODE_32").RuleConfigJson =
             "{\"transactionCode\":\"32\",\"direction\":\"CREDIT\",\"accountType\":\"Checking\",\"isPrenotification\":false}";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var result = await new NachaConfigValidationService(context).ValidateBeforePublishAsync(successor.Id);
 
@@ -1760,7 +1770,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             return record with { SemanticRuleSet = record.SemanticRuleSet with { Rules = changedRules } };
         }).ToArray();
         achSnapshot.SnapshotJson = NachaPublicationSnapshotSerializer.Serialize(read with { Records = changedRecords });
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var cenit = await context.CfgProfiles.SingleAsync(profile =>
             profile.ProfileCode == CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode);
@@ -1827,7 +1837,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             rule.RuleSet.RuleSetCode == "NACHA_ACH_TRANSACTION_CODE_V1"
             && rule.RuleCode == "TRANSACTION_CODE_22");
         liveRule.RuleConfigJson = "{\"transactionCode\":\"99\",\"direction\":\"CREDIT\",\"accountType\":\"Checking\",\"isPrenotification\":false}";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
         var after = await resolver.ResolvePublishedInboundAsync(InboundRequest("ACH"), InboundEvidence("PPD", "22"));
         after.Success.Should().BeTrue(string.Join("; ", after.Warnings));
@@ -1840,7 +1850,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             && field.LayoutVariant.RecordCode.Code == "6"
             && field.FieldCode == "TRANSACTIONCODE");
         liveField.StartPosition = 3;
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
         var publishedReader = await NachaProfileRecordReader.LoadPublishedAsync(context, after.Profile.Id, default);
         publishedReader.Read(InboundEvidence("PPD", "22")[1], "6", "TRANSACTIONCODE").Should().Be("22");
@@ -1880,10 +1890,11 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         (await resolver.ResolvePublishedInboundAsync(Request(effective), evidence)).Profile!.Id.Should().Be(major.Id);
 
         major.ContextPriority = current.Profile.ContextPriority + 1;
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         (await resolver.ResolvePublishedInboundAsync(Request(effective), evidence)).Profile!.Id.Should().Be(current.Profile.Id);
+        major = await context.CfgProfiles.SingleAsync(profile => profile.Id == major.Id);
         major.ContextPriority = current.Profile.ContextPriority;
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var minor = await AddSyntheticInboundSuccessorAsync(context, "TEST_INBOUND_MINOR_SUCCESSOR", 36, 1,
             effective, "PUBLICADO", true, current.Profile.Id);
@@ -1896,7 +1907,7 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
             .SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileVersionUnsupported);
 
         minor.EffectiveTo = effective;
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         (await resolver.ResolvePublishedInboundAsync(Request(effective.AddDays(1)), evidence)).Profile!.Id.Should().Be(major.Id);
     }
 
@@ -1992,7 +2003,10 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
                 });
                 break;
         }
-        await context.SaveChangesAsync();
+        if (mode is "ambiguous" or "unsupported-code")
+            await context.SaveChangesAsync();
+        else
+            await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         var chamber = mode == "conflicting" ? "CENIT" : "ACH";

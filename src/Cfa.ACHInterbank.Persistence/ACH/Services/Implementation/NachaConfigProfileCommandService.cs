@@ -166,7 +166,6 @@ public sealed class NachaConfigProfileCommandService : INachaConfigProfileComman
                 SupersedesProfileId = source.Id
             };
 
-            source.UpdatedAt = DateTimeOffset.UtcNow;
             _context.CfgProfiles.Add(clone);
             await _context.SaveChangesAsync(ct);
 

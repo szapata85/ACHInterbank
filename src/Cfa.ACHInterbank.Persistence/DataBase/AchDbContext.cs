@@ -499,8 +499,18 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         return SaveChangesAsync().GetAwaiter().GetResult();
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        return SaveChangesAsync(acceptAllChangesOnSuccess).GetAwaiter().GetResult();
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        => await SaveChangesAsync(true, cancellationToken);
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        await NachaConfigImmutabilityGuard.ValidateAsync(this, cancellationToken);
+
         if (ChangeTracker.Entries<AchResponseAudit>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("La auditoría de respuestas ACH es inmutable.");
 
@@ -617,7 +627,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
             AuditLogs.AddRange(auditEntries);
         }
 
-        return await base.SaveChangesAsync(cancellationToken);
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     private static bool HasChanged<T>(PropertyEntry<AchTransaction, T> property)

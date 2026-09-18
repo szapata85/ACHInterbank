@@ -222,7 +222,7 @@ public class CenitPublishedCardinalityPolicyTests : IClassFixture<OfficialNachaG
             item.ProfileCode == "OFFICIAL_CENIT_SALIDA_PRENOTIFICACION_V1_3");
         profile.Tags.Single(tag => tag.TagKey == NachaAddendaCardinalityMetadata.Prefix + "PPD")
             .TagValue = "Credit=1:1;Debit=1:1";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var result = await new NachaConfigResolver(context).ResolvePublishedOrdinaryAsync(
             new NachaConfigResolutionRequest

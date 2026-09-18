@@ -44,6 +44,7 @@ public sealed class NachaConfigBackfillSeeder : IDbSeeder
         var originalFlowId = await ResolveCatalogIdAsync(_context.CatFlowTypes, x => x.Code, x => x.Id, "ORIGINAL");
         var outDirectionId = await ResolveCatalogIdAsync(_context.CatDirections, x => x.Code, x => x.Id, "SALIDA");
         var publishedStatusId = await ResolveCatalogIdAsync(_context.CatConfigStatuses, x => x.Code, x => x.Id, "PUBLICADO");
+        var draftStatusId = await ResolveCatalogIdAsync(_context.CatConfigStatuses, x => x.Code, x => x.Id, "BORRADOR");
 
         var defaultServiceClassCode = await _context.CompanyEntryDescriptionCatalogs
             .AsNoTracking()
@@ -66,11 +67,11 @@ public sealed class NachaConfigBackfillSeeder : IDbSeeder
             ContextPriority = 100,
             EffectiveFrom = DateTime.UtcNow.Date,
             EffectiveTo = null,
-            StatusId = publishedStatusId,
+            StatusId = draftStatusId,
             VersionMajor = 1,
             VersionMinor = 0,
-            PublishedAt = DateTime.UtcNow,
-            PublishedBy = "system-backfill"
+            PublishedAt = null,
+            PublishedBy = null
         };
 
         _context.CfgProfiles.Add(profile);
@@ -180,6 +181,10 @@ public sealed class NachaConfigBackfillSeeder : IDbSeeder
             _context.CfgProfileRecords.AddRange(profileRecords);
         }
 
+        var publishedAt = DateTime.UtcNow;
+        profile.StatusId = publishedStatusId;
+        profile.PublishedAt = publishedAt;
+        profile.PublishedBy = "system-backfill";
         _context.HistConfigSnapshots.Add(new HistConfigSnapshot
         {
             ProfileId = profile.Id,
@@ -194,7 +199,7 @@ public sealed class NachaConfigBackfillSeeder : IDbSeeder
                 profile.VersionMinor,
                 Records = profileRecords.Select(x => new { x.RecordCodeId, x.Sequence, x.LayoutVariantId })
             }),
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = publishedAt,
             CreatedBy = "system-backfill"
         });
 

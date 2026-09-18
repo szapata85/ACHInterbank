@@ -94,7 +94,7 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
         var originalJson = row.SnapshotJson;
         var originalProfile = NachaPublicationSnapshotSerializer.Read(originalJson).Snapshot!.Profile;
         context.HistConfigSnapshots.Remove(row);
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         await Seeder(context).SeedAsync();
@@ -121,7 +121,7 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
         await using var context = await _fixture.CreateSeededContextAsync();
         var row = await TargetSnapshotAsync(context);
         row.SnapshotJson = "{\"profileCode\":\"historical\"}";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         var legacyId = row.Id;
         var legacyCreated = row.CreatedAtUtc;
         context.ChangeTracker.Clear();
@@ -202,7 +202,7 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
         var json = JsonNode.Parse(row.SnapshotJson)!.AsObject();
         json.Remove("standardEntryClassMappings").Should().BeTrue();
         row.SnapshotJson = json.ToJsonString();
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         NachaPublicationSnapshotSerializer.Read(row.SnapshotJson).IsSupported.Should().BeTrue();
@@ -317,7 +317,7 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
             }
         }
         row.SnapshotJson = json.ToJsonString();
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         var semanticRead = NachaPublicationSnapshotSerializer.Read(row.SnapshotJson);
@@ -392,7 +392,7 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
         {
             row.SnapshotJson = caseName == "malformed" ? "not-json" : "{\"snapshotFormatVersion\":999}";
         }
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
         var count = await context.HistConfigSnapshots.CountAsync();
 
@@ -409,7 +409,7 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
         context.HistConfigSnapshots.Remove(row);
         var record = await context.CfgProfileRecords.SingleAsync(item => item.ProfileId == row.ProfileId && item.RecordCode.Code == "5");
         record.SemanticRuleSetId = null;
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         var action = () => Seeder(context).SeedAsync();
@@ -441,7 +441,7 @@ public sealed class NachaPublicationSnapshotCoverageSeederTests : IClassFixture<
             ProfileId = legacy.Id, VersionMajor = 1, VersionMinor = 0, SnapshotType = "PUBLISH",
             SnapshotJson = "{\"profileCode\":\"legacy\"}", CreatedAtUtc = new DateTime(2020, 1, 1), CreatedBy = "system-backfill"
         });
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         await Seeder(context).SeedAsync();

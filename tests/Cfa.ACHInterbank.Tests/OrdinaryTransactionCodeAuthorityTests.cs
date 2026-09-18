@@ -197,7 +197,7 @@ public sealed class OrdinaryTransactionCodeAuthorityTests : IClassFixture<Offici
             rule.RuleSet.RuleSetCode == "NACHA_ACH_TRANSACTION_CODE_V1"
             && rule.RuleCode == "TRANSACTION_CODE_22");
         liveRule.RuleConfigJson = "{\"transactionCode\":\"99\",\"direction\":\"CREDIT\",\"accountType\":\"Checking\",\"isPrenotification\":false}";
-        await db.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(db);
         db.ChangeTracker.Clear();
 
         var after = await new OrdinaryTransactionCodeAuthority(new NachaConfigResolver(db))

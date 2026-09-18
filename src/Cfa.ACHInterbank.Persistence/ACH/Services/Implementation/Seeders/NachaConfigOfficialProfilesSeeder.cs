@@ -1264,9 +1264,13 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
             .ToListAsync();
         foreach (var profile in legacyProfiles)
         {
-            profile.StatusId = inactiveStatusId;
-            profile.EffectiveTo ??= EffectiveFrom;
-            profile.UpdatedAt = AuditTimestamp;
+            var transitionNeeded = profile.StatusId != inactiveStatusId || profile.EffectiveTo is null;
+            if (transitionNeeded)
+            {
+                profile.StatusId = inactiveStatusId;
+                profile.EffectiveTo ??= EffectiveFrom;
+                profile.UpdatedAt = AuditTimestamp;
+            }
         }
 
         if (legacyProfiles.Count > 0)

@@ -159,7 +159,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var published = await context.HistConfigSnapshots.SingleAsync(item => item.ProfileId == profile.Id && item.SnapshotType == "PUBLISH");
         context.HistConfigSnapshots.Remove(published);
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => setup.Sut.BuildNachaFileAsync([100], CancellationToken.None));
@@ -220,7 +220,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         {
             cardinalitySuccessor.StatusId = publishedStatusId;
         }
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         var successorContent = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
 
         successorContent.Should().NotBeNullOrWhiteSpace();
@@ -550,7 +550,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
 
         var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         achField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var achAfter = await achSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var cenitAfter = await cenitSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
@@ -570,7 +570,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
 
         var cenitField = await LoadFieldAsync(context, CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         cenitField.SourceDefinition.ConstantValue = "CENIT-CAMBIO";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var achAfter = await achSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var cenitAfter = await cenitSetup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
@@ -1051,7 +1051,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         await using var context = await SeedAsync();
         var achField = await LoadFieldAsync(context, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         achField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         await CreateOfficialSut(context, "ACH Colombia").Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var achTrace = await LoadLatestTraceAsync(context);
@@ -1070,7 +1070,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         await using var context = await SeedAsync();
         var cenitField = await LoadFieldAsync(context, CenitOrdinaryOutbound2026Layout.TxCodeAwareOriginalProfileCode, "1", "IMMEDIATEORIGINNAME");
         cenitField.SourceDefinition.ConstantValue = "CENIT-CAMBIO";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         await CreateOfficialSut(context, "ACH Colombia").Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var achTrace = await LoadLatestTraceAsync(context);
@@ -1312,7 +1312,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
                                     && variant.SelectionPredicateJson != null
                                     && variant.SelectionPredicateJson.Contains("DEBIT"));
         liveDebit.SelectionPredicateJson = """{"BusinessType":"CREDIT"}""";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         var model = BuildContext("ACH Colombia");
         var transaction = model.Transactions.Single();
         transaction.Type = TransactionTypeEnum.Debit;
@@ -1787,13 +1787,14 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
 
         var before = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
         var beforeTrace = await LoadLatestTraceAsync(context);
+        var liveSec = await context.CompanyEntryDescriptionCatalogs.SingleAsync(item => item.Term == "PAGOS");
+        liveSec.StandardEntryClassCode = expectedSec == "PPD" ? "CCD" : "PPD";
+        await context.SaveChangesAsync();
         var liveField = await LoadFieldAsync(context, AchColOfficialNachaLayout.TxCodeAwareOutboundOriginalProfileCode,
             "1", "IMMEDIATEORIGINNAME");
         liveField.SourceDefinition.ConstantValue = "ACH-CAMBIO-UAT";
         liveField.FieldNameEs = "LIVE CHANGED";
-        var liveSec = await context.CompanyEntryDescriptionCatalogs.SingleAsync(item => item.Term == "PAGOS");
-        liveSec.StandardEntryClassCode = expectedSec == "PPD" ? "CCD" : "PPD";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         await new NachaPublicationSnapshotCoverageSeeder(context).SeedAsync();
         var after = await setup.Sut.BuildNachaFileAsync([100], CancellationToken.None);
@@ -1863,7 +1864,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
             NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(publication.SnapshotJson)
                 .IsSupported.Should().BeFalse();
         }
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
         (await context.CfgProfiles.CountAsync(profile => profile.Id == profileId)).Should().Be(1);
         (await context.CompanyEntryDescriptionCatalogs.CountAsync(item => item.IsActive)).Should().BeGreaterThan(0);
@@ -2119,7 +2120,7 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         var snapshot = JsonNode.Parse(publication.SnapshotJson)!.AsObject();
         mutate(snapshot);
         publication.SnapshotJson = snapshot.ToJsonString();
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
         context.ChangeTracker.Clear();
     }
 

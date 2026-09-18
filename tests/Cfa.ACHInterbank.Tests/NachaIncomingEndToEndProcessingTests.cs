@@ -10,8 +10,10 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Tests.NachaFunctional;
+using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -253,15 +255,27 @@ public class NachaIncomingEndToEndProcessingTests
 
     private static ProcessorFixture BuildFixture(string clearingHouseCode, int clearingHouseId, string originCode)
     {
-        var context = BuildContext();
+        var databaseName = Guid.NewGuid().ToString();
+        var databaseRoot = new InMemoryDatabaseRoot();
+        var context = BuildContext(databaseName, databaseRoot);
         SeedCatalog(context, clearingHouseCode, clearingHouseId, originCode);
         new NachaConfigOfficialProfilesSeeder(context).SeedAsync().GetAwaiter().GetResult();
-        var nonOrdinaryProfiles = context.CfgProfiles
+        var nonOrdinaryProfileIds = context.CfgProfiles
             .Include(profile => profile.FlowType)
             .Where(profile => profile.FlowType.Code != "ORIGINAL" && profile.FlowType.Code != "PRENOTIFICACION")
+            .Select(profile => profile.Id)
             .ToList();
-        context.CfgProfiles.RemoveRange(nonOrdinaryProfiles);
-        context.SaveChanges();
+        // Deliberately corrupt only this disposable fixture outside AchDbContext's write path.
+        using (var fixtureStore = new DbContext(new DbContextOptionsBuilder<DbContext>()
+            .UseInMemoryDatabase(databaseName, databaseRoot)
+            .UseModel(context.Model)
+            .Options))
+        {
+            fixtureStore.Set<CfgProfile>().RemoveRange(fixtureStore.Set<CfgProfile>()
+                .Where(profile => nonOrdinaryProfileIds.Contains(profile.Id)));
+            fixtureStore.SaveChanges();
+        }
+        context.ChangeTracker.Clear();
 
         var resolver = new Mock<IIncomingNachaCycleResolver>();
         resolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaCycleResolutionRequest>(), It.IsAny<CancellationToken>()))
@@ -352,10 +366,10 @@ public class NachaIncomingEndToEndProcessingTests
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static AchDbContext BuildContext()
+    private static AchDbContext BuildContext(string databaseName, InMemoryDatabaseRoot databaseRoot)
     {
         var options = new DbContextOptionsBuilder<AchDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName, databaseRoot)
             .Options;
         var context = new AchDbContext(options);
         context.Database.EnsureCreated();

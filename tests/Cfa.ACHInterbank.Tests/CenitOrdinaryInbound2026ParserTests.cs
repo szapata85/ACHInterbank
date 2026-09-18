@@ -260,7 +260,7 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
             item.ProfileCode == CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode);
         profile.Tags.Single(tag => tag.TagKey == NachaAddendaCardinalityMetadata.Prefix + "PPD")
             .TagValue = "Credit=1:1;Debit=1:1";
-        await context.SaveChangesAsync();
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var result = await ParseAsync(context, clearingHouse, profile.ProfileCode,
             BuildSingleEntryFile("PPD", "23", "220", 0, 0),
