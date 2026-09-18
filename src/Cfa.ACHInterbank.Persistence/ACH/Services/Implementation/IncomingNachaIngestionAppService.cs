@@ -496,18 +496,12 @@ public class IncomingNachaIngestionAppService : IIncomingNachaIngestionAppServic
             var flowTypeCode = isDifferentialCandidate
                 ? isCenitRor ? CenitReturnOfReturn2026Layout.FlowTypeCode : "RETORNO"
                 : string.Empty;
-            var isAchColOrdinary = !isDifferentialCandidate
-                                   && string.Equals(configClearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase);
-            var isCenitOrdinary = !isDifferentialCandidate && isCenit;
             var preselectionRequest = new NachaConfigResolutionRequest
             {
                 ClearingHouseCode = configClearingHouseCode,
                 FlowTypeCode = flowTypeCode,
                 DirectionCode = "ENTRADA",
                 ProcessDateUtc = ingestion.OperationalDate ?? UtcNow.Date,
-                RequestedVersionMajor = isAchColOrdinary
-                    ? AchColOfficialNachaLayout.ProfileVersionMajor
-                    : isCenitOrdinary ? 1 : null,
                 RecordCodes = records
                     .Where(record => record.Length == 106 && !record.All(character => character == '9'))
                     .Select(record => record[0].ToString())

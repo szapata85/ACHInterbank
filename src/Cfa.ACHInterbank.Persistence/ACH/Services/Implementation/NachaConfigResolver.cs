@@ -31,6 +31,14 @@ public class NachaConfigResolver : INachaConfigResolver
                 trace,
                 warnings);
         }
+        if (request.RequestedVersionMinor.HasValue && !request.RequestedVersionMajor.HasValue)
+        {
+            return Failure(
+                NachaProfileSelectionStatus.ProfileVersionUnsupported,
+                "La versión menor requiere una versión mayor explícita.",
+                trace,
+                warnings);
+        }
 
         var clearingHouseCode = request.ClearingHouseCode.Trim().ToUpperInvariant();
         var flowTypeCode = request.FlowTypeCode.Trim().ToUpperInvariant();
@@ -249,6 +257,10 @@ public class NachaConfigResolver : INachaConfigResolver
         if (!string.Equals(request.DirectionCode, "ENTRADA", StringComparison.OrdinalIgnoreCase))
         {
             return InboundFailure(NachaProfileSelectionStatus.ProfileNotFound, "INBOUND_DIRECTION_REQUIRED");
+        }
+        if (request.RequestedVersionMinor.HasValue && !request.RequestedVersionMajor.HasValue)
+        {
+            return InboundFailure(NachaProfileSelectionStatus.ProfileVersionUnsupported, "INBOUND_VERSION_MAJOR_REQUIRED");
         }
 
         var date = request.ProcessDateUtc.Date;

@@ -59,6 +59,23 @@ public sealed class OrdinaryTransactionCodeAuthorityTests : IClassFixture<Offici
         resolved.Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData("ACH")]
+    [InlineData("CENIT")]
+    public async Task PublishedAuthority_ShouldRequestCanonicalVersionWithoutChamberPin(string chamber)
+    {
+        var resolver = new ResolverStub(request => Success(request, "22"));
+        var sut = new OrdinaryTransactionCodeAuthority(resolver);
+
+        (await sut.ResolveAsync(Context(chamber),
+            new OrdinaryTransactionCodeSemanticRequest(TransactionTypeEnum.Credit, AccountTypeEnum.Checking, false)))
+            .Should().Be("22");
+
+        resolver.Requests.Should().NotBeEmpty()
+            .And.OnlyContain(request => request.RequestedVersionMajor == null
+                                        && request.RequestedVersionMinor == null);
+    }
+
     [Fact]
     public async Task PrenotificationAuthorities_ShouldRequireCrossFlowConvergence()
     {

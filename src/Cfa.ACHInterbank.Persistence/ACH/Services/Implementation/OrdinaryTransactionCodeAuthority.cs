@@ -128,8 +128,6 @@ public sealed class OrdinaryTransactionCodeAuthority : IOrdinaryTransactionCodeA
             return cached;
         }
 
-        var requiresAchV35 = string.Equals(key.ClearingHouseCode, "ACH", StringComparison.Ordinal)
-                             && key.Flow is "ORIGINAL" or "PRENOTIFICACION";
         var pending = _configResolver.ResolvePublishedOrdinaryAsync(new NachaConfigResolutionRequest
         {
             ClearingHouseCode = key.ClearingHouseCode,
@@ -137,8 +135,6 @@ public sealed class OrdinaryTransactionCodeAuthority : IOrdinaryTransactionCodeA
             DirectionCode = "SALIDA",
             ServiceClassCode = key.Service,
             ProcessDateUtc = key.ProcessDate,
-            RequestedVersionMajor = requiresAchV35 ? AchColOfficialNachaLayout.ProfileVersionMajor : null,
-            RequestedVersionMinor = null,
             RequireOutboundPolicy = requireOutboundPolicy,
             RecordCodes = Type6Record,
             SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

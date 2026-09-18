@@ -1846,6 +1846,60 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         publishedReader.Read(InboundEvidence("PPD", "22")[1], "6", "TRANSACTIONCODE").Should().Be("22");
     }
 
+    [Fact]
+    public async Task PublishedInboundPreselection_ShouldFollowPublicationAcrossMajorAndMinorVersions()
+    {
+        await using var context = await SeedAsync();
+        var resolver = new NachaConfigResolver(context);
+        var evidence = InboundEvidence("PPD", "22");
+        var before = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc);
+        var effective = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
+        NachaConfigResolutionRequest Request(DateTime date, int? major = null, int? minor = null) => new()
+        {
+            ClearingHouseCode = "ACH",
+            DirectionCode = "ENTRADA",
+            ProcessDateUtc = date,
+            RequestedVersionMajor = major,
+            RequestedVersionMinor = minor,
+            RecordCodes = ["5", "6"]
+        };
+
+        var current = await resolver.ResolvePublishedInboundAsync(Request(before), evidence);
+        current.Success.Should().BeTrue();
+        current.Profile!.ProfileCode.Should().Be(AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode);
+
+        var major = await AddSyntheticInboundSuccessorAsync(context, "TEST_INBOUND_MAJOR_SUCCESSOR", 36, 0,
+            effective, "BORRADOR", false);
+        (await resolver.ResolvePublishedInboundAsync(Request(effective), evidence)).Profile!.Id.Should().Be(current.Profile.Id);
+
+        major.StatusId = await context.CatConfigStatuses.Where(status => status.Code == "PUBLICADO")
+            .Select(status => status.Id).SingleAsync();
+        await context.SaveChangesAsync();
+        await AddSyntheticInboundSnapshotAsync(context, current.Profile.Id, major);
+        (await resolver.ResolvePublishedInboundAsync(Request(before), evidence)).Profile!.Id.Should().Be(current.Profile.Id);
+        (await resolver.ResolvePublishedInboundAsync(Request(effective), evidence)).Profile!.Id.Should().Be(major.Id);
+
+        major.ContextPriority = current.Profile.ContextPriority + 1;
+        await context.SaveChangesAsync();
+        (await resolver.ResolvePublishedInboundAsync(Request(effective), evidence)).Profile!.Id.Should().Be(current.Profile.Id);
+        major.ContextPriority = current.Profile.ContextPriority;
+        await context.SaveChangesAsync();
+
+        var minor = await AddSyntheticInboundSuccessorAsync(context, "TEST_INBOUND_MINOR_SUCCESSOR", 36, 1,
+            effective, "PUBLICADO", true, current.Profile.Id);
+        (await resolver.ResolvePublishedInboundAsync(Request(effective), evidence)).Profile!.Id.Should().Be(minor.Id);
+        (await resolver.ResolvePublishedInboundAsync(Request(effective, 36), evidence)).Profile!.Id.Should().Be(minor.Id);
+        (await resolver.ResolvePublishedInboundAsync(Request(effective, 36, 0), evidence)).Profile!.Id.Should().Be(major.Id);
+        (await resolver.ResolvePublishedInboundAsync(Request(effective, 35, 1), evidence)).Profile!.Id.Should().Be(current.Profile.Id);
+        (await resolver.ResolvePublishedInboundAsync(Request(effective, 37, 0), evidence)).Success.Should().BeFalse();
+        (await resolver.ResolvePublishedInboundAsync(Request(effective, null, 1), evidence))
+            .SelectionStatus.Should().Be(NachaProfileSelectionStatus.ProfileVersionUnsupported);
+
+        minor.EffectiveTo = effective;
+        await context.SaveChangesAsync();
+        (await resolver.ResolvePublishedInboundAsync(Request(effective.AddDays(1)), evidence)).Profile!.Id.Should().Be(major.Id);
+    }
+
     [Theory]
     [InlineData("missing-snapshot", NachaProfileSelectionStatus.SemanticContractMissing, "INBOUND_PUBLISH_SNAPSHOT_MISSING")]
     [InlineData("missing-metadata", NachaProfileSelectionStatus.SemanticContractMissing, "INBOUND_TXCODE_METADATA_INVALID")]
@@ -1956,10 +2010,73 @@ public class NachaConfigOfficialProfilesSeederTests : IClassFixture<OfficialNach
         {
             ClearingHouseCode = chamber,
             DirectionCode = "ENTRADA",
-            RequestedVersionMajor = chamber == "ACH" ? 35 : 1,
             ProcessDateUtc = new DateTime(2026, 8, 24, 0, 0, 0, DateTimeKind.Utc),
             RecordCodes = ["5", "6"]
         };
+
+    private static async Task<CfgProfile> AddSyntheticInboundSuccessorAsync(
+        AchDbContext context, string code, int major, int minor, DateTime effective,
+        string status, bool withSnapshot, int? sourceProfileId = null)
+    {
+        var source = await context.CfgProfiles.AsNoTracking().SingleAsync(profile =>
+            profile.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode);
+        var profile = new CfgProfile
+        {
+            Id = await context.CfgProfiles.MaxAsync(profile => profile.Id) + 1,
+            ProfileCode = code,
+            NameEs = code,
+            ClearingHouseId = source.ClearingHouseId,
+            FlowTypeId = source.FlowTypeId,
+            DirectionId = source.DirectionId,
+            ServiceClassId = source.ServiceClassId,
+            ContextPriority = source.ContextPriority,
+            EffectiveFrom = effective,
+            StatusId = await context.CatConfigStatuses.Where(item => item.Code == status)
+                .Select(item => item.Id).SingleAsync(),
+            VersionMajor = major,
+            VersionMinor = minor,
+            RowVersion = [1]
+        };
+        context.CfgProfiles.Add(profile);
+        await context.SaveChangesAsync();
+        if (withSnapshot)
+        {
+            await AddSyntheticInboundSnapshotAsync(context, sourceProfileId ?? source.Id, profile);
+        }
+        return profile;
+    }
+
+    private static async Task AddSyntheticInboundSnapshotAsync(AchDbContext context, int sourceProfileId, CfgProfile target)
+    {
+        var json = await context.HistConfigSnapshots.AsNoTracking()
+            .Where(item => item.ProfileId == sourceProfileId && item.SnapshotType == "PUBLISH")
+            .Select(item => item.SnapshotJson).SingleAsync();
+        var snapshot = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(json).Snapshot!;
+        var copy = snapshot with
+        {
+            Profile = snapshot.Profile with
+            {
+                ProfileId = target.Id,
+                ProfileCode = target.ProfileCode,
+                VersionMajor = target.VersionMajor,
+                VersionMinor = target.VersionMinor,
+                ContextPriority = target.ContextPriority,
+                EffectiveFrom = target.EffectiveFrom
+            }
+        };
+        context.HistConfigSnapshots.Add(new HistConfigSnapshot
+        {
+            Id = await context.HistConfigSnapshots.MaxAsync(item => item.Id) + 1,
+            ProfileId = target.Id,
+            VersionMajor = target.VersionMajor,
+            VersionMinor = target.VersionMinor,
+            SnapshotType = "PUBLISH",
+            SnapshotJson = NachaPublicationSnapshotSerializer.Serialize(copy),
+            CreatedAtUtc = target.EffectiveFrom,
+            CreatedBy = "test"
+        });
+        await context.SaveChangesAsync();
+    }
 
     private static IReadOnlyList<string> InboundEvidence(string service, string transactionCode)
     {

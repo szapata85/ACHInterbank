@@ -2573,9 +2573,6 @@ public class NachaFileBuilder : INachaFileBuilder
                 .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
 
         var flowTypeCode = NachaProfileDimensionResolver.ResolveFlowCode(context.Transactions);
-        var requiresAchColV35 = string.Equals(clearingHouseCode, "ACH", StringComparison.OrdinalIgnoreCase)
-                               && flowTypeCode is "ORIGINAL" or "PRENOTIFICACION";
-
         return new NachaConfigResolutionRequest
         {
             ClearingHouseCode = clearingHouseCode,
@@ -2583,8 +2580,7 @@ public class NachaFileBuilder : INachaFileBuilder
             DirectionCode = NachaProfileDimensionResolver.ResolveDirectionCode(context.Transactions),
             ServiceClassCode = serviceClassCode,
             ProcessDateUtc = context.Cycle.ProcessingDate,
-            RequestedVersionMajor = context.SelectedVersionMajor
-                ?? (requiresAchColV35 ? AchColOfficialNachaLayout.ProfileVersionMajor : null),
+            RequestedVersionMajor = context.SelectedVersionMajor,
             RequestedVersionMinor = context.SelectedVersionMinor,
             RecordCodes = recordCodes.ToList(),
             SelectionContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

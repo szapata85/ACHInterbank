@@ -638,9 +638,6 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 await EnsureNoHistoricalTransactionCodeReassignmentAsync(snapshotRead.Snapshot!);
             }
 
-            await using var publicationTransaction = _context.Database.IsRelational()
-                ? await _context.Database.BeginTransactionAsync()
-                : null;
             publicationProfile.StatusId = catalog.Statuses["PUBLICADO"];
             publicationProfile.PublishedAt = PublishedAt;
             publicationProfile.PublishedBy = publishedBy;
@@ -655,10 +652,6 @@ public sealed class NachaConfigOfficialProfilesSeeder : IDbSeeder
                 CreatedBy = publishedBy
             });
             await _context.SaveChangesAsync();
-            if (publicationTransaction is not null)
-            {
-                await publicationTransaction.CommitAsync();
-            }
             _context.ChangeTracker.Clear();
         }
 

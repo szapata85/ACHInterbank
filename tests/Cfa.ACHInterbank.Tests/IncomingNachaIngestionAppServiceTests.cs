@@ -126,6 +126,13 @@ public class IncomingNachaIngestionAppServiceTests
             response.FileHash);
         Assert.Equal(1, await context.IncomingNachaProcessingEvents.CountAsync(x => x.EventType == "DigitalEnvelopeDecrypted"));
         Assert.All(decrypted, value => Assert.Equal((byte)0, value));
+        profileResolver.Verify(x => x.ResolvePublishedInboundAsync(
+            It.Is<NachaConfigResolutionRequest>(request =>
+                request.RequestedVersionMajor == null
+                && request.RequestedVersionMinor == null
+                && request.ProcessDateUtc == new DateTime(2026, 7, 31)),
+            It.IsAny<IReadOnlyList<string>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
