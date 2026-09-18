@@ -347,6 +347,7 @@ jobs:
             port="$2"
             export Database__Provider="$provider"
             export Database__ApplyMigrations=true Database__ApplySeed=true
+            export ASPNETCORE_ENVIRONMENT=Development
             export Quartz__JobStore__Mode=RAM
             export DigitalEnvelope__CertificateBootstrap__Enabled=false
             export ASPNETCORE_URLS="http://127.0.0.1:${port}"
