@@ -273,3 +273,156 @@ jobs:
       - name: Stop database services
         if: always()
         run: docker rm -f outbound-return-sqlserver outbound-return-postgres || true
+
+  nacha-config-immutability-multidb:
+    name: NACHA config immutability (SQL Server + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      RUN_NACHA_CONFIG_IMMUTABILITY_MULTIDB: 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.300'
+
+      - name: Start fresh provider databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql_password="ConfigSql$(openssl rand -hex 12)!9"
+          pg_password="ConfigPg$(openssl rand -hex 12)!9"
+          sql_connection="Server=127.0.0.1,1433;Database=achinterbank_immutability;User Id=sa;Password=${sql_password};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true;Connect Timeout=15"
+          pg_connection="Host=127.0.0.1;Port=5433;Database=achinterbank_immutability;Username=ach_test;Password=${pg_password};Timeout=15;Command Timeout=30"
+          echo "::add-mask::${sql_password}"
+          echo "::add-mask::${pg_password}"
+          echo "::add-mask::${sql_connection}"
+          echo "::add-mask::${pg_connection}"
+          docker run -d --name config-immutability-sqlserver \
+            -e ACCEPT_EULA=Y -e MSSQL_PID=Developer -e MSSQL_SA_PASSWORD="${sql_password}" \
+            -p 1433:1433 \
+            mcr.microsoft.com/mssql/server@sha256:2cd0aec4a3bfc3cf9205bed3f7922f4c6208f7c767dc62edcee308d0fd7d56d0
+          docker run -d --name config-immutability-postgres \
+            -e POSTGRES_DB=achinterbank_immutability -e POSTGRES_USER=ach_test -e POSTGRES_PASSWORD="${pg_password}" \
+            -p 5433:5432 \
+            postgres@sha256:eb4759788a2182f08257135e61a34f2cfc3c2914079f3465d64ee62350f4d081
+          echo "NACHA_CONFIG_SQLSERVER_CONNECTION_STRING=${sql_connection}" >> "$GITHUB_ENV"
+          echo "NACHA_CONFIG_POSTGRES_CONNECTION_STRING=${pg_connection}" >> "$GITHUB_ENV"
+          echo "NACHA_CONFIG_SQLSERVER_PASSWORD=${sql_password}" >> "$GITHUB_ENV"
+
+      - name: Wait for provider databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..40}; do
+            sql_ready=false
+            pg_ready=false
+            if docker exec config-immutability-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$NACHA_CONFIG_SQLSERVER_PASSWORD" -C -Q 'SELECT 1' >/dev/null 2>&1; then sql_ready=true; fi
+            if docker exec config-immutability-postgres pg_isready -U ach_test -d achinterbank_immutability >/dev/null 2>&1; then pg_ready=true; fi
+            if [[ "$sql_ready" == true && "$pg_ready" == true ]]; then exit 0; fi
+            sleep 5
+          done
+          echo 'SQL Server or PostgreSQL did not become ready.' >&2
+          exit 1
+
+      - name: Restore
+        run: dotnet restore ACHInterbank.sln
+
+      - name: Build
+        run: dotnet build ACHInterbank.sln -c Release --no-restore --maxcpucount:1
+
+      - name: Apply migrations and normal seed to both databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          bootstrap() (
+            provider="$1"
+            port="$2"
+            export Database__Provider="$provider"
+            export Database__ApplyMigrations=true Database__ApplySeed=true
+            export Quartz__JobStore__Mode=RAM
+            export DigitalEnvelope__CertificateBootstrap__Enabled=false
+            export ASPNETCORE_URLS="http://127.0.0.1:${port}"
+            if [[ "$provider" == SqlServer ]]; then
+              export ConnectionStrings__SqlConnection="$NACHA_CONFIG_SQLSERVER_CONNECTION_STRING"
+            else
+              export ConnectionStrings__PostgresConnection="$NACHA_CONFIG_POSTGRES_CONNECTION_STRING"
+            fi
+            cd src/Cfa.ACHInterbank.Api
+            dotnet bin/Release/net10.0/Cfa.ACHInterbank.Api.dll > "$RUNNER_TEMP/nacha-config-${provider}-bootstrap.log" 2>&1 &
+            api_pid=$!
+            trap 'kill "$api_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true' EXIT
+            for attempt in {1..120}; do
+              if curl -fsS "http://127.0.0.1:${port}/health/live" >/dev/null 2>&1; then
+                echo "${provider} migrations and normal seed completed."
+                return 0
+              fi
+              if ! kill -0 "$api_pid" 2>/dev/null; then break; fi
+              sleep 3
+            done
+            tail -n 80 "$RUNNER_TEMP/nacha-config-${provider}-bootstrap.log" >&2
+            echo "${provider} migration/seed startup failed." >&2
+            return 1
+          )
+          bootstrap SqlServer 18431
+          bootstrap Postgres 18432
+
+      - name: Run config immutability provider matrix
+        run: >-
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+          -c Release --no-build --no-restore --filter 'Category=ConfigImmutabilityMultiDb'
+          --logger 'trx;LogFileName=config-immutability-multidb.trx'
+          --results-directory TestResults/ConfigImmutability
+          -- RunConfiguration.MaxCpuCount=1
+
+      - name: Run config immutability out-of-band isolation
+        run: >-
+          dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj
+          -c Release --no-build --no-restore --filter 'Category=ConfigImmutabilityOutOfBand'
+          --logger 'trx;LogFileName=config-immutability-outofband.trx'
+          --results-directory TestResults/ConfigImmutability
+          -- RunConfiguration.MaxCpuCount=1
+
+      - name: Verify exact provider execution and no skips
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          expected = {
+              'config-immutability-multidb.trx': {
+                  'OfficialInventoryIsStableOnSqlServer', 'OfficialInventoryIsStableOnPostgres',
+                  'GuardMatrixRunsOnSqlServer', 'GuardMatrixRunsOnPostgres',
+              },
+              'config-immutability-outofband.trx': {
+                  'PublishedRuntimeIgnoresOutOfBandSqlServerLiveMutation',
+                  'PublishedRuntimeIgnoresOutOfBandPostgresLiveMutation',
+              },
+          }
+          for name, required in expected.items():
+              path = Path('TestResults/ConfigImmutability') / name
+              results = ET.parse(path).findall('.//{*}UnitTestResult')
+              actual = {result.attrib['testName'].rsplit('.', 1)[-1] for result in results}
+              outcomes = {result.attrib['outcome'] for result in results}
+              if len(results) != len(required) or actual != required or outcomes != {'Passed'}:
+                  raise SystemExit(f'{name}: expected {sorted(required)} all Passed; got {len(results)} results, {sorted(actual)}, {sorted(outcomes)}')
+              print(f'{name}: {len(results)} expected tests passed; SQL Server and PostgreSQL executed; zero skipped')
+          PY
+
+      - name: Upload config immutability TRX evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nacha-config-immutability-multidb-results
+          path: TestResults/ConfigImmutability/*.trx
+          if-no-files-found: error
+
+      - name: Stop provider databases
+        if: always()
+        run: docker rm -f config-immutability-sqlserver config-immutability-postgres || true
