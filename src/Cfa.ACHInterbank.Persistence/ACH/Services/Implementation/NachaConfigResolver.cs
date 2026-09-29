@@ -430,7 +430,7 @@ public class NachaConfigResolver : INachaConfigResolver
         }
 
         var authority = selected[0];
-        var resolved = await ResolvePublishedOrdinaryAsync(new NachaConfigResolutionRequest
+        var graphRequest = new NachaConfigResolutionRequest
         {
             ClearingHouseCode = request.ClearingHouseCode,
             FlowTypeCode = authority.Snapshot.Profile.FlowTypeCode,
@@ -447,7 +447,19 @@ public class NachaConfigResolver : INachaConfigResolver
                     : "Original",
                 ["AddendaType"] = "05"
             }
-        }, ct);
+        };
+        var (publishedProfile, variants) = NachaPublicationSnapshotMaterializer.Materialize(authority.Snapshot);
+        var neededRecords = graphRequest.RecordCodes.Count > 0
+            ? graphRequest.RecordCodes.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : publishedProfile.Records.Where(record => record.IsEnabled)
+                .Select(record => record.RecordCode.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var applicable = variants.Where(variant => neededRecords.Contains(variant.RecordCode.Code)
+                                                   && string.Equals(variant.Status.Code, "PUBLICADO", StringComparison.OrdinalIgnoreCase)
+                                                   && variant.EffectiveFrom.Date <= date
+                                                   && (!variant.EffectiveTo.HasValue || variant.EffectiveTo.Value.Date >= date))
+            .ToList();
+        var resolved = ResolveGraph(graphRequest, publishedProfile, applicable, [], [],
+            authority.Snapshot.StandardEntryClassMappings);
         return resolved.Success && resolved.Profile?.Id == authority.Profile.Id && !resolved.UsedFallback
             ? resolved
             : InboundFailure(NachaProfileSelectionStatus.ProfileAmbiguous, "INBOUND_PUBLISH_RESOLUTION_CONFLICT");

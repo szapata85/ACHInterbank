@@ -1633,6 +1633,61 @@ public class OfficialNachaGenerationTableDrivenTests : IClassFixture<OfficialNac
         parsedBatchControl.BatchNumber.Should().Be("0000001");
     }
 
+    [Fact]
+    public async Task PublishedAchReceiving_ShouldAcceptDistinctNonAscendingTracesWithinBatch()
+    {
+        await using var context = await SeedAsync();
+        var generated = BuildContext("ACH Colombia", batchCount: 2);
+        var batch = generated.Batches[0];
+        var second = generated.Transactions[1];
+        second.AchBatchId = batch.Id;
+        second.AchBatch = batch;
+        batch.Transactions = [generated.Transactions[0], second];
+        var model = new NachaBuildContext
+        {
+            Cycle = generated.Cycle,
+            Batches = [batch],
+            Transactions = generated.Transactions
+        };
+        var content = await CreateOfficialSut(context, "ACH Colombia", model).Sut
+            .BuildNachaFileAsync([batch.Id], CancellationToken.None);
+        var records = SplitRecords(content).ToArray();
+        var entries = Enumerable.Range(0, records.Length).Where(index => records[index][0] == '6').ToArray();
+        var addendas = Enumerable.Range(0, records.Length).Where(index => records[index][0] == '7').ToArray();
+        entries.Should().HaveCount(2);
+        addendas.Should().HaveCount(2);
+        records[entries[0]] = records[entries[0]].Remove(95, 7).Insert(95, "0000002");
+        records[entries[1]] = records[entries[1]].Remove(95, 7).Insert(95, "0000001");
+        records[addendas[0]] = records[addendas[0]].Remove(87, 7).Insert(87, "0000002");
+        records[addendas[1]] = records[addendas[1]].Remove(87, 7).Insert(87, "0000001");
+
+        model.Cycle.ClearingHouse!.OriginCode = "000101006";
+        context.AchCycles.Add(model.Cycle);
+        await context.SaveChangesAsync();
+        var profile = await context.CfgProfiles.AsNoTracking().SingleAsync(item =>
+            item.ProfileCode == AchColOfficialNachaLayout.TxCodeAwareInboundOriginalProfileCode);
+        var parser = new NachaParserService(context, Mock.Of<ILogger<NachaParserService>>(),
+            Mock.Of<IAchStateTransitionService>());
+        await using var stream = new MemoryStream(Encoding.ASCII.GetBytes(string.Concat(records)));
+        var result = await parser.ParseAndSaveDetailedAsync(stream, "0001283.001.20260524.1.OUT",
+            new NachaParseRequest
+            {
+                ResolvedClearingHouseId = model.Cycle.ClearingHouseId,
+                ResolvedAchCycleId = model.Cycle.Id,
+                OperationalDate = model.Cycle.ProcessingDate,
+                CorrelationId = "nonascending-receiver-traces",
+                SelectedProfileId = profile.Id,
+                SelectedProfileCode = profile.ProfileCode,
+                RequirePublishedProfileSnapshot = true
+            }, CancellationToken.None);
+
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(2);
+        (await context.EntryDetails.AsNoTracking().OrderBy(entry => entry.SequenceNumber)
+            .Select(entry => entry.SequenceNumber).ToArrayAsync())
+            .Should().Equal("123456780000001", "123456780000002");
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
@@ -133,8 +134,6 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
     }
 
     [Theory]
-    [InlineData(false, CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode, 2)]
-    [InlineData(true, CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode, 5)]
     [InlineData(false, CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode, 2)]
     [InlineData(true, CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode, 5)]
     public async Task PublishedSuccessorReader_ShouldPreserveAcceptedInboundParsing(
@@ -258,8 +257,14 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         var clearingHouse = await EnsureCenitOperationalContextAsync(context);
         var profile = await context.CfgProfiles.Include(item => item.Tags).SingleAsync(item =>
             item.ProfileCode == CenitOrdinaryInbound2026Layout.CardinalityPrenotificationProfileCode);
+        profile.VersionMinor = 99;
         profile.Tags.Single(tag => tag.TagKey == NachaAddendaCardinalityMetadata.Prefix + "PPD")
             .TagValue = "Credit=1:1;Debit=1:1";
+        var liveField = await context.CfgLayoutFields.SingleAsync(field =>
+            field.LayoutVariant.ProfileId == profile.Id
+            && field.LayoutVariant.RecordCode.Code == "6"
+            && field.FieldCode == "TRANSACTIONCODE");
+        liveField.StartPosition = 3;
         await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
 
         var result = await ParseAsync(context, clearingHouse, profile.ProfileCode,
@@ -268,6 +273,117 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
         result.Failures.Should().BeEmpty();
         result.TotalEntries.Should().Be(1);
         result.TotalAddendas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RenamedHigherPublishedCtxSuccessor_ShouldResolveAndParseWithoutCompiledProfileName()
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var source = await context.CfgProfiles.AsNoTracking().SingleAsync(profile =>
+            profile.ProfileCode == CenitOrdinaryInbound2026Layout.CardinalityCtxOriginalProfileCode);
+        var successor = new CfgProfile
+        {
+            Id = await context.CfgProfiles.MaxAsync(profile => profile.Id) + 1,
+            ProfileCode = "TEST_CENIT_CTX_INBOUND_SUCCESSOR_V9_0",
+            NameEs = "Synthetic CENIT CTX inbound successor",
+            ClearingHouseId = source.ClearingHouseId,
+            FlowTypeId = source.FlowTypeId,
+            DirectionId = source.DirectionId,
+            ServiceClassId = source.ServiceClassId,
+            ContextPriority = source.ContextPriority,
+            EffectiveFrom = source.EffectiveFrom,
+            StatusId = source.StatusId,
+            VersionMajor = 9,
+            VersionMinor = 0,
+            RowVersion = [1]
+        };
+        context.CfgProfiles.Add(successor);
+        await context.SaveChangesAsync();
+
+        var sourceJson = await context.HistConfigSnapshots.AsNoTracking()
+            .Where(snapshot => snapshot.ProfileId == source.Id && snapshot.SnapshotType == "PUBLISH")
+            .Select(snapshot => snapshot.SnapshotJson).SingleAsync();
+        var sourceSnapshot = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(sourceJson).Snapshot!;
+        var copy = sourceSnapshot with
+        {
+            Profile = sourceSnapshot.Profile with
+            {
+                ProfileId = successor.Id,
+                ProfileCode = successor.ProfileCode,
+                VersionMajor = successor.VersionMajor,
+                VersionMinor = successor.VersionMinor,
+                EffectiveFrom = successor.EffectiveFrom
+            }
+        };
+        context.HistConfigSnapshots.Add(new HistConfigSnapshot
+        {
+            Id = await context.HistConfigSnapshots.MaxAsync(snapshot => snapshot.Id) + 1,
+            ProfileId = successor.Id,
+            VersionMajor = successor.VersionMajor,
+            VersionMinor = successor.VersionMinor,
+            SnapshotType = "PUBLISH",
+            SnapshotJson = NachaPublicationSnapshotSerializer.Serialize(copy),
+            CreatedAtUtc = successor.EffectiveFrom,
+            CreatedBy = "test"
+        });
+        await context.SaveChangesAsync();
+
+        var content = BuildCtxFile();
+        var physical = Enumerable.Range(0, content.Length / 106)
+            .Select(index => content.Substring(index * 106, 106))
+            .Where(record => record[0] is '5' or '6')
+            .ToArray();
+        var selected = await new NachaConfigResolver(context).ResolvePublishedInboundAsync(
+            new NachaConfigResolutionRequest
+            {
+                ClearingHouseCode = "CENIT",
+                DirectionCode = "ENTRADA",
+                ProcessDateUtc = new DateTime(2026, 8, 15),
+                RecordCodes = ["5", "6"]
+            }, physical);
+        selected.Success.Should().BeTrue(string.Join("; ", selected.Warnings));
+        selected.Profile!.Id.Should().Be(successor.Id);
+
+        var result = await ParseAsync(context, clearingHouse, successor.ProfileCode, content,
+            "renamed-ctx-successor", requirePublishedSnapshot: true);
+        result.Failures.Should().BeEmpty();
+        result.TotalEntries.Should().Be(2);
+        result.TotalAddendas.Should().Be(5);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("duplicate")]
+    [InlineData("malformed")]
+    public async Task PublishedCenitCardinality_ShouldFailClosedWhenSnapshotMetadataIsInvalid(string mutation)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var profile = await context.CfgProfiles.AsNoTracking().SingleAsync(item =>
+            item.ProfileCode == CenitOrdinaryInbound2026Layout.CardinalityOriginalProfileCode);
+        var publication = await context.HistConfigSnapshots.SingleAsync(snapshot =>
+            snapshot.ProfileId == profile.Id && snapshot.SnapshotType == "PUBLISH");
+        var snapshot = NachaPublicationSnapshotSerializer.ReadForOrdinaryGeneration(publication.SnapshotJson).Snapshot!;
+        var key = NachaAddendaCardinalityMetadata.Prefix + "PPD";
+        publication.SnapshotJson = NachaPublicationSnapshotSerializer.Serialize(snapshot with
+        {
+            GenerationCriticalTags = mutation switch
+            {
+                "missing" => snapshot.GenerationCriticalTags.Where(tag => tag.Key != key).ToArray(),
+                "duplicate" => [.. snapshot.GenerationCriticalTags,
+                    snapshot.GenerationCriticalTags.Single(tag => tag.Key == key)],
+                _ => snapshot.GenerationCriticalTags.Select(tag => tag.Key == key
+                    ? tag with { Value = "Credit=bad;Debit=1:1" }
+                    : tag).ToArray()
+            }
+        });
+        await NachaConfigOutOfBandFixtureMutation.ApplyAsync(context);
+
+        var action = () => ParseAsync(context, clearingHouse, profile.ProfileCode,
+            BuildSingleEntryFile("PPD", "22", "220", 10_000),
+            $"invalid-published-cardinality-{mutation}", requirePublishedSnapshot: true);
+        await action.Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Theory]
@@ -309,6 +425,28 @@ public class CenitOrdinaryInbound2026ParserTests : IClassFixture<OfficialNachaGe
             result.Failures.Should().NotBeEmpty();
             result.TotalEntries.Should().Be(0);
         }
+    }
+
+    [Theory]
+    [InlineData(false, CenitOrdinaryInbound2026Layout.TxCodeAwareOriginalProfileCode)]
+    [InlineData(true, CenitOrdinaryInbound2026Layout.TxCodeAwareCtxOriginalProfileCode)]
+    public async Task HistoricalPublishedPreCardinalitySnapshot_ShouldRemainReadableButFailClosedForParsing(
+        bool ctx, string profileCode)
+    {
+        await using var context = await CreateContextAsync();
+        var clearingHouse = await EnsureCenitOperationalContextAsync(context);
+        var profile = await context.CfgProfiles.AsNoTracking().SingleAsync(item => item.ProfileCode == profileCode);
+        var snapshot = await NachaProfileRecordReader.LoadPublishedSnapshotAsync(context, profile.Id, default);
+        snapshot.Profile.ProfileCode.Should().Be(profileCode);
+        snapshot.Profile.VersionMajor.Should().Be(1);
+        snapshot.Profile.VersionMinor.Should().Be(1);
+        NachaProfileRecordReader.FromPublication(snapshot).RecordLength.Should().Be(106);
+
+        var action = () => ParseAsync(context, clearingHouse, profileCode,
+            ctx ? BuildCtxFile() : BuildTwoOriginatingParticipantFile(),
+            $"historical-pre-cardinality-{ctx}", requirePublishedSnapshot: true);
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("CARDINALITY_POLICY_UNRESOLVED");
     }
 
     [Theory]

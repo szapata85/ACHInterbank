@@ -16,6 +16,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using NachaHeader = Cfa.ACHInterbank.Application.ACH.Models.ParsedNachaHeader;
 using BatchHeader = Cfa.ACHInterbank.Application.ACH.Models.ParsedBatchHeader;
 using EntryDetail = Cfa.ACHInterbank.Application.ACH.Models.ParsedEntryDetail;
@@ -97,50 +98,15 @@ public class NachaParserService : INachaParserService
             {
                 throw new InvalidOperationException("NACHA_PROFILE_SNAPSHOT_MISMATCH: la identidad del perfil seleccionado cambió antes del parser.");
             }
-            var isCenitInboundProfile = CenitOrdinaryInbound2026Layout.IsProfile(profileReader?.ProfileCode);
-            var isCenitCtxInboundProfile = CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode);
-            NachaAddendaCardinalityPolicy? publishedCardinality = null;
-            NachaTransactionCodeSemanticContract? publishedTransactionCodes = null;
-            if (isCenitInboundProfile && selectedPublication is not null)
-            {
-                var selectedProfile = await _context.CfgProfiles.AsNoTracking()
-                    .Include(profile => profile.ClearingHouse)
-                    .Include(profile => profile.Direction)
-                    .Include(profile => profile.FlowType)
-                    .Include(profile => profile.ServiceClass)
-                    .SingleOrDefaultAsync(profile => profile.Id == request!.SelectedProfileId, ct);
-                if (selectedPublication.Profile.ProfileId != request!.SelectedProfileId
-                    || selectedPublication.Profile.ProfileCode != request.SelectedProfileCode
-                    || selectedPublication.Profile.ClearingHouseCode != "CENIT"
-                    || selectedPublication.Profile.DirectionCode != "ENTRADA"
-                    || selectedProfile is null
-                    || selectedPublication.Profile.VersionMajor != selectedProfile.VersionMajor
-                    || selectedPublication.Profile.VersionMinor != selectedProfile.VersionMinor
-                    || selectedPublication.Profile.ClearingHouseCode != selectedProfile.ClearingHouse.Code
-                    || selectedPublication.Profile.DirectionCode != selectedProfile.Direction.Code
-                    || selectedPublication.Profile.FlowTypeCode != selectedProfile.FlowType.Code
-                    || selectedPublication.Profile.ServiceClassCode != selectedProfile.ServiceClass?.Code)
-                {
-                    throw new InvalidOperationException("CARDINALITY_POLICY_PUBLISH_IDENTITY_MISMATCH");
-                }
-                if (selectedProfile.VersionMajor == 1 && selectedProfile.VersionMinor >= 2)
-                {
-                    var cardinality = NachaAddendaCardinalityMetadata.Resolve(
-                        selectedPublication.GenerationCriticalTags.Select(tag => new KeyValuePair<string, string>(tag.Key, tag.Value)));
-                    var semantics = NachaTransactionCodeSemanticMetadata.Resolve(selectedPublication.Records);
-                    if (cardinality.Status != NachaAddendaCardinalityMetadataStatus.Resolved
-                        || cardinality.Policy is null
-                        || cardinality.Policy.DirectionCode != selectedPublication.Profile.DirectionCode
-                        || cardinality.Policy.FlowTypeCode != selectedPublication.Profile.FlowTypeCode
-                        || semantics.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved
-                        || semantics.Contract is null)
-                    {
-                        throw new InvalidOperationException("CARDINALITY_POLICY_UNRESOLVED");
-                    }
-                    publishedCardinality = cardinality.Policy;
-                    publishedTransactionCodes = semantics.Contract;
-                }
-            }
+            var publishedAuthority = selectedPublication is null
+                ? null
+                : ResolvePublishedInboundAuthority(selectedPublication, request!);
+            var isCenitInboundProfile = publishedAuthority is not null
+                ? publishedAuthority.IsCenit
+                : CenitOrdinaryInbound2026Layout.IsProfile(profileReader?.ProfileCode);
+            var isCenitCtxInboundProfile = publishedAuthority is not null
+                ? publishedAuthority.HasT6AddendaCount
+                : CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode);
 
             var lines = await ReadPhysicalRecordsAsync(nachaStream, ct, profileReader);
 
@@ -238,7 +204,11 @@ public class NachaParserService : INachaParserService
                         currentBatch = ParseBatchHeaderLinq([line], profileReader).FirstOrDefault();
                         if (currentBatch is not null)
                         {
-                            if (isCenitInboundProfile)
+                            if (publishedAuthority is not null)
+                            {
+                                ValidatePublishedBatchService(publishedAuthority, currentBatch);
+                            }
+                            else if (isCenitInboundProfile)
                             {
                                 ValidateCenitInboundBatchService(profileReader!.ProfileCode, currentBatch);
                             }
@@ -265,31 +235,39 @@ public class NachaParserService : INachaParserService
                         entry.NachaHeader = currentHeader;
                         entry.BatchNumber = currentBatch?.BatchNumber
                             ?? throw new InvalidOperationException("Registro tipo 6 recibido sin BatchHeader tipo 5 asociado.");
-                        UpdateBatchMetricsForEntry(currentBatchMetrics, entry);
-                        fileMetrics.RegisterEntry(entry, CreditCodes, DebitCodes);
+                        NachaTransactionCodeSemanticRule? publishedRule = null;
+                        if (publishedAuthority is not null)
+                        {
+                            if (!publishedAuthority.TransactionCodes.TryGetRule(entry.TransactionCode ?? string.Empty, out publishedRule)
+                                || publishedRule.IsPrenotification != (publishedAuthority.Snapshot.Profile.FlowTypeCode == "PRENOTIFICACION"))
+                            {
+                                throw new InvalidOperationException("INBOUND_PUBLISH_T6_SEMANTIC_MISMATCH");
+                            }
+                        }
+                        UpdateBatchMetricsForEntry(currentBatchMetrics, entry, publishedRule);
+                        fileMetrics.RegisterEntry(entry, publishedRule, CreditCodes, DebitCodes);
 
                         await ValidateEntrySequencePolicyAsync(entry, currentBatch, currentHeader, lastConsecutiveByBatch,
-                            seenSequenceNumbers, !isCenitInboundProfile, ct);
-                        if (isCenitInboundProfile)
+                            seenSequenceNumbers, publishedAuthority is not null
+                                ? !publishedAuthority.IsCenit && IsPseCcdBatch(currentBatch)
+                                : !isCenitInboundProfile, ct);
+                        if (publishedAuthority is null && isCenitInboundProfile)
                         {
                             ValidateCenitInboundEntry(profileReader!.ProfileCode, entry);
                         }
 
                         NachaAddendaBounds? publishedBounds = null;
-                        if (publishedCardinality is not null)
+                        if (publishedAuthority?.Cardinality is not null)
                         {
                             var serviceCode = currentBatch?.StandardEntryClassCode?.Trim() ?? string.Empty;
-                            if (publishedTransactionCodes is null
-                                || !publishedTransactionCodes.TryGetRule(entry.TransactionCode ?? string.Empty, out var semantic)
-                                || semantic.IsPrenotification != (selectedPublication!.Profile.FlowTypeCode == "PRENOTIFICACION")
-                                || !publishedCardinality.TryResolve(serviceCode, semantic.Direction, out publishedBounds))
+                            if (!publishedAuthority.Cardinality.TryResolve(serviceCode, publishedRule!.Direction, out publishedBounds))
                             {
                                 throw new InvalidOperationException("CARDINALITY_POLICY_UNRESOLVED");
                             }
                         }
                         var optionalAddenda = publishedBounds is not null
                             ? publishedBounds.Minimum == 0
-                            : isCenitInboundProfile
+                            : publishedAuthority is null && isCenitInboundProfile
                               && string.Equals(currentBatch?.StandardEntryClassCode?.Trim(), "PPD", StringComparison.Ordinal)
                               && PrenoteCodes.Contains(entry.TransactionCode ?? string.Empty)
                               && CreditCodes.Contains(entry.TransactionCode ?? string.Empty);
@@ -303,10 +281,13 @@ public class NachaParserService : INachaParserService
                             isReturnEntry,
                             failures,
                             optionalAddenda,
+                            publishedRule,
+                            publishedAuthority,
                             ct);
                         lastEntry = entry;
                         lastEntryAccepted = isValid;
-                        expectedAddendaCount = ResolveExpectedAddendaCount(profileReader, line, entry, publishedBounds);
+                        expectedAddendaCount = ResolveExpectedAddendaCount(profileReader, line, entry,
+                            publishedBounds, publishedAuthority?.HasT6AddendaCount);
                         parsedAddendaCount = 0;
                         lastEntryAwaitingAddenda = expectedAddendaCount > 0;
                         if (isValid)
@@ -326,11 +307,15 @@ public class NachaParserService : INachaParserService
                             ThrowTechnical("ACHCOL-T6-T7-ORDER: se recibió T7 sin un T6 inmediatamente asociado que declare adenda.");
                         }
 
-                        var addenda = ParseAddendaLinq([line], lastEntry, profileReader).FirstOrDefault();
+                        var addenda = ParseAddendaLinq([line], lastEntry, profileReader, publishedAuthority).FirstOrDefault();
                         if (addenda is not null)
                         {
                             parsedAddendaCount++;
-                            if (isCenitInboundProfile)
+                            if (publishedAuthority is not null)
+                            {
+                                ValidatePublishedAddenda(publishedAuthority, lastEntry, addenda, parsedAddendaCount);
+                            }
+                            else if (isCenitInboundProfile)
                             {
                                 ValidateCenitInboundAddenda(
                                     lastEntry,
@@ -438,6 +423,206 @@ public class NachaParserService : INachaParserService
             ErrorCount = failures.Count,
             NachaId = parsedNachaId
         };
+    }
+
+    private sealed record PublishedInboundAuthority(
+        NachaPublicationSnapshot Snapshot,
+        NachaTransactionCodeSemanticContract TransactionCodes,
+        NachaServiceClassSemanticContract ServiceClasses,
+        IReadOnlySet<string> Services,
+        IReadOnlySet<string> AddendaIndicators,
+        NachaAddendaCardinalityPolicy? Cardinality,
+        bool HasT6AddendaCount,
+        string T7AddendaType,
+        string? T7SequenceConstant,
+        int T7SequenceLength)
+    {
+        public bool IsCenit => Snapshot.Profile.ClearingHouseCode == "CENIT";
+    }
+
+    private static PublishedInboundAuthority ResolvePublishedInboundAuthority(
+        NachaPublicationSnapshot snapshot,
+        NachaParseRequest request)
+    {
+        var identity = snapshot.Profile;
+        if (identity.ProfileId != request.SelectedProfileId
+            || !string.Equals(identity.ProfileCode, request.SelectedProfileCode, StringComparison.Ordinal)
+            || identity.DirectionCode != "ENTRADA"
+            || identity.ClearingHouseCode is not ("ACH" or "CENIT")
+            || identity.FlowTypeCode is not ("ORIGINAL" or "PRENOTIFICACION"))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_IDENTITY_MISMATCH");
+        }
+
+        foreach (var recordCode in new[] { "1", "5", "6", "7", "8", "9" })
+        {
+            if (snapshot.Records.Count(record => record.IsEnabled && record.RecordCode == recordCode) != 1
+                || !snapshot.LayoutVariants.Any(variant => variant.RecordCode == recordCode))
+            {
+                throw new InvalidOperationException("INBOUND_PUBLISH_RECORD_MISSING");
+            }
+        }
+
+        var transactionCodes = NachaTransactionCodeSemanticMetadata.Resolve(snapshot.Records);
+        if (transactionCodes.Status != NachaTransactionCodeSemanticMetadataStatus.Resolved
+            || transactionCodes.Contract is null)
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T6_SEMANTICS_UNRESOLVED");
+        }
+
+        var t5 = snapshot.Records.Single(record => record.IsEnabled && record.RecordCode == "5");
+        var declarations = t5.SemanticRuleSet?.ResolvedDeclarations;
+        if (declarations is null
+            || declarations.Count == 0
+            || declarations.Any(rule => string.IsNullOrWhiteSpace(rule.ServiceClassCode))
+            || declarations.Select(rule => rule.ServiceClassCode).Distinct(StringComparer.Ordinal).Count() != declarations.Count
+            || !NachaConfigResolver.TryGetPublishedSecValues(snapshot, out var services))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T5_SEMANTICS_UNRESOLVED");
+        }
+
+        if (identity.ServiceClassCode is { } selectedService && !services.Contains(selectedService))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_SERVICE_MISMATCH");
+        }
+
+        var t6Fields = snapshot.LayoutVariants
+            .Where(variant => variant.RecordCode == "6" && variant.IsDefaultForRecord)
+            .SelectMany(variant => variant.Fields.Where(field => field.IsEnabled))
+            .ToArray();
+        var indicatorField = t6Fields.SingleOrDefault(field => field.FieldCode == "ADDENDARECORDINDICATOR");
+        var indicatorRule = indicatorField?.Rules.SingleOrDefault(rule => rule.IsEnabled && rule.RuleTypeCode == "ENUM");
+        if (indicatorRule?.RuleConfiguration is not { } indicatorConfiguration
+            || indicatorConfiguration.ValueKind != JsonValueKind.Object
+            || !indicatorConfiguration.TryGetProperty("allowedValues", out var indicatorValues)
+            || indicatorValues.ValueKind != JsonValueKind.Array
+            || indicatorValues.GetArrayLength() == 0
+            || indicatorValues.EnumerateArray().Any(value => value.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(value.GetString())))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T6_ADDENDA_INDICATOR_UNRESOLVED");
+        }
+        var addendaIndicators = indicatorValues.EnumerateArray()
+            .Select(value => value.GetString()!)
+            .ToHashSet(StringComparer.Ordinal);
+        if (addendaIndicators.Count != indicatorValues.GetArrayLength())
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T6_ADDENDA_INDICATOR_DUPLICATE");
+        }
+        var hasT6AddendaCount = t6Fields.Count(field => field.FieldCode == "ADDENDACOUNT") == 1;
+        if (identity.ClearingHouseCode == "CENIT"
+            && hasT6AddendaCount != (identity.ServiceClassCode == "CTX"))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_CTX_LAYOUT_MISMATCH");
+        }
+
+        NachaAddendaCardinalityPolicy? cardinality = null;
+        if (identity.ClearingHouseCode == "CENIT")
+        {
+            var resolved = NachaAddendaCardinalityMetadata.Resolve(snapshot.GenerationCriticalTags
+                .Select(tag => new KeyValuePair<string, string>(tag.Key, tag.Value)));
+            if (resolved.Status != NachaAddendaCardinalityMetadataStatus.Resolved
+                || resolved.Policy is null
+                || resolved.Policy.DirectionCode != identity.DirectionCode
+                || resolved.Policy.FlowTypeCode != identity.FlowTypeCode
+                || services.Any(service =>
+                    !resolved.Policy.TryResolve(service, NachaEntryDirection.Credit, out _)
+                    || !resolved.Policy.TryResolve(service, NachaEntryDirection.Debit, out _)))
+            {
+                throw new InvalidOperationException("CARDINALITY_POLICY_UNRESOLVED");
+            }
+            cardinality = resolved.Policy;
+        }
+
+        var t7Variants = snapshot.LayoutVariants.Where(variant => variant.RecordCode == "7").ToArray();
+        string? addendaType = null;
+        string? sequenceConstant = null;
+        var sequenceLength = 0;
+        foreach (var variant in t7Variants)
+        {
+            var typeField = variant.Fields.SingleOrDefault(field => field.IsEnabled && field.FieldCode == "ADDENDATYPE");
+            var typeRule = typeField?.Rules.SingleOrDefault(rule => rule.IsEnabled && rule.RuleTypeCode == "ENUM");
+            if (typeRule?.RuleConfiguration is not { } configuration
+                || configuration.ValueKind != JsonValueKind.Object
+                || !configuration.TryGetProperty("allowedValues", out var values)
+                || values.ValueKind != JsonValueKind.Array
+                || values.GetArrayLength() != 1
+                || values[0].ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(values[0].GetString()))
+            {
+                throw new InvalidOperationException("INBOUND_PUBLISH_T7_TYPE_UNRESOLVED");
+            }
+            var value = values[0].GetString()!;
+            if (addendaType is not null && addendaType != value)
+            {
+                throw new InvalidOperationException("INBOUND_PUBLISH_T7_TYPE_CONFLICT");
+            }
+            addendaType = value;
+
+            if (identity.ClearingHouseCode != "CENIT")
+            {
+                continue;
+            }
+            var sequenceField = variant.Fields.SingleOrDefault(field => field.IsEnabled && field.FieldCode == "SEQUENCENUMBER")
+                ?? throw new InvalidOperationException("INBOUND_PUBLISH_T7_SEQUENCE_MISSING");
+            if (sequenceLength != 0 && sequenceLength != sequenceField.Length)
+            {
+                throw new InvalidOperationException("INBOUND_PUBLISH_T7_SEQUENCE_CONFLICT");
+            }
+            sequenceLength = sequenceField.Length;
+            sequenceConstant = sequenceField.Source.DataSourceTypeCode == "CONSTANTE"
+                ? sequenceField.Source.ConstantValue
+                : null;
+        }
+
+        if (addendaType is null
+            || identity.ClearingHouseCode == "CENIT" && (sequenceLength <= 0
+                || hasT6AddendaCount == (sequenceConstant is not null)))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T7_SEMANTICS_UNRESOLVED");
+        }
+
+        return new PublishedInboundAuthority(snapshot, transactionCodes.Contract,
+            new NachaServiceClassSemanticContract(declarations.Select(rule =>
+                new NachaServiceClassSemanticRule(rule.ServiceClassCode, rule.AllowsCredit, rule.AllowsDebit))),
+            services, addendaIndicators, cardinality, hasT6AddendaCount, addendaType, sequenceConstant, sequenceLength);
+    }
+
+    private static void ValidatePublishedBatchService(PublishedInboundAuthority authority, BatchHeader batch)
+    {
+        var service = (batch.StandardEntryClassCode ?? string.Empty).Trim().ToUpperInvariant();
+        if (!authority.Services.Contains(service)
+            || authority.Snapshot.Profile.ServiceClassCode is { } selectedService && service != selectedService
+            || !authority.ServiceClasses.TryGetRule(batch.ServiceClassCode ?? string.Empty, out _))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T5_SERVICE_MISMATCH");
+        }
+    }
+
+    private static void ValidatePublishedAddenda(
+        PublishedInboundAuthority authority,
+        EntryDetail entry,
+        AddendaRecord addenda,
+        int parsedCount)
+    {
+        if (!string.Equals((addenda.CodeTypeAddendumRecord ?? string.Empty).Trim(), authority.T7AddendaType,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T7_TYPE_MISMATCH");
+        }
+        if (!authority.IsCenit)
+        {
+            return;
+        }
+
+        var expectedSequence = authority.T7SequenceConstant
+            ?? parsedCount.ToString($"D{authority.T7SequenceLength}", CultureInfo.InvariantCulture);
+        if (!string.Equals((addenda.AddendumSequence ?? string.Empty).Trim(), expectedSequence, StringComparison.Ordinal)
+            || !string.Equals((addenda.EntryDetailSequenceNumber ?? string.Empty).Trim(),
+                GetEntrySequenceSuffix(entry.SequenceNumber), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T7_SEQUENCE_OR_ASSOCIATION_MISMATCH");
+        }
     }
 
     private async Task ValidateEntrySequencePolicyAsync(
@@ -558,9 +743,11 @@ public class NachaParserService : INachaParserService
         NachaProfileRecordReader? profileReader,
         string record,
         EntryDetail entry,
-        NachaAddendaBounds? publishedBounds = null)
+        NachaAddendaBounds? publishedBounds = null,
+        bool? publishedHasAddendaCount = null)
     {
-        if (!CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode))
+        if (!(publishedHasAddendaCount
+              ?? CenitOrdinaryInbound2026Layout.IsCtxProfile(profileReader?.ProfileCode)))
         {
             var declared = string.Equals(entry.AddendumIndicator, "1", StringComparison.Ordinal) ? 1 : 0;
             ValidatePublishedAddendaCount(declared, publishedBounds);
@@ -577,7 +764,7 @@ public class NachaParserService : INachaParserService
         {
             ValidatePublishedAddendaCount(count, publishedBounds);
         }
-        else
+        else if (publishedHasAddendaCount is null)
         {
             ValidateCenitCtxAddendaCardinality(count);
             if (CenitOrdinaryInbound2026Layout.IsPrenotificationProfile(profileReader.ProfileCode) && count != 1)
@@ -1007,6 +1194,13 @@ public class NachaParserService : INachaParserService
         List<string> line,
         EntryDetail? associatedEntry,
         NachaProfileRecordReader? profileReader)
+        => ParseAddendaLinq(line, associatedEntry, profileReader, null);
+
+    private List<AddendaRecord> ParseAddendaLinq(
+        List<string> line,
+        EntryDetail? associatedEntry,
+        NachaProfileRecordReader? profileReader,
+        PublishedInboundAuthority? publishedAuthority)
     {
         return line.Select(a =>
         {
@@ -1101,13 +1295,14 @@ public class NachaParserService : INachaParserService
             }
 
             if (profileReader is not null
-                && CenitOrdinaryInbound2026Layout.IsProfile(profileReader.ProfileCode))
+                && (publishedAuthority?.IsCenit
+                    ?? CenitOrdinaryInbound2026Layout.IsProfile(profileReader.ProfileCode)))
             {
                 var paymentInformation = ReadField(profileReader, a, "7", "PAYMENTRELATEDINFORMATION").TrimEnd();
                 return new AddendaRecord
                 {
                     CodeTypeAddendumRecord = addendaType,
-                    BusinessType = ParseBusinessTypeFromType05(associatedEntry?.TransactionCode),
+                    BusinessType = ParseBusinessTypeFromType05(associatedEntry?.TransactionCode, publishedAuthority?.TransactionCodes),
                     PaymentRelatedInformation = paymentInformation,
                     InfofromOriginator = paymentInformation,
                     AddendumSequence = ReadField(profileReader, a, "7", "SEQUENCENUMBER").Trim(),
@@ -1115,14 +1310,17 @@ public class NachaParserService : INachaParserService
                 };
             }
 
-            if (addendaType != "05")
+            if (publishedAuthority is null && addendaType != "05")
             {
                 ThrowTechnical("ACHCOL-T7-ADDENDA-TYPE: el tipo de adenda no está demostrado para el perfil ACHCOL oficial.");
             }
 
-            var businessType = ParseBusinessTypeFromType05(associatedEntry?.TransactionCode);
-            var isPrenotification = IsPrenotificationTransactionCode(associatedEntry?.TransactionCode);
-            var variant = businessType == "Debit"
+            var businessType = ParseBusinessTypeFromType05(associatedEntry?.TransactionCode, publishedAuthority?.TransactionCodes);
+            var isPrenotification = publishedAuthority is not null
+                ? publishedAuthority.TransactionCodes.TryGetRule(associatedEntry?.TransactionCode ?? string.Empty, out var addendaRule)
+                    && addendaRule.IsPrenotification
+                : IsPrenotificationTransactionCode(associatedEntry?.TransactionCode);
+            var variant = publishedAuthority is not null ? null : businessType == "Debit"
                 ? AchColOfficialNachaLayout.Type7DebitVariant
                 : isPrenotification
                     ? AchColOfficialNachaLayout.Type7CreditPrenotificationVariant
@@ -1194,14 +1392,17 @@ public class NachaParserService : INachaParserService
         }).ToList();
     }
 
-    private void UpdateBatchMetricsForEntry(BatchRuntimeMetrics? metrics, EntryDetail entry)
+    private void UpdateBatchMetricsForEntry(
+        BatchRuntimeMetrics? metrics,
+        EntryDetail entry,
+        NachaTransactionCodeSemanticRule? publishedRule = null)
     {
         if (metrics is null)
         {
             ThrowRegulatory("D06", "Se recibió un registro tipo 6 sin un registro tipo 5 asociado.");
         }
 
-        metrics.RegisterEntry(entry, CreditCodes, DebitCodes);
+        metrics.RegisterEntry(entry, publishedRule, CreditCodes, DebitCodes);
     }
 
     private sealed class BatchRuntimeMetrics
@@ -1213,7 +1414,8 @@ public class NachaParserService : INachaParserService
         public decimal TotalDebitAmount { get; private set; }
         public decimal TotalCreditAmount { get; private set; }
 
-        public void RegisterEntry(EntryDetail entry, IReadOnlySet<string> creditCodes, IReadOnlySet<string> debitCodes)
+        public void RegisterEntry(EntryDetail entry, NachaTransactionCodeSemanticRule? publishedRule,
+            IReadOnlySet<string> creditCodes, IReadOnlySet<string> debitCodes)
         {
             EntryAddendaCount++;
 
@@ -1229,11 +1431,13 @@ public class NachaParserService : INachaParserService
 
             var amount = entry.Amount ?? 0m;
             var transactionCode = (entry.TransactionCode ?? string.Empty).Trim();
-            if (debitCodes.Contains(transactionCode))
+            if (publishedRule?.Direction == NachaEntryDirection.Debit
+                || publishedRule is null && debitCodes.Contains(transactionCode))
             {
                 TotalDebitAmount += amount;
             }
-            else if (creditCodes.Contains(transactionCode))
+            else if (publishedRule?.Direction == NachaEntryDirection.Credit
+                     || publishedRule is null && creditCodes.Contains(transactionCode))
             {
                 TotalCreditAmount += amount;
             }
@@ -1245,9 +1449,19 @@ public class NachaParserService : INachaParserService
         }
     }
 
-    private static string ParseBusinessTypeFromType05(string? transactionCode)
+    private static string ParseBusinessTypeFromType05(
+        string? transactionCode,
+        NachaTransactionCodeSemanticContract? publishedTransactionCodes = null)
     {
         var normalized = (transactionCode ?? string.Empty).Trim();
+        if (publishedTransactionCodes is not null)
+        {
+            if (!publishedTransactionCodes.TryGetRule(normalized, out var semantic))
+            {
+                throw new InvalidOperationException("INBOUND_PUBLISH_T6_SEMANTIC_MISMATCH");
+            }
+            return semantic.Direction == NachaEntryDirection.Debit ? "Debit" : "Credit";
+        }
         if (DebitCodes.Contains(normalized))
         {
             return "Debit";
@@ -1294,7 +1508,8 @@ public class NachaParserService : INachaParserService
             BatchCount++;
         }
 
-        public void RegisterEntry(EntryDetail entry, IReadOnlySet<string> creditCodes, IReadOnlySet<string> debitCodes)
+        public void RegisterEntry(EntryDetail entry, NachaTransactionCodeSemanticRule? publishedRule,
+            IReadOnlySet<string> creditCodes, IReadOnlySet<string> debitCodes)
         {
             EntryAddendaCount++;
 
@@ -1310,11 +1525,13 @@ public class NachaParserService : INachaParserService
 
             var amount = entry.Amount ?? 0m;
             var transactionCode = (entry.TransactionCode ?? string.Empty).Trim();
-            if (debitCodes.Contains(transactionCode))
+            if (publishedRule?.Direction == NachaEntryDirection.Debit
+                || publishedRule is null && debitCodes.Contains(transactionCode))
             {
                 TotalDebitAmount += amount;
             }
-            else if (creditCodes.Contains(transactionCode))
+            else if (publishedRule?.Direction == NachaEntryDirection.Credit
+                     || publishedRule is null && creditCodes.Contains(transactionCode))
             {
                 TotalCreditAmount += amount;
             }
@@ -1359,52 +1576,69 @@ public class NachaParserService : INachaParserService
         bool isReturnEntry,
         List<NachaValidationFailure> failures,
         bool optionalAddenda,
+        NachaTransactionCodeSemanticRule? publishedRule,
+        PublishedInboundAuthority? publishedAuthority,
         CancellationToken ct)
     {
         var code = entry.TransactionCode ?? string.Empty;
-        var configuredCodes = await GetConfiguredTransactionCodesAsync(ct);
-        if (!configuredCodes.Contains(code))
+        if (publishedRule is null && !((await GetConfiguredTransactionCodesAsync(ct)).Contains(code)))
         {
             const string reason = "Código de transacción inválido.";
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
             return (false, reason);
         }
 
-        var isCredit = CreditCodes.Contains(code);
-        var isDebit = DebitCodes.Contains(code);
+        var isCredit = publishedRule?.Direction == NachaEntryDirection.Credit
+                       || publishedRule is null && CreditCodes.Contains(code);
+        var isDebit = publishedRule?.Direction == NachaEntryDirection.Debit
+                      || publishedRule is null && DebitCodes.Contains(code);
         var serviceClassCode = batch?.ServiceClassCode?.Trim();
         var isPseCcdCredit = isCredit && IsPseCcdBatch(batch);
 
-        if (serviceClassCode == "220" && !isCredit)
+        if (publishedAuthority is not null
+            && (!publishedAuthority.ServiceClasses.TryGetRule(serviceClassCode ?? string.Empty, out var serviceRule)
+                || !serviceRule.Allows(publishedRule!.Direction)))
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T5_T6_DIRECTION_MISMATCH");
+        }
+
+        if (publishedAuthority is null && serviceClassCode == "220" && !isCredit)
         {
             const string reason = "Lote exclusivo de crédito (220) no permite débitos.";
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
             return (false, reason);
         }
 
-        if (serviceClassCode == "225" && !isDebit)
+        if (publishedAuthority is null && serviceClassCode == "225" && !isDebit)
         {
             const string reason = "Lote exclusivo de débito (225) no permite créditos.";
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
             return (false, reason);
         }
 
-        if (PrenoteCodes.Contains(code) && entry.Amount.GetValueOrDefault() != 0m)
+        if ((publishedRule?.IsPrenotification ?? PrenoteCodes.Contains(code))
+            && entry.Amount.GetValueOrDefault() != 0m)
         {
             const string reason = "Prenotificación debe tener valor 0.";
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
             return (false, reason);
         }
 
-        if (!string.Equals(entry.AddendumIndicator, "1", StringComparison.OrdinalIgnoreCase)
-            && !(optionalAddenda && string.Equals(entry.AddendumIndicator, "0", StringComparison.Ordinal)))
+        if (publishedAuthority is not null
+            ? !publishedAuthority.AddendaIndicators.Contains(entry.AddendumIndicator ?? string.Empty)
+            : !string.Equals(entry.AddendumIndicator, "1", StringComparison.OrdinalIgnoreCase)
+              && !(optionalAddenda && string.Equals(entry.AddendumIndicator, "0", StringComparison.Ordinal)))
         {
             const string reason = "El registro 7 es obligatorio para todas las transacciones.";
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
             return (false, reason);
         }
 
-        if (isReturnEntry && !ReturnCodes.Contains(code))
+        if (publishedAuthority is not null && isReturnEntry)
+        {
+            throw new InvalidOperationException("INBOUND_PUBLISH_T7_RETURN_IN_ORDINARY");
+        }
+        if (publishedAuthority is null && isReturnEntry && !ReturnCodes.Contains(code))
         {
             const string reason = "La adenda de devolución no corresponde a un código de transacción de devolución.";
             failures.Add(new NachaValidationFailure("6", batch?.BatchNumber.ToString(), entry.SequenceNumber, code, reason));
