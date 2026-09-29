@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Application.ACH.Configuration;
+using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.Mapping;
@@ -318,6 +318,9 @@ public static class DependencyInjectionService
         }
 
         throw new InvalidOperationException(
-            $"No configured connection string was found for provider '{provider}'. Configure either 'ConnectionStrings:PostgresConnection' or 'ConnectionStrings:SqlConnection'.");
+            $"No configured connection string was found for provider '{provider}'. " +
+            "Configure 'ConnectionStrings:PostgresConnection' or 'ConnectionStrings:SqlConnection' in the active appsettings file. " +
+            "Development ships with a non-secret SQL Server LocalDB connection in appsettings.Development.json; " +
+            "replace it only when using another local SQL Server/PostgreSQL instance.");
     }
 }

@@ -24,8 +24,9 @@ Permanent coding-agent instructions. Current decisions and status belong in `MEM
 ## Platform and validation
 
 - Primary environment: Windows, Codex CLI, Docker Desktop/Compose. Use CMD for repository/tooling instructions unless the user requests another shell. Do not embed workstation paths in product code or portable documentation.
-- Solution `ACHInterbank.sln`; API `src/Cfa.ACHInterbank.Api`; Application `src/Cfa.ACHInterbank.Application`; Domain `src/Cfa.ACHInterbank.Domain`; Persistence `src/Cfa.ACHInterbank.Persistence`; backend tests `tests/Cfa.ACHInterbank.Tests`; NACHA golden files `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
+- Solution `ACHInterbank.sln`; API `src/Cfa.ACHInterbank.Api`; Application `src/Cfa.ACHInterbank.Application`; Domain `src/Cfa.ACHInterbank.Domain`; Persistence `src/Cfa.ACHInterbank.Persistence`; SQL Server migrations `src/Cfa.ACHInterbank.Persistence.Migrations.SqlServer`; backend tests `tests/Cfa.ACHInterbank.Tests`; NACHA golden files `tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles`.
 - Canonical backend commands: `dotnet build ACHInterbank.sln -c Release` and `dotnet test tests/Cfa.ACHInterbank.Tests/Cfa.ACHInterbank.Tests.csproj -c Release`; use `--no-build` after a successful build. Validate focal tests first, then affected project, build, integration/runtime, and broader regression when justified.
+- Before restore/build after solution/project changes, run `python scripts/validate-solution-projects.py`. Every `.csproj` under `src/` and `tests/` and every `ProjectReference` target must be present in `ACHInterbank.sln`; do not remove the SQL Server migrations project to work around NuGet/Visual Studio restore errors.
 - Use RTK to compress noisy terminal output when supported. Use the original command for unsupported wrappers or when exact audit/runtime evidence is required.
 
 ## Evidence and tool routing

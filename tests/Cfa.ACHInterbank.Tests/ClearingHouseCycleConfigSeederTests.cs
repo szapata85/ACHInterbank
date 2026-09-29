@@ -98,7 +98,7 @@ public sealed class ClearingHouseCycleConfigSeederTests
     }
 
     [Fact]
-    public async Task SeedAsync_AchColombia_PreservesAllFiveV32Schedules()
+    public async Task SeedAsync_AchColombia_PreservesAllFiveV35Schedules()
     {
         await using var fixture = await SeederFixture.CreateAsync();
 

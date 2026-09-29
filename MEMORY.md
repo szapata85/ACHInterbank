@@ -28,6 +28,7 @@ This file records current durable decisions and verified project state. It is no
 | OPS-GAP-004 | CLOSED LOCAL RUNTIME E2E | CENIT ACK/NACK/operator rejection, reconciliation, and no-activity lifecycle is locally certified; external Gateway homologation is separate. |
 | OPS-GAP-005 | CLOSED | Provider-native atomic daily trace allocation with database uniqueness and 15-digit trace format; CENIT Return-of-Return uses the target-cycle date allocator. |
 | OPS-GAP-006 | CLOSED | Effective-dated chamber-isolated ClearingHouseCycleConfig governs stages, timezone, transaction eligibility, and consumers. |
+| SOLUTION-GRAPH-NU1105 | CLOSED STATIC | SQL Server migrations project exists and is now loaded by `ACHInterbank.sln`; dependency-free solution/reference validation passes 7/7 projects. Current-package build/test still requires .NET 10 evidence on a capable host. |
 | CENIT-FORMAT-NACHAM | INTERNALLY CLOSED | May 7, 2026 table-driven ordinary PPD/CCD/CTX profiles are implemented in both directions; external homologation remains pending. |
 | RET-GAP-018 | CLOSED | Unified durable lineage, exact-file membership, dispatch/SOAP and chamber-response monitoring. |
 | RET-GAP-019 | CLOSED | Accepted R10 Return / DEV14 Claims split is implemented and certified; Claims module remains separate. |
@@ -50,6 +51,7 @@ The accepted closed slices above must not be reopened without contradictory curr
 - NACHA-RULE-METADATA: PARTIAL. Do not relabel the whole program CLOSED because supported ordinary non-PSE authority is closed.
 - External ACH Colombia managed MFT/GoAnywhere deployment and homologation remain operational dependencies.
 - Global UAT and release certification require new exact-commit evidence.
+- CENIT cycle 1 conditional exceptions remain a demonstrated normative residual: current generic cycle flags deny all Return/ROR in cycle 1, while current CENIT operating guidance permits prior-business-day Return-of-Return and prior-day R23 exceptions. Do not flip the booleans broadly; model and certify the conditional context.
 
 ## Durable decisions and invariants
 

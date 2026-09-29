@@ -15,6 +15,7 @@ on:
       - 'global.json'
       - 'NuGet.config'
       - '.config/dotnet-tools.json'
+      - 'scripts/validate-solution-projects.py'
   pull_request:
     paths: *dotnet_paths
 
@@ -37,6 +38,9 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.300'
+
+      - name: Validate solution graph
+        run: python3 scripts/validate-solution-projects.py
 
       - name: Restore
         run: dotnet restore ACHInterbank.sln

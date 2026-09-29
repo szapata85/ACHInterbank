@@ -201,6 +201,7 @@ public class PersistenceDependencyInjectionTests
 
         Assert.Contains("ConnectionStrings:PostgresConnection", ex.Message, StringComparison.Ordinal);
         Assert.Contains("ConnectionStrings:SqlConnection", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("configure-visualstudio-development.ps1", ex.Message, StringComparison.Ordinal);
     }
 
     private sealed class TestHostEnvironment : IHostEnvironment
