@@ -272,6 +272,10 @@ node_modules/
 web/ach-interbank-ui/playwright-report/
 web/ach-interbank-ui/test-results/
 
+# Generated CI and local Playwright reports (never source fixtures).
+/_ci_artifacts/
+/pt-results/
+
 # Visual Studio 6 build log
 *.plg
 

@@ -1,395 +1,104 @@
 # Project Memory — ACHInterbank
 
-## Purpose
+This file records current durable decisions and verified project state. It is not a normative, source-code, runtime, or CI oracle. Current evidence can supersede an entry. Detailed human-facing documentation remains in `docs/`; historical versions remain in Git.
 
-This file stores compact, durable project knowledge: canonical functional state, active gaps, important closures, architecture/business decisions, invariants, known traps, release evidence, and the next delivery objective. Current executable repository evidence outranks historical status documents.
+## Current accepted baseline
 
-## Current Canonical Functional Completion State
+- BRANCH: ACH-Interbank-Postgresql
+- ACCEPTED_FUNCTIONAL_COMMIT_BEFORE_REPOSITORY_CLEANUP: 22d10822c5222c3c72a76b7279d6a885dfcbc75b
+- At that exact SHA, latest remote GitHub Actions baseline succeeded for build-and-test, NACHA config immutability on SQL Server and PostgreSQL, ReturnOut concurrency on both providers, and Outgoing monitor on both providers. This is product-scope CI evidence, not a certification of a later maintenance commit or external production readiness.
+- ACH Colombia current normative authority: V35, April 2026. ACH Colombia V36 is not current implementation authority without a later explicit decision. Current accepted CENIT ordinary documentation: May 7, 2026 NACHA-M manual and applicable current CENIT documents. Evaluate the two rails independently.
+- GAUNTLET: not established for the current maintenance descendant. UAT/USER_ACCEPTED/RELEASE_READY: not established globally.
 
-### GAP-REFRESH-002
+## Current capability state
 
-STATUS: CLOSED — AUDIT/RECONSTRUCTION COMPLETE
-LAST_REFRESH: 2026-08-24
-SCOPE: Production operational completion beyond the reconstructed Returns backlog
-REPOSITORY_BRANCH: ACH-Interbank-Postgresql
-REPOSITORY_HEAD: eee79474efd6d8f10b294b8c4640cb3f4a2ff3ba
-VERDICT: The local SOAP transaction core, variable cycle creation, Quartz runtime/administration, file-name reservation, ACH Colombia managed-file exchange, CENIT chamber-response lifecycle, atomic transaction trace allocation, full operational cycle policy configuration, and closed Returns capabilities remain intact. Production ordinary operation remains incomplete only for the external CENIT Gateway/PO boundary and the shared partial metadata/traceability owners.
-NEW_GAPS: OPS-GAP-001, OPS-GAP-002, OPS-GAP-003, OPS-GAP-004, OPS-GAP-005, OPS-GAP-006
-REUSED_OWNERS: CENIT-FORMAT-NACHAM, NACHA-RULE-METADATA, RET-GAP-018
-RETURNS_STATE: Existing CLOSED/SUPERSEDED Returns items remain unchanged; RET-GAP-019 is CLOSED and certified; ACHCOL-CLAIMS-DEV14 remains the separate confirmed Claims capability gap.
+| ID | State | Durable contract |
+| --- | --- | --- |
+| DBCONTEXT_IMMUTABILITY_HARDENING | CLOSED | AchDbContext synchronous/asynchronous tracked writes enforce prior-publication immutability, including transitive owned records/rules, detached writes, append-only publication history, and narrow lifecycle retirement. No production bypass. |
+| NACHA-CONFIG-IMMUTABILITY-CI-COVERAGE | CLOSED | Published NACHA configuration immutability is protected by accepted real SQL Server and PostgreSQL CI coverage. |
+| OFFICIAL_PROFILE_VERSION_WORKFLOW | CLOSED | Supported ordinary flows select effective immutable PUBLICADO/PUBLISH winners by exact dimensions, priority, then highest major/minor; explicit exact/major constraints remain supported and malformed or ambiguous selection fails closed. |
+| INBOUND_TXCODE_PUBLICATION_BASELINE | CLOSED | ACH 35.1/V35 and CENIT PPD/CCD/CTX inbound successors publish complete immutable T6 tuple authority; predecessor snapshots remain intact. |
+| INBOUND_PRESELECTION_CUTOVER | CLOSED | Supported ordinary inbound selection uses PUBLISH T5 service, T6 tuple, version priority, and snapshot layout; missing, ambiguous, malformed, or conflicting authority fails closed. |
+| INBOUND_POSTSELECTION_NON_PSE | CLOSED | Supported ACH ORIGINAL/PRENOTIFICACION and CENIT PPD/CCD/CTX ORIGINAL/PRENOTIFICACION parse and validate against the exact selected immutable PUBLISH snapshot. SUPPORTED NON-PSE ORDINARY INBOUND STATIC LAYOUT AUTHORITY: NONE. |
+| SUPPORTED ORDINARY OUTBOUND STATIC LAYOUT AUTHORITY | CLOSED | PUBLISH snapshot governs supported ordinary outbound runtime; exact official descriptor comparison occurs at publication/bootstrap, not after materialization. |
+| TXCODE_ORDINARY | CLOSED | Registration converges every reachable immutable PUBLISH transaction-code authority; generation validates persisted code and Type-7 semantics do not infer from literal codes. |
+| GAP-CENIT-PUBLISHED-CARDINALITY-001 | CLOSED | CENIT inbound/outbound cardinality is selected from the exact PUBLISH profile and transaction tuple; historical snapshots remain readable and immutable. |
+| OPS-GAP-001 | CLOSED | ACH Colombia V35 ordinary original/prenotification profile conformance. |
+| OPS-GAP-002 / OPS-GAP-002.2A–D | INTERNALLY CLOSED | Managed MFT handoff, persistent administration, monitoring, retry permission gate, and fresh-provider migration discovery are internally certified; enterprise deployment, topology, credentials, connectivity, contract, and homologation remain external. |
+| OPS-GAP-004 | CLOSED LOCAL RUNTIME E2E | CENIT ACK/NACK/operator rejection, reconciliation, and no-activity lifecycle is locally certified; external Gateway homologation is separate. |
+| OPS-GAP-005 | CLOSED | Provider-native atomic daily trace allocation with database uniqueness and 15-digit trace format; CENIT Return-of-Return uses the target-cycle date allocator. |
+| OPS-GAP-006 | CLOSED | Effective-dated chamber-isolated ClearingHouseCycleConfig governs stages, timezone, transaction eligibility, and consumers. |
+| CENIT-FORMAT-NACHAM | INTERNALLY CLOSED | May 7, 2026 table-driven ordinary PPD/CCD/CTX profiles are implemented in both directions; external homologation remains pending. |
+| RET-GAP-018 | CLOSED | Unified durable lineage, exact-file membership, dispatch/SOAP and chamber-response monitoring. |
+| RET-GAP-019 | CLOSED | Accepted R10 Return / DEV14 Claims split is implemented and certified; Claims module remains separate. |
+| NACHA-RULE-METADATA | PARTIAL | Closed ordinary transaction-code, outbound/inbound authority, CENIT cardinality, version workflow, and immutability slices do not close the whole program. Other CTX/metadata residuals remain. |
+| PSE-SCOPE-001 | DEFERRED / OUT OF CURRENT SCOPE | PSE-specific inbound trace/range semantics need separate authoritative documentation and certification. |
 
-### GAP-REFRESH-001 / GAP-REFRESH-001A / GAP-REFRESH-001B
+The accepted closed slices above must not be reopened without contradictory current evidence. Internal closure does not imply external homologation or global release readiness.
 
-STATUS: CLOSED
-LAST_REFRESH: 2026-08-23
-SCOPE: Operational and transactional functional completion; RET-GAP-019 state corrected by DEC-ACHCOL-R10-DEV14-001
-REPOSITORY_BRANCH: ACH-Interbank-Postgresql
-REPOSITORY_HEAD: 36af8b1c61ae72c766446c01ecb9ebc0b7c79838
+## Additional accepted contracts
 
-### ACH Colombia
+- Current ordinary profile winners: inbound ACH 35.1 and CENIT PPD/CCD/CTX 1.2; outbound ACH 35.1, CENIT PPD/CCD original/prenotification 1.3, CTX original 1.2, CTX prenotification 1.3. Selection is effective-date and request dependent; predecessor PUBLISH artifacts remain immutable.
+- CLOSE-CENIT-RECEIVING-2026-001: CLOSED. Under the May 7, 2026 CENIT manual, PPD monetary Credit/Debit requires exactly one T7; PPD prenotification Credit allows 0–1 and Debit exactly one; CCD monetary/prenotification Credit/Debit requires one; CTX monetary allows 1–9,999 and CTX prenotification requires one. Owned association, per-entry sequence, count, trace shape, range, and duplicate safeguards remain. Operator receiving files need not start at suffix 0000001 or ascend globally/per batch.
+- Previously accepted Return closures remain closed: RET-GAP-001–004, 006, 012–014, 016–019 and CENIT Return In/Out/ROR and managed Return transport. RET-GAP-005 and 011 are superseded; RET-GAP-008/009 are outside ordinary transactional backlog absent a demonstrated dependency. Do not infer ACH Colombia Return-of-Return policy from CENIT.
+- MFT_EXTERNAL_READINESS: APPLICATION_READY_EXTERNAL_DEPLOYMENT_PENDING. Internal manual retry gating and provider migrations are certified; no external enterprise MFT connectivity, credentials, or homologation is certified.
 
-STATUS: INCOMPLETE
-ACTIVE_GAPS: ACHCOL-CLAIMS-DEV14 (proposed, confirmed gap); shared NACHA-RULE-METADATA also applies. RET-GAP-019 is CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED.
+## Open residuals
 
-ORDINARY_STATE: INTERNALLY CLOSED for managed file exchange. ACH Colombia V35 ordinary profiles remain explicit and fail closed; OPS-GAP-002 adds a durable immutable bidirectional transfer envelope, shared automatic/manual application execution, database-driven Quartz triggers, controlled managed-MFT adapter, retries, duplicate/concurrency/restart protection, archive/retirement history, authorized API/download, and Spanish operational SPA/menu. The external managed MFT/SFTP service and its deployment configuration remain operational dependencies.
-RETURNS_STATE: Previously closed ACH Colombia Return capabilities remain CLOSED. RET-GAP-019 is CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED; ACHCOL-CLAIMS-DEV14 remains a separately confirmed capability gap.
+- OPS-GAP-003: BLOCKED on approved CFA-to-CENIT Gateway/PO operational file-exchange contract. CENIT LIVE remains fail closed pending that boundary; local simulator is disabled by default and prohibited in Production.
+- ACHCOL-CLAIMS-DEV14: CONFIRMED GAP, IMPLEMENTATION PENDING. DEV14 belongs to the Claims module, not NACHA-M ReturnOut.
+- NACHA-RULE-METADATA: PARTIAL. Do not relabel the whole program CLOSED because supported ordinary non-PSE authority is closed.
+- External ACH Colombia managed MFT/GoAnywhere deployment and homologation remain operational dependencies.
+- Global UAT and release certification require new exact-commit evidence.
 
-### CENIT
+## Durable decisions and invariants
 
-STATUS: INCOMPLETE
-ACTIVE_GAPS: OPS-GAP-003; shared NACHA-RULE-METADATA also applies.
+### DEC-NACHA-PROFILES-001 / PUBLISH authority
 
-ORDINARY_STATE: INTERNALLY CLOSED, with production transport BLOCKED. CENIT-NACHA-OUT-001 closed the May 7, 2026 ordinary PPD/CCD outbound physical profile and official naming. CENIT-NACHA-OUT-002A added 0..N files, explicit membership, PPD/CCD cardinality, post-partition controls, and collision-safe naming. CENIT-NACHA-OUT-002B added independently selectable original/prenotification CTX profiles with official table-driven Type-5/6/7 layouts, 1..9,999 transaction-owned addendas, per-entry addenda sequencing and association, multi-entry batches, and fail-closed profile selection. Evidence: Release build 8 projects with 0 errors/warnings; CTX 6/6, partition boundaries 16/16, ordinary CENIT 6/6, official-profile seeder/resolver 38/38, resolver 8/8, and focused ACH Colombia round-trip regression passed. CENIT-NACHA-OUT-002 and its inbound counterpart are internally CLOSED; CENIT-RUNTIME-E2E-001 closed chamber responses locally. Profiles remain non-homologated and CENIT LIVE stays fail-closed pending the Gateway/PO contract.
-RETURNS_STATE: Previously closed CENIT Return In, Return Out, Return of Return, differential-response, and managed Return transport capabilities remain CLOSED.
-
-### Shared
-
-STATUS: INCOMPLETE for production operational scope
-ACTIVE_GAPS: NACHA-RULE-METADATA
-
-COMPLETED_CORE: DB-first incoming duplicate handling, API duplicate policy, classification/audit convergence, clearing-house isolation, local SOAP dispatch for ProcContrapartidas and ProcTransacciones, non-monetary idempotent RegistrarRespuestaTransaccion, variable cycle-count creation, versioned chamber-specific cycle stages and transaction eligibility, Quartz runtime/administration, atomic external filename reservation, and atomic cross-provider transaction trace allocation.
-RESIDUAL: Chamber-specific NACHA policy/snapshots remain in code. Unified durable lineage is CLOSED under RET-GAP-018.
-
-## Active Functional Backlog
-
-### OPS-GAP-001
-
-STATUS: CLOSED
-SCOPE: ACH Colombia / ordinary original and prenotification / inbound and outbound / V35 NACHA-M profiles
-CANONICAL_KEY: ORDINARY/ACHCOL/BIDIRECTIONAL/NACHA_PROFILE/V35_CONFORMANCE
-IMPLEMENTED: Explicit V35 profiles OFFICIAL_ACH_{SALIDA,ENTRADA}_{ORIGINAL,PRENOTIFICACION}_V35_0; credit/debit monetary and prenotification type-7 variants; bidirectional resolver integration; legacy ordinary V1/V32 profiles retired; incoming hardcoded profile fallback removed.
-EVIDENCE: Commit 36af8b1c61ae72c766446c01ecb9ebc0b7c79838; Release build 8 projects/0 errors/0 warnings; profile resolution 33/33; generation, parsing, round-trip, and existing ACH Return-out profile regression 63/63; incoming ingestion 16/16 and database-backed incoming processing 15/15.
-STABILIZATION: V35 Type-7 compatibility regression fixed by 6830260fbad6d5f9673be0ef6269f8cc0a905033; stale legacy Type-99 characterization fixtures aligned by 45d947c1e80701ca147f58f87d1427139f8ede58; GitHub dotnet-ci run 32777030756 succeeded for build-and-test, Outgoing monitor multi-database, and ReturnOut concurrency multi-database. No Return business behavior was reopened.
-
-### OPS-GAP-002
-
-STATUS: CLOSED INTERNALLY — EXTERNAL MANAGED MFT DEPLOYMENT REMAINS
-SCOPE: ACH Colombia / ordinary / bidirectional / managed MFT handoff and reception
-CANONICAL_KEY: ORDINARY/ACHCOL/BIDIRECTIONAL/TRANSPORT/MFT_HANDOFF_RECEPTION
-IMPLEMENTED: Immutable durable transfers/events/configuration; retained content by durable ID; shared Application use case for Quartz and API; atomic outbound handoff and inbound claim/restart recovery; persistent hash/export uniqueness; retry/uncertain/non-retryable classification; existing inbound ingestion and outbound NACHA/envelope reuse; archive, retirement without history deletion, download, correction lineage, monitoring catalog, authorized API, Spanish SPA, and seeded navigation.
-EVIDENCE: Release solution build succeeded with 0 errors and 0 warnings; 35 focused managed-MFT, adapter, API, DI, scheduler, persistence-model, and navigation tests passed; Angular production build succeeded. Focused Playwright was skipped because the repository dev-server did not become ready within its configured 120-second window. No full E2E or external managed-MFT runtime certification was claimed.
-DEPENDENCY: The enterprise MFT/SFTP product, endpoints, credentials, and deployment remain external operational configuration; application defaults remain disabled until explicitly configured.
-
-#### OPS-GAP-002.2A
-
-STATUS: CLOSED / ACCEPTED BASELINE / DO NOT REOPEN
-
-#### OPS-GAP-002.2B
-
-STATUS: CLOSED — MANAGED MFT ADMINISTRATION CERTIFIED
-SCOPE: ACH Colombia / managed MFT / persistent administration and effective runtime configuration
-IMPLEMENTED: Persistent Managed MFT profile and master enabled state; endpoint metadata; outbound, inbound and archive routes; retry and retention policy; DB-backed protected write-only credential rotation; safe credential metadata; audit redaction; authorized administration API; Spanish Administration SPA/menu; persisted route consumption by the existing folder-based Managed MFT boundary.
-SECURITY: Credentials are protected at rest in the ACHInterbank application database. Plaintext is not returned through read APIs or Angular and is not written to audit/log payloads. No OpenBao, Vault, external enterprise secret manager, direct SFTP or GoAnywhere adapter was introduced.
-PROFILE_CONTRACT: ProfileEnabled is the master fail-closed switch. Manual execution additionally requires the corresponding manual permission. Automatic execution additionally requires the corresponding automatic flag. Existing configuration rows receive ProfileEnabled=false through both SQL Server and PostgreSQL migrations.
-IMPLEMENTATION_COMMIT: 12c1619ea20215640078183f82ae64cfc6a4640c
-CERTIFICATION_COMMIT: 0ae876ed94120b7bb292b3dce95e508c356b2859
-ROOT_CAUSE_PREVIOUS_FAILURE: STALE TEST FIXTURE
-EVIDENCE: Focused backend 19/19 PASS. Focused Angular 3/3 PASS. TypeScript PASS. Angular production build PASS. GitHub Dotnet CI run 33679704675 PASS: 2459 passed / 0 failed / 15 skipped. GitHub Angular CI run 33679704705 PASS including runtime-backed-e2e.
-VERDICT: OPS-GAP-002.2B CLOSED
-REMAINING_BOUNDARY: External enterprise Managed MFT / GoAnywhere deployment, production endpoints, operational credentials and homologation remain external operational dependencies and are not part of the internally closed OPS-GAP-002.2B slice.
-
-#### OPS-GAP-002.2C
-
-STATUS: CLOSED — OPERATIONS/HANDOFF MONITORING DELTA IMPLEMENTED AND CERTIFIED
-GATE: PROVEN_PRODUCT_DELTA after reuse-first A–T audit; existing transfer/events, API, Operations screen, Administration and RET-GAP-018 owners reused.
-IMPLEMENTED: Bounded search/paging and all existing state filters; durable identity, latest attempt, safe error code, retained-content and command eligibility projections; exact export membership and existing ingestion/transaction/predecessor navigation; event result/order and actual subsequent execution origin; existing automatic/manual Administration controls exposed. No new monitoring persistence, lineage entity, scheduler, transport or schema.
-CERTIFIED_COMMIT: 523f5ae530085761ca494ccdb6b6ed6d67a71a46
-EVIDENCE: docs/ai/OPS-GAP-002.2C_REUSE_AUDIT.md; focal backend 33/33; Angular focal 10/10; TypeScript and production build PASS; Release solution build 0 warnings/0 errors. Dotnet CI 34161860666 PASS: 2471 passed/15 skipped; Outgoing monitor SQL Server + PostgreSQL 2/2; ReturnOut concurrency SQL Server + PostgreSQL 4/4. Angular CI 34161860829 PASS including existing runtime E2E 7 passed/1 skipped.
-PROVEN_ROOT_CAUSE: New provider characterization exposed an inherited PostgreSQL failure translating UpdatedAt.UtcDateTime inside the list projection. Materializing the bounded scalar page before UTC conversion fixes it; both providers verify the timestamp and exact membership.
-EVIDENCE_LIMITS: Current routes remain in Administration; historical physical-route snapshots and individual Quartz fire IDs were not recorded. Existing event origins are preserved; corrected origins apply to new executions. No external delivery or global UAT/release certification is inferred.
-BASELINES: OPS-GAP-002.2A CLOSED; OPS-GAP-002.2B CLOSED; RET-GAP-018 CLOSED. Enterprise Managed MFT / GoAnywhere deployment, production connectivity, credentials and homologation remain a SEPARATE EXTERNAL OPERATIONAL DEPENDENCY.
-
-#### OPS-GAP-002.2D
-
-STATUS: CLOSED — MANUAL MFT RETRY GATE AND FRESH-DATABASE MIGRATION DISCOVERY CERTIFIED
-SOURCE: MFT-EXTERNAL-READINESS-001; audit baseline 3ef76b9410dbda54a7b0433f806417bdde536840.
-IMPLEMENTED: ProfileEnabled and ManualOutboundAllowed now fail closed before explicit manual outbound retry handoff; a denied retry cannot invoke the adapter or mutate attempt/event state, and CanRetry uses the same effective gate. Existing migration 20260902090000_OpsGap0022BManagedMftAdministration is discoverable for SQL Server and PostgreSQL, and both snapshots represent the existing 2B model; no duplicate schema or new migration was introduced.
-EVIDENCE: Retry implementation 79a393e02dd2290515439db7ea7df059096d2f62; certified descendant fa85f5d9b3dedaece774facf828fdf104db969e5. RetryPermission 3/3, focused Managed MFT 36/36, fresh-provider OutgoingMonitorMultiDb 2/2 with migration history/full-column/second-Migrate proof, Release build 8 projects with 0 errors/0 warnings, and GitHub Dotnet CI 34182482659 all required jobs SUCCESS.
-BOUNDARY: OPS-GAP-002.2A/.2B/.2C remain accepted closed baselines. No external MFT implementation, global UAT or release certification is claimed; enterprise MFT deployment, topology/routes, identity/credentials, connectivity, external contract and homologation remain external.
-
-### OPS-GAP-003
-
-STATUS: BLOCKED
-SCOPE: CENIT / ordinary / bidirectional / Gateway or PO file boundary
-CANONICAL_KEY: ORDINARY/CENIT/BIDIRECTIONAL/TRANSPORT/GATEWAY_FILE_EXCHANGE
-REQUIRED: Automate cycle-qualified output placement and inbound pickup at the approved Gateway/PO boundary with atomicity, archive, retry, duplicate protection, and monitoring. Completion depends on CENIT-FORMAT-NACHAM; the BLOCKED state is owned by the unresolved approved CFA-to-Gateway operational contract.
-
-### OPS-GAP-004
-
-STATUS: CLOSED — LOCAL RUNTIME E2E CERTIFIED
-SCOPE: CENIT / ordinary / inbound chamber responses
-CANONICAL_KEY: ORDINARY/CENIT/INBOUND/CHAMBER_RESPONSE/ACK_NACK_OPERATOR_REJECT
-IMPLEMENTED: Dedicated CENIT ACK/NACK/operator-rejection XML, reconciliation, and no-activity lifecycle linked to ordinary outbound file membership; exact file/transaction correlation; persisted unresolved/ambiguous outcomes; semantic idempotency; protected terminal transitions; ProblemDetails API; and CENIT operational UI with pending and terminal-state presentation. FileNack preserves every FileErrorHandling item, while reconciliation and no-activity are owned by the operational CENIT cycle rather than an ordinary export. This remains independent from Returns, differential responses, and RegistrarRespuestaTransaccion.
-EVIDENCE: CENIT-RUNTIME-E2E-001 passed official-like namespaced ACK, file NACK, operator rejection, multi-error FileNack, reconciliation, and no-activity fixtures; Release build 8 projects with 0 errors/warnings; lifecycle/API/persistence 16/16; Gateway adapter 1/1; outbound partitioning 17/17; table-driven NACHA-M 70/70; Angular operations 8/8; Docker SQL Server/API/SPA health green; and real SPA -> API -> database Playwright 1/1.
-RUNTIME: The local folder-backed test Gateway used atomic input/output/archive exchange and certified PPD+ACK, CCD+NACK, CTX multi-error operator rejection, reconciliation, no activity, replay idempotency, terminal conflict protection, durable lineage, API, and operational SPA visibility. No Banco de la República connectivity or institutional homologation was executed; OPS-GAP-003 remains the external Gateway/PO boundary.
-
-### OPS-GAP-005
-
-STATUS: CLOSED
-SCOPE: Shared / outgoing transaction identity
-CANONICAL_KEY: ORDINARY/SHARED/OUTBOUND/SEQUENCE/TRANSACTION_TRACE_ALLOCATION
-ROOT_CAUSE: TransactionPersister used MAX()+1 followed by an existence check, so independent contexts could select the same daily trace before either insert committed.
-IMPLEMENTED: A per-originating-DFI/per-effective-date database allocator uses PostgreSQL ON CONFLICT DO UPDATE RETURNING and SQL Server serializable UPDLOCK/HOLDLOCK allocation on short dedicated connections. Provider migrations backfill allocator state, synchronize externally inserted traces through database triggers, and enforce unique (EffectiveEntryDate, TraceNumber). OPS-GAP-005A corrected CENIT Return-of-Return creation to use this allocator for the target cycle processing date instead of the independent return-trace sequence keyed by request date.
-CONTRACT: 15 digits (8-digit originating DFI + 7-digit sequence); daily reset; range 1-6999999; uniqueness by effective entry date and complete trace number.
-EVIDENCE: Core commit 4eff8e7; CENIT ROR correction 872d356; Release build 0 errors/0 warnings; focal CENIT ROR 13/13; PostgreSQL and SQL Server RaceMatrix 1/1 each; OutboundReturnMultiDb 4/4; GitHub Actions run 32799729074 succeeded on 872d356. Core real-provider independent-context concurrency 96/96 and clean two-API runtime concurrency 100/100 per provider had persisted=100, distinct=100, duplicates=0; empty-database migrations, seed/bootstrap, second startup, and live/ready health passed for both providers.
-
-### OPS-GAP-006
-
-STATUS: CLOSED
-SCOPE: Shared / clearing-house cycle policy and runtime consumption
-CANONICAL_KEY: ORDINARY/SHARED/BIDIRECTIONAL/CYCLE_POLICY/OPERATIONAL_STAGES_ELIGIBILITY
-DECISION: ClearingHouseCycleConfig is the single effective-dated, timezone-resolved chamber policy. Each version owns arbitrary cycles, open/input-cutoff/processing-close/output-release stages, and eligibility for monetary credit/debit, credit/debit prenotification, Return, and Return-of-Return. Resolution rejects missing, overlapping, ambiguous, invalid-timezone, duplicate-cycle, or invalid-stage policies.
-CONSUMERS: Transaction creation/validation, outbound assignment, inbound resolution/queue execution, NACHA generation, ProcContrapartidas and ProcTransacciones dispatch, Return-of-Return generation, and Quartz synchronization consume the authoritative policy or its scheduled cycle snapshot.
-EVIDENCE: Release build 8 projects/0 errors/0 warnings; impacted backend regression 242/242; scheduler 5/5; Angular administration 9/9 and production build succeeded; PostgreSQL and SQL Server migration/model checks and fresh-database persistence tests 1/1 each. Runtime resolver proof held ACHCOL ACH-V1 with 7 cycles and Cycle 1 Return allowed simultaneously with CENIT CENIT-V1 with 5 cycles and Cycle 1 Return denied; effective-version and timezone boundaries were deterministic.
-CI_STABILIZATION: OPS-GAP-006 CI stabilization completed. Root cause: STALE TEST FIXTURE. Commit: d910301c9a3788197546e7c698087d8185389b08. GitHub Actions run: 33015421841. build-and-test: SUCCESS.
-DEPENDENCY: OPS-GAP-002 was unblocked by this work and is now internally closed; its external managed-MFT deployment remains separate.
-
-### CENIT-FORMAT-NACHAM
-
-STATUS: INTERNALLY_CLOSED / EXTERNAL_HOMOLOGATION_PENDING — EXISTING OWNER REUSED
-CURRENT_DELTA: The May 7, 2026 specification drives table-driven ordinary PPD/CCD and CTX profiles in both directions. CENIT-NACHA-IN-001 added explicit inbound original/prenotification metadata, reused the official physical descriptors under section 7.3.1, enabled CTX 1..9,999 owned Addenda parsing with per-entry sequence/trace association, preserved received operator batches, and validated physical T8/T9 controls. Evidence: Release build 8 projects/0 errors/0 warnings; inbound focal 19/19; official profiles 46/46; shared inbound parser 12/12; ingestion 16/16; Return-In 8/8; Return-of-Return 2/2. CENIT-FORMAT-NACHAM is internally closed. External homologation and OPS-GAP-003 Gateway/PO remain pending; OPS-GAP-004 is locally closed.
-
-### NACHA-RULE-METADATA
-
-STATUS: PARTIAL — EXISTING OWNER REUSED
-SLICE_2A: CLOSED — Published profile tags now carry typed outbound partition/cardinality/addenda policy through NachaConfigResolver to CenitOutboundFilePartitioner. Current PPD, CCD, and CTX output behavior is preserved without partitioner-side CENIT service tables or numeric limits.
-EVIDENCE_2A: Release test-project build 7 projects/0 errors/0 warnings; CenitOutboundFilePartitionerTests 18/18; NachaConfigResolverTests 10/10; NachaConfigOfficialProfilesSeederTests 47/47; OfficialNachaGenerationTableDrivenTests 70/70; NachaFileBuilderUnitTests 6/6.
-SLICE_2B: CLOSED — ACH outbound batch assignment is published as typed strategy/scope/start/maximum/audit metadata, resolved by NachaConfigResolver, and consumed without a chamber-specific branch. CI stabilization commit 47427a26 corrected TEST_SETUP_MISSING_REQUIRED_POLICY in the legacy fixture only; no product behavior or generator branch changed.
-EVIDENCE_2B: GitHub Actions run 33591708889 green: build-and-test, Outgoing monitor (SQL Server + PostgreSQL), and ReturnOut concurrency (SQL Server + PostgreSQL). This broad CI evidence closes 2B.
-SLICE_2C: CLOSED — Published SettlementPolicy tags resolve as a typed fail-closed contract for SettlementDate and JulianSettlementDate; missing, empty, unsupported, duplicate, and source-incompatible metadata is rejected.
-SLICE_2D: CLOSED — Official T5 CfgProfileRecord rows reference chamber-specific CfgRuleSet/CfgRuleSetRule contracts for ServiceClassCode 200/220/225. NachaConfigResolver materializes the typed contract; publication and resolution reject missing, bad, unsupported, duplicate, contradictory, or record-incompatible metadata; official runtime rejects transaction-code/effective-direction mismatch, disallowed service-class direction, and T5/T8 ServiceClassCode mismatch. T5/T8 coherence is a generic NACHA-M invariant, not profile-variable metadata.
-EVIDENCE_2D: Release build 8 projects/0 errors/0 warnings; required focused regressions 212/212; final semantic/resolver/publication checks 38/38; rebuilt functional generation 6/6; final semantic plus legacy compatibility 15/15. Broad backend run reached 2498 passed and 15 skipped; 8 environment-gated multi-database tests lacked their required opt-in variables, and the 2 code-related failures were corrected and revalidated.
-SLICE_2E_1: CLOSED — Normal command paths require BORRADOR for generation-definition edits, publication is one-way for a profile identity, and the official seeder performs a deterministic semantic comparison before treating an existing published generation as a no-op. Conflicting published official definitions fail closed with NEW PROFILE VERSION REQUIRED. CfgRuleSet/CfgRuleSetRule instances referenced by a previously published profile are reused only when their 200/220/225 contents match and are never rewritten in place. Lifecycle-only inactivation/archive remains allowed. This is application-level enforcement; direct AchDbContext writes remain possible.
-EVIDENCE_2E_1: Release build 8 projects/0 errors/0 warnings; required focused suites 270/270. Broad backend run reached 2510 passed and 15 skipped; the 8 failures were the established environment-gated multi-database tests missing their required opt-in variables. No database schema, snapshot representation, resolver, renderer, or generated NACHA byte behavior changed.
-SLICE_2E_2: CLOSED — Publication now atomically persists a typed format-v1 snapshot before a profile becomes PUBLICADO. The artifact captures generation-critical tags, records, layout variants/predicates, fields, source definitions, transformations, field rules, stable catalog codes, and semantic rule-set declarations/rules by value; malformed, incomplete, legacy, and unknown-version content fails closed. PostgreSQL HistConfigSnapshot.SnapshotJson is text and SQL Server remains nvarchar(max). Runtime generation still resolves the live graph; snapshot-backed authority is reserved for 2E.3.
-EVIDENCE_2E_2: Release solution build 8 projects/0 errors/0 warnings; focused administrative 40/40, functional/golden 72/72, and seeder/resolver/table-driven/semantic/storage 167/167; provider model/migration checks report no pending changes. Generated NACHA behavior remained unchanged.
-SLICE_2E_2B: CLOSED — A dedicated order-11 seeder derives published profile/version winners from supported ordinary production request dimensions, version pins, service matching, effective-date boundaries, priority, and highest version. ACH ordinary is pinned to V35, CENIT inbound to V1.0, and CENIT outbound remains unpinned behind its existing LIVE gate. LEGACY_ACH_SALIDA_ORIGINAL_V1_0 remains published/historical but is outside this domain. Missing V1 artifacts freeze the current validated published generation graph at cutover using persisted publication provenance; legacy PUBLISH rows remain intact. Duplicate, malformed, unsupported, identity-mismatched, or unrepresentable mandatory artifacts fail closed. Runtime resolver/builder authority remains live until 2E.3.
-EVIDENCE_2E_2B: 13 new coverage tests passed (12 together plus one added service/ambiguity characterization); ordinary ACH pre-2E.2 upgrade test proved generated bytes unchanged; 243 requested focused regressions passed; Release solution build 8 projects/0 errors/0 warnings. Historical graph reconstruction before cutover is not claimed.
-SLICE_2E_2_TRACE: CLOSED — New publication snapshots now persist CfgLayoutVariant.Id, CfgLayoutField.Id, and CfgLayoutField.FieldNameEs for the existing official generation trace. ReadForTraceLineage requires positive, unambiguous IDs and nonempty field names from the persisted artifact alone. Historical V1 artifacts remain semantically readable but fail trace-lineage completeness; the coverage seeder leaves them unchanged and does not infer lineage from mutable LIVE rows. Ordinary generation still uses the LIVE resolver; 2E.3 was not started.
-EVIDENCE_2E_2_TRACE: snapshot coverage/lineage 16/16, official seeder 63/63, official generation/trace 71/71, administrative immutability 40/40, snapshot storage 2/2; Release solution build 0 warnings/0 errors. No schema migration.
-TXCODE_CUTOVER_BASELINE: CLOSED — The first immutable TXCODE-aware publication cohort establishes ACH 35.1 under NormativeVersion V35 and fixed CENIT 1.2 under unchanged 2026-05-07 normative metadata. Supported CENIT 1.0/1.1 predecessor history and all legacy publications/snapshots remain untouched. Snapshot parity with the characterized static ordinary matrix is required at bootstrap, chamber-scoped code non-reassignment begins with this cohort, and no schema or migration was introduced.
-TXCODE_ORDINARY: CLOSED — Supported ordinary registration resolves the original Credit/Debit, AccountType, and prenotification tuple from every reachable immutable PUBLISH authority, requires cross-flow/service convergence, and persists exactly one AchTransaction.TransactionCode. TransactionPersister and TransactionCodeCatalog provide no supported-ordinary semantic fallback. Actual generation validates the persisted code against the selected publication without recomputation or mutation, Type-6 renders that persisted value, and Type-7 credit variant selection uses addenda BusinessType plus IsPrenotification with no literal transaction-code inference.
-EVIDENCE_TXCODE_ORDINARY: Both-chamber 24-case matrix, fail-closed states, chamber isolation, immutable LIVE-mutation resistance, service/flow divergence, historical/current generation compatibility, Type-7 semantic characterization, and operation-local authority reuse are covered by focused tests. Exact backend CI-equivalent: 2599 passed, 0 failed, 15 environment-gated skipped, 2614 total. Release solution build: 8 projects, 0 warnings, 0 errors.
-SCOPE_TXCODE_ORDINARY: ACH 35.1/V35 and CENIT 1.2/2026-05-07 winners preserved; schema/migration none; Returns, ROR, Claims, inbound, SEC, CENIT LIVE gate, and Cuenta Contable support unchanged.
-STATIC_LAYOUT_AUTHORITY_OUTBOUND_T7_SELECTOR: CLOSED — Supported ACH ordinary outbound T7 runtime selection now evaluates immutable PUBLISH SelectionPredicateJson against BusinessType and optional TransactionFamily=PRENOTIFICATION, then uses the single valid empty-selector default when no predicate matches. VariantCode is identity only; no supported runtime mapping to AchColOfficialNachaLayout.Type7* identifiers remains. Malformed predicates, multiple semantic matches, missing defaults, and multiple defaults fail closed. Physical output is unchanged, TXCODE_ORDINARY remains CLOSED, and schema/migration are NONE.
-EVIDENCE_STATIC_LAYOUT_AUTHORITY_OUTBOUND_T7_SELECTOR: Exact SHA-256 parity for credit monetary, credit prenotification, debit monetary, and debit prenotification; renamed materialized variant-ID selection; published ORIGINAL/PRENOTIFICACION predicate contract; LIVE selector mutation resistance; focused official generation/selector 102/102; TXCODE authority 35/35; backend CI-equivalent 2618 passed, 0 failed, 15 skipped, 2633 total; Release build 8 projects, 0 warnings, 0 errors.
-STATIC_LAYOUT_AUTHORITY_OUTBOUND_VALIDATION: CLOSED — Supported ordinary ACH 35.1 and CENIT 1.2 PPD/CCD/CTX generation validates the selected immutable PUBLISH snapshot through generic fail-closed structure, executable rules, and rendering contracts without post-snapshot exact comparison to compiled official descriptors. Exact normative descriptor validation remains at publication/bootstrap. T7 predicate authority and TXCODE_ORDINARY remain CLOSED; official bytes, Return/ReturnOut/ROR behavior, snapshot format, profile versions, schema, and migrations are unchanged.
-EVIDENCE_STATIC_LAYOUT_AUTHORITY_OUTBOUND_VALIDATION: A renamed structurally valid PUBLISH T1 variant rendered byte-identically; corrupt bounds and overlap failed closed during snapshot read; publication rejected official descriptor drift; LIVE mutations remained isolated from PUBLISH authority; focused official generation 89/89, T7 selector 16/16, TXCODE 35/35, publication/admin 40/40, snapshot coverage 21/21, Return/ReturnOut 29/29, and ROR 35/35. Backend CI-equivalent: 2621 passed, 0 failed, 15 skipped, 2636 total. Release solution build: 8 projects, 0 warnings, 0 errors.
-SUPPORTED ORDINARY OUTBOUND STATIC LAYOUT AUTHORITY: CLOSED — OUTBOUND-T7-SELECTOR and OUTBOUND-VALIDATION are both closed. No supported ordinary outbound runtime call path reaches exact static ACH/CENIT layout comparison after PUBLISH snapshot materialization.
-INBOUND_TXCODE_PUBLICATION_BASELINE: CLOSED — ACH ordinary inbound 35.1/V35 and CENIT PPD/CCD/CTX inbound 1.1/2026-05-07 established six immutable PUBLISH successors with complete 12-tuple T6 contracts. The 35.0/1.0 predecessors and snapshots remained unchanged; chamber-scoped codes agreed with outbound, and physical layouts and focused reader results matched. At the fb736 baseline, canonical ingestion was still pinned to 35.0/1.0 and static inbound flow lists remained for the subsequent preselection cutover; schema, migration, and snapshot format were unchanged. Evidence: four new focused tests passed; backend CI-equivalent 2625 passed, 0 failed, 15 skipped, 2640 total; Release solution build 8 projects, 0 warnings, 0 errors.
-INBOUND_PRESELECTION_CUTOVER: CLOSED — Canonical supported ordinary ACH and CENIT ingestion selects one active immutable inbound PUBLISH authority by published T5 service enum, published T6 Credit/Debit/account/prenotification tuple, existing version priority, and snapshot layout. ACH 35.1/V35 and CENIT PPD/CCD/CTX 1.1/2026-05-07 are consumed; predecessor 35.0/1.0 artifacts remain immutable. Missing, ambiguous, conflicting, unsupported, and malformed authority fails closed; LIVE rule/layout mutation does not alter selection. The prior ordinary static TXCODE and CENIT service preselectors have no remaining symbols or supported callers. Evidence: focused selection/failure/immutability 8/8, end-to-end golden/prenote 3/3, backend CI-equivalent 2637 passed/0 failed/15 skipped (2652 total), Release solution build 8 projects/0 warnings/0 errors. No schema, migration, snapshot-format, or successor-version change.
-REMAINING_STATIC_LAYOUT_AUTHORITY: Supported ordinary inbound preselection, supported ordinary outbound, and supported non-PSE ordinary inbound postselection static layout authority are CLOSED. PSE-SCOPE-001 remains DEFERRED / OUT OF CURRENT SCOPE; other NACHA-RULE-METADATA residuals keep the program PARTIAL.
-CLOSE-CENIT-RECEIVING-2026-001: CLOSED — The May 7, 2026 CENIT NACHA-M manual governs ordinary receiving cardinality: PPD monetary Credit/Debit exactly one T7, PPD prenotification Credit 0..1 and Debit exactly one; CCD monetary/prenotification Credit/Debit exactly one; CTX monetary Credit/Debit 1..9,999 and CTX prenotification Credit/Debit exactly one. CTX four-position physical capacity remains 9,999; owned T7 association, per-entry sequence from 0001, and expected-count checks remain. Operator-generated receiving files no longer require the first T6 suffix 0000001, global +1 order, or per-batch ascending order; trace shape, originating-participant segment, range, and duplicate safeguards remain. This narrowly supersedes only those three stale CENIT-NACHA-IN-001 receiving behaviors; all other accepted capabilities remain closed. Evidence: CENIT parser 49/49, inbound preselection 8/8, CENIT Return family 37/37, shared ACH parser 72/72, backend CI-equivalent 2665 passed/0 failed/15 skipped (2680 total), Release solution build 0 warnings/0 errors.
-GAP-CENIT-PUBLISHED-CARDINALITY-001: CLOSED — CENIT ordinary inbound 1.2 (four grouped PPD/CCD/CTX identities) and affected outbound 1.3 (PPD/CCD original and prenotification, CTX prenotification) publish V1 snapshot-backed CardinalityPolicy.Direction/Flow/Service.<SEC> Credit/Debit bounds. The exact selected PUBLISH and its T6 Credit/Debit/prenotification tuple determine effective cardinality; historical OutboundPolicy.* snapshots remain readable, CTX monetary outbound remains 1.2 with 1..9,999, predecessor snapshots remain unchanged, and later LIVE tag mutation cannot alter runtime. Fresh normal seeding and idempotent reseeding passed; focused CENIT/ACH/Return regressions, Release build (8 projects, 0 warnings/errors), and CI-equivalent (2704 passed, 0 failed, 15 skipped) passed. No schema migration, snapshot-format change, or historical rewrite. CLOSE-CENIT-RECEIVING-2026-001 remains CLOSED. Inbound postselection static-authority cutover is UNBLOCKED with respect to cardinality metadata; NACHA-RULE-METADATA remains PARTIAL.
-OFFICIAL_PROFILE_VERSION_WORKFLOW: CLOSED — Canonical ordinary inbound ingestion, ordinary outbound generation, and ordinary TransactionCode authority no longer infer a chamber-specific major version. An unpinned request selects the effective PUBLICADO/PUBLISH winner by exact dimensions, context priority, then highest major/minor; intentional exact or major-constrained requests remain supported, and minor-only fails closed. Current inbound winners are ACH 35.1 and CENIT PPD/CCD/CTX 1.2; outbound winners are ACH 35.1, CENIT PPD/CCD original/prenotification 1.3, CTX original 1.2, and CTX prenotification 1.3. Synthetic tests prove DRAFT/future-effective exclusion, effective new-major and minor transitions, priority, explicit predecessor, and immutable snapshot identity. No new official version, schema, migration, or snapshot-format change.
-EVIDENCE_OFFICIAL_PROFILE_VERSION_WORKFLOW: Focused 295/295; Release build 0 errors/0 warnings; broad backend CI-equivalent 2707 passed/0 failed/15 skipped (2722 total). Fresh SQL Server 2025 and PostgreSQL 16 migrations/seeds, health 200/200, four ordinary inbound HTTP selections per provider, provider-native 37 official profiles/37 PUBLISH snapshots and 31 ordinary profile rows, restart/reseed with unchanged snapshot digests and new successful HTTP uploads, plus provider-real outbound selection and synthetic artifact generation agree. SQL Server fresh seed required removing a redundant explicit transaction around one atomic EF SaveChanges under its retrying execution strategy. CENIT outbound artifact proof used the existing safe DEVELOPMENT scope because LIVE generation remains separately gated.
-PSE-SCOPE-001: DEFERRED / OUT OF CURRENT SCOPE — PSE-specific inbound trace/range semantics are not implemented or certified; separate authoritative PSE documentation is required if activated. PSE does not block this ordinary official-profile version workflow.
-DBCONTEXT_IMMUTABILITY_HARDENING: CLOSED — AchDbContext SaveChanges and SaveChangesAsync now enforce published-generation immutability for direct tracked writes. Durable prior-publication evidence is persisted PublishedAt or a PUBLISH snapshot/change, independent of current status. Published profile identity, dimensions, priority, dates other than accepted EffectiveTo retirement, versions, provenance, and display fields are frozen; only proven INACTIVO/ARCHIVADO lifecycle StatusId, optional EffectiveTo retirement, and UpdatedAt audit changes are allowed. Owned tags, records, variants, fields, and field rules are protected through persisted transitive ownership, including detached writes; source definitions and rule sets/rules are frozen when referenced by any previously published profile. HistConfigSnapshot and HistConfigChange are append-only; draft edits, first publication, legitimate coverage, lifecycle, and successor creation/publication remain supported. No production bypass flag, schema change, migration, or trigger. Evidence: 37 focused guard tests; 200 affected fixture tests; Release build 8 projects/0 errors/0 warnings; fresh SQL Server and PostgreSQL migrations/seeds, 37 official profiles/37 official PUBLISH artifacts each, provider-real guard matrices, lifecycle/admin HTTP and ordinary inbound HTTP 200, native SQL LIVE mutation with PUBLISH runtime unchanged, and restart/reseed with stable per-provider PUBLISH digests and canonical winners; broad backend CI-equivalent 2744 passed/0 failed/15 skipped (2759 total). OFFICIAL_PROFILE_VERSION_WORKFLOW remains CLOSED; PSE-SCOPE-001 remains DEFERRED / OUT OF CURRENT SCOPE.
-CURRENT_DELTA: NACHA-RULE-METADATA remains PARTIAL. Runtime ordinary TransactionCode authority, supported ordinary outbound static layout authority, ordinary inbound preselection authority, supported non-PSE ordinary inbound postselection authority, CENIT published cardinality, official-profile version workflow, and direct/global tracked AchDbContext publication immutability are CLOSED. Unrelated CTX debt remains open; PSE-SCOPE-001 remains DEFERRED / OUT OF CURRENT SCOPE.
-INBOUND_POSTSELECTION_NON_PSE: CLOSED — SUPPORTED NON-PSE ORDINARY INBOUND STATIC LAYOUT AUTHORITY: NONE. From baseline 2d34f758677710804f3828af16dce4bba61a4236 to the single local commit containing this entry, ACH Colombia ORIGINAL/PRENOTIFICACION and CENIT PPD/CCD/CTX ORIGINAL/PRENOTIFICACION use the exact selected immutable PUBLISH snapshot for physical parsing, T5 service semantics, T6 12-tuple semantics, T7 type/sequence, and CENIT cardinality. Postselection profile-name/version gates, LIVE config reads, parallel static TXCODE taxonomy, and stale non-PSE ACH ascending trace rejection no longer govern this domain; generic structure and excluded legacy/PSE paths remain isolated. Synthetic renamed higher CTX PUBLISH, fail-closed metadata, LIVE mutation, ACH nonascending, and focused matrix tests passed; Release build 0 warnings/errors; fresh real SQL Server 2025 and PostgreSQL 16 migrations/seed, HTTP ingestion, provider-native PUBLISH/persistence checks, restart/reseed and LIVE mutation isolation passed with parity. Broad CI-equivalent retry: 2749 passed, 0 failed, 15 skipped (2764 total); initial isolated OpenAPI timeout passed on rerun. No schema, migration, snapshot-format, historical PUBLISH rewrite, or production official successor. PSE-SCOPE-001 is DEFERRED / OUT OF CURRENT SCOPE; NACHA-RULE-METADATA remains PARTIAL.
-
-### RET-GAP-018
-
-STATUS: CLOSED
-CURRENT_DELTA: Unified lineage was already functionally implemented. RET-GAP-018.1 closed deterministic exact-file membership evidence; RET-GAP-018.2 verified no remaining functional lineage gap; RET-GAP-018.3 completed deterministic dispatch/SOAP and chamber-response monitoring detail/timeline coverage.
-
-### RET-GAP-019
-
-STATUS: CLOSED — DEC-ACHCOL-R10-DEV14-001 IMPLEMENTED AND CERTIFIED
-DECISION: DEC-ACHCOL-R10-DEV14-001
-EXTERNAL_CLARIFICATION_DEPENDENCY: REMOVED
-SCOPE: ACH Colombia / non-consented debit / R10 Return versus DEV14 Claims
-RULE: R10 is the NACHA-M Return path within the configured maximum four-cycle rejection window when no prenotification exists or no Receiver User authorization/agreement is explicitly established. Once elapsed or for previous operational days, DEV14 belongs to the separate ACH Claims path.
-IMPLEMENTATION: DEV14 is rejected at the ACH Colombia ReturnOut service boundary before persistence/generation and is absent from the active ReturnOut catalog; no DEV14-to-Rxx mapping exists. R10 requires an eligible monetary debit, the configured/scheduled same-day cycle window, and a proven absent prenotification or explicit typed lack-of-authorization/agreement basis. The historic global AchCycle ordinal delta is removed. Effective-dated AchReturnPolicy.MaxCycles supplies the configured limit; scheduled AchCycle/ClearingHouseCycleConfig snapshots determine return opportunities and fail closed when policy/order is unresolved. Previous operational days and expired windows fail closed from ReturnOut. The official V35 table-driven Addenda 99 guard remains unchanged.
-CERTIFICATION_EVIDENCE: GitHub Actions run 34154650922 for stabilization commit 693a6df458a331ea3608504146c0beabbedb7d72 succeeded: broad build-and-test, ReturnOut concurrency (isolated SQL Server + PostgreSQL), and Outgoing monitor (isolated SQL Server + PostgreSQL). The three stale DEV14 ReturnOut test expectations were corrected; Release build had 0 errors/0 warnings. No Claims capability was added.
-SEPARATE_GAP: ACHCOL-CLAIMS-DEV14 remains CONFIRMED GAP — IMPLEMENTATION PENDING.
-NEXT_ACTION: Continue the active shared metadata delivery objective; do not reopen RET-GAP-019 without contradictory current evidence.
-DEVELOPMENT_RULE: Do not map DEV14 to R10, R13, R29, or any Rxx; do not serialize DEV14 into Addenda 99.
-
-## Normative Decisions and Contradictions
+Official NACHA-M behavior is profile/configuration driven. Supported ordinary runtime must use the exact selected immutable PUBLISH snapshot for applicable semantics and physical layout; required missing, invalid, or ambiguous authority fails closed. Publication snapshots preserve generation-critical data and trace lineage by value. Published profiles and referenced definitions cannot be silently changed in place; a new generation/version is required. Official-profile seeding compares existing published definitions semantically. Direct AchDbContext tracked writes enforce this invariant. Do not add legacy hardcoded static fallback. ACH 35.1/V35 and the accepted CENIT publication successors are current ordinary winners according to effective date and selection; historical snapshots remain intact.
 
 ### DEC-ACHCOL-R10-DEV14-001
 
-STATUS: ACCEPTED — DURABLE BUSINESS/OPERATIONAL DECISION
-DATE_ACCEPTED: 2026-09-06
-SCOPE: ACH Colombia / non-consented debit / R10 Return versus DEV14 Claims
+Accepted 2026-09-06 for ACH Colombia non-consented debit. R10 is the NACHA-M Return path within the configured maximum four-cycle same-day rejection window when no prenotification exists or no Receiver User authorization/agreement is explicitly established. Unknown data does not prove absent authorization. Effective-dated AchReturnPolicy.MaxCycles and scheduled cycle snapshots govern the opportunity; do not treat four cycles as an absolute CycleNumber, four hours, or a hardcoded cutoff. Expired or previous-day cases belong to the separate DEV14 Claims path. DEV14 is rejected before ReturnOut persistence/generation, absent from its active cause catalog, and never mapped to R10/R13/R29/another Rxx or serialized into Addenda 99. RET-GAP-019 is CLOSED; ACHCOL-CLAIMS-DEV14 remains pending. Evidence: GitHub Actions 34154650922 passed broad backend and isolated SQL Server/PostgreSQL ReturnOut/monitor jobs.
 
-RULE:
-A non-consented ACH debit still within the maximum four-cycle rejection period may use R10 when the R10 condition is satisfied:
-- no prenotification; or
-- no Receiver User authorization/agreement.
+### DEC-CLASSIFICATION-001 / DEC-INBOUND-SIMULATOR-001 / DEC-DIFFERENTIAL-001
 
-Once that period has elapsed or the transaction belongs to previous days, the case is handled through the ACH Claims Module using DEV14.
+Classification is per entry: CFA-source Debit -> ProcContrapartidas; external-source Credit -> ProcTransacciones; prenotification -> no monetary SOAP; ambiguity -> ManualReviewRequired. The inbound simulator represents an external non-default counterparty and is generate-only: no automatic import, transmission, or transaction mutation. Prenotification differential responses use non-monetary, idempotent RegistrarRespuestaTransaccion, not a physical simulator file.
 
-INVARIANT:
-R10 and DEV14 are separate operational paths. DEV14 is a Claims-workflow code, not a NACHA-M Addenda 99 Rxx return cause. DEV14 R10 is not a mapping: there is no DEV14 -> R10, DEV14 -> R13, DEV14 -> R29, or DEV14 -> generic Rxx serialization mapping. Addenda 99 DEV14 serialization is prohibited.
+### DEC-ROR-POLICY-001 / INV-RETURN-CORRELATION-001
 
-FOUR_CYCLE_GUARDRAIL:
-Do not interpret "four cycles" as CycleNumber <= 4, four hours, or a fixed fourth-cycle cutoff without explicit implementation evidence. Use the existing configurable ACH Colombia cycle-policy boundary where applicable.
+Return-of-return eligibility uses the original Return clearing house, configured cause, transaction type, and elapsed operational window; ACH Colombia and CENIT rules remain separate. An incoming Return must match exact original trace and amount before mutating the original transaction.
 
-ANTI_DRIFT:
-Do not reopen the former R10/DEV14 normative ambiguity unless a later explicitly accepted ACH Colombia clarification supersedes this decision.
+### INV-DIFFERENTIAL-IDEMPOTENCY-001 / INV-DEFINITIVE-RESPONSE-001
 
-IMPLEMENTATION_FINDING:
-RET-GAP-019 was certified closed on 2026-09-07. DEV14 is Claims-only and rejected before ACH Colombia ReturnOut persistence/generation; it is absent from the active ReturnOut catalog and has no Rxx mapping. R10 requires a monetary debit, a configured effective-dated AchReturnPolicy.MaxCycles window over scheduled cycle snapshots, and either proven absent prenotification or an explicit typed no-authorization/agreement basis; unknown data does not prove absent authorization. Previous-day and expired cases fail closed. GitHub Actions run 34154650922 succeeded for the broad suite and isolated SQL Server/PostgreSQL ReturnOut and monitor jobs. No DEV14 Claims capability was added; ACHCOL-CLAIMS-DEV14 remains CONFIRMED GAP — IMPLEMENTATION PENDING.
-
-### NORM-DEV14-V35-001
-
-STATUS: SUPERSEDED BY DEC-ACHCOL-R10-DEV14-001
-DO NOT USE: The former normative-contradiction interpretation and external-clarification-pending state are obsolete.
-
-## Recently Closed / Reconciled History
-
-- RET-GAP-001, RET-GAP-002: incoming application/audit convergence and DB-first idempotency remain CLOSED.
-- RET-GAP-003, RET-GAP-004, RET-GAP-017: ACH Colombia ReturnOut lifecycle, V35 physical generation for valid Annex causes, transport, acknowledgement, and idempotency remain CLOSED.
-- RET-GAP-006, RET-GAP-016: former CENIT ReturnOut/ReturnIn gaps are CLOSED by the 2026 layouts, services, tests, and transport implementation.
-- RET-GAP-012: CENIT Return of Return is CLOSED.
-- RET-GAP-013, RET-GAP-014: ACH Colombia and CENIT prenotification differential responses are CLOSED by clearing-house-isolated RegistrarRespuestaTransaccion processing.
-- RET-GAP-015: simulator support is CLOSED for the current generate-only scope; differential responses are not physical simulator files.
-- RET-GAP-005 is SUPERSEDED by the later CENIT 2026 file contract and managed transport design.
-- RET-GAP-011 is SUPERSEDED by the current no-participant-ACH-ROR decision; CENIT ROR remains a separate rail.
-- RET-GAP-008 and RET-GAP-009 remain outside the ordinary transactional backlog unless a direct dependency is demonstrated. RET-GAP-018 is CLOSED; its existing unified durable lineage remains the reused production-operability owner.
-- RET-CENIT-IN-000, RET-CENIT-IN-001, RET-CENIT-OUT-001, RET-CENIT-ROR-001, CENIT-RET-TRANSPORT-001, and DIFF-RESP-001 are delivery aliases/sub-jobs, not additional active functional gaps.
-- Do not reopen a CLOSED item without contradictory current repository evidence.
-
-## Durable Architecture and Business Decisions
-
-### MFT_EXTERNAL_READINESS
-
-STATUS: APPLICATION_READY_EXTERNAL_DEPLOYMENT_PENDING (OPS-GAP-002.2D certified, 2026-09-07).
-EVIDENCE: The manual outbound retry permission bypass identified by MFT-EXTERNAL-READINESS-001 is closed at certified descendant fa85f5d9b3dedaece774facf828fdf104db969e5. ProfileEnabled and ManualOutboundAllowed fail closed before adapter handoff, CanRetry is aligned, and fresh SQL Server/PostgreSQL migration discovery for the existing 2B Administration model is certified by GitHub Dotnet CI 34182482659.
-CONSEQUENCE: No residual internal MFT blocker is proven within this scope. Enterprise MFT / GoAnywhere deployment, production topology/routes, service identity/credentials, connectivity, external contract and homologation remain external; no global UAT or release certification is inferred.
-
-### DEC-ACHCOL-R10-DEV14-001
-
-STATUS: ACCEPTED — durable operational decision; see the canonical entry in Normative Decisions and Contradictions.
-INVARIANT: DEV14 is Claims-only and never an Addenda 99 Rxx; R10 and DEV14 are not aliases. Retain the R10 condition and configurable-cycle guardrail stated in the canonical entry.
-
-### DEC-NACHA-PROFILES-001
-
-NACHA-M behavior is configuration/profile driven. Official flows must use published, unambiguous profiles and fail closed when required profiles are absent or invalid. Do not add hardcoded legacy layouts.
-
-### DEC-CLASSIFICATION-001
-
-Operational classification is per entry:
-- CFA as source -> Debit -> ProcContrapartidas;
-- external institution as source -> Credit -> ProcTransacciones;
-- Prenotification -> no monetary SOAP call;
-- ambiguous semantics -> ManualReviewRequired.
-
-### DEC-INBOUND-SIMULATOR-001
-
-The inbound simulator represents an external non-default counterparty and is generate-only: create the file and metadata, but do not auto-import, transmit, or mutate transaction state.
-
-### DEC-DIFFERENTIAL-001
-
-Prenotification differential responses are processed through RegistrarRespuestaTransaccion rather than a physical differential NACHA file. The operation is non-monetary and idempotent.
-
-### DEC-ROR-POLICY-001
-
-Return-of-return eligibility depends on the original Return clearing house, configured cause catalog, transaction type, and elapsed operational window. ACH Colombia and CENIT are separate rails and must not infer rules from each other.
-
-## Durable Invariants
-
-### INV-RETURN-CORRELATION-001
-
-An incoming Return must match the exact original trace and the original transaction amount. A trace match with a different amount is not an exact correlation and must not mutate the original transaction.
-
-### INV-DIFFERENTIAL-IDEMPOTENCY-001
-
-Differential responses must not move money and must not be applied twice.
-
-### INV-DEFINITIVE-RESPONSE-001
-
-A transaction with a successful or functionally definitive SOAP response must not be resent.
+Differential responses must not move money or apply twice. Never resend a transaction after a successful or functionally definitive SOAP response.
 
 ### INV-CENIT-LOCAL-GATEWAY-001
 
-CENIT local Gateway simulator is disabled by default and prohibited in Production.
+CENIT local Gateway simulator is disabled by default and prohibited in Production. Local runtime E2E does not certify Banco de la República connectivity or institutional homologation.
 
-## Known Traps
+## Known traps
 
-### TRAP-DATE-UTC-001
+- TRAP-DATE-UTC-001: Business dates use the configured operational timezone, not UTC date by default.
+- TRAP-FUTURE-CYCLE-001: Cycle selection and simulator requests cannot target future operational dates.
+- TRAP-ADDENDA99-001: ACH Colombia V35 Return Addenda 99 has three-character physical cause at positions 4–6 and original trace at 7–21. DEV14 cannot occupy that field.
+- TRAP-NORMATIVE-VERSION-001: Local RAG may contain different effective versions; check applicability and supersession, not search rank. ACH Colombia V35 April 2026 is current; V36 needs a later explicit decision.
+- STALE TEST FIXTURE is a known source of historical CI failures, including pre-V35 Addenda 99 offset/length fixtures and old DEV14 ReturnOut expectations. Those were corrected; do not treat those old failures as current functional gaps.
 
-Do not derive business dates from UTC date when the configured operational timezone governs the day.
+## Evidence pointers
 
-### TRAP-FUTURE-CYCLE-001
+- OFFICIAL_PROFILE_VERSION_WORKFLOW: 295 focused tests, 2707 passed/0 failed/15 skipped broad backend, Release build, and fresh SQL Server/PostgreSQL migration/seed/restart and HTTP selection proof.
+- DBCONTEXT_IMMUTABILITY_HARDENING: 37 focused guard tests, 200 affected fixture tests, 2744 passed/0 failed/15 skipped broad backend, Release build, and real SQL Server/PostgreSQL persistence, LIVE mutation isolation, restart/reseed proof.
+- INBOUND_POSTSELECTION_NON_PSE: 2749 passed/0 failed/15 skipped broad backend retry, Release build, real SQL Server/PostgreSQL migration/seed, HTTP ingestion, PUBLISH checks, restart/reseed, and LIVE mutation isolation. No schema, migration, snapshot-format, or historical PUBLISH rewrite.
+- OPS-GAP-005: real independent-context concurrency 96/96 and clean two-API runtime 100/100 distinct persisted traces per provider; GitHub Actions 32799729074.
+- OPS-GAP-002.2D: retry permission 3/3, managed MFT 36/36, fresh-provider monitor 2/2; GitHub Actions 34182482659.
+- CENIT-RUNTIME-E2E-001: Docker SQL Server/API/SPA and folder-backed Gateway lifecycle with Playwright, idempotency, and terminal-state protection; external homologation not claimed.
+- Latest accepted product commit and remote CI status are recorded above. Do not transfer these certifications to a later changed product commit.
 
-Cycle selection and simulator requests must not target a future operational date.
+## PROJECT_REPOSITORY_CLEANUP
 
-### TRAP-ADDENDA99-001
+STATUS: CLOSED for the current-tree maintenance scope. Generated tracked CI/Playwright output under `_ci_artifacts/` and `pt-results/` was removed, narrow root ignore rules were added, and permanent agent instructions/current project memory were consolidated. Product code, tests, workflows, schema, and migrations were unchanged; the Release solution build passed. Historical Git blobs remain reachable and are a separate optional hygiene concern. No global product recertification or external UAT follows from this cleanup.
 
-ACH Colombia V35 incoming and outgoing Return Addenda 99 uses:
-- a three-character physical cause at positions 4-6, governed by Annex 9;
-- original trace at positions 7-21.
+## Context routing
 
-DEV14 is not valid in this physical field. DEC-ACHCOL-R10-DEV14-001 prohibits treating it as an Rxx alias or modifying the layout to fit it.
-
-### TRAP-NORMATIVE-VERSION-001
-
-Local RAG contains normative artifacts from different effective dates. Resolve the latest applicable document and supersession before using a rule; do not trust search rank alone. For current ACH Colombia behavior, use V35 April 2026.
-
-### TRAP-RET-V35-TEST-FIXTURES-001
-
-At refresh, the main dotnet CI run for e22fd346 failed 11 tests because two legacy characterization helpers still wrote a five-character cause and original trace at the pre-V35 offset:
-- AchIncomingReturnApplicationAndOrphanCharacterizationTests: 7 failures;
-- RejectionTotalVsPartialCharacterizationTests: 4 failures.
-
-The corrected V35 ingestion and linker focal suites pass. This is a stale automated-evidence fixture contradiction, not a second functional GAP. It must be repaired before CI can certify a candidate.
-
-## Release Candidate State
-
-### RC-CURRENT
-
-COMMIT: 523f5ae530085761ca494ccdb6b6ed6d67a71a46
-STATUS: CI_VERIFIED — OPS-GAP-002.2C SCOPE ONLY; NOT A GLOBAL RELEASE CERTIFICATION
-CI: Dotnet CI 34161860666 PASS (2471 passed, 15 skipped; Outgoing monitor 2/2 and ReturnOut concurrency 4/4 across SQL Server + PostgreSQL). Angular CI 34161860829 PASS.
-RUNTIME_E2E: Existing Angular CI local-runtime suite 7 passed / 1 skipped at this commit. No enterprise Managed MFT deployment or external homologation certified.
-GAUNTLET: NOT_RUN
-UAT: NOT_CERTIFIED
-
-## Next Job
-
-### NEXT-DELIVERY-001
-
-JOB_ID: NOT_SELECTED
-STATUS: AWAITING_PRIORITIZATION
-CONTEXT: NACHA-RULE-METADATA.2B and OPS-GAP-002.2C are CLOSED. Select the next authorized slice from the remaining backlog; do not reopen these closed slices. External Managed MFT deployment remains a separate operational dependency.
-
-## Recent Sessions
-- 2026-09-18: DBCONTEXT_IMMUTABILITY_HARDENING closed direct tracked published-config writes across both real providers; broad backend CI-equivalent 2744/0/15. See DBCONTEXT_IMMUTABILITY_HARDENING.
-- 2026-09-17: OFFICIAL_PROFILE_VERSION_WORKFLOW closed with SQL Server and PostgreSQL live certification and 2707/0/15 broad backend tests; PSE remains deferred. See OFFICIAL_PROFILE_VERSION_WORKFLOW and PSE-SCOPE-001.
-- 2026-09-16: NACHA-RULE-METADATA-STATIC-LAYOUT-AUTHORITY.OUTBOUND-VALIDATION closed post-PUBLISH exact static ACH/CENIT layout comparison for supported ordinary outbound while retaining generic structural fail-closed and publication-time exact normative validation; 2621/0/15 of 2636 backend tests, byte parity, no schema/profile/snapshot change, and inbound authority remains open.
-- 2026-09-15: NACHA-RULE-METADATA-STATIC-LAYOUT-AUTHORITY.OUTBOUND-T7-SELECTOR closed ACH outbound T7 semantic selection over immutable PUBLISH predicates/defaults with VariantCode identity-only behavior, exact four-family byte parity, 2618/0/15 of 2633 backend tests, and no schema change; outbound exact validation and inbound authority remain open.
-- 2026-09-15: NACHA-RULE-METADATA-TXCODE-ORDINARY closed supported ordinary runtime TransactionCode authority: registration converges every reachable immutable PUBLISH authority, generation validates the persisted code, Type-7 no longer infers semantics from literal codes, and the exact backend CI-equivalent passed 2599/0/15 of 2614 with no schema change.
-- 2026-09-15: NACHA-RULE-METADATA-TXCODE-CUTOVER-BASELINE established immutable TXCODE-aware ACH 35.1 and fixed CENIT 1.2 publication snapshots with baseline parity, supported predecessor preservation, chamber-scoped code non-reassignment, and no schema change; TransactionPersister static authority remains for the next runtime cutover.
-- 2026-09-13: NACHA-RULE-METADATA.2E.3-CI left the snapshot-backed ordinary runtime unchanged. Broad CI exposed a functional fixture that supplied synthetic PAGOS -> PPD only after publication; the fixture now seeds it before official publication, and the CI-equivalent filter passed with 2548 passed, 0 failed, and 15 skipped.
-- 2026-09-12: NACHA-RULE-METADATA.2E.2-TRACE captured the official renderer's layout/field row IDs and field display names in new publication snapshots. Existing V1 artifacts remain semantically readable but fail explicit trace-lineage reads without historical enrichment; ordinary generation remains LIVE-backed pending 2E.3.
-- 2026-09-09: NACHA-RULE-METADATA.2E.2 closed the versioned publication artifact: complete deterministic typed snapshots, by-value semantic authority, atomic publication, fail-closed legacy/version reading, and unbounded PostgreSQL/SQL Server storage; runtime snapshot consumption remains 2E.3.
-- 2026-09-08: NACHA-RULE-METADATA.2E.1 closed the application-level published-generation immutability boundary: BORRADOR-only edits, one-way publication, non-destructive official seed verification, and protection of semantic rule sets shared with published profiles; 2E.2 snapshot architecture remains open.
-- 2026-09-08: NACHA-RULE-METADATA.2D closed the published ServiceClassCode/entry-direction contract through existing CfgRuleSet metadata, typed resolution, publication rejection, chamber-specific seeding, and generic runtime cross-field enforcement; layout snapshots and broader SEC/static transaction-code debt remain out of scope.
-- 2026-09-07: RET-GAP-019 certification closed after stale DEV14 ReturnOut expectations were corrected and GitHub Actions run 34154650922 passed broad tests plus isolated SQL Server/PostgreSQL ReturnOut and monitor jobs. ACHCOL-CLAIMS-DEV14 remains unimplemented.
-- 2026-09-07: RET-GAP-019 implementation established the narrow ACH Colombia ReturnOut delta: DEV14 is rejected as Claims-only before persistence/generation, R10 has a deterministic basis, and the window uses effective policy plus scheduled cycle snapshots. Subsequent certification is recorded above; ACHCOL-CLAIMS-DEV14 remains unimplemented.
-- 2026-09-07: RET-GAP-019 audit accepted DEC-ACHCOL-R10-DEV14-001, removed the obsolete normative block, and proved a ReturnOut/cycle-policy product delta plus a distinct DEV14 Claims capability gap; no product code changed.
-- 2026-09-01: NACHA-RULE-METADATA.2A moved official CENIT PPD/CCD/CTX partition, cardinality, and addenda policy into published profile tags resolved as a typed contract; generated behavior and focused regressions remained unchanged.
-- 2026-08-31: OPS-GAP-002 implemented the internal ACH Colombia managed-file lifecycle with shared automatic/manual execution, durable immutable evidence, retries, recovery, archive/retirement, authorized API, and Spanish operations UI; external managed MFT deployment remains an operational dependency.
-- 2026-08-31: CENIT-RUNTIME-E2E-001 locally certified the ordinary CENIT outbound-to-response lifecycle through Docker SQL Server/API/SPA, an atomic folder-backed test Gateway, real persistence/API, and Playwright; ACK, NACK, multi-error operator rejection, reconciliation, no activity, idempotency, and terminal protection passed, while external Banco Gateway/PO homologation remains separate under OPS-GAP-003.
-- 2026-08-30: CENIT-NACHA-IN-001 implemented direction-aware ordinary inbound PPD/CCD/CTX profiles by reusing the official physical descriptors under section 7.3.1; multi-Addenda ownership, received batches, controls, profile failures, and shared Return/ACH regressions passed. CENIT-FORMAT-NACHAM is internally closed; external homologation and OPS-GAP-003/004 remain separate.
-- 2026-08-30: CENIT-NACHA-OUT-002B implemented the official CENIT CTX table-driven outbound profile from sections 3.2/5.1/5.2/6.2 and Annexes 1.2/1.4/1.5/1.8/1.9, including multi-addenda sequencing/association and fail-closed profile selection; CENIT-NACHA-OUT-002 is internally closed, with external homologation pending.
-- 2026-08-30: CENIT-NACHA-OUT-002A resolved the outbound single-file blocker and PPD/CCD cardinality/batch allocation with an additive 0..N artifact result, post-partition controls, exact membership, and unique per-file naming.
-
-- 2026-08-25: OPS-GAP-006 CLOSED with effective-dated chamber-isolated cycle stages and transaction eligibility consumed by validation, resolution, generation, dispatch, and Quartz; PostgreSQL, SQL Server, backend, and Angular evidence passed.
-
-- 2026-08-24: OPS-GAP-005 CLOSED with provider-native atomic daily trace allocation, database uniqueness enforcement, and clean PostgreSQL/SQL Server two-replica proofs of 100/100 persisted distinct traces.
-
-- 2026-08-24: OPS-GAP-001 remains CLOSED after V35 Type-7 parser stabilization and test-only legacy Type-99 fixture alignment; GitHub dotnet-ci run 32777030756 was fully green.
-
-- 2026-08-24: GAP-REFRESH-002 reconstructed the non-Returns production backlog at HEAD eee79474; six OPS gaps were added, existing CENIT/NACHA/traceability owners were reused, and closed Returns state was preserved.
-
-## Context Routing Guardrails
-
-- Current executable repository evidence outranks historical backlog documents and Project Memory.
-- ACH Colombia and CENIT must be evaluated independently.
-- Operational Return processing remains separate from accounting/reconciliation unless a direct transactional dependency is demonstrated.
-- External homologation and release certification are separate from internal functional completion.
-- Project Memory is not a normative or source-code oracle.
+Use Project Memory for prior verified state, Codebase Memory for source structure, Local RAG for normative rules, current Git/source/tests for current implementation, and direct runtime evidence for observed behavior. Preserve contradictions instead of forcing current evidence to match memory. Keep future memory updates compact and English.
