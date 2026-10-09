@@ -1,0 +1,74 @@
+name: angular22-lockgen-temp
+
+on:
+  push:
+    branches:
+      - chore/angular22-lockgen-20261009
+    paths:
+      - '.tmp/angular22-lockgen/**'
+      - '.github/workflows/angular22-lockgen-temp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  lock-and-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: .tmp/angular22-lockgen
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+
+      - name: Generate package lock
+        run: npm install --package-lock-only --ignore-scripts --no-fund
+
+      - name: Clean install from generated lock
+        run: npm ci --ignore-scripts --no-fund
+
+      - name: Validate dependency tree
+        run: npm ls --all --json > npm-ls.json
+
+      - name: Capture key versions
+        run: npm ls @angular/core @angular/cli @angular/compiler-cli @angular-devkit/build-angular @angular/material @angular/cdk typescript rxjs zone.js ag-grid-angular ag-grid-community @playwright/test jasmine-core --depth=0 > key-versions.txt
+
+      - name: Audit all dependencies
+        id: audit
+        shell: bash
+        run: |
+          set +e
+          npm audit --audit-level=low --json > npm-audit.json
+          rc=$?
+          echo "audit_rc=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload lock and audit evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: angular22-lockgen
+          path: |
+            .tmp/angular22-lockgen/package.json
+            .tmp/angular22-lockgen/package-lock.json
+            .tmp/angular22-lockgen/npm-ls.json
+            .tmp/angular22-lockgen/npm-audit.json
+            .tmp/angular22-lockgen/key-versions.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce zero known vulnerabilities
+        if: steps.audit.outputs.audit_rc != '0'
+        run: |
+          echo 'npm audit reported one or more known vulnerabilities.'
+          exit 1
