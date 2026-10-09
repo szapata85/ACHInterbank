@@ -1,0 +1,54 @@
+name: angular22-toolchain-temp
+
+on:
+  push:
+    branches:
+      - chore/angular22-lockgen-20261009
+    paths:
+      - '.github/workflows/angular22-toolchain-temp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  toolchain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.21.0'
+
+      - name: Resolve Angular 22 toolchain
+        working-directory: .tmp/angular22-lockgen
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-fund
+          npm ci --ignore-scripts --no-fund
+          npm audit --audit-level=low
+
+      - name: Package toolchain
+        shell: bash
+        run: |
+          NODE_ROOT="$(dirname "$(dirname "$(command -v node)")")"
+          echo "Node root: $NODE_ROOT"
+          tar -I 'zstd -3 -T0' -cf /tmp/angular22-node-modules.tar.zst -C .tmp/angular22-lockgen node_modules package.json package-lock.json
+          tar -I 'zstd -3 -T0' -cf /tmp/node-v24.21.0-linux-x64.tar.zst -C "$NODE_ROOT" .
+          ls -lh /tmp/angular22-node-modules.tar.zst /tmp/node-v24.21.0-linux-x64.tar.zst
+
+      - name: Upload offline toolchain
+        uses: actions/upload-artifact@v6
+        with:
+          name: angular22-offline-toolchain
+          path: |
+            /tmp/angular22-node-modules.tar.zst
+            /tmp/node-v24.21.0-linux-x64.tar.zst
+          if-no-files-found: error
+          retention-days: 1
