@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" targetNamespace="urn:cfa:p42:broken">
+  <wsdl:types>
+</wsdl:definitions>

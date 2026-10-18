@@ -1,0 +1,63 @@
+{
+  "program": "NACHA-CONFIG-UX-001",
+  "phase": "UX0",
+  "capturedOn": "2026-10-11",
+  "purpose": "Guardrail de línea base del motor NACHA-M y archivos golden. UX1-UX6 deben conservar estos bytes salvo cambio normativo explícito fuera de este programa.",
+  "files": [
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaFileBuilder.cs",
+      "sha256": "16a92720d996823cc064eeb6a2036a867bae14b976ae7b9cbd11badc82855a08",
+      "bytes": 4555
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaFileGenerationCoordinator.cs",
+      "sha256": "1923dd525fe5fc963d7969a86b7e5e04ec3d552df1517427987a32e7fd189e01",
+      "bytes": 154398
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaConfigResolver.cs",
+      "sha256": "b7cd2a7c88a32cc6768ff250ec7532699a2f333e5d10e53d14a0703a41c28ce4",
+      "bytes": 38539
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaOfficialRecordRenderer.cs",
+      "sha256": "afbcc8f93268c2e644d11baa1c69c6e60054e9ed4f6602c4038e0983616ad8e2",
+      "bytes": 29290
+    },
+    {
+      "path": "src/Cfa.ACHInterbank.Persistence/ACH/Services/Implementation/NachaPublicationSnapshotSerializer.cs",
+      "sha256": "14414977c617b46f12227d2369095025841048e2f3f3b11a7bc90d4be312d0eb",
+      "bytes": 23724
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/ACHColombia/Incoming/ACH_COL_IN_001.ach",
+      "sha256": "60240f257d818ac1a1b648c48de9f9cfb2a2e61b2110374f5cb4347b49d66032",
+      "bytes": 1060
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/ACHColombia/Outgoing/ACH_COL_OUT_001.ach",
+      "sha256": "779cabff79863e66cac79b77e91525687e3b6e72cff104b96caaeff9fa63315f",
+      "bytes": 1060
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/ACHColombia/Returns/ACH_COL_RET_001.RET",
+      "sha256": "fde736a96c1c24be0392e1e56bdd71e4910b63b287d5e8c47479a93afd7b96ee",
+      "bytes": 1060
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/CENIT/Incoming/CENIT_IN_001.ach",
+      "sha256": "16d87fc282fd4bb144a08962bf10d52f8c97745a4aaf31131c786f801ceceb93",
+      "bytes": 1060
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/CENIT/Outgoing/CENIT_OUT_001.ach",
+      "sha256": "626670feaf2f9323f92518f6d905d079864283efd6b0ab80df7084f303330836",
+      "bytes": 1060
+    },
+    {
+      "path": "tests/Cfa.ACHInterbank.Tests/TestData/Nacha/GoldenFiles/CENIT/Returns/CENIT_RET_001.RET",
+      "sha256": "047fab8f6a35a4e063974c0dabe9f736cd90fd0840e75ab672c831bfdc40ca95",
+      "bytes": 1060
+    }
+  ]
+}

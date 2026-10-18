@@ -1,0 +1,29 @@
+# Manifest del paquete CFA-SOAP-UX-MAP-001
+
+| Archivo | SHA-256 |
+|---|---|
+| `API_CONTRACTS.md` | `8a443cfd2a4fde6b7630d2f77159cd967d357df19daad7116bd328aa14af6e63` |
+| `ARCHITECTURE_OVERVIEW.md` | `3ac99f1ff6fbd187aac769b8aac08ad79a1fd9d110cea8c229a8f60f7aa8f6b5` |
+| `BACKEND_SOLID_DESIGN.md` | `482832808bafddccf8f8dd33f49d401ce921b4491937f633bfdd7af1dad6cb72` |
+| `CHATGPT_MICRO_START.md` | `291b2b02af9bcf997d4fc011561ec6249650cdfdc0d605db9e852821b0bfb0d2` |
+| `DATA_MODEL_AND_MIGRATIONS.md` | `edd8fab1cfc9df9d2eb605cafb5efdd23f7ced367cc31947b9fc75e63eba33d2` |
+| `IMPLEMENTATION_PLAN.md` | `bc978cc01a244e67e62da46254d00fcba6eb4c7e9ba716d2ae5452c007b08ef4` |
+| `MASTER_PROMPT_CHATGPT.md` | `06154768aae498b913ff9f888c04f29ac47e31c7cffa7de7258d70dc30186bce` |
+| `MEMORY_PATCH.md` | `77cb41dd6b9ec1b7b42070a5dfee528d4d514772fcfea1586cfb75e7c9b6dd11` |
+| `MEMORY_STATE.md` | `b180c3f6b8bbebe32a60daa87b0c6e34222cef436bdf388b0cb5e672001ebb1f` |
+| `MICRO_PROMPTS_INDEX.md` | `f5cf167b45780db24f6954ac4e2cf42bba56f5fa2afc9040f13bf851fcb720f4` |
+| `MICRO_PROMPT_PROTOCOL.md` | `a1b3b450e250994e7671d61893cfd6f53ce712a3f22dea6200df600ca43d4495` |
+| `README.md` | `436043454539c0c96050a7560e8a7effb0ed2d24304819b0c3bb9599a3a301df` |
+| `SOAP_CONTRACT_MAPPING_ARCHITECTURE.md` | `a5b515a7d871e901edb3749c8f494c1b72cdfdc84f8f2bcc9ed03c9800f5ca74` |
+| `SPA_UX_UI_ARCHITECTURE.md` | `71c91f0a0a262592563c159b3ab6cd8b1d141e8202dae206d2181c5bf0696e3e` |
+| `START_HERE.md` | `389fa8478fb65fbcb81517778047d62afaaa4d8efdbcb0f28d6b8efb2e6de3f8` |
+| `TESTING_AND_RELEASE_GATES.md` | `1588ea5961eaa5c6552622311ddd13d55fc834ede54cb3678e72e40dbc345886` |
+| `micro-prompts/P0.md` | `17cfc44fc330d0c2ff2208ffd3aed4f8c9f795e2e1d2e9ab1b446679fb632453` |
+| `micro-prompts/P1.md` | `74f39e1eb6dd5ae9620829af7ab6284e406b775d58ed0c0e18422f74c8e2b1bf` |
+| `micro-prompts/P2.md` | `2dff1593d495b7ea2527cb8d53d043ab67adb18cac0702d4dbeb412ee74a3fb2` |
+| `micro-prompts/P3.md` | `a00f8e66caa5453c7adb808fe70d05eb6b9d68d2a3c3f4389eee3a9c7a3c8dc0` |
+| `micro-prompts/P4.md` | `97b2486e9af88f07eb3ea80a13b508a650629b4ba42be4762632c85bc9cff1f6` |
+| `micro-prompts/P5.md` | `8a614c41f6d158e96a251fb3d62a6233dcb4efeb7df1414fb3dd46be60f1b997` |
+| `micro-prompts/P6.md` | `9b876cbf7839782aaee31d747f89fb5147b8f8ffa51630a8a511bd45494a8f93` |
+| `micro-prompts/P7.md` | `03fbd64a59b64df747bf5e722221a4db803d9fa738d1bbc276bd1cfcdfcdb1cb` |
+| `micro-prompts/P8.md` | `57c6978d19fd3fc1998f5e8c07e6eda77986499fbe715214662fab32202cb079` |

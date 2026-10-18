@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:cfa:p42:test"
+                  targetNamespace="urn:cfa:p42:test">
+  <wsdl:types>
+    <xs:schema targetNamespace="urn:cfa:p42:test" elementFormDefault="qualified">
+      <xs:element name="TestOperation">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="idCanal" type="xs:int" minOccurs="1" maxOccurs="1" />
+            <xs:element name="descripcion" type="xs:string" minOccurs="0" maxOccurs="1" nillable="true" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:schema>
+  </wsdl:types>
+  <wsdl:message name="TestOperationSoapIn">
+    <wsdl:part name="parameters" element="tns:TestOperation" />
+  </wsdl:message>
+  <wsdl:portType name="ITestService">
+    <wsdl:operation name="TestOperation">
+      <wsdl:input message="tns:TestOperationSoapIn" />
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="TestServiceSoap" type="tns:ITestService">
+    <soap:binding transport="http://schemas.xmlsoap.org/soap/http" style="document" />
+    <wsdl:operation name="TestOperation">
+      <soap:operation soapAction="urn:cfa:p42:test/TestOperation" style="document" />
+      <wsdl:input><soap:body use="literal" /></wsdl:input>
+    </wsdl:operation>
+  </wsdl:binding>
+</wsdl:definitions>

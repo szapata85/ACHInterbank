@@ -1,0 +1,744 @@
+{
+  "phase": "NAV4.2H",
+  "baseline": "NAV4.2G",
+  "baseline_src_app_sha256": "ba52a7a83c980ba302754ea3b776989cbf075a654b6e451230decd85751d4737",
+  "scope": "SPA validation message copy only",
+  "changes": [
+    {
+      "file": "web/ach-interbank-ui/src/app/features/admin/components/user-form.component.ts",
+      "old": "El dominio del correo no es válido",
+      "new": "Ingresa un correo con un dominio válido.",
+      "field_context": "user email validation getter",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/auth/reset-password.component.html",
+      "old": "Debe tener al menos 6 caracteres.",
+      "new": "Usa al menos 6 caracteres.",
+      "field_context": "newPassword",
+      "validator_error_key": "minlength",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/catalogs/components/bank-holidays.component.html",
+      "old": "La descripción es obligatoria.",
+      "new": "Ingresa una descripción con al menos un carácter visible.",
+      "field_context": "description",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/catalogs/components/bank-holidays.component.html",
+      "old": "El país es obligatorio.",
+      "new": "Ingresa un código de país con al menos un carácter visible.",
+      "field_context": "countryCode",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/clearing-houses/clearing-houses.component.html",
+      "old": "Use entre 2 y 20 caracteres válidos.",
+      "new": "Usa de 2 a 20 caracteres: letras mayúsculas, números, guion o guion bajo.",
+      "field_context": "code",
+      "validator_error_key": "pattern",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/clearing-houses/transaction-policies.component.html",
+      "old": "Seleccione el tipo de transacción.",
+      "new": "Selecciona el tipo de transacción.",
+      "field_context": "transactionType",
+      "validator_error_key": "required",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/clearing-houses/transaction-policies.component.html",
+      "old": "Seleccione la regla de prenotificación.",
+      "new": "Selecciona la regla de prenotificación.",
+      "field_context": "prenotificationMode",
+      "validator_error_key": "required",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/incoming-nacha-command-center/pages/incoming-nacha-orphans-page.component.html",
+      "old": "Escriba al menos 8 caracteres.",
+      "new": "Escribe al menos 8 caracteres.",
+      "field_context": "justification",
+      "validator_error_key": "minlength",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/incoming-nacha-command-center/pages/incoming-nacha-orphans-page.component.html",
+      "old": "Debe confirmar la revisión antes de continuar.",
+      "new": "Confirma la revisión antes de continuar.",
+      "field_context": "confirmed",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/integrations/pages/contract-import-stepper.component.html",
+      "old": "Seleccione una operación.",
+      "new": "Selecciona una operación.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/integrations/pages/contract-import-stepper.component.html",
+      "old": "SOAP Action es obligatorio para un XSD standalone.",
+      "new": "Ingresa SOAP Action para el XSD independiente.",
+      "field_context": "standaloneXsdSoapAction",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/integrations/pages/mapping-sets-page.component.html",
+      "old": "Seleccione un origen del catálogo.",
+      "new": "Selecciona un origen del catálogo.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/integrations/presentation/mapping-validation.presenter.ts",
+      "old": "Revise esta configuración antes de continuar.",
+      "new": "Revisa esta configuración antes de continuar.",
+      "field_context": "integration mapping validation fallback",
+      "validator_error_key": "unknown validation code fallback",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/integrations/presentation/mapping-validation.presenter.ts",
+      "old": "Revise la configuración de este dato.",
+      "new": "Revisa la configuración de este dato.",
+      "field_context": "integration mapping validation fallback",
+      "validator_error_key": "unknown validation code fallback",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/operational-restrictions/operational-restrictions.component.html",
+      "old": "Seleccione una cámara.",
+      "new": "Selecciona una cámara.",
+      "field_context": "scope",
+      "validator_error_key": "houseRequired",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/operational-restrictions/operational-restrictions.component.html",
+      "old": "Seleccione una PolicyVersion.",
+      "new": "Selecciona una versión de política.",
+      "field_context": "scope",
+      "validator_error_key": "policyRequired",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/operational-restrictions/operational-restrictions.component.html",
+      "old": "Seleccione un ciclo versionado.",
+      "new": "Selecciona un ciclo versionado.",
+      "field_context": "scope",
+      "validator_error_key": "cycleRequired",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/operational-restrictions/operational-restrictions.component.html",
+      "old": "Complete la cámara, PolicyVersion y ciclo requeridos para el ámbito seleccionado.",
+      "new": "Completa la cámara, la versión de política y el ciclo requeridos para el ámbito seleccionado.",
+      "field_context": "cycleRequired",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/operational-restrictions/operational-restrictions.component.html",
+      "old": "Debe ser un entero.",
+      "new": "Ingresa un número entero.",
+      "field_context": "maxTransactionsPerCycle",
+      "validator_error_key": "integer",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/operational-restrictions/operational-restrictions.component.html",
+      "old": "EffectiveTo no puede ser anterior a EffectiveFrom.",
+      "new": "La vigencia final no puede ser anterior a la vigencia inicial.",
+      "field_context": "effectiveFrom",
+      "validator_error_key": "dateRange",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm de 00:00 a 23:59.",
+      "new": "Usa el formato HH:mm de 00:00 a 23:59.",
+      "field_context": "startTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm de 00:00 a 23:59.",
+      "new": "Usa el formato HH:mm de 00:00 a 23:59.",
+      "field_context": "endTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "La hora de cutoff es obligatoria.",
+      "new": "La hora de corte de entrada es obligatoria.",
+      "field_context": "cutoffTime",
+      "validator_error_key": "required",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm de 00:00 a 23:59.",
+      "new": "Usa el formato HH:mm de 00:00 a 23:59.",
+      "field_context": "cutoffTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm de 00:00 a 23:59.",
+      "new": "Usa el formato HH:mm de 00:00 a 23:59.",
+      "field_context": "outputReleaseTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm.",
+      "new": "Usa el formato HH:mm.",
+      "field_context": "compensationStatementStartTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm.",
+      "new": "Usa el formato HH:mm.",
+      "field_context": "compensationStatementEndTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm.",
+      "new": "Usa el formato HH:mm.",
+      "field_context": "compensationPaymentStartTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm.",
+      "new": "Usa el formato HH:mm.",
+      "field_context": "compensationPaymentEndTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm.",
+      "new": "Usa el formato HH:mm.",
+      "field_context": "outputReleaseStartTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "Use el formato HH:mm.",
+      "new": "Usa el formato HH:mm.",
+      "field_context": "outputReleaseEndTime",
+      "validator_error_key": "timeFormat",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/cycle-config-management/cycle-config-management.component.html",
+      "old": "El cutoff debe estar dentro de la ventana operativa.",
+      "new": "El corte de entrada debe estar dentro de la ventana operativa.",
+      "field_context": "allowsReturnOfReturn",
+      "validator_error_key": "cutoffOutside",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el identificador único de la operación.",
+      "new": "Ingresa el identificador único de la operación.",
+      "field_context": "transactionExternalId",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione la descripción de entrada de la lista.",
+      "new": "Selecciona la descripción de entrada de la lista.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el valor de la transacción.",
+      "new": "Ingresa el valor de la transacción.",
+      "field_context": "amount",
+      "validator_error_key": "required",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Use máximo dos decimales.",
+      "new": "Usa máximo dos decimales.",
+      "field_context": "amount",
+      "validator_error_key": "amountScale",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "El valor supera la longitud permitida.",
+      "new": "El valor supera el máximo permitido.",
+      "field_context": "amount",
+      "validator_error_key": "amountOverflow",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese un valor monetario válido.",
+      "new": "Ingresa un valor monetario válido.",
+      "field_context": "amount",
+      "validator_error_key": "invalidAmount",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione un cliente de la lista o elija diligenciamiento manual.",
+      "new": "Selecciona un cliente de la lista o elige diligenciamiento manual.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione una cuenta de origen válida.",
+      "new": "Selecciona una cuenta de origen válida.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el número de cuenta de origen.",
+      "new": "Ingresa el número de cuenta de origen.",
+      "field_context": "sourceAccountNumber",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Use entre 6 y 18 dígitos.",
+      "new": "Usa entre 6 y 18 dígitos.",
+      "field_context": "sourceAccountNumber",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione el tipo de persona del originador.",
+      "new": "Selecciona el tipo de persona del originador.",
+      "field_context": "sourcePersonType",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese la identificación del originador.",
+      "new": "Ingresa la identificación del originador.",
+      "field_context": "companyIdentification",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Use de 4 a 10 letras mayúsculas o números.",
+      "new": "Usa de 4 a 10 letras mayúsculas o números.",
+      "field_context": "companyIdentification",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el nombre o razón social del originador.",
+      "new": "Ingresa el nombre o razón social del originador.",
+      "field_context": "companyName",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione una entidad financiera destino de la lista.",
+      "new": "Selecciona una entidad financiera destino de la lista.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione el tipo de cuenta.",
+      "new": "Selecciona el tipo de cuenta.",
+      "field_context": "accountType",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione una cuenta destino elegible de la lista.",
+      "new": "Selecciona una cuenta destino elegible de la lista.",
+      "field_context": "isPrenotification",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el número de cuenta.",
+      "new": "Ingresa el número de cuenta.",
+      "field_context": "destinationAccountNumber",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Use entre 6 y 18 dígitos.",
+      "new": "Usa entre 6 y 18 dígitos.",
+      "field_context": "destinationAccountNumber",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione el tipo de identificación.",
+      "new": "Selecciona el tipo de identificación.",
+      "field_context": "recipientPersonType",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el número de identificación del receptor.",
+      "new": "Ingresa el número de identificación del receptor.",
+      "field_context": "recipientIdNumber",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el nombre o razón social del receptor.",
+      "new": "Ingresa el nombre o razón social del receptor.",
+      "field_context": "recipientName",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Seleccione el tipo de addenda.",
+      "new": "Selecciona el tipo de adenda.",
+      "field_context": "addendaType",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el código del recaudador.",
+      "new": "Ingresa el código del recaudador.",
+      "field_context": "collectorId",
+      "validator_error_key": "required",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Use hasta 13 dígitos.",
+      "new": "Usa hasta 13 dígitos.",
+      "field_context": "collectorId",
+      "validator_error_key": "pattern",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese el código de cliente del receptor.",
+      "new": "Ingresa el código de cliente del receptor.",
+      "field_context": "receiverCustomerCode",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese la descripción del servicio.",
+      "new": "Ingresa la descripción del servicio.",
+      "field_context": "serviceDescription",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Ingrese la información de la addenda.",
+      "new": "Ingresa la información de la adenda.",
+      "field_context": "information",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Debe registrar al menos una addenda.",
+      "new": "Registra al menos una adenda.",
+      "field_context": "information",
+      "validator_error_key": "missingAddenda",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.html",
+      "old": "Solo se admite la addenda tipo 05.",
+      "new": "Solo se admite la adenda tipo 05.",
+      "field_context": "invalidAddenda",
+      "validator_error_key": "invalidAddenda",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Debe registrar al menos una addenda completa.",
+      "new": "Registra al menos una adenda completa.",
+      "field_context": "transaction cross-field validation summary",
+      "validator_error_key": "missingAddenda",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "La descripción de entrada solo admite una addenda tipo 05.",
+      "new": "La descripción de entrada solo admite una adenda tipo 05.",
+      "field_context": "transaction cross-field validation summary",
+      "validator_error_key": "invalidAddenda",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Debe diligenciar la identificación requerida para esta operación.",
+      "new": "Ingresa la identificación requerida para esta operación.",
+      "field_context": "transaction cross-field validation summary",
+      "validator_error_key": "missingRecipientId",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Debe diligenciar el nombre asociado a la identificación del receptor.",
+      "new": "Ingresa el nombre asociado a la identificación del receptor.",
+      "field_context": "transaction cross-field validation summary",
+      "validator_error_key": "missingRecipientName",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Seleccione una opción válida de la lista.",
+      "new": "Selecciona una opción válida de la lista.",
+      "field_context": "transaction validation summary resolver",
+      "validator_error_key": "invalidSelection",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Campo obligatorio.",
+      "new": "Completa este campo.",
+      "field_context": "transaction validation summary resolver",
+      "validator_error_key": "required",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Formato inválido.",
+      "new": "Revisa el formato del valor ingresado.",
+      "field_context": "transaction validation summary resolver",
+      "validator_error_key": "pattern",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Longitud excedida. Máximo ${errors['maxlength'].requiredLength} caracteres.",
+      "new": "Usa máximo ${errors['maxlength'].requiredLength} caracteres.",
+      "field_context": "transaction validation summary resolver",
+      "validator_error_key": "maxlength",
+      "origin": "SPA_VALIDATION_COMPOSED"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Use máximo dos decimales.",
+      "new": "Usa máximo dos decimales.",
+      "field_context": "transaction validation summary resolver",
+      "validator_error_key": "amountScale",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Valor fuera del rango permitido.",
+      "new": "Ingresa un valor dentro del rango permitido.",
+      "field_context": "transaction validation summary resolver",
+      "validator_error_key": "min",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Ingrese un monto válido.",
+      "new": "Ingresa un monto válido.",
+      "field_context": "transaction validation summary resolver",
+      "validator_error_key": "invalidAmount",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/transactions/components/transaction-create/transaction-create.component.ts",
+      "old": "Revise el valor ingresado.",
+      "new": "Revisa el valor ingresado.",
+      "field_context": "integration mapping validation fallback",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html",
+      "old": "Seleccione una causal de devolución.",
+      "new": "Selecciona una causal de devolución.",
+      "field_context": "reasonCode",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/features/uat/components/nacha-inbound-simulator/nacha-inbound-simulator.component.html",
+      "old": "Ingrese la causal del rechazo.",
+      "new": "Ingresa la causal del rechazo.",
+      "field_context": "reasonCode",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/error-message.component.ts",
+      "old": "Campo obligatorio",
+      "new": "Completa este campo.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/error-message.component.ts",
+      "old": "El valor ingresado es demasiado bajo",
+      "new": "Ingresa un valor igual o mayor que el mínimo permitido.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/error-message.component.ts",
+      "old": "Formato inválido",
+      "new": "Revisa el formato del valor ingresado.",
+      "field_context": "integration mapping validation fallback",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/error-message.component.ts",
+      "old": "Formato de correo inválido",
+      "new": "Ingresa un correo electrónico válido.",
+      "field_context": "validation message",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/error-message.component.ts",
+      "old": "El dominio del correo no es válido",
+      "new": "Ingresa un correo con un dominio válido.",
+      "field_context": "user email validation getter",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/error-message.component.ts",
+      "old": "Se superó la longitud máxima permitida",
+      "new": "Reduce el texto a la longitud máxima permitida.",
+      "field_context": "user email validation getter",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/error-message.component.ts",
+      "old": "La cuenta de origen y destino no pueden ser iguales",
+      "new": "Usa cuentas de origen y destino diferentes.",
+      "field_context": "user email validation getter",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/error-message.component.ts",
+      "old": "Dato inválido",
+      "new": "Revisa el valor ingresado.",
+      "field_context": "integration mapping validation fallback",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/forms/mensajes-validacion.ts",
+      "old": "Este campo es obligatorio.",
+      "new": "Completa este campo.",
+      "field_context": "shared ui-error-campo resolver",
+      "validator_error_key": "required",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/forms/mensajes-validacion.ts",
+      "old": "Ingrese un correo electrónico válido.",
+      "new": "Ingresa un correo electrónico válido.",
+      "field_context": "shared ui-error-campo resolver",
+      "validator_error_key": "email",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/forms/mensajes-validacion.ts",
+      "old": "Debe tener mínimo ${e.requiredLength} caracteres.",
+      "new": "Usa al menos ${e.requiredLength} caracteres.",
+      "field_context": "shared ui-error-campo resolver",
+      "validator_error_key": "minlength",
+      "origin": "SPA_VALIDATION_COMPOSED"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/forms/mensajes-validacion.ts",
+      "old": "Debe tener máximo ${e.requiredLength} caracteres.",
+      "new": "Usa máximo ${e.requiredLength} caracteres.",
+      "field_context": "shared ui-error-campo resolver",
+      "validator_error_key": "maxlength",
+      "origin": "SPA_VALIDATION_COMPOSED"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/forms/mensajes-validacion.ts",
+      "old": "El valor mínimo permitido es ${e.min}.",
+      "new": "Ingresa un valor igual o mayor que ${e.min}.",
+      "field_context": "shared ui-error-campo resolver",
+      "validator_error_key": "min",
+      "origin": "SPA_VALIDATION_COMPOSED"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/forms/mensajes-validacion.ts",
+      "old": "El valor máximo permitido es ${e.max}.",
+      "new": "Ingresa un valor igual o menor que ${e.max}.",
+      "field_context": "shared ui-error-campo resolver",
+      "validator_error_key": "max",
+      "origin": "SPA_VALIDATION_COMPOSED"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/forms/mensajes-validacion.ts",
+      "old": "El formato ingresado no es válido.",
+      "new": "Revisa el formato del valor ingresado.",
+      "field_context": "shared ui-error-campo resolver",
+      "validator_error_key": "pattern",
+      "origin": "SPA_VALIDATION"
+    },
+    {
+      "file": "web/ach-interbank-ui/src/app/shared/forms/mensajes-validacion.ts",
+      "old": "El valor ingresado no es válido.",
+      "new": "Revisa el valor ingresado.",
+      "field_context": "integration mapping validation fallback",
+      "validator_error_key": "validation message / existing condition",
+      "origin": "SPA_VALIDATION"
+    }
+  ]
+}

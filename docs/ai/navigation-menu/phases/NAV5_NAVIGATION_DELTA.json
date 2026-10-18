@@ -1,0 +1,136 @@
+{
+  "phase": "NAV5",
+  "source_package": "ACHInterbank-R34-NAV-IA-NAV4.2J-FULL-PROJECT.zip",
+  "source_package_sha256": "3f3c297f2df4ee11e085ca32172a3f7b6667b8fc00ebf7a0b0dbfae5a1e61515",
+  "productive_files": [
+    "src/Cfa.ACHInterbank.Persistence/Navigation/Seeders/NavigationInformationArchitectureSeeder.cs"
+  ],
+  "baseline_file_sha256": "28371549f4b9150fdf738bee11454c98117ba420d1abae0e9971e2c49aee9f4c",
+  "nav5_file_sha256": "296ffd77544e8017d0fae4dce31a5267b2799a643f8e4dd888d96f79df3dac1c",
+  "changes": [
+    {
+      "archivo": "src/Cfa.ACHInterbank.Persistence/Navigation/Seeders/NavigationInformationArchitectureSeeder.cs",
+      "entidad_ruta": "/nacha-config-admin/perfiles",
+      "tipo_gap": "WRONG_ORDER",
+      "old": {
+        "label": "Perfiles oficiales",
+        "parent": "/nacha-config-admin",
+        "order": 1,
+        "isActive": true
+      },
+      "new": {
+        "label": "Perfiles oficiales",
+        "parent": "/nacha-config-admin",
+        "order": 10,
+        "isActive": true
+      },
+      "razon_evidencia": "NachaConfigMenuSeeder deja order=1; la IA canónica usa pasos de 10 y NAV5 conserva como única pantalla primaria el workspace de perfiles."
+    },
+    {
+      "archivo": "src/Cfa.ACHInterbank.Persistence/Navigation/Seeders/NavigationInformationArchitectureSeeder.cs",
+      "entidad_ruta": "/nacha-config-admin/records",
+      "tipo_gap": "REDIRECT_INCONSISTENCY",
+      "old": {
+        "label": "Registros oficiales",
+        "parent": "/nacha-config-admin",
+        "order": 2,
+        "isActive": true
+      },
+      "new": {
+        "label": "Registros oficiales",
+        "parent": "/nacha-config-admin",
+        "order": 2,
+        "isActive": false
+      },
+      "razon_evidencia": "La ruta carga NachaConfigLegacyWorkspaceRedirectComponent y sólo navega al workspace /nacha-config-admin/perfiles[/id]; NAV4 ya la clasificó como redirect técnico/contextual-only."
+    },
+    {
+      "archivo": "src/Cfa.ACHInterbank.Persistence/Navigation/Seeders/NavigationInformationArchitectureSeeder.cs",
+      "entidad_ruta": "/nacha-config-admin/variants-fields",
+      "tipo_gap": "REDIRECT_INCONSISTENCY",
+      "old": {
+        "label": "Variantes y campos",
+        "parent": "/nacha-config-admin",
+        "order": 3,
+        "isActive": true
+      },
+      "new": {
+        "label": "Variantes y campos",
+        "parent": "/nacha-config-admin",
+        "order": 3,
+        "isActive": false
+      },
+      "razon_evidencia": "La ruta carga NachaConfigLegacyWorkspaceRedirectComponent y sólo navega al workspace /nacha-config-admin/perfiles[/id]; NAV4 ya la clasificó como redirect técnico/contextual-only."
+    }
+  ],
+  "reverse_reconstruction": {
+    "algorithm": "Apply operations in descending nav5_start_line over splitlines(keepends=True), replacing nav5 slice with baseline_lines.",
+    "operations": [
+      {
+        "tag": "insert",
+        "nav5_start_line": 99,
+        "nav5_end_line": 102,
+        "nav5_lines": [
+          "    private const string NachaConfigProfilesRoute = \"/nacha-config-admin/perfiles\";\n",
+          "    private const string NachaConfigRecordsRedirectRoute = \"/nacha-config-admin/records\";\n",
+          "    private const string NachaConfigVariantsFieldsRedirectRoute = \"/nacha-config-admin/variants-fields\";\n"
+        ],
+        "baseline_lines": []
+      },
+      {
+        "tag": "replace",
+        "nav5_start_line": 760,
+        "nav5_end_line": 761,
+        "nav5_lines": [
+          "        var nachaConfiguration = await ReconcileExistingAsync(\n"
+        ],
+        "baseline_lines": [
+          "        await ReconcileExistingAsync(\n"
+        ]
+      },
+      {
+        "tag": "insert",
+        "nav5_start_line": 765,
+        "nav5_end_line": 777,
+        "nav5_lines": [
+          "\n",
+          "        await ReconcileExistingAsync(\n",
+          "            NachaConfigProfilesRoute,\n",
+          "            \"Perfiles oficiales\",\n",
+          "            nachaConfiguration.Id,\n",
+          "            order: 10);\n",
+          "\n",
+          "        // NAV5 classifies these two legacy workspace aliases as redirects, not standalone\n",
+          "        // menu destinations. Keep the routes and their authorization history for compatibility,\n",
+          "        // but prevent the final IA reconciler from exposing redirect-only surfaces as menu items.\n",
+          "        await DeactivateMenuRouteAsync(NachaConfigRecordsRedirectRoute);\n",
+          "        await DeactivateMenuRouteAsync(NachaConfigVariantsFieldsRedirectRoute);\n"
+        ],
+        "baseline_lines": []
+      },
+      {
+        "tag": "insert",
+        "nav5_start_line": 954,
+        "nav5_end_line": 967,
+        "nav5_lines": [
+          "\n",
+          "    private async Task DeactivateMenuRouteAsync(string route)\n",
+          "    {\n",
+          "        var items = await context.MenuItems\n",
+          "            .Where(item => item.Route == route)\n",
+          "            .ToListAsync();\n",
+          "\n",
+          "        foreach (var item in items)\n",
+          "        {\n",
+          "            item.IsActive = false;\n",
+          "        }\n",
+          "    }\n",
+          "\n"
+        ],
+        "baseline_lines": []
+      }
+    ]
+  },
+  "security_changes": [],
+  "business_logic_changes": []
+}

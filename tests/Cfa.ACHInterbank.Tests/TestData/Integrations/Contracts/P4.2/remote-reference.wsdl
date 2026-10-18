@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                  targetNamespace="urn:cfa:p42:remote">
+  <wsdl:types>
+    <xs:schema targetNamespace="urn:cfa:p42:remote">
+      <xs:import namespace="urn:evil" schemaLocation="https://example.invalid/evil.xsd" />
+    </xs:schema>
+  </wsdl:types>
+</wsdl:definitions>

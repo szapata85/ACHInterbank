@@ -1,0 +1,446 @@
+{
+  "files": 39,
+  "lines": 49,
+  "changes": [
+    {
+      "path": "features/ach-claims/ach-claims-detail.component.html",
+      "entries": [
+        {
+          "line": 6,
+          "old": "    <div><p>{{ error() }}</p><button mat-stroked-button type=\"button\" (click)=\"reload()\">Intentar nuevamente</button></div>",
+          "new": "    <div><p>{{ error() }}</p><button mat-stroked-button type=\"button\" (click)=\"reload()\">Reintentar</button></div>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-colombia-file-exchange/ach-colombia-file-exchange.component.html",
+      "entries": [
+        {
+          "line": 20,
+          "old": "    <button class=\"secondary\" (click)=\"search()\" [disabled]=\"busy\">Filtrar</button>",
+          "new": "    <button class=\"secondary\" (click)=\"search()\" [disabled]=\"busy\">Aplicar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-colombia-mft-administration/ach-colombia-mft-administration.component.html",
+      "entries": [
+        {
+          "line": 9,
+          "old": "      <mat-icon>refresh</mat-icon>Recargar",
+          "new": "      <mat-icon>refresh</mat-icon>Actualizar"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-cycles/components/ach-cycle-list.component.html",
+      "entries": [
+        {
+          "line": 33,
+          "old": "    <button mat-flat-button type=\"submit\">Filtrar</button>",
+          "new": "    <button mat-flat-button type=\"submit\">Aplicar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-cycles/components/nacha-export.component.html",
+      "entries": [
+        {
+          "line": 74,
+          "old": "          Limpiar",
+          "new": "          Limpiar filtros"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-dashboard-page.component.html",
+      "entries": [
+        {
+          "line": 28,
+          "old": "    <button mat-stroked-button type=\"button\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar</button>",
+          "new": "    <button mat-stroked-button type=\"button\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-list-page.component.html",
+      "entries": [
+        {
+          "line": 63,
+          "old": "    <button mat-stroked-button type=\"button\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar</button>",
+          "new": "    <button mat-stroked-button type=\"button\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-manual-review-page.component.html",
+      "entries": [
+        {
+          "line": 53,
+          "old": "    <button mat-stroked-button type=\"button\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar</button>",
+          "new": "    <button mat-stroked-button type=\"button\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/ach-responses/pages/ach-response-status-mappings-page.component.html",
+      "entries": [
+        {
+          "line": 119,
+          "old": "    <button mat-stroked-button type=\"button\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar</button>",
+          "new": "    <button mat-stroked-button type=\"button\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/admin/components/user-roles.component.html",
+      "entries": [
+        {
+          "line": 3,
+          "old": "  <mat-card><mat-card-content><div class=\"roles\" role=\"group\" aria-describedby=\"roles-help\"><p id=\"roles-help\">Selecciona al menos un perfil de acceso.</p><mat-checkbox *ngFor=\"let role of roles\" [checked]=\"selectedRoleIds.has(role.id)\" (change)=\"toggleRole(role)\"><strong>{{ roleLabel(role) }}</strong><span>{{ role.description || 'Sin descripción disponible.' }}</span></mat-checkbox></div><div class=\"actions\"><button mat-button type=\"button\" routerLink=\"/users/list\" [disabled]=\"saving\">Cancelar</button><button mat-flat-button color=\"primary\" type=\"button\" (click)=\"save()\" [disabled]=\"saving\"><mat-spinner *ngIf=\"saving\" diameter=\"18\"></mat-spinner><span>{{ saving ? 'Guardando...' : 'Guardar perfiles' }}</span></button></div></mat-card-content></mat-card>",
+          "new": "  <mat-card><mat-card-content><div class=\"roles\" role=\"group\" aria-describedby=\"roles-help\"><p id=\"roles-help\">Selecciona al menos un perfil de acceso.</p><mat-checkbox *ngFor=\"let role of roles\" [checked]=\"selectedRoleIds.has(role.id)\" (change)=\"toggleRole(role)\"><strong>{{ roleLabel(role) }}</strong><span>{{ role.description || 'Sin descripción disponible.' }}</span></mat-checkbox></div><div class=\"actions\"><button mat-button type=\"button\" routerLink=\"/users/list\" [disabled]=\"saving\">Cancelar</button><button mat-flat-button color=\"primary\" type=\"button\" (click)=\"save()\" [disabled]=\"saving\"><mat-spinner *ngIf=\"saving\" diameter=\"18\"></mat-spinner><span>{{ saving ? 'Guardando...' : 'Guardar perfiles de acceso' }}</span></button></div></mat-card-content></mat-card>"
+        }
+      ]
+    },
+    {
+      "path": "features/admin/components/users-list.component.html",
+      "entries": [
+        {
+          "line": 46,
+          "old": "        <button mat-stroked-button type=\"button\" (click)=\"loadUsers()\">Intentar nuevamente</button>",
+          "new": "        <button mat-stroked-button type=\"button\" (click)=\"loadUsers()\">Reintentar</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/audit/components/audit-log.component.html",
+      "entries": [
+        {
+          "line": 90,
+          "old": "            Limpiar",
+          "new": "            Limpiar filtros"
+        }
+      ]
+    },
+    {
+      "path": "features/auth-logs/components/auth-log.component.html",
+      "entries": [
+        {
+          "line": 90,
+          "old": "            Limpiar",
+          "new": "            Limpiar filtros"
+        }
+      ]
+    },
+    {
+      "path": "features/catalogs/components/clearing-house-preferences.component.html",
+      "entries": [
+        {
+          "line": 9,
+          "old": "      Recargar",
+          "new": "      Actualizar"
+        }
+      ]
+    },
+    {
+      "path": "features/catalogs/components/financial-institutions.component.html",
+      "entries": [
+        {
+          "line": 19,
+          "old": "          Recargar",
+          "new": "          Actualizar"
+        }
+      ]
+    },
+    {
+      "path": "features/customer-third-parties/components/customer-third-parties.component.html",
+      "entries": [
+        {
+          "line": 90,
+          "old": "          Limpiar",
+          "new": "          Limpiar filtros"
+        }
+      ]
+    },
+    {
+      "path": "features/customers/third-party-administration/customer-third-parties-admin.component.html",
+      "entries": [
+        {
+          "line": 97,
+          "old": "    <button type=\"button\" class=\"btn btn-outline\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar</button>",
+          "new": "    <button type=\"button\" class=\"btn btn-outline\" [disabled]=\"loading\" (click)=\"clearFilters()\">Limpiar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/incoming-nacha-command-center/pages/incoming-nacha-queue-page.component.html",
+      "entries": [
+        {
+          "line": 21,
+          "old": "      <ui-boton texto=\"Limpiar\" variante=\"contorno\" icono=\"filter_alt_off\" (accion)=\"limpiar()\"></ui-boton>",
+          "new": "      <ui-boton texto=\"Limpiar filtros\" variante=\"contorno\" icono=\"filter_alt_off\" (accion)=\"limpiar()\"></ui-boton>"
+        }
+      ]
+    },
+    {
+      "path": "features/integrations/pages/contract-import-stepper.component.html",
+      "entries": [
+        {
+          "line": 43,
+          "old": "            Analizar con backend",
+          "new": "            Analizar archivo"
+        },
+        {
+          "line": 116,
+          "old": "                Validar operación con backend",
+          "new": "                Validar operación"
+        },
+        {
+          "line": 280,
+          "old": "                Crear nueva versión Borrador",
+          "new": "                Crear versión en borrador"
+        }
+      ]
+    },
+    {
+      "path": "features/integrations/pages/contract-versions-page.component.html",
+      "entries": [
+        {
+          "line": 73,
+          "old": "                      {{ store.permissions().canManage && version.canEditFunctionalMetadata ? 'Ver y editar metadata' : 'Ver detalle' }}",
+          "new": "                      {{ store.permissions().canManage && version.canEditFunctionalMetadata ? 'Ver y editar metadatos' : 'Ver detalle' }}"
+        },
+        {
+          "line": 250,
+          "old": "                  <button mat-stroked-button type=\"button\" (click)=\"beginEdit(parameter)\">Editar metadata funcional</button>",
+          "new": "                  <button mat-stroked-button type=\"button\" (click)=\"beginEdit(parameter)\">Editar metadatos funcionales</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/integrations/pages/contract-versions-page.component.spec.ts",
+      "entries": [
+        {
+          "line": 95,
+          "old": "      .find((item) => (item.nativeElement.textContent as string).includes('Editar metadata funcional'));",
+          "new": "      .find((item) => (item.nativeElement.textContent as string).includes('Editar metadatos funcionales'));"
+        },
+        {
+          "line": 121,
+          "old": "      expect(text).not.toContain('Editar metadata funcional');",
+          "new": "      expect(text).not.toContain('Editar metadatos funcionales');"
+        },
+        {
+          "line": 132,
+          "old": "    expect(fixture.nativeElement.textContent).not.toContain('Editar metadata funcional');",
+          "new": "    expect(fixture.nativeElement.textContent).not.toContain('Editar metadatos funcionales');"
+        },
+        {
+          "line": 176,
+          "old": "      .find((item) => (item.nativeElement.textContent as string).includes('Editar metadata funcional'))!.nativeElement as HTMLButtonElement;",
+          "new": "      .find((item) => (item.nativeElement.textContent as string).includes('Editar metadatos funcionales'))!.nativeElement as HTMLButtonElement;"
+        }
+      ]
+    },
+    {
+      "path": "features/integrations/pages/mapping-editor-page.component.html",
+      "entries": [
+        {
+          "line": 191,
+          "old": "            <button *ngIf=\"canManage\" mat-stroked-button type=\"button\" (click)=\"clone()\" [disabled]=\"cloning\">{{ cloning ? 'Clonando…' : 'Clonar' }}</button>",
+          "new": "            <button *ngIf=\"canManage\" mat-stroked-button type=\"button\" (click)=\"clone()\" [disabled]=\"cloning\">{{ cloning ? 'Clonando…' : 'Clonar configuración' }}</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/integrations/pages/mapping-sets-page.component.html",
+      "entries": [
+        {
+          "line": 40,
+          "old": "    <button mat-stroked-button type=\"button\" (click)=\"retry()\">Volver a intentar</button>",
+          "new": "    <button mat-stroked-button type=\"button\" (click)=\"retry()\">Reintentar</button>"
+        },
+        {
+          "line": 102,
+          "old": "            Recargar datos actuales",
+          "new": "            Actualizar configuración"
+        },
+        {
+          "line": 294,
+          "old": "          <button mat-button type=\"button\" (click)=\"retryPreview()\">Volver a intentar</button>",
+          "new": "          <button mat-button type=\"button\" (click)=\"retryPreview()\">Reintentar</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/integrations/pages/soap-integration-settings.component.html",
+      "entries": [
+        {
+          "line": 13,
+          "old": "        {{ reloading ? 'Actualizando…' : 'Actualizar desde backend' }}",
+          "new": "        {{ reloading ? 'Actualizando…' : 'Actualizar configuración' }}"
+        },
+        {
+          "line": 43,
+          "old": "      <button mat-stroked-button type=\"button\" (click)=\"reload()\">Recargar configuración</button>",
+          "new": "      <button mat-stroked-button type=\"button\" (click)=\"reload()\">Actualizar configuración</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/nacha-security/components/nacha-certificate-manager.component.html",
+      "entries": [
+        {
+          "line": 94,
+          "old": "              Cargar certificado de CFA",
+          "new": "              Cargar certificado de firma y descifrado"
+        }
+      ]
+    },
+    {
+      "path": "features/navigation-logs/components/navigation-log.component.html",
+      "entries": [
+        {
+          "line": 27,
+          "old": "      <button type=\"button\" class=\"btn btn-outline\" (click)=\"clear()\" [disabled]=\"loading\">Limpiar</button>",
+          "new": "      <button type=\"button\" class=\"btn btn-outline\" (click)=\"clear()\" [disabled]=\"loading\">Limpiar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/operational-restrictions/operational-restrictions.component.html",
+      "entries": [
+        {
+          "line": 96,
+          "old": "          <button mat-button type=\"button\" (click)=\"clearFilters()\">Limpiar</button>",
+          "new": "          <button mat-button type=\"button\" (click)=\"clearFilters()\">Limpiar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/payment-rail-capability-registry/pages/payment-rail-capability-registry-page.component.html",
+      "entries": [
+        {
+          "line": 48,
+          "old": "        <ui-boton texto=\"Limpiar\" variante=\"contorno\" (accion)=\"limpiar()\" [deshabilitado]=\"loading\"></ui-boton>",
+          "new": "        <ui-boton texto=\"Limpiar filtros\" variante=\"contorno\" (accion)=\"limpiar()\" [deshabilitado]=\"loading\"></ui-boton>"
+        }
+      ]
+    },
+    {
+      "path": "features/reports/components/reconciliation-report.component.html",
+      "entries": [
+        {
+          "line": 35,
+          "old": "      <button mat-stroked-button type=\"button\" (click)=\"search()\">Intentar nuevamente</button>",
+          "new": "      <button mat-stroked-button type=\"button\" (click)=\"search()\">Reintentar</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/reports/components/report-list-page.component.html",
+      "entries": [
+        {
+          "line": 103,
+          "old": "    <button mat-stroked-button type=\"button\" (click)=\"search(page)\">Intentar nuevamente</button>",
+          "new": "    <button mat-stroked-button type=\"button\" (click)=\"search(page)\">Reintentar</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/reports/components/traceability-report.component.html",
+      "entries": [
+        {
+          "line": 55,
+          "old": "      <button mat-stroked-button type=\"button\" (click)=\"generatePdf()\" [disabled]=\"loading\">Intentar nuevamente</button>",
+          "new": "      <button mat-stroked-button type=\"button\" (click)=\"generatePdf()\" [disabled]=\"loading\">Reintentar</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/scheduler/components/task-definitions.component.html",
+      "entries": [
+        {
+          "line": 16,
+          "old": "  <mat-card-content><mat-icon aria-hidden=\"true\">cloud_off</mat-icon><div><strong>No fue posible consultar las tareas.</strong><p>{{ error }}</p><button mat-stroked-button type=\"button\" (click)=\"load()\">Intentar nuevamente</button></div></mat-card-content>",
+          "new": "  <mat-card-content><mat-icon aria-hidden=\"true\">cloud_off</mat-icon><div><strong>No fue posible consultar las tareas.</strong><p>{{ error }}</p><button mat-stroked-button type=\"button\" (click)=\"load()\">Reintentar</button></div></mat-card-content>"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/ach-return-of-return-management/ach-return-of-return-management.component.html",
+      "entries": [
+        {
+          "line": 61,
+          "old": "        Generar archivo auditoría",
+          "new": "        Generar archivo de auditoría"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/ach-returns-management/ach-returns-management.component.html",
+      "entries": [
+        {
+          "line": 83,
+          "old": "            Limpiar",
+          "new": "            Limpiar filtros"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/components/nacha-upload/nacha-upload.component.html",
+      "entries": [
+        {
+          "line": 163,
+          "old": "      <button mat-stroked-button type=\"button\" (click)=\"clearFilters()\">Limpiar</button>",
+          "new": "      <button mat-stroked-button type=\"button\" (click)=\"clearFilters()\">Limpiar filtros</button>"
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/outgoing-monitoring/outgoing-transaction-monitoring-detail.component.html",
+      "entries": [
+        {
+          "line": 35,
+          "old": "      textoReintentar=\"Intentar nuevamente\"",
+          "new": "      textoReintentar=\"Reintentar\""
+        }
+      ]
+    },
+    {
+      "path": "features/transactions/outgoing-monitoring/outgoing-transaction-monitoring-list.component.html",
+      "entries": [
+        {
+          "line": 66,
+          "old": "              <button mat-button type=\"button\" (click)=\"retryCycleCatalog()\">Intentar nuevamente</button>",
+          "new": "              <button mat-button type=\"button\" (click)=\"retryCycleCatalog()\">Reintentar</button>"
+        },
+        {
+          "line": 156,
+          "old": "      textoReintentar=\"Intentar nuevamente\"",
+          "new": "      textoReintentar=\"Reintentar\""
+        }
+      ]
+    },
+    {
+      "path": "layout/main-layout.component.html",
+      "entries": [
+        {
+          "line": 102,
+          "old": "          <span class=\"logout-label\">Salir</span>",
+          "new": "          <span class=\"logout-label\">Cerrar sesión</span>"
+        }
+      ]
+    },
+    {
+      "path": "shared/components/operational-error-panel.component.ts",
+      "entries": [
+        {
+          "line": 24,
+          "old": "            Volver a intentar",
+          "new": "            Reintentar"
+        }
+      ]
+    }
+  ]
+}
