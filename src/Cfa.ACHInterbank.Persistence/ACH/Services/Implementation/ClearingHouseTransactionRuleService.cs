@@ -138,6 +138,10 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
             request.Notes,
             request.RequiresReceiverIdentificationValidation,
             request.ReceiverIdentificationValidationMode,
+            request.PrenotificationResponseDeadlineMode,
+            request.PrenotificationResponseWindowCycles,
+            request.TacitAcceptanceEnabled,
+            request.ValidationRetentionMonthsAfterLastMonetaryUse,
             ct);
     }
 
@@ -160,6 +164,10 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
             request.Notes,
             requiresValidation,
             requiresValidation ? ValidationRequirementMode.Mandatory : ValidationRequirementMode.Optional,
+            request.PrenotificationResponseDeadlineMode,
+            request.PrenotificationResponseWindowCycles,
+            request.TacitAcceptanceEnabled,
+            request.ValidationRetentionMonthsAfterLastMonetaryUse,
             ct);
     }
 
@@ -189,6 +197,10 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
         var functionalChange =
             request.PrenotificationMode != entity.PrenotificationMode
             || request.PrenotificationLeadBusinessDays != entity.PrenotificationLeadBusinessDays
+            || request.PrenotificationResponseDeadlineMode != entity.PrenotificationResponseDeadlineMode
+            || request.PrenotificationResponseWindowCycles != entity.PrenotificationResponseWindowCycles
+            || request.TacitAcceptanceEnabled != entity.TacitAcceptanceEnabled
+            || request.ValidationRetentionMonthsAfterLastMonetaryUse != entity.ValidationRetentionMonthsAfterLastMonetaryUse
             || request.EffectiveFrom.Date != entity.EffectiveFrom.Date
             || request.EffectiveTo?.Date != entity.EffectiveTo?.Date;
 
@@ -213,6 +225,10 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
                 request.Notes,
                 request.RequiresReceiverIdentificationValidation,
                 request.ReceiverIdentificationValidationMode,
+                request.PrenotificationResponseDeadlineMode,
+                request.PrenotificationResponseWindowCycles,
+                request.TacitAcceptanceEnabled,
+                request.ValidationRetentionMonthsAfterLastMonetaryUse,
                 ct);
         }
 
@@ -222,6 +238,10 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
         entity.Notes = request.Notes?.Trim() ?? string.Empty;
         entity.RequiresReceiverIdentificationValidation = request.RequiresReceiverIdentificationValidation;
         entity.ReceiverIdentificationValidationMode = request.ReceiverIdentificationValidationMode;
+        entity.PrenotificationResponseDeadlineMode = request.PrenotificationResponseDeadlineMode;
+        entity.PrenotificationResponseWindowCycles = request.PrenotificationResponseWindowCycles;
+        entity.TacitAcceptanceEnabled = request.TacitAcceptanceEnabled;
+        entity.ValidationRetentionMonthsAfterLastMonetaryUse = request.ValidationRetentionMonthsAfterLastMonetaryUse;
         SynchronizeCompatibilityFields(entity);
         await _context.SaveChangesAsync(ct);
 
@@ -316,6 +336,10 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
         string? notes,
         bool requiresReceiverIdentificationValidation,
         ValidationRequirementMode receiverIdentificationValidationMode,
+        PrenotificationResponseDeadlineMode prenotificationResponseDeadlineMode,
+        int? prenotificationResponseWindowCycles,
+        bool tacitAcceptanceEnabled,
+        int? validationRetentionMonthsAfterLastMonetaryUse,
         CancellationToken ct)
     {
         await EnsureClearingHouseExistsAsync(clearingHouseId, ct);
@@ -327,6 +351,11 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
             effectiveTo,
             normativeSource,
             normativeReference);
+        ValidateResponsePolicy(
+            prenotificationResponseDeadlineMode,
+            prenotificationResponseWindowCycles,
+            tacitAcceptanceEnabled,
+            validationRetentionMonthsAfterLastMonetaryUse);
 
         var from = effectiveFrom.Date;
         var to = effectiveTo?.Date;
@@ -370,6 +399,10 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
             TransactionType = transactionType,
             PrenotificationMode = prenotificationMode,
             PrenotificationLeadBusinessDays = prenotificationLeadBusinessDays,
+            PrenotificationResponseDeadlineMode = prenotificationResponseDeadlineMode,
+            PrenotificationResponseWindowCycles = prenotificationResponseWindowCycles,
+            TacitAcceptanceEnabled = tacitAcceptanceEnabled,
+            ValidationRetentionMonthsAfterLastMonetaryUse = validationRetentionMonthsAfterLastMonetaryUse,
             RequiresReceiverIdentificationValidation = requiresReceiverIdentificationValidation,
             ReceiverIdentificationValidationMode = receiverIdentificationValidationMode,
             AppliesToNachaExport = true,
@@ -476,10 +509,42 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
             throw new InvalidOperationException("El plazo previo de prenotificación no puede ser negativo.");
         }
 
-        if (prenotificationMode != PrenotificationRequirementMode.Mandatory
+        if (prenotificationMode == PrenotificationRequirementMode.NotApplicable
             && prenotificationLeadBusinessDays.HasValue)
         {
-            throw new InvalidOperationException("Solo una prenotificación obligatoria puede definir plazo previo.");
+            throw new InvalidOperationException("Una política donde la prenotificación no aplica no puede definir plazo previo.");
+        }
+    }
+
+    private static void ValidateResponsePolicy(
+        PrenotificationResponseDeadlineMode deadlineMode,
+        int? responseWindowCycles,
+        bool tacitAcceptanceEnabled,
+        int? retentionMonths)
+    {
+        if (!Enum.IsDefined(deadlineMode))
+        {
+            throw new InvalidOperationException("El modo de deadline de respuesta no es válido.");
+        }
+        if (responseWindowCycles is <= 0)
+        {
+            throw new InvalidOperationException("La ventana de ciclos debe ser positiva cuando se configure.");
+        }
+        if (deadlineMode == PrenotificationResponseDeadlineMode.CycleCount && !responseWindowCycles.HasValue)
+        {
+            throw new InvalidOperationException("El modo CycleCount requiere número de ciclos de respuesta.");
+        }
+        if (deadlineMode != PrenotificationResponseDeadlineMode.CycleCount && responseWindowCycles.HasValue)
+        {
+            throw new InvalidOperationException("Sólo el modo CycleCount puede definir una ventana de ciclos.");
+        }
+        if (tacitAcceptanceEnabled && deadlineMode == PrenotificationResponseDeadlineMode.NotApplicable)
+        {
+            throw new InvalidOperationException("La aceptación tácita requiere una autoridad de deadline configurada.");
+        }
+        if (retentionMonths is <= 0)
+        {
+            throw new InvalidOperationException("La retención de validación debe ser positiva cuando se configure.");
         }
     }
 
@@ -560,5 +625,9 @@ public class ClearingHouseTransactionRuleService : IClearingHouseTransactionRule
             rule.NormativeReference,
             rule.Notes,
             rule.CreatedAt,
-            rule.UpdatedAt);
+            rule.UpdatedAt,
+            rule.PrenotificationResponseDeadlineMode,
+            rule.PrenotificationResponseWindowCycles,
+            rule.TacitAcceptanceEnabled,
+            rule.ValidationRetentionMonthsAfterLastMonetaryUse);
 }

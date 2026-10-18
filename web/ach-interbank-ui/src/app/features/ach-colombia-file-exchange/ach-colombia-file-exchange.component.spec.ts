@@ -4,8 +4,8 @@ import { provideRouter } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AchColombiaFileExchangeComponent } from './ach-colombia-file-exchange.component';
-import { AchColombiaFileExchangeService } from './ach-colombia-file-exchange.service';
-import { TransferDetail, TransferSummary } from './ach-colombia-file-exchange.models';
+import { AchColombiaFileExchangeService } from '../../core/services/ach-colombia-file-exchange.service';
+import { TransferDetail, TransferSummary } from '../../core/models/ach-colombia-file-exchange.model';
 
 describe('AchColombiaFileExchangeComponent', () => {
   let fixture: ComponentFixture<AchColombiaFileExchangeComponent>;
@@ -59,8 +59,9 @@ describe('AchColombiaFileExchangeComponent', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain(detail.id);
     expect(text).toContain('correlation-123');
-    expect(text).toContain('ACHCOL_MFT_IO_UNCERTAIN');
-    expect(text).toContain('task:AchColombiaManagedMftOutbound');
+    expect(text).not.toContain('ACHCOL_MFT_IO_UNCERTAIN');
+    expect(text).toContain('Automatización ACH Colombia');
+    expect(text).not.toContain('task:AchColombiaManagedMftOutbound');
     expect(fixture.nativeElement.querySelector('a[href="/transactions/outgoing-monitoring/42"]')).not.toBeNull();
     expect(component.statuses.length).toBe(11);
     expect(component.statuses).toContain('Uncertain');
@@ -117,6 +118,91 @@ describe('AchColombiaFileExchangeComponent', () => {
     component.retry();
 
     expect(component.busy).toBeFalse();
-    expect(component.error).toBe('Rejected by server');
+    expect(component.error).toBe('No fue posible completar la operación. Revise el estado y vuelva a intentar.');
+  });
+
+  it('presents Transferred as published for sending and never as ACH Colombia acceptance', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.selected = {
+      ...detail,
+      status: 'Transferred',
+      statusLabel: 'Publicado para envío',
+      externalConfirmationStatus: 'NotConfirmed',
+      externalConfirmationMessage: 'Recepción por ACH Colombia no confirmada.',
+      contentSha256: 'AABBCCDD',
+      fileSize: 128,
+      cycleId: 'ACH-1',
+      operationalDate: '2026-09-02',
+      transferredAtUtc: '2026-09-02T12:00:00Z',
+      sanitizedActiveReference: 'Publicado en CFA: transfer.out',
+      sanitizedArchiveReference: 'Contenido retenido'
+    };
+
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('Publicado para envío');
+    expect(text).toContain('Recepción por ACH Colombia');
+    expect(text).toContain('Recepción por ACH Colombia no confirmada.');
+    expect(text).toContain('AABBCCDD');
+    expect(text).toContain('128 bytes');
+    expect(text).toContain('ACH-1');
+    expect(text).toContain('Publicado en CFA: transfer.out');
+    expect(text).not.toContain('Aceptado por ACH Colombia');
+    expect(text).not.toContain('Recibido por ACH Colombia');
+  });
+
+  it('uses simple labels for uncertain retry duplicate and failure states', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+
+    expect(component.status('Uncertain')).toBe('Pendiente de confirmación');
+    expect(component.status('RetryPending')).toBe('Reintento pendiente');
+    expect(component.status('Duplicate')).toBe('Duplicado');
+    expect(component.status('Failed')).toBe('Fallido');
+  });
+
+  it('renders ordered event presentation fields without exposing internal task actor names', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.selected = {
+      ...detail,
+      history: [
+        { id: 1, occurredAtUtc: '2026-09-02T11:00:00Z', eventType: 'PublicationStarted', result: 'Started', message: 'raw', executionOrigin: 'Automatic', actor: 'task:AchColombiaManagedMftOutbound', displayName: 'Publicación iniciada', displayResult: 'Iniciado', displayMessage: 'Publicación en la frontera CFA iniciada.', actorDisplay: 'Automatización ACH Colombia' },
+        { id: 2, occurredAtUtc: '2026-09-02T11:01:00Z', eventType: 'PublishedToMftBoundary', result: 'Succeeded', message: 'raw', executionOrigin: 'Automatic', actor: 'task:AchColombiaManagedMftOutbound', displayName: 'Publicado para envío', displayResult: 'Correcto', displayMessage: 'Publicado en la frontera CFA. La recepción por ACH Colombia no está confirmada.', actorDisplay: 'Automatización ACH Colombia' }
+      ]
+    };
+
+    fixture.detectChanges();
+    const history = fixture.nativeElement.querySelector('.history') as HTMLElement;
+    const text = history.textContent ?? '';
+    expect(text.indexOf('Publicación iniciada')).toBeLessThan(text.indexOf('Publicado para envío'));
+    expect(text).toContain('Automatización ACH Colombia');
+    expect(text).not.toContain('task:AchColombiaManagedMftOutbound');
+  });
+
+  it('does not render raw secrets, internal diagnostics or sensitive paths in transfer observability', () => {
+    fixture = TestBed.createComponent(AchColombiaFileExchangeComponent);
+    component = fixture.componentInstance;
+    component.selected = {
+      ...detail,
+      lastError: 'super-secret at /srv/internal/outbound',
+      lastErrorCode: 'ACHCOL_INTERNAL_SECRET_DIAGNOSTIC',
+      sanitizedActiveReference: 'Referencia administrada: file.env',
+      history: [{
+        id: 1, occurredAtUtc: '2026-09-02T12:00:00Z', eventType: 'PublicationFailed', result: 'Failed',
+        message: 'super-secret at /srv/internal/outbound', executionOrigin: 'Automatic', actor: 'task:internal',
+        displayName: 'No se pudo publicar', displayResult: 'Fallido', displayMessage: 'No se pudo publicar en la frontera CFA.',
+        actorDisplay: 'Automatización ACH Colombia'
+      }]
+    };
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).not.toContain('super-secret');
+    expect(text).not.toContain('/srv/internal');
+    expect(text).not.toContain('ACHCOL_INTERNAL_SECRET_DIAGNOSTIC');
+    expect(text).not.toContain('task:internal');
+    expect(text).toContain('No se pudo publicar en la frontera CFA.');
   });
 });

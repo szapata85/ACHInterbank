@@ -1,8 +1,14 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AchCyclesApiService, ClearingHousesApiService } from '../services/ach-cycles-api.service';
-import { AchCycleFilter, AchCycleSummary, ClearingHouseOption } from '../models/ach-cycle.model';
+import { AchCyclesApiService } from '../../../core/services/ach-cycles-api.service';
+import { AchCycleFilter, AchCycleSummary } from '../../../core/models/ach-cycle.model';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
@@ -14,7 +20,7 @@ import { finalize, Subscription } from 'rxjs';
   styleUrls: ['./ach-cycle-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [SharedModule, RouterModule]
+  imports: [SharedModule, RouterModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule]
 })
 export class AchCycleListComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
@@ -45,6 +51,7 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
   total = 0;
   today = new Date();
   loading = false;
+  loadError = false;
 
   ngOnInit(): void {
     this.loadClearingHouses();
@@ -69,6 +76,7 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
       clearingHouseId: this.filterForm.value.clearingHouseId ?? undefined
     };
     this.loading = true;
+    this.loadError = false;
     this.cdr.markForCheck();
     this.requestSub = this.api
       .search(filter)
@@ -92,6 +100,7 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.loadError = true;
           this.notifications.error('No fue posible cargar los ciclos ACH');
           this.cdr.markForCheck();
         }

@@ -1,7 +1,7 @@
 <section class="queue-detail-page">
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
-    { etiqueta: 'Seguimiento de archivos NACHA-M', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: 'Seguimiento de archivos', ruta: '/incoming-nacha-command-center' },
     { etiqueta: 'Cola de procesamiento', ruta: '/incoming-nacha-command-center/queue' },
     { etiqueta: 'Detalle del procesamiento' }
   ]"></ui-migas-pan>
@@ -33,7 +33,7 @@
 
     <div class="acciones-nav">
       <ui-boton texto="Ver archivo" variante="secundario" icono="account_tree" (accion)="irAIngesta()"></ui-boton>
-      <ui-boton texto="Volver a la cola" variante="contorno" icono="arrow_back" (accion)="volverCola()"></ui-boton>
+      <ui-boton texto="Volver a Cola de procesamiento" variante="contorno" icono="arrow_back" (accion)="volverCola()"></ui-boton>
     </div>
   </ui-tarjeta>
 

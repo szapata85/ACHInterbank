@@ -1,18 +1,21 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTableModule } from '@angular/material/table';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
+import type { UiEtiquetaEstado } from '../../../shared/components/ui/ui-etiqueta-estado.component';
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseNotificationAttemptResponse } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
 import { formatAchDate, formatAchValue } from '../utils/ach-response-formatters';
-import { formatAchNotificationStatus, getAchNotificationStatusClass } from '../utils/ach-response-status.utils';
+import { formatAchNotificationStatus } from '../utils/ach-response-status.utils';
 
 @Component({
   selector: 'app-ach-response-attempts-page',
   standalone: true,
-  imports: [CommonModule, RouterModule, SharedModule],
+  imports: [CommonModule, RouterModule, SharedModule, MatButtonModule, MatTableModule],
   templateUrl: './ach-response-attempts-page.component.html',
   styleUrls: ['./ach-response-attempts-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -23,6 +26,24 @@ export class AchResponseAttemptsPageComponent implements OnInit {
   private readonly api = inject(AchResponsesApiService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
+
+  readonly displayedColumns = [
+    'numeroIntento',
+    'estadoNotificacion',
+    'idCanal',
+    'nombreCanal',
+    'idTransaccion',
+    'idEstado',
+    'causal',
+    'idTransaccionServicioExterno',
+    'descripcionCausal',
+    'existeError',
+    'codigoError',
+    'descripcionError',
+    'errorTecnico',
+    'fechaCreacion',
+    'fechaEnvio'
+  ];
 
   responseId: string | null = null;
   attempts: AchResponseNotificationAttemptResponse[] = [];
@@ -90,5 +111,10 @@ export class AchResponseAttemptsPageComponent implements OnInit {
 
   formatNotificationStatus(status: string | null | undefined): string { return formatAchNotificationStatus(status); }
 
-  getNotificationStatusClass(status: string | null | undefined): string { return getAchNotificationStatusClass(status); }
+  getNotificationStatusState(status: string | null | undefined): UiEtiquetaEstado {
+    if (status === 'Exitosa') return 'exitoso';
+    if (status === 'Pendiente' || status === 'PendienteReintento' || status === 'RequiereRevisionManual') return 'pendiente';
+    if (status === 'ErrorFuncional' || status === 'ErrorTecnico') return 'fallido';
+    return 'inactivo';
+  }
 }

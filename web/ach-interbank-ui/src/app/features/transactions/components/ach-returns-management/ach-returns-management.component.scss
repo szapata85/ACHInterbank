@@ -73,43 +73,6 @@ mat-card-header [mat-card-avatar] {
   grid-column: 1 / -1;
 }
 
-.state-panel {
-  display: flex;
-  align-items: center;
-  gap: .9rem;
-  min-width: 0;
-  padding: 1rem;
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-}
-
-.state-panel > div {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.state-panel strong,
-.state-panel p {
-  margin: 0;
-}
-
-.state-panel p {
-  margin-top: .2rem;
-  color: var(--color-text-muted);
-  font-size: .86rem;
-}
-
-.state-panel--error {
-  border-style: solid;
-  border-color: color-mix(in srgb, var(--color-danger) 45%, var(--color-border));
-  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
-}
-
-.state-panel--error > mat-icon {
-  color: var(--color-danger);
-}
-
 .eligible-chip {
   --mdc-chip-elevated-container-color: color-mix(in srgb, var(--color-success) 12%, transparent);
   --mdc-chip-label-text-color: var(--color-success);
@@ -247,12 +210,4 @@ mat-chip mat-icon {
     width: 100%;
   }
 
-  .state-panel {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .state-panel button {
-    width: 100%;
-  }
 }

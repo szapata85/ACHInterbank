@@ -5,7 +5,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
-import { RolesApiService } from '../../admin/services/users-api.service';
+import { RolesApiService } from '../../../core/services/roles-api.service';
 import { NavigationMenuItem } from '../models/navigation-menu.model';
 import { NavigationMenuService } from '../services/navigation-menu.service';
 import { NavigationMenuComponent } from './navigation-menu.component';

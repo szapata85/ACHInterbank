@@ -5,7 +5,7 @@ using System.Text;
 using System.Xml.Serialization;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Implementation;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
-using Cfa.ACHInterbank.Application.Services.EncryptionService.Implementations;
+using Cfa.ACHInterbank.External.Security.Certificates;
 using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -96,7 +96,7 @@ public class CertificateRuntimeWithoutSecretBackendCharacterizationTests
         resolver.Setup(x => x.ResolveAsync("CertDecrypt", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DigitalEnvelopeCertificateResolutionResult(true, cert, null, DigitalEnvelopeCertificateSource.Legacy, CertificatePurpose.InboundDecryption, cert.Thumbprint, cert.SerialNumber, cert.Subject, null, null, Array.Empty<string>()));
 
-        var provider = new RsaKeyProvider(resolver.Object);
+        var provider = new RsaKeyProvider(resolver.Object, Options.Create(new CertificatesSettings()));
         var resolved = provider.ObtenerCertificateForDecrypt(null, null);
 
         resolved.Should().NotBeNull();
@@ -110,7 +110,7 @@ public class CertificateRuntimeWithoutSecretBackendCharacterizationTests
         resolver.Setup(x => x.ResolveHistoricalDecryptAsync(It.IsAny<HistoricalDecryptCertificateCriteria>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DigitalEnvelopeCertificateResolutionResult(false, null, null, DigitalEnvelopeCertificateSource.CertificateManagement, CertificatePurpose.InboundDecryption, null, null, null, "HISTORICAL_CERT_NOT_FOUND", "missing", Array.Empty<string>()));
 
-        var provider = new RsaKeyProvider(resolver.Object);
+        var provider = new RsaKeyProvider(resolver.Object, Options.Create(new CertificatesSettings()));
         var act = () => provider.ObtenerCertificateForDecrypt("issuer", "serial");
 
         act.Should().Throw<InvalidOperationException>();
@@ -136,7 +136,7 @@ public class CertificateRuntimeWithoutSecretBackendCharacterizationTests
                 null,
                 Array.Empty<string>()));
 
-        var provider = new RsaKeyProvider(resolver.Object);
+        var provider = new RsaKeyProvider(resolver.Object, Options.Create(new CertificatesSettings()));
         var act = () => provider.ObtenerCertificate("CertSign");
 
         act.Should().Throw<InvalidOperationException>()

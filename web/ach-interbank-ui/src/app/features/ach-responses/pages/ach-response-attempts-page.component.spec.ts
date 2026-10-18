@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
 import { AchResponseAttemptsPageComponent } from './ach-response-attempts-page.component';
@@ -55,7 +56,7 @@ describe('AchResponseAttemptsPageComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('AchResponseAttemptsPageComponent_ShouldLoadAttemptsOnInit', () => {
+  it('AchResponseAttemptsPageComponent_ShouldLoadAttemptsByResponseIdOnInit', () => {
     configureWithId('resp-1');
     const fixture = TestBed.createComponent(AchResponseAttemptsPageComponent);
     fixture.detectChanges();
@@ -63,6 +64,32 @@ describe('AchResponseAttemptsPageComponent', () => {
     const component = fixture.componentInstance;
     expect(component.attempts.length).toBe(1);
     expect(apiSpy.getAttempts).toHaveBeenCalledWith('resp-1');
+  });
+
+  it('AchResponseAttemptsPageComponent_ShouldExposeCanonicalLoadingState', () => {
+    configureWithId('resp-1');
+    const pending = new Subject<any[]>();
+    apiSpy.getAttempts.and.returnValue(pending);
+    const fixture = TestBed.createComponent(AchResponseAttemptsPageComponent);
+
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.loading).toBeTrue();
+    expect(fixture.debugElement.query(By.css('ui-estado-carga'))).toBeTruthy();
+
+    pending.next(attemptsMock);
+    pending.complete();
+  });
+
+  it('AchResponseAttemptsPageComponent_ShouldExposeCanonicalEmptyState', () => {
+    configureWithId('resp-1');
+    apiSpy.getAttempts.and.returnValue(of([]));
+    const fixture = TestBed.createComponent(AchResponseAttemptsPageComponent);
+
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.query(By.css('ui-estado-vacio'))).toBeTruthy();
   });
 
   it('AchResponseAttemptsPageComponent_ShouldNotCallApi_WhenIdMissing', () => {
@@ -76,10 +103,11 @@ describe('AchResponseAttemptsPageComponent', () => {
     expect(notificationSpy.error).toHaveBeenCalled();
   });
 
-  it('AchResponseAttemptsPageComponent_ShouldHandleLoadError', () => {
+  it('AchResponseAttemptsPageComponent_ShouldHandleLoadErrorWithCanonicalErrorState', () => {
     configureWithId('resp-1');
     apiSpy.getAttempts.and.returnValue(throwError(() => new Error('fail')));
     const fixture = TestBed.createComponent(AchResponseAttemptsPageComponent);
+    fixture.detectChanges();
     fixture.detectChanges();
 
     const component = fixture.componentInstance;
@@ -87,6 +115,7 @@ describe('AchResponseAttemptsPageComponent', () => {
     expect(component.loading).toBeFalse();
     expect(component.attempts.length).toBe(0);
     expect(notificationSpy.error).toHaveBeenCalled();
+    expect(fixture.debugElement.query(By.css('ui-estado-error'))).toBeTruthy();
   });
 
   it('AchResponseAttemptsPageComponent_ShouldRetryLoad_WhenResponseIdExists', () => {
@@ -128,14 +157,33 @@ describe('AchResponseAttemptsPageComponent', () => {
     expect(component.formatValue(false)).toBe('No');
   });
 
-  it('AchResponseAttemptsPageComponent_ShouldClassifyNotificationStatus', () => {
+  it('AchResponseAttemptsPageComponent_ShouldUseCanonicalNotificationStatusPrimitive', () => {
+    configureWithId('resp-1');
+    const fixture = TestBed.createComponent(AchResponseAttemptsPageComponent);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    const status = fixture.debugElement.query(By.css('ui-etiqueta-estado'));
+
+    expect(component.getNotificationStatusState('Exitosa')).toBe('exitoso');
+    expect(component.getNotificationStatusState('Pendiente')).toBe('pendiente');
+    expect(component.getNotificationStatusState('ErrorTecnico')).toBe('fallido');
+    expect(status).toBeTruthy();
+    expect(status.componentInstance.estado).toBe('exitoso');
+    expect(status.componentInstance.texto).toBe('Exitosa');
+  });
+
+  it('AchResponseAttemptsPageComponent_ShouldPreserveAllVisibleAttemptColumns', () => {
     configureWithId('resp-1');
     const fixture = TestBed.createComponent(AchResponseAttemptsPageComponent);
     const component = fixture.componentInstance;
 
-    expect(component.getNotificationStatusClass('Exitosa')).toBe('estado-exitoso');
-    expect(component.getNotificationStatusClass('Pendiente')).toBe('estado-advertencia');
-    expect(component.getNotificationStatusClass('ErrorTecnico')).toBe('estado-error');
+    expect(component.displayedColumns).toEqual([
+      'numeroIntento', 'estadoNotificacion', 'idCanal', 'nombreCanal', 'idTransaccion', 'idEstado', 'causal',
+      'idTransaccionServicioExterno', 'descripcionCausal', 'existeError', 'codigoError', 'descripcionError',
+      'errorTecnico', 'fechaCreacion', 'fechaEnvio'
+    ]);
   });
 
   it('AchResponseAttemptsPageComponent_ShouldNotExposeForbiddenTerms', () => {

@@ -100,7 +100,7 @@
   <div *ngIf="loadError" class="state error" role="alert">
     <mat-icon aria-hidden="true">error_outline</mat-icon>
     <div><strong>No pudimos completar la consulta.</strong><p>{{ loadError }}</p></div>
-    <button mat-stroked-button type="button" (click)="search(page)">Intentar nuevamente</button>
+    <button mat-stroked-button type="button" (click)="search(page)">Reintentar</button>
   </div>
 
   <div *ngIf="!loading && hasLoaded && !loadError && rows.length === 0" class="state empty">

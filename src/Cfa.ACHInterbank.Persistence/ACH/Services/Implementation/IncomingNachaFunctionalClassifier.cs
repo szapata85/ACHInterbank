@@ -64,6 +64,14 @@ public class IncomingNachaFunctionalClassifier : IIncomingNachaFunctionalClassif
                     requiresManual = true;
                 }
             }
+            else if (string.Equals(reason, "DEV14", StringComparison.OrdinalIgnoreCase))
+            {
+                functionalClass = IncomingNachaFunctionalClass.Inconsistente;
+                eligibility = IncomingNachaEligibilityStatus.RevisionManual;
+                meaning = "DEV14 pertenece a Reclamaciones ACH y no es una causal válida de devolución NACHA-M.";
+                requiresLink = false;
+                requiresManual = true;
+            }
             else
             {
                 functionalClass = reason.StartsWith("DEV", StringComparison.OrdinalIgnoreCase)

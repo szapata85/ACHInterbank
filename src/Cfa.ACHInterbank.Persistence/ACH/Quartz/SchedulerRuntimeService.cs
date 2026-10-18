@@ -20,6 +20,7 @@ public sealed class SchedulerRuntimeService : BackgroundService
     private readonly ILogger<SchedulerRuntimeService> _logger;
     private readonly IConfiguration _configuration;
     private readonly QuartzJobStoreOptions _options;
+    private readonly TimeProvider _timeProvider;
     private string? _instanceId;
 
     public SchedulerRuntimeService(
@@ -28,7 +29,8 @@ public sealed class SchedulerRuntimeService : BackgroundService
         SchedulerMisfireListener misfireListener,
         IHostEnvironment environment,
         IConfiguration configuration,
-        ILogger<SchedulerRuntimeService> logger)
+        ILogger<SchedulerRuntimeService> logger,
+        TimeProvider? timeProvider = null)
     {
         _services = services;
         _schedulerFactory = schedulerFactory;
@@ -37,6 +39,7 @@ public sealed class SchedulerRuntimeService : BackgroundService
         _configuration = configuration;
         _logger = logger;
         _options = QuartzJobStoreOptionsFactory.Create(configuration);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -68,7 +71,10 @@ public sealed class SchedulerRuntimeService : BackgroundService
                 _logger.LogError(ex, "Falló el heartbeat funcional de la instancia Quartz {SchedulerInstanceId}.", scheduler.SchedulerInstanceId);
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(Math.Max(2, _options.InstanceHeartbeatSeconds)), stoppingToken);
+            await Task.Delay(
+                TimeSpan.FromSeconds(Math.Max(2, _options.InstanceHeartbeatSeconds)),
+                _timeProvider,
+                stoppingToken);
         }
     }
 
@@ -91,7 +97,7 @@ public sealed class SchedulerRuntimeService : BackgroundService
     {
         await using var scope = _services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var state = await db.SchedulerInstanceStates
             .SingleOrDefaultAsync(
                 x => x.SchedulerName == scheduler.SchedulerName && x.InstanceId == scheduler.SchedulerInstanceId,

@@ -9,6 +9,21 @@ public enum IntegrationMappingSetStatusEnum
     Archived = 3
 }
 
+public enum IntegrationContractVersionStatusEnum
+{
+    Draft = 1,
+    Validated = 2,
+    Active = 3,
+    Retired = 4
+}
+
+public enum IntegrationContractSourceTypeEnum
+{
+    WsdlImport = 1,
+    ManualApproved = 2,
+    BaselineMigration = 3
+}
+
 public enum IntegrationSourceKindEnum
 {
     Transaction = 1,
@@ -46,13 +61,43 @@ public class IntegrationMethod : AuditableEntity
     public int Id { get; set; }
     public string Code { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
+    public string FunctionalDescription { get; set; } = string.Empty;
+    public string FunctionalCategory { get; set; } = string.Empty;
+    public string RiskLevel { get; set; } = string.Empty;
     public string SoapClientCode { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
 
+    public ICollection<IntegrationContractVersion> ContractVersions { get; set; } = new List<IntegrationContractVersion>();
     public ICollection<IntegrationMethodParameter> Parameters { get; set; } = new List<IntegrationMethodParameter>();
     public ICollection<IntegrationSourceCatalogField> SourceCatalogFields { get; set; } = new List<IntegrationSourceCatalogField>();
     public ICollection<IntegrationMappingSet> MappingSets { get; set; } = new List<IntegrationMappingSet>();
     public ICollection<IntegrationResponseCode> ResponseCodes { get; set; } = new List<IntegrationResponseCode>();
+}
+
+public class IntegrationContractVersion : AuditableEntity
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public int MethodId { get; set; }
+    public IntegrationMethod Method { get; set; } = null!;
+
+    public string VersionLabel { get; set; } = string.Empty;
+    public IntegrationContractVersionStatusEnum Status { get; set; } = IntegrationContractVersionStatusEnum.Draft;
+    public string OperationName { get; set; } = string.Empty;
+    public string TargetNamespace { get; set; } = string.Empty;
+    public string SoapAction { get; set; } = string.Empty;
+    public IntegrationContractSourceTypeEnum SourceType { get; set; }
+    public string? SourceDocumentName { get; set; }
+    public string? SourceDocumentHash { get; set; }
+    public string? SourceReference { get; set; }
+    public string? Notes { get; set; }
+    public long Revision { get; set; } = 1;
+    public DateTime? ImportedAtUtc { get; set; }
+    public string? ImportedBy { get; set; }
+    public DateTime? ActivatedAtUtc { get; set; }
+    public string? ActivatedBy { get; set; }
+
+    public ICollection<IntegrationMethodParameter> Parameters { get; set; } = new List<IntegrationMethodParameter>();
+    public ICollection<IntegrationMappingSet> MappingSets { get; set; } = new List<IntegrationMappingSet>();
 }
 
 public class IntegrationMethodParameter : AuditableEntity
@@ -60,14 +105,22 @@ public class IntegrationMethodParameter : AuditableEntity
     public long Id { get; set; }
     public int MethodId { get; set; }
     public IntegrationMethod Method { get; set; } = null!;
+    public Guid? ContractVersionId { get; set; }
+    public IntegrationContractVersion? ContractVersion { get; set; }
 
     public string ParameterPath { get; set; } = string.Empty;
+    public string XmlElementName { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string DescriptionEs { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string ExampleValue { get; set; } = string.Empty;
     public string UiHelpText { get; set; } = string.Empty;
     public string DataType { get; set; } = "string";
+    public string XsdType { get; set; } = "string";
+    public bool Nillable { get; set; }
+    public int MinOccurs { get; set; }
+    public int? MaxOccurs { get; set; } = 1;
+    public string SupportStatus { get; set; } = "Supported";
     public IntegrationParameterDirectionEnum Direction { get; set; } = IntegrationParameterDirectionEnum.Input;
     public IntegrationParameterCardinalityEnum Cardinality { get; set; } = IntegrationParameterCardinalityEnum.Scalar;
     public bool Required { get; set; }
@@ -101,9 +154,12 @@ public class IntegrationMappingSet : AuditableEntity
     public Guid Id { get; set; } = Guid.NewGuid();
     public int MethodId { get; set; }
     public IntegrationMethod Method { get; set; } = null!;
+    public Guid? ContractVersionId { get; set; }
+    public IntegrationContractVersion? ContractVersion { get; set; }
 
     public string Name { get; set; } = string.Empty;
     public int Version { get; set; }
+    public long Revision { get; set; } = 1;
     public IntegrationMappingSetStatusEnum Status { get; set; } = IntegrationMappingSetStatusEnum.Draft;
     public bool IsActive { get; set; } = true;
     public string Notes { get; set; } = string.Empty;

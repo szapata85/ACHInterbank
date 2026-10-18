@@ -14,8 +14,9 @@
 }
 
 .warning {
-  background: #fff3cd;
-  border: 1px solid #ffe69c;
+  background: var(--color-warning-surface);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
+  color: var(--color-warning-text);
   padding: 10px;
   border-radius: 6px;
 }

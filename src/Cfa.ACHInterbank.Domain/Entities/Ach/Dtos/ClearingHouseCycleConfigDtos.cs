@@ -11,6 +11,12 @@ public class ClearingHouseCycleConfigDto
     public TimeSpan EndTime { get; set; }
     public TimeSpan CutoffTime { get; set; }
     public TimeSpan OutputReleaseTime { get; set; }
+    public TimeSpan? CompensationStatementStartTime { get; set; }
+    public TimeSpan? CompensationStatementEndTime { get; set; }
+    public TimeSpan? CompensationPaymentStartTime { get; set; }
+    public TimeSpan? CompensationPaymentEndTime { get; set; }
+    public TimeSpan? OutputReleaseStartTime { get; set; }
+    public TimeSpan? OutputReleaseEndTime { get; set; }
     public bool AllowsMonetaryCredit { get; set; }
     public bool AllowsMonetaryDebit { get; set; }
     public bool AllowsCreditPrenotification { get; set; }
@@ -32,6 +38,12 @@ public class UpsertClearingHouseCycleConfigDto
     public TimeSpan EndTime { get; set; }
     public TimeSpan CutoffTime { get; set; }
     public TimeSpan? OutputReleaseTime { get; set; }
+    public TimeSpan? CompensationStatementStartTime { get; set; }
+    public TimeSpan? CompensationStatementEndTime { get; set; }
+    public TimeSpan? CompensationPaymentStartTime { get; set; }
+    public TimeSpan? CompensationPaymentEndTime { get; set; }
+    public TimeSpan? OutputReleaseStartTime { get; set; }
+    public TimeSpan? OutputReleaseEndTime { get; set; }
     public bool? AllowsMonetaryCredit { get; set; }
     public bool? AllowsMonetaryDebit { get; set; }
     public bool? AllowsCreditPrenotification { get; set; }

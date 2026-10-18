@@ -3,9 +3,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
 import { ApplicationDownloadError, BlobDownloadService } from '../../../core/services/blob-download.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
+import { NACHA_SECURITY_PERMISSIONS } from '../nacha-security-permissions';
 import { SobreDigitalCertificate, SobreDigitalService } from '../services/sobre-digital.service';
 import { DigitalEnvelopeToolComponent } from './digital-envelope-tool.component';
 
@@ -15,6 +17,7 @@ describe('DigitalEnvelopeToolComponent', () => {
   let service: jasmine.SpyObj<SobreDigitalService>;
   let downloads: jasmine.SpyObj<BlobDownloadService>;
   let notifications: jasmine.SpyObj<NotificationService>;
+  let auth: jasmine.SpyObj<AuthService>;
 
   beforeEach(async () => {
     service = jasmine.createSpyObj<SobreDigitalService>('SobreDigitalService', [
@@ -30,6 +33,8 @@ describe('DigitalEnvelopeToolComponent', () => {
     });
     downloads.fromHttpError.and.resolveTo(new ApplicationDownloadError('Error controlado', 422));
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error']);
+    auth = jasmine.createSpyObj<AuthService>('AuthService', ['hasPermission']);
+    auth.hasPermission.and.returnValue(true);
 
     await TestBed.configureTestingModule({
       imports: [DigitalEnvelopeToolComponent],
@@ -39,6 +44,7 @@ describe('DigitalEnvelopeToolComponent', () => {
         { provide: SobreDigitalService, useValue: service },
         { provide: BlobDownloadService, useValue: downloads },
         { provide: NotificationService, useValue: notifications },
+        { provide: AuthService, useValue: auth },
         {
           provide: ClearingHousesApiService,
           useValue: { list: () => of([{ id: 1, code: 'ACHCOL', name: 'ACH Colombia', isActive: true }]) }
@@ -55,7 +61,7 @@ describe('DigitalEnvelopeToolComponent', () => {
 
   it('presenta pestañas y lenguaje operativo completamente en español', () => {
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Sobre digital');
+    expect(text).toContain('Cifrar y descifrar archivos');
     expect(text).toContain('Cifrar archivo');
     expect(text).toContain('Descifrar archivo');
     expect(text).not.toContain('Encrypt');
@@ -113,6 +119,31 @@ describe('DigitalEnvelopeToolComponent', () => {
     expect(service.decrypt).toHaveBeenCalledOnceWith(jasmine.any(File), 1, 'LIVE');
     expect(fixture.nativeElement.textContent).toContain('Firma digital válida');
     expect(fixture.nativeElement.textContent).toContain('Integridad confirmada');
+  });
+
+  it('falla cerrado antes de invocar cifrado cuando solo existe capacidad de lectura', () => {
+    auth.hasPermission.and.callFake((expected: string | string[]) => {
+      const permissions = Array.isArray(expected) ? expected : [expected];
+      return permissions.includes(NACHA_SECURITY_PERMISSIONS.canReadAch);
+    });
+    service.encrypt.calls.reset();
+    selectFile('encrypt', new File(['nacha'], 'archivo.OUT'));
+
+    component.submitEncrypt();
+
+    expect(component.canEncrypt).toBeFalse();
+    expect(service.encrypt).not.toHaveBeenCalled();
+    expect(notifications.error).toHaveBeenCalledWith('No tienes autorización para cifrar archivos mediante sobre digital.');
+  });
+
+  it('separa las capacidades finas de cifrado y descifrado', () => {
+    auth.hasPermission.and.callFake((expected: string | string[]) => {
+      const permissions = Array.isArray(expected) ? expected : [expected];
+      return permissions.includes(NACHA_SECURITY_PERMISSIONS.digitalEnvelopeEncrypt);
+    });
+
+    expect(component.canEncrypt).toBeTrue();
+    expect(component.canDecrypt).toBeFalse();
   });
 
   it('previene doble envío mientras una operación está pendiente', () => {

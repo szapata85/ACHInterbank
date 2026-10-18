@@ -18,6 +18,7 @@ public class NachaFileBuilderFileIntegrityClosureTests
 {
     [Theory]
     [InlineData("ACH Colombia", "ACH")]
+    [InlineData("ACH CENIT Legacy Label", "ACH")]
     [InlineData("CENIT", "CENIT")]
     public async Task BuildNachaFileAsync_ShouldGenerateCompleteFile_WithExpectedIntegrity(
         string chamberName,
@@ -154,7 +155,7 @@ public class NachaFileBuilderFileIntegrityClosureTests
         records[5][0].Should().Be('9');
         records.Skip(6).Should().OnlyContain(x => x.All(ch => ch == '9'));
 
-        ReadIntProperty(record8!, "BatchNumber").Should().Be(chamberName == "ACH Colombia" ? 1 : 15);
+        ReadIntProperty(record8!, "BatchNumber").Should().Be(chamberCode == "ACH" ? 1 : 15);
         ReadIntProperty(record9!, "BatchCount").Should().Be(1);
         ReadIntProperty(record9!, "BlockCount").Should().Be(1);
         ReadIntProperty(record9!, "EntryAddendaCount").Should().Be(2);

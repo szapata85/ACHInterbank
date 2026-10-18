@@ -54,6 +54,106 @@ public class TransactionsControllerTests
     }
 
     [Fact]
+    public async Task PreviewPolicy_ReturnsIntegratedCfaOperationalRestrictionDecision()
+    {
+        var txService = new Mock<IAchTransactionService>();
+        var expected = new TransactionPolicyPreview(
+            false,
+            "El tipo de producto ElectronicDeposits está bloqueado por una restricción operacional CFA.",
+            "CYCLE-5",
+            "Ciclo 5",
+            new DateTime(2026, 8, 3),
+            "ACH Colombia",
+            7,
+            "2026-08-03 12:00 - 2026-08-03 14:00",
+            true,
+            25_000_000m,
+            250_000_000m,
+            500,
+            "idem-1",
+            false);
+        var policy = new Mock<ITransactionPolicyService>();
+        policy.Setup(x => x.PreviewAsync(It.IsAny<TransactionPolicyPreviewRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+        var bulk = new Mock<IAchBulkTransactionService>();
+        var ingestion = new Mock<IAchBulkIngestionService>();
+        var logger = new Mock<ILogger<TransactionsController>>();
+        var controller = new TransactionsController(txService.Object, policy.Object, bulk.Object, ingestion.Object, logger.Object);
+
+        var result = await controller.PreviewPolicy(
+            1_000m,
+            null,
+            "PREVIEW-CFA-001",
+            TransactionTypeEnum.Debit,
+            AccountTypeEnum.ElectronicDeposits,
+            false,
+            2,
+            "1234567890",
+            "9876543210",
+            "900123456",
+            null,
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Same(expected, ok.Value);
+        policy.Verify(x => x.PreviewAsync(
+            It.Is<TransactionPolicyPreviewRequest>(request =>
+                request.Type == TransactionTypeEnum.Debit
+                && request.AccountType == AccountTypeEnum.ElectronicDeposits
+                && request.Reference == "PREVIEW-CFA-001"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ThirdPartyAccountSelector_ForwardsCanonicalTransactionContext()
+    {
+        var txService = new Mock<IAchTransactionService>();
+        var policy = new Mock<ITransactionPolicyService>();
+        var bulk = new Mock<IAchBulkTransactionService>();
+        var ingestion = new Mock<IAchBulkIngestionService>();
+        var selector = new Mock<ITransactionThirdPartyAccountSelectorService>();
+        var expected = new TransactionThirdPartyAccountSelectorResponse(
+            10,
+            7,
+            2,
+            "CENIT",
+            "CENIT",
+            Cfa.ACHInterbank.Domain.Models.ACH.Enums.TransactionNature.Debit,
+            new DateTime(2026, 10, 12),
+            "PPD",
+            []);
+        selector.Setup(x => x.GetAsync(
+                It.IsAny<TransactionThirdPartyAccountSelectorRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+        var logger = new Mock<ILogger<TransactionsController>>();
+        var controller = new TransactionsController(
+            txService.Object,
+            policy.Object,
+            bulk.Object,
+            ingestion.Object,
+            logger.Object,
+            thirdPartyAccountSelectorService: selector.Object);
+
+        var result = await controller.GetThirdPartyAccountSelector(
+            "1234567890",
+            7,
+            TransactionTypeEnum.Debit,
+            12,
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Same(expected, ok.Value);
+        selector.Verify(x => x.GetAsync(
+            It.Is<TransactionThirdPartyAccountSelectorRequest>(request =>
+                request.SourceAccountNumber == "1234567890"
+                && request.DestinationInstitutionId == 7
+                && request.TransactionType == TransactionTypeEnum.Debit
+                && request.CompanyEntryDescriptionId == 12),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task SubmitBulkIngestion_ReturnsBadRequest_WhenSourceIsUnsupported()
     {
         var txService = new Mock<IAchTransactionService>();

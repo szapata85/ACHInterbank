@@ -27,6 +27,7 @@ import { UiBotonComponent } from './ui-boton.component';
     @media(max-width:480px){.overlay{padding:.5rem}.modal{max-height:calc(100dvh - 1rem);padding:.9rem}.acciones{align-items:stretch;flex-direction:column-reverse}.acciones ui-boton{display:block}}
   `]
 })
+/** @deprecated Use OperationalConfirmDialogComponent for new confirmations. */
 export class UiModalConfirmacionComponent {
   @Input() abierto = false;
   @Input() titulo = 'Confirmar acción';

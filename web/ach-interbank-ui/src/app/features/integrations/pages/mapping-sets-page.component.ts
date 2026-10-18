@@ -1,77 +1,47 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatRadioModule } from '@angular/material/radio';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSortModule, Sort } from '@angular/material/sort';
-import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Subject, finalize, switchMap, takeUntil } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import {
-  IntegrationMappingAdminService,
-  IntegrationMappingRule,
-  IntegrationMappingSet,
-  IntegrationMethod,
-  IntegrationMethodParameter,
-  IntegrationSourceCatalogField,
-  IntegrationTransformationCatalog,
-  MappingSetHistoryItem
-} from '../../../core/services/integration-mapping-admin.service';
-import { NotificationService } from '../../../core/services/notification.service';
-import { SharedModule } from '../../../shared/shared.module';
+  IntegrationMappingPreviewItemDto,
+  IntegrationMappingValidationIssueDto,
+  IntegrationMappingWorkspaceParameterStatus,
+  IntegrationMappingWorkspaceSourceCompatibilityDto,
+  IntegrationMappingWorkspaceSourceGroupDto,
+  IntegrationMappingWorkspaceTransformationOptionDto
+} from '../data-access/integration-api.models';
+import {
+  IntegrationInformationParameterReadModel,
+  toIntegrationInformationParameterReadModel
+} from '../data-access/integration-read.models';
+import { presentIntegrationStatus } from '../presentation/mapping-status.presenter';
+import {
+  PresentedIntegrationValidationIssue,
+  presentIntegrationValidationIssue
+} from '../presentation/mapping-validation.presenter';
+import { MappingWorkspaceStore } from '../state/mapping-workspace.store';
+import { MappingPublicationDialogComponent, MappingPublicationDialogData } from './mapping-publication-dialog.component';
 
-type MatrixStatus =
-  | 'Mapeado NACHA'
-  | 'Mapeado transaccional'
-  | 'Mapeado por ciclo/cámara'
-  | 'Mapeado desde respuesta diferencial'
-  | 'Constante técnica'
-  | 'Pendiente funcional'
-  | 'Opcional / reservado'
-  | 'Sin mapear'
-  | 'Inactivo';
-type MatrixFilter = 'Todos' | 'Pendientes' | 'Bloqueantes' | 'Alertas' | 'Listos' | 'Opcionales';
-type MappingModalMode = 'detail' | 'edit' | 'draft' | 'history' | null;
+type StatusFilter = 'All' | IntegrationMappingWorkspaceParameterStatus;
 
-interface ServiceDescriptor {
-  operationKey: string;
-  description: string;
-}
-
-interface MappingMatrixRow {
-  serviceName: string;
-  parameterId: number;
-  parameterSoap: string;
-  parameterDescription: string;
-  tableOrigin: string;
-  fieldOrigin: string;
-  conversionRule: string;
-  required: boolean;
-  status: MatrixStatus;
-  lastUpdated: string;
-  mappingSet: IntegrationMappingSet | null;
-  rule: IntegrationMappingRule | null;
-  sourceField: IntegrationSourceCatalogField | null;
-  technicalNote: string;
-}
-
-interface SourceVisual {
-  tableOrigin: string;
-  fieldOrigin: string;
-  sourceField: IntegrationSourceCatalogField | null;
-  hasValidSource: boolean;
-  sourceKind: string;
-}
+type ParameterEditForm = FormGroup<{
+  sourceSearch: FormControl<string>;
+  sourceCatalogFieldId: FormControl<number | null>;
+  transformationCode: FormControl<string>;
+  formatMask: FormControl<string>;
+}>;
 
 @Component({
   selector: 'app-mapping-sets-page',
@@ -79,1261 +49,500 @@ interface SourceVisual {
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    RouterModule,
-    SharedModule,
     MatButtonModule,
     MatCardModule,
-    MatCheckboxModule,
     MatChipsModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
-    MatMenuModule,
     MatProgressBarModule,
+    MatRadioModule,
     MatSelectModule,
-    MatSortModule,
-    MatTableModule,
-    MatTabsModule,
-    MatTooltipModule
+    MatTabsModule
   ],
   templateUrl: './mapping-sets-page.component.html',
-  styleUrls: ['./mapping-sets-page.component.scss']
+  styleUrls: ['./mapping-sets-page.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [MappingWorkspaceStore]
 })
-export class MappingSetsPageComponent implements OnInit, OnDestroy {
-  private readonly api = inject(IntegrationMappingAdminService);
-  private readonly notifications = inject(NotificationService);
-  private readonly auth = inject(AuthService);
-  private readonly fb = inject(FormBuilder);
-  private readonly router = inject(Router);
+export class MappingSetsPageComponent {
+  readonly store = inject(MappingWorkspaceStore);
   private readonly route = inject(ActivatedRoute);
-  private readonly cdr = inject(ChangeDetectorRef);
-  private readonly destroy$ = new Subject<void>();
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly dialog = inject(MatDialog);
+  private readonly fb = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly searchSignal = signal('');
+  private readonly statusFilterSignal = signal<StatusFilter>('All');
+  private readonly editingParameterIdSignal = signal<number | null>(null);
+  private readonly sourceSearchSignal = signal('');
+  private readonly sourceIdSignal = signal<number | null>(null);
+  private readonly transformationCodeSignal = signal('');
+  private readonly formatMaskSignal = signal('');
 
-  loading = false;
-  savingRule = false;
-  creatingDraft = false;
-  historyLoading = false;
-  methods: IntegrationMethod[] = [];
-  mappingSets: IntegrationMappingSet[] = [];
-  sourceCatalog: IntegrationSourceCatalogField[] = [];
-  targetFields: IntegrationMethodParameter[] = [];
-  transformations: IntegrationTransformationCatalog[] = [];
-  historyItems: MappingSetHistoryItem[] = [];
-  catalogLoadState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
-  modalMode: MappingModalMode = null;
-  selectedRow: MappingMatrixRow | null = null;
-  selectedMapping: IntegrationMappingSet | null = null;
-  selectedFilter: MatrixFilter = 'Todos';
-  private matrixRowsCache: {
-    targetFields: IntegrationMethodParameter[];
-    mappingSets: IntegrationMappingSet[];
-    methodId: number | null;
-    rows: MappingMatrixRow[];
-  } | null = null;
-  private filteredRowsCache: {
-    matrixRows: MappingMatrixRow[];
-    search: string;
-    required: string;
-    selectedFilter: MatrixFilter;
-    sortActive: string;
-    sortDirection: string;
-    rows: MappingMatrixRow[];
-  } | null = null;
-  private filterOptionsCache: {
-    matrixRows: MappingMatrixRow[];
-    options: Array<{ key: MatrixFilter; label: string; count: number }>;
-  } | null = null;
+  readonly canManage = this.auth.hasPermission(['Integrations.ManageMappings', 'CanManageAch']);
+  readonly canValidate = this.auth.hasPermission(['Integrations.Validate', 'CanManageAch']);
+  readonly canPublish = this.auth.hasPermission(['Integrations.Publish', 'CanManageAch']);
 
-  readonly canManage = this.auth.hasPermission('CanManageAch');
-  readonly displayedColumns = ['parameterSoap', 'tableOrigin', 'fieldOrigin', 'conversionRule', 'required', 'status', 'lastUpdated', 'actions'];
+  readonly filters = this.fb.nonNullable.group({
+    search: '',
+    status: 'All' as StatusFilter
+  });
 
-  readonly migas = [
-    { etiqueta: 'Inicio', ruta: '/' },
-    { etiqueta: 'Integraciones', ruta: '/integraciones' },
-    { etiqueta: 'Matriz de campos SOAP' }
+  readonly parameterForm: ParameterEditForm = new FormGroup({
+    sourceSearch: new FormControl('', { nonNullable: true }),
+    sourceCatalogFieldId: new FormControl<number | null>(null, { validators: [Validators.required] }),
+    transformationCode: new FormControl('', { nonNullable: true }),
+    formatMask: new FormControl('', { nonNullable: true })
+  });
+
+  readonly statusOptions: ReadonlyArray<{ value: StatusFilter; label: string }> = [
+    { value: 'All', label: 'Todos' },
+    { value: 'Complete', label: 'Completo' },
+    { value: 'Pending', label: 'Pendiente' },
+    { value: 'Invalid', label: 'Inválido' },
+    { value: 'NotApplicable', label: 'No aplica' }
   ];
 
-  readonly serviceDescriptions: ServiceDescriptor[] = [
-    {
-      operationKey: 'Proc_Transacciones',
-      description: 'Servicio utilizado para procesar créditos monetarios recibidos desde otra entidad financiera hacia CFA.'
-    },
-    {
-      operationKey: 'Proc_Contrapartidas',
-      description: 'Servicio utilizado para procesar débitos monetarios originados por CFA hacia otra entidad financiera.'
-    },
-    {
-      operationKey: 'RegistrarRespuestaTransaccion',
-      description: 'Servicio utilizado para registrar respuestas, rechazos o notificaciones diferenciales. No realiza movimiento monetario.'
-    }
-  ];
+  readonly parameters = computed<IntegrationInformationParameterReadModel[]>(() =>
+    this.store.parameters().map(toIntegrationInformationParameterReadModel)
+  );
 
-  private readonly serviceOrder = this.serviceDescriptions.map((service) => service.operationKey);
+  readonly previewByParameter = computed(() => new Map<number, IntegrationMappingPreviewItemDto>(
+    (this.store.preview()?.items ?? []).map(item => [item.parameterId, item])
+  ));
 
-  readonly createDraftForm = this.fb.group({
-    methodId: [null as number | null, Validators.required],
-    name: ['', [Validators.required, Validators.maxLength(120)]],
-    notes: ['']
+  readonly generalValidationIssues = computed<PresentedIntegrationValidationIssue[]>(() =>
+    (this.store.preview()?.validation?.issues ?? []).map(issue =>
+      presentIntegrationValidationIssue(issue, this.functionalNameForIssue(issue))
+    )
+  );
+
+  readonly pendingRequiredParameters = computed(() =>
+    this.parameters().filter(parameter => parameter.required && parameter.status === 'Pending')
+  );
+
+  readonly publicationDisabled = computed(() => {
+    const workspace = this.store.workspace();
+    return !this.canPublish
+      || !workspace
+      || workspace.mappingSet.status !== 'Draft'
+      || workspace.publication.pendingRequired > 0
+      || !this.store.canPublish()
+      || this.store.publishing();
   });
 
-  readonly editRelationForm = this.fb.group({
-    sourceCatalogFieldId: [null as number | null],
-    transformationCode: [''],
-    requiredOverride: [false],
-    enabled: [true]
-  });
-  readonly filterForm = this.fb.group({
-    search: [''],
-    required: ['all' as 'all' | 'required' | 'optional']
-  });
-  sort: Sort = { active: '', direction: '' };
-
-  ngOnInit(): void {
-    this.editRelationForm.controls.enabled.valueChanges.pipe(takeUntil(this.destroy$)).subscribe((enabled) => {
-      this.updateSourceFieldValidation(Boolean(enabled));
-    });
-    this.loadMethods();
-    this.loadTransformations();
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  get selectedMethodId(): number | null {
-    return this.createDraftForm.controls.methodId.value;
-  }
-
-  get selectedMethod(): IntegrationMethod | undefined {
-    return this.methods.find((x) => x.id === this.selectedMethodId);
-  }
-
-  get selectedServiceDescription(): string {
-    const operationKey = this.selectedMethod?.operationKey;
-    return this.getServiceDescription(operationKey);
-  }
-
-  get activeMappingSet(): IntegrationMappingSet | null {
-    if (!this.mappingSets.length) {
-      return null;
-    }
-
-    return this.mappingSets.find((set) => this.normalizeStatus(set.status) === 'Published' && set.isActive)
-      ?? this.mappingSets.find((set) => this.normalizeStatus(set.status) === 'Published')
-      ?? this.mappingSets.find((set) => this.normalizeStatus(set.status) === 'Draft')
-      ?? this.mappingSets[0];
-  }
-
-  get matrixRows(): MappingMatrixRow[] {
-    const methodId = this.selectedMethodId;
-    if (this.matrixRowsCache
-      && this.matrixRowsCache.targetFields === this.targetFields
-      && this.matrixRowsCache.mappingSets === this.mappingSets
-      && this.matrixRowsCache.methodId === methodId) {
-      return this.matrixRowsCache.rows;
-    }
-
-    const mappingSet = this.activeMappingSet;
-    const rulesByParameter = new Map<number, IntegrationMappingRule>();
-    for (const rule of mappingSet?.rules ?? []) {
-      const current = rulesByParameter.get(rule.parameterId);
-      if (!current || rule.priority < current.priority) {
-        rulesByParameter.set(rule.parameterId, rule);
-      }
-    }
-
-    const rows = [...this.targetFields]
-      .filter((parameter) => this.isActiveFlag(parameter.isActive))
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((parameter) => this.buildMatrixRow(parameter, mappingSet, rulesByParameter.get(parameter.id) ?? null));
-    this.matrixRowsCache = {
-      targetFields: this.targetFields,
-      mappingSets: this.mappingSets,
-      methodId,
-      rows
-    };
-    return rows;
-  }
-
-  get filteredMatrixRows(): MappingMatrixRow[] {
-    const search = this.normalizeSearch(this.filterForm.controls.search.value);
-    const required = this.filterForm.controls.required.value ?? 'all';
-    const matrixRows = this.matrixRows;
-    if (this.filteredRowsCache
-      && this.filteredRowsCache.matrixRows === matrixRows
-      && this.filteredRowsCache.search === search
-      && this.filteredRowsCache.required === required
-      && this.filteredRowsCache.selectedFilter === this.selectedFilter
-      && this.filteredRowsCache.sortActive === this.sort.active
-      && this.filteredRowsCache.sortDirection === this.sort.direction) {
-      return this.filteredRowsCache.rows;
-    }
-
-    const rows = matrixRows.filter((row) => {
-      const matchesText = !search || this.normalizeSearch([
-        row.parameterSoap,
-        row.parameterDescription,
-        row.tableOrigin,
-        row.fieldOrigin,
-        row.conversionRule
-      ].join(' ')).includes(search);
-      const matchesRequired = required === 'all'
-        || (required === 'required' && row.required)
-        || (required === 'optional' && !row.required);
-      return this.matchesSelectedFilter(row) && matchesText && matchesRequired;
-    });
-    const filteredRows = this.sortRows(rows);
-    this.filteredRowsCache = {
-      matrixRows,
-      search,
-      required,
-      selectedFilter: this.selectedFilter,
-      sortActive: this.sort.active,
-      sortDirection: this.sort.direction,
-      rows: filteredRows
-    };
-    return filteredRows;
-  }
-
-  get selectedMethodIndex(): number {
-    const index = this.methods.findIndex((method) => method.id === this.selectedMethodId);
-    return index < 0 ? 0 : index;
-  }
-
-  get allowedSourceFields(): IntegrationSourceCatalogField[] {
-    return this.sourceCatalog
-      .filter((field) => this.isActiveFlag(field.isActive) && this.isAllowedNachaSource(field.sourceKind))
-      .sort((a, b) => this.getSourceKindLabel(a.sourceKind).localeCompare(this.getSourceKindLabel(b.sourceKind)) || a.sortOrder - b.sortOrder);
-  }
-
-  get matrixStats() {
-    const rows = this.matrixRows;
-    return {
-      total: rows.length,
-      ready: rows.filter((row) => this.isReadyRow(row)).length,
-      pending: rows.filter((row) => this.isPendingRow(row)).length,
-      blocking: rows.filter((row) => this.isBlockingRow(row)).length,
-      warnings: rows.filter((row) => this.isWarningRow(row)).length,
-      optionalReserved: rows.filter((row) => row.status === 'Opcional / reservado').length,
-      mapped: rows.filter((row) => this.isMappedStatus(row.status)).length,
-      unmapped: rows.filter((row) => row.status === 'Sin mapear').length,
-      inactive: rows.filter((row) => row.status === 'Inactivo').length
-    };
-  }
-
-  get filterOptions(): Array<{ key: MatrixFilter; label: string; count: number }> {
-    const matrixRows = this.matrixRows;
-    if (this.filterOptionsCache?.matrixRows === matrixRows) {
-      return this.filterOptionsCache.options;
-    }
-
-    const stats = this.matrixStats;
-    const options: Array<{ key: MatrixFilter; label: string; count: number }> = [
-      { key: 'Todos', label: 'Todos', count: stats.total },
-      { key: 'Pendientes', label: 'Pendientes', count: stats.pending },
-      { key: 'Bloqueantes', label: 'Bloqueantes', count: stats.blocking },
-      { key: 'Alertas', label: 'Alertas', count: stats.warnings },
-      { key: 'Listos', label: 'Listos', count: stats.ready },
-      { key: 'Opcionales', label: 'Opcionales', count: stats.optionalReserved }
-    ];
-    this.filterOptionsCache = { matrixRows, options };
-    return options;
-  }
-
-  loadMethods(): void {
-    this.loading = true;
-    this.api.getMethods().pipe(finalize(() => (this.loading = false))).subscribe({
-      next: (items) => {
-        this.methods = (items ?? [])
-          .filter((method) => this.isActiveFlag(method.isActive))
-          .filter((method) => this.serviceDescriptions.some((item) => item.operationKey === method.operationKey))
-          .sort((a, b) => this.getServiceOrder(a.operationKey) - this.getServiceOrder(b.operationKey));
-        const requestedMethodCode = this.route.snapshot.queryParamMap.get('method');
-        const requestedMethod = requestedMethodCode
-          ? this.methods.find((method) => method.code === requestedMethodCode || method.operationKey === requestedMethodCode)
-          : undefined;
-        const initialMethod = requestedMethod ?? this.methods[0];
-        if (initialMethod) {
-          this.createDraftForm.patchValue({ methodId: initialMethod.id });
-        }
-        this.refreshView();
-        this.loadCatalogForSelectedMethod();
-        this.loadMappingSets();
-      },
-      error: () => this.notifications.error('No fue posible cargar los servicios SOAP.')
-    });
-  }
-
-  loadMappingSets(): void {
-    const methodId = this.selectedMethodId;
-    this.api.getMappingSets(methodId ?? undefined).subscribe({
-      next: (items) => {
-        this.mappingSets = items ?? [];
-        this.refreshView();
-      },
-      error: () => this.notifications.error('No fue posible cargar la relación de campos.')
-    });
-  }
-
-  onMethodChange(): void {
-    this.closeModal();
-    this.selectedFilter = 'Todos';
-    this.loadCatalogForSelectedMethod();
-    this.loadMappingSets();
-  }
-
-  onMethodTabChange(index: number): void {
-    const method = this.methods[index];
-    if (!method || method.id === this.selectedMethodId) {
-      return;
-    }
-    this.createDraftForm.controls.methodId.setValue(method.id, { emitEvent: false });
-    this.onMethodChange();
-  }
-
-  selectMethod(method: IntegrationMethod): void {
-    if (method.id === this.selectedMethodId) {
-      return;
-    }
-    this.createDraftForm.controls.methodId.setValue(method.id, { emitEvent: false });
-    this.onMethodChange();
-  }
-
-  clearFilters(): void {
-    this.filterForm.reset({ search: '', required: 'all' });
-    this.selectedFilter = 'Todos';
-  }
-
-  onSortChange(sort: Sort): void {
-    this.sort = sort;
-  }
-
-  openDraftModal(): void {
-    if (!this.canManage) {
-      return;
-    }
-
-    const method = this.selectedMethod;
-    this.createDraftForm.patchValue({
-      methodId: method?.id ?? null,
-      name: method ? `Matriz ${method.operationKey} - borrador` : '',
-      notes: 'Ajuste controlado desde matriz de campos SOAP.'
-    });
-    this.modalMode = 'draft';
-  }
-
-  openDetail(row: MappingMatrixRow): void {
-    this.selectedRow = row;
-    this.selectedMapping = row.mappingSet;
-    this.modalMode = 'detail';
-  }
-
-  openHistory(row?: MappingMatrixRow): void {
-    const mappingSet = row?.mappingSet ?? this.activeMappingSet;
-    if (!mappingSet) {
-      this.notifications.error('No hay auditoría disponible para este servicio.');
-      return;
-    }
-
-    this.selectedRow = row ?? null;
-    this.selectedMapping = mappingSet;
-    this.historyItems = [];
-    this.historyLoading = true;
-    this.modalMode = 'history';
-    this.api.getHistory(mappingSet.id).pipe(finalize(() => (this.historyLoading = false))).subscribe({
-      next: (items) => (this.historyItems = items ?? []),
-      error: () => this.notifications.error('No fue posible cargar la auditoría.')
-    });
-  }
-
-  editRelation(row: MappingMatrixRow): void {
-    if (!this.canManage || this.savingRule) {
-      return;
-    }
-
-    this.selectedRow = row;
-    const current = this.activeMappingSet;
-    if (current && this.normalizeStatus(current.status) === 'Draft') {
-      this.openEditForDraft(current, row.parameterId);
-      return;
-    }
-
-    if (current) {
-      this.openEditForDraft(current, row.parameterId);
-      return;
-    }
-
-    this.selectedMapping = null;
-    this.editRelationForm.reset({
-      sourceCatalogFieldId: row.sourceField?.id ?? null,
-      transformationCode: row.rule?.transformationCode ?? '',
-      requiredOverride: row.required,
-      enabled: row.rule?.enabled ?? true
-    });
-    this.updateSourceFieldValidation(Boolean(this.editRelationForm.controls.enabled.value));
-    this.modalMode = 'edit';
-  }
-
-  saveRelation(): void {
-    if (!this.canManage || !this.selectedRow || this.savingRule) {
-      return;
-    }
-
-    if (this.editRelationForm.controls.enabled.value && !this.editRelationForm.controls.sourceCatalogFieldId.value) {
-      this.editRelationForm.controls.sourceCatalogFieldId.markAsTouched();
-      this.notifications.error('Seleccione una tabla y campo origen para activar la relación.');
-      return;
-    }
-
-    const current = this.selectedMapping;
-    const method = this.selectedMethod;
-    if (!method) {
-      return;
-    }
-    this.savingRule = true;
-    const draft$ = current && this.normalizeStatus(current.status) === 'Draft'
-      ? this.api.upsertRules(current.id, 'ui-admin', this.buildUpsertPayload(current, this.selectedRow))
-      : current
-        ? this.api.clone(current.id, `${current.name} - ajuste matriz`, 'ui-admin').pipe(
-          switchMap((draft) => this.api.upsertRules(
-            draft.id,
-            'ui-admin',
-            this.buildUpsertPayload(draft, this.selectedRow!)
-          ))
-        )
-        : this.api.createDraft(
-          method.id,
-          `Matriz ${method.operationKey} - borrador`,
-          'Ajuste controlado desde matriz de campos SOAP.',
-          'ui-admin'
-        ).pipe(
-          switchMap((draft) => this.api.upsertRules(
-            draft.id,
-            'ui-admin',
-            this.buildUpsertPayload(draft, this.selectedRow!)
-          ))
-        );
-    draft$
-      .pipe(finalize(() => (this.savingRule = false)))
-      .subscribe({
-        next: (updated) => {
-          this.mappingSets = [updated, ...this.mappingSets.filter((set) => set.id !== updated.id)];
-          this.notifications.success('Relación de campos guardada en un borrador.');
-          this.closeModal();
-        },
-        error: () => this.notifications.error('No fue posible guardar la relación de campos.')
-      });
-  }
-
-  closeModal(): void {
-    this.modalMode = null;
-    this.selectedRow = null;
-    this.selectedMapping = null;
-    this.historyItems = [];
-  }
-
-  createDraft(): void {
-    if (!this.canManage) {
-      return;
-    }
-
-    if (this.createDraftForm.invalid) {
-      this.createDraftForm.markAllAsTouched();
-      return;
-    }
-
-    const methodId = this.createDraftForm.controls.methodId.value!;
-    const name = this.createDraftForm.controls.name.value!.trim();
-    const notes = this.createDraftForm.controls.notes.value?.trim() ?? '';
-    this.creatingDraft = true;
-    this.api.createDraft(methodId, name, notes, 'ui-admin')
-      .pipe(finalize(() => (this.creatingDraft = false)))
-      .subscribe({
-        next: (created) => {
-          this.mappingSets = [created, ...this.mappingSets];
-          this.notifications.success('Borrador de relación de campos creado.');
-          this.closeModal();
-        },
-        error: () => this.notifications.error('No fue posible crear el borrador.')
-      });
-  }
-
-  openAdvancedEditor(row?: MappingMatrixRow): void {
-    if (row) {
-      this.selectedRow = row;
-      this.selectedMapping = row.mappingSet;
-    }
-
-    const mappingSet = this.selectedMapping ?? this.activeMappingSet;
-    if (!mappingSet) {
-      return;
-    }
-
-    this.router.navigate(['/integraciones/mappings', mappingSet.methodCode, mappingSet.id]);
-  }
-
-  setFilter(filter: MatrixFilter): void {
-    this.selectedFilter = filter;
-  }
-
-  private normalizeSearch(value: string | null | undefined): string {
-    return (value ?? '').trim().toLocaleLowerCase('es');
-  }
-
-  private updateSourceFieldValidation(enabled: boolean): void {
-    const sourceControl = this.editRelationForm.controls.sourceCatalogFieldId;
-    if (enabled) {
-      sourceControl.addValidators(Validators.required);
-    } else {
-      sourceControl.removeValidators(Validators.required);
-    }
-    sourceControl.updateValueAndValidity({ emitEvent: false });
-  }
-
-  private sortRows(rows: MappingMatrixRow[]): MappingMatrixRow[] {
-    const { active, direction } = this.sort;
-    if (!direction) {
-      return rows;
-    }
-    const factor = direction === 'asc' ? 1 : -1;
-    return [...rows].sort((left, right) => {
-      const leftValue = String(left[active as keyof MappingMatrixRow] ?? '');
-      const rightValue = String(right[active as keyof MappingMatrixRow] ?? '');
-      return leftValue.localeCompare(rightValue, 'es', { numeric: true }) * factor;
-    });
-  }
-
-  getStatusClass(status: MatrixStatus): string {
-    if (status === 'Mapeado NACHA') return 'nacha';
-    if (status === 'Mapeado transaccional') return 'transactional';
-    if (status === 'Mapeado por ciclo/cámara') return 'cycle';
-    if (status === 'Mapeado desde respuesta diferencial') return 'differential';
-    if (status === 'Constante técnica') return 'constant';
-    if (status === 'Pendiente funcional') return 'placeholder';
-    if (status === 'Opcional / reservado') return 'reserved';
-    if (status === 'Inactivo') return 'inactive';
-    return 'unmapped';
-  }
-
-  getMappingSetStatusLabel(mappingSet: IntegrationMappingSet | null): string {
-    if (!mappingSet) {
-      return 'Sin versión de trabajo';
-    }
-
-    const normalized = this.normalizeStatus(mappingSet.status);
-    if (normalized === 'Draft') return 'Borrador de trabajo';
-    if (normalized === 'Published') return 'Publicado activo';
-    if (normalized === 'Archived') return 'Archivado';
-    return normalized || 'Sin estado';
-  }
-
-  getObservationLabel(row: MappingMatrixRow): string {
-    if (row.status === 'Pendiente funcional') {
-      return 'Pendiente de definición funcional.';
-    }
-
-    if (row.status === 'Sin mapear') {
-      return row.required ? 'Requiere fuente o constante homologada.' : 'Sin relación activa.';
-    }
-
-    if (row.status === 'Constante técnica') {
-      return 'Constante técnica; revisar política funcional.';
-    }
-
-    if (row.status === 'Opcional / reservado') {
-      return 'Reservado por contrato; no bloquea la revisión funcional.';
-    }
-
-    if (row.status === 'Inactivo') {
-      return 'No participa en la versión visible.';
-    }
-
-    return 'Listo con fuente funcional.';
-  }
-
-  getRowActionLabel(row: MappingMatrixRow): string {
-    if (row.status === 'Sin mapear') {
-      return 'Completar';
-    }
-
-    if (this.isBlockingRow(row) || this.isWarningRow(row)) {
-      return 'Revisar';
-    }
-
-    return 'Ver detalle';
-  }
-
-  getSourceKindLabel(kind: string | number | null | undefined): string {
-    switch (this.normalizeSourceKind(kind).toLowerCase()) {
-      case 'nachaheader': return 'Archivo NACHA';
-      case 'batchheader': return 'Lote NACHA';
-      case 'entrydetail': return 'Detalle NACHA';
-      case 'addendarecord': return 'Addenda NACHA';
-      case 'batchcontrol': return 'Control lote NACHA';
-      case 'filecontrol': return 'Control archivo NACHA';
-      case 'differentialresponse': return 'Respuesta diferencial';
-      case 'transaction': return 'Transacción';
-      case 'cycle': return 'Ciclo';
-      case 'clearinghouse': return 'Cámara';
-      case 'constant': return 'Constante';
-      case 'batch': return 'Lote operativo';
-      case 'addenda': return 'Addenda NACHA';
-      case 'financialinstitution': return 'Entidad financiera';
-      case 'prenotification': return 'Prenotificación';
-      default: return 'Sin mapear';
-    }
-  }
-
-  getSourceFieldLabel(field: IntegrationSourceCatalogField): string {
-    return this.getKnownSourceFieldLabel(field.fieldPath)
-      ?? this.getKnownSourceFieldLabel(field.displayName)
-      ?? field.displayName
-      ?? field.fieldPath
-      ?? 'Campo fuente';
-  }
-
-  getServiceDescription(operationKey: string | null | undefined): string {
-    return this.serviceDescriptions.find((item) => item.operationKey === operationKey)?.description
-      ?? 'Servicio SOAP controlado para integración ACH.';
-  }
-
-  getTransformationLabel(code: string | null | undefined): string {
-    if (!code) {
-      return 'Sin regla';
-    }
-
-    const known = this.transformations.find((item) => item.code === code);
-    const label = known?.displayName ?? code;
-    const dictionary: Record<string, string> = {
-      Trim: 'Limpiar espacios',
-      Uppercase: 'Mayusculas',
-      Lowercase: 'Minusculas',
-      PadLeft: 'Rellenar a la izquierda',
-      PadRight: 'Rellenar a la derecha',
-      Substring: 'Extraer segmento',
-      Concat: 'Concatenar',
-      DateFormat: 'Formato de fecha',
-      NumericFormat: 'Formato numerico',
-      NullIfEmpty: 'Nulo si vacio',
-      DefaultIfNull: 'Valor por defecto'
-    };
-    return dictionary[label] ?? dictionary[code] ?? label;
-  }
-
-  trackRow(_: number, row: MappingMatrixRow): number {
-    return row.parameterId;
-  }
-
-  trackField(_: number, field: IntegrationSourceCatalogField): number {
-    return field.id;
-  }
-
-  private loadTransformations(): void {
-    this.api.getTransformations().subscribe({
-      next: (items) => {
-        this.transformations = items ?? [];
-        this.refreshView();
-      },
-      error: () => {
-        this.transformations = [];
-        this.refreshView();
-      }
-    });
-  }
-
-  private loadCatalogForSelectedMethod(): void {
-    const methodId = this.selectedMethodId;
-    this.sourceCatalog = [];
-    this.targetFields = [];
-    if (!methodId) {
-      this.catalogLoadState = 'idle';
-      return;
-    }
-
-    this.catalogLoadState = 'loading';
-    let sourceLoaded = false;
-    let parametersLoaded = false;
-    const markReady = () => {
-      if (sourceLoaded && parametersLoaded && this.catalogLoadState !== 'error') {
-        this.catalogLoadState = 'ready';
-        this.refreshView();
-      }
-    };
-
-    this.api.getSourceCatalog(methodId).subscribe({
-      next: (items) => {
-        this.sourceCatalog = items ?? [];
-        sourceLoaded = true;
-        this.refreshView();
-        markReady();
-      },
-      error: () => {
-        this.catalogLoadState = 'error';
-        this.notifications.error('No fue posible cargar la matriz de campos SOAP.');
-        this.refreshView();
-      }
-    });
-
-    this.api.getMethodParameters(methodId).subscribe({
-      next: (items) => {
-        this.targetFields = items ?? [];
-        parametersLoaded = true;
-        this.refreshView();
-        markReady();
-      },
-      error: () => {
-        this.catalogLoadState = 'error';
-        this.notifications.error('No fue posible cargar los parámetros SOAP.');
-        this.refreshView();
-      }
-    });
-  }
-
-  private buildMatrixRow(
-    parameter: IntegrationMethodParameter,
-    mappingSet: IntegrationMappingSet | null,
-    rule: IntegrationMappingRule | null
-  ): MappingMatrixRow {
-    const isInactive = !!mappingSet && (!mappingSet.isActive || this.normalizeStatus(mappingSet.status) === 'Archived' || rule?.enabled === false);
-    const isOptionalReserved = !rule && this.isOptionalReservedParameter(parameter);
-    const sourceVisual = this.resolveSourceVisual(rule);
-    const status = this.getFunctionalMappingStatus(rule, sourceVisual, isInactive, isOptionalReserved);
-
-    return {
-      serviceName: this.selectedMethod?.operationKey ?? parameter.parameterPath.split('.')[0] ?? 'Servicio SOAP',
-      parameterId: parameter.id,
-      parameterSoap: parameter.parameterPath || parameter.displayName,
-      parameterDescription: parameter.descriptionEs || parameter.displayName || parameter.uiHelpText || parameter.parameterPath,
-      tableOrigin: isOptionalReserved ? 'Reservado por contrato' : sourceVisual.tableOrigin,
-      fieldOrigin: isOptionalReserved ? 'Opcional sin fuente requerida' : sourceVisual.fieldOrigin,
-      conversionRule: this.getConversionRuleLabel(rule, isOptionalReserved),
-      required: rule?.requiredOverride ?? parameter.required,
-      status,
-      lastUpdated: this.getLastUpdatedLabel(mappingSet),
-      mappingSet,
-      rule,
-      sourceField: sourceVisual.sourceField,
-      technicalNote: this.getTechnicalNote(rule, sourceVisual, isOptionalReserved)
-    };
-  }
-
-  private resolveSourceVisual(rule: IntegrationMappingRule | null): SourceVisual {
-    if (!rule || rule.enabled === false) {
-      return this.unmappedSourceVisual();
-    }
-
-    const normalizedKind = this.normalizeSourceKind(rule.sourceKind).toLowerCase();
-    const sourceField = this.resolveSourceField(rule);
-    const isConstant = normalizedKind === 'constant';
-    const hasConstantValue = isConstant && (!!rule.fixedValue || !!rule.defaultValue || this.normalizeSourceFieldPath(rule.sourceFieldPath) === 'constant.value');
-    const hasSourcePath = !!(rule.sourceFieldPath ?? '').trim();
-    const hasValidSource = isConstant
-      ? hasConstantValue
-      : this.isKnownSourceKind(normalizedKind) && (!!sourceField || hasSourcePath);
-
-    if (!hasValidSource) {
-      return this.unmappedSourceVisual(sourceField);
-    }
-
-    return {
-      tableOrigin: this.getSourceKindLabel(rule.sourceKind),
-      fieldOrigin: this.getSourceDisplayName(rule, sourceField),
-      sourceField,
-      hasValidSource: true,
-      sourceKind: normalizedKind
-    };
-  }
-
-  private unmappedSourceVisual(sourceField: IntegrationSourceCatalogField | null = null): SourceVisual {
-    return {
-      tableOrigin: 'Sin mapear',
-      fieldOrigin: 'Sin mapear',
-      sourceField,
-      hasValidSource: false,
-      sourceKind: ''
-    };
-  }
-
-  private getSourceDisplayName(rule: IntegrationMappingRule, sourceField: IntegrationSourceCatalogField | null): string {
-    const normalizedKind = this.normalizeSourceKind(rule.sourceKind).toLowerCase();
-    if (normalizedKind === 'constant') {
-      if (this.isPlaceholderRule(rule)) {
-        return 'Pendiente funcional';
-      }
-
-      return rule.fixedValue ? 'Valor fijo' : rule.defaultValue ? 'Valor por defecto' : 'Constante';
-    }
-
-    const sourcePath = (rule.sourceFieldPath || sourceField?.fieldPath || '').trim();
-    const known = this.getKnownSourceFieldLabel(sourcePath);
-    if (known) {
-      return known;
-    }
-
-    return sourceField?.displayName || sourcePath || 'Fuente técnica';
-  }
-
-  private getKnownSourceFieldLabel(sourcePath: string): string | null {
-    const normalized = sourcePath.trim().toLowerCase();
-    const labels: Record<string, string> = {
-      'achtransaction.reference': 'Referencia',
-      'transaction.reference': 'Referencia',
-      'transaction.transactionexternalid': 'ID de operación del cliente',
-      'transaction.amount': 'Monto',
-      'transaction.tracenumber': 'Trazabilidad',
-      'transaction.companyidentification': 'Identificación de compañía',
-      'transaction.originatingdfi': 'Banco originador',
-      'transaction.sourceaccountnumber': 'Cuenta origen',
-      'transaction.id': 'ID de transacción',
-      'achtransaction.amount': 'Monto',
-      'achtransaction.tracenumber': 'Trazabilidad',
-      'achtransaction.companyidentification': 'Identificación de compañía',
-      'achtransaction.originatingdfi': 'Banco originador',
-      'batch.id': 'ID de lote',
-      'achbatch.id': 'ID de lote',
-      'cycle.id': 'ID de ciclo',
-      'cycle.processingdate': 'Fecha de proceso',
-      'achcycle.processingdate': 'Fecha de proceso',
-      'execution.datetimeutc': 'Fecha/hora de ejecución UTC',
-      'execution.dateyyyymmdd': 'Fecha de ejecución yyyymmdd',
-      'clearinghouse.id': 'Identificador interno',
-      'clearinghouse.code': 'Código',
-      'financialinstitution.routingnumber': 'Código ruta',
-      'differentialresponse.idcanal': 'Canal',
-      'differentialresponse.nombrecanal': 'Nombre de canal',
-      'differentialresponse.idtransaccion': 'Transacción',
-      'differentialresponse.idestado': 'Estado',
-      'differentialresponse.codigocausalexterna': 'Causal externa',
-      'differentialresponse.idtransaccionservicioexterno': 'ID de transacción del servicio externo',
-      'differentialresponse.descripcioncausalexterna': 'Descripción de causal externa',
-      'nachaheaders.immediatedestination': 'Destino inmediato',
-      'nachaheaders.immediateorigin': 'Origen inmediato',
-      'nachaheaders.fileidmodifier': 'Modificador de archivo',
-      'batchheaders.companyname': 'Nombre de compañía',
-      'batchheaders.companyid': 'Identificación de compañía',
-      'batchheaders.companyidentification': 'Identificación de compañía',
-      'batchheaders.companyentrydescription': 'Descripción de entrada',
-      'batchheaders.effectiveentrydate': 'Fecha efectiva',
-      'entrydetails.amount': 'Monto',
-      'entrydetails.accountnumber': 'Cuenta',
-      'entrydetails.transactioncode': 'Código de transacción',
-      'entrydetails.tracenumber': 'Trazabilidad',
-      'addendarecords.infofromoriginator': 'Información de pago',
-      'addendarecords.paymentrelatedinformation': 'Información de pago',
-      'batchcontrols.entryaddendacount': 'Cantidad de registros',
-      'batchcontrols.entryhash': 'Hash entradas',
-      'filecontrols.blockcount': 'Bloques',
-      'prenotification.reference': 'Referencia de prenotificación',
-      'prenotification.state': 'Estado de prenotificación',
-      'addenda.addendatype': 'Tipo addenda'
-    };
-
-    return labels[normalized] ?? null;
-  }
-
-  private getConversionRuleLabel(rule: IntegrationMappingRule | null, isOptionalReserved: boolean): string {
-    if (isOptionalReserved) {
-      return 'Reservado / opcional';
-    }
-
-    if (!rule) {
-      return 'Pendiente de definición';
-    }
-
-    if (this.isPlaceholderRule(rule)) {
-      return 'Pendiente funcional';
-    }
-
-    if (rule.fixedValue) {
-      return 'Constante';
-    }
-
-    if (rule.defaultValue) {
-      return 'Valor por defecto';
-    }
-
-    if (rule.transformationCode) {
-      return this.getTransformationLabel(rule.transformationCode);
-    }
-
-      return 'Sin conversión';
-  }
-
-  private getTechnicalNote(rule: IntegrationMappingRule | null, sourceVisual: SourceVisual, isOptionalReserved: boolean): string {
-    if (isOptionalReserved) {
-      return 'Parámetro contractual opcional/reservado para Proc_Contrapartidas.';
-    }
-
-    if (rule && sourceVisual.hasValidSource && this.isPlaceholderRule(rule)) {
-      return 'Valor pendiente de definición funcional; no debe tratarse como homologado.';
-    }
-
-    if (rule && sourceVisual.hasValidSource && sourceVisual.sourceKind === 'constant') {
-      return 'Valor fijo o default técnico visible para revisión funcional.';
-    }
-
-    if (rule && sourceVisual.hasValidSource) {
-      return 'Relación activa con fuente funcional soportada por el backend.';
-    }
-
-    if (rule && !sourceVisual.hasValidSource) {
-      return 'La regla existe, pero no tiene fuente activa válida para mostrarla como mapeada.';
-    }
-
-    return 'Relación construida desde catálogo controlado.';
-  }
-
-  private resolveSourceField(rule: IntegrationMappingRule | null): IntegrationSourceCatalogField | null {
-    if (!rule) {
-      return null;
-    }
-
-    if (rule.sourceCatalogFieldId) {
-      const byId = this.sourceCatalog.find((field) => field.id === rule.sourceCatalogFieldId);
-      if (byId) {
-        return byId;
-      }
-    }
-
-    const normalizedPath = (rule.sourceFieldPath ?? '').trim().toLowerCase();
-    if (!normalizedPath) {
-      return null;
-    }
-
-    return this.sourceCatalog.find((field) => field.fieldPath.trim().toLowerCase() === normalizedPath) ?? null;
-  }
-
-  private getLastUpdatedLabel(mappingSet: IntegrationMappingSet | null): string {
-    if (!mappingSet) {
-      return 'Sin versión';
-    }
-
-    if (mappingSet.publishedAtUtc) {
-      return new Date(mappingSet.publishedAtUtc).toLocaleString();
-    }
-
-    return this.normalizeStatus(mappingSet.status) === 'Draft' ? 'Borrador sin publicar' : 'No disponible';
-  }
-
-  private openEditForDraft(draft: IntegrationMappingSet, parameterId: number): void {
-    const row = this.buildMatrixRow(
-      this.targetFields.find((parameter) => parameter.id === parameterId)!,
-      draft,
-      draft.rules.find((rule) => rule.parameterId === parameterId) ?? null
-    );
-    const selectedFieldId = row.sourceField?.id ?? null;
-    this.selectedMapping = draft;
-    this.selectedRow = row;
-    this.editRelationForm.reset({
-      sourceCatalogFieldId: selectedFieldId,
-      transformationCode: row.rule?.transformationCode ?? '',
-      requiredOverride: row.required,
-      enabled: row.rule?.enabled ?? true
-    });
-    this.updateSourceFieldValidation(Boolean(this.editRelationForm.controls.enabled.value));
-    this.modalMode = 'edit';
-  }
-
-  private buildUpsertPayload(mappingSet: IntegrationMappingSet, editedRow: MappingMatrixRow): Array<Record<string, unknown>> {
-    const editedParameterId = editedRow.parameterId;
-    const existingRules = mappingSet.rules.filter((rule) => rule.parameterId !== editedParameterId);
-    const selectedField = this.allowedSourceFields.find((field) => field.id === this.editRelationForm.controls.sourceCatalogFieldId.value);
-    const existingRule = mappingSet.rules.find((rule) => rule.parameterId === editedParameterId) ?? editedRow.rule;
-
-    return [
-      ...existingRules.map((rule) => this.mapRuleForUpsert(rule)),
-      {
-        id: existingRule?.id ?? null,
-        methodId: mappingSet.methodId,
-        parameterId: editedParameterId,
-        sourceKind: selectedField?.sourceKind ?? existingRule?.sourceKind ?? 'NachaHeader',
-        sourceCatalogFieldId: selectedField?.id ?? null,
-        sourceFieldPath: selectedField?.fieldPath ?? '',
-        fixedValue: existingRule?.fixedValue ?? null,
-        defaultValue: existingRule?.defaultValue ?? null,
-        transformationCode: this.editRelationForm.controls.transformationCode.value || null,
-        formatMask: existingRule?.formatMask ?? null,
-        priority: existingRule?.priority ?? 1,
-        requiredOverride: this.editRelationForm.controls.requiredOverride.value,
-        enabled: !!this.editRelationForm.controls.enabled.value,
-        conditionExpression: null
-      }
-    ];
-  }
-
-  private mapRuleForUpsert(rule: IntegrationMappingRule): Record<string, unknown> {
-    return {
-      id: rule.id,
-      methodId: rule.methodId,
-      parameterId: rule.parameterId,
-      sourceKind: rule.sourceKind,
-      sourceCatalogFieldId: rule.sourceCatalogFieldId ?? null,
-      sourceFieldPath: rule.sourceFieldPath,
-      fixedValue: rule.fixedValue ?? null,
-      defaultValue: rule.defaultValue ?? null,
-      transformationCode: rule.transformationCode ?? null,
-      formatMask: rule.formatMask ?? null,
-      priority: rule.priority,
-      requiredOverride: rule.requiredOverride ?? null,
-      enabled: rule.enabled,
-      conditionExpression: null
-    };
-  }
-
-  private isAllowedNachaSource(kind: string | number | null | undefined): boolean {
-    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol', 'differentialresponse']
-      .includes(this.normalizeSourceKind(kind).toLowerCase());
-  }
-
-  private getFunctionalMappingStatus(
-    rule: IntegrationMappingRule | null,
-    sourceVisual: SourceVisual,
-    isInactive: boolean,
-    isOptionalReserved: boolean
-  ): MatrixStatus {
-    if (isInactive) {
-      return 'Inactivo';
-    }
-
-    if (isOptionalReserved) {
-      return 'Opcional / reservado';
-    }
-
-    if (!sourceVisual.hasValidSource) {
-      return 'Sin mapear';
-    }
-
-    if (rule && this.isPlaceholderRule(rule)) {
-      return 'Pendiente funcional';
-    }
-
-    if (this.isNachaSourceKind(sourceVisual.sourceKind)) {
-      return 'Mapeado NACHA';
-    }
-
-    if (this.isTransactionalSourceKind(sourceVisual.sourceKind)) {
-      return 'Mapeado transaccional';
-    }
-
-    if (this.isCycleCameraSourceKind(sourceVisual.sourceKind)) {
-      return 'Mapeado por ciclo/cámara';
-    }
-
-    if (sourceVisual.sourceKind === 'differentialresponse') {
-      return 'Mapeado desde respuesta diferencial';
-    }
-
-    if (sourceVisual.sourceKind === 'constant') {
-      return 'Constante técnica';
-    }
-
-    return 'Sin mapear';
-  }
-
-  private isMappedStatus(status: MatrixStatus): boolean {
-    return status === 'Mapeado NACHA'
-      || status === 'Mapeado transaccional'
-      || status === 'Mapeado por ciclo/cámara'
-      || status === 'Mapeado desde respuesta diferencial'
-      || status === 'Constante técnica';
-  }
-
-  private matchesSelectedFilter(row: MappingMatrixRow): boolean {
-    if (this.selectedFilter === 'Todos') {
-      return true;
-    }
-
-    if (this.selectedFilter === 'Pendientes') {
-      return this.isPendingRow(row);
-    }
-
-    if (this.selectedFilter === 'Bloqueantes') {
-      return this.isBlockingRow(row);
-    }
-
-    if (this.selectedFilter === 'Alertas') {
-      return this.isWarningRow(row);
-    }
-
-    if (this.selectedFilter === 'Listos') {
-      return this.isReadyRow(row);
-    }
-
-    return row.status === 'Opcional / reservado';
-  }
-
-  private isReadyRow(row: MappingMatrixRow): boolean {
-    return row.status === 'Mapeado NACHA'
-      || row.status === 'Mapeado transaccional'
-      || row.status === 'Mapeado por ciclo/cámara'
-      || row.status === 'Mapeado desde respuesta diferencial';
-  }
-
-  private isPendingRow(row: MappingMatrixRow): boolean {
-    return row.status === 'Sin mapear' || row.status === 'Pendiente funcional';
-  }
-
-  private isBlockingRow(row: MappingMatrixRow): boolean {
-    return row.status === 'Pendiente funcional'
-      || (row.status === 'Sin mapear' && row.required);
-  }
-
-  private isWarningRow(row: MappingMatrixRow): boolean {
-    return row.status === 'Constante técnica';
-  }
-
-  private isKnownSourceKind(kind: string): boolean {
-    return this.isNachaSourceKind(kind)
-      || this.isTransactionalSourceKind(kind)
-      || this.isCycleCameraSourceKind(kind)
-      || kind === 'differentialresponse'
-      || kind === 'constant';
-  }
-
-  private isNachaSourceKind(kind: string): boolean {
-    return ['nachaheader', 'batchheader', 'entrydetail', 'addendarecord', 'batchcontrol', 'filecontrol', 'addenda']
-      .includes(kind);
-  }
-
-  private isTransactionalSourceKind(kind: string): boolean {
-    return ['transaction', 'batch', 'prenotification']
-      .includes(kind);
-  }
-
-  private isCycleCameraSourceKind(kind: string): boolean {
-    return ['cycle', 'clearinghouse', 'financialinstitution'].includes(kind);
-  }
-
-  private isPlaceholderRule(rule: IntegrationMappingRule | null): boolean {
-    if (!rule) {
-      return false;
-    }
-
-    if (this.normalizeSourceKind(rule.sourceKind).toLowerCase() === 'constant') {
-      if (this.isAllowedFunctionalConstant(rule)) {
+  readonly filteredParameters = computed(() => {
+    const search = this.normalize(this.searchSignal());
+    const status = this.statusFilterSignal();
+
+    return this.parameters().filter((parameter) => {
+      const matchesStatus = status === 'All' || parameter.status === status;
+      if (!matchesStatus) {
         return false;
       }
 
-      const hasConcreteValue = !!(rule.fixedValue ?? rule.defaultValue ?? '').trim();
-      return hasConcreteValue
-        ? [rule.fixedValue, rule.defaultValue].some((value) => this.isPlaceholderValue(value))
-        : this.isPlaceholderValue(rule.sourceFieldPath);
+      if (!search) {
+        return true;
+      }
+
+      return [parameter.functionalName, parameter.functionalDescription, parameter.categoryLabel]
+        .some((value) => this.normalize(value).includes(search));
+    });
+  });
+
+  readonly selectedMethodIndex = computed(() => {
+    const methodId = this.store.methodId();
+    const index = this.store.methods().findIndex((method) => method.id === methodId);
+    return index < 0 ? 0 : index;
+  });
+
+  readonly editingParameterId = this.editingParameterIdSignal.asReadonly();
+  readonly editingParameter = computed(() => {
+    const parameterId = this.editingParameterIdSignal();
+    return parameterId == null ? null : this.parameters().find(parameter => parameter.parameterId === parameterId) ?? null;
+  });
+
+  readonly selectedCompatibility = computed<IntegrationMappingWorkspaceSourceCompatibilityDto | null>(() => {
+    const workspace = this.store.workspace();
+    const parameterId = this.editingParameterIdSignal();
+    const sourceCatalogFieldId = this.sourceIdSignal();
+    if (!workspace || parameterId == null || sourceCatalogFieldId == null) {
+      return null;
     }
 
-    return [rule.fixedValue, rule.defaultValue, rule.sourceFieldPath].some((value) => this.isPlaceholderValue(value));
-  }
+    return workspace.sourceCompatibility.find(item =>
+      item.parameterId === parameterId && item.sourceCatalogFieldId === sourceCatalogFieldId) ?? null;
+  });
 
-  private isAllowedFunctionalConstant(rule: IntegrationMappingRule): boolean {
-    const operationKey = this.selectedMethod?.operationKey ?? '';
-    const parameterPath = this.targetFields.find((parameter) => parameter.id === rule.parameterId)?.parameterPath ?? '';
-    const parameterName = parameterPath.split('.').pop() ?? '';
-    const value = (rule.fixedValue ?? rule.defaultValue ?? '').trim();
+  readonly compatibleTreatments = computed<IntegrationMappingWorkspaceTransformationOptionDto[]>(() =>
+    this.selectedCompatibility()?.transformations ?? []
+  );
 
-    return operationKey === 'Proc_Transacciones'
-      && parameterName.toUpperCase() === 'IREVER'
-      && value === '0';
-  }
+  readonly selectedTreatment = computed<IntegrationMappingWorkspaceTransformationOptionDto | null>(() => {
+    const code = this.transformationCodeSignal();
+    return this.compatibleTreatments().find(item => item.code === code) ?? null;
+  });
 
-  private isPlaceholderValue(value: string | null | undefined): boolean {
-    const normalized = (value ?? '').trim().toUpperCase();
-    if (!normalized) {
+  readonly treatmentSupportsMask = computed(() => {
+    const workspace = this.store.workspace();
+    const code = this.transformationCodeSignal();
+    if (!workspace || !code) {
       return false;
     }
+    return workspace.transformations.some(item => item.code === code && item.supportsFormatMask);
+  });
 
-    return new Set(['SEED', 'TEST', 'REF-1', 'CONSTANT.VALUE', '000010070', '900123456', 'ACH', '1', '1.0', '1.00', '0', '0.0', '0.00', '0.0.0.0'])
-      .has(normalized);
-  }
-
-  private normalizeSourceFieldPath(path: string | null | undefined): string {
-    return (path ?? '').trim().toLowerCase();
-  }
-
-  private isOptionalReservedParameter(parameter: IntegrationMethodParameter): boolean {
-    const operationKey = this.selectedMethod?.operationKey ?? '';
-    const parameterName = (parameter.parameterPath || parameter.displayName || '').split('.').pop() ?? '';
-    const contrapartidasReservedResponseFields = ['ANSIDLOTE', 'ANSST', 'ANCLC', 'ANSIDTX', 'ANSIDREVER'];
-    return operationKey === 'Proc_Contrapartidas'
-      && !parameter.required
-      && contrapartidasReservedResponseFields.includes(parameterName.toUpperCase());
-  }
-
-  private getServiceOrder(operationKey: string): number {
-    const index = this.serviceOrder.indexOf(operationKey);
-    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
-  }
-
-  private isActiveFlag(value: unknown): boolean {
-    if (value === false || value === 0) return false;
-    if (typeof value === 'string') {
-      const raw = value.trim().toLowerCase();
-      return raw !== 'false' && raw !== '0' && raw !== 'inactive' && raw !== 'inactivo';
-    }
-    return true;
-  }
-
-  private normalizeSourceKind(kind: string | number | null | undefined): string {
-    if (kind === null || kind === undefined) return '';
-    if (typeof kind === 'number') {
-      if (kind === 1) return 'Transaction';
-      if (kind === 2) return 'Addenda';
-      if (kind === 3) return 'Batch';
-      if (kind === 4) return 'Cycle';
-      if (kind === 5) return 'ClearingHouse';
-      if (kind === 6) return 'Constant';
-      if (kind === 7) return 'Expression';
-      if (kind === 8) return 'NachaHeader';
-      if (kind === 9) return 'BatchHeader';
-      if (kind === 10) return 'EntryDetail';
-      if (kind === 11) return 'AddendaRecord';
-      if (kind === 12) return 'BatchControl';
-      if (kind === 13) return 'FileControl';
-      if (kind === 14) return 'Prenotification';
-      if (kind === 15) return 'DifferentialResponse';
-      return String(kind);
+  readonly filteredSourceGroups = computed<IntegrationMappingWorkspaceSourceGroupDto[]>(() => {
+    const workspace = this.store.workspace();
+    const parameterId = this.editingParameterIdSignal();
+    if (!workspace || parameterId == null) {
+      return [];
     }
 
-    const raw = String(kind).trim();
-    if (!raw) return '';
-    if (/^\d+$/.test(raw)) return this.normalizeSourceKind(Number(raw));
-    const lowered = raw.toLowerCase();
-    if (lowered === 'nachaheaders') return 'NachaHeader';
-    if (lowered === 'batchheaders') return 'BatchHeader';
-    if (lowered === 'entrydetails') return 'EntryDetail';
-    if (lowered === 'addendarecords') return 'AddendaRecord';
-    if (lowered === 'batchcontrols') return 'BatchControl';
-    if (lowered === 'filecontrols') return 'FileControl';
-    if (lowered === 'differentialresponses') return 'DifferentialResponse';
-    if (lowered === 'transactions' || lowered === 'achtransaction') return 'Transaction';
-    if (lowered === 'cycles' || lowered === 'achcycle') return 'Cycle';
-    if (lowered === 'clearinghouses') return 'ClearingHouse';
-    if (lowered === 'constants') return 'Constant';
-    if (lowered === 'batches' || lowered === 'achbatch') return 'Batch';
-    if (lowered === 'addendas') return 'Addenda';
-    if (lowered === 'financialinstitutions') return 'FinancialInstitution';
-    if (lowered === 'prenotifications') return 'Prenotification';
-    return raw;
+    const allowedSourceIds = new Set(
+      workspace.sourceCompatibility
+        .filter(item => item.parameterId === parameterId)
+        .map(item => item.sourceCatalogFieldId)
+    );
+    const search = this.normalize(this.sourceSearchSignal());
+
+    return workspace.sourceGroups
+      .map(group => ({
+        ...group,
+        fields: group.fields.filter(field => {
+          if (!allowedSourceIds.has(field.id)) {
+            return false;
+          }
+          if (!search) {
+            return true;
+          }
+          return [field.displayName, field.entityName, field.fieldPath, String(field.id)]
+            .some(value => this.normalize(value).includes(search));
+        })
+      }))
+      .filter(group => group.fields.length > 0);
+  });
+
+  readonly canSaveParameter = computed(() => {
+    const parameterId = this.editingParameterIdSignal();
+    const sourceId = this.sourceIdSignal();
+    const compatibility = this.selectedCompatibility();
+    const treatmentCode = this.transformationCodeSignal();
+    const treatment = this.selectedTreatment();
+    const mask = this.formatMaskSignal().trim();
+
+    if (!this.canManage || this.store.workspace()?.mappingSet.status !== 'Draft' || parameterId == null || sourceId == null || !compatibility) {
+      return false;
+    }
+    if (!treatmentCode && !compatibility.allowsNoTransformation) {
+      return false;
+    }
+    if (treatmentCode && !treatment) {
+      return false;
+    }
+    if (treatment?.requiresFormatMask && !mask) {
+      return false;
+    }
+    return this.parameterForm.valid && this.store.savingParameterId() === null;
+  });
+
+  constructor() {
+    this.filters.controls.search.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => this.searchSignal.set(value));
+    this.filters.controls.status.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => this.statusFilterSignal.set(value));
+
+    this.parameterForm.controls.sourceSearch.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => this.sourceSearchSignal.set(value));
+    this.parameterForm.controls.sourceCatalogFieldId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => {
+        this.sourceIdSignal.set(value);
+        this.syncTreatmentForSource();
+      });
+    this.parameterForm.controls.transformationCode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => {
+        this.transformationCodeSignal.set(value);
+        this.syncMaskValidation();
+      });
+    this.parameterForm.controls.formatMask.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(value => this.formatMaskSignal.set(value));
+
+    effect(() => {
+      const savedParameterId = this.store.saveSucceededParameterId();
+      if (savedParameterId == null || savedParameterId !== this.editingParameterIdSignal()) {
+        return;
+      }
+      const refreshed = this.parameters().find(parameter => parameter.parameterId === savedParameterId);
+      if (refreshed) {
+        this.hydrateParameterForm(refreshed);
+      }
+    });
+
+    this.store.load(this.route.snapshot.queryParamMap.get('method'), this.canValidate);
   }
 
-  private normalizeStatus(status: IntegrationMappingSet['status'] | number | string | null | undefined): string {
-    if (status === null || status === undefined) return '';
-    if (typeof status === 'number') {
-      if (status === 1) return 'Draft';
-      if (status === 2) return 'Published';
-      if (status === 3) return 'Archived';
-      return String(status);
+  onMethodTabChange(index: number): void {
+    const method = this.store.methods()[index];
+    if (!method) {
+      return;
     }
 
-    const raw = String(status).trim();
-    if (!raw) return '';
-    if (/^\d+$/.test(raw)) return this.normalizeStatus(Number(raw));
-    const lowered = raw.toLowerCase();
-    if (lowered === 'draft') return 'Draft';
-    if (lowered === 'published') return 'Published';
-    if (lowered === 'archived') return 'Archived';
-    return raw;
+    this.cancelEdit();
+    this.clearFilters();
+    this.store.selectMethod(method.id);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { method: method.operationKey },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
-  private refreshView(): void {
-    this.cdr.markForCheck();
+  clearFilters(): void {
+    this.filters.setValue({ search: '', status: 'All' });
+  }
+
+  retry(): void {
+    this.cancelEdit();
+    this.store.reload();
+  }
+
+  retryPreview(): void {
+    if (!this.canValidate) return;
+    this.store.refreshPreview();
+  }
+
+  reloadAfterRevisionConflict(): void {
+    this.cancelEdit();
+    this.store.reloadAfterRevisionConflict();
+  }
+
+  reviewPublication(): void {
+    if (!this.canPublish) return;
+    this.openPublicationDialog();
+  }
+
+  publishConfiguration(): void {
+    if (this.publicationDisabled()) {
+      return;
+    }
+    this.openPublicationDialog();
+  }
+
+  previewFor(parameterId: number): IntegrationMappingPreviewItemDto | null {
+    return this.previewByParameter().get(parameterId) ?? null;
+  }
+
+  validationIssuesFor(parameterId: number): PresentedIntegrationValidationIssue[] {
+    const parameter = this.parameters().find(item => item.parameterId === parameterId);
+    const preview = this.previewFor(parameterId);
+    return (preview?.validationIssues ?? []).map(issue =>
+      presentIntegrationValidationIssue(issue, parameter?.functionalName)
+    );
+  }
+
+  previewContextLabel(contextMode: string | null | undefined): string {
+    switch (contextMode) {
+      case 'controlled-sample': return 'Muestra controlada sanitizada';
+      case 'real-transaction': return 'Muestra de transacción sanitizada';
+      case 'real-latest': return 'Muestra reciente sanitizada';
+      default: return 'Muestra sanitizada';
+    }
+  }
+
+  previewErrorMessage(): string {
+    const error = this.store.previewError();
+    switch (error?.kind) {
+      case 'forbidden': return 'No tiene permisos para consultar esta vista previa.';
+      case 'network': return 'No fue posible comunicarse con el servicio de vista previa.';
+      case 'http': return 'El servicio no pudo calcular la vista previa. Intente nuevamente.';
+      default: return 'No fue posible obtener la vista previa. Intente nuevamente.';
+    }
+  }
+
+  startEdit(parameter: IntegrationInformationParameterReadModel): void {
+    if (!this.canManage || this.store.workspace()?.mappingSet.status !== 'Draft') {
+      return;
+    }
+    this.store.clearSaveState();
+    this.editingParameterIdSignal.set(parameter.parameterId);
+    this.hydrateParameterForm(parameter);
+  }
+
+  cancelEdit(): void {
+    this.editingParameterIdSignal.set(null);
+    this.store.clearSaveState();
+    this.parameterForm.reset({
+      sourceSearch: '',
+      sourceCatalogFieldId: null,
+      transformationCode: '',
+      formatMask: ''
+    });
+    this.sourceSearchSignal.set('');
+    this.sourceIdSignal.set(null);
+    this.transformationCodeSignal.set('');
+    this.formatMaskSignal.set('');
+  }
+
+  saveParameter(): void {
+    const parameterId = this.editingParameterIdSignal();
+    const sourceCatalogFieldId = this.parameterForm.controls.sourceCatalogFieldId.value;
+    if (parameterId == null || sourceCatalogFieldId == null || !this.canSaveParameter()) {
+      this.parameterForm.markAllAsTouched();
+      return;
+    }
+
+    this.store.saveParameter(parameterId, {
+      sourceCatalogFieldId,
+      transformationCode: this.parameterForm.controls.transformationCode.value || null,
+      formatMask: this.parameterForm.controls.formatMask.value || null
+    }, this.auth.currentUser?.username ?? 'usuario');
+  }
+
+  isEditing(parameterId: number): boolean {
+    return this.editingParameterIdSignal() === parameterId;
+  }
+
+  statusLabel(status: string | null | undefined): string {
+    return presentIntegrationStatus(status).label;
+  }
+
+  statusTone(status: string | null | undefined): string {
+    return presentIntegrationStatus(status).tone;
+  }
+
+  statusCount(status: StatusFilter): number {
+    const coverage = this.store.coverage();
+    if (!coverage) {
+      return 0;
+    }
+
+    switch (status) {
+      case 'Complete': return coverage.complete;
+      case 'Pending': return coverage.pending;
+      case 'Invalid': return coverage.invalid;
+      case 'NotApplicable': return coverage.notApplicable;
+      default: return coverage.total;
+    }
+  }
+
+  trackParameter(_: number, parameter: IntegrationInformationParameterReadModel): number {
+    return parameter.parameterId;
+  }
+
+  trackSourceGroup(_: number, group: IntegrationMappingWorkspaceSourceGroupDto): string {
+    return group.key;
+  }
+
+  trackSource(_: number, source: { id: number }): number {
+    return source.id;
+  }
+
+  trackTreatment(_: number, treatment: IntegrationMappingWorkspaceTransformationOptionDto): string {
+    return treatment.code;
+  }
+
+  private openPublicationDialog(): void {
+    if (!this.canPublish) return;
+    const workspace = this.store.workspace();
+    if (!workspace) {
+      return;
+    }
+
+    const data: MappingPublicationDialogData = {
+      serviceName: this.store.selectedMethod()?.displayName || this.store.selectedMethod()?.functionalNature || 'Servicio CFA',
+      contractVersion: workspace.contract?.versionLabel || 'Sin versión contractual asociada',
+      mappingSetName: workspace.mappingSet.name,
+      revision: workspace.mappingSet.revision,
+      total: workspace.coverage.total,
+      complete: workspace.coverage.complete,
+      pendingRequired: workspace.publication.pendingRequired,
+      newRequiredPending: workspace.publication.newRequiredPending,
+      blockingIssues: workspace.publication.blockingIssues,
+      pendingRequiredNames: this.pendingRequiredParameters().map(parameter => parameter.functionalName),
+      canPublish: workspace.publication.canPublish && workspace.publication.pendingRequired === 0
+    };
+
+    this.dialog.open(MappingPublicationDialogComponent, {
+      data,
+      width: 'min(42rem, calc(100vw - 2rem))',
+      maxWidth: 'calc(100vw - 2rem)',
+      maxHeight: 'calc(100dvh - 2rem)',
+      autoFocus: 'first-heading',
+      restoreFocus: true,
+      disableClose: false,
+      closeOnNavigation: true,
+      role: 'alertdialog',
+      ariaLabel: 'Confirmar publicación de configuración CFA'
+    }).afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(confirmed => {
+        if (confirmed !== true) {
+          return;
+        }
+        this.store.publish(this.auth.currentUser?.username ?? 'usuario');
+      });
+  }
+
+  private hydrateParameterForm(parameter: IntegrationInformationParameterReadModel): void {
+    const currentRule = parameter.currentRule;
+    const sourceId = currentRule?.sourceCatalogFieldId ?? null;
+    const treatmentCode = currentRule?.transformationCode ?? '';
+    this.parameterForm.reset({
+      sourceSearch: '',
+      sourceCatalogFieldId: sourceId,
+      transformationCode: treatmentCode,
+      formatMask: currentRule?.formatMask ?? ''
+    }, { emitEvent: false });
+    this.sourceSearchSignal.set('');
+    this.sourceIdSignal.set(sourceId);
+    this.transformationCodeSignal.set(treatmentCode);
+    this.formatMaskSignal.set(currentRule?.formatMask ?? '');
+    this.syncTreatmentForSource();
+    this.syncMaskValidation();
+    this.parameterForm.markAsPristine();
+  }
+
+  private syncTreatmentForSource(): void {
+    const compatibility = this.selectedCompatibility();
+    const treatmentControl = this.parameterForm.controls.transformationCode;
+    const currentCode = treatmentControl.value;
+    const currentAllowed = !currentCode
+      ? compatibility?.allowsNoTransformation === true
+      : compatibility?.transformations.some(item => item.code === currentCode) === true;
+
+    if (!currentAllowed) {
+      treatmentControl.setValue('', { emitEvent: false });
+      this.transformationCodeSignal.set('');
+    }
+
+    treatmentControl.setValidators(compatibility && !compatibility.allowsNoTransformation ? [Validators.required] : []);
+    treatmentControl.updateValueAndValidity({ emitEvent: false });
+    this.syncMaskValidation();
+  }
+
+  private syncMaskValidation(): void {
+    const maskControl = this.parameterForm.controls.formatMask;
+    const treatment = this.selectedTreatment();
+    maskControl.setValidators(treatment?.requiresFormatMask ? [Validators.required] : []);
+    maskControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private functionalNameForIssue(issue: IntegrationMappingValidationIssueDto): string | null {
+    const parameter = this.parameters().find(item =>
+      item.technicalDetails.parameterPath.toLocaleLowerCase('es') === issue.path.toLocaleLowerCase('es'));
+    return parameter?.functionalName ?? null;
+  }
+
+  private normalize(value: string | null | undefined): string {
+    return (value ?? '').trim().toLocaleLowerCase('es');
   }
 }

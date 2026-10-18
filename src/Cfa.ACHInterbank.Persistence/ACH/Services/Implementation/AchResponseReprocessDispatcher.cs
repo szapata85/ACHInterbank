@@ -14,11 +14,16 @@ public sealed class AchResponseReprocessDispatcher : IAchResponseReprocessDispat
     private const string SystemActor = "system:ach-response-reprocess-dispatcher";
     private readonly AchDbContext _db;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly TimeProvider _timeProvider;
 
-    public AchResponseReprocessDispatcher(AchDbContext db, IServiceScopeFactory scopeFactory)
+    public AchResponseReprocessDispatcher(
+        AchDbContext db,
+        IServiceScopeFactory scopeFactory,
+        TimeProvider? timeProvider = null)
     {
         _db = db;
         _scopeFactory = scopeFactory;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<AchResponseReprocessDispatchResult> DispatchAsync(int batchSize, TimeSpan leaseDuration,
@@ -28,7 +33,7 @@ public sealed class AchResponseReprocessDispatcher : IAchResponseReprocessDispat
         if (leaseDuration <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(leaseDuration));
         if (string.IsNullOrWhiteSpace(instanceId) || string.Equals(instanceId, "AUTO", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Se requiere la identidad efectiva de la instancia Quartz.", nameof(instanceId));
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
         var candidates = await _db.AchResponseReprocessAttempts.AsNoTracking()
             .Where(x => x.Status == AchResponseReprocessAttemptStatuses.Pending
                 || x.Status == AchResponseReprocessAttemptStatuses.Running && x.LeaseExpiresAtUtc < now)
@@ -74,7 +79,7 @@ public sealed class AchResponseReprocessDispatcher : IAchResponseReprocessDispat
         return await strategy.ExecuteAsync(async () =>
         {
             _db.ChangeTracker.Clear();
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
             await using var transaction = await _db.Database.BeginTransactionAsync(ct);
             var affected = await _db.AchResponseReprocessAttempts.Where(x => x.Id == candidate.Id &&
                     (x.Status == AchResponseReprocessAttemptStatuses.Pending || x.Status == AchResponseReprocessAttemptStatuses.Running && x.LeaseExpiresAtUtc < now))
@@ -104,10 +109,10 @@ public sealed class AchResponseReprocessDispatcher : IAchResponseReprocessDispat
         {
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(interval, ct);
+                await Task.Delay(interval, _timeProvider, ct);
                 await using var scope = _scopeFactory.CreateAsyncScope();
                 var db = scope.ServiceProvider.GetRequiredService<AchDbContext>();
-                var now = DateTime.UtcNow;
+                var now = _timeProvider.GetUtcNow().UtcDateTime;
                 var replacementVersion = Guid.NewGuid();
                 var affected = await db.AchResponseReprocessAttempts.Where(x => x.Id == claim.AttemptId
                     && x.Status == AchResponseReprocessAttemptStatuses.Running && x.ClaimedBy == instanceId
@@ -128,7 +133,7 @@ public sealed class AchResponseReprocessDispatcher : IAchResponseReprocessDispat
         return await strategy.ExecuteAsync(async () =>
         {
             _db.ChangeTracker.Clear();
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
             var terminal = result.IsTechnicalFailure ? AchResponseReprocessAttemptStatuses.FailedTechnical
                 : result.RequiresManualReview ? AchResponseReprocessAttemptStatuses.FailedFunctional : AchResponseReprocessAttemptStatuses.Completed;
             var target = result.IsTechnicalFailure ? AchResponseProcessingStatus.ErrorTecnico

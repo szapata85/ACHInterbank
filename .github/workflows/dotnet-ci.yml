@@ -37,13 +37,16 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.300'
+          dotnet-version: '10.0.402'
 
       - name: Validate solution graph
         run: python3 scripts/validate-solution-projects.py
 
-      - name: Restore
+      - name: Restore (NuGet audit enforced)
         run: dotnet restore ACHInterbank.sln
+
+      - name: Report vulnerable NuGet packages
+        run: dotnet list ACHInterbank.sln package --vulnerable --include-transitive
 
       - name: Build
         run: dotnet build ACHInterbank.sln -c Release --no-restore --maxcpucount:1
@@ -57,7 +60,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dotnet-test-results
           path: TestResults
@@ -92,7 +95,7 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.300'
+          dotnet-version: '10.0.402'
 
       - name: Start isolated database services
         shell: bash
@@ -163,7 +166,7 @@ jobs:
 
       - name: Upload multi-database test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: outgoing-monitor-multidb-results
           path: TestResults/OutgoingMonitor
@@ -187,7 +190,7 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.300'
+          dotnet-version: '10.0.402'
 
       - name: Start isolated database services
         shell: bash
@@ -268,7 +271,7 @@ jobs:
 
       - name: Upload ReturnOut multi-database results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: outbound-return-multidb-results
           path: TestResults/OutboundReturn
@@ -292,7 +295,7 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.300'
+          dotnet-version: '10.0.402'
 
       - name: Start fresh provider databases
         shell: bash
@@ -425,7 +428,7 @@ jobs:
 
       - name: Upload config immutability TRX evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nacha-config-immutability-multidb-results
           path: TestResults/ConfigImmutability/*.trx

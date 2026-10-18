@@ -13,11 +13,16 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
 {
     private readonly AchDbContext _context;
     private readonly ICycleNumberResolver _cycleNumberResolver;
+    private readonly TimeProvider _timeProvider;
 
-    public ClearingHouseCycleConfigService(AchDbContext context, ICycleNumberResolver? cycleNumberResolver = null)
+    public ClearingHouseCycleConfigService(
+        AchDbContext context,
+        ICycleNumberResolver? cycleNumberResolver = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<IReadOnlyList<ClearingHouseCycleConfigDto>> GetByClearingHouseAsync(int clearingHouseId, DateTime? effectiveAt, CancellationToken ct = default)
@@ -50,7 +55,7 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
     {
         await EnsureClearingHouseExists(clearingHouseId, ct);
 
-        var effectiveDate = NormalizeUtcDate(effectiveAt) ?? DateTime.UtcNow.Date;
+        var effectiveDate = NormalizeUtcDate(effectiveAt) ?? _timeProvider.GetUtcNow().UtcDateTime.Date;
 
         // EF provider compatibility note:
         // SQLite fails translating GroupBy(...).Select(First...).OrderBy(TimeSpan),
@@ -190,12 +195,12 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
 
         if (entity.IsActive == isActive)
         {
-            return MapToDto(entity, DateTime.UtcNow.Date);
+            return MapToDto(entity, _timeProvider.GetUtcNow().UtcDateTime.Date);
         }
 
         if (!isActive)
         {
-            return await InactivateAsync(id, effectiveTo ?? DateTime.UtcNow.Date, ct);
+            return await InactivateAsync(id, effectiveTo ?? _timeProvider.GetUtcNow().UtcDateTime.Date, ct);
         }
 
         var duplicate = await _context.ClearingHouseCycleConfigs.AnyAsync(x =>
@@ -209,7 +214,7 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
         entity.IsActive = true;
         entity.EffectiveTo = null;
         await _context.SaveChangesAsync(ct);
-        return MapToDto(entity, DateTime.UtcNow.Date);
+        return MapToDto(entity, _timeProvider.GetUtcNow().UtcDateTime.Date);
     }
 
     private static ClearingHouseCycleConfigDto MapToDto(ClearingHouseCycleConfig entity, DateTime? effectiveAt)
@@ -225,6 +230,12 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
             EndTime = entity.EndTime,
             CutoffTime = entity.CutoffTime,
             OutputReleaseTime = entity.OutputReleaseTime,
+            CompensationStatementStartTime = entity.CompensationStatementStartTime,
+            CompensationStatementEndTime = entity.CompensationStatementEndTime,
+            CompensationPaymentStartTime = entity.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = entity.CompensationPaymentEndTime,
+            OutputReleaseStartTime = entity.OutputReleaseStartTime,
+            OutputReleaseEndTime = entity.OutputReleaseEndTime,
             AllowsMonetaryCredit = entity.AllowsMonetaryCredit,
             AllowsMonetaryDebit = entity.AllowsMonetaryDebit,
             AllowsCreditPrenotification = entity.AllowsCreditPrenotification,
@@ -288,7 +299,13 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
             StartTime = dto.StartTime,
             CutoffTime = dto.CutoffTime,
             EndTime = dto.EndTime,
-            OutputReleaseTime = release
+            OutputReleaseTime = release,
+            CompensationStatementStartTime = dto.CompensationStatementStartTime,
+            CompensationStatementEndTime = dto.CompensationStatementEndTime,
+            CompensationPaymentStartTime = dto.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = dto.CompensationPaymentEndTime,
+            OutputReleaseStartTime = dto.OutputReleaseStartTime,
+            OutputReleaseEndTime = dto.OutputReleaseEndTime
         };
         ClearingHouseCyclePolicyResolver.ValidateStageOrder(candidate);
     }
@@ -366,7 +383,13 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
             StartTime = dto.StartTime,
             EndTime = dto.EndTime,
             CutoffTime = dto.CutoffTime,
-            OutputReleaseTime = dto.OutputReleaseTime ?? inherited?.OutputReleaseTime ?? dto.EndTime,
+            OutputReleaseTime = dto.OutputReleaseTime ?? dto.OutputReleaseEndTime ?? inherited?.OutputReleaseTime ?? dto.EndTime,
+            CompensationStatementStartTime = dto.CompensationStatementStartTime ?? inherited?.CompensationStatementStartTime,
+            CompensationStatementEndTime = dto.CompensationStatementEndTime ?? inherited?.CompensationStatementEndTime,
+            CompensationPaymentStartTime = dto.CompensationPaymentStartTime ?? inherited?.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = dto.CompensationPaymentEndTime ?? inherited?.CompensationPaymentEndTime,
+            OutputReleaseStartTime = dto.OutputReleaseStartTime ?? inherited?.OutputReleaseStartTime,
+            OutputReleaseEndTime = dto.OutputReleaseEndTime ?? inherited?.OutputReleaseEndTime,
             AllowsMonetaryCredit = dto.AllowsMonetaryCredit ?? inherited?.AllowsMonetaryCredit ?? true,
             AllowsMonetaryDebit = dto.AllowsMonetaryDebit ?? inherited?.AllowsMonetaryDebit ?? true,
             AllowsCreditPrenotification = dto.AllowsCreditPrenotification ?? inherited?.AllowsCreditPrenotification ?? true,
@@ -391,6 +414,12 @@ public class ClearingHouseCycleConfigService : IClearingHouseCycleConfigService
             EndTime = source.EndTime,
             CutoffTime = source.CutoffTime,
             OutputReleaseTime = source.OutputReleaseTime,
+            CompensationStatementStartTime = source.CompensationStatementStartTime,
+            CompensationStatementEndTime = source.CompensationStatementEndTime,
+            CompensationPaymentStartTime = source.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = source.CompensationPaymentEndTime,
+            OutputReleaseStartTime = source.OutputReleaseStartTime,
+            OutputReleaseEndTime = source.OutputReleaseEndTime,
             AllowsMonetaryCredit = source.AllowsMonetaryCredit,
             AllowsMonetaryDebit = source.AllowsMonetaryDebit,
             AllowsCreditPrenotification = source.AllowsCreditPrenotification,

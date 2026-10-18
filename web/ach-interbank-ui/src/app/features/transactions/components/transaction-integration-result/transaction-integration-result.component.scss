@@ -4,7 +4,7 @@
   margin: 1rem 0;
   padding: 1rem;
   border: 1px solid var(--color-border);
-  border-left: 5px solid #2563eb;
+  border-left: 5px solid var(--color-primary);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
@@ -12,11 +12,11 @@
 header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
 h2 { margin: 0; font-size: 1.15rem; }
 .eyebrow { margin: 0 0 .25rem; color: var(--color-text-soft); font-weight: 700; }
-.close { border: 0; background: transparent; font-size: 1.5rem; cursor: pointer; }
+.close { color: var(--color-text-muted); }
 .status { display: inline-flex; padding: .35rem .75rem; border-radius: var(--radius-pill); font-weight: 700; }
-.success { background: #dcfce7; color: #166534; }
-.rejected, .failed { background: #fee2e2; color: #991b1b; }
-.pendingcatalog, .manualreview, .unknown { background: #fef3c7; color: #92400e; }
+.success { background: var(--color-success-surface); color: var(--color-success-text); }
+.rejected, .failed { background: var(--color-error-surface); color: var(--color-error-text); }
+.pendingcatalog, .manualreview, .unknown { background: var(--color-warning-surface); color: var(--color-warning-text); }
 dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; }
 dl div { min-width: 0; }
 dt { color: var(--color-text-soft); font-size: .85rem; font-weight: 700; }

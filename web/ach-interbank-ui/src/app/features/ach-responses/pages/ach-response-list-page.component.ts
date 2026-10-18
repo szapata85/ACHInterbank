@@ -1,6 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
@@ -21,7 +25,16 @@ type AchResponseListRow = AchResponseListItemResponse & {
 @Component({
   selector: 'app-ach-response-list-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    SharedModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule
+  ],
   templateUrl: './ach-response-list-page.component.html',
   styleUrls: ['./ach-response-list-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -62,26 +75,26 @@ export class AchResponseListPageComponent implements OnInit {
   });
 
   readonly columnas: ColDef<AchResponseListRow>[] = [
-    { field: 'fechaRecepcionText', headerName: 'Fecha recepción', minWidth: 170 },
-    { field: 'fechaCreacionText', headerName: 'Fecha creación', minWidth: 170 },
+    { field: 'fechaRecepcionText', headerName: 'Fecha de recepción', minWidth: 170 },
+    { field: 'fechaCreacionText', headerName: 'Fecha de creación', minWidth: 170 },
     { field: 'tipoRespuesta', headerName: 'Tipo', minWidth: 120 },
-    { field: 'idTransaccion', headerName: 'Transacción', minWidth: 180 },
+    { field: 'idTransaccion', headerName: 'ID de transacción', minWidth: 180 },
     { field: 'codigoCamaraCompensacion', headerName: 'Cámara', minWidth: 130 },
-    { field: 'codigoEntidadOrigen', headerName: 'Entidad origen', minWidth: 140 },
-    { field: 'codigoEntidadDestino', headerName: 'Entidad destino', minWidth: 140 },
+    { field: 'codigoEntidadOrigen', headerName: 'Entidad de origen', minWidth: 140 },
+    { field: 'codigoEntidadDestino', headerName: 'Entidad de destino', minWidth: 140 },
     { field: 'codigoEstadoExterno', headerName: 'Estado externo', minWidth: 130 },
     { field: 'codigoCausalExterna', headerName: 'Causal externa', minWidth: 140 },
     { field: 'estadoInternoNombre', headerName: 'Estado interno', minWidth: 140 },
     {
       field: 'estadoProcesamiento',
-      headerName: 'Estado procesamiento',
+      headerName: 'Estado de procesamiento',
       minWidth: 170,
       cellRenderer: (params: any) => {
         return createAchBadgeElement(this.formatProcessingStatus(params.value), this.getProcessingStatusClass(params.value));
       }
     },
     { field: 'permiteNotificacionText', headerName: 'Notificable', minWidth: 120 },
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },
+    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },
     {
       headerName: 'Acciones',
       minWidth: 130,

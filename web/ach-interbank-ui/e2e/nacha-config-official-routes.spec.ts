@@ -8,7 +8,9 @@ const profilesReadOnlyEndpoint = /\/api\/ach\/nacha\/config-profiles$/;
 const layoutsEndpoint = /\/nacha-layouts(?:\?.*)?$/;
 const definitionsEndpoint = /\/nacha-record-definitions(?:\?.*)?$/;
 const configProfilesEndpoint = /\/api\/ach\/nacha\/config-profiles$/;
-const configProfileDetailEndpoint = /\/nacha-config\/perfiles\/10$/;
+const configProfileDetailEndpoint = /\/nacha-config\/perfiles\/10(?:\/workspace)?$/;
+const operationalCatalogsEndpoint = /\/nacha-config\/catalogos-operativos(?:\?.*)?$/;
+const brandingEndpoint = /\/api\/users\/branding$/;
 
 test.describe('NACHA Config official routes', () => {
   test.beforeEach(async ({ page }) => {
@@ -74,30 +76,45 @@ test.describe('NACHA Config official routes', () => {
     await expect(page.getByRole('button', { name: 'Crear borrador' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Validar' })).toBeVisible();
 
-    await page.goto('/nacha-config-admin/variants-fields');
+    await page.goto('/nacha-config-admin/variants-fields?profileId=10');
+    await expect(page).toHaveURL(/\/nacha-config-admin\/perfiles\/10/);
+    await expect(page.getByTestId('nacha-config-profile-workspace-page')).toContainText('Estructura del archivo');
 
-    await expect(page.getByTestId('nacha-config-variants-fields-page').getByRole('heading', { name: 'Variantes y campos NACHA-M' })).toBeVisible();
-    await expect(page.getByTestId('nacha-config-variants-fields-page')).toContainText('Espacio administrativo oficial sobre perfiles NACHA-M.');
-    await expect(page.getByRole('button', { name: /Crear|Editar|Eliminar/i })).toHaveCount(0);
-
-    await page.goto('/nacha-config-admin/records');
-
-    await expect(page.getByTestId('nacha-config-records-page').getByRole('heading', { name: 'Registros oficiales NACHA-M' })).toBeVisible();
-    await expect(page.getByTestId('nacha-config-records-page').locator('ui-alerta').first()).toContainText('nacha-config profiles es la fuente oficial.');
-    await expect(page.getByTestId('nacha-config-records-page').getByRole('row', { name: /1 1 Si 1 1 STATIC/ })).toBeVisible();
-    await expect(page.getByTestId('nacha-config-records-page').getByRole('button', { name: /Crear|Editar|Eliminar/i })).toHaveCount(0);
+    await page.goto('/nacha-config-admin/records?profileId=10');
+    await expect(page).toHaveURL(/\/nacha-config-admin\/perfiles\/10/);
+    await expect(page.getByTestId('nacha-config-profile-workspace-page')).toContainText('Campos');
 
     await page.goto('/nacha-config-admin/perfiles/10');
 
-    await expect(page.getByTestId('nacha-config-profile-workspace-page').getByRole('heading', { name: 'Perfil CENIT-OUT-220' })).toBeVisible();
+    await expect(page.getByTestId('nacha-config-profile-workspace-page').getByRole('heading', { name: 'CENIT salida 220' })).toBeVisible();
+    await expect(page.getByTestId('nacha-config-context-bar')).toContainText('CENIT');
+    await expect(page.getByTestId('nacha-config-record-list')).toContainText('Encabezado de archivo');
     await expect(page.getByRole('button', { name: 'Clonar como borrador' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ir a registros oficiales' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Ir a variantes y campos' })).toBeVisible();
     expect(legacyRequests).toEqual([]);
     expect(htmlJsResponses).toEqual([]);
     expect(chunkRequestFailures).toEqual([]);
     expect(consoleErrors).toEqual([]);
   });
+
+  for (const brand of [
+    { name: 'oscura', primary: '#123456', onPrimary: '#ffffff', border: 'rgb(18, 52, 86)' },
+    { name: 'clara', primary: '#f5e9a8', onPrimary: '#0f172a', border: 'rgb(245, 233, 168)' }
+  ]) {
+    test(`Workspace_ShouldInheritServerBrandingAtRuntime_${brand.name}`, async ({ page }) => {
+      await page.route(brandingEndpoint, route => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ buttonColor: brand.primary })
+      }));
+
+      await page.goto('/nacha-config-admin/perfiles/10');
+      const workspace = page.getByTestId('nacha-config-profile-workspace-page');
+      await expect(workspace).toBeVisible();
+      await expect.poll(() => workspace.evaluate((node) => getComputedStyle(node).borderTopColor)).toBe(brand.border);
+      await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--mat-sys-primary').trim())).toBe(brand.primary);
+      await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--mat-sys-on-primary').trim())).toBe(brand.onPrimary);
+    });
+  }
 
   test('LegacyRoutes_ShouldEndInNotFound', async ({ page }) => {
     await page.goto('/nacha-config-admin/perfiles');
@@ -170,10 +187,28 @@ async function mockOfficialConfigProfiles(page: Page): Promise<void> {
 }
 
 async function mockNachaConfigBackend(page: Page): Promise<void> {
-  await page.route(/(?:https?:\/\/[^/]+)?\/(?:nacha-config\/catalogos-filtro|api\/ach\/nacha\/config-profiles(?:\/dashboard)?|nacha-config\/perfiles\/10)(?:\?.*)?$/i, async route => {
+  await page.route(/(?:https?:\/\/[^/]+)?\/(?:nacha-config\/catalogos-filtro|nacha-config\/catalogos-operativos|api\/ach\/nacha\/config-profiles(?:\/dashboard)?|nacha-config\/perfiles\/10(?:\/workspace)?)(?:\?.*)?$/i, async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method().toUpperCase();
+
+    if (method === 'GET' && path === '/nacha-config/catalogos-operativos') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          estados: [{ code: 'BORRADOR', labelEs: 'Borrador' }],
+          camaras: [{ code: 'CENIT', labelEs: 'CENIT' }],
+          flujos: [{ code: 'ORIGINAL', labelEs: 'Original' }],
+          direcciones: [{ code: 'SALIDA', labelEs: 'Salida' }],
+          servicios: [{ code: 'PPD', labelEs: 'Pago preacordado y depósito directo' }],
+          registros: [{ code: '1', labelEs: 'Encabezado de archivo' }],
+          tiposOrigen: [{ code: 'STATIC', labelEs: 'Estático' }],
+          tiposRegla: []
+        })
+      });
+      return;
+    }
 
     if (method === 'GET' && path === '/nacha-config/catalogos-filtro') {
       await route.fulfill({
@@ -256,7 +291,7 @@ async function mockNachaConfigBackend(page: Page): Promise<void> {
       return;
     }
 
-    if (method === 'GET' && path === '/nacha-config/perfiles/10') {
+    if (method === 'GET' && (path === '/nacha-config/perfiles/10' || path === '/nacha-config/perfiles/10/workspace')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -266,6 +301,16 @@ async function mockNachaConfigBackend(page: Page): Promise<void> {
           nombreEs: 'CENIT salida 220',
           descripcion: 'Perfil oficial administrable',
           estado: 'BORRADOR',
+          estadoNombre: 'Borrador',
+          isEditable: true,
+          camara: 'CENIT',
+          camaraNombre: 'CENIT',
+          flujo: 'ORIGINAL',
+          flujoNombre: 'Original',
+          direccion: 'SALIDA',
+          direccionNombre: 'Salida',
+          servicio: 'PPD',
+          servicioNombre: 'Pago preacordado y depósito directo',
           versionMajor: 1,
           versionMinor: 0,
           contextPriority: 100,
@@ -273,7 +318,7 @@ async function mockNachaConfigBackend(page: Page): Promise<void> {
           effectiveTo: null,
           rowVersion: 'cm93',
           records: [
-            { id: 1, recordCode: '1', sequence: 1, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'STATIC' }
+            { id: 1, recordCode: '1', recordNameEs: 'Encabezado de archivo', sequence: 1, isEnabled: true, minOccurs: 1, maxOccurs: 1, sourceStrategy: 'STATIC', sourceStrategyName: 'Estático' }
           ],
           variantes: [
             {
@@ -283,8 +328,8 @@ async function mockNachaConfigBackend(page: Page): Promise<void> {
               nombreEs: 'Base',
               priority: 1,
               isDefaultForRecord: true,
-              totalLength: 94,
-              fields: []
+              totalLength: 106,
+              fields: [{ id: 3, fieldCode: 'IMMEDIATE_DESTINATION', fieldNameEs: 'Destino inmediato', startPosition: 4, length: 10, sourceType: 'Profile', sourceTypeName: 'Perfil', isEnabled: true, reglas: [] }]
             }
           ]
         })

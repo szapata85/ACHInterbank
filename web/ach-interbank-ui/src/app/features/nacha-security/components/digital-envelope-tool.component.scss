@@ -29,10 +29,10 @@
   gap: 0.75rem;
   margin-bottom: 1rem;
   padding: 0.8rem 1rem;
-  border: 1px solid #b8cce5;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-border));
   border-radius: var(--radius-md);
-  background: #f5f9ff;
-  color: #264866;
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
+  color: var(--color-text);
 
   p {
     margin: 0;
@@ -93,9 +93,9 @@ app-operational-error-panel {
 
 .resolved-configuration {
   padding: 1rem;
-  border: 1px solid #b8d6c2;
+  border: 1px solid color-mix(in srgb, var(--color-success) 38%, var(--color-border));
   border-radius: var(--radius-md);
-  background: #f5fbf7;
+  background: var(--color-success-surface);
 }
 
 .resolved-title {
@@ -103,7 +103,7 @@ app-operational-error-panel {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.7rem;
   align-items: start;
-  color: #215b35;
+  color: var(--color-success-text);
 
   div {
     display: grid;
@@ -111,7 +111,7 @@ app-operational-error-panel {
   }
 
   span {
-    color: #41684e;
+    color: var(--color-success-text);
     font-size: 0.82rem;
   }
 }
@@ -141,8 +141,8 @@ app-operational-error-panel {
 .signing-note {
   margin: 0.85rem 0 0;
   padding-top: 0.75rem;
-  border-top: 1px solid #cde1d3;
-  color: #41684e;
+  border-top: 1px solid color-mix(in srgb, var(--color-success) 30%, var(--color-border));
+  color: var(--color-success-text);
   font-size: 0.82rem;
 }
 
@@ -151,10 +151,10 @@ app-operational-error-panel {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.75rem;
   padding: 1rem;
-  border: 1px solid #e1a6a6;
+  border: 1px solid var(--color-error-border);
   border-radius: var(--radius-md);
-  background: #fff7f7;
-  color: #711f1f;
+  background: var(--color-error-surface);
+  color: var(--color-error-text);
 
   strong,
   p {
@@ -170,8 +170,8 @@ app-operational-error-panel {
   margin: 0;
   padding: 0.75rem;
   border-radius: var(--radius-md);
-  background: #fff7df;
-  color: #6b5000;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
 }
 
 .file-drop {
@@ -189,7 +189,7 @@ app-operational-error-panel {
   &:hover,
   &:focus-visible {
     border-color: var(--color-primary);
-    background: #f5f8ff;
+    background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
     outline: none;
   }
 
@@ -274,7 +274,7 @@ app-operational-error-panel {
   margin-top: 1rem;
 
   [mat-card-avatar] {
-    color: #16703a;
+    color: var(--color-success);
   }
 
   mat-card-content {
@@ -294,8 +294,8 @@ app-operational-error-panel {
     gap: 0.35rem;
     padding: 0.45rem 0.65rem;
     border-radius: 999px;
-    background: #e8f5ed;
-    color: #145a2d;
+    background: var(--color-success-surface);
+    color: var(--color-success-text);
     font-size: 0.84rem;
   }
 

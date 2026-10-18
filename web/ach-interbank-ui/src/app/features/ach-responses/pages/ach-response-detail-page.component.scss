@@ -1,9 +1,17 @@
-@use '../styles/ach-response-status';
-
 .acciones-header {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.acciones-seccion {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.acciones-seccion h3 {
+  margin: 0;
 }
 
 .detalle-layout {
@@ -12,9 +20,14 @@
 }
 
 .card {
-  border: 1px solid var(--color-border, #d7dde3);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg, 10px);
   padding: 1rem;
+}
+
+.reproceso-justificacion {
+  display: block;
+  width: 100%;
 }
 
 .grid-campos {
@@ -32,9 +45,15 @@ table {
   border-collapse: collapse;
 }
 
-th, td {
-  border-bottom: 1px solid var(--color-border, #d7dde3);
+th,
+td {
+  border-bottom: 1px solid var(--color-border);
   text-align: left;
   padding: 0.5rem;
   vertical-align: top;
+}
+
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

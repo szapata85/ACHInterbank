@@ -19,6 +19,12 @@ public class AchCycle : AuditableEntity
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
     public TimeSpan OutputReleaseTime { get; set; }
+    public TimeSpan? CompensationStatementStartTime { get; set; }
+    public TimeSpan? CompensationStatementEndTime { get; set; }
+    public TimeSpan? CompensationPaymentStartTime { get; set; }
+    public TimeSpan? CompensationPaymentEndTime { get; set; }
+    public TimeSpan? OutputReleaseStartTime { get; set; }
+    public TimeSpan? OutputReleaseEndTime { get; set; }
 
     // La admisión entrante usa este estado persistido; no deduce que un ciclo
     // está cerrado comparando únicamente su número con el ciclo más reciente.

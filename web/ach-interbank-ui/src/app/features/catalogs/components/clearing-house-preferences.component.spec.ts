@@ -1,13 +1,14 @@
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
+import { By } from '@angular/platform-browser';
 import { of, Subject, throwError } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
-import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
-import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
-import { FinancialInstitutionsApiService } from '../../transactions/services/financial-institutions-api.service';
-import { DestinationInstitution } from '../../transactions/transactions.models';
-import { FinancialInstitutionStatusEnum } from '../../transactions/transactions.types';
+import { UiGrillaEmpresarialComponent } from '../../../shared/components/ui/ui-grilla-empresarial.component';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
+import { DestinationInstitution, FinancialInstitutionStatusEnum } from '../../../core/models/financial-institution.model';
+import { FinancialInstitutionsApiService } from '../../../core/services/financial-institutions-api.service';
 import { InstitutionClearingHousePreference } from '../models/institution-clearing-house-preference.model';
 import { InstitutionClearingHousePreferencesService } from '../services/institution-clearing-house-preferences.service';
 import { ClearingHousePreferencesComponent } from './clearing-house-preferences.component';
@@ -104,6 +105,7 @@ describe('ClearingHousePreferencesComponent', () => {
     ).dialog;
     spyOn(injectedDialog, 'open');
     dialog = injectedDialog as jasmine.SpyObj<MatDialog>;
+    fixture.changeDetectorRef.markForCheck();
     fixture.detectChanges();
   });
 
@@ -125,6 +127,7 @@ describe('ClearingHousePreferencesComponent', () => {
     );
 
     component.loadPreferences();
+    fixture.changeDetectorRef.markForCheck();
     fixture.detectChanges();
 
     expect(component.loadError).toBeTrue();
@@ -150,6 +153,7 @@ describe('ClearingHousePreferencesComponent', () => {
     component.startCreate();
 
     component.create();
+    fixture.changeDetectorRef.markForCheck();
     fixture.detectChanges();
 
     expect(component.createForm.invalid).toBeTrue();
@@ -266,4 +270,76 @@ describe('ClearingHousePreferencesComponent', () => {
     expect(component.preferences).toEqual([]);
     expect(notifications.success).toHaveBeenCalledWith('Relación eliminada correctamente.');
   });
+
+  it('loads preferences and preserves the existing local grid filters', () => {
+    const grid = fixture.debugElement.query(By.directive(UiGrillaEmpresarialComponent))
+      .componentInstance as UiGrillaEmpresarialComponent<InstitutionClearingHousePreference>;
+
+    expect(service.list).toHaveBeenCalledTimes(1);
+    expect(component.preferences).toEqual([preference]);
+    expect(grid.placeholderBusqueda).toBe('Buscar por institución, cámara, prioridad o estado');
+    expect(component.columnDefs[0].filter).toBe('agTextColumnFilter');
+    expect(component.columnDefs[1].filter).toBe('agTextColumnFilter');
+    expect(component.columnDefs[2].filter).toBe('agTextColumnFilter');
+  });
+
+  it('preserves priority values and labels', () => {
+    expect(component.priorityOptions).toEqual([
+      { value: 1, label: 'Alta' },
+      { value: 2, label: 'Normal' },
+      { value: 3, label: 'Baja' }
+    ]);
+  });
+
+  it('does not save an edit with an invalid priority', () => {
+    component.startEdit(preference);
+    component.form.patchValue({ priority: 4 });
+
+    component.save();
+
+    expect(component.form.invalid).toBeTrue();
+    expect(service.update).not.toHaveBeenCalled();
+  });
+
+  it('renders foundation loading, error and empty states without replacing the enterprise grid', () => {
+    // Drive states through the real observable, not direct writes to an OnPush component.
+    const pendingPreferences = new Subject<InstitutionClearingHousePreference[]>();
+    service.list.and.returnValue(pendingPreferences.asObservable());
+    fixture.destroy();
+    fixture = TestBed.createComponent(ClearingHousePreferencesComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('ui-grilla-empresarial ui-estado-carga')).not.toBeNull();
+
+    pendingPreferences.error({ error: { detail: 'Error de preferencias' } });
+    fixture.detectChanges();
+    expect(component.loadError).toBeTrue();
+    expect(fixture.nativeElement.querySelector('ui-grilla-empresarial ui-estado-error')).not.toBeNull();
+
+    service.list.and.returnValue(of([]));
+    component.loadPreferences();
+    fixture.detectChanges();
+    expect(component.loadError).toBeFalse();
+    expect(fixture.nativeElement.querySelector('ui-grilla-empresarial ui-estado-vacio')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('ui-grilla-empresarial')).not.toBeNull();
+  });
+
+  it('uses the foundation page header and shared catalog states without ui-boton', () => {
+    const pendingCatalogs = new Subject<ClearingHouseOption[]>();
+    clearingHousesApi.listAdministrative.and.returnValue(pendingCatalogs.asObservable());
+    fixture.destroy();
+    fixture = TestBed.createComponent(ClearingHousePreferencesComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-page-header')).not.toBeNull();
+    expect(component.catalogsLoading).toBeTrue();
+    expect(fixture.nativeElement.querySelector('ui-estado-carga')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('ui-boton')).toBeNull();
+
+    pendingCatalogs.error({ error: { detail: 'Catálogos no disponibles' } });
+    fixture.detectChanges();
+    expect(component.catalogsError).toBe('Catálogos no disponibles');
+    expect(fixture.nativeElement.querySelector('ui-estado-error')).not.toBeNull();
+  });
+
 });

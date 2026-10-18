@@ -10,10 +10,12 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
 public sealed class SchedulerClusterProbeHandler : ISchedulerContextAwareTaskHandler
 {
     private readonly AchDbContext _db;
+    private readonly TimeProvider _timeProvider;
 
-    public SchedulerClusterProbeHandler(AchDbContext db)
+    public SchedulerClusterProbeHandler(AchDbContext db, TimeProvider? timeProvider = null)
     {
         _db = db;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public string Code => "SCHEDULER_CLUSTER_PROBE";
@@ -37,8 +39,8 @@ public sealed class SchedulerClusterProbeHandler : ISchedulerContextAwareTaskHan
                 ProbeKey = probeKey,
                 ExecutionId = context.ExecutionId,
                 SchedulerInstanceId = context.SchedulerInstanceId,
-                StartedAtUtc = DateTimeOffset.UtcNow,
-                EffectAppliedAtUtc = DateTimeOffset.UtcNow,
+                StartedAtUtc = _timeProvider.GetUtcNow(),
+                EffectAppliedAtUtc = _timeProvider.GetUtcNow(),
                 Status = context.IsRecovery ? "RecoveredRunning" : "Running"
             };
             _db.SchedulerProbeExecutions.Add(probe);
@@ -60,9 +62,12 @@ public sealed class SchedulerClusterProbeHandler : ISchedulerContextAwareTaskHan
         await _db.SaveChangesAsync(cancellationToken);
 
         var configuredSeconds = GetParameter(task, context.IsRecovery ? "RecoveryDurationSeconds" : "DurationSeconds", context.IsRecovery ? 2 : 15);
-        await Task.Delay(TimeSpan.FromSeconds(Math.Clamp(configuredSeconds, 1, 30)), cancellationToken);
+        await Task.Delay(
+            TimeSpan.FromSeconds(Math.Clamp(configuredSeconds, 1, 30)),
+            _timeProvider,
+            cancellationToken);
 
-        probe.CompletedAtUtc = DateTimeOffset.UtcNow;
+        probe.CompletedAtUtc = _timeProvider.GetUtcNow();
         probe.Status = context.IsRecovery ? "Recovered" : "Completed";
         await _db.SaveChangesAsync(cancellationToken);
 

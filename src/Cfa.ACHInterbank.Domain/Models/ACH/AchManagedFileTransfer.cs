@@ -100,5 +100,7 @@ public sealed class AchManagedFileTransferConfiguration : AuditableEntity
     public string? CredentialType { get; set; }
     public string? ProtectedCredential { get; set; }
     public DateTime? CredentialUpdatedAtUtc { get; set; }
+    public string? SftpHostKeyFingerprint { get; set; }
+    public int SftpTimeoutSeconds { get; set; } = 30;
     public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
 }

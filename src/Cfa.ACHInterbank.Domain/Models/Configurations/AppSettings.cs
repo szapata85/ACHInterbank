@@ -2,8 +2,6 @@ namespace Cfa.ACHInterbank.Domain.Models.Configurations;
 
 public class AppSettings
 {
-    private static AppSettings? settings;
-    public static AppSettings Settings { get => settings!; set => settings = value; }
     public string? prueba { get; set; }
     public string? address { get; set; }
     public string? key { get; set; }

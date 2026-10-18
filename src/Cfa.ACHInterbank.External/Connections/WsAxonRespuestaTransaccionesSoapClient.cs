@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
@@ -19,16 +20,19 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
     private readonly ISoapIntegrationSettingsService _soapSettingsService;
     private readonly WsAxonEndpointSecurityOptions _endpointSecurity;
     private readonly ControlledLocalSoapTransportOptions _controlledLocalTransport;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public WsAxonRespuestaTransaccionesSoapClient(
         ILoggerManager logger,
         ISoapIntegrationSettingsService soapSettingsService,
         IOptions<WsAxonEndpointSecurityOptions> endpointSecurity,
+        IHttpClientFactory httpClientFactory,
         IOptions<ControlledLocalSoapTransportOptions>? controlledLocalTransport = null)
     {
         _logger = logger;
         _soapSettingsService = soapSettingsService;
         _endpointSecurity = endpointSecurity.Value;
+        _httpClientFactory = httpClientFactory;
         _controlledLocalTransport = controlledLocalTransport?.Value ?? new ControlledLocalSoapTransportOptions();
     }
 
@@ -116,7 +120,8 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
                 : null);
         var envelope = BuildEnvelope(requestXml);
 
-        using var client = new HttpClient { Timeout = timeout };
+        using var client = _httpClientFactory.CreateClient(ExternalHttpClientNames.WsAxonSoapNoRetry);
+        client.Timeout = timeout;
         using var request = new HttpRequestMessage(HttpMethod.Post, transport.TransportEndpoint);
         request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
         if (!string.IsNullOrWhiteSpace(transport.HostHeader))
@@ -126,27 +131,47 @@ public class WsAxonRespuestaTransaccionesSoapClient : IWsAxonRespuestaTransaccio
         request.Headers.Add("SOAPAction", soapAction);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
+        var started = Stopwatch.GetTimestamp();
         _logger.LogInfo(
-            $"SOAP request RegistrarRespuestaTransaccion -> {logicalEndpoint}; transport={transport.TransportEndpoint}");
+            $"SOAP request RegistrarRespuestaTransaccion; endpoint={ExternalLogSanitizer.Endpoint(logicalEndpoint)}; " +
+            $"transport={ExternalLogSanitizer.Endpoint(transport.TransportEndpoint)}; retry=disabled.");
 
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
-            .ConfigureAwait(false);
-
-        var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            // El payload puede contener cuentas, identificadores y datos personales.
-            // Conservamos únicamente metadatos operativos seguros.
-            _logger.LogError(
-                $"SOAP error RegistrarRespuestaTransaccion: HTTP {(int)response.StatusCode}; " +
-                $"contentType={response.Content.Headers.ContentType?.MediaType ?? "unknown"}; " +
-                $"contentLength={responseContent.Length}");
-            throw new InvalidOperationException(
-                $"SOAP error RegistrarRespuestaTransaccion: {response.StatusCode}");
-        }
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
+                .ConfigureAwait(false);
 
-        return responseContent;
+            var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    $"SOAP error RegistrarRespuestaTransaccion; HTTP={(int)response.StatusCode}; " +
+                    $"contentType={response.Content.Headers.ContentType?.MediaType ?? "unknown"}; " +
+                    $"contentLength={responseContent.Length}; elapsedMs={elapsedMs:F0}; retry=disabled.");
+                throw new InvalidOperationException(
+                    $"SOAP error RegistrarRespuestaTransaccion: {response.StatusCode}");
+            }
+
+            _logger.LogInfo(
+                $"SOAP response RegistrarRespuestaTransaccion; HTTP={(int)response.StatusCode}; " +
+                $"elapsedMs={elapsedMs:F0}; bodyLength={responseContent.Length}.");
+            return responseContent;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _logger.LogWarn("SOAP RegistrarRespuestaTransaccion cancelled by caller; retry=disabled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            _logger.LogError(
+                $"SOAP RegistrarRespuestaTransaccion transport failure; elapsedMs={elapsedMs:F0}; " +
+                $"exception={ex.GetType().Name}; outcome=uncertain; retry=disabled.");
+            throw;
+        }
     }
 
     private async Task<(Uri Endpoint, string SoapAction, TimeSpan Timeout)> ResolveConfigurationAsync(CancellationToken ct)

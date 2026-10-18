@@ -14,7 +14,6 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -31,13 +30,15 @@ import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { catchError, finalize, forkJoin, of, switchMap, take } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
-import {
-  ConfirmationDialogComponent,
-  ConfirmationDialogData
-} from '../../clearing-houses/clearing-house-dialogs.component';
-import { ClearingHouseContextNavigationComponent } from '../../clearing-houses/clearing-house-context-navigation.component';
-import { ClearingHouse } from '../../clearing-houses/clearing-houses.models';
-import { ClearingHousesService } from '../../clearing-houses/clearing-houses.service';
+import { PageHeaderComponent } from '../../../shared/components/page-header.component';
+import { UiEstadoCargaComponent } from '../../../shared/components/ui/ui-estado-carga.component';
+import { UiEstadoErrorComponent } from '../../../shared/components/ui/ui-estado-error.component';
+import { UiEstadoVacioComponent } from '../../../shared/components/ui/ui-estado-vacio.component';
+import { UiEtiquetaEstadoComponent } from '../../../shared/components/ui/ui-etiqueta-estado.component';
+import { OperationalConfirmDialogComponent, OperationalConfirmDialogData } from '../../../shared/components/operational-confirm-dialog.component';
+import { ClearingHouseContextNavigationComponent } from '../../../shared/components/clearing-house-context-navigation.component';
+import { ClearingHouse } from '../../../core/models/clearing-house.model';
+import { ClearingHousesService } from '../../../core/services/clearing-houses.service';
 import { BankHoliday } from '../models/bank-holiday.model';
 import { ClearingHouseSpecialDate } from '../models/clearing-house-special-date.model';
 import { BankHolidaysAdminService } from '../services/bank-holidays-admin.service';
@@ -55,7 +56,6 @@ type SpecialDateStatusFilter = 'all' | 'active' | 'inactive';
     ClearingHouseContextNavigationComponent,
     MatButtonModule,
     MatCardModule,
-    MatChipsModule,
     MatDatepickerModule,
     MatNativeDateModule,
     MatDialogModule,
@@ -69,7 +69,12 @@ type SpecialDateStatusFilter = 'all' | 'active' | 'inactive';
     MatSnackBarModule,
     MatSortModule,
     MatTableModule,
-    MatTooltipModule
+    MatTooltipModule,
+    PageHeaderComponent,
+    UiEstadoCargaComponent,
+    UiEstadoErrorComponent,
+    UiEstadoVacioComponent,
+    UiEtiquetaEstadoComponent
   ],
   templateUrl: './clearing-house-special-dates.component.html',
   styleUrl: './clearing-house-special-dates.component.scss',
@@ -297,14 +302,14 @@ export class ClearingHouseSpecialDatesComponent {
   askStatusChange(item: ClearingHouseSpecialDate): void {
     if (!this.canManage) return;
     const activating = !item.isActive;
-    const data: ConfirmationDialogData = {
+    const data: OperationalConfirmDialogData = {
       title: activating ? 'Activar fecha especial' : 'Desactivar fecha especial',
       message: `${activating ? 'Se activará' : 'Se desactivará'} la fecha especial del ${this.dateText(item.date)}. El registro se conservará.`,
-      confirmText: activating ? 'Sí, activar' : 'Sí, desactivar',
+      confirmLabel: activating ? 'Sí, activar' : 'Sí, desactivar',
       icon: activating ? 'play_circle' : 'pause_circle',
       destructive: !activating
     };
-    this.dialog.open(ConfirmationDialogComponent, { data, width: 'min(520px, calc(100vw - 2rem))' })
+    this.dialog.open(OperationalConfirmDialogComponent, { data, width: 'min(520px, calc(100vw - 2rem))' })
       .afterClosed().subscribe(confirmed => {
         if (confirmed) this.changeStatus(item);
       });

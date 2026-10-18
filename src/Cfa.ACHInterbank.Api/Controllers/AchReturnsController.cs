@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -12,23 +13,36 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [Authorize]
 public class AchReturnsController(IAchReturnsService service) : ControllerBase
 {
-    [EndpointSummary("Transacciones elegibles para devoluciones por ciclo")]
-    [EndpointDescription("Qué hace: lista transacciones del ciclo que cumplen criterios para devolución ACH. Cuándo se usa: al preparar archivo de devoluciones. Perfil consumidor: operación ACH de devoluciones. Permiso requerido: CanReadAch con autorización explícita en la acción y autenticación obligatoria en el controller. Tipo de operación: solo consulta. Genera auditoría: no directa. Riesgos operativos: seleccionar ciclo errado genera devoluciones inválidas. Errores esperados: 400 parámetros inválidos; 404 ciclo inexistente. Relación ACH/CENIT/NACHA-M: gestiona devoluciones bajo reglas ACH/CENIT. Precauciones para desarrollo u operación: validar ciclo y causal antes de generar archivo.")]
+    /// <summary>
+    /// Consulta las transacciones persistidas de un ciclo que se presentan al flujo de generación de devoluciones.
+    /// </summary>
+    /// <param name="cycleId">Identificador del ciclo operativo cuyas transacciones se desean consultar.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar transacciones de un ciclo para devolución")]
+    [EndpointDescription("Devuelve las transacciones persistidas del ciclo indicado ordenadas por identificador. Para cada transacción, IsEligible se marca en false cuando ya existe una devolución generada y ValidationMessage informa ese motivo; esta consulta no genera archivos ni modifica la transacción.")]
     [HttpGet("cycles/{cycleId}/transactions")]
     [Authorize(Policy = P0Policies.ReturnsRead)]
     [ProducesResponseType(typeof(IEnumerable<ReturnEligibleTransactionDto>), StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Transacciones del ciclo con el indicador de elegibilidad usado por la consulta de devoluciones.")]
     public async Task<IActionResult> GetTransactionsByCycle(string cycleId, CancellationToken ct)
     {
         var items = await service.GetTransactionsByCycleAsync(cycleId, ct);
         return Ok(items);
     }
 
-    [EndpointSummary("Generación de archivo de devoluciones")]
-    [EndpointDescription("Qué hace: construye y retorna el archivo de devoluciones con contenido descargable. Cuándo se usa: cuando ya se aprobaron causales y transacciones. Perfil consumidor: operación ACH. Permiso requerido: CanManageAch con autorización explícita en la acción y autenticación obligatoria en el controller. Tipo de operación: modifica información. Genera auditoría: sí, por rastro de generación/descarga. Riesgos operativos: una solicitud mal parametrizada puede emitir archivo incorrecto. Errores esperados: 400 validación de solicitud; 409 por estado no permitido. Relación ACH/CENIT/NACHA-M: materializa devolución ACH conforme a operación CENIT. Precauciones para desarrollo u operación: aplicar doble validación operativa antes de distribuir el archivo.")]
+    /// <summary>
+    /// Genera el archivo de devoluciones correspondiente a las transacciones seleccionadas.
+    /// </summary>
+    /// <param name="request">Ciclo original, ciclo de devolución opcional y selección de transacciones con su causal.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Generar archivo de devoluciones")]
+    [EndpointDescription("Genera el archivo de devolución para los ítems seleccionados. ReturnCycleId es opcional y, cuando no se informa, el servicio utiliza CycleId. El servicio valida las transacciones y las reglas aplicables antes de persistir las devoluciones generadas y mover las transacciones procesadas al estado ReturnedByEpr. La respuesta exitosa es el archivo descargable. Si una transacción seleccionada ya tiene una devolución generada, el controller responde 409 con ProblemDetails, errorCode y los transactionIds en conflicto.")]
     [HttpPost("generate-file")]
     [Authorize(Policy = P0Policies.ReturnsGenerateFile)]
-    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Archivo de devoluciones generado y devuelto como descarga.")]
+    [OpenApiResponseDescription(StatusCodes.Status409Conflict, "Una o más transacciones seleccionadas ya tienen una devolución generada.")]
     public async Task<IActionResult> GenerateFile([FromBody] GenerateReturnsFileRequest request, CancellationToken ct)
     {
         try

@@ -95,7 +95,10 @@ public class IncomingNachaOrphanEndToEndTests
     {
         await using var context = BuildContext();
         var scenario = SeedScenario(context);
-        var service = new IncomingNachaCommandCenterService(context, Mock.Of<IIncomingNachaStateMachineService>());
+        var stateMachine = Mock.Of<IIncomingNachaStateMachineService>();
+        var service = new IncomingNachaCommandCenterService(
+            new IncomingNachaCommandCenterQueryService(context, stateMachine),
+            new IncomingNachaCommandCenterOperationsService(context, stateMachine));
 
         var orphans = await service.GetOrphansAsync(new IncomingNachaOrphanQuery());
         var candidates = await service.GetOrphanCandidatesAsync(scenario.LinkId, scenario.TransactionId.ToString());

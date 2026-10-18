@@ -6,7 +6,7 @@ DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
 DOTNET_BIN="$DOTNET_ROOT/dotnet"
 TOOLS_DIR="$DOTNET_ROOT/tools"
 GLOBAL_JSON="$ROOT_DIR/global.json"
-FALLBACK_SDK_VERSION="10.0.203"
+FALLBACK_SDK_VERSION="10.0.402"
 
 log() { printf '[codex-setup] %s\n' "$*"; }
 fail() { printf '[codex-setup] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -24,16 +24,22 @@ if [[ -f "$GLOBAL_JSON" ]]; then
 fi
 log "SDK objetivo: $SDK_VERSION"
 
+NEEDS_SDK_INSTALL=1
 if [[ -x "$DOTNET_BIN" ]]; then
   if timeout 20s "$DOTNET_BIN" --version >/dev/null 2>&1; then
-    log "dotnet ya está instalado y funcional: $(timeout 20s "$DOTNET_BIN" --version)"
+    if timeout 20s "$DOTNET_BIN" --list-sdks | awk '{print $1}' | grep -Fxq "$SDK_VERSION"; then
+      NEEDS_SDK_INSTALL=0
+      log "SDK objetivo $SDK_VERSION ya está instalado."
+    else
+      log "dotnet está disponible, pero falta el SDK objetivo $SDK_VERSION; se instalará."
+    fi
   else
     log "dotnet existe pero no responde, se reinstalará."
     rm -f "$DOTNET_BIN"
   fi
 fi
 
-if [[ ! -x "$DOTNET_BIN" ]]; then
+if [[ $NEEDS_SDK_INSTALL -eq 1 ]]; then
   log "Descargando instalador oficial dotnet-install.sh"
   timeout 180s curl -fsSL --connect-timeout 20 --max-time 120 https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
     || fail "No se pudo descargar dotnet-install.sh"
@@ -45,7 +51,9 @@ if [[ ! -x "$DOTNET_BIN" ]]; then
 fi
 
 log "Validando dotnet --version"
-timeout 20s "$DOTNET_BIN" --version || fail "dotnet --version falló"
+ACTIVE_SDK="$(cd "$ROOT_DIR" && timeout 20s "$DOTNET_BIN" --version)" || fail "dotnet --version falló"
+[[ "$ACTIVE_SDK" == "$SDK_VERSION" ]] || fail "SDK activo $ACTIVE_SDK; se esperaba $SDK_VERSION"
+printf '%s\n' "$ACTIVE_SDK"
 log "Validando dotnet --info"
 timeout 30s "$DOTNET_BIN" --info || fail "dotnet --info falló"
 

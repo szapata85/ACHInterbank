@@ -1,48 +1,77 @@
-<div class="card">
-  <h2>{{ isEdit ? 'Editar ciclo' : 'Nuevo ciclo' }}</h2>
+<section class="cycle-form-page">
+  <app-page-header
+    [title]="isEdit ? 'Editar ciclo' : 'Nuevo ciclo'"
+    subtitle="Programación del ciclo ACH"
+  ></app-page-header>
 
-  <form [formGroup]="form" (ngSubmit)="save()" class="form-grid">
-    <label>
-      Cámara
-      <select formControlName="clearingHouseId" (change)="configurationContextChanged()">
-        <option [ngValue]="null">Seleccione</option>
-        <option *ngFor="let ch of clearingHouses" [ngValue]="ch.id">{{ ch.name }}</option>
-      </select>
-      <app-error-message [control]="form.get('clearingHouseId')"></app-error-message>
-    </label>
+  <form [formGroup]="form" (ngSubmit)="save()" class="cycle-form-card">
+    <div class="form-grid">
+      <div class="form-field">
+        <mat-form-field appearance="outline">
+          <mat-label>Cámara</mat-label>
+          <mat-select formControlName="clearingHouseId" (selectionChange)="configurationContextChanged()">
+            <mat-option [value]="null">Seleccione</mat-option>
+            <mat-option *ngFor="let ch of clearingHouses" [value]="ch.id">{{ ch.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <app-error-message [control]="form.get('clearingHouseId')"></app-error-message>
+      </div>
 
-    <label>
-      Fecha operativa
-      <input type="date" formControlName="processingDate" (change)="configurationContextChanged()" />
-      <app-error-message [control]="form.get('processingDate')"></app-error-message>
-    </label>
+      <div class="form-field">
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha operativa</mat-label>
+          <input matInput type="date" formControlName="processingDate" (change)="configurationContextChanged()" />
+        </mat-form-field>
+        <app-error-message [control]="form.get('processingDate')"></app-error-message>
+      </div>
 
-    <label>
-      Configuración de ciclo
-      <select formControlName="clearingHouseCycleConfigId" [attr.aria-busy]="isLoadingConfigurations">
-        <option [ngValue]="null">Seleccione una configuración vigente</option>
-        <option *ngFor="let config of configurations" [ngValue]="config.id">
-          {{ configurationLabel(config) }}
-        </option>
-      </select>
-      <app-error-message [control]="form.get('clearingHouseCycleConfigId')"></app-error-message>
-      <small *ngIf="!isLoadingConfigurations && form.value.clearingHouseId && form.value.processingDate && configurations.length === 0">
-        No hay configuraciones activas y vigentes para la cámara y fecha seleccionadas.
-      </small>
-    </label>
+      <div class="form-field field-span">
+        <mat-form-field appearance="outline">
+          <mat-label>Configuración de ciclo</mat-label>
+          <mat-select
+            formControlName="clearingHouseCycleConfigId"
+            [attr.aria-busy]="isLoadingConfigurations"
+          >
+            <mat-option [value]="null">Seleccione una configuración vigente</mat-option>
+            <mat-option *ngFor="let config of configurations" [value]="config.id">
+              {{ configurationLabel(config) }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        <app-error-message [control]="form.get('clearingHouseCycleConfigId')"></app-error-message>
 
-    <label>
-      <input type="checkbox" formControlName="rescheduleOnHoliday" />
-      Reprogramar si la fecha es festiva
-    </label>
+        <ui-estado-carga
+          *ngIf="isLoadingConfigurations"
+          class="configuration-state"
+          mensaje="Cargando configuraciones vigentes..."
+        ></ui-estado-carga>
 
-    <p *ngIf="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
+        <small
+          *ngIf="!isLoadingConfigurations && form.value.clearingHouseId && form.value.processingDate && configurations.length === 0"
+          class="empty-configurations"
+        >
+          No hay configuraciones activas y vigentes para la cámara y fecha seleccionadas.
+        </small>
+      </div>
+
+      <mat-checkbox formControlName="rescheduleOnHoliday" class="field-span holiday-option">
+        Reprogramar si la fecha es festiva
+      </mat-checkbox>
+    </div>
+
+    <div *ngIf="errorMessage" class="form-error" role="alert">
+      <ui-estado-error
+        titulo="No fue posible completar la operación"
+        [mensaje]="errorMessage || ''"
+        [mostrarReintentar]="false"
+      ></ui-estado-error>
+    </div>
 
     <div class="actions">
-      <button type="button" routerLink="/ach-cycles">Cancelar</button>
-      <button type="submit" class="btn btn-primary" [disabled]="isSaving">
+      <button mat-stroked-button type="button" routerLink="/ach-cycles">Cancelar</button>
+      <button mat-flat-button type="submit" [disabled]="isSaving">
         {{ isSaving ? 'Guardando…' : 'Guardar' }}
       </button>
     </div>
   </form>
-</div>
+</section>

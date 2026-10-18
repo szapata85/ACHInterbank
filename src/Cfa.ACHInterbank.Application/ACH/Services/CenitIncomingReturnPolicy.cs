@@ -67,6 +67,12 @@ public sealed class CenitIncomingReturnPolicy : ICenitIncomingReturnPolicy
             return cycleValidation;
         }
 
+        var firstCycleExceptionValidation = ValidateFirstCycleReturnException(request, code);
+        if (firstCycleExceptionValidation is not null)
+        {
+            return firstCycleExceptionValidation;
+        }
+
         if (code == R06)
         {
             return EvaluateR06(request);
@@ -123,6 +129,32 @@ public sealed class CenitIncomingReturnPolicy : ICenitIncomingReturnPolicy
             || request.ReturnCycleNumber > request.LastReturnCycleNumber)
         {
             return Reject("CENIT_RETURN_CYCLE_INVALID", "El ciclo de la devolucion no pertenece a la ventana operacional CENIT resuelta.");
+        }
+
+        return null;
+    }
+
+    private static CenitIncomingReturnPolicyResult? ValidateFirstCycleReturnException(
+        CenitIncomingReturnPolicyRequest request,
+        string code)
+    {
+        if (request.ReturnCycleNumber != 1)
+        {
+            return null;
+        }
+
+        if (!string.Equals(code, R23, StringComparison.Ordinal))
+        {
+            return Reject(
+                "CENIT_CYCLE1_RETURN_NOT_ALLOWED",
+                "En el ciclo 1 CENIT no se permiten devoluciones ordinarias; la unica excepcion de Return es R23 correspondiente a una entrada de dias anteriores.");
+        }
+
+        if (request.ReturnValueDate.Date <= request.OriginalValueDate.Date)
+        {
+            return Reject(
+                "CENIT_CYCLE1_R23_PRIOR_DAY_REQUIRED",
+                "R23 en el ciclo 1 CENIT solo aplica a devoluciones de dias anteriores; no aplica a una entrada con la misma Fecha Valor.");
         }
 
         return null;

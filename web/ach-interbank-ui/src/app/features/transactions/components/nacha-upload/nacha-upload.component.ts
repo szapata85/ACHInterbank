@@ -1,6 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs/operators';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -18,7 +22,7 @@ const rejectedExtensionPattern = /\.(txt|nacha)$/i;
 @Component({
   selector: 'app-nacha-upload',
   standalone: true,
-  imports: [SharedModule],
+  imports: [SharedModule, RouterModule, MatButtonModule, MatFormFieldModule, MatInputModule],
   templateUrl: './nacha-upload.component.html',
   styleUrls: ['./nacha-upload.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -38,17 +42,17 @@ export class NachaUploadComponent implements OnInit {
   selectedFileValidation: NachaUploadFileValidation | null = null;
 
   readonly columnDefs: ColDef<NachaUploadRecord>[] = [
-    { headerName: 'Nacha ID', valueGetter: (params) => params.data?.nachaId || '-' },
+    { headerName: 'ID del archivo NACHA-M', valueGetter: (params) => params.data?.nachaId || '-' },
     { headerName: 'Originador', valueGetter: (params) => params.data?.immediateOriginName || params.data?.immediateOrigin || '-' },
     { headerName: 'Receptor', valueGetter: (params) => params.data?.immediateDestinationName || params.data?.immediateDestination || '-' },
     { field: 'clearingHouseName', headerName: 'Cámara', valueGetter: (params) => params.data?.clearingHouseName || '-' },
     { headerName: 'Ciclo', valueGetter: (params) => params.data?.achCycleName || params.data?.achCycleId || '-' },
-    { headerName: 'Fecha archivo', valueGetter: (params) => params.data?.fileCreationDate || '-' },
-    { headerName: 'Hora', valueGetter: (params) => params.data?.fileCreationTime || '-' },
+    { headerName: 'Fecha del archivo', valueGetter: (params) => params.data?.fileCreationDate || '-' },
+    { headerName: 'Hora del archivo', valueGetter: (params) => params.data?.fileCreationTime || '-' },
     { field: 'totalBatches', headerName: 'Lotes' },
     { field: 'totalEntries', headerName: 'Entradas' },
     { field: 'totalAddendas', headerName: 'Adendas' },
-    { field: 'totalAmount', headerName: 'Total monto', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },
+    { field: 'totalAmount', headerName: 'Monto total', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },
     { field: 'totalDebitAmount', headerName: 'Total débito', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) },
     { field: 'totalCreditAmount', headerName: 'Total crédito', valueFormatter: (params) => Number(params.value ?? 0).toFixed(2) }
   ];
@@ -90,7 +94,7 @@ export class NachaUploadComponent implements OnInit {
 
   reprocess(): void {
     if (!this.lastUploadResult?.canReprocess || !this.lastUploadResult.ingestionId) {
-      this.notifications.error('La ingesta actual no está habilitada para reproceso controlado.');
+      this.notifications.error('La carga actual no está habilitada para reproceso controlado.');
       return;
     }
 

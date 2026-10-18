@@ -1,5 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
+import { permissionGuard } from '../../core/guards/permission.guard';
 import { NavigationMenuComponent } from './components/navigation-menu.component';
 
 const routes: Routes = [
@@ -11,7 +12,12 @@ const routes: Routes = [
   {
     path: 'menu-items',
     component: NavigationMenuComponent,
-    data: { breadcrumb: 'Menús', title: 'Administrar menú de navegación' }
+    canActivate: [permissionGuard],
+    data: {
+      permissions: ['NavigationMenu.Manage', 'CanManageUsers'],
+      breadcrumb: 'Organización del menú',
+      title: 'Organización del menú'
+    }
   }
 ];
 

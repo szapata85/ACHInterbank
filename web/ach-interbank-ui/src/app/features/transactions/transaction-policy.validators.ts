@@ -1,5 +1,5 @@
 import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
-import { AccountTypeEnum, TransactionTypeEnum } from './transactions.types';
+import { AccountTypeEnum, TransactionTypeEnum } from '../../core/models/transaction-types.model';
 import { TransactionPolicyPreview } from './transactions.models';
 
 export function recipientIdentityValidator(): ValidatorFn {

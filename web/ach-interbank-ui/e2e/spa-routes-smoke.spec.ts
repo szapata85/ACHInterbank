@@ -10,17 +10,18 @@ type SmokeRoute = {
 const refreshEndpoint = /\/auth\/refresh$/;
 const navigationEndpoint = /\/navigation\/menu$/;
 const runRealRuntime = process.env['RUN_REAL_RUNTIME_E2E'] === 'true';
-const legacyRoutes = [
+const notFoundRoutes = [
   '/ach-cycles/nacha/layouts',
   '/ach-cycles/nacha/definitions',
   '/nacha-layouts',
-  '/nacha-record-definitions'
+  '/nacha-record-definitions',
+  '/aliases'
 ];
 
 const routes: SmokeRoute[] = [
   { id: 'nacha-config-profiles', path: '/nacha-config-admin/perfiles', title: /Configuración NACHA-M/i, marker: /perfiles de configuración oficiales/i },
-  { id: 'nacha-config-records', path: '/nacha-config-admin/records', title: /Registros oficiales NACHA-M/i, marker: /nacha-config profiles es la fuente oficial/i },
-  { id: 'nacha-config-variants-fields', path: '/nacha-config-admin/variants-fields', title: /Variantes y campos NACHA-M/i, marker: /Espacio administrativo oficial/i },
+  { id: 'nacha-config-records', path: '/nacha-config-admin/records', title: /Parametrización NACHA-M/i, marker: /Estructura del archivo|Campos/i },
+  { id: 'nacha-config-variants-fields', path: '/nacha-config-admin/variants-fields', title: /Parametrización NACHA-M/i, marker: /Estructura del archivo|Campos/i },
   { id: 'nacha-config-profile-10', path: '/nacha-config-admin/perfiles/10', title: /Perfil CENIT-OUT-220/i },
   { id: 'cenit-home', path: '/cenit', title: /Centro de operación CENIT/i, marker: /Centro de operación CENIT/i },
   { id: 'cenit-regulatorio-causales-devolucion', path: '/cenit/regulatorio/causales-devolucion', title: /Causales de devoluci[oó]n/i, marker: /Causales de devoluci[oó]n \(Rxx\)/i },
@@ -69,7 +70,6 @@ const routes: SmokeRoute[] = [
   { id: 'users-branding', path: '/users/branding', title: /.+/ },
   { id: 'users-password-rules', path: '/users/password-rules', title: /.+/ },
   { id: 'users-login-lockout', path: '/users/login-lockout', title: /.+/ },
-  { id: 'aliases-home', path: '/aliases', title: /.+/ },
   { id: 'customers-home', path: '/customers', title: /.+/ },
   { id: 'navigation-root', path: '/navigation', title: /.+/ },
   { id: 'navigation-menu-items', path: '/navigation/menu-items', title: /.+/ },
@@ -101,7 +101,8 @@ const omittedRoutes = [
   { path: '/ach-cycles/nacha/layouts', reason: 'Legacy route controlled by not-found only.' },
   { path: '/ach-cycles/nacha/definitions', reason: 'Legacy route controlled by not-found only.' },
   { path: '/nacha-layouts', reason: 'Legacy API route controlled by not-found only.' },
-  { path: '/nacha-record-definitions', reason: 'Legacy API route controlled by not-found only.' }
+  { path: '/nacha-record-definitions', reason: 'Legacy API route controlled by not-found only.' },
+  { path: '/aliases', reason: 'Alias frontend feature retired in 4C.3A.1; handled by the existing not-found route.' }
 ];
 
 test.use({ ignoreHTTPSErrors: true });
@@ -189,9 +190,9 @@ test.describe('SPA route smoke', () => {
     });
   }
 
-  test('LegacyRoutes_ShouldEndInNotFound', async ({ page }) => {
-    for (const legacyRoute of legacyRoutes) {
-      await page.goto(legacyRoute);
+  test('UnavailableRoutes_ShouldEndInNotFound', async ({ page }) => {
+    for (const routePath of notFoundRoutes) {
+      await page.goto(routePath);
       await expect(page).toHaveURL(/\/not-found$/);
       await expect(page.getByText('404', { exact: true })).toBeVisible();
     }
@@ -266,7 +267,6 @@ async function mockNavigation(page: Page): Promise<void> {
         { id: 16, label: 'Ciclos ACH', route: '/ach-cycles' },
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
-        { id: 19, label: 'Alias', route: '/aliases' },
         { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
     });
@@ -605,7 +605,6 @@ async function mockBackend(page: Page): Promise<void> {
         { id: 16, label: 'Ciclos ACH', route: '/ach-cycles' },
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
-        { id: 19, label: 'Alias', route: '/aliases' },
         { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
       });
@@ -827,7 +826,6 @@ async function mockBackend(page: Page): Promise<void> {
         { id: 16, label: 'Ciclos ACH', route: '/ach-cycles' },
         { id: 17, label: 'Capability Registry', route: '/payment-rail-capability-registry' },
         { id: 18, label: 'Clientes', route: '/customers' },
-        { id: 19, label: 'Alias', route: '/aliases' },
         { id: 20, label: 'Panel operativo', route: '/ach' }
       ])
       });

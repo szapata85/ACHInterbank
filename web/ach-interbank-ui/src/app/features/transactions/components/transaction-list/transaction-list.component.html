@@ -1,5 +1,5 @@
 <div class="transaction-list-page" data-testid="transaction-list-page">
-  <app-page-header title="Transacciones" description="Consulta y agrupa las transacciones por lote"></app-page-header>
+  <app-page-header title="Consultar transacciones" description="Consulta y agrupa las transacciones por lote"></app-page-header>
 
   <section class="filter-panel" aria-labelledby="transaction-filter-title" data-testid="transaction-filter-panel">
     <header class="filter-panel__header">
@@ -127,19 +127,19 @@
 
   <div class="page-actions">
     <div class="return-filters" aria-label="Vista de devoluciones">
-      <ui-boton texto="Todas" variante="contorno" [deshabilitado]="loading || filtrosForm.invalid || returnView === 'all'" (accion)="setReturnView('all')"></ui-boton>
-      <ui-boton texto="Devoluciones recibidas" variante="contorno" [deshabilitado]="loading || filtrosForm.invalid || returnView === 'received'" (accion)="setReturnView('received')"></ui-boton>
-      <ui-boton texto="Devoluciones enviadas" variante="contorno" [deshabilitado]="loading || filtrosForm.invalid || returnView === 'sent'" (accion)="setReturnView('sent')"></ui-boton>
+      <button mat-stroked-button type="button" [disabled]="loading || filtrosForm.invalid || returnView === 'all'" (click)="setReturnView('all')">Todas</button>
+      <button mat-stroked-button type="button" [disabled]="loading || filtrosForm.invalid || returnView === 'received'" (click)="setReturnView('received')">Devoluciones recibidas</button>
+      <button mat-stroked-button type="button" [disabled]="loading || filtrosForm.invalid || returnView === 'sent'" (click)="setReturnView('sent')">Devoluciones enviadas</button>
     </div>
 
     <div class="action-buttons">
-      <ui-boton texto="Carga masiva por archivo" variante="contorno" (accion)="createBulk()"></ui-boton>
-      <ui-boton texto="Seguimiento lotes" variante="contorno" (accion)="openBulkTracking()"></ui-boton>
-      <ui-boton texto="Crear transacción" variante="primario" (accion)="createNew()"></ui-boton>
+      <button mat-stroked-button type="button" (click)="createBulk()">Cargar transacciones desde archivo</button>
+      <button mat-stroked-button type="button" (click)="openBulkTracking()">Seguimiento de cargas</button>
+      <button mat-flat-button type="button" (click)="createNew()">Crear transacción</button>
     </div>
   </div>
 
-  <div class="column-manager" aria-label="Selector de columnas para la grilla">
+  <div class="column-manager" aria-label="Selector de columnas visibles">
     <details>
       <summary>Columnas visibles (útil en móvil)</summary>
       <div class="column-manager__options">
@@ -174,7 +174,7 @@
 
   <div class="group-list" *ngIf="groups.length > 0 && !loadError; else emptyState">
     <p class="selection-help">Seleccione una transacción para consultar su resultado en el core.</p>
-    <p *ngIf="loadingIntegrationResult" role="status">Consultando resultado del procesamiento...</p>
+    <ui-estado-carga *ngIf="loadingIntegrationResult" mensaje="Consultando resultado del procesamiento..."></ui-estado-carga>
     <app-transaction-integration-result
       *ngIf="selectedIntegrationResult"
       [result]="selectedIntegrationResult"
@@ -211,9 +211,6 @@
       titulo="Sin transacciones"
       mensaje="No se encontraron transacciones con los filtros aplicados."
     ></ui-estado-vacio>
-    <div class="loading-state" *ngIf="loading" role="status">
-      <mat-spinner diameter="30" aria-hidden="true"></mat-spinner>
-      <span>Cargando transacciones…</span>
-    </div>
+    <ui-estado-carga *ngIf="loading" mensaje="Cargando transacciones…"></ui-estado-carga>
   </ng-template>
 </div>

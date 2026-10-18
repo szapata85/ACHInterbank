@@ -17,18 +17,21 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterModule } from '@angular/router';
 import { finalize, forkJoin } from 'rxjs';
 import { OperationalErrorView } from '../../../core/models/operational-error.model';
+import { AuthService } from '../../../core/services/auth.service';
 import { BlobDownloadService, SavedDownload } from '../../../core/services/blob-download.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { presentNachaError } from '../../../core/utils/nacha-error-presentation.util';
-import { SharedModule } from '../../../shared/shared.module';
-import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
-import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
+import { OperationalErrorPanelComponent } from '../../../shared/components/operational-error-panel.component';
+import { PageHeaderComponent } from '../../../shared/components/page-header.component';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
 import {
   certificateEnvironmentCode,
   certificateEnvironmentLabel,
   certificatePurposeCode,
   certificatePurposeLabel
 } from '../presentation/certificate-presentation';
+import { NACHA_SECURITY_PERMISSIONS } from '../nacha-security-permissions';
 import { SobreDigitalCertificate, SobreDigitalService } from '../services/sobre-digital.service';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -51,7 +54,8 @@ interface EnvelopeResult {
     CommonModule,
     ReactiveFormsModule,
     RouterModule,
-    SharedModule,
+    PageHeaderComponent,
+    OperationalErrorPanelComponent,
     MatButtonModule,
     MatCardModule,
     MatChipsModule,
@@ -73,6 +77,7 @@ export class DigitalEnvelopeToolComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(SobreDigitalService);
   private readonly clearingHousesApi = inject(ClearingHousesApiService);
+  private readonly auth = inject(AuthService);
   private readonly downloads = inject(BlobDownloadService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -88,6 +93,20 @@ export class DigitalEnvelopeToolComponent implements OnInit {
 
   readonly encryptForm = this.buildForm();
   readonly decryptForm = this.buildForm();
+
+  get canEncrypt(): boolean {
+    return this.auth.hasPermission([
+      NACHA_SECURITY_PERMISSIONS.digitalEnvelopeEncrypt,
+      NACHA_SECURITY_PERMISSIONS.canManageAch
+    ]);
+  }
+
+  get canDecrypt(): boolean {
+    return this.auth.hasPermission([
+      NACHA_SECURITY_PERMISSIONS.digitalEnvelopeDecrypt,
+      NACHA_SECURITY_PERMISSIONS.canManageAch
+    ]);
+  }
 
   ngOnInit(): void {
     forkJoin({
@@ -268,6 +287,14 @@ export class DigitalEnvelopeToolComponent implements OnInit {
   }
 
   private submit(mode: EnvelopeMode): void {
+    if (!this.canExecute(mode)) {
+      this.notifications.error(
+        mode === 'encrypt'
+          ? 'No tienes autorización para cifrar archivos mediante sobre digital.'
+          : 'No tienes autorización para descifrar archivos mediante sobre digital.'
+      );
+      return;
+    }
     if (this.processingMode) {
       return;
     }
@@ -309,6 +336,10 @@ export class DigitalEnvelopeToolComponent implements OnInit {
     });
   }
 
+  private canExecute(mode: EnvelopeMode): boolean {
+    return mode === 'encrypt' ? this.canEncrypt : this.canDecrypt;
+  }
+
   private async completeOperation(
     mode: EnvelopeMode,
     response: HttpResponse<Blob>,
@@ -328,8 +359,8 @@ export class DigitalEnvelopeToolComponent implements OnInit {
       };
       this.notifications.success(
         mode === 'encrypt'
-          ? `Sobre digital generado: ${saved.fileName}`
-          : `Archivo descifrado correctamente: ${saved.fileName}`
+          ? `Archivo cifrado: ${saved.fileName}`
+          : `Archivo descifrado: ${saved.fileName}`
       );
       this.formFor(mode).controls['file'].reset();
       this.cdr.markForCheck();

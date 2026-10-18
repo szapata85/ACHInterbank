@@ -59,6 +59,41 @@ public sealed class IntegrationMappingBootstrapper
             ct);
         await EnsurePublishedRegistrarRespuestaMappingAsync(ct);
         await EnsureDifferentialPrenotificationResponseStatusMappingsAsync(ct);
+        await AssociateBaselineContractVersionsAsync(ct);
+    }
+
+    private async Task AssociateBaselineContractVersionsAsync(CancellationToken ct)
+    {
+        var baselines = await _context.IntegrationContractVersions
+            .AsNoTracking()
+            .Where(x => x.VersionLabel == "baseline-v1"
+                && x.SourceType == IntegrationContractSourceTypeEnum.BaselineMigration)
+            .Select(x => new { x.MethodId, x.Id })
+            .ToDictionaryAsync(x => x.MethodId, x => x.Id, ct);
+
+        if (baselines.Count == 0)
+        {
+            return;
+        }
+
+        var methodIds = baselines.Keys.ToArray();
+        var unversionedSets = await _context.IntegrationMappingSets
+            .Where(x => x.ContractVersionId == null && methodIds.Contains(x.MethodId))
+            .ToListAsync(ct);
+
+        foreach (var mappingSet in unversionedSets)
+        {
+            mappingSet.ContractVersionId = baselines[mappingSet.MethodId];
+            if (mappingSet.Revision < 1)
+            {
+                mappingSet.Revision = 1;
+            }
+        }
+
+        if (unversionedSets.Count > 0)
+        {
+            await _context.SaveChangesAsync(ct);
+        }
     }
 
     private async Task EnsurePublishedContrapartidasMappingAsync(CancellationToken ct)

@@ -172,7 +172,7 @@ describe('MappingEditorPageComponent', () => {
         { provide: IntegrationMappingAdminService, useValue: apiMock },
         { provide: NotificationService, useValue: { success: jasmine.createSpy(), error: jasmine.createSpy() } },
         { provide: AuthService, useValue: { hasPermission: jasmine.createSpy().and.returnValue(true) } },
-        { provide: Router, useValue: { navigate: jasmine.createSpy() } },
+        { provide: Router, useValue: { navigate: jasmine.createSpy(), events: of(), url: "/integraciones/relacion-informacion" } },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -203,6 +203,18 @@ describe('MappingEditorPageComponent', () => {
     expect(apiMock.getMappingSetById).toHaveBeenCalledWith(mappingSetId);
   });
 
+  it('MappingEditor_ShouldNotBypassGovernedPublicationRoute', async () => {
+    const { component, apiMock } = await setup();
+    const router = TestBed.inject(Router) as unknown as { navigate: jasmine.Spy };
+
+    component.publish();
+
+    expect(apiMock.publish).not.toHaveBeenCalled();
+    expect(router.navigate).toHaveBeenCalledWith(['/integraciones/relacion-informacion'], {
+      queryParams: { method: methodCode }
+    });
+  });
+
   it('MappingEditor_ShouldClearLoading_WhenAllCatalogsLoad', async () => {
     const { component } = await setup();
 
@@ -220,7 +232,20 @@ describe('MappingEditorPageComponent', () => {
 
     expect(component.loading).toBeFalse();
     expect(component.viewState).toBe('error');
-    expect(component.errorMessage).toContain('mapping set solicitado');
+    expect(component.errorMessage).toContain('configuración de relación de información solicitada');
+    expect(component.errorMessage.toLowerCase()).not.toContain('mapping set');
+  });
+
+  it('MappingEditor_ShouldUseFunctionalLanguage_WhenRouteMethodDoesNotMatchConfiguration', async () => {
+    const { component } = await setup({
+      routeParams: { methodCode: 'WSCFAACH.Proc_Contrapartidas' }
+    });
+
+    expect(component.viewState).toBe('error');
+    expect(component.errorMessage).toContain('configuración de relación de información');
+    expect(component.errorMessage.toLowerCase()).not.toContain('mapping set');
+    expect(component.errorMessage).not.toContain('WSCFAACH.Proc_Transacciones');
+    expect(component.errorMessage).not.toContain('WSCFAACH.Proc_Contrapartidas');
   });
 
   it('MappingEditor_ShouldShowError_WhenSourceCatalogFails', async () => {
@@ -314,4 +339,22 @@ describe('MappingEditorPageComponent', () => {
     expect(payload.sourceKind).toBe(10);
     expect(payload.sourceFieldPath).toBe('EntryDetails.TraceNumber');
   });
+
+  it('MappingEditor_ShouldUseNativeButtons_ForParameterSelection', async () => {
+    const { fixture } = await setup();
+    const buttons = fixture.nativeElement.querySelectorAll('.left__parameter') as NodeListOf<HTMLButtonElement>;
+
+    expect(buttons.length).toBe(parameters.length);
+    expect(Array.from(buttons).every((button) => button.tagName === 'BUTTON' && button.type === 'button')).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.left li[tabindex], .left li[role="button"]')).toBeNull();
+  });
+
+  it('mantiene layout semántico sin tabla primaria ni scroll interno anidado', async () => {
+    const { fixture } = await setup();
+    expect(fixture.nativeElement.querySelector('table')).toBeNull();
+    expect(fixture.nativeElement.querySelector('main.center')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('aside.left')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('aside.right')).not.toBeNull();
+  });
+
 });

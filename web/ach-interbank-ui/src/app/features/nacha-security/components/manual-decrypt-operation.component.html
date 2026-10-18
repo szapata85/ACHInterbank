@@ -1,13 +1,45 @@
-<section class="page-header"><h1>Descifrado manual de sobre digital</h1></section>
-<form [formGroup]="form" (ngSubmit)="submit()" class="upload">
-  <input type="file" (change)="onFileChange($event)" />
-  <button appButton type="submit" [disabled]="loading">{{ loading ? 'Procesando...' : 'Descifrar .ENV' }}</button>
-</form>
-<section *ngIf="operation">
-  <p><b>operationId:</b> {{ operation.operationId }}</p>
-  <p><b>estado:</b> {{ operation.status }}</p>
-  <p *ngIf="operation.error"><b>Error:</b> {{ operation.error.code }} - {{ operation.error.message }}</p>
-  <button appButton type="button" [disabled]="!canDownload" (click)="authorizeAndDownload()">
-    {{ authorizing ? 'Autorizando...' : 'Autorizar y descargar' }}
-  </button>
+<section class="operation-page">
+  <app-page-header
+    title="Descifrado manual de sobre digital"
+    subtitle="Procesa un sobre digital recibido y habilita la descarga únicamente después de la autorización correspondiente."
+  ></app-page-header>
+
+  <mat-card class="operation-card" appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Archivo para descifrar</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="submit()" class="operation-form">
+        <div class="file-field">
+          <label for="manual-decrypt-file">Sobre digital</label>
+          <input id="manual-decrypt-file" type="file" (change)="onFileChange($event)" aria-describedby="manual-decrypt-help" />
+          <small id="manual-decrypt-help">Selecciona el archivo cifrado que será validado y descifrado en el servidor.</small>
+          @if (form.controls.file.hasError('required') && form.controls.file.touched) {
+            <small role="alert">Selecciona un archivo para continuar.</small>
+          }
+        </div>
+
+        <div class="form-actions">
+          <button mat-flat-button color="primary" type="submit" [disabled]="loading">
+            <mat-icon aria-hidden="true">lock_open</mat-icon>
+            {{ loading ? 'Procesando...' : 'Descifrar archivo' }}
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  @if (operation) {
+    <app-nacha-operation-summary
+      [operation]="operation"
+      [showDownloadAvailability]="true"
+    ></app-nacha-operation-summary>
+
+    <div class="download-action">
+      <button mat-flat-button color="primary" type="button" [disabled]="!canDownload" (click)="authorizeAndDownload()">
+        <mat-icon aria-hidden="true">download</mat-icon>
+        {{ authorizing ? 'Autorizando...' : 'Autorizar y descargar' }}
+      </button>
+    </div>
+  }
 </section>

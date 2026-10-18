@@ -1,25 +1,57 @@
 :root {
   --font-sans: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 
-  --color-bg: #f3f6fb;
+  // Runtime branding inputs. BrandingService is the only application point that
+  // overrides these values at runtime.
+  --brand-primary: #2563eb;
+  --brand-on-primary: #ffffff;
+  --brand-primary-hover: #1d4ed8;
+  --brand-public-background: #f4f7fb;
+  --brand-private-background: #f8fafc;
+  --brand-sidebar-background: #0f172a;
+  --brand-sidebar-on-background: #ffffff;
+
+  // Foundation design tokens.
+  --color-background: #f3f6fb;
+  --color-bg: var(--color-background);
   --color-surface: #ffffff;
   --color-surface-muted: #f8fafc;
   --color-border: #dbe3ee;
   --color-border-strong: #c8d3e1;
+  --color-outline: var(--color-border-strong);
   --color-text: #0f172a;
   --color-text-muted: #475569;
   --color-text-soft: #64748b;
 
-  --color-primary: var(--button-color, #2563eb);
-  --color-primary-hover: #1d4ed8;
-  --color-primary-contrast: #ffffff;
+  --color-primary: var(--brand-primary);
+  --color-on-primary: var(--brand-on-primary);
+  --color-primary-contrast: var(--color-on-primary);
+  --color-primary-hover: var(--brand-primary-hover);
+  --color-sidebar: var(--brand-sidebar-background);
+  --color-on-sidebar: var(--brand-sidebar-on-background);
+  --color-focus: var(--color-primary);
 
   --color-secondary: #0f766e;
   --color-secondary-hover: #0d5f59;
-  --color-danger: #dc2626;
-  --color-danger-hover: #b91c1c;
+  --color-on-secondary: #ffffff;
+  --color-error: #dc2626;
+  --color-error-hover: #b91c1c;
+  --color-error-surface: #fef2f2;
+  --color-error-border: #fecaca;
+  --color-error-text: #991b1b;
+  --color-on-error: #ffffff;
+  --color-danger: var(--color-error);
+  --color-danger-hover: var(--color-error-hover);
   --color-warning: #d97706;
+  --color-warning-surface: #ffedd5;
+  --color-warning-border: #fdba74;
+  --color-warning-text: #9a3412;
+  --color-info: #0369a1;
+  --color-info-surface: #e0f2fe;
+  --color-info-text: #075985;
   --color-success: #15803d;
+  --color-success-surface: #dcfce7;
+  --color-success-text: #166534;
 
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -43,5 +75,5 @@
   --font-md: 16px;
   --font-lg: 20px;
 
-  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.25);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--color-focus) 28%, transparent);
 }

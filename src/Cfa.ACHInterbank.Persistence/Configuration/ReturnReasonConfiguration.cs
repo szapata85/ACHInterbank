@@ -92,8 +92,7 @@ public class ReturnReasonConfiguration : IEntityTypeConfiguration<ReturnReason>
             new() { Id = 52, Code = "D29", Description = "Devolución débito tardía.", Category = "D", IsForReturn = false },
             new() { Id = 53, Code = "D30", Description = "Entidad Participante no puede procesar débitos.", Category = "D", IsForReturn = false },
             new() { Id = 54, Code = "D31", Description = "Lote duplicado en el mismo día sin autorización.", Category = "D", IsForReturn = false },
-            new() { Id = 55, Code = "D32", Description = "Transacción no permitida en este ciclo.", Category = "D", IsForReturn = false },
-            new() { Id = 56, Code = "DEV14", Description = "No consentimiento / revocación expresa del usuario receptor.", Category = "R", IsForReturn = true }
+            new() { Id = 55, Code = "D32", Description = "Transacción no permitida en este ciclo.", Category = "D", IsForReturn = false }
         };
     }
 }

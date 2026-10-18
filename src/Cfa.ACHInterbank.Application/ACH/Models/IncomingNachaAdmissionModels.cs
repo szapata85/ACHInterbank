@@ -6,6 +6,15 @@ public sealed record IncomingNachaAdmissionRequest(
     IncomingNachaCycleResolutionResult Resolution,
     bool IsExplicitReprocess);
 
+/// <summary>Incidencia registrada durante la admisión de una ingesta NACHA-M.</summary>
+/// <param name="Code">Código de la incidencia.</param>
+/// <param name="Title">Título funcional de la incidencia.</param>
+/// <param name="Message">Mensaje registrado para la incidencia.</param>
+/// <param name="SuggestedAction">Acción sugerida registrada.</param>
+/// <param name="ErrorType">Clasificación textual del error.</param>
+/// <param name="Severity">Severidad textual registrada.</param>
+/// <param name="ExpectedValue">Valor esperado cuando aplica.</param>
+/// <param name="FoundValue">Valor encontrado cuando aplica.</param>
 public sealed record IncomingNachaAdmissionIssue(
     string Code,
     string Title,

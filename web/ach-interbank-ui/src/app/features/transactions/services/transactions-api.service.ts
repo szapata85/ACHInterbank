@@ -1,23 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { catchError, map, throwError } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
-import { AccountTypeEnum, TransactionTypeEnum } from '../transactions.types';
-import { ActiveThirdPartyAccount, BulkAchTransactionRequest, BulkAchTransactionResponse, CompanyEntryDescriptionOption, TransactionDraft, TransactionIntegrationResult, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
-
-interface PagedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-interface CustomerThirdPartyApiItem {
-  id: number;
-  destinationInstitutionId: number;
-  destinationInstitutionName: string;
-  destinationAccountNumber: string;
-  recipientIdNumber: string;
-}
+import { AccountTypeEnum, TransactionTypeEnum } from '../../../core/models/transaction-types.model';
+import { BulkAchTransactionRequest, BulkAchTransactionResponse, CompanyEntryDescriptionOption, ContextualThirdPartyAccount, ContextualThirdPartyAccountSelectorResponse, TransactionDraft, TransactionIntegrationResult, TransactionListFilter, TransactionListItem, TransactionPolicyPreview, TransactionResponse } from '../transactions.models';
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
@@ -90,34 +75,22 @@ export class TransactionsApiService {
     );
   }
 
-  getActiveThirdParties(sourceAccountNumber: string, destinationInstitutionId?: number | null) {
+  getContextualThirdPartyAccounts(
+    sourceAccountNumber: string,
+    destinationInstitutionId: number,
+    type: TransactionTypeEnum,
+    companyEntryDescriptionId: number
+  ) {
     const params: Record<string, string | number> = {
-      status: 'Active',
-      page: 1,
-      pageSize: 500
+      sourceAccountNumber: sourceAccountNumber.trim(),
+      destinationInstitutionId: Number(destinationInstitutionId),
+      type: Number(type),
+      companyEntryDescriptionId: Number(companyEntryDescriptionId)
     };
 
-    params.sourceAccountNumber = sourceAccountNumber;
-
-    if (destinationInstitutionId && destinationInstitutionId > 0) {
-      params.destinationInstitutionId = destinationInstitutionId;
-    }
-
     return this.api
-      .get<PagedResponse<CustomerThirdPartyApiItem>>('api/customer-third-parties', { params })
-      .pipe(
-        map((response) =>
-          (response?.items ?? []).map(
-            (item): ActiveThirdPartyAccount => ({
-              id: item.id,
-              destinationInstitutionId: item.destinationInstitutionId,
-              destinationInstitutionName: item.destinationInstitutionName,
-              destinationAccountNumber: item.destinationAccountNumber,
-              recipientIdNumber: item.recipientIdNumber
-            })
-          )
-        )
-      );
+      .get<ContextualThirdPartyAccountSelectorResponse>(`${this.basePath}/third-party-accounts/selector`, { params })
+      .pipe(map((response): ContextualThirdPartyAccount[] => response?.items ?? []));
   }
 
   getAll(filter?: TransactionListFilter) {

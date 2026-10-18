@@ -1,8 +1,7 @@
-import { ChangeDetectionStrategy, Component, HostBinding, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { SharedModule } from '../shared/shared.module';
 import { RouterModule } from '@angular/router';
 import { BrandingService } from '../core/services/branding.service';
-import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-login-layout',
@@ -12,19 +11,8 @@ import { Subscription } from 'rxjs';
   standalone: true,
   imports: [SharedModule, RouterModule]
 })
-export class LoginLayoutComponent implements OnDestroy {
+export class LoginLayoutComponent {
   private readonly brandingService = inject(BrandingService);
-
-  @HostBinding('style.--public-bg')
-  public publicBackground: string | null = this.brandingService.getBrandingSnapshot().publicBackground ?? null;
-
   readonly branding$ = this.brandingService.branding$;
-
-  private brandingSubscription: Subscription = this.brandingService.branding$.subscribe((branding) => {
-    this.publicBackground = branding.publicBackground ?? null;
-  });
-
-  ngOnDestroy(): void {
-    this.brandingSubscription.unsubscribe();
-  }
+  readonly productName = this.brandingService.productName;
 }

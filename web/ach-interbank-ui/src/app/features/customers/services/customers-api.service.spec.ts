@@ -1,6 +1,6 @@
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { CustomersApiService } from './customers-api.service';
+import { CustomersApiService } from '../../../core/services/customers-api.service';
 
 describe('CustomersApiService', () => {
   let service: CustomersApiService;

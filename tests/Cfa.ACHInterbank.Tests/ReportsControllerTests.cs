@@ -1,8 +1,6 @@
 using Cfa.ACHInterbank.Api.Controllers;
-using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Interfaces;
 using Cfa.ACHInterbank.Application.Reports.Models;
-using Cfa.ACHInterbank.Application.Reports.Export.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -142,26 +140,10 @@ public class ReportsControllerTests
         Assert.True(stopwatch.ElapsedMilliseconds < 1_000, $"Expected fast execution, got {stopwatch.ElapsedMilliseconds}ms");
     }
 
-    private static ReportsController CreateController(IReportGenerator generator)
+    private static TraceabilityReportsController CreateController(IReportGenerator generator)
     {
-        var transaction = new Mock<IAchTransactionReportService>().Object;
-        var returns = new Mock<IAchReturnRejectionReportService>().Object;
-        var nachaCycle = new Mock<IAchNachaCycleReportService>().Object;
-        var reconciliation = new Mock<IAchReconciliationReportService>().Object;
-        var auditHistory = new Mock<IAchAuditHistoryReportService>().Object;
-        var clearingHouse = new Mock<IClearingHouseService>();
-        clearingHouse.Setup(x => x.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Domain.Entities.Ach.Dtos.ClearingHouseDto { Id = 1, Name = "ACH", Code = "ACH", OriginCode = "000" });
-
-        return new ReportsController(
+        return new TraceabilityReportsController(
             generator,
-            transaction,
-            returns,
-            nachaCycle,
-            reconciliation,
-            auditHistory,
-            clearingHouse.Object,
-            new Mock<IAccountingReviewExportAppService>().Object,
-            NullLogger<ReportsController>.Instance);
+            NullLoggerFactory.Instance);
     }
 }

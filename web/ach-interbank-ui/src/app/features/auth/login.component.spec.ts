@@ -5,6 +5,7 @@ import { provideRouter, Router } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { LoginRequestModel, UserSession } from '../../core/models/auth.models';
 import { AuthService } from '../../core/services/auth.service';
+import { BrandingService } from '../../core/services/branding.service';
 import { LoginComponent } from './login.component';
 
 describe('LoginComponent', () => {
@@ -28,7 +29,8 @@ describe('LoginComponent', () => {
       imports: [LoginComponent, NoopAnimationsModule],
       providers: [
         provideRouter([]),
-        { provide: AuthService, useValue: authService }
+        { provide: AuthService, useValue: authService },
+        { provide: BrandingService, useValue: { productName: 'ACH Interbank' } }
       ]
     }).compileComponents();
 
@@ -71,6 +73,11 @@ describe('LoginComponent', () => {
     expect(account.getAttribute('viewBox')).toBe('0 0 24 24');
     expect(lock.getAttribute('viewBox')).toBe('0 0 24 24');
     expect(fixture.nativeElement.querySelector('mat-icon')).toBeNull();
+  });
+
+  it('uses the centralized product fallback supplied by BrandingService', () => {
+    expect(component.productName).toBe('ACH Interbank');
+    expect(fixture.nativeElement.querySelector('#login-title')?.textContent).toContain('ACH Interbank');
   });
 
   it('does not submit an invalid form and exposes validation feedback after the attempt', () => {

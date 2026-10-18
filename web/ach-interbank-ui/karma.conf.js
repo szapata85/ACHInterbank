@@ -1,6 +1,14 @@
-const puppeteer = require('puppeteer');
+// Reuse Playwright's Chromium instead of bringing in Puppeteer just for Karma.
+// Keep CHROME_BIN overrides and karma-chrome-launcher's system Chrome discovery.
+const fs = require('node:fs');
+const { chromium } = require('@playwright/test');
 
-process.env.CHROME_BIN = process.env.CHROME_BIN || puppeteer.executablePath();
+if (!process.env.CHROME_BIN) {
+  const executable = chromium.executablePath();
+  if (fs.existsSync(executable)) {
+    process.env.CHROME_BIN = executable;
+  }
+}
 
 module.exports = function (config) {
   config.set({

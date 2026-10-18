@@ -26,8 +26,13 @@ public class ClearingHouseCycleConfigSeeder(
         {
             var house = clearingHouses.SingleOrDefault(item => item.Code == code)
                 ?? throw new InvalidOperationException($"Seeder ClearingHouseCycleConfigSeeder: falta la cámara '{code}'.");
+            var policy = RegulatoryCycleScheduleCatalog.GetHistoricalSeedPolicy(house.Code);
 
-            await RegulatoryCycleSeedRepair.ApplyAsync(context, house.Id, house.Code, 2025, cycleNumberResolver);
+            await RegulatoryCycleSeedRepair.ApplyAsync(
+                context,
+                house.Id,
+                policy,
+                cycleNumberResolver);
         }
     }
 }

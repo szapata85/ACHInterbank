@@ -1,13 +1,13 @@
 <section class="registry-page">
   <ui-migas-pan [items]="migas"></ui-migas-pan>
   <ui-encabezado-pagina
-    titulo="Capability Registry por riel"
+    titulo="Capacidades de la plataforma"
     descripcion="Consulta administrativa en modo solo lectura para gobernanza multi-riel (sin cutover)."
   ></ui-encabezado-pagina>
 
   <ui-alerta
     tipo="info"
-    mensaje="Legacy sigue decidiendo. PaymentRail se mantiene paralelo/shadow. Esta pantalla no permite edición."
+    mensaje="La configuración vigente continúa siendo la fuente de decisión. PaymentRail se mantiene en modo paralelo de observación. Esta pantalla es solo de consulta."
   ></ui-alerta>
 
   <ng-template #resumenTpl>
@@ -34,18 +34,18 @@
       </label>
 
       <label class="campo-filtro">
-        <span>Capability (opcional)</span>
+        <span>Capacidad (opcional)</span>
         <input type="text" formControlName="capabilityCode" placeholder="Ej: Netting" [disabled]="loading" />
       </label>
 
       <label class="campo-filtro">
-        <span>As Of UTC (opcional)</span>
+        <span>Fecha y hora de vigencia (UTC, opcional)</span>
         <input type="datetime-local" formControlName="asOfUtc" [disabled]="loading" />
       </label>
 
       <div class="acciones-filtro">
         <ui-boton texto="Consultar" tipo="submit" [deshabilitado]="loading || loadingRails" [loading]="loading"></ui-boton>
-        <ui-boton texto="Limpiar" variante="contorno" (accion)="limpiar()" [deshabilitado]="loading"></ui-boton>
+        <ui-boton texto="Limpiar filtros" variante="contorno" (accion)="limpiar()" [deshabilitado]="loading"></ui-boton>
       </div>
     </form>
   </ng-template>

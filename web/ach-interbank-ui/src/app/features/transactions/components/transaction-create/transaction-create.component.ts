@@ -12,13 +12,14 @@ import { EMPTY, catchError, debounceTime, distinctUntilChanged, finalize, map, s
 import { Subject } from 'rxjs';
 import { Router } from '@angular/router';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import { ActiveThirdPartyAccount, CompanyEntryDescriptionOption, DestinationInstitution, TransactionDraft, TransactionPolicyPreview, TransactionResponse } from '../../transactions.models';
-import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from '../../transactions.types';
+import { ContextualThirdPartyAccount, CompanyEntryDescriptionOption, TransactionDraft, TransactionPolicyPreview, TransactionResponse } from '../../transactions.models';
+import { AccountTypeEnum, TransactionTypeEnum } from '../../../../core/models/transaction-types.model';
+import { DestinationInstitution, FinancialInstitutionStatusEnum } from '../../../../core/models/financial-institution.model';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
-import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
-import { CustomersApiService } from '../../../customers/services/customers-api.service';
-import { CustomerSummary } from '../../../customers/models/customer.model';
+import { FinancialInstitutionsApiService } from '../../../../core/services/financial-institutions-api.service';
+import { CustomersApiService } from '../../../../core/services/customers-api.service';
+import { CustomerSummary } from '../../../../core/models/customer.model';
 import { recipientIdentityValidator } from '../../transaction-policy.validators';
 
 type TransactionSection = 'operation' | 'originator' | 'recipient' | 'concept' | 'review';
@@ -51,7 +52,7 @@ type CustomerSearchOption = CatalogSearchOption<number | null, CustomerSummary |
 type SourceAccountSearchOption = CatalogSearchOption<string, string>;
 type CompanyEntryDescriptionSearchOption = CatalogSearchOption<number, CompanyEntryDescriptionOption>;
 type DestinationInstitutionSearchOption = CatalogSearchOption<number, DestinationInstitution>;
-type DestinationAccountSearchOption = CatalogSearchOption<string, ActiveThirdPartyAccount>;
+type DestinationAccountSearchOption = CatalogSearchOption<string, ContextualThirdPartyAccount>;
 
 type CustomerSearchValue = string | CustomerSearchOption | null;
 type SourceAccountSearchValue = string | SourceAccountSearchOption | null;
@@ -218,8 +219,8 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   customers: CustomerSummary[] = [];
   institutions: DestinationInstitution[] = [];
-  activeDestinationAccounts: ActiveThirdPartyAccount[] = [];
-  filteredDestinationAccounts: ActiveThirdPartyAccount[] = [];
+  contextualDestinationAccounts: ContextualThirdPartyAccount[] = [];
+  filteredDestinationAccounts: ContextualThirdPartyAccount[] = [];
   selectedCustomerAccounts: string[] = [];
   companyEntryDescriptionOptions: CompanyEntryDescriptionOption[] = [];
 
@@ -348,12 +349,15 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.form
       .get('sourceAccountNumber')
       ?.valueChanges.pipe(debounceTime(250), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe(() => this.loadActiveDestinationAccounts());
+      .subscribe(() => this.loadContextualDestinationAccounts());
 
     this.form
       .get('destinationInstitutionId')
       ?.valueChanges.pipe(takeUntil(this.destroy$))
-      .subscribe(() => this.filterActiveDestinationAccounts());
+      .subscribe(() => {
+        this.resetDestinationAccountSelection();
+        this.loadContextualDestinationAccounts();
+      });
 
     this.form
       .get('destinationAccountNumber')
@@ -379,7 +383,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
         }
 
         this.resetDestinationAccountSelection();
-        this.loadActiveDestinationAccounts();
+        this.loadContextualDestinationAccounts();
         amountControl.updateValueAndValidity({ emitEvent: false });
         this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
       });
@@ -387,7 +391,19 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.form
       .get('type')
       ?.valueChanges.pipe(takeUntil(this.destroy$))
-      .subscribe(() => this.updateConditionalValidators());
+      .subscribe(() => {
+        this.updateConditionalValidators();
+        this.resetDestinationAccountSelection();
+        this.loadContextualDestinationAccounts();
+      });
+
+    this.form
+      .get('companyEntryDescriptionId')
+      ?.valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.resetDestinationAccountSelection();
+        this.loadContextualDestinationAccounts();
+      });
 
     this.form
       .get('requiresIdentityValidation')
@@ -504,9 +520,19 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   }
 
   selectDestinationAccount(option: DestinationAccountSearchOption): void {
+    if (!option.source.isSelectable) {
+      return;
+    }
+
     this.destinationAccountSearchControl.setValue(option, { emitEvent: false });
     this.filteredDestinationAccountSearchOptions = [...this.destinationAccountOptions];
-    this.form.get('destinationAccountNumber')?.setValue(option.value);
+    this.form.patchValue({
+      destinationAccountNumber: option.value,
+      accountType: option.source.accountType,
+      recipientIdNumber: option.source.recipientIdNumber,
+      recipientName: option.source.recipientName,
+      recipientPersonType: option.source.recipientPersonType === 'PJ' ? 'PJ' : 'PN'
+    }, { emitEvent: false });
     this.destinationAccountSearchControl.updateValueAndValidity({ emitEvent: false });
     this.cdr.markForCheck();
   }
@@ -645,7 +671,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
             });
             this.addendas.clear();
             this.ensureDefaultAddenda();
-            this.activeDestinationAccounts = [];
+            this.contextualDestinationAccounts = [];
             this.filteredDestinationAccounts = [];
             this.selectedCustomerAccounts = [];
             this.policyPreview = null;
@@ -780,7 +806,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
       this.rebuildSourceAccountOptions();
       this.sourceAccountSearchControl.setValue('', { emitEvent: false });
       this.sourceAccountSearchControl.updateValueAndValidity({ emitEvent: false });
-      this.loadActiveDestinationAccounts();
+      this.loadContextualDestinationAccounts();
       this.cdr.markForCheck();
       return;
     }
@@ -805,7 +831,7 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     this.sourceAccountSearchControl.setValue(selectedSourceAccount ?? '', { emitEvent: false });
     this.sourceAccountSearchControl.updateValueAndValidity({ emitEvent: false });
     this.restoreCustomerSearchText();
-    this.loadActiveDestinationAccounts();
+    this.loadContextualDestinationAccounts();
     this.cdr.markForCheck();
   }
 
@@ -858,9 +884,9 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
   }
 
   private buildDestinationAccountSearchOption(
-    account: ActiveThirdPartyAccount
+    account: ContextualThirdPartyAccount
   ): DestinationAccountSearchOption {
-    const label = `${account.destinationAccountNumber} · ${account.recipientIdNumber} · ${account.destinationInstitutionName}`;
+    const label = `${account.destinationAccountNumber} · ${account.recipientIdNumber} · ${account.destinationInstitutionName} · ${account.eligibilityCode}: ${account.eligibilityMessage}`;
     return {
       value: account.destinationAccountNumber,
       label,
@@ -1071,73 +1097,92 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   onDestinationAccountSelected(accountNumber: string): void {
     const selected = this.filteredDestinationAccounts.find((item) => item.destinationAccountNumber === accountNumber);
-    if (!selected) {
+    if (!selected?.isSelectable) {
       return;
     }
 
-    this.form.patchValue({ recipientIdNumber: selected.recipientIdNumber, recipientName: '' }, { emitEvent: false });
+    this.form.patchValue({
+      accountType: selected.accountType,
+      recipientIdNumber: selected.recipientIdNumber,
+      recipientName: selected.recipientName,
+      recipientPersonType: selected.recipientPersonType === 'PJ' ? 'PJ' : 'PN'
+    }, { emitEvent: false });
   }
 
   private extractDigits(value: unknown): string {
     return String(value ?? '').replace(/\D+/g, '');
   }
 
-  private loadActiveDestinationAccounts(): void {
+  private loadContextualDestinationAccounts(): void {
     const selectedIsPrenotification = Boolean(this.form.get('isPrenotification')?.value);
     const sourceAccountNumber = String(this.form.get('sourceAccountNumber')?.value ?? '').trim();
+    const destinationInstitutionId = Number(this.form.get('destinationInstitutionId')?.value ?? 0);
+    const companyEntryDescriptionId = Number(this.form.get('companyEntryDescriptionId')?.value ?? 0);
+    const type = Number(this.form.get('type')?.value) as TransactionTypeEnum;
 
-    if (selectedIsPrenotification) {
-      this.activeDestinationAccounts = [];
+    if (selectedIsPrenotification
+      || !sourceAccountNumber
+      || destinationInstitutionId <= 0
+      || companyEntryDescriptionId <= 0
+      || (type !== TransactionTypeEnum.Credit && type !== TransactionTypeEnum.Debit)) {
+      this.contextualDestinationAccounts = [];
       this.filteredDestinationAccounts = [];
       this.destinationAccountOptions = [];
       this.filteredDestinationAccountSearchOptions = [];
-      this.cdr.markForCheck();
-      return;
-    }
-
-    if (!sourceAccountNumber) {
-      this.activeDestinationAccounts = [];
-      this.filteredDestinationAccounts = [];
-      this.destinationAccountOptions = [];
-      this.filteredDestinationAccountSearchOptions = [];
-      this.resetDestinationAccountSelection();
+      if (!selectedIsPrenotification) {
+        this.resetDestinationAccountSelection();
+      }
       this.cdr.markForCheck();
       return;
     }
 
     this.api
-      .getActiveThirdParties(sourceAccountNumber)
+      .getContextualThirdPartyAccounts(
+        sourceAccountNumber,
+        destinationInstitutionId,
+        type,
+        companyEntryDescriptionId
+      )
       .pipe(take(1), takeUntil(this.destroy$))
-      .subscribe((items) => {
-        this.activeDestinationAccounts = items;
-        this.filterActiveDestinationAccounts();
-        this.cdr.markForCheck();
+      .subscribe({
+        next: (items) => {
+          this.contextualDestinationAccounts = items;
+          this.refreshDestinationAccountOptions();
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.contextualDestinationAccounts = [];
+          this.refreshDestinationAccountOptions();
+          this.errorMessage.setValue('No fue posible consultar la elegibilidad contextual de las cuentas destino.');
+          this.cdr.markForCheck();
+        }
       });
   }
 
-  private filterActiveDestinationAccounts(): void {
-    const institutionId = Number(this.form.get('destinationInstitutionId')?.value);
+  private refreshDestinationAccountOptions(): void {
     const selectedIsPrenotification = Boolean(this.form.get('isPrenotification')?.value);
 
     if (selectedIsPrenotification || this.sourceAccountRequiredForDestinationSelection) {
       this.filteredDestinationAccounts = [];
       this.destinationAccountOptions = [];
       this.filteredDestinationAccountSearchOptions = [];
-      this.resetDestinationAccountSelection();
+      if (!selectedIsPrenotification) {
+        this.resetDestinationAccountSelection();
+      }
       this.cdr.markForCheck();
       return;
     }
 
-    this.filteredDestinationAccounts = institutionId > 0
-      ? this.activeDestinationAccounts.filter((item) => item.destinationInstitutionId === institutionId)
-      : this.activeDestinationAccounts;
+    this.filteredDestinationAccounts = [...this.contextualDestinationAccounts];
     this.destinationAccountOptions = this.filteredDestinationAccounts.map((account) =>
       this.buildDestinationAccountSearchOption(account)
     );
     this.filteredDestinationAccountSearchOptions = [...this.destinationAccountOptions];
 
     const currentDestination = this.form.get('destinationAccountNumber')?.value;
-    const selectedOption = this.destinationAccountOptions.find((option) => option.value === currentDestination);
+    const selectedOption = this.destinationAccountOptions.find(
+      (option) => option.value === currentDestination && option.source.isSelectable
+    );
     if (!selectedOption) {
       this.resetDestinationAccountSelection();
     } else {
@@ -1282,7 +1327,13 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
     Object.entries(this.fieldMetadata).forEach(([path, metadata]) => {
       const control = this.form.get(path);
       if (control?.invalid) {
-        issues.push({ path, ...metadata, message: this.validationMessage(control) });
+        issues.push({
+          path,
+          ...metadata,
+          message: path === 'destinationInstitutionId' && control.hasError('required')
+            ? 'Seleccione una entidad financiera destino de la lista.'
+            : this.validationMessage(control)
+        });
       }
     });
 
@@ -1309,11 +1360,11 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
     const crossFieldIssues: Record<string, TransactionValidationIssue> = {
       sameAccount: { path: 'destinationAccountNumber', label: 'Cuenta destino', message: 'La cuenta origen y la cuenta destino deben ser diferentes.', section: 'recipient' },
-      missingAddenda: { path: 'addendas', label: 'Información de la addenda', message: 'Debe registrar al menos una addenda completa.', section: 'concept' },
-      invalidAddenda: { path: 'addendas.0.addendaType', label: 'Tipo de addenda', message: 'La descripción de entrada solo admite una addenda tipo 05.', section: 'concept' },
+      missingAddenda: { path: 'addendas', label: 'Información de la addenda', message: 'Registra al menos una adenda completa.', section: 'concept' },
+      invalidAddenda: { path: 'addendas.0.addendaType', label: 'Tipo de addenda', message: 'La descripción de entrada solo admite una adenda tipo 05.', section: 'concept' },
       recipientIdentityFormat: { path: 'recipientIdNumber', label: 'Identificación del receptor', message: 'La identificación es incompatible con el tipo de persona receptor.', section: 'recipient' },
-      missingRecipientId: { path: 'recipientIdNumber', label: 'Identificación del receptor', message: 'Debe diligenciar la identificación requerida para esta operación.', section: 'recipient' },
-      missingRecipientName: { path: 'recipientName', label: 'Nombre del receptor', message: 'Debe diligenciar el nombre asociado a la identificación del receptor.', section: 'recipient' },
+      missingRecipientId: { path: 'recipientIdNumber', label: 'Identificación del receptor', message: 'Ingresa la identificación requerida para esta operación.', section: 'recipient' },
+      missingRecipientName: { path: 'recipientName', label: 'Nombre del receptor', message: 'Ingresa el nombre asociado a la identificación del receptor.', section: 'recipient' },
       prenoteAmount: { path: 'amount', label: 'Monto', message: 'La prenotificación debe registrarse con monto cero.', section: 'operation' }
     };
     Object.keys(this.form.errors ?? {}).forEach((key) => {
@@ -1337,16 +1388,16 @@ export class TransactionCreateComponent implements OnInit, OnDestroy {
 
   private validationMessage(control: AbstractControl): string {
     const errors = control.errors ?? {};
-    if (errors['invalidSelection']) return 'Seleccione una opción válida de la lista.';
-    if (errors['required']) return 'Campo obligatorio.';
-    if (errors['pattern']) return 'Formato inválido.';
-    if (errors['maxlength']) return `Longitud excedida. Máximo ${errors['maxlength'].requiredLength} caracteres.`;
+    if (errors['invalidSelection']) return 'Selecciona una opción válida de la lista.';
+    if (errors['required']) return 'Completa este campo.';
+    if (errors['pattern']) return 'Revisa el formato del valor ingresado.';
+    if (errors['maxlength']) return `Usa máximo ${errors['maxlength'].requiredLength} caracteres.`;
     if (errors['nonPositiveAmount']) return 'El valor debe ser mayor que cero.';
-    if (errors['amountScale']) return 'Use máximo dos decimales.';
+    if (errors['amountScale']) return 'Usa máximo dos decimales.';
     if (errors['amountOverflow']) return 'El valor supera el máximo permitido.';
-    if (errors['min'] || errors['max']) return 'Valor fuera del rango permitido.';
-    if (errors['invalidAmount']) return 'Ingrese un monto válido.';
-    return 'Revise el valor ingresado.';
+    if (errors['min'] || errors['max']) return 'Ingresa un valor dentro del rango permitido.';
+    if (errors['invalidAmount']) return 'Ingresa un monto válido.';
+    return 'Revisa el valor ingresado.';
   }
 
   private buildAddendaPayload(item: TransactionDraft['addendas'][number]) {

@@ -14,12 +14,12 @@
   ></ui-alerta>
   <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Cargando editor de relaciones"></mat-progress-bar>
 
-  <section class="card state" *ngIf="viewState === 'loading'">
+  <section class="card state" *ngIf="viewState === 'loading'" role="status" aria-live="polite">
     <h4>Cargando editor funcional…</h4>
     <p>Estamos obteniendo la configuración, parámetros y catálogos de apoyo.</p>
   </section>
 
-  <section class="card state error" *ngIf="viewState === 'error'">
+  <section class="card state error" *ngIf="viewState === 'error'" role="alert">
     <h4>No se pudo abrir el editor</h4>
     <p>{{ errorMessage }}</p>
     <div class="actions">
@@ -39,7 +39,7 @@
     </section>
 
     <div class="editor-page" *ngIf="parameters.length > 0">
-      <section class="summary-cards">
+      <section class="summary-cards" aria-label="Resumen de cobertura" aria-live="polite">
         <article class="card"><span>Total parámetros</span><strong>{{ coverage.totalParameters }}</strong></article>
         <article class="card"><span>Válidos</span><strong>{{ coverage.validParameters }}</strong></article>
         <article class="card"><span>Incompletos</span><strong>{{ coverage.incompleteParameters }}</strong></article>
@@ -53,16 +53,24 @@
           <h4>Destino configurable</h4>
           <p class="helper">Seleccione un parámetro para editar su estrategia de resolución.</p>
           <ul>
-            <li *ngFor="let p of parameters; trackBy: trackByParameterId" [class.active]="p.id === selectedParameterId" (click)="selectParameter(p.id)">
-              <div>
-                <strong>{{ p.displayName }}</strong>
-                <small>{{ p.parameterPath }}</small>
-                <small>{{ p.descriptionEs }}</small>
-              </div>
-              <div class="chips">
-                <span class="chip req" *ngIf="p.required">Requerido</span>
-                <span class="chip status" [ngClass]="getStatusClass(p.id)">{{ getStatusLabel(p.id) }}</span>
-              </div>
+            <li *ngFor="let p of parameters; trackBy: trackByParameterId">
+              <button
+                class="left__parameter"
+                type="button"
+                [class.active]="p.id === selectedParameterId"
+                [attr.aria-pressed]="p.id === selectedParameterId"
+                (click)="selectParameter(p.id)"
+              >
+                <span>
+                  <strong>{{ p.displayName }}</strong>
+                  <small>{{ p.parameterPath }}</small>
+                  <small>{{ p.descriptionEs }}</small>
+                </span>
+                <span class="chips">
+                  <span class="chip req" *ngIf="p.required">Requerido</span>
+                  <span class="chip status" [ngClass]="getStatusClass(p.id)">{{ getStatusLabel(p.id) }}</span>
+                </span>
+              </button>
             </li>
           </ul>
         </aside>
@@ -176,11 +184,11 @@
 
         <aside class="card right">
           <h4>Centro de control</h4>
-          <div class="acciones-principales" *ngIf="canManage">
-            <button mat-flat-button type="button" (click)="runValidation()" [disabled]="validating">{{ validating ? 'Validando…' : 'Validar' }}</button>
-            <button mat-stroked-button type="button" (click)="runPreview()" [disabled]="previewing">{{ previewing ? 'Generando…' : 'Vista previa' }}</button>
-            <button mat-flat-button type="button" (click)="publish()" [disabled]="publishing || !isDraftStatus(set.status)">{{ publishing ? 'Publicando…' : 'Publicar' }}</button>
-            <button mat-stroked-button type="button" (click)="clone()" [disabled]="cloning">{{ cloning ? 'Clonando…' : 'Clonar' }}</button>
+          <div class="acciones-principales" *ngIf="canManage || canValidate || canPublish">
+            <button *ngIf="canValidate" mat-flat-button type="button" (click)="runValidation()" [disabled]="validating">{{ validating ? 'Validando…' : 'Validar' }}</button>
+            <button *ngIf="canValidate" mat-stroked-button type="button" (click)="runPreview()" [disabled]="previewing">{{ previewing ? 'Generando…' : 'Vista previa' }}</button>
+            <button *ngIf="canPublish" mat-flat-button type="button" (click)="publish()" [disabled]="publishing || !isDraftStatus(set.status)">Revisar publicación</button>
+            <button *ngIf="canManage" mat-stroked-button type="button" (click)="clone()" [disabled]="cloning">{{ cloning ? 'Clonando…' : 'Clonar configuración' }}</button>
           </div>
 
           <div class="panel-block" [class.invalido]="totalErroresValidacion > 0" [class.advertencia]="totalErroresValidacion === 0 && totalAdvertenciasValidacion > 0">
@@ -193,15 +201,15 @@
             </ul>
           </div>
 
-          <div class="panel-block preview-controls" [formGroup]="previewForm" *ngIf="canManage">
+          <div class="panel-block preview-controls" [formGroup]="previewForm" *ngIf="canValidate">
             <h5>Entrada para vista previa</h5>
             <mat-checkbox formControlName="usarMuestraControlada">Usar datos de ejemplo controlados</mat-checkbox>
             <mat-form-field appearance="outline">
-              <mat-label>Id de transacción real</mat-label>
+              <mat-label>ID de transacción real</mat-label>
               <input matInput type="number" formControlName="idTransaccionMuestra" />
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>Id de ciclo real</mat-label>
+              <mat-label>ID de ciclo real</mat-label>
               <input matInput type="text" formControlName="idCicloMuestra" />
             </mat-form-field>
           </div>

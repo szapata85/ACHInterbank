@@ -1,20 +1,38 @@
-<section class="page-header">
-  <h1>Generar NACHA-M cifrado (.ENV)</h1>
-</section>
+<section class="operation-page">
+  <app-page-header
+    title="Generar NACHA-M cifrado"
+    subtitle="Genera el archivo NACHA-M y su sobre digital cifrado con la configuración de seguridad vigente."
+  ></app-page-header>
 
-<form [formGroup]="form" (ngSubmit)="submit()" class="upload">
-  <label class="field">
-    <span>ID de ciclo</span>
-    <input formControlName="cycleId" placeholder="cycle-123" />
-  </label>
-  <button appButton type="submit" [disabled]="loading">{{ loading ? 'Procesando...' : 'Generar cifrado' }}</button>
-</form>
+  <mat-card class="operation-card" appearance="outlined">
+    <mat-card-header>
+      <mat-card-title>Parámetros de generación</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="submit()" class="operation-form">
+        <mat-form-field appearance="outline">
+          <mat-label>Identificador del ciclo</mat-label>
+          <input matInput formControlName="cycleId" placeholder="Ej.: cycle-123" autocomplete="off" />
+          <mat-hint>Usa el identificador del ciclo operativo que se va a procesar.</mat-hint>
+          @if (form.controls.cycleId.hasError('required') && form.controls.cycleId.touched) {
+            <mat-error>Ingresa el identificador del ciclo.</mat-error>
+          }
+        </mat-form-field>
 
-<section *ngIf="operation">
-  <h3>Resultado</h3>
-  <p><b>operationId:</b> {{ operation.operationId }}</p>
-  <p><b>status:</b> {{ operation.status }}</p>
-  <p><b>archivo:</b> {{ operation.artifact.externalFileName || '-' }}</p>
-  <p><b>hash plano:</b> {{ operation.artifact.plainHashSha256 || '-' }}</p>
-  <p><b>hash sobre:</b> {{ operation.artifact.envelopeHashSha256 || '-' }}</p>
+        <div class="form-actions">
+          <button mat-flat-button color="primary" type="submit" [disabled]="loading">
+            <mat-icon aria-hidden="true">encrypted</mat-icon>
+            {{ loading ? 'Procesando...' : 'Generar archivo cifrado' }}
+          </button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  @if (operation) {
+    <app-nacha-operation-summary
+      [operation]="operation"
+      [showHashes]="true"
+    ></app-nacha-operation-summary>
+  }
 </section>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -13,7 +14,6 @@ using Microsoft.AspNetCore.Http.Metadata;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.IO.Compression;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -42,8 +42,8 @@ public class NachaExportController : ControllerBase
         INachaFileIdentifierMapService identifierMapService,
         IAchFileExportAuditService fileExportAuditService,
         IExternalFileNamePolicy externalFileNamePolicy,
-        ILogger<NachaExportController>? logger = null,
-        IOperationalTimeSnapshotProvider? operationalTimeProvider = null,
+        ILogger<NachaExportController> logger,
+        IOperationalTimeSnapshotProvider operationalTimeProvider,
         ICenitGatewayTransportAdapter? cenitGatewayTransport = null)
     {
         _nachaBuilder = nachaBuilder;
@@ -54,15 +54,24 @@ public class NachaExportController : ControllerBase
         _identifierMapService = identifierMapService;
         _fileExportAuditService = fileExportAuditService;
         _externalFileNamePolicy = externalFileNamePolicy;
-        _logger = logger ?? NullLogger<NachaExportController>.Instance;
-        _operationalTimeProvider = operationalTimeProvider
-            ?? new Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.OperationalTimeSnapshotProvider();
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _operationalTimeProvider = operationalTimeProvider ?? throw new ArgumentNullException(nameof(operationalTimeProvider));
         _cenitGatewayTransport = cenitGatewayTransport;
     }
-    [EndpointSummary("Exportar archivo NACHA de un ciclo")]
-    [EndpointDescription("Qué hace: genera/retorna archivo NACHA del ciclo con política de nombre externo y control de duplicados. Cuándo se usa: en cierre de ciclo para entrega interbancaria. Perfil consumidor: operación ACH de compensación. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por auditoría de exportación y nombre externo. Riesgos operativos: exportar ciclo no listo produce archivo inconsistente. Errores esperados: 404 ciclo/cámara no encontrada; 409 por política de nombre duplicado; 400 por validación. Relación ACH/CENIT/NACHA-M: salida NACHA-M oficial para flujo ACH/CENIT. Precauciones para desarrollo u operación: verificar estado de ciclo y correlación externa antes de distribuir.")]
+    /// <summary>Genera y descarga los artefactos NACHA-M asociados a un ciclo ACH.</summary>
+    /// <param name="cycleId">Identificador del ciclo ACH cuya exportación NACHA-M se genera.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Descargar archivo NACHA-M generado para un ciclo")]
+    [EndpointDescription("Busca el ciclo y su cámara, genera los artefactos NACHA-M y aplica la política de nombre externo antes de devolverlos. Con un único artefacto responde text/plain y usa el ExternalFileName resuelto como nombre de descarga; con varios artefactos responde application/zip y usa el primer nombre externo seguido de .zip. Si no existe el ciclo o su cámara responde 404 sin body. Si no hay contenido exportable o una validación/generación controlada falla responde 422 con ProblemDetails.")]
     [HttpGet("{cycleId}")]
     [Authorize(Policy = "CanReadAch")]
+    [Produces("text/plain", "application/zip", "application/problem+json")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Archivo de descarga: text/plain para un único artefacto con Content-Disposition basado en el ExternalFileName resuelto; application/zip para múltiples artefactos con nombre <primer ExternalFileName>.zip.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe el ciclo solicitado o no existe la cámara asociada al ciclo; la respuesta no tiene body.")]
+    [OpenApiResponseDescription(StatusCodes.Status422UnprocessableEntity, "No existe contenido exportable o una validación/precondición controlada impide generar el archivo; el body es ProblemDetails.")]
     public async Task<IActionResult> Export(string cycleId, CancellationToken ct)
     {
         try
@@ -148,10 +157,25 @@ public class NachaExportController : ControllerBase
             throw;
         }
     }
-    [EndpointSummary("Exportar NACHA con sobre digital")]
-    [EndpointDescription("Qué hace: genera exportación aplicando cifrado según política o forzado explícito. Cuándo se usa: cuando la contraparte exige sobre digital. Perfil consumidor: operación ACH y seguridad. Permiso requerido: CanReadAch. Tipo de operación: solo consulta. Genera auditoría: sí, por auditoría de exportación y seguridad. Riesgos operativos: cifrado inadecuado impide recepción por contraparte. Errores esperados: 400 por parámetros/política; 404 ciclo; 409 por conflictos de nombre. Relación ACH/CENIT/NACHA-M: integra generación NACHA-M con seguridad criptográfica operativa. Precauciones para desarrollo u operación: confirmar certificados activos y política de cifrado vigente.")]
+    /// <summary>Genera y descarga la exportación NACHA-M del ciclo aplicando la política de sobre digital.</summary>
+    /// <param name="cycleId">Identificador del ciclo ACH cuya exportación NACHA-M se genera.</param>
+    /// <param name="forceEncryption">Indica si la solicitud fuerza el cifrado, además del cifrado que pueda exigir la política de sobre digital.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Descargar exportación NACHA-M con política de sobre digital")]
+    [EndpointDescription("Genera los artefactos NACHA-M del ciclo y aplica cifrado cuando forceEncryption es true o la política de sobre digital lo requiere. Un único artefacto sin cifrar se devuelve como text/plain con el nombre externo resuelto; un único artefacto cifrado usa el ContentType y FileName entregados por el servicio de sobre digital (la implementación vigente devuelve application/octet-stream y agrega .ENV al nombre de entrada). Si se generan varios artefactos, la respuesta es application/zip con nombre basado en el primer archivo devuelto. Para un único archivo cifrado también se emiten X-Cryptographic-Profile y X-Plaintext-SHA256. Los errores controlados de sobre digital se traducen a 400, 413 o 422; ciclo/cámara inexistente produce 404 sin body.")]
     [HttpGet("{cycleId}/sobre-digital")]
     [Authorize(Policy = "CanReadAch")]
+    [Produces("text/plain", "application/octet-stream", "application/zip", "application/problem+json")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Archivo de descarga con Content-Disposition dinámico: text/plain cuando no se cifra, application/octet-stream para el único sobre cifrado de la implementación vigente, o application/zip cuando hay múltiples artefactos. En el caso cifrado de un solo archivo se emiten X-Cryptographic-Profile y X-Plaintext-SHA256.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "La operación de sobre digital produjo un error controlado que no corresponde a tamaño ni a contenido no procesable; el body es ProblemDetails.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No existe el ciclo solicitado o no existe la cámara asociada al ciclo; la respuesta no tiene body.")]
+    [OpenApiResponseDescription(StatusCodes.Status413PayloadTooLarge, "El servicio de sobre digital rechazó el contenido por exceder el tamaño permitido; el body es ProblemDetails.")]
+    [OpenApiResponseDescription(StatusCodes.Status422UnprocessableEntity, "No existe contenido exportable, falla una precondición de generación o el sobre digital/certificado produce un error controlado no procesable; el body es ProblemDetails.")]
     public async Task<IActionResult> ExportEncrypted(string cycleId, [FromQuery] bool forceEncryption = false, CancellationToken ct = default)
     {
         try

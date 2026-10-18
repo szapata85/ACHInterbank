@@ -1,4 +1,4 @@
-import { TransactionTypeEnum } from '../transactions/transactions.types';
+import { TransactionTypeEnum } from '../../core/models/transaction-types.model';
 
 export type PrenotificationMode = 'Mandatory' | 'Optional' | 'NotApplicable';
 

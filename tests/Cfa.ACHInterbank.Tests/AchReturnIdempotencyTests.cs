@@ -31,7 +31,7 @@ public class AchReturnIdempotencyTests
         SeedScenario(ctx, state: AchTransferStateEnum.ReturnedByOperator);
         var sut = new AchReturnEligibilityService(ctx, Mock.Of<IAchRegulatoryCatalogService>());
 
-        var result = await sut.EvaluateOutgoingReturnAsync(new AchReturnEligibilityRequest(10, "DEV14", DateTime.UtcNow.Date, true), CancellationToken.None);
+        var result = await sut.EvaluateOutgoingReturnAsync(new AchReturnEligibilityRequest(10, "R01", DateTime.UtcNow.Date, true), CancellationToken.None);
 
         Assert.False(result.IsEligible);
         Assert.Contains(result.Failures, f => f.Code == "RETURN_ALREADY_PROCESSED");
@@ -60,7 +60,7 @@ public class AchReturnIdempotencyTests
         var eligibility = new Mock<IAchReturnEligibilityService>();
         var sut = new AchReturnsService(ctx, regulatoryCatalogService: Mock.Of<IAchRegulatoryCatalogService>(), returnEligibilityService: eligibility.Object, returnGenerationLockService: new TestReturnGenerationLockService(), externalFileNamePolicy: ReturnOutExternalFileNamePolicyFactory.Create(), nachaFileBuilder: ReturnOutNachaFileBuilderFactory.Create());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "DEV14"), new ReturnSelectionItemDto(10, "DEV15")]), CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GenerateReturnsFileAsync(new GenerateReturnsFileRequest("C1", [new ReturnSelectionItemDto(10, "R01"), new ReturnSelectionItemDto(10, "R03")]), CancellationToken.None));
         Assert.Empty(ctx.Set<AchReturnGenerated>());
     }
 
@@ -85,13 +85,13 @@ public class AchReturnIdempotencyTests
     {
         await using var ctx = BuildContext();
         SeedScenario(ctx);
-        ctx.Set<AchReturnGenerated>().Add(new AchReturnGenerated { OriginalTransactionId = 10, ReturnCycleId = "C1", ReturnReasonCode = "DEV14", Amount = 100, NewSequenceNumber = "123456780000001", OriginalSequenceNumber = "123456780000010", ReceiverEntityCode = "12345678", OriginatorEntityCode = "12345678", FileName = "RET_C1_20260513.RET", GeneratedAtUtc = DateTime.UtcNow });
+        ctx.Set<AchReturnGenerated>().Add(new AchReturnGenerated { OriginalTransactionId = 10, ReturnCycleId = "C1", ReturnReasonCode = "R01", Amount = 100, NewSequenceNumber = "123456780000001", OriginalSequenceNumber = "123456780000010", ReceiverEntityCode = "12345678", OriginatorEntityCode = "12345678", FileName = "RET_C1_20260513.RET", GeneratedAtUtc = DateTime.UtcNow });
         await ctx.SaveChangesAsync();
 
         var catalog = new Mock<IAchRegulatoryCatalogService>();
         var sut = new AchReturnEligibilityService(ctx, catalog.Object);
 
-        var result = await sut.EvaluateOutgoingReturnAsync(new AchReturnEligibilityRequest(10, "DEV14", DateTime.UtcNow.Date, true), CancellationToken.None);
+        var result = await sut.EvaluateOutgoingReturnAsync(new AchReturnEligibilityRequest(10, "R01", DateTime.UtcNow.Date, true), CancellationToken.None);
         Assert.False(result.IsEligible);
         Assert.Contains(result.Failures, x => x.Code == "RETURN_ALREADY_INCLUDED_IN_FILE");
     }

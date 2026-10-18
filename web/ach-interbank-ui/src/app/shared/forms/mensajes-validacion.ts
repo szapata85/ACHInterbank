@@ -1,13 +1,13 @@
 import { ValidationErrors } from '@angular/forms';
 
 export const MENSAJES_VALIDACION_POR_DEFECTO: Record<string, (error: any) => string> = {
-  required: () => 'Este campo es obligatorio.',
-  email: () => 'Ingrese un correo electrónico válido.',
-  minlength: (e) => `Debe tener mínimo ${e.requiredLength} caracteres.`,
-  maxlength: (e) => `Debe tener máximo ${e.requiredLength} caracteres.`,
-  min: (e) => `El valor mínimo permitido es ${e.min}.`,
-  max: (e) => `El valor máximo permitido es ${e.max}.`,
-  pattern: () => 'El formato ingresado no es válido.'
+  required: () => 'Completa este campo.',
+  email: () => 'Ingresa un correo electrónico válido.',
+  minlength: (e) => `Usa al menos ${e.requiredLength} caracteres.`,
+  maxlength: (e) => `Usa máximo ${e.requiredLength} caracteres.`,
+  min: (e) => `Ingresa un valor igual o mayor que ${e.min}.`,
+  max: (e) => `Ingresa un valor igual o menor que ${e.max}.`,
+  pattern: () => 'Revisa el formato del valor ingresado.'
 };
 
 export function resolverMensajeValidacion(
@@ -26,7 +26,7 @@ export function resolverMensajeValidacion(
 
   const fabrica = mensajes[primerCodigo];
   if (!fabrica) {
-    return 'El valor ingresado no es válido.';
+    return 'Revisa el valor ingresado.';
   }
 
   return fabrica(errors[primerCodigo]);

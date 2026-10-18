@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.Navigation.Dtos;
 using Cfa.ACHInterbank.Application.Navigation.Interfaces;
+using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,7 +9,7 @@ namespace Cfa.ACHInterbank.Api.Controllers;
 [ApiController]
 [Route("navigation/menu-items")]
 [Route("api/navigation/menu-items")]
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = P1Policies.NavigationMenuManage)]
 public class MenuItemsController : ControllerBase
 {
     private readonly IMenuItemsService _service;

@@ -200,9 +200,9 @@ interface ManualDialogData { task: SchedulerTask; }
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, A11yModule, MatButtonModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressBarModule, MatIconModule],
   template: `
-    <h2 mat-dialog-title>Ejecutar tarea</h2>
+    <h2 mat-dialog-title>Solicitar ejecución de tarea</h2>
     <mat-dialog-content>
-      <p>Está a punto de ejecutar «{{ data.task.name }}» antes de su próxima fecha programada.</p>
+      <p>Vas a solicitar una ejecución extraordinaria de «{{ data.task.name }}» antes de su próxima fecha programada.</p>
       <dl class="dialog-summary">
         <dt>Tarea</dt><dd>{{ data.task.name }}</dd>
         <dt *ngIf="data.task.clearingHouse">Cámara y ciclo</dt><dd *ngIf="data.task.clearingHouse">{{ data.task.clearingHouse }} · {{ cycleNames }}</dd>

@@ -14,31 +14,31 @@ export const ACH_RESPONSES_ROUTES: Routes = [
     path: '',
     component: AchResponseListPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], title: 'Respuestas ACH', breadcrumb: 'Bandeja' }
+    data: { permissions: ['CanReadAch'], title: 'Bandeja de respuestas', breadcrumb: 'Bandeja de respuestas' }
   },
   {
     path: 'manual-review',
     component: AchResponseManualReviewPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], title: 'Revisión manual ACH', breadcrumb: 'Revisión manual' }
+    data: { permissions: ['CanReadAch'], title: 'Revisión manual', breadcrumb: 'Revisión manual' }
   },
   {
     path: 'status-mappings',
     component: AchResponseStatusMappingsPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], title: 'Homologaciones ACH', breadcrumb: 'Homologaciones' }
+    data: { permissions: ['CanReadAch'], title: 'Homologación de estados', breadcrumb: 'Homologación de estados' }
   },
   {
     path: 'dashboard',
     component: AchResponseDashboardPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], title: 'Panel de respuestas ACH', breadcrumb: 'Panel' }
+    data: { permissions: ['CanReadAch'], title: 'Resumen de respuestas', breadcrumb: 'Resumen de respuestas' }
   },
   {
     path: 'audit',
     component: AchResponseAuditPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], title: 'Auditoría de respuestas ACH', breadcrumb: 'Auditoría' }
+    data: { permissions: ['CanReadAch'], title: 'Historial de respuestas', breadcrumb: 'Historial de respuestas' }
   },
   {
     path: ':id/notification-attempts',

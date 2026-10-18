@@ -31,10 +31,12 @@ public class P1RolesPermissionsFineGrainedPolicyMigrationTests
     public async Task RolesPermissionsPolicies_CompatibilidadOr()
     {
         await AssertPolicy(P1Policies.RolesRead, FineGrainedPermissions.Roles.Read, "CanReadAch", "CanManageAch");
+        await AssertAdditionalPolicyAlternative(P1Policies.RolesRead, FineGrainedPermissions.NavigationMenu.Manage);
         await AssertPolicy(P1Policies.RolesCreate, FineGrainedPermissions.Roles.Create, "CanManageAch", "CanReadAch");
         await AssertPolicy(P1Policies.RolesUpdate, FineGrainedPermissions.Roles.Update, "CanManageAch", "CanReadAch");
         await AssertPolicy(P1Policies.RolesDelete, FineGrainedPermissions.Roles.Delete, "CanManageAch", "CanReadAch");
         await AssertPolicy(P1Policies.PermissionsRead, FineGrainedPermissions.Permissions.Read, "CanReadAch", "CanManageAch");
+        await AssertAdditionalPolicyAlternative(P1Policies.PermissionsRead, FineGrainedPermissions.NavigationMenu.Manage);
         await AssertPolicy(P1Policies.PermissionsAssign, FineGrainedPermissions.Permissions.Assign, "CanManageAch", "CanReadAch");
     }
 
@@ -46,6 +48,13 @@ public class P1RolesPermissionsFineGrainedPolicyMigrationTests
         Assert.True((await auth.AuthorizeAsync(User(okLegacy), null, policy)).Succeeded);
         Assert.False((await auth.AuthorizeAsync(User(badLegacy), null, policy)).Succeeded);
         Assert.False((await auth.AuthorizeAsync(new ClaimsPrincipal(new ClaimsIdentity()), null, policy)).Succeeded);
+    }
+
+    private static async Task AssertAdditionalPolicyAlternative(string policy, string permission)
+    {
+        using var p = Provider();
+        var auth = p.GetRequiredService<IAuthorizationService>();
+        Assert.True((await auth.AuthorizeAsync(User(permission), null, policy)).Succeeded);
     }
 
     private static void AssertClassAuthorizeWithoutPolicy<TController>()

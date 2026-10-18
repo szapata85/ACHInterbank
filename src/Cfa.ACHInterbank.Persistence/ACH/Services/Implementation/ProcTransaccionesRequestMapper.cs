@@ -2,30 +2,118 @@ using System.Globalization;
 using System.Xml.Linq;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.Integrations.Interfaces;
+using Cfa.ACHInterbank.Application.Integrations.Models;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
-using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 
 [Scoped]
 public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
 {
+    private const string MethodCode = "WSCFAACH.Proc_Transacciones";
     private static readonly XNamespace ActionNamespace = "http://tempuri.org/";
     private readonly AchDbContext _context;
     private readonly IntegrationMappingSnapshotBuilder _snapshotBuilder;
+    private readonly ProcTransaccionesDispatchOptions _options;
+    private readonly IIntegrationRequestResolver? _requestResolver;
+    private readonly ISoapRequestBodyWriter? _soapBodyWriter;
+    private readonly IProcTransaccionesFunctionalSourceResolver _functionalSourceResolver;
+    private readonly ProcTransaccionesRequestParityPolicy _parityPolicy;
 
-    public ProcTransaccionesRequestMapper(AchDbContext context, IntegrationMappingSnapshotBuilder? snapshotBuilder = null)
+    public ProcTransaccionesRequestMapper(
+        AchDbContext context,
+        IntegrationMappingSnapshotBuilder? snapshotBuilder = null,
+        IOptions<ProcTransaccionesDispatchOptions>? options = null,
+        IIntegrationRequestResolver? requestResolver = null,
+        ISoapRequestBodyWriter? soapBodyWriter = null,
+        IProcTransaccionesFunctionalSourceResolver? functionalSourceResolver = null,
+        ProcTransaccionesRequestParityPolicy? parityPolicy = null)
     {
-        _context = context;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
         _snapshotBuilder = snapshotBuilder ?? new IntegrationMappingSnapshotBuilder(context);
+        _options = options?.Value ?? new ProcTransaccionesDispatchOptions();
+        _requestResolver = requestResolver;
+        _soapBodyWriter = soapBodyWriter;
+        _functionalSourceResolver = functionalSourceResolver ?? new ProcTransaccionesFunctionalSourceResolver(context);
+        _parityPolicy = parityPolicy ?? new ProcTransaccionesRequestParityPolicy();
     }
 
-    public async Task<ProcTransaccionesRequestResolution> ResolveAsync(
+    public Task<ProcTransaccionesRequestResolution> ResolveAsync(
+        IncomingNachaDispatchQueue queueItem,
+        IncomingNachaFileIngestion ingestion,
+        IncomingNachaEntryClassification classification,
+        AchTransaction transaction,
+        AchCycle cycle,
+        DateTime executionDateTime,
+        CancellationToken ct = default)
+        => _options.UseContractDrivenRequest
+            ? ResolveContractDrivenAsync(queueItem, ingestion, classification, transaction, cycle, executionDateTime, ct)
+            : ResolveLegacyAsync(queueItem, ingestion, classification, transaction, cycle, executionDateTime, ct);
+
+    private async Task<ProcTransaccionesRequestResolution> ResolveContractDrivenAsync(
+        IncomingNachaDispatchQueue queueItem,
+        IncomingNachaFileIngestion ingestion,
+        IncomingNachaEntryClassification classification,
+        AchTransaction transaction,
+        AchCycle cycle,
+        DateTime executionDateTime,
+        CancellationToken ct)
+    {
+        if (_requestResolver is null)
+        {
+            throw new InvalidOperationException(
+                "PROC_TRANSACCIONES_CONTRACT_ENGINE_NOT_CONFIGURED: IIntegrationRequestResolver no está registrado.");
+        }
+
+        if (_soapBodyWriter is null)
+        {
+            throw new InvalidOperationException(
+                "PROC_TRANSACCIONES_CONTRACT_ENGINE_NOT_CONFIGURED: ISoapRequestBodyWriter no está registrado.");
+        }
+
+        var executionDateUtc = executionDateTime.Kind == DateTimeKind.Utc
+            ? executionDateTime
+            : executionDateTime.ToUniversalTime();
+        var correlationId = string.IsNullOrWhiteSpace(ingestion.CorrelationId)
+            ? queueItem.Id.ToString("N", CultureInfo.InvariantCulture)
+            : ingestion.CorrelationId.Trim();
+        var executionContext = new IntegrationExecutionContext(
+            MethodCode,
+            correlationId,
+            executionDateUtc,
+            transaction.Id,
+            cycle.Id,
+            queueItem.Id);
+
+        // Preserve the legacy functional guards before resolving the contract-driven request.
+        // The scoped resolver is also consumed by Proc_Transacciones source strategies, so this
+        // validation result is reused without introducing a service-specific switch in the engine.
+        _ = await _functionalSourceResolver.ResolveAsync(
+            queueItem, ingestion, classification, transaction, cycle, ct);
+
+        var genericRequest = await _requestResolver.ResolveAsync(executionContext, ct);
+        var parity = _parityPolicy.Apply(genericRequest);
+        ValidateHomologatedIds(parity.ContractDrivenRequest.Contract, parity.Parameters);
+        var snapshot = await _snapshotBuilder.BuildAsync(parity.ContractDrivenRequest.MappingSetId, ct);
+
+        return new ProcTransaccionesRequestResolution(
+            Contract: new ProcTransaccionesRequestContract(
+                parity.Parameters,
+                parity.SourceValues,
+                parity.ContractDrivenRequest),
+            MappingSetId: parity.ContractDrivenRequest.MappingSetId,
+            MappingVersion: parity.ContractDrivenRequest.MappingVersion,
+            MappingSnapshotHash: snapshot.SnapshotHash);
+    }
+
+    private async Task<ProcTransaccionesRequestResolution> ResolveLegacyAsync(
         IncomingNachaDispatchQueue queueItem,
         IncomingNachaFileIngestion ingestion,
         IncomingNachaEntryClassification classification,
@@ -36,7 +124,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
     {
         var method = await _context.IntegrationMethods
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Code == "WSCFAACH.Proc_Transacciones" && x.IsActive, ct)
+            .FirstOrDefaultAsync(x => x.Code == MethodCode && x.IsActive, ct)
             ?? throw new InvalidOperationException("No existe IntegrationMethod activo para WSCFAACH.Proc_Transacciones.");
 
         var publishedMappingSets = await _context.IntegrationMappingSets
@@ -75,8 +163,8 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
             || x.SourceFieldPath.StartsWith("sourceInstitution.", StringComparison.OrdinalIgnoreCase)
             || x.SourceFieldPath.StartsWith("procTransacciones.", StringComparison.OrdinalIgnoreCase));
         var functionalSource = requiresFunctionalSource
-            ? await LoadFunctionalSourceContextAsync(transaction, cycle, nachaSource, ct)
-            : FunctionalSourceContext.Empty;
+            ? await _functionalSourceResolver.ResolveAsync(queueItem, ingestion, classification, transaction, cycle, ct)
+            : ProcTransaccionesFunctionalSourceContext.Empty;
         var resolved = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var sourceValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var parameter in parameters)
@@ -136,6 +224,23 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
 
     public string BuildSoapBody(ProcTransaccionesRequestContract request)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        if (_options.UseContractDrivenRequest)
+        {
+            var resolved = request.ContractDrivenRequest
+                ?? throw new InvalidOperationException(
+                    "PROC_TRANSACCIONES_CONTRACT_REQUEST_MISSING: la solicitud no contiene el snapshot resuelto del motor genérico.");
+            return (_soapBodyWriter
+                ?? throw new InvalidOperationException(
+                    "PROC_TRANSACCIONES_CONTRACT_ENGINE_NOT_CONFIGURED: ISoapRequestBodyWriter no está registrado."))
+                .Write(resolved);
+        }
+
+        return BuildLegacySoapBody(request);
+    }
+
+    private static string BuildLegacySoapBody(ProcTransaccionesRequestContract request)
+    {
         var operation = new XElement(ActionNamespace + "Proc_Transacciones",
             request.Parameters
                 .Where(x => !string.IsNullOrWhiteSpace(x.Value)
@@ -159,7 +264,7 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         AchCycle cycle,
         DateTime executionDateTime,
         NachaSourceContext nachaSource,
-        FunctionalSourceContext functionalSource)
+        ProcTransaccionesFunctionalSourceContext functionalSource)
     {
         if (!string.IsNullOrWhiteSpace(rule.FixedValue))
         {
@@ -315,165 +420,32 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         return new NachaSourceContext(header, batchHeader, entryDetail, addendaRecord, batchControl, fileControl);
     }
 
-    private async Task<FunctionalSourceContext> LoadFunctionalSourceContextAsync(
-        AchTransaction transaction,
-        AchCycle cycle,
-        NachaSourceContext nachaSource,
-        CancellationToken ct)
-    {
-        var institutions = await _context.FinancialInstitutions
-            .AsNoTracking()
-            .Where(x => x.Id == transaction.SourceInstitutionId || x.Id == transaction.DestinationInstitutionId)
-            .ToListAsync(ct);
-        var source = institutions.SingleOrDefault(x => x.Id == transaction.SourceInstitutionId)
-            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_SOURCE_INSTITUTION_MISSING: no existe la institución originadora enlazada.");
-        var destination = institutions.SingleOrDefault(x => x.Id == transaction.DestinationInstitutionId)
-            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_DESTINATION_INSTITUTION_MISSING: no existe la institución receptora enlazada.");
-
-        var sourceCode = NormalizeTransitCode(source.TransitCode, "BCOORIG");
-        var destinationCode = NormalizeTransitCode(destination.TransitCode, "BCORECEP");
-        if (!destination.IsDefaultSource)
-        {
-            throw new InvalidOperationException("PROC_TRANSACCIONES_DESTINATION_NOT_CFA: la institución receptora no es la CFA canónica.");
-        }
-
-        var clearingHouse = await _context.ClearingHouses
-            .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Id == cycle.ClearingHouseId, ct)
-            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_CLEARING_HOUSE_MISSING: la cámara del ciclo no está resuelta.");
-        ValidateCanonicalClearingHouse(clearingHouse);
-
-        var batch = nachaSource.BatchHeader
-            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_BATCH_MISSING: no se encontró el BatchHeader de la entrada clasificada.");
-        var entry = nachaSource.EntryDetail
-            ?? throw new InvalidOperationException("PROC_TRANSACCIONES_ENTRY_MISSING: no existe el registro tipo 6 clasificado.");
-        var originatorCode = NormalizeParticipantCode(batch.OriginParticipantEntityCode, "BCOORIG");
-        var receiverCode = NormalizeParticipantCode(entry.ReceivingParticipantEntityCode, "BCORECEP");
-        ValidateNachaOriginatorEvidence(nachaSource.Header, batch, entry, nachaSource.BatchControl, clearingHouse.Code);
-        var configuredInstitutions = await _context.FinancialInstitutions
-            .AsNoTracking()
-            .Where(x => x.Status == Cfa.ACHInterbank.Domain.Entities.Transactions.Enums.FinancialInstitutionStatus.Active)
-            .ToListAsync(ct);
-        var sourceFromNacha = ResolveInstitutionByParticipantCode(configuredInstitutions, originatorCode, "BCOORIG");
-        var destinationFromNacha = ResolveInstitutionByParticipantCode(configuredInstitutions, receiverCode, "BCORECEP");
-        if (string.Equals(clearingHouse.Code, "ACHCOL", StringComparison.OrdinalIgnoreCase))
-        {
-            var immediateOrigin = (nachaSource.Header?.ImmediateOrigin ?? string.Empty).Trim();
-            var expectedImmediateOrigin = $"{originatorCode}{DigitoChequeoHelper.CalcularDigitoChequeo(originatorCode)}";
-            if (!string.Equals(immediateOrigin, expectedImmediateOrigin, StringComparison.Ordinal))
-                throw new InvalidOperationException("PROC_TRANSACCIONES_ACHCOL_IMMEDIATE_ORIGIN_CHECK_DIGIT_MISMATCH: tipo 1 no coincide con tipo 5 y su dígito de chequeo.");
-        }
-        if (!destinationFromNacha.IsDefaultSource)
-            throw new InvalidOperationException("PROC_TRANSACCIONES_DESTINATION_NOT_CFA: la entidad tipo 6 receptora no es CFA.");
-        if (transaction.SourceInstitutionId != sourceFromNacha.Id || transaction.DestinationInstitutionId != destinationFromNacha.Id)
-            throw new InvalidOperationException("PROC_TRANSACCIONES_TRANSACTION_INSTITUTION_MISMATCH: la transacción no coincide con las instituciones derivadas de NACHA-M.");
-
-        var addenda = nachaSource.AddendaRecord;
-        if (addenda is null || !string.Equals(addenda.CodeTypeAddendumRecord, "05", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("PROC_TRANSACCIONES_ADDENDA_05_MISSING: el crédito entrante requiere addenda tipo 05.");
-        }
-
-        var paymentInformation = ProcTransaccionesPaymentInformationBuilder.Build(
-            transaction.CompanyIdentification,
-            batch.CompanyEntryDescription ?? string.Empty,
-            addenda.PaymentRelatedInformation ?? string.Empty);
-
-        return new FunctionalSourceContext(
-            sourceCode,
-            destinationCode,
-            sourceFromNacha.Name,
-            destinationFromNacha.Name,
-            ToFunctionalBatchId(batch.BatchNumber.ToString("D7", CultureInfo.InvariantCulture)),
-            clearingHouse.Id.ToString(CultureInfo.InvariantCulture),
-            paymentInformation);
-    }
-
     public static string ToFunctionalBatchId(string rawBatchNumber)
+        => ProcTransaccionesFunctionalSourceResolver.ToFunctionalBatchId(rawBatchNumber);
+
+    private static void ValidateHomologatedIds(
+        IntegrationExecutionContract contract,
+        IReadOnlyDictionary<string, string> resolved)
     {
-        var value = (rawBatchNumber ?? string.Empty).Trim();
-        if (value.Length != 7 || value.Any(c => !char.IsDigit(c)))
+        var hasHomologatedIdLoteSource = contract.Parameters.Any(binding =>
+            binding.IsMapped
+            && string.Equals(binding.ParameterPath, "IDLOTE", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(binding.Source.SourceKey, "procTransacciones.functionalBatchId", StringComparison.OrdinalIgnoreCase));
+        if (!hasHomologatedIdLoteSource || !resolved.TryGetValue("IDLOTE", out var idLote))
         {
-            throw new InvalidOperationException("PROC_TRANSACCIONES_BATCH_NUMBER_INVALID: BatchNumber debe contener exactamente siete dígitos.");
+            return;
         }
 
-        var numeric = int.Parse(value, CultureInfo.InvariantCulture);
-        if (numeric is < 0 or > 999_999)
+        if (!resolved.TryGetValue("IDTRAN", out var idTran)
+            || !idTran.All(char.IsDigit)
+            || idTran.Length != 7)
         {
-            throw new InvalidOperationException("PROC_TRANSACCIONES_BATCH_NUMBER_RANGE: BatchNumber debe estar entre 0000000 y 0999999.");
+            throw new InvalidOperationException("IDTRAN debe contener exactamente siete digitos derivados de la entrada NACHA-M.");
         }
 
-        return numeric.ToString("D6", CultureInfo.InvariantCulture);
-    }
-
-    private static void ValidateNachaOriginatorEvidence(
-        NachaHeader? header,
-        BatchHeader batch,
-        EntryDetail entry,
-        BatchControl? control,
-        string clearingHouseCode)
-    {
-        var originator = NormalizeParticipantCode(batch.OriginParticipantEntityCode, "BCOORIG");
-        if (originator.All(c => c == '0'))
-            throw new InvalidOperationException("PROC_TRANSACCIONES_ORIGINATOR_ZERO: el código originador NACHA-M no puede ser ceros.");
-        var trace = (entry.SequenceNumber ?? string.Empty).Trim();
-        if (trace.Length != 15 || trace.Any(c => !char.IsDigit(c)) || !string.Equals(trace[..8], originator, StringComparison.Ordinal))
-            throw new InvalidOperationException("PROC_TRANSACCIONES_ORIGINATOR_TRACE_MISMATCH: tipo 5 no coincide con tipo 6.");
-        if (control is null || !string.Equals((control.IdOrigEntity ?? string.Empty).Trim(), originator, StringComparison.Ordinal))
-            throw new InvalidOperationException("PROC_TRANSACCIONES_ORIGINATOR_CONTROL_MISMATCH: tipo 5 no coincide con tipo 8.");
-        if (string.Equals(clearingHouseCode, "ACHCOL", StringComparison.OrdinalIgnoreCase))
+        if (!idLote.All(char.IsDigit) || idLote.Length != 6)
         {
-            var immediateOrigin = (header?.ImmediateOrigin ?? string.Empty).Trim();
-            if (immediateOrigin.Length != 9 || immediateOrigin.Any(c => !char.IsDigit(c)) || !string.Equals(immediateOrigin[..8], originator, StringComparison.Ordinal))
-                throw new InvalidOperationException("PROC_TRANSACCIONES_ACHCOL_IMMEDIATE_ORIGIN_MISMATCH: tipo 1 no coincide con tipo 5.");
-        }
-    }
-
-    private static FinancialInstitution ResolveInstitutionByParticipantCode(
-        IReadOnlyCollection<FinancialInstitution> institutions,
-        string participantCode,
-        string parameter)
-    {
-        var matches = institutions.Where(x => string.Equals(
-            $"{x.RoutingNumber?.Trim()}{x.TransitCode?.Trim()}", participantCode, StringComparison.Ordinal)).ToList();
-        return matches.Count switch
-        {
-            1 => matches[0],
-            0 => throw new InvalidOperationException($"PROC_TRANSACCIONES_INSTITUTION_NOT_FOUND: {parameter}={participantCode} no existe en FinancialInstitutions."),
-            _ => throw new InvalidOperationException($"PROC_TRANSACCIONES_INSTITUTION_AMBIGUOUS: {parameter}={participantCode} tiene más de una institución activa.")
-        };
-    }
-
-    private static string NormalizeParticipantCode(string? value, string parameter)
-    {
-        var normalized = (value ?? string.Empty).Trim();
-        if (normalized.Length != 8 || normalized.Any(c => !char.IsDigit(c)))
-            throw new InvalidOperationException($"PROC_TRANSACCIONES_ORIGINATOR_INVALID: {parameter} requiere ocho dígitos NACHA-M.");
-        return normalized;
-    }
-
-    private static string NormalizeTransitCode(string? value, string parameter)
-    {
-        var normalized = (value ?? string.Empty).Trim();
-        if (normalized.Length != 3 || normalized.Any(c => !char.IsDigit(c)))
-        {
-            throw new InvalidOperationException($"PROC_TRANSACCIONES_TRANSIT_CODE_INVALID: {parameter} requiere TransitCode numérico de tres dígitos.");
-        }
-
-        return int.Parse(normalized, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
-    }
-
-    private static void ValidateCanonicalClearingHouse(ClearingHouse clearingHouse)
-    {
-        var expected = clearingHouse.Code.ToUpperInvariant() switch
-        {
-            "ACHCOL" => 1,
-            "CENIT" => 2,
-            _ => throw new InvalidOperationException("PROC_TRANSACCIONES_CLEARING_HOUSE_UNSUPPORTED: la cámara no es ACHCOL ni CENIT.")
-        };
-        if (clearingHouse.Id != expected)
-        {
-            throw new InvalidOperationException($"PROC_TRANSACCIONES_CLEARING_HOUSE_ID_INVALID: {clearingHouse.Code} debe conservar Id canónico {expected}.");
+            throw new InvalidOperationException("IDLOTE debe contener exactamente seis digitos y una fuente funcional homologada.");
         }
     }
 
@@ -485,15 +457,4 @@ public class ProcTransaccionesRequestMapper : IProcTransaccionesRequestMapper
         BatchControl? BatchControl,
         FileControl? FileControl);
 
-    private sealed record FunctionalSourceContext(
-        string SourceTransitCode,
-        string DestinationTransitCode,
-        string SourceInstitutionName,
-        string DestinationInstitutionName,
-        string FunctionalBatchId,
-        string ClearingHouseId,
-        string PaymentInformation)
-    {
-        public static FunctionalSourceContext Empty { get; } = new("", "", "", "", "", "", "");
-    }
 }

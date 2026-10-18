@@ -1,6 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterModule } from '@angular/router';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -22,7 +26,16 @@ type AchDashboardKpi = {
 @Component({
   selector: 'app-ach-response-dashboard-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    SharedModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule
+  ],
   templateUrl: './ach-response-dashboard-page.component.html',
   styleUrls: ['./ach-response-dashboard-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -77,7 +90,7 @@ export class AchResponseDashboardPageComponent implements OnInit {
       error: () => {
         this.error = true;
         this.kpis = [];
-        this.notifications.error('No fue posible cargar el dashboard operativo ACH.');
+        this.notifications.error('No fue posible cargar los indicadores operativos ACH.');
       }
     });
   }

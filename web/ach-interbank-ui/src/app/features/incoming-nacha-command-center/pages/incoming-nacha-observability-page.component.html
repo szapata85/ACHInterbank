@@ -1,12 +1,12 @@
 <section class="observability-page">
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
-    { etiqueta: 'Seguimiento de archivos NACHA-M', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: 'Seguimiento de archivos', ruta: '/incoming-nacha-command-center' },
     { etiqueta: 'Indicadores operativos' }
   ]"></ui-migas-pan>
 
   <ui-encabezado-pagina
-    titulo="Indicadores operativos NACHA-M"
+    titulo="Indicadores operativos"
     descripcion="Consulte el estado del procesamiento, la antigüedad de los pendientes y los errores más frecuentes."
   ></ui-encabezado-pagina>
 
@@ -17,7 +17,7 @@
     <div class="acciones">
       <ui-boton texto="Actualizar" icono="refresh" (accion)="cargar()"></ui-boton>
       <ui-boton texto="Ver cola de procesamiento" variante="secundario" icono="queue" (accion)="irACola()"></ui-boton>
-      <ui-boton texto="Volver al seguimiento" variante="contorno" icono="account_tree" (accion)="irAIngestas()"></ui-boton>
+      <ui-boton texto="Volver a Seguimiento de archivos" variante="contorno" icono="account_tree" (accion)="irAIngestas()"></ui-boton>
     </div>
   </ui-tarjeta>
 

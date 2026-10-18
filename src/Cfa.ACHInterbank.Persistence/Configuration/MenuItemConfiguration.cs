@@ -8,7 +8,6 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
 {
     public const int DashboardId = 1;
     public const int UsersId = 2;
-    public const int AliasesId = 3;
     public const int AchCyclesId = 4;
     public const int CatalogsId = 5;
     public const int TransactionsId = 6;

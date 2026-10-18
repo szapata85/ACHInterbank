@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { map } from 'rxjs';
-import { NachaConfigApiService } from './nacha-config-api.service';
-import { NachaConfigReadRetryEvent } from './nacha-config-read-retry';
+import { NachaConfigApiService } from '../../../core/services/nacha-config-api.service';
+import { NachaConfigReadRetryEvent } from '../../../core/services/nacha-config-read-retry';
 
 @Injectable({ providedIn: 'root' })
 export class NachaConfigQueryService {
@@ -41,8 +41,37 @@ export class NachaConfigQueryService {
     })));
   }
 
+  catalogosOperativos(
+    camaraCode?: string | null,
+    flujoCode?: string | null,
+    onRetry?: (event: NachaConfigReadRetryEvent) => void
+  ) {
+    return this.api.catalogosOperativos(camaraCode, flujoCode, onRetry).pipe(map((catalogos) => ({
+      estados: catalogos?.estados ?? [],
+      camaras: catalogos?.camaras ?? [],
+      flujos: catalogos?.flujos ?? [],
+      direcciones: catalogos?.direcciones ?? [],
+      servicios: catalogos?.servicios ?? [],
+      registros: catalogos?.registros ?? [],
+      tiposOrigen: catalogos?.tiposOrigen ?? [],
+      tiposRegla: catalogos?.tiposRegla ?? []
+    })));
+  }
+
   detalle(profileId: number) {
     return this.api.obtenerPerfil(profileId);
+  }
+
+  workspace(profileId: number) {
+    return this.api.workspace(profileId);
+  }
+
+  editorCampo(profileId: number, fieldId: number) {
+    return this.api.editorCampo(profileId, fieldId);
+  }
+
+  cambios(profileId: number) {
+    return this.api.cambios(profileId);
   }
 
   historial(profileId: number) {

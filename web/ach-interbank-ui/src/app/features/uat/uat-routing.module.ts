@@ -10,9 +10,9 @@ export const UAT_ROUTES: Routes = [
     component: NachaInboundSimulatorComponent,
     canActivate: [permissionGuard],
     data: {
-      permissions: ['CanManageAch'],
-      title: 'Simulador NACHA-M de entrada',
-      breadcrumb: 'Simulador NACHA-M de entrada'
+      permissions: ['TestTools.Access'],
+      title: 'Simulador de archivos recibidos',
+      breadcrumb: 'Simulador de archivos recibidos'
     }
   }
 ];

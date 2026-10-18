@@ -32,7 +32,7 @@
     <p *ngIf="loading" class="state" role="status">Estamos consultando la conciliación…</p>
     <div *ngIf="error" class="state error" role="alert">
       <mat-icon aria-hidden="true">error_outline</mat-icon><span>{{ error }}</span>
-      <button mat-stroked-button type="button" (click)="search()">Intentar nuevamente</button>
+      <button mat-stroked-button type="button" (click)="search()">Reintentar</button>
     </div>
     <div *ngIf="exportMessage" class="state warning" role="status" data-testid="reconciliation-export-message">{{ exportMessage }}</div>
 

@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -25,6 +26,10 @@ public interface IAchTransactionService
         string? transactionExternalId = null,
         bool requiresIdentityValidation = false,
         IEnumerable<AddendaDto>? addendas = null,
+        CancellationToken ct = default);
+
+    Task<AchTransaction> RegisterCanonicalPrenotificationAsync(
+        CanonicalPrenotificationTransactionRequest request,
         CancellationToken ct = default);
 
     Task<DateTime> GetNextBusinessDayAsync(DateTime baseDate, CancellationToken ct = default);

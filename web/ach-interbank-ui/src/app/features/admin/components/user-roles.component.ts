@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { RolesApiService, UsersApiService } from '../services/users-api.service';
-import { RoleSummary, UserSummary } from '../models/user.model';
+import { UsersApiService } from '../services/users-api.service';
+import { RolesApiService } from '../../../core/services/roles-api.service';
+import { UserSummary } from '../models/user.model';
+import { RoleSummary } from '../../../core/models/role.model';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';

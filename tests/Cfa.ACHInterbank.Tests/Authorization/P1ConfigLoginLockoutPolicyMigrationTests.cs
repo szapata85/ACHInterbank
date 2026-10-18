@@ -20,11 +20,12 @@ public class P1ConfigLoginLockoutPolicyMigrationTests
     }
 
     [Fact]
-    public void SoapIntegrationSettingsController_ComposicionAuthorizeCorrecta()
+    public void SoapIntegrationSettingsController_UsesDedicatedConnectionBoundaryAfterNav34Q()
     {
-        AssertControllerAuthorizeComposition<SoapIntegrationSettingsController>(
-            nameof(SoapIntegrationSettingsController.GetAsync),
-            nameof(SoapIntegrationSettingsController.SaveAsync));
+        AssertActionPolicy<SoapIntegrationSettingsController>(nameof(SoapIntegrationSettingsController.GetAsync), "CanReadAch");
+        AssertActionPolicy<SoapIntegrationSettingsController>(nameof(SoapIntegrationSettingsController.SaveAsync), P1Policies.IntegrationConnectionsManage);
+        AssertActionPolicy<SoapIntegrationSettingsController>(nameof(SoapIntegrationSettingsController.PreviewChangeAsync), P1Policies.IntegrationConnectionsManage);
+        AssertNoNewAllowAnonymous<SoapIntegrationSettingsController>();
     }
 
     [Fact]

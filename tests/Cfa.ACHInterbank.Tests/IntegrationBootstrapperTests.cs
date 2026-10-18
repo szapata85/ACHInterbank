@@ -60,6 +60,83 @@ public sealed class IntegrationBootstrapperTests
     }
 
     [Fact]
+    public async Task ContractVersionBaseline_ShouldAttachCurrentParametersAndMappingsWithoutChangingLegacyIds()
+    {
+        await using var fixture = await ContextFixture.CreateAsync();
+
+        var catalogBootstrapper = new IntegrationCatalogBootstrapper(fixture.Context);
+        await catalogBootstrapper.EnsureAsync();
+
+        var methods = await fixture.Context.IntegrationMethods
+            .ToDictionaryAsync(x => x.Code, x => x);
+        var originalParameterIds = await fixture.Context.IntegrationMethodParameters
+            .AsNoTracking()
+            .ToDictionaryAsync(x => (x.MethodId, x.ParameterPath), x => x.Id);
+
+        var baselines = new[]
+        {
+            Baseline(methods["WSCFAACH.Proc_Contrapartidas"].Id, new Guid("39b5693c-407b-505c-8e8a-e49e8558a82e"), "Proc_Contrapartidas", "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas"),
+            Baseline(methods["WSCFAACH.Proc_Transacciones"].Id, new Guid("9f3a13b6-eb79-5e43-803b-4c97b71a0f5d"), "Proc_Transacciones", "http://tempuri.org/IWSCFAACH/Proc_Transacciones"),
+            Baseline(methods["WSAXON.RegistrarRespuestaTransaccion"].Id, new Guid("4a093eb5-beed-5b15-bc7c-5768c0e0547e"), "RegistrarRespuestaTransaccion", "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion")
+        };
+        fixture.Context.IntegrationContractVersions.AddRange(baselines);
+        await fixture.Context.SaveChangesAsync();
+
+        await new IntegrationMappingBootstrapper(fixture.Context).EnsureAsync();
+
+        foreach (var baseline in baselines)
+        {
+            var parameters = await fixture.Context.IntegrationMethodParameters
+                .AsNoTracking()
+                .Where(x => x.MethodId == baseline.MethodId)
+                .ToListAsync();
+            var mappingSets = await fixture.Context.IntegrationMappingSets
+                .AsNoTracking()
+                .Where(x => x.MethodId == baseline.MethodId)
+                .ToListAsync();
+
+            Assert.NotEmpty(parameters);
+            Assert.All(parameters, parameter =>
+            {
+                Assert.Equal(baseline.Id, parameter.ContractVersionId);
+                Assert.Equal(parameter.ParameterPath, parameter.XmlElementName);
+                Assert.False(string.IsNullOrWhiteSpace(parameter.XsdType));
+                Assert.Equal(parameter.Required ? 1 : 0, parameter.MinOccurs);
+                Assert.Equal(1, parameter.MaxOccurs);
+                Assert.Equal("Supported", parameter.SupportStatus);
+                Assert.Equal(originalParameterIds[(parameter.MethodId, parameter.ParameterPath)], parameter.Id);
+            });
+
+            Assert.NotEmpty(mappingSets);
+            Assert.All(mappingSets, mappingSet =>
+            {
+                Assert.Equal(baseline.Id, mappingSet.ContractVersionId);
+                Assert.True(mappingSet.Revision >= 1);
+            });
+        }
+
+        var registrarMethodId = methods["WSAXON.RegistrarRespuestaTransaccion"].Id;
+        Assert.Equal(7, await fixture.Context.IntegrationMethodParameters.CountAsync(x => x.MethodId == registrarMethodId));
+
+        static IntegrationContractVersion Baseline(int methodId, Guid id, string operationName, string soapAction)
+            => new()
+            {
+                Id = id,
+                MethodId = methodId,
+                VersionLabel = "baseline-v1",
+                Status = IntegrationContractVersionStatusEnum.Active,
+                OperationName = operationName,
+                TargetNamespace = "http://tempuri.org/",
+                SoapAction = soapAction,
+                SourceType = IntegrationContractSourceTypeEnum.BaselineMigration,
+                SourceReference = "CFA-SOAP-UX-MAP-001/P0",
+                Revision = 1,
+                ActivatedAtUtc = new DateTime(2026, 10, 12, 23, 10, 0, DateTimeKind.Utc),
+                ActivatedBy = "CFA-SOAP-UX-MAP-001/P1.2"
+            };
+    }
+
+    [Fact]
     public async Task MappingBootstrapper_ShouldPersistCanonicalSnapshotHistory()
     {
         await using var fixture = await ContextFixture.CreateAsync();

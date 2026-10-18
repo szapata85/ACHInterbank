@@ -1,5 +1,5 @@
 <app-page-header
-  title="Devoluciones ACH"
+  title="Devoluciones"
   subtitle="Consulta operativa y generación controlada de archivos .RET">
 </app-page-header>
 
@@ -22,11 +22,10 @@
       <mat-card-subtitle>El endpoint limita la consulta al ciclo seleccionado</mat-card-subtitle>
     </mat-card-header>
 
-    <mat-progress-bar
+    <ui-estado-carga
       *ngIf="loadingCatalogs"
-      mode="indeterminate"
-      aria-label="Cargando ciclos y causales">
-    </mat-progress-bar>
+      mensaje="Cargando ciclos y causales…">
+    </ui-estado-carga>
 
     <mat-card-content>
       <form
@@ -81,18 +80,17 @@
             (click)="clearFilters()"
             [disabled]="loading || generating">
             <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
-            Limpiar
+            Limpiar filtros
           </button>
         </div>
       </form>
 
-      <div *ngIf="catalogError && !loadingCatalogs" class="state-panel state-panel--error" role="alert">
-        <mat-icon aria-hidden="true">error</mat-icon>
-        <div>
-          <strong>No se completó la carga de catálogos</strong>
-          <p>{{ catalogError }}</p>
-        </div>
-      </div>
+      <ui-estado-error
+        *ngIf="catalogError && !loadingCatalogs"
+        titulo="No se completó la carga de catálogos"
+        [mensaje]="catalogError"
+        [mostrarReintentar]="false">
+      </ui-estado-error>
     </mat-card-content>
   </mat-card>
 
@@ -117,43 +115,32 @@
       </mat-chip-set>
     </mat-card-header>
 
-    <mat-progress-bar
-      *ngIf="loading || generating"
-      mode="indeterminate"
-      [attr.aria-label]="generating ? 'Generando archivo de devoluciones' : 'Cargando transacciones del ciclo'">
-    </mat-progress-bar>
+    <ui-estado-carga
+      *ngIf="generating"
+      mensaje="Generando archivo de devoluciones…">
+    </ui-estado-carga>
 
     <mat-card-content>
-      <div *ngIf="!hasLoaded && !loading" class="state-panel" role="status">
-        <mat-icon aria-hidden="true">manage_search</mat-icon>
-        <div>
-          <strong>Prepara la consulta</strong>
-          <p>Selecciona un ciclo y aplica los filtros para cargar las transacciones retornables.</p>
-        </div>
-      </div>
+      <ui-estado-vacio
+        *ngIf="!hasLoaded && !loading"
+        titulo="Prepara la consulta"
+        mensaje="Selecciona un ciclo y aplica los filtros para cargar las transacciones retornables."
+        sugerencia="">
+      </ui-estado-vacio>
 
-      <div *ngIf="loadError && !loading" class="state-panel state-panel--error" role="alert">
-        <mat-icon aria-hidden="true">error</mat-icon>
-        <div>
-          <strong>No fue posible completar la consulta</strong>
-          <p>{{ loadError }}</p>
-        </div>
-        <button mat-stroked-button type="button" (click)="retry()">
-          <mat-icon aria-hidden="true">refresh</mat-icon>
-          Reintentar
-        </button>
-      </div>
+      <ui-estado-error
+        *ngIf="loadError && !loading"
+        titulo="No fue posible completar la consulta"
+        [mensaje]="loadError"
+        (reintentar)="retry()">
+      </ui-estado-error>
 
-      <div
+      <ui-estado-vacio
         *ngIf="hasLoaded && !loading && !loadError && allRows.length === 0"
-        class="state-panel"
-        role="status">
-        <mat-icon aria-hidden="true">inventory_2</mat-icon>
-        <div>
-          <strong>El ciclo no tiene transacciones retornables</strong>
-          <p>No existen datos para el ciclo seleccionado. Prueba con otro ciclo operativo.</p>
-        </div>
-      </div>
+        titulo="El ciclo no tiene transacciones retornables"
+        mensaje="No hay transacciones retornables para el ciclo seleccionado."
+        sugerencia="Prueba con otro ciclo operativo.">
+      </ui-estado-vacio>
 
       <div
         *ngIf="hasLoaded && !loadError && (loading || allRows.length > 0)"
@@ -173,6 +160,7 @@
               Ver detalle
             </button>
             <button
+              *ngIf="canGenerateReturns"
               mat-flat-button
               color="primary"
               type="button"
@@ -184,13 +172,12 @@
           </div>
         </div>
 
-        <div *ngIf="actionError && !generating" class="state-panel state-panel--error" role="alert">
-          <mat-icon aria-hidden="true">error</mat-icon>
-          <div>
-            <strong>No se generó el archivo .RET</strong>
-            <p>{{ actionError }}</p>
-          </div>
-        </div>
+        <ui-estado-error
+          *ngIf="actionError && !generating"
+          titulo="No se generó el archivo .RET"
+          [mensaje]="actionError"
+          [mostrarReintentar]="false">
+        </ui-estado-error>
 
         <ui-grilla-empresarial
           [columnas]="columnDefs"

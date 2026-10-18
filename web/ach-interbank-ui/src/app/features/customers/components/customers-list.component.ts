@@ -2,8 +2,8 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject }
 import { Router } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
-import { CustomersApiService } from '../services/customers-api.service';
-import { CustomerSummary } from '../models/customer.model';
+import { CustomersApiService } from '../../../core/services/customers-api.service';
+import { CustomerSummary } from '../../../core/models/customer.model';
 import { NotificationService } from '../../../core/services/notification.service';
 import { FormBuilder } from '@angular/forms';
 import { ColDef } from 'ag-grid-community';
@@ -39,14 +39,26 @@ export class CustomersListComponent implements OnInit {
       sortable: false,
       filter: false,
       cellRenderer: (params: any) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.classList.add('link');
-        button.innerText = 'Editar';
-        button.addEventListener('click', () => this.edit(params.data._original));
-        return button;
+        const actions = document.createElement('div');
+        actions.classList.add('grid-actions');
+
+        const thirdPartiesButton = document.createElement('button');
+        thirdPartiesButton.type = 'button';
+        thirdPartiesButton.classList.add('link');
+        thirdPartiesButton.innerText = 'Terceros';
+        thirdPartiesButton.addEventListener('click', () => this.manageThirdParties(params.data._original));
+
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.classList.add('link');
+        editButton.innerText = 'Editar';
+        editButton.addEventListener('click', () => this.edit(params.data._original));
+
+        actions.append(thirdPartiesButton, editButton);
+        return actions;
       },
-      maxWidth: 140
+      minWidth: 190,
+      maxWidth: 220
     }
   ];
 
@@ -101,6 +113,10 @@ export class CustomersListComponent implements OnInit {
 
   create(): void {
     this.router.navigate(['/customers/new']);
+  }
+
+  manageThirdParties(customer: CustomerSummary): void {
+    this.router.navigate(['/customers', customer.id, 'third-parties']);
   }
 
   edit(customer: CustomerSummary): void {

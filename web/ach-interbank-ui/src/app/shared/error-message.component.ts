@@ -34,27 +34,27 @@ export class ErrorMessageComponent {
     }
 
     if (this.control.hasError('required')) {
-      return 'Campo obligatorio';
+      return 'Completa este campo.';
     }
     if (this.control.hasError('min')) {
-      return 'El valor ingresado es demasiado bajo';
+      return 'Ingresa un valor igual o mayor que el mínimo permitido.';
     }
     if (this.control.hasError('pattern')) {
-      return 'Formato inválido';
+      return 'Revisa el formato del valor ingresado.';
     }
     if (this.control.hasError('email')) {
-      return 'Formato de correo inválido';
+      return 'Ingresa un correo electrónico válido.';
     }
     if (this.control.hasError('invalidEmailDomain')) {
-      return 'El dominio del correo no es válido';
+      return 'Ingresa un correo con un dominio válido.';
     }
     if (this.control.hasError('maxlength')) {
-      return 'Se superó la longitud máxima permitida';
+      return 'Reduce el texto a la longitud máxima permitida.';
     }
     if (this.control.hasError('sameAccount')) {
-      return 'La cuenta de origen y destino no pueden ser iguales';
+      return 'Usa cuentas de origen y destino diferentes.';
     }
 
-    return 'Dato inválido';
+    return 'Revisa el valor ingresado.';
   }
 }

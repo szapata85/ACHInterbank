@@ -616,5 +616,10 @@ public class IncomingNachaCommandCenterServiceTests
     }
 
     private static IncomingNachaCommandCenterService CreateSut(AchDbContext context)
-        => new(context, new IncomingNachaStateMachineService());
+    {
+        var stateMachine = new IncomingNachaStateMachineService();
+        var queryService = new IncomingNachaCommandCenterQueryService(context, stateMachine);
+        var operationsService = new IncomingNachaCommandCenterOperationsService(context, stateMachine);
+        return new IncomingNachaCommandCenterService(queryService, operationsService);
+    }
 }

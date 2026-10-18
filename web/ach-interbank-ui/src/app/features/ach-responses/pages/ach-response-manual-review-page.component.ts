@@ -1,17 +1,26 @@
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { HttpErrorResponse } from '@angular/common/http';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import type { UiEtiquetaEstado } from '../../../shared/components/ui/ui-etiqueta-estado.component';
 import { SharedModule } from '../../../shared/shared.module';
 import { AchResponseListItemResponse, AchResponseOrphanModel, AchResponseSearchRequest } from '../models/ach-responses.models';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
 import { formatAchDate, formatAchValue, normalizeAchFilter } from '../utils/ach-response-formatters';
 import { createAchBadgeElement, createAchButtonElement } from '../utils/ach-response-renderers';
-import { getAchManualReviewPriority, getAchPriorityClass, getAchProcessingStatusClass } from '../utils/ach-response-status.utils';
+import { getAchPriorityClass } from '../utils/ach-response-status.utils';
+
+const MANUAL_REVIEW_MANAGE_PERMISSIONS = ['Nacha.Generate', 'CanManageAch'];
 
 type AchManualReviewRow = AchResponseListItemResponse & {
   fechaRecepcionText: string;
@@ -24,7 +33,17 @@ type AchManualReviewRow = AchResponseListItemResponse & {
 @Component({
   selector: 'app-ach-response-manual-review-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    SharedModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule
+  ],
   templateUrl: './ach-response-manual-review-page.component.html',
   styleUrls: ['./ach-response-manual-review-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -33,6 +52,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly api = inject(AchResponsesApiService);
+  private readonly auth = inject(AuthService);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -67,13 +87,13 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       minWidth: 120,
       cellRenderer: (params: any) => createAchBadgeElement(this.formatValue(params.value), this.getPriorityClass(params.value))
     },
-    { field: 'fechaRecepcionText', headerName: 'Fecha recepción', minWidth: 170 },
-    { field: 'fechaCreacionText', headerName: 'Fecha creación', minWidth: 170 },
+    { field: 'fechaRecepcionText', headerName: 'Fecha de recepción', minWidth: 170 },
+    { field: 'fechaCreacionText', headerName: 'Fecha de creación', minWidth: 170 },
     { field: 'tipoRespuesta', headerName: 'Tipo', minWidth: 120 },
-    { field: 'idTransaccion', headerName: 'Transacción', minWidth: 180 },
+    { field: 'idTransaccion', headerName: 'ID de transacción', minWidth: 180 },
     { field: 'codigoCamaraCompensacion', headerName: 'Cámara', minWidth: 120 },
-    { field: 'codigoEntidadOrigen', headerName: 'Entidad origen', minWidth: 140 },
-    { field: 'codigoEntidadDestino', headerName: 'Entidad destino', minWidth: 140 },
+    { field: 'codigoEntidadOrigen', headerName: 'Entidad de origen', minWidth: 140 },
+    { field: 'codigoEntidadDestino', headerName: 'Entidad de destino', minWidth: 140 },
     { field: 'codigoEstadoExterno', headerName: 'Estado externo', minWidth: 130 },
     { field: 'codigoCausalExterna', headerName: 'Causal externa', minWidth: 140 },
     { field: 'estadoInternoNombre', headerName: 'Estado interno', minWidth: 140 },
@@ -84,7 +104,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       cellRenderer: (params: any) => createAchBadgeElement(this.formatProcessingStatus(params.value), this.getProcessingStatusClass(params.value))
     },
     { field: 'permiteNotificacionText', headerName: 'Notificable', minWidth: 120 },
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },
+    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },
     {
       headerName: 'Acciones',
       minWidth: 130,
@@ -105,6 +125,7 @@ export class AchResponseManualReviewPageComponent implements OnInit {
   error = false;
   orphans: AchResponseOrphanModel[] = [];
   orphanLoading = false;
+  orphanError = false;
   resolving = false;
 
   ngOnInit(): void {
@@ -157,28 +178,48 @@ export class AchResponseManualReviewPageComponent implements OnInit {
   }
 
   selectOrphan(orphan: AchResponseOrphanModel): void {
-    this.resolutionForm.patchValue({ orphanId: orphan.id, expectedVersion: orphan.version,
-      reason: '', functionalReference: orphan.resolvedReference ?? '', reject: false });
+    this.resolutionForm.patchValue({
+      orphanId: orphan.id,
+      expectedVersion: orphan.version,
+      reason: '',
+      functionalReference: orphan.resolvedReference ?? '',
+      reject: false
+    });
     this.cdr.markForCheck();
   }
 
+  get canManageManualReview(): boolean {
+    return this.auth.hasPermission(MANUAL_REVIEW_MANAGE_PERMISSIONS);
+  }
+
   beginSelectedReview(): void {
+    if (!this.ensureCanManageManualReview()) return;
+
     const raw = this.resolutionForm.getRawValue();
     if (!raw.orphanId || !raw.expectedVersion || !raw.reason || raw.reason.trim().length < 5) {
       this.notifications.error('Seleccione una huérfana e indique una justificación.');
       return;
     }
+
     this.resolving = true;
     this.api.beginOrphanReview(raw.orphanId, raw.expectedVersion, raw.reason.trim()).pipe(
-      finalize(() => { this.resolving = false; this.cdr.markForCheck(); })
-    ).subscribe({ next: (item) => {
-      this.notifications.success('Revisión iniciada.');
-      this.selectOrphan(item);
-      this.loadOrphans();
-    }, error: (error: HttpErrorResponse) => this.handleOperationError(error) });
+      finalize(() => {
+        this.resolving = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
+      next: (item) => {
+        this.notifications.success('Revisión iniciada.');
+        this.selectOrphan(item);
+        this.loadOrphans();
+      },
+      error: (error: HttpErrorResponse) => this.handleOperationError(error)
+    });
   }
 
   resolveSelectedOrphan(): void {
+    if (!this.ensureCanManageManualReview()) return;
+
     const raw = this.resolutionForm.getRawValue();
     const reject = !!raw.reject;
     if (!raw.orphanId || !raw.expectedVersion || !raw.reason || raw.reason.trim().length < 5 ||
@@ -186,16 +227,34 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       this.notifications.error('Complete la justificación y la referencia funcional para asociar.');
       return;
     }
+
     this.resolving = true;
-    this.api.resolveOrphan(raw.orphanId, raw.expectedVersion, raw.reason.trim(),
-      reject ? null : raw.functionalReference!.trim(), reject).pipe(
-      finalize(() => { this.resolving = false; this.cdr.markForCheck(); })
-    ).subscribe({ next: () => {
-      this.notifications.success(reject ? 'Respuesta huérfana rechazada.' : 'Respuesta huérfana asociada.');
-      this.resolutionForm.reset({ orphanId: '', expectedVersion: '', reason: '', functionalReference: '', reject: false });
-      this.loadOrphans();
-      this.loadManualReviewCases();
-    }, error: (error: HttpErrorResponse) => this.handleOperationError(error) });
+    this.api.resolveOrphan(
+      raw.orphanId,
+      raw.expectedVersion,
+      raw.reason.trim(),
+      reject ? null : raw.functionalReference!.trim(),
+      reject
+    ).pipe(
+      finalize(() => {
+        this.resolving = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
+      next: () => {
+        this.notifications.success(reject ? 'Respuesta huérfana rechazada.' : 'Respuesta huérfana asociada.');
+        this.resolutionForm.reset({
+          orphanId: '',
+          expectedVersion: '',
+          reason: '',
+          functionalReference: '',
+          reject: false
+        });
+        this.loadOrphans();
+        this.loadManualReviewCases();
+      },
+      error: (error: HttpErrorResponse) => this.handleOperationError(error)
+    });
   }
 
   getPriority(status: string | null | undefined): string {
@@ -218,8 +277,37 @@ export class AchResponseManualReviewPageComponent implements OnInit {
     return 'estado-neutro';
   }
 
+  getOrphanResolutionStatusState(status: string | null | undefined): UiEtiquetaEstado {
+    if (status === 'Resolved' || status === 'Associated' || status === 'Completed') return 'exitoso';
+    if (status === 'Pending' || status === 'InReview') return 'pendiente';
+    if (status === 'Rejected' || status === 'Failed') return 'fallido';
+    return 'inactivo';
+  }
+
   formatValue(value: unknown): string {
     return formatAchValue(value);
+  }
+
+  loadOrphans(): void {
+    this.orphanLoading = true;
+    this.orphanError = false;
+    this.cdr.markForCheck();
+
+    this.api.getOrphans(undefined, undefined).pipe(
+      finalize(() => {
+        this.orphanLoading = false;
+        this.cdr.markForCheck();
+      })
+    ).subscribe({
+      next: (items) => {
+        this.orphans = items ?? [];
+      },
+      error: () => {
+        this.orphanError = true;
+        this.orphans = [];
+        this.notifications.error('No fue posible cargar las respuestas huérfanas.');
+      }
+    });
   }
 
   private loadManualReviewCases(): void {
@@ -250,15 +338,11 @@ export class AchResponseManualReviewPageComponent implements OnInit {
     });
   }
 
-  private loadOrphans(): void {
-    this.orphanLoading = true;
-    this.api.getOrphans(undefined, undefined).pipe(finalize(() => {
-      this.orphanLoading = false;
-      this.cdr.markForCheck();
-    })).subscribe({
-      next: (items) => { this.orphans = items ?? []; },
-      error: () => { this.orphans = []; this.notifications.error('No fue posible cargar las respuestas huérfanas.'); }
-    });
+  private ensureCanManageManualReview(): boolean {
+    if (this.canManageManualReview) return true;
+
+    this.notifications.error('No tiene permisos para modificar la revisión manual.');
+    return false;
   }
 
   private handleOperationError(error: HttpErrorResponse): void {
@@ -267,7 +351,12 @@ export class AchResponseManualReviewPageComponent implements OnInit {
       this.loadOrphans();
       return;
     }
-    this.notifications.error(typeof error.error?.detail === 'string' ? error.error.detail : 'No fue posible completar la operación.');
+
+    this.notifications.error(
+      typeof error.error?.detail === 'string'
+        ? error.error.detail
+        : 'No fue posible completar la operación.'
+    );
   }
 
   private buildSearchRequest(): AchResponseSearchRequest {

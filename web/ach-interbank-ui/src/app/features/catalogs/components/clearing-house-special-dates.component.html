@@ -1,14 +1,21 @@
 <section class="dates-page" aria-labelledby="dates-content-title">
-  <mat-card *ngIf="loading" class="state-card" role="status" aria-live="polite">
-    <mat-spinner diameter="36"></mat-spinner>
-    <div><strong>Cargando fechas especiales…</strong><span>Consultando la cámara y el calendario seleccionado.</span></div>
-  </mat-card>
+  <ui-estado-carga
+    id="dates-content-title"
+    *ngIf="loading"
+    role="status"
+    aria-live="polite"
+    mensaje="Cargando fechas especiales… Consultando la cámara y el calendario seleccionado."
+  ></ui-estado-carga>
 
-  <mat-card *ngIf="!loading && error" class="state-card state-card--error" role="alert">
-    <mat-icon>error_outline</mat-icon>
-    <div><h2 id="dates-content-title">No fue posible mostrar las fechas especiales</h2><p>{{ error }}</p></div>
-    <a mat-stroked-button routerLink="/clearing-houses"><mat-icon>arrow_back</mat-icon>Volver a cámaras</a>
-  </mat-card>
+  <div *ngIf="!loading && error" class="dates-page__error" role="alert">
+    <ui-estado-error
+      id="dates-content-title"
+      titulo="No fue posible mostrar las fechas especiales"
+      [mensaje]="error"
+      [mostrarReintentar]="false"
+    ></ui-estado-error>
+    <a mat-stroked-button routerLink="/clearing-houses"><mat-icon>arrow_back</mat-icon>Volver a Cámaras compensadoras</a>
+  </div>
 
   <ng-container *ngIf="!loading && clearingHouse as house">
     <app-clearing-house-context-navigation
@@ -18,16 +25,19 @@
       [canReadSpecialDates]="canReadSpecialDates"
     ></app-clearing-house-context-navigation>
 
-    <header class="dates-hero">
-      <div>
-        <p class="eyebrow">Calendario por cámara</p>
-        <h2 id="dates-content-title">Fechas especiales de {{ house.name }}</h2>
-        <p>Esta configuración solo afecta a la cámara seleccionada. Los ciclos pendientes volverán a evaluarse antes de ejecutarse.</p>
-      </div>
+    <ng-template #headerActions>
       <button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="startCreate()">
         <mat-icon>add</mat-icon>Nueva fecha especial
       </button>
-    </header>
+    </ng-template>
+
+    <app-page-header
+      id="dates-content-title"
+      [title]="'Fechas especiales de ' + house.name"
+      subtitle="Calendario por cámara"
+      [actionsTemplate]="headerActions"
+    ></app-page-header>
+    <p class="dates-page__description">Esta configuración solo afecta a la cámara seleccionada. Los ciclos pendientes volverán a evaluarse antes de ejecutarse.</p>
 
     <section class="metrics" aria-label="Resumen de fechas especiales">
       <mat-card><mat-icon>calendar_month</mat-icon><div><strong>{{ totalCount }}</strong><span>Total</span></div></mat-card>
@@ -70,9 +80,13 @@
     <mat-card class="results-card">
       <mat-card-header><mat-card-title>Calendario especial</mat-card-title><mat-card-subtitle>{{ dataSource.data.length }} resultados para {{ house.name }}</mat-card-subtitle></mat-card-header>
       <mat-card-content>
-        <div *ngIf="!dataSource.data.length" class="empty-state" role="status">
-          <mat-icon>event_available</mat-icon><strong>Sin fechas especiales para los filtros seleccionados</strong><span>El calendario bancario general continúa aplicando.</span>
-        </div>
+        <ui-estado-vacio
+          *ngIf="!dataSource.data.length"
+          role="status"
+          titulo="Sin fechas especiales para los filtros seleccionados"
+          mensaje="El calendario bancario general continúa aplicando."
+          sugerencia=""
+        ></ui-estado-vacio>
 
         <div class="desktop-table" *ngIf="dataSource.data.length">
           <table mat-table [dataSource]="dataSource" matSort>
@@ -97,7 +111,12 @@
             </ng-container>
             <ng-container matColumnDef="state">
               <th mat-header-cell *matHeaderCellDef>Estado</th>
-              <td mat-cell *matCellDef="let row"><mat-chip>{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip></td>
+              <td mat-cell *matCellDef="let row">
+                <ui-etiqueta-estado
+                  [estado]="row.isActive ? 'activo' : 'inactivo'"
+                  [texto]="row.isActive ? 'Activa' : 'Inactiva'"
+                ></ui-etiqueta-estado>
+              </td>
             </ng-container>
             <ng-container matColumnDef="updated">
               <th mat-header-cell *matHeaderCellDef>Última modificación</th>
@@ -107,7 +126,7 @@
               <th mat-header-cell *matHeaderCellDef>Acciones</th>
               <td mat-cell *matCellDef="let row">
                 <button *ngIf="canManage" mat-icon-button [matMenuTriggerFor]="actions" type="button"
-                  [attr.aria-label]="'Acciones de fecha ' + dateText(row.date)" matTooltip="Administrar fecha especial">
+                  [attr.aria-label]="'Acciones de la fecha especial ' + dateText(row.date)" matTooltip="Administrar fecha especial">
                   <mat-icon>more_vert</mat-icon>
                 </button>
                 <span *ngIf="!canManage" class="read-only">Solo lectura</span>
@@ -127,7 +146,13 @@
 
         <div class="mobile-cards" *ngIf="dataSource.data.length">
           <article *ngFor="let row of dataSource.filteredData; trackBy: track">
-            <header><div><strong>{{ dateText(row.date) }}</strong><span>{{ weekday(row.date) | titlecase }}</span></div><mat-chip>{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip></header>
+            <header>
+              <div><strong>{{ dateText(row.date) }}</strong><span>{{ weekday(row.date) | titlecase }}</span></div>
+              <ui-etiqueta-estado
+                [estado]="row.isActive ? 'activo' : 'inactivo'"
+                [texto]="row.isActive ? 'Activa' : 'Inactiva'"
+              ></ui-etiqueta-estado>
+            </header>
             <p>{{ row.description }}</p>
             <p>{{ row.isActive ? 'Esta fecha impedirá la ejecución de los ciclos de esta cámara.' : 'Sin efecto operativo mientras permanezca inactiva.' }}</p>
             <p *ngIf="row.calendarWarning">{{ row.calendarWarning }}</p>

@@ -1,20 +1,49 @@
 <main class="detail" data-testid="outgoing-monitoring-detail">
-  <button mat-button type="button" (click)="back()"><mat-icon>arrow_back</mat-icon> Volver al monitoreo</button>
-  @if (loading()) {
-    <section class="state" aria-live="polite"><mat-spinner diameter="44"></mat-spinner><p>Cargando el seguimiento comprobable…</p></section>
-  } @else if (notFound()) {
-    <section class="state"><mat-icon>search_off</mat-icon><h1>Transacción no encontrada</h1><p>El registro no existe o no está clasificado de forma persistida como salida.</p><button mat-stroked-button (click)="back()">Regresar</button></section>
-  } @else if (forbidden()) {
-    <section class="state" role="alert"><mat-icon>lock</mat-icon><h1>Acceso no autorizado</h1><p>No tienes permiso para consultar el detalle de esta transacción.</p><button mat-stroked-button (click)="back()">Regresar</button></section>
-  } @else if (error()) {
-    <section class="state" role="alert"><mat-icon>cloud_off</mat-icon><h1>No fue posible consultar el detalle.</h1><p>Puedes intentar nuevamente.</p><button mat-stroked-button (click)="reload()">Intentar nuevamente</button></section>
-  } @else if (detail(); as item) {
-    <header class="heading">
-      <div><p class="eyebrow">Seguimiento de salida</p><h1>{{ item.summary.transactionExternalId }}</h1><p>Último hecho comprobable: {{ item.summary.lastUpdatedAtUtc | date:'dd/MM/yyyy HH:mm' }}</p></div>
-      <span class="headline-status"><mat-icon>fact_check</mat-icon>{{ item.summary.processStatusDisplayName }}</span>
-    </header>
+  <ng-template #headerActions>
+    <button mat-stroked-button type="button" (click)="back()">
+      <mat-icon>arrow_back</mat-icon>
+      Volver a Transacciones enviadas
+    </button>
+  </ng-template>
 
-    @for (warning of item.warnings; track warning) { <div class="warning"><mat-icon>info</mat-icon><span>{{ warning }}</span></div> }
+  <app-page-header
+    [title]="detail()?.summary?.transactionExternalId || 'Detalle de transacción de salida'"
+    subtitle="Seguimiento de salida"
+    [actionsTemplate]="headerActions"
+  ></app-page-header>
+
+  @if (loading()) {
+    <ui-estado-carga mensaje="Cargando el seguimiento comprobable…"></ui-estado-carga>
+  } @else if (notFound()) {
+    <section class="state" aria-labelledby="not-found-title">
+      <mat-icon>search_off</mat-icon>
+      <h1 id="not-found-title">Transacción no encontrada</h1>
+      <p>El registro no existe o no está clasificado de forma persistida como salida.</p>
+      <button mat-stroked-button type="button" (click)="back()">Regresar</button>
+    </section>
+  } @else if (forbidden()) {
+    <section class="state" role="alert" aria-labelledby="forbidden-title">
+      <mat-icon>lock</mat-icon>
+      <h1 id="forbidden-title">Acceso no autorizado</h1>
+      <p>No tienes permiso para consultar el detalle de esta transacción.</p>
+      <button mat-stroked-button type="button" (click)="back()">Regresar</button>
+    </section>
+  } @else if (error()) {
+    <ui-estado-error
+      titulo="No fue posible consultar el detalle."
+      mensaje="Puedes intentar nuevamente."
+      textoReintentar="Reintentar"
+      (reintentar)="reload()"
+    ></ui-estado-error>
+  } @else if (detail(); as item) {
+    <div class="detail-meta">
+      <p>Último hecho comprobable: {{ item.summary.lastUpdatedAtUtc | date:'dd/MM/yyyy HH:mm' }}</p>
+      <span class="headline-status"><mat-icon>fact_check</mat-icon>{{ item.summary.processStatusDisplayName }}</span>
+    </div>
+
+    @for (warning of item.warnings; track warning) {
+      <div class="warning"><mat-icon>info</mat-icon><span>{{ warning }}</span></div>
+    }
 
     <section class="summary-grid" aria-label="Resumen">
       <mat-card><mat-card-header><mat-card-title>Resumen</mat-card-title></mat-card-header><mat-card-content><dl>

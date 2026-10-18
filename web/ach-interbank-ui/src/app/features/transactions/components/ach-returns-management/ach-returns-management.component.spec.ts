@@ -3,9 +3,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog } from '@angular/material/dialog';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { Subject, of, throwError } from 'rxjs';
+import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { AchCyclesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
-import { AchCycleSummary } from '../../../ach-cycles/models/ach-cycle.model';
+import { AchCyclesApiService } from '../../../../core/services/ach-cycles-api.service';
+import { AchCycleSummary } from '../../../../core/models/ach-cycle.model';
 import { AchReturnsApiService } from '../../services/ach-returns-api.service';
 import { ReturnReasonsApiService } from '../../services/return-reasons-api.service';
 import { ReturnEligibleTransaction } from '../../transactions.models';
@@ -24,6 +25,8 @@ describe('AchReturnsManagementComponent', () => {
   let reasonsApi: jasmine.SpyObj<ReturnReasonsApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
   let dialog: jasmine.SpyObj<MatDialog>;
+  let auth: jasmine.SpyObj<AuthService>;
+  let grantedPermissions: Set<string>;
 
   const cycle: AchCycleSummary = {
     id: 'cycle-1',
@@ -75,6 +78,12 @@ describe('AchReturnsManagementComponent', () => {
       ['success', 'warning', 'error']
     );
     dialog = jasmine.createSpyObj<MatDialog>('MatDialog', ['open']);
+    grantedPermissions = new Set(['CanReadAch', 'CanManageAch']);
+    auth = jasmine.createSpyObj<AuthService>('AuthService', ['hasPermission']);
+    auth.hasPermission.and.callFake((expected: string | string[]) => {
+      const permissions = Array.isArray(expected) ? expected : [expected];
+      return permissions.some((permission) => grantedPermissions.has(permission));
+    });
 
     cyclesApi.search.and.returnValue(of({ items: [cycle], total: 1, page: 1, pageSize: 100 }));
     returnsApi.getTransactionsByCycle.and.returnValue(of([eligibleRow, blockedRow]));
@@ -94,6 +103,7 @@ describe('AchReturnsManagementComponent', () => {
         { provide: AchReturnsApiService, useValue: returnsApi },
         { provide: ReturnReasonsApiService, useValue: reasonsApi },
         { provide: NotificationService, useValue: notifications },
+        { provide: AuthService, useValue: auth },
         { provide: MatDialog, useValue: dialog }
       ]
     })
@@ -126,6 +136,14 @@ describe('AchReturnsManagementComponent', () => {
     expect(component.hasLoaded).toBeFalse();
     expect(fixture.nativeElement.textContent).toContain('Prepara la consulta');
     expect(fixture.nativeElement.textContent).not.toContain('El ciclo no tiene transacciones retornables');
+  });
+
+  it('requiere ciclo antes de consultar transacciones', () => {
+    component.loadTransactions();
+
+    expect(returnsApi.getTransactionsByCycle).not.toHaveBeenCalled();
+    expect(notifications.warning).toHaveBeenCalledWith('Selecciona un ciclo operativo.');
+    expect(component.filterForm.controls.cycleId.hasError('required')).toBeTrue();
   });
 
   it('carga datos con loading y conserva estados de elegibilidad', () => {
@@ -179,13 +197,13 @@ describe('AchReturnsManagementComponent', () => {
 
   it('mantiene paginación y ordenamiento real de AG Grid', () => {
     expect(component.columnDefs.map((column) => column.headerName)).toEqual([
-      'Traza',
+      'Número de rastreo',
       'Referencia',
       'Fecha',
-      'DFI origen',
-      'DFI destino',
+      'DFI de origen',
+      'DFI de destino',
       'Monto',
-      'Código Tx',
+      'Código de transacción',
       'Estado'
     ]);
     expect(component.rowSelection.mode).toBe('multiRow');
@@ -244,7 +262,11 @@ describe('AchReturnsManagementComponent', () => {
       cycleId: 'cycle-1',
       items: [{ transactionId: 10, returnReasonCode: 'R01' }]
     });
-    expect(component.lastGenerated?.reasonCode).toBe('R01');
+    expect(component.lastGenerated).toEqual(jasmine.objectContaining({
+      fileName: 'devoluciones_cycle-1.RET',
+      reasonCode: 'R01',
+      transactionCount: 1
+    }));
   });
 
   it('envía la base estructurada de R10 cuando el operador la confirma', () => {
@@ -289,8 +311,63 @@ describe('AchReturnsManagementComponent', () => {
     expect(returnsApi.generateFile).not.toHaveBeenCalled();
   });
 
-  it('preserva el permiso CanManageAch de la ruta completa', () => {
+  it('usa primitives foundation para estados sin reemplazar UiGrillaEmpresarial ni MatDialog', () => {
+    fixture.detectChanges();
+    const initialRoot = fixture.nativeElement as HTMLElement;
+    expect(initialRoot.querySelector('app-page-header')).not.toBeNull();
+    expect(initialRoot.querySelector('ui-estado-vacio')).not.toBeNull();
+    expect(initialRoot.querySelector('.state-panel')).toBeNull();
+    expect(initialRoot.querySelector('ui-boton')).toBeNull();
+
+    selectCycleAndLoad();
+    const loadedRoot = fixture.nativeElement as HTMLElement;
+    expect(loadedRoot.querySelector('ui-grilla-empresarial')).not.toBeNull();
+  });
+
+  it('mantiene la entrada como lectura con la capacidad P0.ReturnsRead equivalente', () => {
     const route = TRANSACTIONS_ROUTES.find((item) => item.path === 'returns');
-    expect(route?.data?.['permissions']).toEqual(['CanManageAch']);
+    expect(route?.data?.['permissions']).toEqual(['CanReadAch']);
+    expect(route?.data?.['permissions']).not.toContain('CanManageAch');
+  });
+
+  it('oculta y bloquea la generación para un usuario con solo lectura', () => {
+    grantedPermissions = new Set(['CanReadAch']);
+    fixture.detectChanges();
+    selectCycleAndLoad();
+    component.onSelectionChanged([eligibleRow]);
+
+    expect(component.canGenerateReturns).toBeFalse();
+    expect(fixture.nativeElement.textContent).not.toContain('Asignar causal y generar .RET');
+
+    component.openReasonDialog();
+    component.generateFile('R01');
+
+    expect(dialog.open).not.toHaveBeenCalledWith(
+      AchReturnReasonDialogComponent,
+      jasmine.anything()
+    );
+    expect(returnsApi.generateFile).not.toHaveBeenCalled();
+    expect(notifications.error).toHaveBeenCalledWith('No tiene permisos para generar devoluciones.');
+  });
+
+  it('acepta Returns.GenerateFile como alternativa fina para la acción mutable', () => {
+    grantedPermissions = new Set(['CanReadAch', 'Returns.GenerateFile']);
+    fixture.detectChanges();
+    selectCycleAndLoad();
+    component.onSelectionChanged([eligibleRow]);
+    dialog.open.and.returnValue({
+      afterClosed: () => of({ reasonCode: 'R01' })
+    } as unknown as ReturnType<MatDialog['open']>);
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:ret');
+    spyOn(URL, 'revokeObjectURL');
+    spyOn(HTMLAnchorElement.prototype, 'click');
+
+    expect(component.canGenerateReturns).toBeTrue();
+    component.openReasonDialog();
+
+    expect(returnsApi.generateFile).toHaveBeenCalledWith({
+      cycleId: 'cycle-1',
+      items: [{ transactionId: 10, returnReasonCode: 'R01' }]
+    });
   });
 });

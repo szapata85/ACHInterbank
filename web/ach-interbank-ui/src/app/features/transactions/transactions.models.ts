@@ -1,14 +1,4 @@
-import { AccountTypeEnum, FinancialInstitutionStatusEnum, TransactionTypeEnum } from './transactions.types';
-
-export interface DestinationInstitution {
-  id: number;
-  name: string;
-  routingNumber: string;
-  transitCode: string;
-  checkDigit: string;
-  isDefaultSource: boolean;
-  status: FinancialInstitutionStatusEnum;
-}
+import { AccountTypeEnum, TransactionTypeEnum } from '../../core/models/transaction-types.model';
 
 export interface TransactionDraft {
   amount: number;
@@ -110,12 +100,32 @@ export interface ReturnReason {
 }
 
 
-export interface ActiveThirdPartyAccount {
-  id: number;
+export interface ContextualThirdPartyAccount {
+  thirdPartyAccountId: number;
+  thirdPartyId: number;
   destinationInstitutionId: number;
   destinationInstitutionName: string;
   destinationAccountNumber: string;
+  accountType: AccountTypeEnum;
   recipientIdNumber: string;
+  recipientName: string;
+  recipientPersonType: 'PN' | 'PJ' | string;
+  eligibilityDecision: number;
+  eligibilityCode: string;
+  eligibilityMessage: string;
+  isSelectable: boolean;
+}
+
+export interface ContextualThirdPartyAccountSelectorResponse {
+  customerId: number;
+  destinationInstitutionId: number;
+  clearingHouseId: number;
+  clearingHouseCode: string;
+  clearingHouseName: string;
+  transactionNature: number;
+  effectiveDate: string;
+  serviceType: string;
+  items: ContextualThirdPartyAccount[];
 }
 
 
@@ -419,55 +429,6 @@ export interface CancelBatchResponse {
 
 export type CycleValidityFilter = 'all' | 'current' | 'future' | 'expired';
 export type CycleStatusFilter = 'all' | 'active' | 'inactive';
-
-export interface ClearingHouseCycleConfigItem {
-  id: number;
-  clearingHouseId: number;
-  clearingHouseName?: string | null;
-  policyVersion: string;
-  cycleName: string;
-  startTime: string;
-  endTime: string;
-  cutoffTime: string;
-  outputReleaseTime: string;
-  allowsMonetaryCredit: boolean;
-  allowsMonetaryDebit: boolean;
-  allowsCreditPrenotification: boolean;
-  allowsDebitPrenotification: boolean;
-  allowsReturn: boolean;
-  allowsReturnOfReturn: boolean;
-  isActive: boolean;
-  effectiveFrom: string;
-  effectiveTo?: string | null;
-  isCurrent: boolean;
-  updatedAt?: string | null;
-}
-
-export interface ClearingHouseCycleConfigFilters {
-  clearingHouseId: number;
-  effectiveAt?: string | null;
-}
-
-export interface UpsertCycleConfigRequest {
-  clearingHouseId: number;
-  cycleName: string;
-  policyVersion?: string | null;
-  startTime: string;
-  endTime: string;
-  cutoffTime: string;
-  outputReleaseTime: string;
-  allowsMonetaryCredit: boolean;
-  allowsMonetaryDebit: boolean;
-  allowsCreditPrenotification: boolean;
-  allowsDebitPrenotification: boolean;
-  allowsReturn: boolean;
-  allowsReturnOfReturn: boolean;
-  effectiveFrom: string;
-}
-
-export interface InactivateCycleConfigRequest {
-  effectiveTo: string;
-}
 
 export type TransactionNature = 'Credit' | 'Debit';
 export type PrenotificationRequirementMode = 'Mandatory' | 'Optional' | 'NotApplicable';

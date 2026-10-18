@@ -43,9 +43,9 @@ label {
   font-weight: 600;
 }
 
-input,
+input:not(.mat-mdc-input-element),
 select,
-textarea {
+textarea:not(.mat-mdc-input-element) {
   width: 100%;
   min-height: var(--control-height);
   border: 1px solid var(--color-border-strong);
@@ -56,15 +56,15 @@ textarea {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-input:hover,
+input:not(.mat-mdc-input-element):hover,
 select:hover,
-textarea:hover {
+textarea:not(.mat-mdc-input-element):hover {
   border-color: #aebdd1;
 }
 
-input:disabled,
+input:not(.mat-mdc-input-element):disabled,
 select:disabled,
-textarea:disabled {
+textarea:not(.mat-mdc-input-element):disabled {
   background: #f1f5f9;
   color: var(--color-text-soft);
   cursor: not-allowed;
@@ -88,7 +88,7 @@ small,
 /* Buttons
    Base = neutral surface button (legible by default).
    Variants (.primary, .secondary, etc.) override CSS variables explicitly. */
-button,
+button:not(.mat-mdc-button-base),
 .btn {
   --btn-bg: var(--color-primary);
   --btn-border: var(--color-primary);
@@ -118,21 +118,21 @@ button,
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
-button:hover,
+button:not(.mat-mdc-button-base):hover,
 .btn:hover {
   --btn-bg: var(--color-primary-hover);
   --btn-border: var(--color-primary-hover);
   --btn-color: var(--color-primary-contrast);
 }
 
-button:active,
+button:not(.mat-mdc-button-base):active,
 .btn:active {
   transform: translateY(0.5px);
 }
 
-button:focus-visible,
+button:not(.mat-mdc-button-base):focus-visible,
 .btn:focus-visible {
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.24);
+  box-shadow: var(--focus-ring);
 }
 
 button.primary,
@@ -191,7 +191,7 @@ button.ghost:hover,
 .btn-outline:hover {
   --btn-bg: #eff6ff;
   --btn-border: #93c5fd;
-  --btn-color: #1d4ed8;
+  --btn-color: var(--color-primary-hover);
 }
 
 button.danger,
@@ -281,8 +281,8 @@ button[aria-busy='true'] {
   opacity: 0.85;
 }
 
-button:disabled,
-button[disabled],
+button:not(.mat-mdc-button-base):disabled,
+button:not(.mat-mdc-button-base)[disabled],
 .btn:disabled {
   --btn-color: var(--color-text-soft);
   opacity: 0.55;
@@ -291,17 +291,17 @@ button[disabled],
   transform: none;
 }
 
-table td button:not([class]) {
+table:not(.mat-mdc-table) td button:not([class]) {
   --btn-bg: transparent;
   --btn-border: var(--color-primary);
   --btn-color: var(--color-primary);
   --btn-shadow: transparent;
 }
 
-table td button:not([class]):hover {
+table:not(.mat-mdc-table) td button:not([class]):hover {
   --btn-bg: #eff6ff;
   --btn-border: #93c5fd;
-  --btn-color: #1d4ed8;
+  --btn-color: var(--color-primary-hover);
 }
 
 /* Badges */
@@ -330,13 +330,13 @@ table td button:not([class]):hover {
   max-width: 100%;
 }
 
-table,
+table:not(.mat-mdc-table),
 .table {
   width: 100%;
   border-collapse: collapse;
 }
 
-thead th,
+table:not(.mat-mdc-table) thead th,
 .table th {
   background: var(--color-surface-muted);
   color: #334155;
@@ -344,8 +344,8 @@ thead th,
   font-weight: 600;
 }
 
-th,
-td,
+table:not(.mat-mdc-table) th,
+table:not(.mat-mdc-table) td,
 .table th,
 .table td {
   padding: 0.7rem 0.85rem;

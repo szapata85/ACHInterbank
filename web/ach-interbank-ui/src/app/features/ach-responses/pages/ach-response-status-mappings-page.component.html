@@ -1,48 +1,135 @@
-<app-page-header title="Mappings de respuestas ACH" description="Administración versionada de estados y causales por cámara"></app-page-header>
+<app-page-header
+  title="Homologación de estados"
+  description="Administración versionada de estados y causales por cámara"
+></app-page-header>
 
 <p class="nota-operativa">Las desactivaciones conservan el historial y toda modificación exige justificación.</p>
 
-<div class="acciones">
-  <ui-boton texto="Nuevo mapping" variante="primario" [deshabilitado]="loading || saving" (accion)="newMapping()"></ui-boton>
+<div class="acciones acciones-principales">
+  <button mat-flat-button color="primary" type="button" [disabled]="loading || saving" (click)="newMapping()">
+    Nueva homologación
+  </button>
 </div>
 
-<form *ngIf="editorVisible" class="filtros" [formGroup]="mappingForm" (ngSubmit)="saveMapping()">
-  <div class="campo"><label>Selector de cámara (ID)</label><input type="number" min="1" formControlName="clearingHouseId" /></div>
-  <div class="campo"><label>Tipo de respuesta</label><select formControlName="responseType"><option value="Transaccion">Transacción</option><option value="Prenota">Prenota</option></select></div>
-  <div class="campo"><label>Código externo</label><input type="text" formControlName="externalCode" /></div>
-  <div class="campo"><label>Causal externa</label><input type="text" formControlName="externalCause" /></div>
-  <div class="campo"><label>ID estado interno</label><input type="number" min="1" formControlName="internalStatusId" /></div>
-  <div class="campo"><label>ID estado servicio externo</label><input type="number" min="1" formControlName="externalServiceStatusId" /></div>
-  <div class="campo"><label>Nombre estado interno</label><input type="text" formControlName="internalStatusName" /></div>
-  <div class="campo"><label>Causal normalizada</label><input type="text" formControlName="normalizedCause" /></div>
-  <div class="campo"><label>Descripción normalizada</label><input type="text" formControlName="normalizedDescription" /></div>
-  <div class="campo"><label>Prioridad</label><input type="number" formControlName="priority" /></div>
-  <div class="campo"><label>Inicio de vigencia</label><input type="date" formControlName="effectiveFrom" /></div>
-  <div class="campo"><label>Fin de vigencia</label><input type="date" formControlName="effectiveTo" /></div>
-  <div class="campo"><label><input type="checkbox" formControlName="requiresCause" /> Requiere causal</label></div>
-  <div class="campo"><label><input type="checkbox" formControlName="allowsNotification" /> Permite notificación</label></div>
-  <div class="campo"><label><input type="checkbox" formControlName="isActive" /> Activo</label></div>
-  <div class="campo"><label>Justificación obligatoria</label><textarea formControlName="reason" rows="2"></textarea></div>
-  <div class="acciones">
-    <ui-boton texto="Guardar" variante="primario" [deshabilitado]="saving" (accion)="saveMapping()"></ui-boton>
-    <ui-boton texto="Cancelar" variante="contorno" [deshabilitado]="saving" (accion)="cancelEditor()"></ui-boton>
+<form *ngIf="editorVisible" class="filtros editor" [formGroup]="mappingForm" (ngSubmit)="saveMapping()">
+  <mat-form-field appearance="outline">
+    <mat-label>ID de cámara</mat-label>
+    <input matInput type="number" min="1" formControlName="clearingHouseId" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Tipo de respuesta</mat-label>
+    <mat-select formControlName="responseType">
+      <mat-option value="Transaccion">Transacción</mat-option>
+      <mat-option value="Prenota">Prenota</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Código externo</mat-label>
+    <input matInput type="text" formControlName="externalCode" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Causal externa</mat-label>
+    <input matInput type="text" formControlName="externalCause" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>ID del estado interno</mat-label>
+    <input matInput type="number" min="1" formControlName="internalStatusId" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>ID del estado del servicio externo</mat-label>
+    <input matInput type="number" min="1" formControlName="externalServiceStatusId" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Nombre del estado interno</mat-label>
+    <input matInput type="text" formControlName="internalStatusName" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Causal normalizada</mat-label>
+    <input matInput type="text" formControlName="normalizedCause" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Descripción normalizada</mat-label>
+    <input matInput type="text" formControlName="normalizedDescription" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Prioridad</mat-label>
+    <input matInput type="number" formControlName="priority" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Inicio de vigencia</mat-label>
+    <input matInput type="date" formControlName="effectiveFrom" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Fin de vigencia</mat-label>
+    <input matInput type="date" formControlName="effectiveTo" />
+  </mat-form-field>
+
+  <div class="opciones-booleanas">
+    <mat-checkbox formControlName="requiresCause">Requiere causal</mat-checkbox>
+    <mat-checkbox formControlName="allowsNotification">Permite notificación</mat-checkbox>
+    <mat-checkbox formControlName="isActive">Activo</mat-checkbox>
+  </div>
+
+  <mat-form-field appearance="outline" class="justificacion">
+    <mat-label>Justificación obligatoria</mat-label>
+    <textarea matInput formControlName="reason" rows="2"></textarea>
+  </mat-form-field>
+
+  <div class="acciones editor-acciones">
+    <button mat-flat-button color="primary" type="submit" [disabled]="saving">Guardar</button>
+    <button mat-stroked-button type="button" [disabled]="saving" (click)="cancelEditor()">Cancelar</button>
   </div>
 </form>
 
-<form class="filtros" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
-  <div class="campo"><label>Cámara</label><input type="text" formControlName="codigoCamaraCompensacion" /></div>
-  <div class="campo"><label>Tipo respuesta</label><select formControlName="tipoRespuesta"><option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</option></select></div>
-  <div class="campo"><label>Activo</label><select formControlName="activo"><option *ngFor="let estado of activos" [value]="estado">{{ estado === '' ? 'Todos' : (estado === 'true' ? 'Sí' : 'No') }}</option></select></div>
+<form class="filtros filtros-consulta" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
+  <mat-form-field appearance="outline">
+    <mat-label>Cámara</mat-label>
+    <input matInput type="text" formControlName="codigoCamaraCompensacion" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Tipo de respuesta</mat-label>
+    <mat-select formControlName="tipoRespuesta">
+      <mat-option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Activo</mat-label>
+    <mat-select formControlName="activo">
+      <mat-option *ngFor="let estado of activos" [value]="estado">
+        {{ estado === '' ? 'Todos' : (estado === 'true' ? 'Sí' : 'No') }}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+
   <div class="acciones">
-    <ui-boton texto="Buscar" variante="primario" [deshabilitado]="loading" (accion)="applyFilters()"></ui-boton>
-    <ui-boton texto="Limpiar" variante="contorno" [deshabilitado]="loading" (accion)="clearFilters()"></ui-boton>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading">Buscar</button>
+    <button mat-stroked-button type="button" [disabled]="loading" (click)="clearFilters()">Limpiar filtros</button>
   </div>
 </form>
 
-<p class="resumen">Mostrando {{ rows.length }} mappings.</p>
+<p class="resumen">Mostrando {{ rows.length }} homologaciones.</p>
 
-<ui-grilla-empresarial [columnas]="columnas" [datos]="rows" [cargando]="loading" [error]="error"
-  [mensajeError]="'No fue posible cargar los mappings ACH'" [mensajeCargando]="'Cargando mappings ACH...'"
-  [tituloVacio]="'Sin mappings'" [mensajeVacio]="'No se encontraron mappings con los filtros aplicados.'"
-  [placeholderBusqueda]="'Buscar en mappings...'">
-</ui-grilla-empresarial>
+<ui-grilla-empresarial
+  [columnas]="columnas"
+  [datos]="rows"
+  [cargando]="loading"
+  [error]="error"
+  [mensajeError]="'No fue posible cargar las homologaciones ACH'"
+  [mensajeCargando]="'Cargando homologaciones ACH...'"
+  [tituloVacio]="'Sin homologaciones'"
+  [mensajeVacio]="'No se encontraron homologaciones con los filtros aplicados.'"
+  [placeholderBusqueda]="'Buscar en homologaciones...'"
+></ui-grilla-empresarial>

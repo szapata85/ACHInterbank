@@ -5,7 +5,6 @@ import {
   Component,
   DestroyRef,
   ElementRef,
-  HostBinding,
   OnInit,
   Renderer2,
   ViewChild,
@@ -26,16 +25,13 @@ import {
   RouterModule
 } from '@angular/router';
 import { catchError, filter, of } from 'rxjs';
+import { Title } from '@angular/platform-browser';
 import { AuthService } from '../core/services/auth.service';
 import { BrandingService } from '../core/services/branding.service';
-import { NavigationService } from '../core/services/navigation.service';
+import { NavigationNamingService, NavigationBreadcrumb } from '../core/services/navigation-naming.service';
+import { MenuRouteSurfaceService } from '../core/services/menu-route-surface.service';
 import { MenuItem } from '../core/models/menu.model';
 import { SharedModule } from '../shared/shared.module';
-
-interface Breadcrumb {
-  label: string;
-  url: string;
-}
 
 const MOBILE_NAVIGATION_QUERY = '(max-width: 959.98px)';
 
@@ -78,31 +74,27 @@ export class MainLayoutComponent implements OnInit {
   private readonly renderer = inject(Renderer2);
   private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly authService = inject(AuthService);
-  private readonly navigationService = inject(NavigationService);
+  private readonly navigationNaming = inject(NavigationNamingService);
+  private readonly documentTitle = inject(Title);
+  private readonly menuRouteSurface = inject(MenuRouteSurfaceService);
   private readonly brandingService = inject(BrandingService);
 
   @ViewChild('navigationToggle', { read: ElementRef })
   private navigationToggle?: ElementRef<HTMLButtonElement>;
 
-  @HostBinding('style.--private-bg')
-  public privateBackground: string | null =
-    this.brandingService.getBrandingSnapshot().privateBackground ?? null;
-
-  @HostBinding('style.--sidebar-bg')
-  public sidebarBackground: string | null =
-    this.brandingService.getBrandingSnapshot().sidebarBackground ?? null;
-
   readonly user$ = this.authService.user$;
   readonly branding$ = this.brandingService.branding$;
+  readonly productName = this.brandingService.productName;
   readonly exactRouteMatch = EXACT_ROUTE_MATCH;
   readonly subsetRouteMatch = SUBSET_ROUTE_MATCH;
 
   menuItems: MenuItem[] = [];
   expandedItems = new Set<number>();
   activeItemIds = new Set<number>();
+  navigableParentIds = new Set<number>();
   menuLoadError: string | null = null;
 
-  breadcrumbs: Breadcrumb[] = [];
+  breadcrumbs: NavigationBreadcrumb[] = [];
   pageTitle = 'Inicio';
   isMobileViewport = false;
   isMobileDrawerOpen = false;
@@ -155,15 +147,15 @@ export class MainLayoutComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe(() => {
-        this.buildBreadcrumbs();
+        this.syncRouteNaming();
         this.handleNavigation();
         this.cdr.markForCheck();
       });
 
-    this.buildBreadcrumbs();
+    this.syncRouteNaming();
 
-    this.navigationService
-      .getMenu()
+    this.navigationNaming
+      .menu$
       .pipe(
         catchError(() => {
           this.menuLoadError = 'No fue posible cargar el menú principal.';
@@ -174,17 +166,12 @@ export class MainLayoutComponent implements OnInit {
       )
       .subscribe((items) => {
         this.menuItems = items;
+        this.syncRouteNaming();
+        void this.syncParentNavigability(items);
         this.syncActiveNavigation();
         this.cdr.markForCheck();
       });
 
-    this.brandingService.branding$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((branding) => {
-        this.privateBackground = branding.privateBackground ?? null;
-        this.sidebarBackground = branding.sidebarBackground ?? null;
-        this.cdr.markForCheck();
-      });
   }
 
   logout(): void {
@@ -260,6 +247,10 @@ export class MainLayoutComponent implements OnInit {
     return this.expandedItems.has(item.id);
   }
 
+  isNavigableParent(item: MenuItem): boolean {
+    return Boolean(item.children?.length) && this.navigableParentIds.has(item.id);
+  }
+
   onNavItemSelected(): void {
     if (this.isMobileViewport) {
       this.closeMobileNavigation();
@@ -270,35 +261,53 @@ export class MainLayoutComponent implements OnInit {
     return item.id;
   }
 
-  private buildBreadcrumbs(): void {
-    const breadcrumbs: Breadcrumb[] = [];
-    let currentRoute: ActivatedRoute | null = this.route.root;
-    let url = '';
-    this.pageTitle = 'Inicio';
+  private parentNavigabilityGeneration = 0;
 
-    while (currentRoute) {
-      const routeSnapshot = currentRoute.snapshot;
-      const routeConfig = routeSnapshot.routeConfig;
+  private async syncParentNavigability(items: MenuItem[]): Promise<void> {
+    const generation = ++this.parentNavigabilityGeneration;
+    const parents: MenuItem[] = [];
 
-      if (routeConfig?.path) {
-        url = routeConfig.path.startsWith('/') ? routeConfig.path : `${url}/${routeConfig.path}`;
+    const collectParents = (nodes: MenuItem[]): void => {
+      for (const item of nodes) {
+        if (item.children?.length) {
+          parents.push(item);
+          collectParents(item.children);
+        }
       }
+    };
 
-      const label = routeSnapshot.data['breadcrumb'] as string | undefined;
-      const title = routeSnapshot.data['title'] as string | undefined;
+    collectParents(items);
+    this.navigableParentIds = new Set<number>();
 
-      if (label) {
-        breadcrumbs.push({ label, url });
-      }
+    const classifications = await Promise.all(
+      parents.map(async (item) => ({
+        id: item.id,
+        functional: await this.menuRouteSurface.hasFunctionalSurface(item.route)
+      }))
+    );
 
-      if (title) {
-        this.pageTitle = title;
-      }
-
-      currentRoute = currentRoute.firstChild;
+    if (this.destroyRef.destroyed || generation !== this.parentNavigabilityGeneration) {
+      return;
     }
 
-    this.breadcrumbs = breadcrumbs;
+    this.navigableParentIds = new Set(
+      classifications
+        .filter((classification) => classification.functional)
+        .map((classification) => classification.id)
+    );
+    this.cdr.markForCheck();
+  }
+
+  private syncRouteNaming(): void {
+    const naming = this.navigationNaming.resolve(
+      this.menuItems,
+      this.router.url,
+      this.route.root.snapshot
+    );
+
+    this.pageTitle = naming.pageTitle;
+    this.breadcrumbs = naming.breadcrumbs;
+    this.documentTitle.setTitle(`${this.productName} - ${this.pageTitle}`);
   }
 
   private handleNavigation(): void {

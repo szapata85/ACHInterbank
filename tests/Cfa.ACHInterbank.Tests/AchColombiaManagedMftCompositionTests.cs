@@ -3,7 +3,7 @@ using Cfa.ACHInterbank.Api;
 using Cfa.ACHInterbank.Application;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
-using Cfa.ACHInterbank.Application.Features;
+using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -13,6 +13,7 @@ using Cfa.ACHInterbank.External.Connections;
 using Cfa.ACHInterbank.Persistence;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs;
 using Cfa.ACHInterbank.Persistence.ACH.Quartz.Jobs.Implementation;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -36,7 +37,8 @@ public sealed class AchColombiaManagedMftCompositionTests
             && q.FileName == "file.OUT" && q.Archived == false && q.PageNumber == 2 && q.PageSize == 25
             && q.Status == AchManagedFileTransferStatus.Uncertain), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<AchManagedFileTransferSummary>());
-        var controller = new AchColombiaFileExchangeController(service.Object);
+        var controller = new AchColombiaFileExchangeController(
+            service.Object, service.Object, service.Object, service.Object, service.Object);
         Assert.Empty(await controller.Query(null, null, null, AchManagedFileTransferStatus.Uncertain,
             null, null, default, "file.OUT", id, false, 2, 25));
         service.VerifyAll();
@@ -59,12 +61,13 @@ public sealed class AchColombiaManagedMftCompositionTests
             ["appSettings:tokenManager:secretKetJwt"] = "test-only-secret-key-with-at-least-32-bytes",
             ["appSettings:tokenManager:issuerJwt"] = "test-issuer",
             ["appSettings:tokenManager:audienceJwt"] = "test-audience",
+            ["appSettings:tokenManager:accessExpiration"] = "30",
+            ["appSettings:tokenManager:expirationType"] = "m",
+            ["appSettings:key"] = "12345678901234567890123456789012",
             ["Quartz:Mode"] = "RAM",
             ["Quartz:JobStore:Mode"] = "RAM",
             ["AchColombiaManagedMft:Enabled"] = "false"
         });
-        AppSettings.Settings = builder.Configuration.GetSection("appSettings").Get<AppSettings>()!.GetMethodExtensions();
-
         builder.Services
             .AddWebApi(builder.Configuration)
             .AddApplication()
@@ -78,23 +81,57 @@ public sealed class AchColombiaManagedMftCompositionTests
         });
         using var scope = provider.CreateScope();
 
-        Assert.IsType<AchColombiaManagedMftFolderAdapter>(scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftAdapter>());
-        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IAchColombiaManagedFileExchangeService>());
+        Assert.IsType<AchColombiaManagedMftDispatchAdapter>(scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftAdapter>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftAdapterResolver>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftConnectionTester>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaManagedMftFolderAdapter>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaSftpMftAdapter>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaManagedMftOutboundWorkflow>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaManagedMftInboundWorkflow>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaManagedMftRetryReprocessComponent>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaManagedMftLifecycleComponent>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaManagedMftQueryProjectionComponent>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaManagedMftAdministrationComponent>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<AchColombiaManagedMftCredentialComponent>());
+        var facade = scope.ServiceProvider.GetRequiredService<IAchColombiaManagedFileExchangeService>();
+        Assert.Same(facade, scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftExecutionService>());
+        Assert.Same(facade, scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftTransferReadService>());
+        Assert.Same(facade, scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftTransferOperationsService>());
+        Assert.Same(facade, scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftAdministrationService>());
+        Assert.Same(facade, scope.ServiceProvider.GetRequiredService<IAchColombiaManagedMftCredentialAdministrationService>());
         var handlers = scope.ServiceProvider.GetServices<ITaskHandler>().ToArray();
         Assert.Contains(handlers, handler => handler is AchColombiaManagedMftOutboundHandler);
         Assert.Contains(handlers, handler => handler is AchColombiaManagedMftInboundHandler);
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<DynamicJobExecutor>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<DynamicJob>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<NonConcurrentDynamicJob>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IAchColombiaOperationalScheduleSynchronizer>());
     }
 
     [Fact]
     public async Task QuartzInboundHandler_ShouldInvokeSharedApplicationServiceAsAutomatic()
     {
+        await using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase($"inbound-handler-{Guid.NewGuid():N}").Options);
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, TimeZoneId = "America/Bogota" });
+        context.ClearingHouses.Add(new ClearingHouse { Id = 1, ClearingHouseId = 1, Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "1" });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "ACH-1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 9, 30),
+            StartTime = new TimeSpan(19, 1, 0), EndTime = new TimeSpan(8, 30, 0), CutoffTime = new TimeSpan(8, 30, 0),
+            OutputReleaseTime = new TimeSpan(9, 30, 0), ClearingHouseId = 1
+        });
+        await context.SaveChangesAsync();
         var service = new Mock<IAchColombiaManagedFileExchangeService>();
         service.Setup(x => x.ExecuteInboundAsync(AchManagedFileExecutionOrigin.Automatic, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AchManagedFileExecutionResult(1, 1, 0, [Guid.NewGuid()]));
-        await new AchColombiaManagedMftInboundHandler(service.Object).ExecuteAsync(new TaskDefinition(), default);
+        var time = new Mock<IOperationalTimeSnapshotProvider>();
+        time.Setup(x => x.CaptureNow()).Returns(new OperationalTimeSnapshot(
+            new DateTime(2026, 9, 30, 12, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 9, 30, 7, 0, 0),
+            new DateOnly(2026, 9, 30),
+            "America/Bogota"));
+        await new AchColombiaManagedMftInboundHandler(context, service.Object, time.Object, new OperationalCycleWindowResolver())
+            .ExecuteAsync(new TaskDefinition(), default);
         service.VerifyAll();
     }
 
@@ -102,13 +139,25 @@ public sealed class AchColombiaManagedMftCompositionTests
     public async Task QuartzOutboundHandler_ShouldInvokeSharedApplicationServiceAsAutomatic()
     {
         await using var context = new AchDbContext(new DbContextOptionsBuilder<AchDbContext>().UseInMemoryDatabase($"handler-{Guid.NewGuid():N}").Options);
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig { Id = 1, ClearingHouseId = 1, TimeZoneId = "America/Bogota" });
         context.ClearingHouses.Add(new ClearingHouse { Id = 1, ClearingHouseId = 1, Code = "ACHCOL", Name = "ACH Colombia", OriginCode = "1" });
-        context.AchCycles.Add(new AchCycle { Id = "ACH-1", CycleName = "Ciclo 1", ProcessingDate = DateTime.UtcNow.Date, ClearingHouseId = 1 });
+        context.AchCycles.Add(new AchCycle
+        {
+            Id = "ACH-1", CycleName = "Ciclo 1", ProcessingDate = new DateTime(2026, 9, 30),
+            StartTime = new TimeSpan(8, 31, 0), EndTime = new TimeSpan(11, 0, 0), CutoffTime = new TimeSpan(11, 0, 0), ClearingHouseId = 1
+        });
         await context.SaveChangesAsync();
         var service = new Mock<IAchColombiaManagedFileExchangeService>();
         service.Setup(x => x.ExecuteOutboundAsync("ACH-1", AchManagedFileExecutionOrigin.Automatic, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<Guid?>()))
             .ReturnsAsync(new AchManagedFileExecutionResult(1, 1, 0, [Guid.NewGuid()]));
-        await new AchColombiaManagedMftOutboundHandler(context, service.Object).ExecuteAsync(new TaskDefinition(), default);
+        var time = new Mock<IOperationalTimeSnapshotProvider>();
+        time.Setup(x => x.CaptureNow()).Returns(new OperationalTimeSnapshot(
+            new DateTime(2026, 9, 30, 15, 0, 0, DateTimeKind.Utc),
+            new DateTime(2026, 9, 30, 10, 0, 0),
+            new DateOnly(2026, 9, 30),
+            "America/Bogota"));
+        await new AchColombiaManagedMftOutboundHandler(context, service.Object, time.Object, new OperationalCycleWindowResolver())
+            .ExecuteAsync(new TaskDefinition(), default);
         service.VerifyAll();
     }
 
@@ -121,6 +170,16 @@ public sealed class AchColombiaManagedMftCompositionTests
         Assert.DoesNotContain(methods.SelectMany(x => x.GetCustomAttributes(true)), x => x.GetType().Name == "HttpDeleteAttribute");
         Assert.DoesNotContain(methods.SelectMany(x => x.GetCustomAttributes(typeof(HttpMethodAttribute), true).Cast<HttpMethodAttribute>()),
             x => x.Template?.Contains("content", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+
+    [Fact]
+    public void ConnectionTestApi_ShouldRequireManagementPermission()
+    {
+        var method = typeof(AchColombiaFileExchangeController).GetMethod(nameof(AchColombiaFileExchangeController.TestConnection))!;
+        Assert.Contains(
+            method.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>(),
+            x => x.Policy == "CanManageAch");
     }
 
     [Fact]

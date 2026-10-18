@@ -80,6 +80,26 @@ public static class FineGrainedPermissions
         public const string Export = "Reports.Export";
     }
 
+    public static class AuditLogs
+    {
+        public const string Read = "AuditLogs.Read";
+    }
+
+    public static class AuthLogs
+    {
+        public const string Read = "AuthLogs.Read";
+    }
+
+    public static class NavigationLogs
+    {
+        public const string Read = "NavigationLogs.Read";
+    }
+
+    public static class NavigationMenu
+    {
+        public const string Manage = "NavigationMenu.Manage";
+    }
+
     public static class Cenit
     {
         public const string ReadQueues = "Cenit.ReadQueues";
@@ -115,6 +135,15 @@ public static class FineGrainedPermissions
     {
         public const string Read = "Returns.Read";
         public const string GenerateFile = "Returns.GenerateFile";
+    }
+
+    public static class Claims
+    {
+        public const string Read = "Claims.Read";
+        public const string CreateDev14 = "Claims.CreateDev14";
+        public const string Progress = "Claims.Progress";
+        public const string Resolve = "Claims.Resolve";
+        public const string Expire = "Claims.Expire";
     }
 
     public static class Users
@@ -162,6 +191,8 @@ public static class FineGrainedPermissions
     public static class Integrations
     {
         public const string Read = "Integrations.Read";
+        public const string ManageContracts = "Integrations.ManageContracts";
+        public const string ManageConnections = "Integrations.ManageConnections";
         public const string ManageMappings = "Integrations.ManageMappings";
         public const string Validate = "Integrations.Validate";
         public const string Publish = "Integrations.Publish";
@@ -171,6 +202,17 @@ public static class FineGrainedPermissions
     public static class RegulatoryCatalogs
     {
         public const string Read = "RegulatoryCatalogs.Read";
+    }
+
+    public static class OperationalRestrictions
+    {
+        public const string Read = "OperationalRestrictions.Read";
+        public const string Manage = "OperationalRestrictions.Manage";
+    }
+
+    public static class TestTools
+    {
+        public const string Access = "TestTools.Access";
     }
 
     public static class Maintenance
@@ -193,6 +235,7 @@ public static class FineGrainedPermissions
     public static IReadOnlyList<string> AllPermissions { get; } =
     [
         CanManageCertificates,
+        CanViewPaymentRailCapabilityRegistry,
         Transactions.Read, Transactions.Create, Transactions.BulkSubmit, Transactions.PolicyPreview,
         OutgoingTransactions.MonitorRead, OutgoingTransactions.MonitorTechnicalDetailRead,
         Nacha.Read, Nacha.Upload, Nacha.Export, Nacha.Generate, Nacha.Configure, Nacha.PublishConfig, Nacha.ArchiveConfig,
@@ -201,19 +244,23 @@ public static class FineGrainedPermissions
         DigitalEnvelope.Encrypt, DigitalEnvelope.Decrypt, DigitalEnvelope.Test,
         Certificates.Read, Certificates.UploadPublic, Certificates.RegisterPrivate, Certificates.Activate, Certificates.Revoke, Certificates.Validate, Certificates.Audit,
         Reports.Read, Reports.Export,
+        AuditLogs.Read, AuthLogs.Read, NavigationLogs.Read, NavigationMenu.Manage,
         Cenit.ReadQueues, Cenit.ReadNetPositions, Cenit.ReadOptimization, Cenit.ReadTraceability,
         CommandCenter.Read, CommandCenter.Retry, CommandCenter.Unblock, CommandCenter.Requeue, CommandCenter.MarkFailedFinal,
         BulkIngestion.Upload, BulkIngestion.Read, BulkIngestion.Retry, BulkIngestion.Cancel,
         Traceability.Read, Traceability.CertifySol02,
         Returns.Read, Returns.GenerateFile,
+        Claims.Read, Claims.CreateDev14, Claims.Progress, Claims.Resolve, Claims.Expire,
         Users.Read, Users.Create, Users.Update, Users.Deactivate, Users.AssignRoles, Users.ManageBranding, Users.ManagePasswordRules, Users.ManageLockout,
         Roles.Read, Roles.Create, Roles.Update, Roles.Delete,
         Permissions.Read, Permissions.Assign,
         Config.Read, Config.Manage,
         ClearingHouses.View, ClearingHouses.Create, ClearingHouses.Update, ClearingHouses.ChangeStatus,
         ClearingHouses.ManageCycles, ClearingHouses.ManageSpecialDates,
-        Integrations.Read, Integrations.ManageMappings, Integrations.Validate, Integrations.Publish, Integrations.Compare,
+        Integrations.Read, Integrations.ManageContracts, Integrations.ManageConnections, Integrations.ManageMappings, Integrations.Validate, Integrations.Publish, Integrations.Compare,
         RegulatoryCatalogs.Read,
+        OperationalRestrictions.Read, OperationalRestrictions.Manage,
+        TestTools.Access,
         Maintenance.Seed, Maintenance.RunAdminTask,
         Scheduler.View, Scheduler.HistoryView, Scheduler.Execute, Scheduler.ManageSchedule, Scheduler.PauseResume, Scheduler.ViewInstances,
         Scheduler.ViewTechnical

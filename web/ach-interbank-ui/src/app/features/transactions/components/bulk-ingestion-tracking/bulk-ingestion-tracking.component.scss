@@ -14,19 +14,16 @@
   display: grid;
   grid-template-columns: minmax(240px, 1fr) auto auto;
   gap: 0.75rem;
-  align-items: end;
+  align-items: start;
 }
 
-.field {
-  min-width: 240px;
-  display: grid;
-  gap: 0.4rem;
+.batch-field,
+.status-field {
+  width: 100%;
+}
 
-  label {
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: var(--color-text);
-  }
+.status-field {
+  max-width: 360px;
 }
 
 .kpi-grid {
@@ -54,11 +51,15 @@
   }
 }
 
-.ok { color: #166534; }
-.ko { color: #991b1b; }
+.ok { color: var(--color-success-text); }
+.ko { color: var(--color-error-text); }
 
 @media (max-width: 960px) {
   .search-row {
     grid-template-columns: 1fr;
+  }
+
+  .status-field {
+    max-width: none;
   }
 }

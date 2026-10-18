@@ -1,11 +1,13 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using System.Text.Json;
 using Xunit;
 
@@ -947,6 +949,89 @@ public sealed class NachaConfigAdminServicesHardeningTests
     }
 
     [Fact]
+    public async Task GetOperationalCatalogsAsync_ShouldFilterServicesByClearingHouseAndKeepGlobalServices()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        await SeedCatalogAsync(context);
+
+        context.CatServiceClasses.AddRange(
+            new CatServiceClass { Id = 20, Code = "ACH_ONLY", NameEs = "Servicio ACH", ClearingHouseId = 1, IsActive = true },
+            new CatServiceClass { Id = 21, Code = "CENIT_ONLY", NameEs = "Servicio CENIT", ClearingHouseId = 2, IsActive = true });
+        await context.SaveChangesAsync();
+
+        var query = new NachaConfigProfileQueryService(context);
+
+        var ach = await query.GetOperationalCatalogsAsync("ACH");
+        var cenit = await query.GetOperationalCatalogsAsync("CENIT");
+        var unknown = await query.GetOperationalCatalogsAsync("NO_EXISTE");
+
+        ach.Servicios.Select(x => x.Code).Should().Contain("PPD");
+        ach.Servicios.Select(x => x.Code).Should().Contain("ACH_ONLY");
+        ach.Servicios.Select(x => x.Code).Should().NotContain("CENIT_ONLY");
+        cenit.Servicios.Select(x => x.Code).Should().Contain("PPD");
+        cenit.Servicios.Select(x => x.Code).Should().Contain("CENIT_ONLY");
+        cenit.Servicios.Select(x => x.Code).Should().NotContain("ACH_ONLY");
+        unknown.Servicios.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetOperationalCatalogsAsync_ShouldApplyFlowDirectionAndExposePersistedSpanishNames()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        await SeedCatalogAsync(context);
+
+        context.CatDirections.Add(new CatDirection { Id = 2, Code = "ENTRADA", NameEs = "Entrada", IsActive = true });
+        var flow = await context.CatFlowTypes.SingleAsync(x => x.Code == "ORIGINAL");
+        flow.DirectionDefaultId = 1;
+        (await context.CatRecordCodes.SingleAsync(x => x.Code == "1")).NameEs = "Encabezado de archivo";
+        (await context.CatRuleTypes.SingleAsync(x => x.Code == "REQUIRED")).NameEs = "Obligatorio";
+        await context.SaveChangesAsync();
+
+        var query = new NachaConfigProfileQueryService(context);
+        var result = await query.GetOperationalCatalogsAsync(flujoCode: "ORIGINAL");
+        var invalidFlow = await query.GetOperationalCatalogsAsync(flujoCode: "NO_EXISTE");
+
+        result.Direcciones.Should().ContainSingle(x => x.Code == "SALIDA" && x.LabelEs == "Salida");
+        result.Registros.Should().Contain(x => x.Code == "1" && x.LabelEs == "Encabezado de archivo");
+        result.TiposOrigen.Should().Contain(x => x.Code == "CONSTANTE" && x.LabelEs == "Constante");
+        result.TiposRegla.Should().Contain(x => x.Code == "REQUIRED" && x.LabelEs == "Obligatorio");
+        result.Estados.Should().Contain(x => x.Code == "BORRADOR" && x.LabelEs == "Borrador");
+        invalidFlow.Direcciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetWorkspaceAsync_ShouldExposeServerNamesAndEditabilityWithoutChangingTechnicalCodes()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+
+        (await context.CatServiceClasses.SingleAsync(x => x.Code == "PPD")).NameEs = "Pago preacordado y depósito directo";
+        (await context.CatRecordCodes.SingleAsync(x => x.Code == "1")).NameEs = "Encabezado de archivo";
+        (await context.CatRuleTypes.SingleAsync(x => x.Code == "REQUIRED")).NameEs = "Obligatorio";
+        await context.SaveChangesAsync();
+
+        var query = new NachaConfigProfileQueryService(context);
+        var workspace = await query.GetWorkspaceAsync(profile.Id);
+
+        workspace.Should().NotBeNull();
+        workspace!.Estado.Should().Be("BORRADOR");
+        workspace.EstadoNombre.Should().Be("Borrador");
+        workspace.IsEditable.Should().BeTrue();
+        workspace.Camara.Should().Be("ACH");
+        workspace.CamaraNombre.Should().Be("ACH Colombia");
+        workspace.Flujo.Should().Be("ORIGINAL");
+        workspace.FlujoNombre.Should().Be("Original");
+        workspace.Direccion.Should().Be("SALIDA");
+        workspace.DireccionNombre.Should().Be("Salida");
+        workspace.Servicio.Should().Be("PPD");
+        workspace.ServicioNombre.Should().Be("Pago preacordado y depósito directo");
+        workspace.Records.Should().Contain(x => x.RecordCode == "1" && x.RecordNameEs == "Encabezado de archivo" && x.SourceStrategyName == "Configuración parametrizada");
+        workspace.Variantes.SelectMany(x => x.Fields).Should().Contain(x => x.SourceType == "CONSTANTE" && x.SourceTypeName == "Constante");
+        workspace.Variantes.SelectMany(x => x.Fields).SelectMany(x => x.Reglas)
+            .Should().Contain(x => x.RuleType == "REQUIRED" && x.RuleTypeName == "Obligatorio" && x.SeverityName == "Error bloqueante");
+    }
+
+    [Fact]
     public async Task GetProfileDetailAsync_ShouldProjectPersistedVariantAndFieldConfiguration()
     {
         await using var context = await CreateSqliteContextAsync();
@@ -991,6 +1076,378 @@ public sealed class NachaConfigAdminServicesHardeningTests
         projectedField.EntityName.Should().Be("NachaRecordContext");
         projectedField.PropertyPath.Should().Be("BatchCount");
         projectedField.FallbackPolicyJson.Should().Be("""{"mode":"strict"}""");
+    }
+
+    [Fact]
+    public async Task GetFieldEditorAsync_ShouldExposeHumanizedSources_AndKeepClearingHousesIsolated()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var entityTypeId = await context.CatDataSourceTypes.Where(x => x.Code == "ENTIDAD").Select(x => x.Id).SingleAsync();
+        context.CatDataSourceTypes.Add(new CatDataSourceType { Id = 3, Code = "EXPRESION", NameEs = "Expresión declarativa" });
+        await context.SaveChangesAsync();
+
+        var variants = await context.CfgLayoutVariants.Where(x => x.ProfileId == profile.Id).OrderBy(x => x.Id).Take(3).ToListAsync();
+        var achEntitySource = new CfgFieldSourceDefinition { DataSourceTypeId = entityTypeId, EntityName = "NachaRecordContext", PropertyPath = "BeneficiaryAccount" };
+        var achCalculationSource = new CfgFieldSourceDefinition { DataSourceTypeId = 3, ExpressionDsl = "{\"op\":\"prop\",\"path\":\"Amount\"}" };
+        context.CfgFieldSourceDefinitions.AddRange(achEntitySource, achCalculationSource);
+        await context.SaveChangesAsync();
+        context.CfgLayoutFields.AddRange(
+            new CfgLayoutField { LayoutVariantId = variants[1].Id, FieldCode = "BEN_ACCOUNT", FieldNameEs = "Número de cuenta del beneficiario", StartPosition = 10, Length = 10, SourceDefinitionId = achEntitySource.Id, SortOrder = 20, IsEnabled = true },
+            new CfgLayoutField { LayoutVariantId = variants[2].Id, FieldCode = "CALC_AMOUNT", FieldNameEs = "Monto calculado", StartPosition = 20, Length = 10, SourceDefinitionId = achCalculationSource.Id, SortOrder = 20, IsEnabled = true });
+
+        var cenitId = await context.CatClearingHouses.Where(x => x.Code == "CENIT").Select(x => x.Id).SingleAsync();
+        var flowId = await context.CatFlowTypes.Where(x => x.Code == "ORIGINAL").Select(x => x.Id).SingleAsync();
+        var directionId = await context.CatDirections.Where(x => x.Code == "SALIDA").Select(x => x.Id).SingleAsync();
+        var statusId = await context.CatConfigStatuses.Where(x => x.Code == "BORRADOR").Select(x => x.Id).SingleAsync();
+        var recordId = await context.CatRecordCodes.Where(x => x.Code == "1").Select(x => x.Id).SingleAsync();
+        var cenitProfile = new CfgProfile { ProfileCode = "CENIT_EDITOR", NameEs = "CENIT editor", ClearingHouseId = cenitId, FlowTypeId = flowId, DirectionId = directionId, StatusId = statusId, EffectiveFrom = DateTime.UtcNow.Date, RowVersion = [2, 0, 0] };
+        context.CfgProfiles.Add(cenitProfile);
+        await context.SaveChangesAsync();
+        var cenitVariant = new CfgLayoutVariant { ProfileId = cenitProfile.Id, RecordCodeId = recordId, VariantCode = "CENIT_R1", NameEs = "CENIT R1", Priority = 1, EffectiveFrom = DateTime.UtcNow.Date, StatusId = statusId, TotalLength = 106, IsDefaultForRecord = true };
+        var cenitSource = new CfgFieldSourceDefinition { DataSourceTypeId = entityTypeId, EntityName = "NachaRecordContext", PropertyPath = "CenitOnly" };
+        context.CfgLayoutVariants.Add(cenitVariant);
+        context.CfgFieldSourceDefinitions.Add(cenitSource);
+        await context.SaveChangesAsync();
+        context.CfgLayoutFields.Add(new CfgLayoutField { LayoutVariantId = cenitVariant.Id, FieldCode = "CENIT_ONLY", FieldNameEs = "Dato exclusivo CENIT", StartPosition = 1, Length = 5, SourceDefinitionId = cenitSource.Id, SortOrder = 1, IsEnabled = true });
+        await context.SaveChangesAsync();
+
+        var targetFieldId = await context.CfgLayoutFields.Where(x => x.LayoutVariant.ProfileId == profile.Id).OrderBy(x => x.Id).Select(x => x.Id).FirstAsync();
+        var editor = await new NachaConfigProfileQueryService(context).GetFieldEditorAsync(profile.Id, targetFieldId);
+
+        editor.Should().NotBeNull();
+        editor!.SourceTypes.Should().Contain(x => x.Code == "ENTIDAD" && x.LabelEs == "Dato del sistema");
+        editor.SourceTypes.Should().Contain(x => x.Code == "EXPRESION" && x.LabelEs == "Calculado por el sistema");
+        editor.SourceOptions.Should().Contain(x => x.SourceDefinitionId == achEntitySource.Id && x.LabelEs.Contains("Número de cuenta del beneficiario"));
+        editor.SourceOptions.Should().Contain(x => x.SourceDefinitionId == achCalculationSource.Id && x.LabelEs.Contains("Monto calculado"));
+        editor.SourceOptions.Should().NotContain(x => x.SourceDefinitionId == cenitSource.Id);
+        editor.SourceOptions.Select(x => x.LabelEs).Should().NotContain(x => x.Contains("PropertyPath", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task UpdateFieldEditorAsync_ShouldSaveOperationalSettings_Rules_AndIsolateSharedFixedSource()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+        var fields = await context.CfgLayoutFields.Where(x => x.LayoutVariant.ProfileId == profile.Id).OrderBy(x => x.Id).ToListAsync();
+        var target = fields[0];
+        var originalSourceId = target.SourceDefinitionId;
+        fields[1].FormatMask = "yyyyMMdd";
+        await context.SaveChangesAsync();
+        var rule = await context.CfgFieldRules.SingleAsync(x => x.LayoutFieldId == target.Id);
+
+        var updated = await command.UpdateFieldEditorAsync(profile.Id, target.Id, new NachaConfigFieldEditorUpdateRequest
+        {
+            FieldNameEs = "Campo operativo actualizado",
+            StartPosition = 2,
+            Length = 3,
+            PadChar = "0",
+            Justification = "R",
+            FormatMask = "yyyyMMdd",
+            IsEnabled = false,
+            Source = new NachaConfigFieldSourceEditDto { SourceTypeCode = "CONSTANTE", FixedValue = "99" },
+            Rules =
+            [
+                new NachaConfigFieldRuleEditorUpdateDto { Id = rule.Id, ErrorMessageEs = "Valor obligatorio para Operaciones", Severity = "WARN", IsEnabled = false }
+            ],
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "ux3-tester");
+
+        updated.Should().BeTrue();
+        var persisted = await context.CfgLayoutFields.Include(x => x.SourceDefinition).Include(x => x.Rules).AsNoTracking().SingleAsync(x => x.Id == target.Id);
+        persisted.FieldNameEs.Should().Be("Campo operativo actualizado");
+        persisted.StartPosition.Should().Be(2);
+        persisted.Length.Should().Be(3);
+        persisted.PadChar.Should().Be('0');
+        persisted.Justification.Should().Be('R');
+        persisted.FormatMask.Should().Be("yyyyMMdd");
+        persisted.IsEnabled.Should().BeFalse();
+        persisted.SourceDefinitionId.Should().NotBe(originalSourceId, "la fuente compartida debe aislarse antes de mutarla");
+        persisted.SourceDefinition.ConstantValue.Should().Be("99");
+        (await context.CfgFieldSourceDefinitions.AsNoTracking().SingleAsync(x => x.Id == originalSourceId)).ConstantValue.Should().Be("1");
+        (await context.CfgLayoutFields.AsNoTracking().CountAsync(x => x.SourceDefinitionId == originalSourceId)).Should().BeGreaterThan(0);
+        persisted.Rules.Single().ErrorMessageEs.Should().Be("Valor obligatorio para Operaciones");
+        persisted.Rules.Single().Severity.Should().Be("WARN");
+        persisted.Rules.Single().IsEnabled.Should().BeFalse();
+        (await context.HistConfigChanges.AsNoTracking().SingleAsync(x => x.ProfileId == profile.Id && x.ChangeType == "FIELD_EDITOR_UPDATE")).ChangedBy.Should().Be("ux3-tester");
+    }
+
+    [Fact]
+    public async Task UpdateFieldEditorAsync_ShouldRelinkPersistedCalculation_WithoutMutatingSharedDefinition()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        context.CatDataSourceTypes.Add(new CatDataSourceType { Id = 3, Code = "EXPRESION", NameEs = "Expresión declarativa" });
+        await context.SaveChangesAsync();
+        var variants = await context.CfgLayoutVariants.Where(x => x.ProfileId == profile.Id).OrderBy(x => x.Id).Take(2).ToListAsync();
+        var calculation = new CfgFieldSourceDefinition { DataSourceTypeId = 3, ExpressionDsl = "{\"op\":\"prop\",\"path\":\"Amount\"}" };
+        context.CfgFieldSourceDefinitions.Add(calculation);
+        await context.SaveChangesAsync();
+        context.CfgLayoutFields.Add(new CfgLayoutField { LayoutVariantId = variants[1].Id, FieldCode = "SUPPORTED_CALC", FieldNameEs = "Cálculo autorizado", StartPosition = 25, Length = 4, SourceDefinitionId = calculation.Id, SortOrder = 25, IsEnabled = true });
+        await context.SaveChangesAsync();
+
+        var target = await context.CfgLayoutFields.Include(x => x.Rules).Where(x => x.LayoutVariant.ProfileId == profile.Id).OrderBy(x => x.Id).FirstAsync();
+        var rule = target.Rules.Single();
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+        await command.UpdateFieldEditorAsync(profile.Id, target.Id, new NachaConfigFieldEditorUpdateRequest
+        {
+            FieldNameEs = target.FieldNameEs,
+            StartPosition = target.StartPosition,
+            Length = target.Length,
+            PadChar = target.PadChar.ToString(),
+            Justification = target.Justification.ToString(),
+            IsEnabled = target.IsEnabled,
+            Source = new NachaConfigFieldSourceEditDto { SourceTypeCode = "EXPRESION", SourceDefinitionId = calculation.Id },
+            Rules = [new NachaConfigFieldRuleEditorUpdateDto { Id = rule.Id, ErrorMessageEs = rule.ErrorMessageEs, Severity = rule.Severity, IsEnabled = rule.IsEnabled }],
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "ux3-tester");
+
+        var persisted = await context.CfgLayoutFields.Include(x => x.SourceDefinition).AsNoTracking().SingleAsync(x => x.Id == target.Id);
+        persisted.SourceDefinitionId.Should().Be(calculation.Id);
+        persisted.SourceDefinition.ExpressionDsl.Should().Be("{\"op\":\"prop\",\"path\":\"Amount\"}");
+        (await context.CfgLayoutFields.CountAsync(x => x.SourceDefinitionId == calculation.Id)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task UpdateFieldEditorAsync_ShouldFail_OnConcurrencyConflict()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var target = await context.CfgLayoutFields.Where(x => x.LayoutVariant.ProfileId == profile.Id).OrderBy(x => x.Id).FirstAsync();
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+
+        var call = () => command.UpdateFieldEditorAsync(profile.Id, target.Id, new NachaConfigFieldEditorUpdateRequest
+        {
+            FieldNameEs = target.FieldNameEs,
+            StartPosition = target.StartPosition,
+            Length = target.Length,
+            PadChar = target.PadChar.ToString(),
+            Justification = target.Justification.ToString(),
+            IsEnabled = target.IsEnabled,
+            Source = new NachaConfigFieldSourceEditDto { SourceTypeCode = "CONSTANTE", FixedValue = "2" },
+            ExpectedRowVersion = Convert.ToBase64String(new byte[] { 9, 9, 9 })
+        }, "ux3-tester");
+
+        var exception = await Assert.ThrowsAsync<NachaConfigException>(call);
+        exception.ErrorCode.Should().Be("CONCURRENCY_CONFLICT");
+        exception.HttpStatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task UpdateFieldEditorAsync_ShouldProtectPublishedProfile()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        profile = await SetProfileStatusAsync(context, profile.Id, "PUBLICADO");
+        var target = await context.CfgLayoutFields.Where(x => x.LayoutVariant.ProfileId == profile.Id).OrderBy(x => x.Id).FirstAsync();
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+
+        var call = () => command.UpdateFieldEditorAsync(profile.Id, target.Id, new NachaConfigFieldEditorUpdateRequest
+        {
+            FieldNameEs = target.FieldNameEs,
+            StartPosition = target.StartPosition,
+            Length = target.Length,
+            PadChar = target.PadChar.ToString(),
+            Justification = target.Justification.ToString(),
+            IsEnabled = target.IsEnabled,
+            Source = new NachaConfigFieldSourceEditDto { SourceTypeCode = "CONSTANTE", FixedValue = "2" },
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "ux3-tester");
+
+        var exception = await Assert.ThrowsAsync<NachaConfigException>(call);
+        exception.ErrorCode.Should().Be("INVALID_PROFILE_STATE");
+    }
+
+    [Fact]
+    public async Task Ux5ChangeReview_ShouldReturnNoChanges_ForIdenticalClone()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var source = await SeedProfileGraphAsync(context);
+        source = await SetProfileStatusAsync(context, source.Id, "PUBLICADO");
+        var query = new NachaConfigProfileQueryService(context);
+        var command = new NachaConfigProfileCommandService(context, query);
+
+        var clone = await command.CloneProfileAsync(source.Id, new NachaConfigCloneProfileRequest
+        {
+            NuevoProfileCode = "P_UX5_IDENTICAL",
+            NuevoNombreEs = source.NameEs,
+            EffectiveFrom = source.EffectiveFrom,
+            ExpectedRowVersion = Convert.ToBase64String(source.RowVersion)
+        }, "ux5-tester");
+
+        clone.Should().NotBeNull();
+        var review = await new NachaConfigHistoryService(context).GetChangeReviewAsync(clone!.Id);
+        review.Should().NotBeNull();
+        review!.HasComparisonBase.Should().BeTrue();
+        review.ChangeCount.Should().Be(0);
+        review.ChangedFieldsCount.Should().Be(0);
+        review.NextVersion.Should().Be($"{clone.VersionMajor}.{clone.VersionMinor + 1}");
+    }
+
+    [Fact]
+    public async Task Ux5ChangeReview_ShouldHumanizePositionSourceAndRuleChanges()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var source = await SeedProfileGraphAsync(context);
+        source = await SetProfileStatusAsync(context, source.Id, "PUBLICADO");
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+        var clone = await command.CloneProfileAsync(source.Id, new NachaConfigCloneProfileRequest
+        {
+            NuevoProfileCode = "P_UX5_CHANGED",
+            NuevoNombreEs = source.NameEs,
+            EffectiveFrom = source.EffectiveFrom,
+            ExpectedRowVersion = Convert.ToBase64String(source.RowVersion)
+        }, "ux5-tester");
+
+        var field = await context.CfgLayoutFields
+            .Include(x => x.SourceDefinition)
+            .Include(x => x.Rules)
+            .Where(x => x.LayoutVariant.ProfileId == clone!.Id && x.Rules.Any())
+            .FirstAsync();
+        field.StartPosition += 1;
+        field.Length += 1;
+        field.SourceDefinition.ConstantValue = "9";
+        field.Rules.First().Severity = "WARN";
+        await context.SaveChangesAsync();
+
+        var review = await new NachaConfigHistoryService(context).GetChangeReviewAsync(clone!.Id);
+        review.Should().NotBeNull();
+        review!.Changes.Should().Contain(x => x.PropertyNameEs == "Posición inicial");
+        review.Changes.Should().Contain(x => x.PropertyNameEs == "Longitud");
+        review.Changes.Should().Contain(x => x.PropertyNameEs == "Origen del valor" && x.AfterValueEs!.Contains("Valor fijo"));
+        review.Changes.Should().Contain(x => x.PropertyNameEs.Contains("comportamiento") && x.AfterValueEs == "Advertencia");
+        review.ChangedFieldsCount.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Ux5ChangeReview_ShouldFailClosed_WhenComparisonBaseBelongsToAnotherChamber()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var source = await SeedProfileGraphAsync(context);
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+        var cenit = await command.CreateDraftAsync(new NachaConfigCreateDraftRequest
+        {
+            ProfileCode = "CENIT_UX5_BASE",
+            NombreEs = "Base CENIT",
+            CamaraCode = "CENIT",
+            FlujoCode = "ORIGINAL",
+            DireccionCode = "SALIDA",
+            ServicioCode = "PPD",
+            EffectiveFrom = source.EffectiveFrom
+        }, "ux5-tester");
+        var current = await context.CfgProfiles.SingleAsync(x => x.Id == source.Id);
+        current.SupersedesProfileId = cenit.Id;
+        await context.SaveChangesAsync();
+
+        var call = () => new NachaConfigHistoryService(context).GetChangeReviewAsync(source.Id);
+        var exception = await Assert.ThrowsAsync<NachaConfigException>(call);
+        exception.ErrorCode.Should().Be("COMPARISON_BASE_CONTEXT_MISMATCH");
+    }
+
+    [Fact]
+    public async Task Ux5History_ShouldExposeHumanizedFieldEditorDetail()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var field = await context.CfgLayoutFields
+            .Include(x => x.Rules)
+            .Where(x => x.LayoutVariant.ProfileId == profile.Id && x.Rules.Any())
+            .FirstAsync();
+        var command = new NachaConfigProfileCommandService(context, new NachaConfigProfileQueryService(context));
+
+        await command.UpdateFieldEditorAsync(profile.Id, field.Id, new NachaConfigFieldEditorUpdateRequest
+        {
+            FieldNameEs = field.FieldNameEs,
+            StartPosition = field.StartPosition + 1,
+            Length = field.Length,
+            PadChar = field.PadChar.ToString(),
+            Justification = field.Justification.ToString(),
+            FormatMask = field.FormatMask,
+            IsEnabled = field.IsEnabled,
+            Source = new NachaConfigFieldSourceEditDto { SourceTypeCode = "CONSTANTE", FixedValue = "2" },
+            Rules = field.Rules.Select(x => new NachaConfigFieldRuleEditorUpdateDto
+            {
+                Id = x.Id,
+                ErrorMessageEs = x.ErrorMessageEs,
+                Severity = "WARN",
+                IsEnabled = x.IsEnabled
+            }).ToList(),
+            ExpectedRowVersion = Convert.ToBase64String(profile.RowVersion)
+        }, "operador-ux5");
+
+        var history = await new NachaConfigHistoryService(context).GetHistoryAsync(profile.Id);
+        var item = history.First(x => x.ChangeType == "FIELD_EDITOR_UPDATE");
+        item.ChangedBy.Should().Be("operador-ux5");
+        item.ActionNameEs.Should().Be("Campo actualizado");
+        item.ElementNameEs.Should().NotBeNullOrWhiteSpace();
+        item.Version.Should().NotBeNullOrWhiteSpace();
+        item.DetailEs.Should().Contain(x => x.Contains("Posición inicial"));
+        item.DetailEs.Should().Contain(x => x.Contains("Origen del valor"));
+        item.DetailEs.Should().Contain(x => x.Contains("Validaciones"));
+    }
+
+    [Fact]
+    public async Task Ux5Publish_ShouldFailClosed_OnStaleRowVersionWithoutSnapshotOrAudit()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        var validation = new Mock<INachaConfigValidationService>();
+        validation.Setup(x => x.ValidateBeforePublishAsync(profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaConfigValidationResultDto
+            {
+                ProfileId = profile.Id,
+                IsValid = true,
+                Resumen = "Configuración válida."
+            });
+        var publication = new NachaConfigPublicationService(context, validation.Object);
+
+        var call = () => publication.PublishAsync(profile.Id, "operador-ux5", Convert.ToBase64String(new byte[] { 9, 9, 9 }));
+        var exception = await Assert.ThrowsAsync<NachaConfigException>(call);
+
+        exception.ErrorCode.Should().Be("CONCURRENCY_CONFLICT");
+        context.HistConfigSnapshots.Should().NotContain(x => x.ProfileId == profile.Id && x.SnapshotType == "PUBLISH");
+        context.HistConfigChanges.Should().NotContain(x => x.ProfileId == profile.Id && x.ChangeType == "PUBLISH");
+    }
+
+    [Fact]
+    public async Task Ux5Publish_ShouldCreateSingleImmutablePublishSnapshotAndAudit_AndRejectSecondPublish()
+    {
+        await using var context = await CreateSqliteContextAsync();
+        var profile = await SeedProfileGraphAsync(context);
+        context.CompanyEntryDescriptionCatalogs.Add(new CompanyEntryDescriptionCatalog
+        {
+            Term = "PAGO",
+            Description = "Pago de prueba",
+            StandardEntryClassCode = "PPD",
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var validation = new Mock<INachaConfigValidationService>();
+        validation.Setup(x => x.ValidateBeforePublishAsync(profile.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NachaConfigValidationResultDto
+            {
+                ProfileId = profile.Id,
+                IsValid = true,
+                Resumen = "Configuración válida."
+            });
+        var publication = new NachaConfigPublicationService(context, validation.Object);
+
+        var result = await publication.PublishAsync(profile.Id, "operador-ux5", Convert.ToBase64String(profile.RowVersion));
+        result.Publicado.Should().BeTrue();
+        result.Estado.Should().Be("PUBLICADO");
+        result.EstadoNombreEs.Should().Be("Publicado");
+        context.HistConfigSnapshots.Should().ContainSingle(x => x.ProfileId == profile.Id && x.SnapshotType == "PUBLISH");
+        context.HistConfigChanges.Should().ContainSingle(x => x.ProfileId == profile.Id && x.ChangeType == "PUBLISH" && x.ChangedBy == "operador-ux5");
+        var history = await new NachaConfigHistoryService(context).GetHistoryAsync(profile.Id);
+        history.Should().ContainSingle(x => x.ChangeType == "PUBLISH" && x.ActionNameEs == "Configuración publicada" && x.Version == $"{result.VersionMajor}.{result.VersionMinor}");
+
+        var second = () => publication.PublishAsync(profile.Id, "operador-ux5", result.RowVersion ?? Convert.ToBase64String(profile.RowVersion));
+        var exception = await Assert.ThrowsAsync<NachaConfigException>(second);
+        exception.ErrorCode.Should().Be("INVALID_PROFILE_STATE");
+        context.HistConfigSnapshots.Count(x => x.ProfileId == profile.Id && x.SnapshotType == "PUBLISH").Should().Be(1);
     }
 
     private static async Task<CfgProfile> SetProfileStatusAsync(AchDbContext context, int profileId, string statusCode)

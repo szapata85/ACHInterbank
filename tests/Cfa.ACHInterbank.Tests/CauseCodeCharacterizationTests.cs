@@ -139,6 +139,38 @@ public class CauseCodeCharacterizationTests
         Assert.Equal("R10", normalized.ReturnReasonCode);
     }
 
+
+    [Fact]
+    public async Task TransactionValidator_ShouldRejectDev14AsPhysicalReturnReason()
+    {
+        await using var context = await CreateContextAsync();
+        var (_, ach) = await SeedClearingHousesAsync(context);
+        context.AchReturnCodes.Add(new AchReturnCode
+        {
+            ClearingHouseId = ach.Id,
+            Code = "DEV14",
+            Description = "Registro obsoleto de devolución",
+            AppliesToDebit = true,
+            AppliesToReturn = true,
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var sut = new TransactionValidator(context);
+        var dto = new AddendaDto
+        {
+            AddendaType = "99",
+            BusinessType = AchAddendaBusinessType.Return,
+            ReturnReasonCode = "DEV14",
+            OriginalTraceNumber = "123456789012345",
+            NewTraceNumber = "543210987654321"
+        };
+
+        var ex = Assert.Throws<ArgumentException>(() =>
+            sut.NormalizeAndValidateAddenda(dto, TransactionTypeEnum.Return, false, "RETORNO"));
+        Assert.Contains("^R\\d{2}$", ex.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TransactionValidator_ShouldNotInferRailFromReturnReason()
     {

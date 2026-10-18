@@ -15,9 +15,11 @@ import { SharedModule } from '../../../../shared/shared.module';
 import { TransactionsApiService } from '../../services/transactions-api.service';
 import { TransactionListItem } from '../../transactions.models';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { TransactionTypeEnum } from '../../transactions.types';
-import { AchCyclesApiService, ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
-import { AchCycleSummary, ClearingHouseOption } from '../../../ach-cycles/models/ach-cycle.model';
+import { TransactionTypeEnum } from '../../../../core/models/transaction-types.model';
+import { ClearingHouseOption } from '../../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
+import { AchCyclesApiService } from '../../../../core/services/ach-cycles-api.service';
+import { AchCycleSummary } from '../../../../core/models/ach-cycle.model';
 import { TransactionIntegrationResult } from '../../transactions.models';
 import { TransactionIntegrationResultComponent } from '../transaction-integration-result/transaction-integration-result.component';
 
@@ -113,32 +115,32 @@ export class TransactionListComponent implements OnInit {
 
   private readonly allColumnDefs: ColDef<TransactionListRow>[] = [
     { field: 'id', headerName: 'ID', width: 90, maxWidth: 120, sortable: true },
-    { field: 'transactionExternalId', headerName: 'ID operación', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
-    { field: 'reference', headerName: 'Referencia legado', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'transactionExternalId', headerName: 'ID de operación', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
+    { field: 'reference', headerName: 'Referencia heredada', flex: 1, sortable: true, filter: 'agTextColumnFilter' },
     { field: 'typeLabel', headerName: 'Tipo', width: 160, filter: 'agTextColumnFilter' },
     { field: 'transactionNatureLabel', headerName: 'Naturaleza', width: 170, filter: 'agTextColumnFilter' },
-    { field: 'returnManagementLabel', headerName: 'Gestión devolución', width: 220, filter: 'agTextColumnFilter' },
+    { field: 'returnManagementLabel', headerName: 'Gestión de devolución', width: 220, filter: 'agTextColumnFilter' },
     { field: 'achCycleName', headerName: 'Ciclo', width: 200, filter: 'agTextColumnFilter' },
     { field: 'clearingHouseName', headerName: 'Cámara', width: 200, filter: 'agTextColumnFilter' },
     { field: 'amountText', headerName: 'Monto', width: 140, maxWidth: 180, cellClass: 'text-end' },
-    { field: 'sourceAccountNumber', headerName: 'Cuenta origen', filter: 'agTextColumnFilter' },
-    { field: 'destinationAccountNumber', headerName: 'Cuenta destino', filter: 'agTextColumnFilter' },
-    { field: 'destinationInstitutionName', headerName: 'Institución destino', filter: 'agTextColumnFilter', flex: 1 },
+    { field: 'sourceAccountNumber', headerName: 'Cuenta de origen', filter: 'agTextColumnFilter' },
+    { field: 'destinationAccountNumber', headerName: 'Cuenta de destino', filter: 'agTextColumnFilter' },
+    { field: 'destinationInstitutionName', headerName: 'Institución de destino', filter: 'agTextColumnFilter', flex: 1 },
     { field: 'effectiveEntryDateText', headerName: 'Fecha efectiva', width: 160 }
   ];
 
   readonly columnOptions: ColumnOption[] = [
-    { field: 'transactionExternalId', label: 'ID operación' },
-    { field: 'reference', label: 'Referencia legado' },
+    { field: 'transactionExternalId', label: 'ID de operación' },
+    { field: 'reference', label: 'Referencia heredada' },
     { field: 'typeLabel', label: 'Tipo' },
     { field: 'transactionNatureLabel', label: 'Naturaleza' },
-    { field: 'returnManagementLabel', label: 'Gestión devolución' },
+    { field: 'returnManagementLabel', label: 'Gestión de devolución' },
     { field: 'achCycleName', label: 'Ciclo' },
     { field: 'clearingHouseName', label: 'Cámara' },
     { field: 'amountText', label: 'Monto' },
-    { field: 'sourceAccountNumber', label: 'Cuenta origen' },
-    { field: 'destinationAccountNumber', label: 'Cuenta destino' },
-    { field: 'destinationInstitutionName', label: 'Institución destino' },
+    { field: 'sourceAccountNumber', label: 'Cuenta de origen' },
+    { field: 'destinationAccountNumber', label: 'Cuenta de destino' },
+    { field: 'destinationInstitutionName', label: 'Institución de destino' },
     { field: 'effectiveEntryDateText', label: 'Fecha efectiva' }
   ];
 
@@ -558,7 +560,7 @@ export class TransactionListComponent implements OnInit {
       },
       error: () => {
         this.selectedIntegrationResult = null;
-        this.notifications.error('No fue posible consultar el resultado del procesamiento en el core');
+        this.notifications.error('No fue posible consultar el resultado del procesamiento interno.');
         this.cdr.markForCheck();
       },
       complete: () => {

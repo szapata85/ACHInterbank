@@ -1,4 +1,4 @@
-<app-page-header title="Log de navegación" subtitle="Consulta la navegación de usuarios en la aplicación"></app-page-header>
+<app-page-header title="Registro de navegación" subtitle="Consulta la navegación de usuarios en la aplicación"></app-page-header>
 
 <section class="navigation-log">
   <form class="form-grid" [formGroup]="filterForm" (ngSubmit)="search()">
@@ -24,7 +24,7 @@
 
     <div class="form-actions">
       <button type="submit" class="btn btn-primary" [disabled]="loading">Buscar</button>
-      <button type="button" class="btn btn-outline" (click)="clear()" [disabled]="loading">Limpiar</button>
+      <button type="button" class="btn btn-outline" (click)="clear()" [disabled]="loading">Limpiar filtros</button>
     </div>
   </form>
 

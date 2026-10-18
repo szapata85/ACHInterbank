@@ -21,6 +21,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
     private readonly IPaymentRailOperationalStrategyResolver? _strategyResolver;
     private readonly IPaymentRailShadowCompareService? _shadowCompareService;
     private readonly ILogger<ReturnOfReturnOrchestrator> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public ReturnOfReturnOrchestrator(
         AchDbContext context,
@@ -28,7 +29,8 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         IPaymentRailContextService? paymentRailContextService = null,
         IPaymentRailOperationalStrategyResolver? strategyResolver = null,
         IPaymentRailShadowCompareService? shadowCompareService = null,
-        ILogger<ReturnOfReturnOrchestrator>? logger = null)
+        ILogger<ReturnOfReturnOrchestrator>? logger = null,
+        TimeProvider? timeProvider = null)
     {
         _context = context;
         _returnOfReturnEligibilityService = returnOfReturnEligibilityService;
@@ -36,6 +38,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         _strategyResolver = strategyResolver;
         _shadowCompareService = shadowCompareService;
         _logger = logger ?? NullLogger<ReturnOfReturnOrchestrator>.Instance;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<ReturnOfReturnFlow> RegisterAsync(AchTransaction sourceReturn, AchTransaction returnOfReturn, string reasonCode, CancellationToken ct)
@@ -52,7 +55,8 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
         {
             throw new InvalidOperationException("La devolución origen no se encuentra en estado elegible para devolución de devolución.");
         }
-        if (sourceReturn.SlaDeadlineAtUtc.HasValue && DateTime.UtcNow > sourceReturn.SlaDeadlineAtUtc.Value)
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        if (sourceReturn.SlaDeadlineAtUtc.HasValue && nowUtc > sourceReturn.SlaDeadlineAtUtc.Value)
         {
             throw new InvalidOperationException("El plazo operativo para devolución de devolución expiró.");
         }
@@ -61,7 +65,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             new AchReturnOfReturnEligibilityRequest(
                 sourceReturn.Id,
                 reasonCode,
-                DateTime.UtcNow),
+                nowUtc),
             ct);
 
         if (!eligibility.IsEligible)
@@ -106,7 +110,7 @@ public class ReturnOfReturnOrchestrator : IReturnOfReturnOrchestrator
             ReturnOfReturnTransactionId = returnOfReturn.Id,
             ReasonCode = reasonCode,
             Status = "Registered",
-            OrchestratedAtUtc = DateTime.UtcNow,
+            OrchestratedAtUtc = nowUtc,
             CenitCycleExecutionId = latestExecutionId
         };
 

@@ -118,6 +118,8 @@ public sealed class NachaConfigPublicationService : INachaConfigPublicationServi
                 Mensaje = "Perfil publicado correctamente.",
                 VersionMajor = profile.VersionMajor,
                 VersionMinor = profile.VersionMinor,
+                Estado = "PUBLICADO",
+                EstadoNombreEs = "Publicado",
                 RowVersion = Convert.ToBase64String(profile.RowVersion)
             };
         }, ct);

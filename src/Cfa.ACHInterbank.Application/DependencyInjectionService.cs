@@ -13,7 +13,6 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Reflection;
 
 namespace Cfa.ACHInterbank.Application;
 
@@ -32,6 +31,8 @@ public static class DependencyInjectionService
 
         services.AddSingleton(MapperBootstrapper.Instance);
 
+        services.AddSingleton(TimeProvider.System);
+
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<ApplicationMediatorEntryPoint>());
 
         // Payment rail strategy base contracts (Fase 1 bridge, no-op operational)
@@ -48,36 +49,10 @@ public static class DependencyInjectionService
         // Injection Dependency Traditional
         //services.AddSingleton<ITest, Test>();
 
-        // Injection Dependency Dynamic
-        List<Type> types = Assembly.GetExecutingAssembly().GetTypes()
-            .Where(t => t.IsClass
-            && !t.IsAbstract
-            && !t.IsGenericTypeDefinition
-            && !t.ContainsGenericParameters
-            && !t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), inherit: false)
-            && (t.IsPublic || t.IsNestedPublic))
-            .ToList();
-
-        foreach (var implementationType in types)
-        {
-            Type? interfaceType = implementationType.GetInterfaces()
-                .FirstOrDefault(i => i.Name == $"I{implementationType.Name}" || i == typeof(ITaskHandler));
-
-            if (interfaceType == null) continue;
-
-            if (implementationType.GetCustomAttribute<SingletonAttribute>() != null)
-            {
-                services.AddSingleton(interfaceType, implementationType);
-            }
-            else if (implementationType.GetCustomAttribute<ScopedAttribute>() != null)
-            {
-                services.AddScoped(interfaceType, implementationType);
-            }
-            else
-            {
-                services.AddTransient(interfaceType, implementationType);
-            }
-        }
+        // Registro convencional mediante Scrutor.
+        services.AddConventionServicesFromAssembly(
+            typeof(DependencyInjectionService).Assembly,
+            typeof(ITaskHandler));
 
         #endregion Services
 

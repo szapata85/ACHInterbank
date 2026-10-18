@@ -1,8 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
-import { DestinationInstitution } from '../../transactions/transactions.models';
-import { FinancialInstitutionStatusEnum } from '../../transactions/transactions.types';
+import { DestinationInstitution, FinancialInstitutionStatusEnum } from '../../../core/models/financial-institution.model';
 
 export type FinancialInstitutionPayload = Omit<DestinationInstitution, 'id'>;
 

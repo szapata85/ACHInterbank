@@ -118,6 +118,12 @@ public class AchCycleScheduler : IAchCycleScheduler
                     EndTime = cfg.EndTime,
                     CutoffTime = cfg.CutoffTime,
                     OutputReleaseTime = cfg.OutputReleaseTime,
+                    CompensationStatementStartTime = cfg.CompensationStatementStartTime,
+                    CompensationStatementEndTime = cfg.CompensationStatementEndTime,
+                    CompensationPaymentStartTime = cfg.CompensationPaymentStartTime,
+                    CompensationPaymentEndTime = cfg.CompensationPaymentEndTime,
+                    OutputReleaseStartTime = cfg.OutputReleaseStartTime,
+                    OutputReleaseEndTime = cfg.OutputReleaseEndTime,
                     RescheduleOnHoliday = true,
                     ClearingHouseCycleConfigId = cfg.Id
                 });

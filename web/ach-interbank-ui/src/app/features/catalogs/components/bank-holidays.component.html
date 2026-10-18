@@ -3,7 +3,7 @@
     <mat-card-header class="page-header">
       <div>
         <p class="eyebrow">Catálogos</p>
-        <h1 id="bank-holidays-title">Festivos nacionales</h1>
+        <h1 id="bank-holidays-title">Días no hábiles</h1>
         <p class="lede">Consulta los días efectivos de descanso que se tendrán en cuenta al programar los ciclos.</p>
       </div>
 
@@ -201,7 +201,7 @@
             <input matInput type="text" formControlName="description" maxlength="200" />
             <mat-hint align="end">{{ form.controls.description.value.length }}/200</mat-hint>
             @if (form.controls.description.hasError('required') || form.controls.description.hasError('pattern')) {
-              <mat-error>La descripción es obligatoria.</mat-error>
+              <mat-error>Ingresa una descripción con al menos un carácter visible.</mat-error>
             } @else if (form.controls.description.hasError('maxlength')) {
               <mat-error>La descripción no puede superar 200 caracteres.</mat-error>
             }
@@ -217,7 +217,7 @@
               autocomplete="country"
             />
             @if (form.controls.countryCode.hasError('required') || form.controls.countryCode.hasError('pattern')) {
-              <mat-error>El país es obligatorio.</mat-error>
+              <mat-error>Ingresa un código de país con al menos un carácter visible.</mat-error>
             } @else if (form.controls.countryCode.hasError('maxlength')) {
               <mat-error>El código de país no puede superar 5 caracteres.</mat-error>
             }

@@ -1,11 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import { TransactionIntegrationResult, TransactionIntegrationResultItem } from '../../transactions.models';
 
 @Component({
   selector: 'app-transaction-integration-result',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MatButtonModule, MatIconModule],
   templateUrl: './transaction-integration-result.component.html',
   styleUrls: ['./transaction-integration-result.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

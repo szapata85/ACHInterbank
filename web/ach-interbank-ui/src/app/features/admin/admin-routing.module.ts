@@ -22,12 +22,12 @@ const routes: Routes = [
       {
         path: '',
         component: UsersListComponent,
-        data: { breadcrumb: 'Usuarios', title: 'Administración de usuarios' }
+        data: { breadcrumb: 'Usuarios y acceso', title: 'Usuarios y acceso' }
       },
       {
         path: 'list',
         component: UsersListComponent,
-        data: { breadcrumb: 'Administrar usuarios', title: 'Administración de usuarios' }
+        data: { breadcrumb: 'Administrar usuarios', title: 'Administrar usuarios' }
       },
       { path: 'new', component: UserFormComponent, canDeactivate: [pendingUserChangesGuard], data: { breadcrumb: 'Nuevo usuario', title: 'Crear usuario' } },
       {

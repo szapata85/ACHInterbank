@@ -98,7 +98,7 @@ export class IncomingNachaQueueDetailPageComponent implements OnInit {
 
   abrirAccion(action: ManualActionType): void {
     if (!this.estaPermitida(action)) {
-      this.notifications.warning('La acción no está permitida por backend para el estado actual.');
+      this.notifications.warning('La acción no está permitida por el sistema para el estado actual.');
       return;
     }
 

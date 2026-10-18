@@ -7,7 +7,7 @@ import {
   ReportsApiService,
   ReturnRejectionReportFilter,
   ReturnRejectionReportRow
-} from '../../reports/services/reports-api.service';
+} from '../../../core/services/reports-api.service';
 import {
   CenitChamberResponseRow,
   CenitQueueRow,

@@ -21,21 +21,23 @@ import {
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ColDef, RowSelectionOptions } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { SharedModule } from '../../../../shared/shared.module';
+import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { AchCyclesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
-import { AchCycleSummary } from '../../../ach-cycles/models/ach-cycle.model';
+import { AchCyclesApiService } from '../../../../core/services/ach-cycles-api.service';
+import { AchCycleSummary } from '../../../../core/models/ach-cycle.model';
 import { AchReturnsApiService } from '../../services/ach-returns-api.service';
 import { ReturnReasonsApiService } from '../../services/return-reasons-api.service';
 import { ReturnEligibleTransaction, ReturnReason } from '../../transactions.models';
 
 type EligibilityFilter = 'all' | 'eligible' | 'blocked';
+
+const RETURNS_GENERATE_PERMISSIONS = ['Returns.GenerateFile', 'CanManageAch'];
 
 interface ReturnReasonDialogData {
   reasons: ReturnReason[];
@@ -283,7 +285,6 @@ export class AchReturnDetailDialogComponent {
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
-    MatProgressBarModule,
     MatSelectModule,
     MatTooltipModule
   ],
@@ -293,6 +294,7 @@ export class AchReturnDetailDialogComponent {
 })
 export class AchReturnsManagementComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
   private readonly cyclesApi = inject(AchCyclesApiService);
   private readonly returnsApi = inject(AchReturnsApiService);
   private readonly returnReasonsApi = inject(ReturnReasonsApiService);
@@ -316,7 +318,7 @@ export class AchReturnsManagementComponent implements OnInit {
   readonly selectedRows = new Set<number>();
 
   readonly columnDefs: ColDef<ReturnEligibleTransaction>[] = [
-    { field: 'traceNumber', headerName: 'Traza', minWidth: 170 },
+    { field: 'traceNumber', headerName: 'Número de rastreo', minWidth: 170 },
     { field: 'reference', headerName: 'Referencia', minWidth: 180 },
     {
       field: 'effectiveEntryDate',
@@ -326,12 +328,12 @@ export class AchReturnsManagementComponent implements OnInit {
     },
     {
       field: 'originatingDfi',
-      headerName: 'DFI origen',
+      headerName: 'DFI de origen',
       minWidth: 130
     },
     {
       field: 'receivingDfi',
-      headerName: 'DFI destino',
+      headerName: 'DFI de destino',
       minWidth: 130
     },
     {
@@ -342,7 +344,7 @@ export class AchReturnsManagementComponent implements OnInit {
       cellClass: 'amount-column',
       valueFormatter: (params) => this.formatAmount(params.value)
     },
-    { field: 'transactionCode', headerName: 'Código Tx', minWidth: 125 },
+    { field: 'transactionCode', headerName: 'Código de transacción', minWidth: 125 },
     {
       field: 'isEligible',
       headerName: 'Estado',
@@ -365,6 +367,10 @@ export class AchReturnsManagementComponent implements OnInit {
     selectAll: 'filtered',
     isRowSelectable: (rowNode) => !!rowNode.data?.isEligible
   } satisfies RowSelectionOptions<ReturnEligibleTransaction>;
+
+  get canGenerateReturns(): boolean {
+    return this.auth.hasPermission(RETURNS_GENERATE_PERMISSIONS);
+  }
 
   get eligibleCount(): number {
     return this.allRows.filter((row) => row.isEligible).length;
@@ -507,6 +513,9 @@ export class AchReturnsManagementComponent implements OnInit {
   }
 
   openReasonDialog(): void {
+    if (!this.ensureCanGenerateReturns()) {
+      return;
+    }
     if (this.generating || this.loading) {
       return;
     }
@@ -539,6 +548,9 @@ export class AchReturnsManagementComponent implements OnInit {
   }
 
   generateFile(reasonCode: string, achColombiaR10Basis?: 1 | 2): void {
+    if (!this.ensureCanGenerateReturns()) {
+      return;
+    }
     if (this.generating || this.loading) {
       return;
     }
@@ -593,6 +605,15 @@ export class AchReturnsManagementComponent implements OnInit {
     return `${cycle.cycleName} · ${cycle.clearingHouseName} · ${this.formatDate(
       cycle.date ?? cycle.processingDate
     )}`;
+  }
+
+  private ensureCanGenerateReturns(): boolean {
+    if (this.canGenerateReturns) {
+      return true;
+    }
+
+    this.notifications.error('No tiene permisos para generar devoluciones.');
+    return false;
   }
 
   private loadCatalogs(): void {

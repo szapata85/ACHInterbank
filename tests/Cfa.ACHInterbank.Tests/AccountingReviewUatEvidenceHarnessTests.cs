@@ -46,7 +46,7 @@ public sealed class AccountingReviewUatEvidenceHarnessTests
         {
             var svc = new Mock<IAccountingReviewExportAppService>();
             svc.Setup(x => x.ExportAsync(It.IsAny<AccountingReviewExportApiRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(await service.ExportAsync(request, CancellationToken.None));
-            var controller = new ReportsController(Mock.Of<IReportGenerator>(), Mock.Of<IAchTransactionReportService>(), Mock.Of<IAchReturnRejectionReportService>(), Mock.Of<IAchNachaCycleReportService>(), Mock.Of<IAchReconciliationReportService>(), Mock.Of<IAchAuditHistoryReportService>(), Mock.Of<IClearingHouseService>(), svc.Object, Mock.Of<ILogger<ReportsController>>());
+            var controller = new AccountingReviewReportsController(svc.Object);
             var file = (await controller.ExportAccountingReview(request, CancellationToken.None)).Should().BeOfType<FileContentResult>().Subject;
             return new AccountingReviewExportResult { Content = file.FileContents, ContentType = file.ContentType!, FileName = file.FileDownloadName! };
         }

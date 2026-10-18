@@ -1,9 +1,10 @@
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Application.Security;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http.Metadata;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
@@ -19,26 +20,28 @@ public class PaymentRailCapabilityRegistryController : ControllerBase
         _service = service;
     }
 
-    [EndpointSummary("Inventario operativo de rieles en Capability Registry")]
-    [EndpointDescription("Qué consulta: lista los rieles de pago que participan en PaymentRail Capability Registry para análisis administrativo. Para qué perfil operativo sirve: arquitectura de pagos, gobierno ACH/CENIT, QA funcional y auditoría técnica que validan cobertura por riel antes de decisiones de integración. Permiso requerido: FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry, con fallback de autorización a CanManageAch o CanReadAch según la política registrada en DependencyInjection. Solo lectura: sí, no persiste ni modifica datos. Significado del resultado: cada railCode indica un riel disponible para consultar capacidades efectivas. Gobernanza y auditoría: el acceso queda trazable en logs y permite evidencia de consulta regulatoria. Precaución operacional: no usar esta consulta como señal de habilitación productiva automática; confirmar ventana operativa y controles de release. Relación con PaymentRail, ACH y CENIT: define alcance de observabilidad de capacidades que afectan compensación ACH/CENIT en modo shadow. Advertencia: este endpoint no ejecuta cutover, no altera capacidades y no cambia el comportamiento legacy vigente.")]
+    /// <summary>Consulta los rieles publicados por el registro de capacidades.</summary>
+    [EndpointSummary("Consultar rieles del registro de capacidades")]
+    [EndpointDescription("Devuelve el catálogo que el servicio de Capability Registry publica actualmente para consultar capacidades por riel. Cada elemento indica el código, nombre visible y los indicadores IsKnownRail e IsOperational definidos por ese catálogo; esta operación no modifica el registro.")]
     [HttpGet("rails")]
     [Authorize(Policy = FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry)]
     [ProducesResponseType(typeof(IReadOnlyList<PaymentRailRegistryRailItem>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Rieles publicados por el registro de capacidades.")]
     public ActionResult<IReadOnlyList<PaymentRailRegistryRailItem>> GetRails()
         => Ok(_service.GetAvailableRails());
 
-    [EndpointSummary("Matriz efectiva de capacidades por riel y fecha operativa")]
-    [EndpointDescription("Qué consulta: devuelve las capacidades efectivas de un riel (railCode) para la fecha asOfUtc solicitada. Para qué perfil operativo sirve: operación ACH, arquitectura PaymentRail, compliance y soporte que verifican si una capacidad está gobernada por override o por estrategia. Permiso requerido: FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry, con fallback a CanManageAch o CanReadAch en la política de autorización. Solo lectura: sí, únicamente lectura del estado efectivo. Significado del resultado: Source=RegistryOverride indica que existe una sobreescritura auditable en el registro; Source=StrategyDefault indica estado heredado desde la estrategia operativa del riel. Gobernanza y auditoría: permite demostrar trazabilidad de decisiones de habilitación sin modificar la estrategia legacy. Precaución operacional: railCode inválido retorna 400 y no debe interpretarse como indisponibilidad transaccional; validar catálogo oficial del riel. Relación con PaymentRail, ACH y CENIT: visibiliza cómo el riel opera en paralelo/shadow respecto al circuito ACH/CENIT. Advertencia: no ejecuta cutover, no habilita cambios en producción y no modifica reglas legacy ACH/CENIT.")]
+    /// <summary>Consulta las capacidades efectivas de un riel.</summary>
+    /// <param name="railCode">Código del riel. El servicio admite los códigos definidos en PaymentRailCodes y responde 400 cuando el valor no está soportado.</param>
+    /// <param name="asOfUtc">Instante opcional usado para evaluar overrides vigentes. Si se omite, el servicio usa la hora UTC actual.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar capacidades efectivas de un riel")]
+    [EndpointDescription("Devuelve todas las capacidades conocidas por el registro para el riel solicitado. Para cada capacidad, el servicio prioriza un override activo y vigente del registry; cuando no existe, deriva el estado desde la estrategia operacional del riel. Un railCode no soportado se traduce explícitamente a 400.")]
     [HttpGet("rails/{railCode}/capabilities")]
     [Authorize(Policy = FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry)]
     [ProducesResponseType(typeof(IReadOnlyList<PaymentRailCapabilityRegistryItem>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Capacidades efectivas del riel para el instante solicitado.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "El railCode está vacío o no corresponde a un riel soportado por el servicio.")]
     public async Task<ActionResult<IReadOnlyList<PaymentRailCapabilityRegistryItem>>> GetCapabilitiesByRailAsync(
         string railCode,
         [FromQuery] DateTime? asOfUtc,
@@ -55,16 +58,21 @@ public class PaymentRailCapabilityRegistryController : ControllerBase
         }
     }
 
-    [EndpointSummary("Estado efectivo de una capacidad específica por riel")]
-    [EndpointDescription("Qué consulta: obtiene la capacidad puntual (capabilityCode) para un riel y fecha operativa. Para qué perfil operativo sirve: validación QA, auditoría de gobierno funcional y equipos de integración que necesitan confirmar una capacidad antes de pruebas o monitoreo. Permiso requerido: FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry con fallback a CanManageAch o CanReadAch según la política. Solo lectura: sí, sin escritura en registry ni estrategia. Significado del resultado: cuando Source=RegistryOverride existe override auditable explícito; cuando Source=StrategyDefault la capacidad conserva el valor calculado por la estrategia del riel. Gobernanza y auditoría: diferencia explícitamente control administrativo versus valor base operativo para evidencia de cumplimiento. Precaución operacional: capabilityCode no catalogado o no disponible retorna 404; railCode inválido retorna 400; ambos casos deben tratarse como validación de catálogo, no como cambio de estado transaccional. Relación con PaymentRail, ACH y CENIT: habilita inspección controlada del comportamiento esperado en paralelo con el flujo legacy ACH/CENIT. Advertencia: no ejecuta cutover, no altera capacidades y no cambia comportamiento legacy ni reglas criptográficas.")]
+    /// <summary>Consulta una capacidad efectiva de un riel.</summary>
+    /// <param name="railCode">Código del riel. Un valor no soportado se responde como 400.</param>
+    /// <param name="capabilityCode">Código de capacidad que debe pertenecer al catálogo PaymentRailCapabilityRegistryCodes.</param>
+    /// <param name="asOfUtc">Instante opcional usado para evaluar overrides vigentes. Si se omite, el servicio usa la hora UTC actual.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Consultar capacidad efectiva de un riel")]
+    [EndpointDescription("Obtiene una capacidad puntual para el riel y el instante solicitados. El controller devuelve 404 cuando capabilityCode no pertenece al catálogo o cuando la capacidad no está disponible; un railCode no soportado se traduce explícitamente a 400. El estado conserva la misma resolución de override vigente o estrategia operacional usada por la consulta de capacidades del riel.")]
     [HttpGet("rails/{railCode}/capabilities/{capabilityCode}")]
     [Authorize(Policy = FineGrainedPermissions.CanViewPaymentRailCapabilityRegistry)]
     [ProducesResponseType(typeof(PaymentRailCapabilityRegistryItem), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Capacidad efectiva encontrada para el riel y el instante solicitados.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "El railCode está vacío o no corresponde a un riel soportado por el servicio.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "El capabilityCode no pertenece al catálogo o la capacidad no está disponible para el riel solicitado.")]
     public async Task<ActionResult<PaymentRailCapabilityRegistryItem>> GetCapabilityByRailAsync(
         string railCode,
         string capabilityCode,

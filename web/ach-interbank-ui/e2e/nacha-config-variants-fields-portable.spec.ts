@@ -13,7 +13,7 @@ const stableCodes = {
   field: 'R9_BATCHCOUNT'
 } as const;
 
-test('variantes y campos localiza el contexto por códigos estables en cualquier runtime', async ({ page }) => {
+test('la ruta anterior de variantes conserva el contexto y abre el área de trabajo unificada', async ({ page }) => {
   test.setTimeout(90_000);
   expect(username, 'E2E_ADMIN_USER o ACH_USER es obligatorio.').toBeTruthy();
   expect(password, 'E2E_ADMIN_PASSWORD o ACH_PASS es obligatorio.').toBeTruthy();
@@ -24,53 +24,34 @@ test('variantes y campos localiza el contexto por códigos estables en cualquier
     + `&recordCode=${encodeURIComponent(stableCodes.record)}`
     + `&variantId=${context.variantId}&fieldId=${context.fieldId}`;
 
-  const detailResponse = page.waitForResponse(response =>
-    response.request().method() === 'GET'
-    && response.url().endsWith(`/nacha-config/perfiles/${context.profileId}`)
-  );
   await page.goto(`${spa}${path}`, { waitUntil: 'domcontentloaded' });
-  expect((await detailResponse).status()).toBe(200);
+  await expect(page).toHaveURL(new RegExp(`/nacha-config-admin/perfiles/${context.profileId}`));
 
-  const root = page.getByTestId('nacha-config-variants-fields-page');
-  const visiblePage = page.locator('body');
+  const root = page.getByTestId('nacha-config-profile-workspace-page');
   await expect(root).toBeVisible();
-  await expect(page.getByTestId('profile-selector')).toHaveValue(String(context.profileId));
-  await expect(page.getByTestId('record-selector')).toHaveValue(stableCodes.record);
-  await expect(page.getByTestId('variant-selector')).toHaveValue(String(context.variantId));
-  await expect(root.getByRole('heading', { name: 'Cantidad de lotes' })).toBeVisible();
-  await expect(root.locator('.master-item.is-selected')).toContainText('Cantidad de lotes');
-  await expect(root.locator('.master-item.is-selected')).toContainText(stableCodes.field);
-  await expect(root.locator('.master-item.is-selected')).toContainText('BatchCount');
-  await expect(root).toContainText('Publicado');
-  await expect(root).toContainText('Entidad del dominio');
-  await expect(root).toContainText('Alineación a la derecha');
+  await expect(root.getByTestId('nacha-config-record-list')).toBeVisible();
+  await expect(root.getByTestId('nacha-config-field-list')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`recordCode=${encodeURIComponent(stableCodes.record)}`));
+  await expect(page).toHaveURL(new RegExp(`fieldId=${context.fieldId}`));
+  await assertNoFunctionalSpanglish(page.locator('body'));
 
-  await root.locator('.semantic-legend summary').click();
-  await expect(root.locator('.legend-grid')).toContainText('Error bloqueante');
-
-  await root.getByTestId('field-technical-details').locator('summary').click();
-  await expect(root.getByTestId('field-technical-details')).toContainText(stableCodes.field);
-  await expect(root.getByTestId('field-technical-details')).toContainText('BatchCount');
-
-  await assertNoFunctionalSpanglish(visiblePage);
-
-  await root.getByRole('tab', { name: 'Variante', exact: true }).click();
-  await expect(root.getByTestId('variant-detail')).toContainText('Variante base del control de archivo');
-  await assertNoFunctionalSpanglish(visiblePage);
-
-  await root.getByRole('tab', { name: /^Reglas/ }).click();
-  await expect(root.getByTestId('rules-detail')).toContainText('Este campo no requiere reglas adicionales');
-  await assertNoFunctionalSpanglish(visiblePage);
+  for (const tab of ['Perfil', 'Ciclo de vida', 'Probar', 'Cambios', 'Historial']) {
+    const tabButton = root.getByRole('tab', { name: tab, exact: true });
+    if (await tabButton.count()) {
+      await tabButton.click();
+      await assertNoFunctionalSpanglish(page.locator('body'));
+    }
+  }
 });
 
 async function login(page: Page): Promise<string> {
   const response = await page.request.post(`${api}/auth/login`, {
     data: { username, password }
   });
-  expect(response.ok(), 'El login real debe responder 200.').toBeTruthy();
+  expect(response.ok(), 'El inicio de sesión real debe responder 200.').toBeTruthy();
   const payload = await response.json() as { data?: { token?: string }; token?: string };
   const token = payload.data?.token ?? payload.token;
-  expect(token, 'El login debe entregar un token.').toBeTruthy();
+  expect(token, 'El inicio de sesión debe entregar un token.').toBeTruthy();
 
   await page.goto(`${spa}/login`, { waitUntil: 'domcontentloaded' });
   await page.locator('input[formControlName="username"]').fill(username!);
@@ -87,7 +68,7 @@ async function resolveStableContext(page: Page, token: string): Promise<StableCo
   const profilesPayload = await profilesResponse.json() as ApiEnvelope<ProfileSummary[]>;
   const profiles = unwrap(profilesPayload);
   const profile = profiles.find(item => item.profileCode === stableCodes.profile);
-  expect(profile, `Debe existir el perfil bootstrap ${stableCodes.profile}.`).toBeTruthy();
+  expect(profile, `Debe existir el perfil base ${stableCodes.profile}.`).toBeTruthy();
 
   const detailResponse = await page.request.get(`${api}/nacha-config/perfiles/${profile!.id}`, { headers });
   expect(detailResponse.status()).toBe(200);
@@ -97,9 +78,9 @@ async function resolveStableContext(page: Page, token: string): Promise<StableCo
   const variant = detail.variantes.find(item =>
     item.recordCode === stableCodes.record && item.variantCode === stableCodes.variant
   );
-  expect(variant, `Debe existir la variante bootstrap ${stableCodes.variant}.`).toBeTruthy();
+  expect(variant, `Debe existir la variante base ${stableCodes.variant}.`).toBeTruthy();
   const field = variant!.fields.find(item => item.fieldCode === stableCodes.field);
-  expect(field, `Debe existir el campo bootstrap ${stableCodes.field}.`).toBeTruthy();
+  expect(field, `Debe existir el campo base ${stableCodes.field}.`).toBeTruthy();
 
   return {
     profileId: profile!.id,

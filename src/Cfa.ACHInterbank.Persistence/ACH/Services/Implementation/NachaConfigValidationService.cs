@@ -932,25 +932,22 @@ public sealed class NachaConfigValidationService : INachaConfigValidationService
 
     private static string ResolveChamberCode(string? clearingHouseCode, string? clearingHouseName)
     {
-        if (!string.IsNullOrWhiteSpace(clearingHouseCode))
-        {
-            if (clearingHouseCode.Contains("CENIT", StringComparison.OrdinalIgnoreCase))
-            {
-                return "CENIT";
-            }
-
-            if (clearingHouseCode.Contains("ACH", StringComparison.OrdinalIgnoreCase))
-            {
-                return "ACH";
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(clearingHouseName) && clearingHouseName.Contains("CENIT", StringComparison.OrdinalIgnoreCase))
+        var canonicalCode = clearingHouseCode?.Trim();
+        if (string.Equals(canonicalCode, "CENIT", StringComparison.OrdinalIgnoreCase))
         {
             return "CENIT";
         }
 
-        return "ACH";
+        if (string.Equals(canonicalCode, "ACH", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ACH";
+        }
+
+        // Compatibility only for legacy rows that predate canonical Code population.
+        // This is exact-name equality, never display-name substring inference.
+        return string.Equals(clearingHouseName?.Trim(), "CENIT", StringComparison.OrdinalIgnoreCase)
+            ? "CENIT"
+            : "ACH";
     }
 
     private static void ValidateFormatMask(

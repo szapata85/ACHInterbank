@@ -12,21 +12,24 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSortModule, Sort } from '@angular/material/sort';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { Subject, catchError, finalize, of, startWith, switchMap } from 'rxjs';
 import { OutgoingTransactionMonitoringApiService } from './outgoing-transaction-monitoring-api.service';
 import { OutgoingMonitoringCycleOption, OutgoingMonitoringListItem, OutgoingMonitoringOption, OutgoingMonitoringPage, OutgoingMonitoringQuery } from './outgoing-transaction-monitoring.models';
+import { PageHeaderComponent } from '../../../shared/components/page-header.component';
+import { UiEstadoCargaComponent } from '../../../shared/components/ui/ui-estado-carga.component';
+import { UiEstadoErrorComponent } from '../../../shared/components/ui/ui-estado-error.component';
+import { UiEstadoVacioComponent } from '../../../shared/components/ui/ui-estado-vacio.component';
 
 @Component({
   selector: 'app-outgoing-transaction-monitoring-list',
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule, MatButtonModule, MatCardModule, MatDatepickerModule, MatFormFieldModule,
-    MatIconModule, MatInputModule, MatNativeDateModule, MatPaginatorModule, MatProgressSpinnerModule,
-    MatSelectModule, MatSortModule, MatTableModule
+    MatIconModule, MatInputModule, MatNativeDateModule, MatPaginatorModule, MatSelectModule, MatSortModule,
+    MatTableModule, PageHeaderComponent, UiEstadoCargaComponent, UiEstadoErrorComponent, UiEstadoVacioComponent
   ],
   templateUrl: './outgoing-transaction-monitoring-list.component.html',
   styleUrl: './outgoing-transaction-monitoring-list.component.scss',

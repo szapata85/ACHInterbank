@@ -1,5 +1,9 @@
 # MFT_EXTERNAL_READINESS_AUDIT
 
+> **Vigencia del documento:** esta auditoría conserva evidencia histórica del corte 2026-09-07. Su cuerpo describe el estado anterior a FASE 1–8 y **no debe usarse como descripción actual del código r908**. El estado actual está resumido en `docs/ACH_COLOMBIA_INTERNAL_CLOSURE.md` y `docs/CURRENT_PROJECT_STATUS.md`.
+>
+> **Estado actual 2026-10-09:** **IMPLEMENTACIÓN COMPLETADA / VALIDACIÓN EJECUTABLE FINAL PENDIENTE**. Desde este audit se implementaron: contrato CFA MFT Boundary, programación operativa persistente, Quartz outbound dinámico, resolver `ManagedFolder`/`SftpEndpoint`, SFTP hacia infraestructura CFA con host-key y publicación atómica, administración/prueba de conexión, seguimiento de transferencias, inbound OUT/RET con recuperación y harness FASE 8 controlado. No se ejecutaron build/tests .NET ni el E2E Docker del paquete actual en el host de preparación; tampoco existe homologación externa, pickup GoAnywhere confirmado, aceptación ACH Colombia, UAT o producción.
+
 ## STATUS
 
 JOB: MFT-EXTERNAL-READINESS-001. AUDIT-ONLY. 2026-09-07.

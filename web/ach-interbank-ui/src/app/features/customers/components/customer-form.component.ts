@@ -3,8 +3,8 @@ import { FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
-import { CustomersApiService } from '../services/customers-api.service';
-import { CustomerDetail, SaveCustomerRequest } from '../models/customer.model';
+import { CustomersApiService } from '../../../core/services/customers-api.service';
+import { CustomerDetail, SaveCustomerRequest } from '../../../core/models/customer.model';
 import { NotificationService } from '../../../core/services/notification.service';
 
 interface SelectOption {

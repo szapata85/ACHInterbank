@@ -226,6 +226,64 @@ public class AchCycleSchedulerTests
         Assert.Contains(cycles, c => c.ClearingHouseCycleConfigId == 102);
     }
 
+
+    [Fact]
+    public async Task ScheduleCyclesForClearingHouseAsync_CopiesCompleteExpandedStageSnapshot()
+    {
+        using var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<AchDbContext>().UseSqlite(connection).Options;
+        using var context = new AchDbContext(options);
+        context.Database.EnsureCreated();
+
+        context.ClearingHouseConfigs.Add(new ClearingHouseConfig
+        {
+            Id = 1,
+            HolidayStrategy = "Colombian",
+            TimeZoneId = "America/Bogota"
+        });
+        context.ClearingHouses.Add(new ClearingHouse
+        {
+            Id = 1, Name = "ACH Colombia", Code = "ACHCOL", OriginCode = "12345678", ClearingHouseId = 1
+        });
+        context.ClearingHouseCycleConfigs.Add(new ClearingHouseCycleConfig
+        {
+            ClearingHouseId = 1,
+            PolicyVersion = "STRUCTURAL-STAGES",
+            CycleName = "CICLO-1",
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(10, 0, 0),
+            CutoffTime = new TimeSpan(10, 0, 0),
+            OutputReleaseTime = new TimeSpan(11, 0, 0),
+            CompensationStatementStartTime = new TimeSpan(10, 0, 0),
+            CompensationStatementEndTime = new TimeSpan(10, 30, 0),
+            CompensationPaymentStartTime = new TimeSpan(10, 30, 0),
+            CompensationPaymentEndTime = new TimeSpan(10, 45, 0),
+            OutputReleaseStartTime = new TimeSpan(10, 45, 0),
+            OutputReleaseEndTime = new TimeSpan(11, 0, 0),
+            EffectiveFrom = new DateTime(2026, 1, 1),
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var holidayService = new Mock<IBankHoliday>();
+        holidayService.Setup(x => x.GetHolidays(It.IsAny<int>())).Returns([]);
+        var cenitPolicy = new Mock<ICenitOperatingCalendarPolicy>();
+        cenitPolicy.Setup(x => x.ValidateCycleConsistencyAsync(It.IsAny<int>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var scheduler = new AchCycleScheduler(context, holidayService.Object, Mock.Of<IServiceProvider>(), cenitPolicy.Object);
+
+        await scheduler.ScheduleCyclesForClearingHouseAsync(1, new DateTime(2026, 3, 24));
+
+        var cycle = await context.AchCycles.SingleAsync();
+        Assert.Equal(new TimeSpan(10, 0, 0), cycle.CompensationStatementStartTime);
+        Assert.Equal(new TimeSpan(10, 30, 0), cycle.CompensationStatementEndTime);
+        Assert.Equal(new TimeSpan(10, 30, 0), cycle.CompensationPaymentStartTime);
+        Assert.Equal(new TimeSpan(10, 45, 0), cycle.CompensationPaymentEndTime);
+        Assert.Equal(new TimeSpan(10, 45, 0), cycle.OutputReleaseStartTime);
+        Assert.Equal(new TimeSpan(11, 0, 0), cycle.OutputReleaseEndTime);
+        Assert.Equal(new TimeSpan(11, 0, 0), cycle.OutputReleaseTime);
+    }
+
     [Fact]
     public async Task ScheduleCyclesForClearingHouseAsync_RejectsOverlappingActiveConfigurations()
     {

@@ -13,10 +13,14 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class AchStateTransitionService : IAchStateTransitionService
 {
     private readonly AchDbContext _context;
+    private readonly IThirdPartyAccountValidationService? _thirdPartyAccountValidationService;
 
-    public AchStateTransitionService(AchDbContext context)
+    public AchStateTransitionService(
+        AchDbContext context,
+        IThirdPartyAccountValidationService? thirdPartyAccountValidationService = null)
     {
         _context = context;
+        _thirdPartyAccountValidationService = thirdPartyAccountValidationService;
     }
 
     public async Task<AchTransaction> TransitionAsync(
@@ -104,6 +108,12 @@ public class AchStateTransitionService : IAchStateTransitionService
             OccurredAtUtc = transaction.StateChangedAtUtc
         };
 
+        await SynchronizeCanonicalPrenotificationValidationAsync(
+            transaction,
+            request,
+            normalizedReasonCode,
+            ct);
+
         await SynchronizePrenotificationThirdPartyAsync(
             transaction,
             request.ToState,
@@ -146,6 +156,42 @@ public class AchStateTransitionService : IAchStateTransitionService
             && string.Equals(existing.ReasonCode, NormalizeReasonCode(request.ReasonCode), StringComparison.OrdinalIgnoreCase)
             && existing.ClearingHouseId == request.ClearingHouseId
             && existing.AchReturnCodeId == request.AchReturnCodeId;
+
+
+    private async Task SynchronizeCanonicalPrenotificationValidationAsync(
+        AchTransaction transaction,
+        AchStateTransitionRequest request,
+        string? reasonCode,
+        CancellationToken ct)
+    {
+        if (!transaction.IsPrenotification || _thirdPartyAccountValidationService is null)
+        {
+            return;
+        }
+
+        if (request.ToState is not (AchTransferStateEnum.AppliedTacitly
+            or AchTransferStateEnum.Certified
+            or AchTransferStateEnum.ReturnedByOperator
+            or AchTransferStateEnum.ReturnedByEpr))
+        {
+            return;
+        }
+
+        var evidenceReference = NormalizeIdempotencyKey(request.IdempotencyKey)
+            ?? $"ach-state-transition:{transaction.Id}:{request.ToState}";
+
+        await _thirdPartyAccountValidationService.ApplyTransactionResolutionAsync(
+            new PrenotificationValidationResolutionRequest(
+                transaction.Id,
+                request.ToState,
+                new DateTimeOffset(DateTime.SpecifyKind(transaction.StateChangedAtUtc, DateTimeKind.Utc)),
+                evidenceReference,
+                request.IdempotencyKey,
+                reasonCode,
+                request.ResolvedReasonDescription,
+                transaction.AchCycleId),
+            ct);
+    }
 
     private async Task SynchronizePrenotificationThirdPartyAsync(
         AchTransaction transaction,

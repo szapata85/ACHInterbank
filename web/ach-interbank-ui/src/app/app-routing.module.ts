@@ -65,10 +65,6 @@ export const APP_ROUTES: Routes = [
         loadChildren: () => import('./features/admin/admin.module').then((m) => m.AdminModule)
       },
       {
-        path: 'aliases',
-        loadChildren: () => import('./features/aliases/aliases.module').then((m) => m.AliasesModule)
-      },
-      {
         path: 'customers',
         loadChildren: () => import('./features/customers/customers.module').then((m) => m.CustomersModule)
       },
@@ -91,13 +87,17 @@ export const APP_ROUTES: Routes = [
         loadChildren: () => import('./features/nacha-security/nacha-security.module').then((m) => m.NachaSecurityModule)
       },
       {
+        path: 'ach-claims',
+        loadChildren: () => import('./features/ach-claims/ach-claims.module').then((m) => m.AchClaimsModule)
+      },
+      {
         path: 'transactions',
         canActivate: [roleGuard, permissionGuard],
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanManageAch', 'CanReadAch'],
-          breadcrumb: 'Transacciones',
-          title: 'Transacciones ACH'
+          breadcrumb: 'Operación',
+          title: 'Operación'
         },
         loadChildren: () => import('./features/transactions/transactions.module').then((m) => m.TransactionsModule)
       },
@@ -106,31 +106,33 @@ export const APP_ROUTES: Routes = [
         canActivate: [roleGuard, permissionGuard],
         data: {
           roles: ['Admin', 'ACH.Operator'],
-          permissions: ['CanReadAch', 'CanManageAch'],
-          breadcrumb: 'Integraciones',
-          title: 'Integraciones'
+          permissions: ['Integrations.Read', 'CanReadAch', 'CanManageAch'],
+          breadcrumb: 'Conexiones',
+          title: 'Conexiones'
         },
-        loadChildren: () => import('./features/integrations/integrations.module').then((m) => m.IntegrationsModule)
-      },
-      {
-        path: 'soap-integrations',
-        redirectTo: 'integraciones/soap-settings',
-        pathMatch: 'full'
+        loadChildren: () => import('./features/integrations/integrations.routes').then((m) => m.INTEGRATIONS_ROUTES)
       },
       {
         path: 'navigation',
-        canActivate: [roleGuard, permissionGuard],
-        data: {
-          roles: ['Admin'],
-          permissions: ['CanManageUsers'],
-          breadcrumb: 'Navegación',
-          title: 'Menú de navegación'
-        },
+        canActivate: [permissionGuard],
+        data: { permissions: ['NavigationMenu.Manage', 'CanManageUsers'] },
         loadChildren: () => import('./features/navigation/navigation.module').then((m) => m.NavigationModule)
       },
       {
         path: 'catalogs',
         loadChildren: () => import('./features/catalogs/catalogs.module').then((m) => m.CatalogsModule)
+      },
+      {
+        path: 'operational-restrictions',
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['OperationalRestrictions.Read'],
+          breadcrumb: 'Restricciones operativas',
+          title: 'Restricciones operativas'
+        },
+        loadComponent: () =>
+          import('./features/operational-restrictions/operational-restrictions.component')
+            .then((m) => m.OperationalRestrictionsComponent)
       },
       {
         path: 'clearing-houses',
@@ -192,14 +194,20 @@ export const APP_ROUTES: Routes = [
       },
       {
         path: 'audit-logs',
+        canActivate: [permissionGuard],
+        data: { permissions: ['AuditLogs.Read', 'CanManageUsers'] },
         loadChildren: () => import('./features/audit/audit.module').then((m) => m.AuditModule)
       },
       {
         path: 'auth-logs',
+        canActivate: [permissionGuard],
+        data: { permissions: ['AuthLogs.Read', 'CanManageUsers'] },
         loadChildren: () => import('./features/auth-logs/auth-logs.module').then((m) => m.AuthLogsModule)
       },
       {
         path: 'navigation-logs',
+        canActivate: [permissionGuard],
+        data: { permissions: ['NavigationLogs.Read', 'CanReadAch'] },
         loadChildren: () => import('./features/navigation-logs/navigation-logs.module').then((m) => m.NavigationLogsModule)
       },
       {
@@ -214,7 +222,7 @@ export const APP_ROUTES: Routes = [
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
           breadcrumb: 'Reportes',
-          title: 'Reportes ACH'
+          title: 'Reportes'
         },
         loadChildren: () => import('./features/reports/reports.module').then((m) => m.ReportsModule)
       },
@@ -224,14 +232,14 @@ export const APP_ROUTES: Routes = [
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
-          breadcrumb: 'Intercambio de archivos ACH Colombia',
-          title: 'Intercambio de archivos ACH Colombia'
+          breadcrumb: 'Intercambio de archivos',
+          title: 'Intercambio de archivos'
         },
         loadComponent: () => import('./features/ach-colombia-file-exchange/ach-colombia-file-exchange.component').then((m) => m.AchColombiaFileExchangeComponent)
       },
       {
-        path: 'administracion/mft-ach', canActivate: [roleGuard, permissionGuard],
-        data: { roles: ['Admin', 'ACH.Operator'], permissions: ['CanReadAch'], breadcrumb: 'MFT ACH', title: 'Administración MFT ACH' },
+        path: 'administracion/mft-ach', canActivate: [permissionGuard],
+        data: { permissions: ['Config.Read', 'CanReadAch'], breadcrumb: 'Configuración del intercambio de archivos', title: 'Configuración del intercambio de archivos' },
         loadComponent: () => import('./features/ach-colombia-mft-administration/ach-colombia-mft-administration.component').then((m) => m.AchColombiaMftAdministrationComponent)
       },
       {
@@ -251,19 +259,18 @@ export const APP_ROUTES: Routes = [
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch'],
-          breadcrumb: 'Configuración NACHA-M',
-          title: 'Administración de perfiles NACHA-M'
+          breadcrumb: 'Configuración de archivos NACHA-M',
+          title: 'Configuración de archivos NACHA-M'
         },
         loadChildren: () => import('./features/nacha-config-admin/nacha-config-admin.module').then((m) => m.NachaConfigAdminModule)
       },
       {
         path: 'uat',
-        canActivate: [roleGuard, permissionGuard],
+        canActivate: [permissionGuard],
         data: {
-          roles: ['Admin', 'ACH.Operator'],
-          permissions: ['CanManageAch', 'CanReadAch'],
-          breadcrumb: 'UAT',
-          title: 'Simuladores UAT'
+          permissions: ['TestTools.Access'],
+          breadcrumb: 'Herramientas de prueba',
+          title: 'Herramientas de prueba'
         },
         loadChildren: () => import('./features/uat/uat.module').then((m) => m.UatModule)
       },
@@ -273,8 +280,8 @@ export const APP_ROUTES: Routes = [
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
-          breadcrumb: 'Seguimiento de archivos NACHA-M',
-          title: 'Seguimiento de archivos NACHA-M'
+          breadcrumb: 'Seguimiento de archivos',
+          title: 'Seguimiento de archivos'
         },
         loadChildren: () =>
           import('./features/incoming-nacha-command-center/incoming-nacha-command-center.module').then(
@@ -287,11 +294,24 @@ export const APP_ROUTES: Routes = [
         data: {
           roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanReadAch'],
-          breadcrumb: 'Respuestas ACH',
-          title: 'Command Center Respuestas ACH'
+          breadcrumb: 'Bandeja de respuestas',
+          title: 'Bandeja de respuestas'
         },
         loadChildren: () =>
           import('./features/ach-responses/ach-responses.module').then((m) => m.AchResponsesModule)
+      },
+      {
+        path: 'ach/nacha/soap-uat-console',
+        canActivate: [permissionGuard],
+        data: {
+          permissions: ['TestTools.Access'],
+          breadcrumb: 'Pruebas de servicios',
+          title: 'Pruebas de servicios'
+        },
+        loadComponent: () =>
+          import('./features/nacha-operational/pages/nacha-soap-uat-console.component').then(
+            (m) => m.NachaSoapUatConsoleComponent
+          )
       },
       {
         path: 'ach',
@@ -306,12 +326,11 @@ export const APP_ROUTES: Routes = [
       },
       {
         path: 'payment-rail-capability-registry',
-        canActivate: [roleGuard, permissionGuard],
+        canActivate: [permissionGuard],
         data: {
-          roles: ['Admin', 'ACH.Operator'],
           permissions: ['CanViewPaymentRailCapabilityRegistry', 'CanManageAch', 'CanReadAch'],
-          breadcrumb: 'Capability Registry',
-          title: 'Capability Registry multi-riel (solo lectura)'
+          breadcrumb: 'Capacidades de la plataforma',
+          title: 'Capacidades de la plataforma'
         },
         loadChildren: () =>
           import('./features/payment-rail-capability-registry/payment-rail-capability-registry.module').then(

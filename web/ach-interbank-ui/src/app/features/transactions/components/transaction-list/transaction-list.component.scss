@@ -46,8 +46,8 @@
   height: 2rem;
   place-items: center;
   border-radius: 50%;
-  background: #e9f7f3;
-  color: #006b58;
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  color: var(--color-primary);
 
   mat-icon {
     width: 1.2rem;
@@ -87,7 +87,7 @@
 
 .search-button {
   background: var(--color-primary) !important;
-  color: #fff !important;
+  color: var(--color-primary-contrast) !important;
 }
 
 .page-actions {
@@ -162,7 +162,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0.35rem 0.75rem;
-  background: #edf2f7;
+  background: var(--color-surface-muted);
   color: var(--color-text);
   border-radius: var(--radius-pill);
   font-weight: 700;
@@ -174,18 +174,6 @@
   font-size: 0.9rem;
 }
 
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  min-height: 120px;
-  padding: 1.5rem;
-  color: var(--color-text-soft);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-}
 
 .column-manager {
   margin-bottom: 1rem;
@@ -213,7 +201,7 @@
       display: inline-flex;
       align-items: center;
       gap: 0.45rem;
-      color: #1f2937;
+      color: var(--color-text);
     }
 
     .disabled {
@@ -253,9 +241,9 @@
   .filter-actions,
   .filter-actions button,
   .action-buttons,
-  .action-buttons ui-boton,
+  .action-buttons button,
   .return-filters,
-  .return-filters ui-boton {
+  .return-filters button {
     width: 100%;
   }
 

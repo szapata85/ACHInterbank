@@ -1,13 +1,10 @@
 using Cfa.ACHInterbank.Api.Controllers;
-using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -152,34 +149,17 @@ public class NachaSoapUatConsoleReadModelTests
     }
 
     [Fact]
-    public async Task SoapUatConsole_ShouldBeUnavailableInProduction()
+    public async Task SoapUatConsole_ShouldRemainReadOnlyAndAvailableWithoutEnvironmentGate()
     {
-        var controller = CreateController(
-            new NachaSoapUatConsoleReadModelService(ReadStore().Object),
-            Environments.Production);
+        var controller = CreateController(new NachaSoapUatConsoleReadModelService(ReadStore().Object));
 
         var result = await controller.GetDashboard(default);
 
-        result.Should().BeOfType<NotFoundObjectResult>();
+        result.Should().BeOfType<OkObjectResult>();
     }
 
-    private static NachaSoapUatConsoleController CreateController(
-        INachaSoapUatConsoleReadModelService service,
-        string environmentName = "Development")
-    {
-        var environment = new Mock<IHostEnvironment>();
-        environment.SetupGet(x => x.EnvironmentName).Returns(environmentName);
-        return new NachaSoapUatConsoleController(
-            service,
-            Options.Create(new NachaInboundSimulatorOptions
-            {
-                Enabled = true,
-                Mode = "UAT",
-                AllowExternalTransmission = false,
-                AllowAutoImport = false
-            }),
-            environment.Object);
-    }
+    private static NachaSoapUatConsoleController CreateController(INachaSoapUatConsoleReadModelService service)
+        => new(service);
 
     private static Mock<INachaOperationalReadStore> ReadStore(
         IReadOnlyList<NachaOperationalDecisionReadModel>? decisions = null,

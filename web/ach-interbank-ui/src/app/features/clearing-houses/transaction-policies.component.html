@@ -1,16 +1,21 @@
 <section class="policy-page" aria-labelledby="policy-content-title">
-  <mat-card *ngIf="loading" class="policy-page__state" role="status" aria-live="polite">
-    <mat-spinner diameter="36"></mat-spinner>
-    <div><strong>Cargando cámara y políticas…</strong><span>Consultando las reglas vigentes y el historial.</span></div>
-  </mat-card>
+  <ui-estado-carga
+    id="policy-content-title"
+    *ngIf="loading"
+    mensaje="Cargando cámara y políticas… Consultando las reglas vigentes y el historial."
+  ></ui-estado-carga>
 
-  <mat-card *ngIf="!loading && error" class="policy-page__state policy-page__state--error" role="alert">
-    <mat-icon>error_outline</mat-icon>
-    <div><h2 id="policy-content-title">No fue posible mostrar las políticas</h2><p>{{ error }}</p></div>
+  <div *ngIf="!loading && error" class="policy-page__error">
+    <ui-estado-error
+      id="policy-content-title"
+      titulo="No fue posible mostrar las políticas"
+      [mensaje]="error"
+      [mostrarReintentar]="false"
+    ></ui-estado-error>
     <button mat-stroked-button type="button" (click)="router.navigateByUrl('/clearing-houses')">
-      <mat-icon>arrow_back</mat-icon>Volver a cámaras
+      <mat-icon>arrow_back</mat-icon>Volver a Cámaras compensadoras
     </button>
-  </mat-card>
+  </div>
 
   <ng-container *ngIf="!loading && clearingHouse as house">
     <app-clearing-house-context-navigation
@@ -20,22 +25,25 @@
       [canReadSpecialDates]="canReadSpecialDates"
     ></app-clearing-house-context-navigation>
 
-    <header class="policy-page__hero">
-      <div>
-        <p class="policy-page__eyebrow">Decisión previa a exportación NACHA-M</p>
-        <h2 id="policy-content-title">Reglas de prenotificación</h2>
-        <p>Consulta qué exige actualmente {{ house.name }} antes de exportar débitos o créditos.</p>
-        <div class="policy-page__metadata">
-          <span><strong>Cámara</strong>{{ house.name }} · {{ house.code }}</span>
-          <span><strong>Estado</strong>{{ house.isActive ? 'Activa' : 'Inactiva' }}</span>
-          <span><strong>Última actualización</strong>{{ lastUpdated ? (lastUpdated | date:'short') : 'Sin dato' }}</span>
-          <span><strong>Próxima versión</strong>{{ nextPolicy ? (typeLabel(nextPolicy.transactionType) + ' · ' + (nextPolicy.effectiveFrom | date:'mediumDate':'UTC')) : 'No programada' }}</span>
-        </div>
-      </div>
+    <ng-template #headerActions>
       <button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="createVersion()">
         <mat-icon>add</mat-icon>Crear nueva versión
       </button>
-    </header>
+    </ng-template>
+
+    <app-page-header
+      id="policy-content-title"
+      title="Reglas de prenotificación"
+      subtitle="Decisión previa a exportación NACHA-M"
+      [actionsTemplate]="headerActions"
+    ></app-page-header>
+    <p class="policy-page__description">Consulta qué exige actualmente {{ house.name }} antes de exportar débitos o créditos.</p>
+    <div class="policy-page__metadata">
+      <span><strong>Cámara</strong>{{ house.name }} · {{ house.code }}</span>
+      <span><strong>Estado</strong>{{ house.isActive ? 'Activa' : 'Inactiva' }}</span>
+      <span><strong>Última actualización</strong>{{ lastUpdated ? (lastUpdated | date:'short') : 'Sin dato' }}</span>
+      <span><strong>Próxima versión</strong>{{ nextPolicy ? (typeLabel(nextPolicy.transactionType) + ' · ' + (nextPolicy.effectiveFrom | date:'mediumDate':'UTC')) : 'No programada' }}</span>
+    </div>
 
     <mat-card class="impact-card">
       <mat-icon aria-hidden="true">warning_amber</mat-icon>
@@ -100,9 +108,12 @@
         <mat-card-subtitle>Versiones vigentes, futuras, históricas e inactivas. La trazabilidad normativa está disponible en el detalle.</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
-        <div *ngIf="!policies.length" class="policy-page__empty" role="status">
-          <mat-icon>inventory_2</mat-icon><strong>Sin políticas configuradas</strong><span>La exportación NACHA-M puede quedar bloqueada.</span>
-        </div>
+        <ui-estado-vacio
+          *ngIf="!policies.length"
+          titulo="Sin políticas configuradas"
+          mensaje="La exportación NACHA-M puede quedar bloqueada."
+          sugerencia=""
+        ></ui-estado-vacio>
 
         <div class="policy-page__table-wrap" *ngIf="policies.length">
           <table mat-table [dataSource]="policies" class="policy-table">
@@ -116,10 +127,10 @@
               <th mat-header-cell *matHeaderCellDef>Plazo</th><td mat-cell *matCellDef="let row">{{ lead(row) }}</td>
             </ng-container>
             <ng-container matColumnDef="from">
-              <th mat-header-cell *matHeaderCellDef>Inicio</th><td mat-cell *matCellDef="let row">{{ row.effectiveFrom | date:'mediumDate':'UTC' }}</td>
+              <th mat-header-cell *matHeaderCellDef>Vigencia inicial</th><td mat-cell *matCellDef="let row">{{ row.effectiveFrom | date:'mediumDate':'UTC' }}</td>
             </ng-container>
             <ng-container matColumnDef="to">
-              <th mat-header-cell *matHeaderCellDef>Fin</th><td mat-cell *matCellDef="let row">{{ row.effectiveTo ? (row.effectiveTo | date:'mediumDate':'UTC') : 'Sin cierre' }}</td>
+              <th mat-header-cell *matHeaderCellDef>Vigencia final</th><td mat-cell *matCellDef="let row">{{ row.effectiveTo ? (row.effectiveTo | date:'mediumDate':'UTC') : 'Sin cierre' }}</td>
             </ng-container>
             <ng-container matColumnDef="state">
               <th mat-header-cell *matHeaderCellDef>Estado</th><td mat-cell *matCellDef="let row"><mat-chip>{{ status(row) }}</mat-chip></td>
@@ -128,7 +139,7 @@
               <th mat-header-cell *matHeaderCellDef>Acciones</th>
               <td mat-cell *matCellDef="let row">
                 <button mat-icon-button [matMenuTriggerFor]="actions" type="button"
-                  [attr.aria-label]="'Acciones de política de ' + typeLabel(row.transactionType)" matTooltip="Acciones de versión">
+                  [attr.aria-label]="'Acciones de la versión de política para ' + typeLabel(row.transactionType)" matTooltip="Ver acciones de la versión">
                   <mat-icon>more_vert</mat-icon>
                 </button>
                 <mat-menu #actions="matMenu">
@@ -189,7 +200,7 @@
             <mat-option [value]="transactionTypes.Debit">Débito</mat-option>
             <mat-option [value]="transactionTypes.Credit">Crédito</mat-option>
           </mat-select>
-          <mat-error *ngIf="form.controls.transactionType.hasError('required')">Seleccione el tipo de transacción.</mat-error>
+          <mat-error *ngIf="form.controls.transactionType.hasError('required')">Selecciona el tipo de transacción.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Regla de prenotificación</mat-label>
@@ -197,7 +208,7 @@
             <mat-option value="Mandatory">Prenotificación obligatoria</mat-option>
             <mat-option value="Optional">Prenotificación opcional</mat-option>
           </mat-select>
-          <mat-error *ngIf="form.controls.prenotificationMode.hasError('required')">Seleccione la regla de prenotificación.</mat-error>
+          <mat-error *ngIf="form.controls.prenotificationMode.hasError('required')">Selecciona la regla de prenotificación.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Días hábiles previos</mat-label>

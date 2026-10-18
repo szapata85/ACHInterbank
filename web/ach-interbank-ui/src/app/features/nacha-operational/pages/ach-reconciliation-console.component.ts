@@ -12,7 +12,7 @@ import { AchReconciliationConsoleData, AchReconciliationException, AchReconcilia
   standalone: true,
   imports: [CommonModule, FormsModule, SharedModule],
   templateUrl: './ach-reconciliation-console.component.html',
-  styleUrls: ['./nacha-operational-dashboard.component.scss'],
+  styleUrls: ['./nacha-operational-console.shared.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AchReconciliationConsoleComponent implements OnInit {
@@ -33,17 +33,17 @@ export class AchReconciliationConsoleComponent implements OnInit {
   resolving = false;
 
   readonly columnas: ColDef<AchReconciliationItem>[] = [
-    { field: 'reconciliationId', headerName: 'ID', minWidth: 170 },
-    { field: 'correlationId', headerName: 'CorrelationId', minWidth: 180 },
+    { field: 'reconciliationId', headerName: 'ID de conciliación', minWidth: 170 },
+    { field: 'correlationId', headerName: 'ID de correlación', minWidth: 180 },
     { field: 'fileName', headerName: 'Archivo', minWidth: 180 },
     { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 110 },
     { field: 'flowType', headerName: 'Flujo', minWidth: 170 },
     { field: 'responseType', headerName: 'Respuesta', minWidth: 180 },
     { field: 'reasonCode', headerName: 'Causal', minWidth: 110 },
-    { field: 'traceNumberMasked', headerName: 'Trace', minWidth: 130 },
+    { field: 'traceNumberMasked', headerName: 'Número de rastreo', minWidth: 130 },
     { field: 'internalStatus', headerName: 'Estado interno', minWidth: 170 },
     { field: 'reconciliationStatus', headerName: 'Conciliación', minWidth: 150 },
-    { field: 'soapOperationCandidate', headerName: 'SOAP candidato', minWidth: 190 }
+    { field: 'soapOperationCandidate', headerName: 'Operación SOAP candidata', minWidth: 190 }
   ];
 
   ngOnInit(): void {

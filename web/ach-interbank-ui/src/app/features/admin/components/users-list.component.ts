@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { FormBuilder } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -13,11 +13,15 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { NotificationService } from '../../../core/services/notification.service';
-import { RolesApiService, UsersApiService } from '../services/users-api.service';
-import { RoleSummary, UserFilter, UserSummary } from '../models/user.model';
+import { UsersApiService } from '../services/users-api.service';
+import { RolesApiService } from '../../../core/services/roles-api.service';
+import { UserFilter, UserSummary } from '../models/user.model';
+import { RoleSummary } from '../../../core/models/role.model';
 import { UserPresentationService } from '../services/user-presentation.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { catchError, EMPTY } from 'rxjs';
+import { NavigationNamingService } from '../../../core/services/navigation-naming.service';
 
 @Component({
   selector: 'app-users-list',
@@ -46,6 +50,9 @@ export class UsersListComponent implements OnInit {
   private readonly usersApi = inject(UsersApiService);
   private readonly rolesApi = inject(RolesApiService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly navigationNaming = inject(NavigationNamingService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly notifications = inject(NotificationService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly presentation = inject(UserPresentationService);
@@ -67,10 +74,29 @@ export class UsersListComponent implements OnInit {
   loadError: string | null = null;
   confirmUser: UserSummary | null = null;
   isUpdatingStatus = false;
+  pageHeading = String(this.route.snapshot.data['title'] ?? '');
 
   ngOnInit(): void {
+    this.syncPageHeading();
     this.loadRoles();
     this.loadUsers();
+  }
+
+
+  private syncPageHeading(): void {
+    this.navigationNaming.menu$
+      .pipe(
+        catchError(() => EMPTY),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((menuItems) => {
+        this.pageHeading = this.navigationNaming.canonicalLabelForRoute(
+          menuItems,
+          this.router.url,
+          this.pageHeading
+        );
+        this.cdr.markForCheck();
+      });
   }
 
   loadUsers(): void {

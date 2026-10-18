@@ -14,7 +14,7 @@ interface ErrorDefinition {
 }
 
 const certificateCorrection = {
-  correctionLabel: 'Ir a Certificados de seguridad NACHA-M',
+  correctionLabel: 'Ir a Certificados digitales',
   correctionRoute: '/nacha-security/certificates'
 };
 

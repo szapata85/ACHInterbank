@@ -53,7 +53,7 @@ describe('IncomingNachaOrphansPageComponent', () => {
 
     expect(api.getOrphans).toHaveBeenCalled();
     expect(fixture.componentInstance.orphans).toEqual([orphan]);
-    expect(fixture.nativeElement.textContent).toContain('Devoluciones recibidas sin relación');
+    expect(fixture.nativeElement.textContent).toContain('Devoluciones sin relación');
     expect(fixture.nativeElement.textContent).toContain('R01');
   });
 

@@ -1,5 +1,5 @@
 <app-page-header
-  title="Reporte de trazabilidad ACH"
+  title="Trazabilidad ACH"
   subtitle="Genera un documento consolidado por estado, ciclo y rango de fechas"
   [actionsTemplate]="headerActions"
 ></app-page-header>
@@ -52,7 +52,7 @@
     <div *ngIf="exportError" class="state error" role="alert" data-testid="traceability-export-error">
       <mat-icon aria-hidden="true">error_outline</mat-icon>
       <span>{{ exportError }}</span>
-      <button mat-stroked-button type="button" (click)="generatePdf()" [disabled]="loading">Intentar nuevamente</button>
+      <button mat-stroked-button type="button" (click)="generatePdf()" [disabled]="loading">Reintentar</button>
     </div>
   </mat-card-content>
 </mat-card>

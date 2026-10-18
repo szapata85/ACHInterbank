@@ -11,7 +11,7 @@ export const ACH_CYCLES_ROUTES: Routes = [
     pathMatch: 'full',
     component: AchCycleListComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Ciclos ACH', title: 'Ciclos ACH' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Ciclos de operación', title: 'Ciclos de operación' }
   },
   {
     path: 'new',
@@ -23,7 +23,7 @@ export const ACH_CYCLES_ROUTES: Routes = [
     path: 'nacha/export',
     component: NachaExportComponent,
     canActivate: [permissionGuard],
-    data: { breadcrumb: 'Exportación NACHA-M', title: 'Exportación NACHA-M', permissions: ['CanReadAch'] }
+    data: { breadcrumb: 'Exportar archivo NACHA-M', title: 'Exportar archivo NACHA-M', permissions: ['CanReadAch'] }
   },
   {
     path: 'nacha/layouts',

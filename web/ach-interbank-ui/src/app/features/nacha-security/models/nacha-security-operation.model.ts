@@ -5,8 +5,7 @@ export type NachaSecurityOperationType =
   | 'NachaGenerateEncrypted'
   | 'ManualEnvelopeEncrypt'
   | 'ManualEnvelopeDecrypt'
-  | 'DownloadArtifact'
-  | 'InteroperabilityRun';
+  | 'DownloadArtifact';
 
 export interface NachaSecurityOperationError {
   code: string;
@@ -53,15 +52,4 @@ export interface AuthorizeDownloadResponse {
 
 export interface NachaGenerateOperationRequest {
   cycleId: string;
-}
-
-export interface InteroperabilityStatus {
-  officialVectorStatus: 'Pending' | 'Ready' | 'Approved' | 'Rejected';
-  officialMetadataLoaded: boolean;
-  goNoGo: 'GO' | 'NO_GO';
-  identifierIvHardening: {
-    allowed: boolean;
-    reason: string;
-  };
-  lastHarnessRunUtc?: string | null;
 }

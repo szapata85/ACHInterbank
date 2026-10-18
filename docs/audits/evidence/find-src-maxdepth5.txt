@@ -65,7 +65,6 @@ src/Cfa.ACHInterbank.Api/appsettings.Development.json
 src/Cfa.ACHInterbank.Api/appsettings.json
 src/Cfa.ACHInterbank.Api/entrypoint.sh
 src/Cfa.ACHInterbank.Application/ACH/Configuration/NachaGenerationOptions.cs
-src/Cfa.ACHInterbank.Application/ACH/Configuration/TransactionPolicyOptions.cs
 src/Cfa.ACHInterbank.Application/ACH/Implementation/AchClearingHouseStrategy.cs
 src/Cfa.ACHInterbank.Application/ACH/Implementation/CenitClearingHouseStrategy.cs
 src/Cfa.ACHInterbank.Application/ACH/Implementation/ClearingHouseStrategyFactory.cs

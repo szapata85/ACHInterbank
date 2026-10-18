@@ -17,8 +17,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Instituciones financieras',
-      title: 'Instituciones financieras'
+      breadcrumb: 'Entidades financieras',
+      title: 'Entidades financieras'
     }
   },
   {
@@ -28,8 +28,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Prioridades cámaras',
-      title: 'Prioridades cámaras'
+      breadcrumb: 'Prioridades por cámara',
+      title: 'Prioridades por cámara'
     }
   },
   {
@@ -38,8 +38,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Festivos bancarios',
-      title: 'Festivos bancarios'
+      breadcrumb: 'Días no hábiles',
+      title: 'Días no hábiles'
     }
   },
   {
@@ -147,8 +147,8 @@ const routes: Routes = [
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanManageAch'],
-      breadcrumb: 'Códigos de transacción ACH',
-      title: 'Códigos de transacción ACH',
+      breadcrumb: 'Códigos de transacción',
+      title: 'Códigos de transacción',
       subtitle: 'Administra el catálogo de códigos de transacción ACH.',
       catalogType: 'transaction-codes'
     }

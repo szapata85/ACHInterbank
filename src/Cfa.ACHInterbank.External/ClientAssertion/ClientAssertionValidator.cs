@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Application.External.ClientAssertion;
 using Cfa.ACHInterbank.Application.External.JwksService;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using static Cfa.ACHInterbank.Domain.Entities.JwksService.JwksService;
 
 namespace Cfa.ACHInterbank.External.ClientAssertion;
@@ -15,12 +16,18 @@ public class ClientAssertionValidator : IClientAssertionValidator
 {
     private readonly IJwksService _jwksService;
     private readonly IMapper _mapper = MapperBootstrapper.Instance;
-    private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly TokenGeneric _tokenSettings;
+    private readonly Integrations _integrationSettings;
 
 
-    public ClientAssertionValidator(IJwksService jwksService)
+    public ClientAssertionValidator(
+        IJwksService jwksService,
+        IOptions<TokenGeneric> tokenOptions,
+        IOptions<Integrations> integrationOptions)
     {
         _jwksService = jwksService;
+        _tokenSettings = tokenOptions?.Value ?? throw new ArgumentNullException(nameof(tokenOptions));
+        _integrationSettings = integrationOptions?.Value ?? throw new ArgumentNullException(nameof(integrationOptions));
     }
     public bool ValidateAssertionAsync(string assertion)
     {
@@ -40,8 +47,8 @@ public class ClientAssertionValidator : IClientAssertionValidator
 
                 var parameters = new TokenValidationParameters
                 {
-                    ValidIssuer = _appSettings.TokenGeneric!.clientId,
-                    ValidAudience = _appSettings.Integrations!.UrlAch,
+                    ValidIssuer = _tokenSettings.clientId,
+                    ValidAudience = _integrationSettings.UrlAch,
                     IssuerSigningKey = key,
                     ValidateIssuer = true,
                     ValidateAudience = true,

@@ -1,6 +1,8 @@
+using Cfa.ACHInterbank.Application.Configuration;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
+using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Responses.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.Security.Dtos;
@@ -14,9 +16,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
-using System.Threading.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
-using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
@@ -25,70 +25,97 @@ namespace Cfa.ACHInterbank.External;
 
 public static class DependencyInjectionService
 {
-    private static readonly AppSettings _appSettings = AppSettings.Settings;
-
     public static IServiceCollection AddExternal(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddOptions<Token>()
+            .Bind(configuration.GetSection("appSettings:tokenManager"))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.secretKetJwt), "appSettings:tokenManager:secretKetJwt es obligatorio.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.issuerJwt), "appSettings:tokenManager:issuerJwt es obligatorio.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.audienceJwt), "appSettings:tokenManager:audienceJwt es obligatorio.")
+            .Validate(options => options.accessExpiration > 0, "appSettings:tokenManager:accessExpiration debe ser positivo.")
+            .ValidateOnStart();
+        services.AddOptions<TokenGeneric>()
+            .Bind(configuration.GetSection("appSettings:TokenGeneric"));
+        services.AddOptions<Integrations>()
+            .Bind(configuration.GetSection("appSettings:Integrations"));
+        services.AddOptions<ServesSettings>()
+            .Bind(configuration.GetSection("appSettings:servers"))
+            .Validate(options => options.services is not null, "appSettings:servers:services es obligatorio.")
+            .Validate(options => options.servicesWCF is not null, "appSettings:servers:servicesWCF es obligatorio.")
+            .ValidateOnStart();
+        services.PostConfigure<ServesSettings>(options =>
+        {
+            options.services = options.services?.Where(service => service.State).ToList();
+            options.servicesWCF = options.servicesWCF?.Where(service => service.State).ToList();
+        });
+        services.AddOptions<CertificatesSettings>()
+            .Bind(configuration.GetSection("appSettings:Certificates"));
+        services.AddOptions<ApplicationEncryptionOptions>()
+            .Configure(options => options.Key = configuration["appSettings:key"]);
+        services.AddOptions<AuthenticationUiOptions>()
+            .Configure(options =>
+            {
+                var configured = configuration["appSettings:address"];
+                if (!string.IsNullOrWhiteSpace(configured))
+                {
+                    options.ResetPasswordBaseUrl = configured.Trim();
+                }
+            });
+        services.AddOptions<WcfAuthorizationOptions>()
+            .Configure(options => options.TimeoutMinutes = configuration["appSettings:prueba"]);
         services.Configure<WsAxonEndpointSecurityOptions>(
             configuration.GetSection(WsAxonEndpointSecurityOptions.SectionName));
+        services.Configure<RegistrarRespuestaDispatchOptions>(
+            configuration.GetSection(RegistrarRespuestaDispatchOptions.SectionName));
         services.Configure<ControlledLocalSoapTransportOptions>(
             configuration.GetSection(ControlledLocalSoapTransportOptions.SectionName));
         services.Configure<AchOutboundReturnTransportOptions>(
             configuration.GetSection(AchOutboundReturnTransportOptions.SectionName));
         services.Configure<AchColombiaManagedMftOptions>(
             configuration.GetSection(AchColombiaManagedMftOptions.SectionName));
-        services.AddScoped<IAchColombiaManagedMftAdapter, AchColombiaManagedMftFolderAdapter>();
+        services.AddScoped<AchColombiaManagedMftFolderAdapter>();
+        services.AddScoped<IAchColombiaSftpSessionFactory, SshNetAchColombiaSftpSessionFactory>();
+        services.AddScoped<AchColombiaSftpMftAdapter>(provider => new AchColombiaSftpMftAdapter(
+            provider.GetRequiredService<IAchColombiaManagedMftConfigurationProvider>(),
+            provider.GetRequiredService<IEncryptionService>(),
+            provider.GetRequiredService<IAchColombiaSftpSessionFactory>()));
+        services.AddScoped<IAchColombiaManagedMftAdapterResolver, AchColombiaManagedMftAdapterResolver>();
+        services.AddScoped<IAchColombiaManagedMftConnectionTester>(provider => new AchColombiaManagedMftConnectionTester(
+            provider.GetRequiredService<IAchColombiaManagedMftConfigurationProvider>(),
+            provider.GetRequiredService<IEncryptionService>(),
+            provider.GetRequiredService<IAchColombiaSftpSessionFactory>()));
+        services.AddScoped<IAchColombiaManagedMftAdapter, AchColombiaManagedMftDispatchAdapter>();
 
-        var resilienceSection = configuration.GetSection("Resilience:Soap");
-        var timeoutSeconds = resilienceSection.GetValue<int?>("TimeoutSeconds") ?? 15;
-        var maxRetryAttempts = resilienceSection.GetValue<int?>("MaxRetryAttempts") ?? 3;
-        var retryBaseDelaySeconds = resilienceSection.GetValue<int?>("RetryBaseDelaySeconds") ?? 2;
-        var breakerFailureRatio = resilienceSection.GetValue<double?>("CircuitBreaker:FailureRatio") ?? 0.5;
-        var breakerSamplingSeconds = resilienceSection.GetValue<int?>("CircuitBreaker:SamplingDurationSeconds") ?? 30;
-        var breakerMinimumThroughput = resilienceSection.GetValue<int?>("CircuitBreaker:MinimumThroughput") ?? 20;
-        var breakerBreakSeconds = resilienceSection.GetValue<int?>("CircuitBreaker:BreakDurationSeconds") ?? 30;
-        var outboundRatePermitLimit = resilienceSection.GetValue<int?>("RateLimit:PermitLimit") ?? 50;
-        var outboundRateQueueLimit = resilienceSection.GetValue<int?>("RateLimit:QueueLimit") ?? 100;
-        var outboundBulkheadPermitLimit = resilienceSection.GetValue<int?>("Bulkhead:PermitLimit") ?? 10;
-        var outboundBulkheadQueueLimit = resilienceSection.GetValue<int?>("Bulkhead:QueueLimit") ?? 50;
+        var externalHttpSection = configuration.GetSection(ExternalHttpResilienceOptions.SectionName);
+        var externalHttpOptions = externalHttpSection.Get<ExternalHttpResilienceOptions>()
+            ?? new ExternalHttpResilienceOptions();
 
-        services.AddHttpClient(nameof(Connections.WscfaachSoapClient))
-            .SetHandlerLifetime(TimeSpan.FromMinutes(10))
-            .AddResilienceHandler("ach-soap-pipeline", pipeline =>
-            {
-                pipeline.AddRateLimiter(new HttpRateLimiterStrategyOptions
-                {
-                    DefaultRateLimiterOptions = new ConcurrencyLimiterOptions
-                    {
-                        PermitLimit = outboundRatePermitLimit,
-                        QueueLimit = outboundRateQueueLimit,
-                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-                    }
-                });
+        services.AddOptions<ExternalHttpResilienceOptions>()
+            .Bind(externalHttpSection)
+            .Validate(options => IsValidHttpPolicy(options.HealthProbe, allowRetry: true, requireTimeout: true),
+                "Resilience:ExternalHttp:HealthProbe contiene valores inválidos.")
+            .Validate(options => IsValidHttpPolicy(options.Generic, allowRetry: false, requireTimeout: true),
+                "Resilience:ExternalHttp:Generic debe tener retry deshabilitado y timeout positivo.")
+            .Validate(options => IsValidHttpPolicy(options.Soap, allowRetry: false, requireTimeout: false),
+                "Resilience:ExternalHttp:Soap debe tener retry deshabilitado; el timeout lo controla el mapping SOAP.")
+            .ValidateOnStart();
 
-                pipeline.AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
-
-                if (maxRetryAttempts > 0)
-                {
-                    pipeline.AddRetry(new HttpRetryStrategyOptions
-                    {
-                        MaxRetryAttempts = maxRetryAttempts,
-                        BackoffType = DelayBackoffType.Exponential,
-                        Delay = TimeSpan.FromSeconds(retryBaseDelaySeconds),
-                        UseJitter = true
-                    });
-                }
-
-                pipeline.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
-                {
-                    FailureRatio = breakerFailureRatio,
-                    SamplingDuration = TimeSpan.FromSeconds(breakerSamplingSeconds),
-                    MinimumThroughput = breakerMinimumThroughput,
-                    BreakDuration = TimeSpan.FromSeconds(breakerBreakSeconds)
-                });
-
-                pipeline.AddConcurrencyLimiter(outboundBulkheadPermitLimit, outboundBulkheadQueueLimit);
-            });
+        AddHealthProbeHttpClient(services, externalHttpOptions.HealthProbe);
+        AddNoRetryHttpClient(
+            services,
+            ExternalHttpClientNames.GenericNoRetry,
+            externalHttpOptions.Generic,
+            configureTimeout: true);
+        AddNoRetryHttpClient(
+            services,
+            ExternalHttpClientNames.WscfaachSoapNoRetry,
+            externalHttpOptions.Soap,
+            configureTimeout: false);
+        AddNoRetryHttpClient(
+            services,
+            ExternalHttpClientNames.WsAxonSoapNoRetry,
+            externalHttpOptions.Soap,
+            configureTimeout: false);
 
         services.AddScoped<IEmailSender, LoggingEmailSender>();
         services.AddScoped<RegistrarRespuestaAchSoapRequestMapper>();
@@ -96,11 +123,9 @@ public static class DependencyInjectionService
         services.AddScoped<IRespuestaTransaccionesAchGateway, RespuestaTransaccionesAchGateway>();
 
         var validIssuer = configuration["appSettings:tokenManager:issuerJwt"]
-            ?? _appSettings.TokenManager?.issuerJwt
-            ?? string.Empty;
+            ?? throw new InvalidOperationException("Debe configurar appSettings:tokenManager:issuerJwt.");
         var validAudience = configuration["appSettings:tokenManager:audienceJwt"]
-            ?? _appSettings.TokenManager?.audienceJwt
-            ?? string.Empty;
+            ?? throw new InvalidOperationException("Debe configurar appSettings:tokenManager:audienceJwt.");
         var jwtSecret = ResolveJwtSecret(configuration);
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(option =>
@@ -223,6 +248,21 @@ public static class DependencyInjectionService
                     ctx.User.HasClaim("permission", FineGrainedPermissions.Returns.GenerateFile)
                     || ctx.User.HasClaim("permission", "CanManageAch")));
 
+            options.AddPolicy(P0Policies.ClaimsRead,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Claims.Read));
+
+            options.AddPolicy(P0Policies.ClaimsCreateDev14,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Claims.CreateDev14));
+
+            options.AddPolicy(P0Policies.ClaimsProgress,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Claims.Progress));
+
+            options.AddPolicy(P0Policies.ClaimsResolve,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Claims.Resolve));
+
+            options.AddPolicy(P0Policies.ClaimsExpire,
+                policy => policy.RequireClaim("permission", FineGrainedPermissions.Claims.Expire));
+
             options.AddPolicy(P0Policies.OutgoingTransactionsMonitorRead,
                 policy => policy.RequireAssertion(ctx =>
                     ctx.User.HasClaim("permission", FineGrainedPermissions.OutgoingTransactions.MonitorRead)
@@ -239,6 +279,24 @@ public static class DependencyInjectionService
                 || ctx.User.HasClaim("permission", "CanReadAch")));
             options.AddPolicy(P1Policies.ConfigManage, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Config.Manage)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.IntegrationsRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Integrations.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+            options.AddPolicy(P1Policies.IntegrationContractsManage, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Integrations.ManageContracts)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.IntegrationConnectionsManage, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Integrations.ManageConnections)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.IntegrationMappingsManage, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Integrations.ManageMappings)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.IntegrationMappingsValidate, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Integrations.Validate)
+                || ctx.User.HasClaim("permission", "CanManageAch")));
+            options.AddPolicy(P1Policies.IntegrationMappingsPublish, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.Integrations.Publish)
                 || ctx.User.HasClaim("permission", "CanManageAch")));
             options.AddPolicy(P1Policies.MaintenanceSeed, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Maintenance.Seed)
@@ -371,6 +429,7 @@ public static class DependencyInjectionService
                 || ctx.User.HasClaim("permission", "CanManageAch")));
             options.AddPolicy(P1Policies.RolesRead, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Roles.Read)
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.NavigationMenu.Manage)
                 || ctx.User.HasClaim("permission", "CanReadAch")));
             options.AddPolicy(P1Policies.RolesCreate, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Roles.Create)
@@ -383,10 +442,25 @@ public static class DependencyInjectionService
                 || ctx.User.HasClaim("permission", "CanManageAch")));
             options.AddPolicy(P1Policies.PermissionsRead, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Permissions.Read)
+                || ctx.User.HasClaim("permission", FineGrainedPermissions.NavigationMenu.Manage)
                 || ctx.User.HasClaim("permission", "CanReadAch")));
             options.AddPolicy(P1Policies.PermissionsAssign, policy => policy.RequireAssertion(ctx =>
                 ctx.User.HasClaim("permission", FineGrainedPermissions.Permissions.Assign)
                 || ctx.User.HasClaim("permission", "CanManageAch")));
+
+            options.AddPolicy(P1Policies.AuditLogsRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.AuditLogs.Read)
+                || ctx.User.HasClaim("permission", "CanManageUsers")));
+            options.AddPolicy(P1Policies.AuthLogsRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.AuthLogs.Read)
+                || ctx.User.HasClaim("permission", "CanManageUsers")));
+            options.AddPolicy(P1Policies.NavigationLogsRead, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.NavigationLogs.Read)
+                || ctx.User.HasClaim("permission", "CanReadAch")));
+
+            options.AddPolicy(P1Policies.NavigationMenuManage, policy => policy.RequireAssertion(ctx =>
+                ctx.User.HasClaim("permission", FineGrainedPermissions.NavigationMenu.Manage)
+                || ctx.User.HasClaim("permission", "CanManageUsers")));
 
             options.AddPolicy(P1Policies.SchedulerView,
                 policy => policy.RequireClaim("permission", FineGrainedPermissions.Scheduler.View));
@@ -416,36 +490,10 @@ public static class DependencyInjectionService
         // Injection Dependency Traditional
 
 
-        // Injection Dependency Dynamic
-        List<Type> types = Assembly.GetExecutingAssembly().GetTypes()
-            .Where(t => t.IsClass
-            && !t.IsAbstract
-            && !t.IsGenericTypeDefinition
-            && !t.ContainsGenericParameters
-            && !t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), inherit: false)
-            && (t.IsPublic || t.IsNestedPublic))
-            .ToList();
-
-        foreach (var implementationType in types)
-        {
-            Type? interfaceType = implementationType.GetInterfaces()
-                .FirstOrDefault(i => i.Name == $"I{implementationType.Name}" || i == typeof(ITaskHandler));
-
-            if (interfaceType == null) continue;
-
-            if (implementationType.GetCustomAttribute<SingletonAttribute>() != null)
-            {
-                services.AddSingleton(interfaceType, implementationType);
-            }
-            else if (implementationType.GetCustomAttribute<ScopedAttribute>() != null)
-            {
-                services.AddScoped(interfaceType, implementationType);
-            }
-            else
-            {
-                services.AddTransient(interfaceType, implementationType);
-            }
-        }
+        // Registro convencional mediante Scrutor.
+        services.AddConventionServicesFromAssembly(
+            typeof(DependencyInjectionService).Assembly,
+            typeof(ITaskHandler));
 
         #endregion Services
 
@@ -453,11 +501,83 @@ public static class DependencyInjectionService
         return services;
     }
 
+    private static void AddHealthProbeHttpClient(IServiceCollection services, ExternalHttpPolicyOptions policy)
+    {
+        services.AddHttpClient(ExternalHttpClientNames.HealthProbe)
+            .SetHandlerLifetime(TimeSpan.FromMinutes(10))
+            .AddResilienceHandler("ach-health-probe-idempotent-pipeline", pipeline =>
+            {
+                pipeline.AddConcurrencyLimiter(policy.BulkheadPermitLimit, policy.BulkheadQueueLimit);
+                if (policy.MaxRetryAttempts > 0)
+                {
+                    pipeline.AddRetry(new HttpRetryStrategyOptions
+                    {
+                        MaxRetryAttempts = policy.MaxRetryAttempts,
+                        BackoffType = DelayBackoffType.Exponential,
+                        Delay = TimeSpan.FromMilliseconds(policy.RetryBaseDelayMilliseconds),
+                        UseJitter = true
+                    });
+                }
+
+                pipeline.AddTimeout(TimeSpan.FromSeconds(policy.TimeoutSeconds));
+                pipeline.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
+                {
+                    FailureRatio = policy.CircuitBreakerFailureRatio,
+                    SamplingDuration = TimeSpan.FromSeconds(policy.CircuitBreakerSamplingDurationSeconds),
+                    MinimumThroughput = policy.CircuitBreakerMinimumThroughput,
+                    BreakDuration = TimeSpan.FromSeconds(policy.CircuitBreakerBreakDurationSeconds)
+                });
+            });
+    }
+
+    private static void AddNoRetryHttpClient(
+        IServiceCollection services,
+        string clientName,
+        ExternalHttpPolicyOptions policy,
+        bool configureTimeout)
+    {
+        // Non-idempotent/uncertain operations deliberately receive no transport retry, circuit breaker,
+        // or bulkhead rejection policy. IHttpClientFactory still owns handler reuse. Timeout ownership
+        // remains operation-specific: generic HTTP preserves the legacy 100s timeout; SOAP uses its
+        // database integration mapping per operation.
+        var builder = services.AddHttpClient(clientName);
+        if (configureTimeout)
+        {
+            builder.ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(policy.TimeoutSeconds));
+        }
+
+        builder.SetHandlerLifetime(TimeSpan.FromMinutes(10));
+    }
+
+    private static bool IsValidHttpPolicy(
+        ExternalHttpPolicyOptions policy,
+        bool allowRetry,
+        bool requireTimeout)
+    {
+        if (policy is null
+            || (requireTimeout && policy.TimeoutSeconds <= 0)
+            || (!requireTimeout && policy.TimeoutSeconds < 0)
+            || policy.MaxRetryAttempts < 0
+            || (!allowRetry && policy.MaxRetryAttempts != 0)
+            || policy.RetryBaseDelayMilliseconds < 0
+            || policy.CircuitBreakerFailureRatio <= 0
+            || policy.CircuitBreakerFailureRatio > 1
+            || policy.CircuitBreakerSamplingDurationSeconds <= 0
+            || policy.CircuitBreakerMinimumThroughput <= 1
+            || policy.CircuitBreakerBreakDurationSeconds <= 0
+            || policy.BulkheadPermitLimit <= 0
+            || policy.BulkheadQueueLimit < 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private static string ResolveJwtSecret(IConfiguration configuration)
     {
         var configured = configuration["appSettings:tokenManager:secretKetJwt"]
-            ?? Environment.GetEnvironmentVariable("appSettings__tokenManager__secretKetJwt")
-            ?? _appSettings.TokenManager?.secretKetJwt;
+            ?? Environment.GetEnvironmentVariable("appSettings__tokenManager__secretKetJwt");
 
         if (string.IsNullOrWhiteSpace(configured))
         {

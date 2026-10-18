@@ -1,5 +1,7 @@
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.Data.Sqlite;
@@ -109,6 +111,163 @@ public sealed class ClearingHouseCycleConfigSeederTests
             RegulatoryCycleScheduleCatalog.GetRequired("ACHCOL"));
     }
 
+
+    [Fact]
+    public async Task SeedAsync_AchColombia_RunTwice_PreservesExactHistoricalFiveCycleSnapshot()
+    {
+        await using var fixture = await SeederFixture.CreateAsync();
+        await fixture.Seeder.SeedAsync();
+        var first = await fixture.CurrentCyclesAsync(31);
+        var firstSnapshot = Snapshot(first);
+
+        await fixture.Seeder.SeedAsync();
+        var second = await fixture.CurrentCyclesAsync(31);
+
+        Assert.Equal(firstSnapshot, Snapshot(second));
+        AssertSchedule(second, RegulatoryCycleScheduleCatalog.AchColombiaV35HistoricalPolicy.Cycles);
+        Assert.All(second, config =>
+        {
+            Assert.Equal(RegulatoryCycleScheduleCatalog.HistoricalBootstrapPolicyVersion, config.PolicyVersion);
+            Assert.Equal(RegulatoryCycleScheduleCatalog.HistoricalBootstrapEffectiveFrom, config.EffectiveFrom);
+            Assert.Null(config.EffectiveTo);
+            Assert.Null(config.CompensationStatementStartTime);
+            Assert.Null(config.CompensationStatementEndTime);
+            Assert.Null(config.CompensationPaymentStartTime);
+            Assert.Null(config.CompensationPaymentEndTime);
+            Assert.Null(config.OutputReleaseStartTime);
+            Assert.Null(config.OutputReleaseEndTime);
+        });
+        Assert.DoesNotContain(second, config =>
+            string.Equals(config.PolicyVersion, RegulatoryCycleScheduleCatalog.AchColombiaSevenCycleCandidateVersion, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RegulatoryCycleSeedRepair_NewVersion_ClosesPriorRangeWithoutRewritingHistoricalPayload()
+    {
+        await using var fixture = await SeederFixture.CreateAsync();
+        await fixture.Seeder.SeedAsync();
+        var before = await fixture.CurrentCyclesAsync(31);
+        var historicalPayload = before
+            .OrderBy(config => config.CycleName)
+            .Select(PayloadSnapshot)
+            .ToArray();
+        var futureFrom = UtcDate(2099, 1, 2);
+        var future = new RegulatoryCyclePolicySnapshot(
+            RegulatoryCycleScheduleCatalog.AchColombiaCode,
+            "TEST-ACH-7",
+            futureFrom,
+            BuildSyntheticSevenCyclePolicy());
+
+        await RegulatoryCycleSeedRepair.ApplyAsync(
+            fixture.Context,
+            31,
+            future,
+            new CycleNumberResolver());
+
+        var historical = await fixture.Context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .Where(config => config.ClearingHouseId == 31
+                && config.EffectiveFrom == RegulatoryCycleScheduleCatalog.HistoricalBootstrapEffectiveFrom)
+            .OrderBy(config => config.CycleName)
+            .ToListAsync();
+        var futureRows = await fixture.Context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .Where(config => config.ClearingHouseId == 31 && config.PolicyVersion == "TEST-ACH-7")
+            .OrderBy(config => config.CycleName)
+            .ToListAsync();
+
+        Assert.Equal(historicalPayload, historical.Select(PayloadSnapshot).ToArray());
+        Assert.All(historical, config => Assert.Equal(futureFrom.AddDays(-1), config.EffectiveTo));
+        Assert.Equal(7, futureRows.Count);
+        Assert.All(futureRows, config =>
+        {
+            Assert.Equal(futureFrom, config.EffectiveFrom);
+            Assert.Null(config.EffectiveTo);
+        });
+
+        await fixture.Seeder.SeedAsync();
+        Assert.Equal(12, await fixture.Context.ClearingHouseCycleConfigs.CountAsync(config => config.ClearingHouseId == 31));
+        Assert.Equal(7, await fixture.Context.ClearingHouseCycleConfigs.CountAsync(config =>
+            config.ClearingHouseId == 31 && config.PolicyVersion == "TEST-ACH-7"));
+
+        var resolver = new ClearingHouseCyclePolicyResolver(fixture.Context, new CycleNumberResolver());
+        var historicalResolved = await resolver.ResolveAsync(31, futureFrom.AddDays(-1));
+        var futureResolved = await resolver.ResolveAsync(31, futureFrom);
+        Assert.Equal(5, historicalResolved.Cycles.Count);
+        Assert.Equal(RegulatoryCycleScheduleCatalog.HistoricalBootstrapPolicyVersion, historicalResolved.PolicyVersion);
+        Assert.Equal(7, futureResolved.Cycles.Count);
+        Assert.Equal("TEST-ACH-7", futureResolved.PolicyVersion);
+    }
+
+    [Fact]
+    public async Task RegulatoryCycleSeedRepair_DifferentVersionWithSameEffectiveFrom_FailsClosedWithoutHistoricalRewrite()
+    {
+        await using var fixture = await SeederFixture.CreateAsync();
+        await fixture.Seeder.SeedAsync();
+        var historicalBefore = await fixture.Context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .Where(config => config.ClearingHouseId == 31)
+            .OrderBy(config => config.CycleName)
+            .Select(config => new
+            {
+                config.PolicyVersion,
+                config.CycleName,
+                config.StartTime,
+                config.EndTime,
+                config.CutoffTime,
+                config.OutputReleaseTime,
+                config.EffectiveFrom,
+                config.EffectiveTo
+            })
+            .ToArrayAsync();
+        var conflicting = new RegulatoryCyclePolicySnapshot(
+            RegulatoryCycleScheduleCatalog.AchColombiaCode,
+            "TEST-CONFLICT",
+            RegulatoryCycleScheduleCatalog.HistoricalBootstrapEffectiveFrom,
+            BuildSyntheticSevenCyclePolicy());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            RegulatoryCycleSeedRepair.ApplyAsync(fixture.Context, 31, conflicting, new CycleNumberResolver()));
+
+        Assert.Contains("mismo EffectiveFrom", error.Message, StringComparison.OrdinalIgnoreCase);
+        var historicalAfter = await fixture.Context.ClearingHouseCycleConfigs
+            .AsNoTracking()
+            .Where(config => config.ClearingHouseId == 31)
+            .OrderBy(config => config.CycleName)
+            .Select(config => new
+            {
+                config.PolicyVersion,
+                config.CycleName,
+                config.StartTime,
+                config.EndTime,
+                config.CutoffTime,
+                config.OutputReleaseTime,
+                config.EffectiveFrom,
+                config.EffectiveTo
+            })
+            .ToArrayAsync();
+        Assert.Equal(historicalBefore, historicalAfter);
+    }
+
+    [Fact]
+    public async Task RegulatoryCycleSeedRepair_DefaultEffectiveFrom_FailsClosedWithoutWriting()
+    {
+        await using var fixture = await SeederFixture.CreateAsync();
+        await fixture.Seeder.SeedAsync();
+        var countBefore = await fixture.Context.ClearingHouseCycleConfigs.CountAsync(config => config.ClearingHouseId == 31);
+        var invalid = new RegulatoryCyclePolicySnapshot(
+            RegulatoryCycleScheduleCatalog.AchColombiaCode,
+            "INVALID-NO-EFFECTIVE-FROM",
+            default,
+            BuildSyntheticSevenCyclePolicy());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            RegulatoryCycleSeedRepair.ApplyAsync(fixture.Context, 31, invalid, new CycleNumberResolver()));
+
+        Assert.Contains("EffectiveFrom", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(countBefore, await fixture.Context.ClearingHouseCycleConfigs.CountAsync(config => config.ClearingHouseId == 31));
+    }
+
     [Fact]
     public async Task SeedAsync_AnotherClearingHouse_RemainsUnchanged()
     {
@@ -146,6 +305,19 @@ public sealed class ClearingHouseCycleConfigSeederTests
             StartTime = schedule.StartTime,
             EndTime = schedule.EndTime,
             CutoffTime = schedule.CutoffTime,
+            OutputReleaseTime = schedule.OutputReleaseTime,
+            CompensationStatementStartTime = schedule.CompensationStatementStartTime,
+            CompensationStatementEndTime = schedule.CompensationStatementEndTime,
+            CompensationPaymentStartTime = schedule.CompensationPaymentStartTime,
+            CompensationPaymentEndTime = schedule.CompensationPaymentEndTime,
+            OutputReleaseStartTime = schedule.OutputReleaseStartTime,
+            OutputReleaseEndTime = schedule.OutputReleaseEndTime,
+            AllowsMonetaryCredit = schedule.AllowsMonetaryCredit,
+            AllowsMonetaryDebit = schedule.AllowsMonetaryDebit,
+            AllowsCreditPrenotification = schedule.AllowsCreditPrenotification,
+            AllowsDebitPrenotification = schedule.AllowsDebitPrenotification,
+            AllowsReturn = schedule.AllowsReturn,
+            AllowsReturnOfReturn = schedule.AllowsReturnOfReturn,
             EffectiveFrom = UtcDate(2025, 1, 1),
             IsActive = true
         });
@@ -154,13 +326,20 @@ public sealed class ClearingHouseCycleConfigSeederTests
         IReadOnlyCollection<ClearingHouseCycleConfig> actual,
         IReadOnlyList<RegulatoryCycleSchedule> expected)
     {
-        Assert.Equal(5, actual.Count);
+        Assert.Equal(expected.Count, actual.Count);
         foreach (var schedule in expected)
         {
             var config = actual.Single(item => item.CycleName == $"Ciclo {schedule.CycleNumber}");
             Assert.Equal(schedule.StartTime, config.StartTime);
             Assert.Equal(schedule.EndTime, config.EndTime);
             Assert.Equal(schedule.CutoffTime, config.CutoffTime);
+            Assert.Equal(schedule.OutputReleaseTime, config.OutputReleaseTime);
+            Assert.Equal(schedule.AllowsMonetaryCredit, config.AllowsMonetaryCredit);
+            Assert.Equal(schedule.AllowsMonetaryDebit, config.AllowsMonetaryDebit);
+            Assert.Equal(schedule.AllowsCreditPrenotification, config.AllowsCreditPrenotification);
+            Assert.Equal(schedule.AllowsDebitPrenotification, config.AllowsDebitPrenotification);
+            Assert.Equal(schedule.AllowsReturn, config.AllowsReturn);
+            Assert.Equal(schedule.AllowsReturnOfReturn, config.AllowsReturnOfReturn);
             Assert.Equal(config.EndTime, config.CutoffTime);
         }
     }
@@ -168,8 +347,28 @@ public sealed class ClearingHouseCycleConfigSeederTests
     private static string[] Snapshot(IEnumerable<ClearingHouseCycleConfig> configs)
         => configs
             .OrderBy(config => config.Id)
-            .Select(config => $"{config.Id}|{config.CycleName}|{config.StartTime}|{config.EndTime}|{config.CutoffTime}|{config.EffectiveFrom:O}|{config.EffectiveTo:O}")
+            .Select(config => $"{config.Id}|{config.PolicyVersion}|{config.CycleName}|{config.StartTime}|{config.EndTime}|{config.CutoffTime}|{config.OutputReleaseTime}|{config.EffectiveFrom:O}|{config.EffectiveTo:O}")
             .ToArray();
+
+    private static string PayloadSnapshot(ClearingHouseCycleConfig config)
+        => $"{config.CycleName}|{config.StartTime}|{config.EndTime}|{config.CutoffTime}|{config.OutputReleaseTime}|"
+            + $"{config.CompensationStatementStartTime}|{config.CompensationStatementEndTime}|"
+            + $"{config.CompensationPaymentStartTime}|{config.CompensationPaymentEndTime}|"
+            + $"{config.OutputReleaseStartTime}|{config.OutputReleaseEndTime}|"
+            + $"{config.AllowsMonetaryCredit}|{config.AllowsMonetaryDebit}|"
+            + $"{config.AllowsCreditPrenotification}|{config.AllowsDebitPrenotification}|"
+            + $"{config.AllowsReturn}|{config.AllowsReturnOfReturn}";
+
+    private static IReadOnlyList<RegulatoryCycleSchedule> BuildSyntheticSevenCyclePolicy()
+        => Array.AsReadOnly(Enumerable.Range(1, 7)
+            .Select(number =>
+            {
+                var start = new TimeSpan(6 + number, 0, 0);
+                var end = start.Add(TimeSpan.FromMinutes(30));
+                var release = end.Add(TimeSpan.FromMinutes(15));
+                return new RegulatoryCycleSchedule(number, start, end, end, release);
+            })
+            .ToArray());
 
     private static DateTime UtcDate(int year, int month, int day)
         => DateTime.SpecifyKind(new DateTime(year, month, day), DateTimeKind.Utc);

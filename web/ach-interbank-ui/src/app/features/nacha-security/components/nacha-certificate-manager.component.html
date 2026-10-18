@@ -1,5 +1,5 @@
 <app-page-header
-  title="Administración de certificados de seguridad"
+  title="Certificados digitales"
   subtitle="Administra el certificado utilizado por CFA para firmar y descifrar información, así como los certificados utilizados para validar la información recibida de las cámaras compensadoras."
   [actionsTemplate]="headerActions">
 </app-page-header>
@@ -28,7 +28,7 @@
     <mat-icon>account_balance</mat-icon>
     <div>
       <span>Cámaras con certificado operativo</span>
-      <strong>{{ operationalClearingHouseCount }} de {{ clearingHouses.length }}</strong>
+      <strong>{{ operationalClearingHouseCount }} de {{ clearingHouseTotalCount }}</strong>
     </div>
   </article>
   <article [class.summary-warning]="expiringCount > 0">
@@ -85,13 +85,15 @@
             <h2>Certificado de CFA</h2>
             <p>Este certificado identifica a CFA y permite firmar de manera segura la información enviada y descifrar los archivos dirigidos a la entidad.</p>
           </div>
-          <button
-            mat-flat-button
-            type="button"
-            (click)="openUpload('CfaSigningAndDecryption')">
-            <mat-icon>upload_file</mat-icon>
-            Cargar certificado de CFA
-          </button>
+          @if (canUploadCertificates) {
+            <button
+              mat-flat-button
+              type="button"
+              (click)="openUpload('CfaSigningAndDecryption')">
+              <mat-icon>upload_file</mat-icon>
+              Cargar certificado de firma y descifrado
+            </button>
+          }
         </header>
 
         @if (cfaCertificates.length === 0) {
@@ -120,13 +122,15 @@
             <h2>Certificados de cámaras compensadoras</h2>
             <p>Estos certificados permiten comprobar que la información recibida fue emitida por la cámara compensadora seleccionada.</p>
           </div>
-          <button
-            mat-flat-button
-            type="button"
-            (click)="openUpload('ClearingHouseValidation')">
-            <mat-icon>add</mat-icon>
-            Agregar certificado de cámara
-          </button>
+          @if (canUploadCertificates) {
+            <button
+              mat-flat-button
+              type="button"
+              (click)="openUpload('ClearingHouseValidation')">
+              <mat-icon>add</mat-icon>
+              Agregar certificado de cámara
+            </button>
+          }
         </header>
 
         @if (clearingHouseCertificates.length === 0) {
@@ -189,20 +193,22 @@
                 <mat-icon>visibility</mat-icon>
                 <span>Ver detalles</span>
               </button>
-              <button
-                mat-menu-item
-                type="button"
-                (click)="openUpload(isCfa ? 'CfaSigningAndDecryption' : 'ClearingHouseValidation', certificate.clearingHouseId)">
-                <mat-icon>published_with_changes</mat-icon>
-                <span>{{ actionLabel(certificate) }}</span>
-              </button>
-              @if (canRevoke(certificate)) {
+              @if (canUploadCertificates) {
+                <button
+                  mat-menu-item
+                  type="button"
+                  (click)="openUpload(isCfa ? 'CfaSigningAndDecryption' : 'ClearingHouseValidation', certificate.clearingHouseId)">
+                  <mat-icon>published_with_changes</mat-icon>
+                  <span>{{ actionLabel(certificate) }}</span>
+                </button>
+              }
+              @if (canRevokeCertificates && canRevoke(certificate)) {
                 <button mat-menu-item type="button" (click)="requestRevoke(certificate)">
                   <mat-icon>block</mat-icon>
                   <span>Revocar</span>
                 </button>
               }
-              @if (certificate.canDelete) {
+              @if (canRevokeCertificates && certificate.canDelete) {
                 <button mat-menu-item type="button" class="danger-action" (click)="requestDelete(certificate)">
                   <mat-icon>delete</mat-icon>
                   <span>Eliminar certificado</span>

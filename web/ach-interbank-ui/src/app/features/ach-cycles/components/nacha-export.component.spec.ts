@@ -8,8 +8,8 @@ import {
   SavedDownload
 } from '../../../core/services/blob-download.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
 import { ExportableAchCycle } from '../models/ach-cycle-export.model';
-import { ClearingHousesApiService } from '../services/ach-cycles-api.service';
 import { NachaExportApiService } from '../services/nacha-export-api.service';
 import { NachaExportComponent } from './nacha-export.component';
 
@@ -116,10 +116,33 @@ describe('NachaExportComponent', () => {
     expect(api.getExportableCycles).toHaveBeenCalledTimes(1);
   });
 
-  it('expone un estado vacío útil', () => {
+  it('usa el estado shared de carga durante la consulta principal', () => {
+    const pending = new Subject<ExportableAchCycle[]>();
+    api.getExportableCycles.and.returnValue(pending);
+
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('ui-estado-carga')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Consultando ciclos y estado de exportación');
+    pending.next([]);
+    pending.complete();
+  });
+
+  it('usa el estado shared de error cuando falla la carga', () => {
+    api.getExportableCycles.and.returnValue(throwError(() => new Error('fallo de red')));
+
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('ui-estado-error')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('No pudimos cargar los ciclos');
+    expect(fixture.nativeElement.textContent).toContain('No fue posible consultar los ciclos disponibles');
+  });
+
+  it('expone el estado shared vacío útil', () => {
     fixture.detectChanges();
     fixture.detectChanges();
 
+    expect(fixture.nativeElement.querySelector('ui-estado-vacio')).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('No se encontraron ciclos disponibles');
     expect(fixture.nativeElement.textContent).toContain('no existen transacciones elegibles');
   });
@@ -233,6 +256,33 @@ describe('NachaExportComponent', () => {
     expect(text).not.toContain('RuleId=');
     expect(text).not.toContain('ExpectedLength=');
     expect(text.match(/NACHA_FIELD_RULE_FAILED/g)?.length).toBe(1);
+  });
+
+
+  it('reintenta una exportación solo cuando el usuario lo solicita explícitamente', async () => {
+    api.downloadFile.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    downloads.fromHttpError.and.resolveTo(new ApplicationDownloadError(
+      'Fallo controlado de exportación.',
+      500,
+      'NACHA_EXPORT_FAILED',
+      'trace-retry-manual'
+    ));
+
+    component.downloadPlain(exportableCycle);
+    await fixture.whenStable();
+
+    expect(api.downloadFile).toHaveBeenCalledTimes(1);
+    expect(component.operationError).not.toBeNull();
+
+    api.downloadFile.and.returnValue(of(new HttpResponse({
+      status: 200,
+      body: new Blob(['nacha'])
+    })));
+
+    component.retryOperation();
+
+    expect(api.downloadFile).toHaveBeenCalledTimes(2);
+    expect(api.downloadFile.calls.mostRecent().args).toEqual([exportableCycle.cycleId!, false]);
   });
 
   it('finaliza el progreso de fila cuando ocurre un error', async () => {

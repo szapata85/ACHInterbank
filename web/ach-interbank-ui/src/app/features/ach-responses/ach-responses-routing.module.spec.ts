@@ -28,6 +28,14 @@ describe('AchResponsesRoutingModule', () => {
     ]);
   });
 
+
+  it('ShouldKeepManualReviewRouteOnCanReadAchForItsReadEntry', () => {
+    const manualReview = ACH_RESPONSES_ROUTES.find((route) => route.path === 'manual-review');
+
+    expect(manualReview?.canActivate).toContain(permissionGuard);
+    expect(manualReview?.data?.['permissions']).toEqual(['CanReadAch']);
+  });
+
   it('ShouldProtectEveryResponseRouteWithReadPermission', () => {
     ACH_RESPONSES_ROUTES.forEach((route) => {
       expect(route.canActivate).withContext(`Falta guard en ${route.path}`).toContain(permissionGuard);

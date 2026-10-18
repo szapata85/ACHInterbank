@@ -3,9 +3,9 @@ import { HttpHeaders, HttpResponse } from '@angular/common/http';
 import { of } from 'rxjs';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { TraceabilityReportComponent } from './traceability-report.component';
-import { ReportsApiService } from '../services/reports-api.service';
+import { ReportsApiService } from '../../../core/services/reports-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { AchCyclesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
+import { AchCyclesApiService } from '../../../core/services/ach-cycles-api.service';
 
 describe('TraceabilityReportComponent', () => {
   let fixture: ComponentFixture<TraceabilityReportComponent>;

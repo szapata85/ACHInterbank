@@ -249,9 +249,9 @@ public sealed class NachaInboundSimulationService : INachaInboundSimulationServi
 
     public async Task<InboundSimulationEligibilityPreviewResponse> PreviewAsync(InboundSimulationEligibilityPreviewRequest request, CancellationToken ct = default)
     {
-        if (!_options.IsUatLike())
+        if (!_options.Enabled)
         {
-            return Blocked("SIMULATOR_DISABLED", "El simulador NACHA-M está deshabilitado o no está en modo UAT/local.", request.SimulationMode);
+            return Blocked("SIMULATOR_DISABLED", "El simulador NACHA-M está deshabilitado por configuración.", request.SimulationMode);
         }
 
         if (_options.AllowAutoImport || _options.AllowExternalTransmission)

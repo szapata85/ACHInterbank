@@ -1,5 +1,10 @@
-using Cfa.ACHInterbank.Application.Helpers.AddressIp;
-using Cfa.ACHInterbank.Application.Helpers.Middleware;
+using Cfa.ACHInterbank.Api.Helpers.AddressIp;
+using Cfa.ACHInterbank.Api.Filters;
+using Cfa.ACHInterbank.Api.Logging;
+using Cfa.ACHInterbank.Api.Middleware;
+using Cfa.ACHInterbank.Api.Security;
+using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Api.Configuration;
 using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Api.Mappers.AchResponses;
@@ -8,12 +13,15 @@ using Cfa.ACHInterbank.Persistence.ACH.Services;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.Extensions.Options;
+using System.Text.Json.Schema;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using NLog.Extensions.Logging;
 using Npgsql;
 using Scalar.AspNetCore;
-using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -23,8 +31,25 @@ namespace Cfa.ACHInterbank.Api;
 
 public static class DependencyInjectionService
 {
+    private static IEnumerable<Type> EnumerateSchemaTypes(Type type)
+    {
+        yield return type;
+
+        if (type.HasElementType && type.GetElementType() is { } elementType)
+        {
+            foreach (var nested in EnumerateSchemaTypes(elementType))
+                yield return nested;
+        }
+
+        if (type.IsGenericType)
+        {
+            foreach (var argument in type.GetGenericArguments())
+                foreach (var nested in EnumerateSchemaTypes(argument))
+                    yield return nested;
+        }
+    }
+
     private const string CorsPolicyName = "CorsPolicy";
-    private const string OpenApiOutputCachePolicyName = "OpenApiDocument";
 
     public static IServiceCollection AddWebApi(this IServiceCollection services, IConfiguration configuration)
     {
@@ -50,8 +75,14 @@ public static class DependencyInjectionService
         services.AddEndpointsApiExplorer();
         services.AddOpenApi("v1", options =>
         {
-            options.AddOperationTransformer<ScalarOperationDocumentationTransformer>();
+            options.AddOperationTransformer<OpenApiOperationIdTransformer>();
+            options.AddOperationTransformer<OpenApiIntegrationTagsTransformer>();
+            options.AddOperationTransformer<OpenApiSc508PublicContractDocumentationTransformer>();
+            options.AddOperationTransformer<OpenApiTransversalHeadersTransformer>();
+            options.AddOperationTransformer<OpenApiExamplesTransformer>();
+            options.AddOperationTransformer<OpenApiResponseDescriptionsTransformer>();
             options.AddOperationTransformer<OpenApiSecurityMetadataTransformer>();
+            options.AddDocumentTransformer<OpenApiDocumentMetadataTransformer>();
             options.AddDocumentTransformer<OpenApiBearerSecuritySchemeTransformer>();
         });
 
@@ -61,33 +92,6 @@ public static class DependencyInjectionService
             options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
             options.SerializerOptions.TypeInfoResolverChain.Insert(0, OpenApiSchemaJsonTypeInfoResolver.Create());
-        });
-
-        var openApiOutputCacheMinutes = Math.Clamp(
-            configuration.GetValue<int?>("OpenApi:OutputCacheMinutes") ?? 15,
-            1,
-            1_440);
-        services.AddOutputCache(options =>
-        {
-            options.AddPolicy(OpenApiOutputCachePolicyName, policy =>
-            {
-                policy.Expire(TimeSpan.FromMinutes(openApiOutputCacheMinutes));
-            });
-        });
-        services.AddResponseCompression(options =>
-        {
-            options.EnableForHttps = true;
-            options.Providers.Add<BrotliCompressionProvider>();
-            options.Providers.Add<GzipCompressionProvider>();
-            options.MimeTypes = ["application/json"];
-        });
-        services.Configure<BrotliCompressionProviderOptions>(options =>
-        {
-            options.Level = CompressionLevel.Fastest;
-        });
-        services.Configure<GzipCompressionProviderOptions>(options =>
-        {
-            options.Level = CompressionLevel.Fastest;
         });
 
         services.AddLogging(loggingBuilder =>
@@ -153,6 +157,9 @@ public static class DependencyInjectionService
 
         services.AddHttpClient();
         services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
+        services.AddTransient<ILoggerManager, LoggerManager>();
+        services.AddScoped<PostFilter>();
         services.AddScoped<AchInitializationService>();
         services.AddScoped<ProcesarRespuestaAchApiMapper>();
         services.AddScoped<NotificarRespuestaAchApiMapper>();
@@ -165,14 +172,78 @@ public static class DependencyInjectionService
 
     public static void ConfigureHandler(this WebApplication app)
     {
+        // Keep the OpenAPI endpoint deliberately simple. Scalar consumes this exact route.
+        // Caching/compression at this layer can make a generated document failure look like
+        // a Scalar UI problem, so the documentation endpoint is served directly.
         app.MapOpenApi("/openapi/{documentName}.json")
-            .CacheOutput(OpenApiOutputCachePolicyName)
             .AllowAnonymous();
         app.MapScalarApiReference(options => options
+                .WithOpenApiRoutePattern("/openapi/{documentName}.json")
                 .DisableAgent()
                 .DisableMcp()
                 .HideDeveloperTools())
             .AllowAnonymous();
+
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapGet("/openapi/_diagnostics", async (IServiceProvider services, CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    var provider = services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
+                    var document = await provider.GetOpenApiDocumentAsync(cancellationToken);
+                    await using var stream = new MemoryStream();
+                    await document.SerializeAsJsonAsync(stream, OpenApiSpecVersion.OpenApi3_1, cancellationToken);
+
+                    return Results.Ok(new
+                    {
+                        document = "v1",
+                        status = "Healthy",
+                        serializedBytes = stream.Length
+                    });
+                }
+                catch (Exception exception)
+                {
+                    return Results.Problem(
+                        title: "OpenAPI generation failed",
+                        detail: exception.ToString(),
+                        statusCode: StatusCodes.Status500InternalServerError);
+                }
+            }).AllowAnonymous().ExcludeFromDescription();
+
+            // Development-only: isolate the response contract whose JSON schema cannot be exported.
+            // This operates before custom OpenAPI transformers, where Guid/default-value failures occur.
+            app.MapGet("/openapi/_schema-diagnostics", (
+                IApiDescriptionGroupCollectionProvider descriptions,
+                IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> jsonOptions) =>
+            {
+                var types = descriptions.ApiDescriptionGroups.Items
+                    .SelectMany(group => group.Items)
+                    .SelectMany(api => api.SupportedResponseTypes)
+                    .Select(response => response.Type)
+                    .Where(type => type is not null)
+                    .SelectMany(type => EnumerateSchemaTypes(type!))
+                    .Where(type => type.Namespace?.StartsWith("Cfa.ACHInterbank", StringComparison.Ordinal) == true)
+                    .Distinct()
+                    .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                    .ToArray();
+
+                var failures = new List<object>();
+                foreach (var type in types)
+                {
+                    try
+                    {
+                        _ = jsonOptions.Value.SerializerOptions.GetJsonSchemaAsNode(type);
+                    }
+                    catch (Exception exception)
+                    {
+                        failures.Add(new { type = type.FullName, error = exception.ToString() });
+                    }
+                }
+
+                return Results.Ok(new { schemaTypesChecked = types.Length, failures });
+            }).AllowAnonymous().ExcludeFromDescription();
+        }
 
         app.MapGet("/", context =>
         {
@@ -186,7 +257,43 @@ public static class DependencyInjectionService
             return Task.CompletedTask;
         }).AllowAnonymous();
 
-        app.MapGet("/health/live", () =>
+        app.MapPublicHealthEndpoints();
+
+        app.UseMiddleware<GlobalExceptionMiddleware>();
+
+        app.UseRouting();
+        app.UseCors(CorsPolicyName);
+
+        app.UseWhen(
+            context => !IsOpenApiOrScalarRequest(context.Request.Path),
+            branch =>
+            {
+                branch.UseMiddleware<WafMiddleware>();
+                branch.UseMiddleware<RequestResponseLoggingMiddleware>();
+                branch.UseMiddleware<TokenJwtMiddleware>();
+            });
+
+        app.UseMiddleware<SecurityHeadersMiddleware>();
+
+        if (app.Configuration.GetValue<bool>("EnableHttpsRedirection", true))
+        {
+            app.UseHttpsRedirection();
+        }
+
+        // Scalar and the generated OpenAPI document are documentation endpoints.
+        // They must not compete with the API fixed-window limiter during page bootstrap/reloads.
+        app.UseWhen(
+            context => !IsOpenApiOrScalarRequest(context.Request.Path),
+            branch => branch.UseRateLimiter());
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.MapControllers();
+    }
+
+
+    public static void MapPublicHealthEndpoints(this WebApplication app)
+    {
+        var liveEndpoint = app.MapGet("/health/live", () =>
         {
             return Results.Ok(new
             {
@@ -196,8 +303,13 @@ public static class DependencyInjectionService
                 timestampUtc = DateTime.UtcNow
             });
         }).AllowAnonymous();
+        liveEndpoint
+            .WithTags("Auditoría y observabilidad")
+            .WithSummary("Consultar liveness del servicio")
+            .WithDescription("Expone la señal pública de liveness del proceso. Responde 200 con un body JSON anónimo que contiene status=Healthy, check=live, service=ACHInterbank y timestampUtc; no ejecuta comprobaciones de dependencias.")
+            .Produces(StatusCodes.Status200OK, contentType: "application/json");
 
-        app.MapGet("/health/ready", async (IServiceProvider services, CancellationToken ct) =>
+        var readyEndpoint = app.MapGet("/health/ready", async (IServiceProvider services, CancellationToken ct) =>
         {
             var database = "Skipped";
             var dataProtectionKeyRing = "Skipped";
@@ -291,36 +403,12 @@ public static class DependencyInjectionService
                 timestampUtc = DateTime.UtcNow
             }, statusCode: statusCode);
         }).AllowAnonymous();
-
-        app.UseMiddleware<GlobalExceptionMiddleware>();
-
-        app.UseRouting();
-        app.UseCors(CorsPolicyName);
-
-        app.UseWhen(
-            context => !IsOpenApiOrScalarRequest(context.Request.Path),
-            branch =>
-            {
-                branch.UseMiddleware<WafMiddleware>();
-                branch.UseMiddleware<RequestResponseLoggingMiddleware>();
-                branch.UseMiddleware<TokenJwtMiddleware>();
-            });
-
-        app.UseMiddleware<SecurityHeadersMiddleware>();
-
-        if (app.Configuration.GetValue<bool>("EnableHttpsRedirection", true))
-        {
-            app.UseHttpsRedirection();
-        }
-
-        app.UseRateLimiter();
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.UseWhen(
-            context => context.Request.Path.StartsWithSegments("/openapi", StringComparison.OrdinalIgnoreCase),
-            branch => branch.UseResponseCompression());
-        app.UseOutputCache();
-        app.MapControllers();
+        readyEndpoint
+            .WithTags("Auditoría y observabilidad")
+            .WithSummary("Consultar readiness del servicio")
+            .WithDescription("Expone la señal pública de readiness. Conserva las comprobaciones existentes de conectividad de base de datos, presencia de claves de Data Protection y estado del scheduler cuando esos servicios están registrados, con timeout enlazado de 5 segundos. Responde 200 o 503 con el mismo body JSON anónimo que contiene status, check=ready, database, dataProtectionKeyRing, scheduler, persistentStore, clusterInstance y timestampUtc.")
+            .Produces(StatusCodes.Status200OK, contentType: "application/json")
+            .Produces(StatusCodes.Status503ServiceUnavailable, contentType: "application/json");
     }
 
     private static bool IsRunningInContainer()

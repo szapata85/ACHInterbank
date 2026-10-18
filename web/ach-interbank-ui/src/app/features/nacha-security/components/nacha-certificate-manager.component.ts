@@ -28,14 +28,15 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { forkJoin, finalize } from 'rxjs';
+import { forkJoin, finalize, of } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
 import { BlobDownloadService } from '../../../core/services/blob-download.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { SharedModule } from '../../../shared/shared.module';
-import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
-import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
-import { DestinationInstitution } from '../../transactions/transactions.models';
-import { FinancialInstitutionsApiService } from '../../transactions/services/financial-institutions-api.service';
+import { PageHeaderComponent } from '../../../shared/components/page-header.component';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
+import { DestinationInstitution } from '../../../core/models/financial-institution.model';
+import { FinancialInstitutionsApiService } from '../../../core/services/financial-institutions-api.service';
 import {
   CertificateFunctionalStatus,
   CertificateListItem,
@@ -46,8 +47,24 @@ import {
   CertificateManagementApiService,
   ManagedCertificateUpload
 } from '../services/certificate-management-api.service';
+import { NACHA_SECURITY_PERMISSIONS } from '../nacha-security-permissions';
 
 const MAX_CERTIFICATE_SIZE = 10 * 1024 * 1024;
+
+const CERTIFICATE_PREVIEW_PERMISSIONS = [
+  NACHA_SECURITY_PERMISSIONS.certificatesUploadPublic,
+  NACHA_SECURITY_PERMISSIONS.canManageCertificates
+];
+
+const CERTIFICATE_SAVE_PERMISSIONS = [
+  NACHA_SECURITY_PERMISSIONS.certificatesRegisterPrivate,
+  NACHA_SECURITY_PERMISSIONS.canManageCertificates
+];
+
+const CERTIFICATE_REVOKE_PERMISSIONS = [
+  NACHA_SECURITY_PERMISSIONS.certificatesRevoke,
+  NACHA_SECURITY_PERMISSIONS.canManageCertificates
+];
 
 const STATUS_TEXT: Readonly<Record<string, { label: string; description: string }>> = {
   PendingValidity: {
@@ -111,7 +128,7 @@ interface CertificateActionDialogData {
   standalone: true,
   imports: [
     CommonModule,
-    SharedModule,
+    PageHeaderComponent,
     MatButtonModule,
     MatCardModule,
     MatChipsModule,
@@ -126,6 +143,7 @@ interface CertificateActionDialogData {
 })
 export class NachaCertificateManagerComponent implements OnInit {
   private readonly api = inject(CertificateManagementApiService);
+  private readonly auth = inject(AuthService);
   private readonly clearingHousesApi = inject(ClearingHousesApiService);
   private readonly financialInstitutionsApi = inject(FinancialInstitutionsApiService);
   private readonly notifications = inject(NotificationService);
@@ -188,10 +206,12 @@ export class NachaCertificateManagerComponent implements OnInit {
   load(): void {
     this.loading = true;
     this.errorMessage = '';
+
+    const canReadAuxiliaryContext = this.auth.hasPermission(NACHA_SECURITY_PERMISSIONS.canReadAch);
     forkJoin({
       certificates: this.api.list(),
-      clearingHouses: this.clearingHousesApi.list(),
-      institutions: this.financialInstitutionsApi.getAll()
+      clearingHouses: canReadAuxiliaryContext ? this.clearingHousesApi.list() : of([]),
+      institutions: canReadAuxiliaryContext ? this.financialInstitutionsApi.getAll() : of([])
     }).pipe(finalize(() => {
       this.loading = false;
       this.cdr.markForCheck();
@@ -205,10 +225,33 @@ export class NachaCertificateManagerComponent implements OnInit {
     });
   }
 
+  get clearingHouseTotalCount(): number {
+    const certificateHouseCount = new Set(
+      this.clearingHouseCertificates
+        .map(certificate => certificate.clearingHouseId)
+        .filter((id): id is number => id != null)
+    ).size;
+    return Math.max(this.clearingHouses.length, certificateHouseCount);
+  }
+
+  get canUploadCertificates(): boolean {
+    return this.auth.hasPermission(NACHA_SECURITY_PERMISSIONS.canReadAch)
+      && this.auth.hasPermission(CERTIFICATE_PREVIEW_PERMISSIONS)
+      && this.auth.hasPermission(CERTIFICATE_SAVE_PERMISSIONS);
+  }
+
+  get canRevokeCertificates(): boolean {
+    return this.auth.hasPermission(CERTIFICATE_REVOKE_PERMISSIONS);
+  }
+
   openUpload(
     purpose: ManagedCertificatePurpose,
     clearingHouseId?: number | null
   ): void {
+    if (!this.canUploadCertificates) {
+      return;
+    }
+
     const ref = this.dialog.open(CertificateUploadDialogComponent, {
       width: 'min(860px, calc(100vw - 2rem))',
       maxHeight: 'calc(100dvh - 2rem)',
@@ -240,6 +283,10 @@ export class NachaCertificateManagerComponent implements OnInit {
   }
 
   requestRevoke(certificate: CertificateListItem): void {
+    if (!this.canRevokeCertificates) {
+      return;
+    }
+
     const ref = this.dialog.open(CertificateActionDialogComponent, {
       width: 'min(560px, calc(100vw - 2rem))',
       autoFocus: 'dialog',
@@ -258,6 +305,10 @@ export class NachaCertificateManagerComponent implements OnInit {
   }
 
   requestDelete(certificate: CertificateListItem): void {
+    if (!this.canRevokeCertificates) {
+      return;
+    }
+
     const ref = this.dialog.open(CertificateActionDialogComponent, {
       width: 'min(560px, calc(100vw - 2rem))',
       autoFocus: 'dialog',
@@ -363,6 +414,10 @@ export class NachaCertificateManagerComponent implements OnInit {
   }
 
   private revoke(certificate: CertificateListItem, reason: string): void {
+    if (!this.canRevokeCertificates) {
+      return;
+    }
+
     this.actionCertificateId = certificate.id;
     this.api.revoke(certificate.id, reason).pipe(finalize(() => {
       this.actionCertificateId = undefined;
@@ -377,6 +432,10 @@ export class NachaCertificateManagerComponent implements OnInit {
   }
 
   private delete(certificate: CertificateListItem): void {
+    if (!this.canRevokeCertificates) {
+      return;
+    }
+
     this.actionCertificateId = certificate.id;
     this.api.delete(certificate.id).pipe(finalize(() => {
       this.actionCertificateId = undefined;
@@ -545,7 +604,7 @@ export class NachaCertificateManagerComponent implements OnInit {
                 <button
                   mat-flat-button
                   type="button"
-                  [disabled]="fileForm.invalid || verifying"
+                  [disabled]="fileForm.invalid || verifying || !canPreviewCertificate"
                   (click)="verify(stepper)">
                   @if (verifying) {
                     <mat-spinner diameter="20"></mat-spinner>
@@ -588,7 +647,7 @@ export class NachaCertificateManagerComponent implements OnInit {
               <div class="step-actions">
                 <button mat-button type="button" matStepperPrevious [disabled]="saving">Anterior</button>
                 <button mat-button type="button" mat-dialog-close [disabled]="saving">Cancelar</button>
-                <button mat-flat-button type="button" (click)="save()" [disabled]="!preview?.isValid || saving">
+                <button mat-flat-button type="button" (click)="save()" [disabled]="!preview?.isValid || saving || !canSaveCertificate">
                   @if (saving) {
                     <mat-spinner diameter="20"></mat-spinner>
                     Guardando…
@@ -607,31 +666,31 @@ export class NachaCertificateManagerComponent implements OnInit {
     .upload-dialog { min-width: 0; }
     .dialog-heading { display:flex; align-items:flex-start; justify-content:space-between; padding:1.25rem 1.5rem 0; }
     .dialog-heading h2 { margin:.2rem 0 0; }
-    .eyebrow { color:#6a1b9a; font-size:.75rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .eyebrow { color:var(--color-primary); font-size:.75rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
     .step-content { display:grid; gap:1rem; padding:1.25rem .25rem .25rem; min-height:260px; }
     mat-radio-group { display:grid; gap:.75rem; }
-    mat-radio-button { border:1px solid #d7dce5; border-radius:14px; padding:1rem; }
+    mat-radio-button { border:1px solid var(--color-border); border-radius:14px; padding:1rem; }
     mat-radio-button strong, mat-radio-button span { display:block; white-space:normal; }
-    mat-radio-button span { color:#52606d; margin-top:.35rem; }
-    .owner-summary, .validation-result { display:flex; gap:1rem; border-radius:14px; background:#f4f7fb; padding:1rem; }
+    mat-radio-button span { color:var(--color-text-muted); margin-top:.35rem; }
+    .owner-summary, .validation-result { display:flex; gap:1rem; border-radius:14px; background:var(--color-surface-muted); padding:1rem; }
     .owner-summary span, .owner-summary strong { display:block; }
-    .owner-summary p { margin:.35rem 0 0; color:#52606d; }
-    .file-picker { display:flex; align-items:center; gap:1rem; border:2px dashed #aab4c3; border-radius:14px; padding:1.25rem; cursor:pointer; }
+    .owner-summary p { margin:.35rem 0 0; color:var(--color-text-muted); }
+    .file-picker { display:flex; align-items:center; gap:1rem; border:2px dashed var(--color-border-strong); border-radius:14px; padding:1.25rem; cursor:pointer; }
     .file-picker input { position:absolute; opacity:0; pointer-events:none; }
     .file-picker span, .file-picker strong, .file-picker small { display:block; }
-    .file-picker small, .password-help { color:#52606d; }
+    .file-picker small, .password-help { color:var(--color-text-muted); }
     .password-help { margin:-.5rem 0 0; font-size:.85rem; }
     .step-actions { display:flex; justify-content:flex-end; gap:.5rem; margin-top:auto; flex-wrap:wrap; }
     .step-actions button mat-spinner { display:inline-block; margin-right:.5rem; }
     .verification-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; margin:0; }
-    .verification-grid div { background:#f7f8fa; border-radius:10px; padding:.75rem; }
-    .verification-grid dt { color:#52606d; font-size:.8rem; }
+    .verification-grid div { background:var(--color-surface-muted); border-radius:10px; padding:.75rem; }
+    .verification-grid dt { color:var(--color-text-muted); font-size:.8rem; }
     .verification-grid dd { margin:.25rem 0 0; overflow-wrap:anywhere; }
     .technical-value { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.78rem; }
-    .validation-result { background:#eef8f2; }
-    .validation-result--warning { background:#fff6df; }
+    .validation-result { background:var(--color-success-surface); }
+    .validation-result--warning { background:var(--color-warning-surface); }
     .validation-result p { margin:.35rem 0 0; }
-    .dialog-error { background:#fff0f0; color:#9b1c1c; border-radius:10px; padding:.75rem; }
+    .dialog-error { background:var(--color-error-surface); color:var(--color-error-text); border-radius:10px; padding:.75rem; }
     @media (max-width:640px) {
       .dialog-heading { padding:1rem 1rem 0; }
       .verification-grid { grid-template-columns:1fr; }
@@ -643,6 +702,7 @@ export class CertificateUploadDialogComponent {
   readonly data = inject<UploadDialogData>(MAT_DIALOG_DATA);
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(CertificateManagementApiService);
+  private readonly auth = inject(AuthService);
   private readonly downloads = inject(BlobDownloadService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly dialogRef = inject(MatDialogRef<CertificateUploadDialogComponent>);
@@ -690,6 +750,14 @@ export class CertificateUploadDialogComponent {
     return this.isCfaPurpose
       ? 'Firmar y descifrar información de CFA'
       : 'Validar información recibida de una cámara compensadora';
+  }
+
+  get canPreviewCertificate(): boolean {
+    return this.auth.hasPermission(CERTIFICATE_PREVIEW_PERMISSIONS);
+  }
+
+  get canSaveCertificate(): boolean {
+    return this.auth.hasPermission(CERTIFICATE_SAVE_PERMISSIONS);
   }
 
   get previewStatusLabel(): string {
@@ -745,6 +813,10 @@ export class CertificateUploadDialogComponent {
 
   verify(stepper: MatStepper): void {
     this.errorMessage = '';
+    if (!this.canPreviewCertificate) {
+      this.errorMessage = 'No tienes autorización para verificar certificados.';
+      return;
+    }
     this.fileForm.markAllAsTouched();
     if (this.fileForm.invalid || !this.selectedFile) {
       if (!this.selectedFile) this.fileError = 'Selecciona un archivo para continuar.';
@@ -766,6 +838,10 @@ export class CertificateUploadDialogComponent {
   }
 
   save(): void {
+    if (!this.canSaveCertificate) {
+      this.errorMessage = 'No tienes autorización para guardar certificados.';
+      return;
+    }
     if (!this.preview?.isValid || this.saving || !this.selectedFile) return;
     this.saving = true;
     this.errorMessage = '';
@@ -868,11 +944,11 @@ export class CertificateUploadDialogComponent {
   styles: [`
     .details-dialog { padding-top:1rem; }
     .dialog-title-row { display:flex; justify-content:space-between; align-items:flex-start; padding:0 1.5rem; }
-    .dialog-title-row span { color:#6b7280; }
+    .dialog-title-row span { color:var(--color-text-muted); }
     .dialog-title-row h2 { margin:.2rem 0 0; }
     .details-grid, .technical-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; margin:0 0 1rem; }
-    .details-grid div, .technical-grid div { background:#f7f8fa; border-radius:10px; padding:.75rem; }
-    dt { color:#52606d; font-size:.8rem; } dd { margin:.25rem 0 0; overflow-wrap:anywhere; }
+    .details-grid div, .technical-grid div { background:var(--color-surface-muted); border-radius:10px; padding:.75rem; }
+    dt { color:var(--color-text-muted); font-size:.8rem; } dd { margin:.25rem 0 0; overflow-wrap:anywhere; }
     @media (max-width:640px) { .details-grid, .technical-grid { grid-template-columns:1fr; } }
   `]
 })
@@ -957,12 +1033,12 @@ export class CertificateDetailsDialogComponent {
   `,
   styles: [`
     .action-dialog { padding-top:1rem; }
-    .affected-certificate { display:flex; gap:.75rem; align-items:center; background:#f7f8fa; border-radius:12px; padding:.9rem; }
+    .affected-certificate { display:flex; gap:.75rem; align-items:center; background:var(--color-surface-muted); border-radius:12px; padding:.9rem; }
     .affected-certificate strong, .affected-certificate span { display:block; }
-    .affected-certificate span { color:#52606d; margin-top:.2rem; }
-    .impact { background:#fff4df; border-left:4px solid #d97706; padding:.75rem; }
+    .affected-certificate span { color:var(--color-text-muted); margin-top:.2rem; }
+    .impact { background:var(--color-warning-surface); border-left:4px solid var(--color-warning); padding:.75rem; }
     mat-form-field { width:100%; }
-    .danger { background:#b42318 !important; color:white !important; }
+    .danger { background:var(--color-error) !important; color:var(--color-on-error) !important; }
   `]
 })
 export class CertificateActionDialogComponent {

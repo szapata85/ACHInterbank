@@ -8,6 +8,8 @@ namespace Cfa.ACHInterbank.Persistence.Integrations.Services;
 
 public sealed class IntegrationCatalogBootstrapper
 {
+    private const string BaselineContractVersionLabel = "baseline-v1";
+
     private readonly AchDbContext _context;
 
     public IntegrationCatalogBootstrapper(AchDbContext context)
@@ -20,19 +22,50 @@ public sealed class IntegrationCatalogBootstrapper
         var contrapartidas = await EnsureMethodAsync(
             code: "WSCFAACH.Proc_Contrapartidas",
             displayName: "Proc_Contrapartidas",
+            functionalDescription: "Débitos originados en CFA enviados mediante Proc_Contrapartidas.",
+            functionalCategory: "Débitos",
+            riskLevel: "No clasificado",
             soapClientCode: "WscfaachSoapClient",
             ct);
 
         var transacciones = await EnsureMethodAsync(
             code: "WSCFAACH.Proc_Transacciones",
             displayName: "Proc_Transacciones",
+            functionalDescription: "Créditos recibidos en CFA procesados mediante Proc_Transacciones.",
+            functionalCategory: "Créditos",
+            riskLevel: "No clasificado",
             soapClientCode: "WscfaachSoapClient",
             ct);
 
         var respuestasTransacciones = await EnsureMethodAsync(
             code: "WSAXON.RegistrarRespuestaTransaccion",
             displayName: "RegistrarRespuestaTransaccion",
+            functionalDescription: "Respuestas funcionales registradas para transacciones mediante WSAXON.",
+            functionalCategory: "Respuestas",
+            riskLevel: "No clasificado",
             soapClientCode: "WsAxonRespuestaTransaccionesSoapClient",
+            ct);
+
+        await EnsureBaselineContractVersionAsync(
+            contrapartidas.Id,
+            new Guid("39b5693c-407b-505c-8e8a-e49e8558a82e"),
+            "Proc_Contrapartidas",
+            "http://tempuri.org/IWSCFAACH/Proc_Contrapartidas",
+            "Baseline derivado del comportamiento SOAP caracterizado en P0; no implica importación WSDL.",
+            ct);
+        await EnsureBaselineContractVersionAsync(
+            transacciones.Id,
+            new Guid("9f3a13b6-eb79-5e43-803b-4c97b71a0f5d"),
+            "Proc_Transacciones",
+            "http://tempuri.org/IWSCFAACH/Proc_Transacciones",
+            "Baseline derivado del comportamiento SOAP caracterizado en P0; no implica importación WSDL.",
+            ct);
+        await EnsureBaselineContractVersionAsync(
+            respuestasTransacciones.Id,
+            new Guid("4a093eb5-beed-5b15-bc7c-5768c0e0547e"),
+            "RegistrarRespuestaTransaccion",
+            "http://tempuri.org/IWSAxonRespuestaTransacciones/RegistrarRespuestaTransaccion",
+            "Baseline derivado del comportamiento SOAP caracterizado en P0; conserva los siete parámetros actuales.",
             ct);
 
         await EnsureParametersAsync(contrapartidas.Id, BuildProcContrapartidasTechnicalCatalog(), ct);
@@ -64,6 +97,47 @@ public sealed class IntegrationCatalogBootstrapper
             ct);
 
         await _context.SaveChangesAsync(ct);
+    }
+
+    private async Task EnsureBaselineContractVersionAsync(
+        int methodId,
+        Guid id,
+        string operationName,
+        string soapAction,
+        string notes,
+        CancellationToken ct)
+    {
+        var tracked = _context.IntegrationContractVersions.Local
+            .FirstOrDefault(contract => contract.MethodId == methodId && contract.VersionLabel == BaselineContractVersionLabel);
+        if (tracked is not null)
+        {
+            return;
+        }
+
+        var exists = await _context.IntegrationContractVersions
+            .AsNoTracking()
+            .AnyAsync(contract => contract.MethodId == methodId && contract.VersionLabel == BaselineContractVersionLabel, ct);
+        if (exists)
+        {
+            return;
+        }
+
+        _context.IntegrationContractVersions.Add(new IntegrationContractVersion
+        {
+            Id = id,
+            MethodId = methodId,
+            VersionLabel = BaselineContractVersionLabel,
+            Status = IntegrationContractVersionStatusEnum.Active,
+            OperationName = operationName,
+            TargetNamespace = "http://tempuri.org/",
+            SoapAction = soapAction,
+            SourceType = IntegrationContractSourceTypeEnum.BaselineMigration,
+            SourceReference = "CFA-SOAP-UX-MAP-001/P0",
+            Notes = notes,
+            Revision = 1,
+            ActivatedAtUtc = new DateTime(2026, 10, 12, 23, 10, 0, DateTimeKind.Utc),
+            ActivatedBy = "CFA-SOAP-UX-MAP-001/P1.2"
+        });
     }
 
     private async Task EnsureCoreResponseCodeAsync(
@@ -105,7 +179,14 @@ public sealed class IntegrationCatalogBootstrapper
         existing.EffectiveToUtc = null;
     }
 
-    private async Task<IntegrationMethod> EnsureMethodAsync(string code, string displayName, string soapClientCode, CancellationToken ct)
+    private async Task<IntegrationMethod> EnsureMethodAsync(
+        string code,
+        string displayName,
+        string functionalDescription,
+        string functionalCategory,
+        string riskLevel,
+        string soapClientCode,
+        CancellationToken ct)
     {
         var existing = await _context.Set<IntegrationMethod>()
             .FirstOrDefaultAsync(x => x.Code == code, ct);
@@ -116,6 +197,9 @@ public sealed class IntegrationCatalogBootstrapper
             {
                 Code = code,
                 DisplayName = displayName,
+                FunctionalDescription = functionalDescription,
+                FunctionalCategory = functionalCategory,
+                RiskLevel = riskLevel,
                 SoapClientCode = soapClientCode,
                 IsActive = true
             };
@@ -125,6 +209,9 @@ public sealed class IntegrationCatalogBootstrapper
         else
         {
             existing.DisplayName = displayName;
+            existing.FunctionalDescription = functionalDescription;
+            existing.FunctionalCategory = functionalCategory;
+            existing.RiskLevel = riskLevel;
             existing.SoapClientCode = soapClientCode;
             existing.IsActive = true;
         }
@@ -134,6 +221,16 @@ public sealed class IntegrationCatalogBootstrapper
 
     private async Task EnsureParametersAsync(int methodId, IReadOnlyCollection<ParameterSeedSpec> specs, CancellationToken ct)
     {
+        var baselineContractVersionId = _context.IntegrationContractVersions.Local
+            .Where(x => x.MethodId == methodId && x.VersionLabel == BaselineContractVersionLabel)
+            .Select(x => (Guid?)x.Id)
+            .SingleOrDefault();
+        baselineContractVersionId ??= await _context.IntegrationContractVersions
+            .AsNoTracking()
+            .Where(x => x.MethodId == methodId && x.VersionLabel == BaselineContractVersionLabel)
+            .Select(x => (Guid?)x.Id)
+            .SingleOrDefaultAsync(ct);
+
         var existing = await _context.Set<IntegrationMethodParameter>()
             .Where(x => x.MethodId == methodId)
             .ToListAsync(ct);
@@ -152,12 +249,19 @@ public sealed class IntegrationCatalogBootstrapper
                 _context.Set<IntegrationMethodParameter>().Add(parameter);
             }
 
+            parameter.ContractVersionId ??= baselineContractVersionId;
+            parameter.XmlElementName = spec.TechnicalName;
             parameter.DisplayName = spec.DisplayNameEs;
             parameter.DescriptionEs = spec.DescriptionEs;
             parameter.Category = spec.Category;
             parameter.ExampleValue = spec.ExampleValue;
             parameter.UiHelpText = spec.UiHelpText;
             parameter.DataType = spec.DataType;
+            parameter.XsdType = spec.DataType;
+            parameter.Nillable = false;
+            parameter.MinOccurs = spec.Required ? 1 : 0;
+            parameter.MaxOccurs = 1;
+            parameter.SupportStatus = "Supported";
             parameter.Direction = spec.Direction;
             parameter.Cardinality = IntegrationParameterCardinalityEnum.Scalar;
             parameter.Required = spec.Required;

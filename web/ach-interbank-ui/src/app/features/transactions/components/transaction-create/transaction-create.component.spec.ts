@@ -3,20 +3,13 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { Router } from '@angular/router';
 import { of, Subject } from 'rxjs';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { CustomerSummary } from '../../../customers/models/customer.model';
-import { CustomersApiService } from '../../../customers/services/customers-api.service';
-import { FinancialInstitutionsApiService } from '../../services/financial-institutions-api.service';
+import { CustomerSummary } from '../../../../core/models/customer.model';
+import { CustomersApiService } from '../../../../core/services/customers-api.service';
+import { DestinationInstitution, FinancialInstitutionStatusEnum } from '../../../../core/models/financial-institution.model';
+import { FinancialInstitutionsApiService } from '../../../../core/services/financial-institutions-api.service';
 import { TransactionsApiService } from '../../services/transactions-api.service';
-import {
-  ActiveThirdPartyAccount,
-  CompanyEntryDescriptionOption,
-  DestinationInstitution
-} from '../../transactions.models';
-import {
-  AccountTypeEnum,
-  FinancialInstitutionStatusEnum,
-  TransactionTypeEnum
-} from '../../transactions.types';
+import { ContextualThirdPartyAccount, CompanyEntryDescriptionOption } from '../../transactions.models';
+import { AccountTypeEnum, TransactionTypeEnum } from '../../../../core/models/transaction-types.model';
 import { TransactionCreateComponent } from './transaction-create.component';
 
 describe('TransactionCreateComponent', () => {
@@ -26,12 +19,20 @@ describe('TransactionCreateComponent', () => {
   let customersApi: jasmine.SpyObj<CustomersApiService>;
   let institutionsApi: jasmine.SpyObj<FinancialInstitutionsApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
-  const activeThirdPartyAccount: ActiveThirdPartyAccount = {
-    id: 41,
+  const contextualThirdPartyAccount: ContextualThirdPartyAccount = {
+    thirdPartyAccountId: 41,
+    thirdPartyId: 31,
     destinationAccountNumber: '9876543210',
     destinationInstitutionId: 7,
+    destinationInstitutionName: 'Banco destino UAT',
+    accountType: AccountTypeEnum.Savings,
     recipientIdNumber: '10101010',
-    destinationInstitutionName: 'Banco destino UAT'
+    recipientName: 'Proveedor UAT',
+    recipientPersonType: 'PN',
+    eligibilityDecision: 1,
+    eligibilityCode: 'ELIGIBLE',
+    eligibilityMessage: 'Cuenta elegible.',
+    isSelectable: true
   };
   const customers: CustomerSummary[] = [
     {
@@ -77,7 +78,7 @@ describe('TransactionCreateComponent', () => {
   ];
 
   beforeEach(async () => {
-    txApi = jasmine.createSpyObj<TransactionsApiService>('TransactionsApiService', ['getCompanyEntryDescriptions', 'createTransaction', 'getActiveThirdParties', 'previewPolicy']);
+    txApi = jasmine.createSpyObj<TransactionsApiService>('TransactionsApiService', ['getCompanyEntryDescriptions', 'createTransaction', 'getContextualThirdPartyAccounts', 'previewPolicy']);
     customersApi = jasmine.createSpyObj<CustomersApiService>('CustomersApiService', ['getAll']);
     institutionsApi = jasmine.createSpyObj<FinancialInstitutionsApiService>('FinancialInstitutionsApiService', ['getAll']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['success', 'error']);
@@ -102,7 +103,7 @@ describe('TransactionCreateComponent', () => {
       { id: 2, term: 'PAGOS', description: 'Pago de proveedores', standardEntryClassCode: 'CCD' }
     ];
     txApi.getCompanyEntryDescriptions.and.returnValue(of(descriptions));
-    txApi.getActiveThirdParties.and.returnValue(of([activeThirdPartyAccount]));
+    txApi.getContextualThirdPartyAccounts.and.returnValue(of([contextualThirdPartyAccount]));
     txApi.previewPolicy.and.returnValue(of({ canSubmit: true } as any));
     fixture.detectChanges();
   });
@@ -126,12 +127,12 @@ describe('TransactionCreateComponent', () => {
       recipientPersonType: 'PN',
       companyEntryDescriptionId: 1
     });
-    component.activeDestinationAccounts = [activeThirdPartyAccount];
-    component.filteredDestinationAccounts = [activeThirdPartyAccount];
+    component.contextualDestinationAccounts = [contextualThirdPartyAccount];
+    component.filteredDestinationAccounts = [contextualThirdPartyAccount];
     component.form.patchValue({
-      destinationInstitutionId: activeThirdPartyAccount.destinationInstitutionId,
-      destinationAccountNumber: activeThirdPartyAccount.destinationAccountNumber,
-      recipientIdNumber: activeThirdPartyAccount.recipientIdNumber
+      destinationInstitutionId: contextualThirdPartyAccount.destinationInstitutionId,
+      destinationAccountNumber: contextualThirdPartyAccount.destinationAccountNumber,
+      recipientIdNumber: contextualThirdPartyAccount.recipientIdNumber
     }, { emitEvent: false });
     component.addendas.at(0).patchValue({
       addendaType: '05',
@@ -142,6 +143,28 @@ describe('TransactionCreateComponent', () => {
     });
     component.form.updateValueAndValidity();
   }
+
+  it('carga los catálogos actuales y conserva las opciones funcionales del formulario', () => {
+    expect(customersApi.getAll).toHaveBeenCalledTimes(1);
+    expect(institutionsApi.getAll).toHaveBeenCalledTimes(1);
+    expect(txApi.getCompanyEntryDescriptions).toHaveBeenCalledTimes(1);
+    expect(component.customers.map((item) => item.id)).toEqual([10, 20]);
+    expect(component.institutions.map((item) => item.id)).toEqual([7]);
+    expect(component.form.get('companyEntryDescriptionId')?.value).toBe(1);
+  });
+
+  it('usa la foundation 4C.1 sin ui-boton y mantiene controles Material', () => {
+    component.catalogsLoading = true;
+    component.errorMessage.setValue('Error controlado');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-page-header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('ui-estado-carga')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('ui-estado-error')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('ui-boton')).toBeNull();
+    expect(fixture.nativeElement.querySelector('button[type="submit"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('mat-form-field').length).toBeGreaterThan(10);
+  });
 
   it('inicia el formulario con débito para operaciones monetarias originadas por CFA', () => {
     expect(component.form.get('type')?.value).toBe(TransactionTypeEnum.Debit);
@@ -199,7 +222,15 @@ describe('TransactionCreateComponent', () => {
     expect(component.form.get('companyIdentification')?.value).toBe('12345678');
     expect(component.form.get('sourcePersonType')?.value).toBe('PN');
     expect(component.selectedCustomerAccounts).toEqual(['1234567890', '1234567891']);
-    expect(txApi.getActiveThirdParties).toHaveBeenCalledWith('1234567890');
+    expect(txApi.getContextualThirdPartyAccounts).not.toHaveBeenCalled();
+
+    component.selectDestinationInstitution(component.destinationInstitutionOptions[0]);
+    expect(txApi.getContextualThirdPartyAccounts).toHaveBeenCalledWith(
+      '1234567890',
+      7,
+      TransactionTypeEnum.Debit,
+      1
+    );
   });
 
   it('al editar el cliente seleccionado limpia solo el ID y ejecuta el comportamiento manual vigente', () => {
@@ -228,21 +259,27 @@ describe('TransactionCreateComponent', () => {
 
   it('filtra y selecciona la cuenta de origen exacta sin consultas por cada pulsación', fakeAsync(() => {
     component.selectCustomer(component.customerOptions.find((item) => item.value === 10)!);
-    txApi.getActiveThirdParties.calls.reset();
+    component.selectDestinationInstitution(component.destinationInstitutionOptions[0]);
+    txApi.getContextualThirdPartyAccounts.calls.reset();
 
     component.sourceAccountSearchControl.setValue('7891');
     tick(300);
 
     expect(component.filteredSourceAccountOptions.map((option) => option.value)).toEqual(['1234567891']);
     expect(component.form.get('sourceAccountNumber')?.value).toBe('');
-    expect(txApi.getActiveThirdParties).not.toHaveBeenCalled();
+    expect(txApi.getContextualThirdPartyAccounts).not.toHaveBeenCalled();
 
     component.selectSourceAccount(component.filteredSourceAccountOptions[0]);
     tick(300);
 
     expect(component.form.get('sourceAccountNumber')?.value).toBe('1234567891');
-    expect(txApi.getActiveThirdParties).toHaveBeenCalledTimes(1);
-    expect(txApi.getActiveThirdParties).toHaveBeenCalledWith('1234567891');
+    expect(txApi.getContextualThirdPartyAccounts).toHaveBeenCalledTimes(1);
+    expect(txApi.getContextualThirdPartyAccounts).toHaveBeenCalledWith(
+      '1234567891',
+      7,
+      TransactionTypeEnum.Debit,
+      1
+    );
   }));
 
   it('mantiene el campo manual de cuenta origen cuando no existe cliente seleccionado', () => {
@@ -286,15 +323,15 @@ describe('TransactionCreateComponent', () => {
   it('filtra cuenta destino por cuenta, receptor y entidad y autocompleta el receptor', () => {
     component.form.patchValue({ sourceAccountNumber: '1234567890' }, { emitEvent: false });
     component.selectDestinationInstitution(component.destinationInstitutionOptions[0]);
-    component.activeDestinationAccounts = [activeThirdPartyAccount];
-    component.filteredDestinationAccounts = [activeThirdPartyAccount];
+    component.contextualDestinationAccounts = [contextualThirdPartyAccount];
+    component.filteredDestinationAccounts = [contextualThirdPartyAccount];
     component.form.get('destinationInstitutionId')?.setValue(7);
 
     component.destinationAccountOptions = [{
-      value: activeThirdPartyAccount.destinationAccountNumber,
-      label: `${activeThirdPartyAccount.destinationAccountNumber} · ${activeThirdPartyAccount.recipientIdNumber} · ${activeThirdPartyAccount.destinationInstitutionName}`,
-      normalizedSearch: `${activeThirdPartyAccount.destinationAccountNumber} ${activeThirdPartyAccount.recipientIdNumber} banco destino uat`,
-      source: activeThirdPartyAccount
+      value: contextualThirdPartyAccount.destinationAccountNumber,
+      label: `${contextualThirdPartyAccount.destinationAccountNumber} · ${contextualThirdPartyAccount.recipientIdNumber} · ${contextualThirdPartyAccount.destinationInstitutionName} · ${contextualThirdPartyAccount.eligibilityCode}: ${contextualThirdPartyAccount.eligibilityMessage}`,
+      normalizedSearch: `${contextualThirdPartyAccount.destinationAccountNumber} ${contextualThirdPartyAccount.recipientIdNumber} banco destino uat eligible cuenta elegible`,
+      source: contextualThirdPartyAccount
     }];
     component.filteredDestinationAccountSearchOptions = [...component.destinationAccountOptions];
 
@@ -304,6 +341,31 @@ describe('TransactionCreateComponent', () => {
 
     expect(component.form.get('destinationAccountNumber')?.value).toBe('9876543210');
     expect(component.form.get('recipientIdNumber')?.value).toBe('10101010');
+  });
+
+  it('respeta isSelectable y motivo devueltos por backend sin recalcular elegibilidad en frontend', () => {
+    const rejected = {
+      ...contextualThirdPartyAccount,
+      eligibilityDecision: 6,
+      eligibilityCode: 'VALIDATION_REJECTED',
+      eligibilityMessage: 'La última validación fue rechazada.',
+      isSelectable: false
+    };
+    const option = {
+      value: rejected.destinationAccountNumber,
+      label: `${rejected.destinationAccountNumber} · ${rejected.eligibilityCode}: ${rejected.eligibilityMessage}`,
+      normalizedSearch: 'validation rejected',
+      source: rejected
+    };
+
+    component.destinationAccountOptions = [option];
+    component.filteredDestinationAccountSearchOptions = [option];
+    component.form.get('destinationAccountNumber')?.setValue('', { emitEvent: false });
+    component.selectDestinationAccount(option);
+
+    expect(component.form.get('destinationAccountNumber')?.value).toBe('');
+    expect(component.destinationAccountOptions[0].source.eligibilityCode).toBe('VALIDATION_REJECTED');
+    expect(component.destinationAccountOptions[0].source.eligibilityMessage).toBe('La última validación fue rechazada.');
   });
 
   it('texto arbitrario en catálogo obligatorio bloquea envío, muestra mat-error y enfoca el autocomplete', fakeAsync(() => {
@@ -341,9 +403,9 @@ describe('TransactionCreateComponent', () => {
     tick(300);
 
     expect(component.form.get('destinationAccountNumber')?.value).toBe('9876543210');
-    expect(component.activeDestinationAccounts).toEqual([]);
+    expect(component.contextualDestinationAccounts).toEqual([]);
     expect(component.destinationAccountOptions).toEqual([]);
-    expect(txApi.getActiveThirdParties).not.toHaveBeenCalled();
+    expect(txApi.getContextualThirdPartyAccounts).not.toHaveBeenCalled();
   }));
 
   it('elimina Referencia legado del FormGroup y de la interfaz visible', () => {
@@ -509,12 +571,12 @@ describe('TransactionCreateComponent', () => {
     txApi.createTransaction.and.returnValue(of({ id: 11 } as any));
     fillValidForm(0);
     component.form.patchValue({ isPrenotification: true, amount: 0 });
-    component.activeDestinationAccounts = [activeThirdPartyAccount];
-    component.filteredDestinationAccounts = [activeThirdPartyAccount];
+    component.contextualDestinationAccounts = [contextualThirdPartyAccount];
+    component.filteredDestinationAccounts = [contextualThirdPartyAccount];
     component.form.patchValue({
-      destinationInstitutionId: activeThirdPartyAccount.destinationInstitutionId,
-      destinationAccountNumber: activeThirdPartyAccount.destinationAccountNumber,
-      recipientIdNumber: activeThirdPartyAccount.recipientIdNumber
+      destinationInstitutionId: contextualThirdPartyAccount.destinationInstitutionId,
+      destinationAccountNumber: contextualThirdPartyAccount.destinationAccountNumber,
+      recipientIdNumber: contextualThirdPartyAccount.recipientIdNumber
     }, { emitEvent: false });
     component.form.updateValueAndValidity();
 

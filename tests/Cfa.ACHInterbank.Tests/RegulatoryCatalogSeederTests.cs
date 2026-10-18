@@ -122,6 +122,15 @@ public class RegulatoryCatalogSeederTests
             IsRetryable = true,
             IsActive = false
         });
+        context.ReturnReasons.Add(new ReturnReason
+        {
+            Id = 56,
+            Code = "DEV14",
+            Description = "Registro obsoleto del modelo Return",
+            Category = "R",
+            IsForReturn = true
+        });
+
         context.AchReturnCodes.Add(new AchReturnCode
         {
             ClearingHouseId = clearingHouse.Id,
@@ -175,6 +184,7 @@ public class RegulatoryCatalogSeederTests
         Assert.Equal(IncomingNachaBusinessOutcome.NotProcessed, legacyR96.BusinessOutcome);
 
         Assert.False(await context.AchReturnCodes.AnyAsync(x => x.Code == "DEV14" && x.IsActive));
+        Assert.False(await context.ReturnReasons.AnyAsync(x => x.Code == "DEV14"));
         Assert.True(await context.AchFileRejectionCodes.AnyAsync(x => x.Code == "I503" && x.IsRetryable));
     }
 

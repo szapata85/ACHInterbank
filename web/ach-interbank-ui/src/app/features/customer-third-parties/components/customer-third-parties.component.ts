@@ -52,13 +52,13 @@ export class CustomerThirdPartiesComponent implements OnInit, OnDestroy {
 
   readonly columns = [
     { key: 'customerName', label: 'Cliente' },
-    { key: 'destinationInstitutionName', label: 'Entidad destino' },
-    { key: 'destinationAccountNumber', label: 'Cuenta destino' },
-    { key: 'recipientIdNumber', label: 'Documento receptor' },
+    { key: 'destinationInstitutionName', label: 'Entidad de destino' },
+    { key: 'destinationAccountNumber', label: 'Cuenta de destino' },
+    { key: 'recipientIdNumber', label: 'Documento del receptor' },
     { key: 'statusLabel', label: 'Estado' },
-    { key: 'prenotificationTransactionId', label: 'ID prenotificación' },
-    { key: 'validationCycleId', label: 'Ciclo validación' },
-    { key: 'validationReceivedAtDisplay', label: 'Fecha validación' },
+    { key: 'prenotificationTransactionId', label: 'ID de prenotificación' },
+    { key: 'validationCycleId', label: 'Ciclo de validación' },
+    { key: 'validationReceivedAtDisplay', label: 'Fecha de validación' },
     { key: 'validationMessage', label: 'Resultado automático' }
   ];
 

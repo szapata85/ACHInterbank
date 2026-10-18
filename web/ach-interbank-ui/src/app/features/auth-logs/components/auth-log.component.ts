@@ -27,7 +27,7 @@ import {
   auditDateRangeValidator,
   sanitizeAuditText,
   toLocalDateParam
-} from '../../audit-shared/audit-display.util';
+} from '../../../shared/utils/audit-display.util';
 import { AuthLogEntry, AuthLogFilters } from '../models/auth-log.model';
 import { AuthLogService } from '../services/auth-log.service';
 

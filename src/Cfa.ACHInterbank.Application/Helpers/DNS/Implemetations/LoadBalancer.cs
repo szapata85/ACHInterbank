@@ -3,14 +3,12 @@ using Cfa.ACHInterbank.Application.Helpers.DNS.Interfaces;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Servers;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Newtonsoft.Json;
 
 namespace Cfa.ACHInterbank.Application.Helpers.DNS.Implemetations;
 
 [Singleton] 
 public class LoadBalancer : ILoadBalancer
 {
-    private readonly AppSettings _appSettings = AppSettings.Settings;
     private int _currentIndex = -1;
     private readonly ICheckHealthAsync _checkHealth;
     private readonly IServerRepository _serverRepository;
@@ -42,7 +40,7 @@ public class LoadBalancer : ILoadBalancer
         catch
         {
 
-            _loggerManager.LogError($"No hay servicios disponibles, valide la comunicación de los servicios que desea integrar {JsonConvert.SerializeObject(localServers)}");
+            _loggerManager.LogError($"No services available; serviceType={type}; healthyCandidateCount={localServers.Count}; endpoints=redacted.");
             throw new Exception("No hay servicios disponibles, valide la comunicación de los servicios que desea integrar");
         }
         return localServers![_currentIndex];

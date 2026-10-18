@@ -8,7 +8,10 @@ public sealed record SchedulerTaskExecutionContext(
     string FireInstanceId,
     string SchedulerInstanceId,
     bool IsRecovery,
-    int RefireCount);
+    int RefireCount,
+    IReadOnlyDictionary<string, string>? JobData = null,
+    DateTimeOffset? ScheduledFireTimeUtc = null,
+    bool MisfireDetected = false);
 
 public interface ISchedulerContextAwareTaskHandler : ITaskHandler
 {

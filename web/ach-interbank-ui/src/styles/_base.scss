@@ -60,7 +60,7 @@ textarea {
   font: inherit;
 }
 
-:focus-visible {
+:focus-visible:not(.mat-mdc-button-base):not(.mat-mdc-input-element) {
   outline: none;
   box-shadow: var(--focus-ring);
 }

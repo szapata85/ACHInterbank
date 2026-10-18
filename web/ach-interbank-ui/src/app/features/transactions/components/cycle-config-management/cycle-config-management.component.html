@@ -1,17 +1,19 @@
 <section class="cycle-page" aria-labelledby="cycle-content-title">
-  <mat-card *ngIf="loading" class="state-card" role="status" aria-live="polite">
-    <mat-spinner diameter="36"></mat-spinner>
-    <div><strong>Cargando configuración de ciclos…</strong><span>Consultando la cámara y su historial operativo.</span></div>
-  </mat-card>
+  <ui-estado-carga
+    id="cycle-content-title"
+    *ngIf="loading"
+    mensaje="Cargando configuración de ciclos… Consultando la cámara y su historial operativo."
+  ></ui-estado-carga>
 
-  <mat-card *ngIf="!loading && error" class="state-card state-card--error" role="alert">
-    <mat-icon>error_outline</mat-icon>
-    <div>
-      <h2 id="cycle-content-title">No fue posible mostrar los ciclos</h2>
-      <p>{{ error }}</p>
-    </div>
-    <a mat-stroked-button routerLink="/clearing-houses"><mat-icon>arrow_back</mat-icon>Volver a cámaras</a>
-  </mat-card>
+  <div *ngIf="!loading && error" class="error-state">
+    <ui-estado-error
+      id="cycle-content-title"
+      titulo="No fue posible mostrar los ciclos"
+      [mensaje]="error"
+      [mostrarReintentar]="false"
+    ></ui-estado-error>
+    <a mat-stroked-button routerLink="/clearing-houses"><mat-icon>arrow_back</mat-icon>Volver a Cámaras compensadoras</a>
+  </div>
 
   <ng-container *ngIf="!loading && clearingHouse as house">
     <app-clearing-house-context-navigation
@@ -21,16 +23,19 @@
       [canReadSpecialDates]="canReadSpecialDates"
     ></app-clearing-house-context-navigation>
 
-    <header class="cycle-hero">
-      <div>
-        <p class="eyebrow">Ventanas operativas</p>
-        <h2 id="cycle-content-title">Configuración de ciclos</h2>
-        <p>Define cuándo puede procesar, cerrar y enviar operaciones esta cámara compensadora.</p>
-      </div>
+    <ng-template #headerActions>
       <button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="openCreateForm()">
         <mat-icon>add</mat-icon>Nueva configuración
       </button>
-    </header>
+    </ng-template>
+
+    <app-page-header
+      id="cycle-content-title"
+      title="Configuración de ciclos"
+      subtitle="Ventanas operativas"
+      [actionsTemplate]="headerActions"
+    ></app-page-header>
+    <p class="page-description">Define cuándo puede procesar, cerrar y enviar operaciones esta cámara compensadora.</p>
 
     <section class="metrics" aria-label="Resumen de configuraciones">
       <mat-card><mat-icon>format_list_numbered</mat-icon><div><strong>{{ totalCount }}</strong><span>Total</span></div></mat-card>
@@ -89,11 +94,12 @@
         <mat-card-subtitle>{{ dataSource.data.length }} resultados para {{ house.name }}</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
-        <div *ngIf="!dataSource.data.length" class="empty-state" role="status">
-          <mat-icon>schedule</mat-icon>
-          <strong>Sin configuraciones para los filtros seleccionados</strong>
-          <span>Prueba limpiando los filtros o crea una nueva configuración.</span>
-        </div>
+        <ui-estado-vacio
+          *ngIf="!dataSource.data.length"
+          titulo="Sin configuraciones para los filtros seleccionados"
+          mensaje="Prueba limpiando los filtros o crea una nueva configuración."
+          sugerencia=""
+        ></ui-estado-vacio>
 
         <div class="desktop-table" *ngIf="dataSource.data.length">
           <table mat-table [dataSource]="dataSource" matSort>
@@ -109,9 +115,9 @@
               <th mat-header-cell *matHeaderCellDef>Corte de entrada</th>
               <td mat-cell *matCellDef="let row">{{ time(row.cutoffTime) }}</td>
             </ng-container>
-            <ng-container matColumnDef="release">
-              <th mat-header-cell *matHeaderCellDef>Salida</th>
-              <td mat-cell *matCellDef="let row">{{ time(row.outputReleaseTime) }}</td>
+            <ng-container matColumnDef="stages">
+              <th mat-header-cell *matHeaderCellDef>Etapas</th>
+              <td mat-cell *matCellDef="let row">{{ stageSummary(row) }}</td>
             </ng-container>
             <ng-container matColumnDef="eligibility">
               <th mat-header-cell *matHeaderCellDef>Clases habilitadas</th>
@@ -137,7 +143,7 @@
               <th mat-header-cell *matHeaderCellDef>Acciones</th>
               <td mat-cell *matCellDef="let row">
                 <button mat-icon-button [matMenuTriggerFor]="actions" type="button"
-                  [attr.aria-label]="'Acciones de ' + row.cycleName" matTooltip="Acciones de configuración">
+                  [attr.aria-label]="'Acciones de configuración para ' + row.cycleName" matTooltip="Ver acciones de configuración">
                   <mat-icon>more_vert</mat-icon>
                 </button>
                 <mat-menu #actions="matMenu">
@@ -163,7 +169,9 @@
             <header><div><strong>{{ row.cycleName }}</strong><span>{{ time(row.startTime) }} – {{ time(row.endTime) }}</span></div><mat-chip>{{ status(row) }}</mat-chip></header>
             <dl>
               <div><dt>Corte de entrada</dt><dd>{{ time(row.cutoffTime) }}</dd></div>
-              <div><dt>Liberación de salida</dt><dd>{{ time(row.outputReleaseTime) }}</dd></div>
+              <div><dt>Planilla</dt><dd>{{ stageWindow(row.compensationStatementStartTime, row.compensationStatementEndTime) }}</dd></div>
+              <div><dt>Pago</dt><dd>{{ stageWindow(row.compensationPaymentStartTime, row.compensationPaymentEndTime) }}</dd></div>
+              <div><dt>Liberación</dt><dd>{{ row.outputReleaseStartTime && row.outputReleaseEndTime ? stageWindow(row.outputReleaseStartTime, row.outputReleaseEndTime) : time(row.outputReleaseTime) }}</dd></div>
               <div><dt>Versión</dt><dd>{{ row.policyVersion }}</dd></div>
               <div><dt>Vigencia</dt><dd>{{ validityText(row) }}</dd></div>
               <div><dt>Última modificación</dt><dd>{{ row.updatedAt ? (row.updatedAt | date:'short') : 'No disponible' }}</dd></div>
@@ -197,26 +205,59 @@
           <mat-label>Inicio de ventana</mat-label>
           <input matInput type="time" formControlName="startTime" />
           <mat-error *ngIf="form.controls.startTime.hasError('required')">La hora inicial es obligatoria.</mat-error>
-          <mat-error *ngIf="form.controls.startTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
+          <mat-error *ngIf="form.controls.startTime.hasError('timeFormat')">Usa el formato HH:mm de 00:00 a 23:59.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Fin de ventana</mat-label>
           <input matInput type="time" formControlName="endTime" />
           <mat-error *ngIf="form.controls.endTime.hasError('required')">La hora final es obligatoria.</mat-error>
-          <mat-error *ngIf="form.controls.endTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
+          <mat-error *ngIf="form.controls.endTime.hasError('timeFormat')">Usa el formato HH:mm de 00:00 a 23:59.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Corte de entrada</mat-label>
           <input matInput type="time" formControlName="cutoffTime" />
-          <mat-error *ngIf="form.controls.cutoffTime.hasError('required')">La hora de cutoff es obligatoria.</mat-error>
-          <mat-error *ngIf="form.controls.cutoffTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
+          <mat-error *ngIf="form.controls.cutoffTime.hasError('required')">La hora de corte de entrada es obligatoria.</mat-error>
+          <mat-error *ngIf="form.controls.cutoffTime.hasError('timeFormat')">Usa el formato HH:mm de 00:00 a 23:59.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Liberación de salida</mat-label>
           <input matInput type="time" formControlName="outputReleaseTime" />
           <mat-error *ngIf="form.controls.outputReleaseTime.hasError('required')">La hora de salida es obligatoria.</mat-error>
-          <mat-error *ngIf="form.controls.outputReleaseTime.hasError('timeFormat')">Use el formato HH:mm de 00:00 a 23:59.</mat-error>
+          <mat-error *ngIf="form.controls.outputReleaseTime.hasError('timeFormat')">Usa el formato HH:mm de 00:00 a 23:59.</mat-error>
         </mat-form-field>
+        <fieldset class="editor-form__wide stage-grid">
+          <legend>Etapas horarias ampliadas (opcionales para políticas históricas)</legend>
+          <mat-form-field appearance="outline">
+            <mat-label>Inicio entrega de planilla</mat-label>
+            <input matInput type="time" formControlName="compensationStatementStartTime" />
+            <mat-error *ngIf="form.controls.compensationStatementStartTime.hasError('timeFormat')">Usa el formato HH:mm.</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Fin entrega de planilla</mat-label>
+            <input matInput type="time" formControlName="compensationStatementEndTime" />
+            <mat-error *ngIf="form.controls.compensationStatementEndTime.hasError('timeFormat')">Usa el formato HH:mm.</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Inicio pago de compensación</mat-label>
+            <input matInput type="time" formControlName="compensationPaymentStartTime" />
+            <mat-error *ngIf="form.controls.compensationPaymentStartTime.hasError('timeFormat')">Usa el formato HH:mm.</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Fin pago de compensación</mat-label>
+            <input matInput type="time" formControlName="compensationPaymentEndTime" />
+            <mat-error *ngIf="form.controls.compensationPaymentEndTime.hasError('timeFormat')">Usa el formato HH:mm.</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Inicio liberación de archivos</mat-label>
+            <input matInput type="time" formControlName="outputReleaseStartTime" />
+            <mat-error *ngIf="form.controls.outputReleaseStartTime.hasError('timeFormat')">Usa el formato HH:mm.</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Fin liberación de archivos</mat-label>
+            <input matInput type="time" formControlName="outputReleaseEndTime" />
+            <mat-error *ngIf="form.controls.outputReleaseEndTime.hasError('timeFormat')">Usa el formato HH:mm.</mat-error>
+          </mat-form-field>
+        </fieldset>
         <mat-form-field appearance="outline">
           <mat-label>Vigente desde</mat-label>
           <input matInput [matDatepicker]="fromPicker" formControlName="effectiveFrom" />
@@ -234,8 +275,10 @@
           <mat-checkbox formControlName="allowsReturnOfReturn">Devolución de devolución</mat-checkbox>
         </fieldset>
         <p *ngIf="form.hasError('timeOrder')" class="form-error" role="alert">La hora inicial y la hora final deben ser diferentes.</p>
-        <p *ngIf="form.hasError('cutoffOutside')" class="form-error" role="alert">El cutoff debe estar dentro de la ventana operativa.</p>
+        <p *ngIf="form.hasError('cutoffOutside')" class="form-error" role="alert">El corte de entrada debe estar dentro de la ventana operativa.</p>
         <p *ngIf="form.hasError('releaseBeforeClose')" class="form-error" role="alert">La liberación de salida no puede ocurrir antes del cierre.</p>
+        <p *ngIf="form.hasError('incompleteStages')" class="form-error" role="alert">Las etapas ampliadas deben diligenciarse completas o dejarse todas vacías.</p>
+        <p *ngIf="form.hasError('stageOrder')" class="form-error" role="alert">Las etapas deben respetar el orden cierre → planilla → pago → liberación.</p>
         <p *ngIf="form.hasError('duplicate')" class="form-error" role="alert">Ya existe una versión de este ciclo con la misma fecha de inicio.</p>
         <p *ngIf="form.hasError('overlap')" class="form-error" role="alert">La vigencia se solapa con una versión histórica cerrada.</p>
         <p *ngIf="form.hasError('backend')" class="form-error" role="alert">{{ form.getError('backend') }}</p>
@@ -257,7 +300,7 @@
         <article *ngFor="let item of historyItems; trackBy: track">
           <mat-chip>{{ status(item) }}</mat-chip>
           <strong>{{ validityText(item) }}</strong>
-          <span>{{ item.policyVersion }} · {{ time(item.startTime) }} – {{ time(item.endTime) }} · corte {{ time(item.cutoffTime) }} · salida {{ time(item.outputReleaseTime) }}</span>
+          <span>{{ item.policyVersion }} · {{ time(item.startTime) }} – {{ time(item.endTime) }} · corte {{ time(item.cutoffTime) }} · {{ stageSummary(item) }}</span>
         </article>
       </div>
     </mat-dialog-content>

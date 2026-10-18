@@ -10,6 +10,11 @@ public static class P0Policies
     public const string TraceabilityCertifySol02 = "P0.TraceabilityCertifySol02";
     public const string ReturnsRead = "P0.ReturnsRead";
     public const string ReturnsGenerateFile = "P0.ReturnsGenerateFile";
+    public const string ClaimsRead = "P0.ClaimsRead";
+    public const string ClaimsCreateDev14 = "P0.ClaimsCreateDev14";
+    public const string ClaimsProgress = "P0.ClaimsProgress";
+    public const string ClaimsResolve = "P0.ClaimsResolve";
+    public const string ClaimsExpire = "P0.ClaimsExpire";
     public const string OutgoingTransactionsMonitorRead = "P0.OutgoingTransactionsMonitorRead";
     public const string OutgoingTransactionsMonitorTechnicalDetailRead = "P0.OutgoingTransactionsMonitorTechnicalDetailRead";
 }

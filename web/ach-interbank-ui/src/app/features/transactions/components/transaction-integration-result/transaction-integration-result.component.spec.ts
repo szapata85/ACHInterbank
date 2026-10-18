@@ -56,7 +56,43 @@ describe('TransactionIntegrationResultComponent', () => {
     expect(component.resultLabel(item({ businessStatus: 'ManualReview' }))).toBe('Requiere revisión');
     expect(component.resultLabel(item({ businessStatus: 'Unknown' }))).toBe('Desconocido');
     expect(component.resultLabel(item({ transportStatus: 'Failed' }))).toBe('Error técnico');
+    expect(component.resultLabel(item({ transportStatus: 'TimedOut' }))).toBe('Error técnico');
+    expect(component.resultLabel(item({ transportStatus: 'Succeeded', businessStatus: 'Rejected' }))).toBe('Rechazado');
+    expect(component.statusClass(item({ transportStatus: 'Succeeded', businessStatus: 'Rejected' }))).toBe('rejected');
+    expect(component.statusClass(item({ transportStatus: 'TimedOut', businessStatus: 'Rejected' }))).toBe('failed');
   });
+
+  it('conserva latest e historial y renderiza el historial resumido', () => {
+    const latest = item({ method: 'Proc_Transacciones', responseCode: 'R96' });
+    const previous = item({
+      method: 'Proc_Contrapartidas',
+      responseCode: 'R01',
+      businessStatus: 'Rejected'
+    });
+    component.result = { transactionId: 1, latest, history: [latest, previous] };
+
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(component.latest).toBe(latest);
+    expect(text).toContain('Historial resumido (2)');
+    expect(text).toContain('Proc_Transacciones');
+    expect(text).toContain('Proc_Contrapartidas');
+    expect(text).toContain('Rechazado');
+  });
+
+  it('usa un botón Material para cerrar y emite closePanel', () => {
+    component.result = result(item());
+    spyOn(component.closePanel, 'emit');
+    fixture.detectChanges();
+
+    const closeButton = fixture.nativeElement.querySelector('button[mat-icon-button][aria-label="Cerrar resultado"]') as HTMLButtonElement;
+    expect(closeButton).not.toBeNull();
+
+    closeButton.click();
+    expect(component.closePanel.emit).toHaveBeenCalled();
+  });
+
 });
 
 function result(latest: TransactionIntegrationResultItem) {

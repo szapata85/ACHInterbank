@@ -67,7 +67,10 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
             ct.ThrowIfCancellationRequested();
             var bytes = await File.ReadAllBytesAsync(path, ct);
             if (bytes.LongLength == 0 || bytes.LongLength > effective.MaximumFileBytes) continue;
-            artifacts.Add(new(Path.GetFileName(path), bytes, Convert.ToHexString(SHA256.HashData(bytes)), path));
+            artifacts.Add(new(Path.GetFileName(path), bytes, Convert.ToHexString(SHA256.HashData(bytes)), path)
+            {
+                BoundaryLastWriteTimeUtc = DateTime.SpecifyKind(File.GetLastWriteTimeUtc(path), DateTimeKind.Utc)
+            });
         }
         return artifacts;
     }
@@ -120,7 +123,13 @@ public sealed class AchColombiaManagedMftFolderAdapter(IOptions<AchColombiaManag
             : Failure("ACHCOL_MFT_NAME_COLLISION", "El nombre ya existe con contenido diferente.", false);
     }
 
-    private static bool IsEligible(string path) => !Path.GetFileName(path).StartsWith('.') && path.EndsWith(".env", StringComparison.OrdinalIgnoreCase);
+    private static bool IsEligible(string path)
+    {
+        var name = Path.GetFileName(path);
+        return !name.StartsWith('.')
+            && (name.EndsWith(".OUT.env", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".RET.env", StringComparison.OrdinalIgnoreCase));
+    }
     private static string ResolveRoot(string configured)
     {
         if (string.IsNullOrWhiteSpace(configured)) throw new InvalidOperationException("ACHCOL_MFT_PATH_NOT_CONFIGURED");

@@ -19,7 +19,7 @@
     padding: 0.8rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    background: #f8fafc;
+    background: var(--color-surface-muted);
     display: grid;
     gap: 0.3rem;
   }
@@ -34,6 +34,18 @@
   }
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.danger-action {
+  --mdc-filled-button-container-color: var(--color-error);
+  --mdc-filled-button-label-text-color: var(--color-on-error);
+}
+
 .toolbar {
   display: flex;
   justify-content: space-between;
@@ -41,6 +53,10 @@
   gap: 1rem;
   margin-bottom: 0.8rem;
   flex-wrap: wrap;
+}
+
+.status-field {
+  min-width: 220px;
 }
 
 .pagination {
@@ -53,8 +69,8 @@
   font-weight: 600;
 }
 
-.ok { color: #166534; }
-.ko { color: #991b1b; }
+.ok { color: var(--color-success-text); }
+.ko { color: var(--color-error-text); }
 
 h3 {
   margin: 0 0 0.85rem;

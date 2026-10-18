@@ -83,7 +83,7 @@ mat-form-field {
 }
 
 .password-toggle:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 40%, transparent);
   outline-offset: 2px;
 }
 
@@ -141,7 +141,7 @@ mat-form-field {
 }
 
 .helper-links a {
-  color: #0f766e;
+  color: var(--color-primary);
   font-size: 0.9rem;
   text-decoration: none;
   font-weight: 600;
@@ -153,7 +153,7 @@ mat-form-field {
 
 .helper-links a:focus-visible {
   border-radius: var(--radius-sm);
-  outline: 3px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 40%, transparent);
   outline-offset: 3px;
 }
 

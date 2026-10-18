@@ -8,7 +8,7 @@ import {
   TransactionPolicyPreview,
   UpdateTransactionPolicyMetadataRequest
 } from './transaction-policies.models';
-import { TransactionTypeEnum } from '../transactions/transactions.types';
+import { TransactionTypeEnum } from '../../core/models/transaction-types.model';
 
 type ApiPrenotificationMode = 1 | 2 | 3 | PrenotificationMode;
 type ApiTransactionPolicy = Omit<TransactionPolicy, 'prenotificationMode'> & {

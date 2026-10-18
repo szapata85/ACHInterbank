@@ -48,11 +48,32 @@ public sealed class AchColombiaManagedMftFolderAdapterTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "inbound"));
         await File.WriteAllBytesAsync(Path.Combine(_root, "inbound", "received.OUT.env"), [4, 5, 6]);
         var artifact = Assert.Single(await adapter.PickupInboundAsync());
+        Assert.NotNull(artifact.BoundaryLastWriteTimeUtc);
         Assert.False(File.Exists(Path.Combine(_root, "inbound", artifact.FileName)));
         Assert.Single(await adapter.PickupInboundAsync());
         var reference = await adapter.ArchiveInboundAsync(artifact);
         Assert.StartsWith("mft-archive:", reference);
         Assert.Empty(await adapter.PickupInboundAsync());
+    }
+
+    [Fact]
+    public async Task Inbound_ShouldAcceptOnlyOutAndRetFinalEnvelopes()
+    {
+        var adapter = Create();
+        var inbound = Path.Combine(_root, "inbound");
+        Directory.CreateDirectory(inbound);
+        await File.WriteAllBytesAsync(Path.Combine(inbound, "one.OUT.env"), [1]);
+        await File.WriteAllBytesAsync(Path.Combine(inbound, "two.RET.env"), [2]);
+        await File.WriteAllBytesAsync(Path.Combine(inbound, "unknown.env"), [3]);
+        await File.WriteAllBytesAsync(Path.Combine(inbound, ".partial.OUT.env"), [4]);
+
+        var artifacts = await adapter.PickupInboundAsync();
+
+        Assert.Equal(2, artifacts.Count);
+        Assert.Contains(artifacts, x => x.FileName == "one.OUT.env");
+        Assert.Contains(artifacts, x => x.FileName == "two.RET.env");
+        Assert.True(File.Exists(Path.Combine(inbound, "unknown.env")));
+        Assert.True(File.Exists(Path.Combine(inbound, ".partial.OUT.env")));
     }
 
     private AchColombiaManagedMftFolderAdapter Create(bool enabled = true) => new(Options.Create(new AchColombiaManagedMftOptions

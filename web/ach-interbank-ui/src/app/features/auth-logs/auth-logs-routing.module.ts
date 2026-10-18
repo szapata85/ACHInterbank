@@ -7,8 +7,8 @@ const routes: Routes = [
     path: '',
     component: AuthLogComponent,
     data: {
-      breadcrumb: 'Registro de autenticaciones',
-      title: 'Registro de autenticaciones'
+      breadcrumb: 'Registro de accesos',
+      title: 'Registro de accesos'
     }
   }
 ];

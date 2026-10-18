@@ -31,8 +31,21 @@ public class RegulatoryCatalogSeeder : IDbSeeder
         await UpsertReturnOfReturnPoliciesAsync(clearingHouseIds);
         await UpsertPrenotificationPoliciesAsync();
         await UpsertClearingHouseTransactionRulesAsync(clearingHouseIds);
+        await RemoveStaleDev14ReturnReasonAsync();
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task RemoveStaleDev14ReturnReasonAsync()
+    {
+        var staleRows = await _context.ReturnReasons
+            .Where(x => x.Code == "DEV14")
+            .ToListAsync();
+
+        if (staleRows.Count > 0)
+        {
+            _context.ReturnReasons.RemoveRange(staleRows);
+        }
     }
 
     private async Task UpsertReturnCodesAsync((int CenitId, int AchColombiaId) clearingHouseIds)
@@ -296,6 +309,28 @@ public class RegulatoryCatalogSeeder : IDbSeeder
             .ToDictionary(x => $"{x.ClearingHouseId}|{x.TransactionNature}|{x.TransactionType}|{x.EffectiveFrom:yyyyMMdd}", StringComparer.OrdinalIgnoreCase);
         var existing = await _context.ClearingHouseTransactionRules.ToListAsync();
 
+        foreach (var row in existing)
+        {
+            var key = $"{row.ClearingHouseId}|{row.TransactionNature}|{row.TransactionType}|{row.EffectiveFrom:yyyyMMdd}";
+            if (!desired.TryGetValue(key, out var model))
+            {
+                continue;
+            }
+
+            row.RequiresPrenotification = model.RequiresPrenotification;
+            row.PrenotificationMode = model.PrenotificationMode;
+            row.PrenotificationLeadBusinessDays = model.PrenotificationLeadBusinessDays;
+            row.PrenotificationResponseDeadlineMode = model.PrenotificationResponseDeadlineMode;
+            row.PrenotificationResponseWindowCycles = model.PrenotificationResponseWindowCycles;
+            row.TacitAcceptanceEnabled = model.TacitAcceptanceEnabled;
+            row.ValidationRetentionMonthsAfterLastMonetaryUse = model.ValidationRetentionMonthsAfterLastMonetaryUse;
+            row.RequiresReceiverIdentificationValidation = model.RequiresReceiverIdentificationValidation;
+            row.ReceiverIdentificationValidationMode = model.ReceiverIdentificationValidationMode;
+            row.NormativeSource = model.NormativeSource;
+            row.NormativeReference = model.NormativeReference;
+            row.Notes = model.Notes;
+        }
+
         foreach (var model in desired.Values.Where(x => existing.All(e =>
                      e.ClearingHouseId != x.ClearingHouseId
                      || e.TransactionNature != x.TransactionNature
@@ -429,7 +464,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
 
         return new[]
         {
-            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31,DEV14", cenitCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
+            new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31", cenitCodes), MaxDays = 60, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
             new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Debit", AllowedReturnCodesCsv = FilterCodes("R01,R02,R03,R04,R06,R07,R08,R09,R10,R12,R13,R14,R15,R16,R17,R20,R23,R29,R31", achCodes), MaxDays = 60, MaxCycles = 4, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
             new AchReturnPolicy { ClearingHouseId = clearingHouseIds.CenitId, TransactionType = "Credit", AllowedReturnCodesCsv = FilterCodes("R03,R04,R20,R23,R31", cenitCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
             new AchReturnPolicy { ClearingHouseId = clearingHouseIds.AchColombiaId, TransactionType = "Credit", AllowedReturnCodesCsv = FilterCodes("R03,R04,R20,R23,R31", achCodes), MaxDays = 1, RequiredOriginalTransactionState = "Pending", AllowsReturnOfReturn = true, RequiresAddenda = true, IsActive = true, Direction = AchReturnDirection.Any, FlowType = AchReturnFlowType.Return, EffectiveFrom = DateTime.UtcNow.Date, EffectiveTo = null },
@@ -536,14 +571,17 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 RequiresPrenotification = true,
                 PrenotificationMode = PrenotificationRequirementMode.Mandatory,
                 PrenotificationLeadBusinessDays = 3,
+                PrenotificationResponseDeadlineMode = PrenotificationResponseDeadlineMode.CycleCount,
+                PrenotificationResponseWindowCycles = 4,
+                TacitAcceptanceEnabled = true,
                 RequiresReceiverIdentificationValidation = true,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Mandatory,
                 AppliesToNachaExport = true,
                 AppliesToMonetaryTransactions = true,
                 EffectiveFrom = effectiveFrom,
                 IsActive = true,
-                NormativeSource = "MAN-004 ACH Colombia V32",
-                NormativeReference = "2.11.4, 2.11.4.1, 2.11.4.2, 2.11.6",
+                NormativeSource = "DDS-DIS-MAN-004 ACH Colombia V35",
+                NormativeReference = "2.4.8; 2.11.4; 2.11.4.1; 2.11.4.2; 2.11.6",
                 Notes = "Debito ACH Colombia: prenotificacion tecnica obligatoria previa al proceso de debito; receptor valida cuenta e identificacion segun norma."
             },
             new ClearingHouseTransactionRule
@@ -553,16 +591,19 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 TransactionType = TransactionTypeEnum.Credit,
                 RequiresPrenotification = false,
                 PrenotificationMode = PrenotificationRequirementMode.Optional,
-                PrenotificationLeadBusinessDays = null,
+                PrenotificationLeadBusinessDays = 3,
+                PrenotificationResponseDeadlineMode = PrenotificationResponseDeadlineMode.CycleCount,
+                PrenotificationResponseWindowCycles = 4,
+                TacitAcceptanceEnabled = true,
                 RequiresReceiverIdentificationValidation = false,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Optional,
                 AppliesToNachaExport = true,
                 AppliesToMonetaryTransactions = true,
                 EffectiveFrom = effectiveFrom,
                 IsActive = true,
-                NormativeSource = "MAN-004 ACH Colombia V32",
-                NormativeReference = "2.10.2, 2.10.3, 2.10.3.1, 2.10.3.2",
-                Notes = "Credito ACH Colombia: prenotificacion discrecional/opcional; no bloquea exportacion monetaria si no fue enviada."
+                NormativeSource = "DDS-DIS-MAN-004 ACH Colombia V35",
+                NormativeReference = "2.4.8; 2.10.2; 2.10.3; 2.10.3.1; 2.10.3.2",
+                Notes = "Credito ACH Colombia V35: prenotificacion opcional; si se usa debe respetar lead de tres días hábiles y ausencia de devolución dentro de la ventana configurada implica éxito."
             },
             new ClearingHouseTransactionRule
             {
@@ -572,6 +613,9 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 RequiresPrenotification = true,
                 PrenotificationMode = PrenotificationRequirementMode.Mandatory,
                 PrenotificationLeadBusinessDays = null,
+                PrenotificationResponseDeadlineMode = PrenotificationResponseDeadlineMode.OperationalDayEnd,
+                TacitAcceptanceEnabled = true,
+                ValidationRetentionMonthsAfterLastMonetaryUse = 13,
                 RequiresReceiverIdentificationValidation = true,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Mandatory,
                 AppliesToNachaExport = true,
@@ -579,8 +623,8 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 EffectiveFrom = effectiveFrom,
                 IsActive = true,
                 NormativeSource = "CENIT DSP-152 Anexo 2",
-                NormativeReference = "4.7 Prenotificaciones",
-                Notes = "Debito CENIT: antes de una entrada debito el originador debe enviar notificacion previa/prenotificacion con addenda."
+                NormativeReference = "4.7 Prenotificaciones; 4.8 Devolución de una prenotificación",
+                Notes = "Debito CENIT: prenotificacion obligatoria; devolución en la misma Fecha Valor hasta el último ciclo. Retención de validación se configura separadamente en meses tras último uso monetario."
             },
             new ClearingHouseTransactionRule
             {
@@ -590,6 +634,8 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 RequiresPrenotification = false,
                 PrenotificationMode = PrenotificationRequirementMode.Optional,
                 PrenotificationLeadBusinessDays = null,
+                PrenotificationResponseDeadlineMode = PrenotificationResponseDeadlineMode.OperationalDayEnd,
+                TacitAcceptanceEnabled = true,
                 RequiresReceiverIdentificationValidation = false,
                 ReceiverIdentificationValidationMode = ValidationRequirementMode.Optional,
                 AppliesToNachaExport = true,
@@ -597,7 +643,7 @@ public class RegulatoryCatalogSeeder : IDbSeeder
                 EffectiveFrom = effectiveFrom,
                 IsActive = true,
                 NormativeSource = "CENIT DSP-152 Anexo 2",
-                NormativeReference = "4.7 Prenotificaciones",
+                NormativeReference = "4.7 Prenotificaciones; 4.8 Devolución de una prenotificación",
                 Notes = "Credito CENIT: la prenotificacion credito no es obligatoria segun documento fuente."
             }
         };

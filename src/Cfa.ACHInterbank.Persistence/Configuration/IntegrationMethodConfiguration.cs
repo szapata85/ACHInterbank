@@ -13,6 +13,9 @@ public class IntegrationMethodConfiguration : IEntityTypeConfiguration<Integrati
 
         builder.Property(x => x.Code).HasMaxLength(150).IsRequired();
         builder.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.FunctionalDescription).HasMaxLength(1000).IsRequired();
+        builder.Property(x => x.FunctionalCategory).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.RiskLevel).HasMaxLength(60).IsRequired();
         builder.Property(x => x.SoapClientCode).HasMaxLength(120).IsRequired();
         builder.Property(x => x.IsActive).HasDefaultValue(true);
 

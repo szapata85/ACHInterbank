@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterModule } from '@angular/router';
 import { EMPTY, catchError, finalize, tap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
+import { BrandingService } from '../../core/services/branding.service';
 import { SharedModule } from '../../shared/shared.module';
 
 @Component({
@@ -30,9 +31,11 @@ import { SharedModule } from '../../shared/shared.module';
 export class LoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly authService = inject(AuthService);
+  private readonly brandingService = inject(BrandingService);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
 
+  readonly productName = this.brandingService.productName;
   passwordVisible = false;
 
   readonly form = this.fb.nonNullable.group({

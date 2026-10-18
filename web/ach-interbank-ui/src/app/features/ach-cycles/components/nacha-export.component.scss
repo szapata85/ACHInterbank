@@ -151,49 +151,38 @@ td small {
 }
 
 mat-chip.status-disponible {
-  background: #e8f5ed;
-  color: #145a2d;
+  background: var(--color-success-surface);
+  color: var(--color-success-text);
 }
 
 mat-chip.status-generado {
-  background: #e7f0fb;
-  color: #164c82;
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  color: var(--color-primary-hover);
 }
 
 mat-chip.status-protegido {
-  background: #ede8fb;
-  color: #4a2d83;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
 }
 
 mat-chip.status-bloqueado {
-  background: #f4e9e9;
-  color: #7d2020;
+  background: var(--color-error-surface);
+  color: var(--color-error-text);
 }
 
-.state-container {
-  min-height: 260px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 0.55rem;
-  text-align: center;
+ui-estado-carga,
+ui-estado-error,
+ui-estado-vacio {
+  display: block;
+}
 
-  h2,
-  p {
-    margin: 0;
-  }
+.empty-state-actions {
+  display: grid;
+  gap: 0.8rem;
+  justify-items: center;
 
-  p {
-    max-width: 560px;
-    color: var(--color-text-muted);
-  }
-
-  > mat-icon {
-    width: 42px;
-    height: 42px;
-    font-size: 42px;
-    color: var(--color-text-muted);
+  ui-estado-vacio {
+    width: 100%;
   }
 }
 
@@ -334,7 +323,7 @@ mat-chip.status-bloqueado {
 
   .unavailable-reason {
     margin: 0 0 0.8rem;
-    color: #7d2020;
+    color: var(--color-error-text);
     font-size: 0.82rem;
   }
 

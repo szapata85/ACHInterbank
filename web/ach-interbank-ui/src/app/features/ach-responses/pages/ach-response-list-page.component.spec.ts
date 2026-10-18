@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { of, throwError } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
 import { AchResponsesApiService } from '../services/ach-responses-api.service';
 import { AchResponseListPageComponent } from './ach-response-list-page.component';
-import { Router } from '@angular/router';
 
 describe('AchResponseListPageComponent', () => {
   let apiSpy: jasmine.SpyObj<AchResponsesApiService>;
@@ -51,25 +52,55 @@ describe('AchResponseListPageComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('AchResponseListPageComponent_ShouldLoadResponsesOnInit', () => {
+  it('AchResponseListPageComponent_ShouldLoadResponsesIntoEnterpriseGridOnInit', () => {
     const fixture = TestBed.createComponent(AchResponseListPageComponent);
     fixture.detectChanges();
 
     const component = fixture.componentInstance;
+    const grid = fixture.debugElement.query(By.css('ui-grilla-empresarial'));
+
     expect(component.rows.length).toBe(1);
     expect(component.totalCount).toBe(1);
+    expect(grid).toBeTruthy();
+    expect(grid.componentInstance.datos.length).toBe(1);
   });
 
-  it('AchResponseListPageComponent_ShouldApplyFiltersAndResetPage', () => {
+  it('AchResponseListPageComponent_ShouldPreserveFiltersAndRequestPagination', () => {
     const fixture = TestBed.createComponent(AchResponseListPageComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
 
-    component.filtrosForm.patchValue({ pageNumber: 3 });
+    component.filtrosForm.patchValue({
+      fechaDesde: '2026-01-01',
+      fechaHasta: '2026-01-31',
+      tipoRespuesta: 'Transaccion',
+      idTransaccion: 'TX-1',
+      codigoCamaraCompensacion: 'ACH',
+      codigoEntidadOrigen: '001',
+      codigoEntidadDestino: '002',
+      codigoEstadoExterno: '00',
+      estadoProcesamiento: 'Homologada',
+      correlationId: 'corr-1',
+      pageNumber: 4,
+      pageSize: 50
+    });
+
     component.applyFilters();
 
-    expect(component.filtrosForm.controls.pageNumber.value).toBe(1);
-    expect(apiSpy.search).toHaveBeenCalled();
+    expect(apiSpy.search.calls.mostRecent().args[0]).toEqual({
+      fechaDesde: '2026-01-01',
+      fechaHasta: '2026-01-31',
+      tipoRespuesta: 'Transaccion',
+      idTransaccion: 'TX-1',
+      codigoCamaraCompensacion: 'ACH',
+      codigoEntidadOrigen: '001',
+      codigoEntidadDestino: '002',
+      codigoEstadoExterno: '00',
+      estadoProcesamiento: 'Homologada',
+      correlationId: 'corr-1',
+      pageNumber: 1,
+      pageSize: 50
+    });
   });
 
   it('AchResponseListPageComponent_ShouldClearFilters', () => {
@@ -124,19 +155,37 @@ describe('AchResponseListPageComponent', () => {
     expect(requestArg.correlationId).toBeUndefined();
   });
 
-  it('AchResponseListPageComponent_ShouldMoveToNextAndPreviousPage', () => {
+  it('AchResponseListPageComponent_ShouldMoveToNextAndPreviousPageWithSamePageSize', () => {
     const fixture = TestBed.createComponent(AchResponseListPageComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
 
-    component.totalPages = 2;
-    component.filtrosForm.patchValue({ pageNumber: 1 });
+    component.totalPages = 3;
+    component.filtrosForm.patchValue({ pageNumber: 1, pageSize: 20 });
+    apiSpy.search.calls.reset();
 
     component.nextPage();
     expect(component.filtrosForm.controls.pageNumber.value).toBe(2);
+    expect(apiSpy.search.calls.mostRecent().args[0].pageNumber).toBe(2);
+    expect(apiSpy.search.calls.mostRecent().args[0].pageSize).toBe(20);
 
     component.previousPage();
     expect(component.filtrosForm.controls.pageNumber.value).toBe(1);
+    expect(apiSpy.search.calls.mostRecent().args[0].pageNumber).toBe(1);
+    expect(apiSpy.search.calls.mostRecent().args[0].pageSize).toBe(20);
+  });
+
+  it('AchResponseListPageComponent_ShouldResetPageWhenPageSizeChanges', () => {
+    const fixture = TestBed.createComponent(AchResponseListPageComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    component.filtrosForm.patchValue({ pageNumber: 3 });
+    component.setPageSize(50);
+
+    const request = apiSpy.search.calls.mostRecent().args[0];
+    expect(request.pageNumber).toBe(1);
+    expect(request.pageSize).toBe(50);
   });
 
   it('AchResponseListPageComponent_ShouldExposeFechaCreacionColumn', () => {

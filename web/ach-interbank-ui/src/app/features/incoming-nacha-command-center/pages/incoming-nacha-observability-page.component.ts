@@ -43,7 +43,7 @@ export class IncomingNachaObservabilityPageComponent implements OnInit {
   ];
 
   readonly columnasErrores: ColDef<IncomingNachaTopError>[] = [
-    { field: 'errorCode', headerName: 'Código error', minWidth: 180 },
+    { field: 'errorCode', headerName: 'Código de error', minWidth: 180 },
     { field: 'count', headerName: 'Frecuencia', minWidth: 120 },
     { headerName: 'Último visto', minWidth: 180, valueGetter: (p) => this.formatDate(p.data?.lastSeenAtUtc) }
   ];

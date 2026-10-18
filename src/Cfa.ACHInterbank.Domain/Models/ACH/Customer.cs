@@ -25,6 +25,7 @@ public class Customer : AuditableEntity
     public PersonTypeCatalog PersonTypeCatalog { get; set; } = null!;
     public DocumentTypeCatalog DocumentTypeCatalog { get; set; } = null!;
     public ICollection<CustomerThirdParty> ThirdParties { get; set; } = new List<CustomerThirdParty>();
+    public ICollection<ThirdParty> CanonicalThirdParties { get; set; } = new List<ThirdParty>();
     public ICollection<CustomerAddress> Addresses { get; set; } = new List<CustomerAddress>();
     public ICollection<CustomerPhone> Phones { get; set; } = new List<CustomerPhone>();
     public ICollection<CustomerEmail> Emails { get; set; } = new List<CustomerEmail>();

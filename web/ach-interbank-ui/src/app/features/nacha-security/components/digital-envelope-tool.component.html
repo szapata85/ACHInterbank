@@ -1,12 +1,12 @@
 <app-page-header
-  title="Sobre digital"
+  title="Cifrar y descifrar archivos"
   subtitle="Protege archivos NACHA-M mediante cifrado y firma digital, o procesa archivos recibidos utilizando los certificados configurados para la cámara compensadora.">
 </app-page-header>
 
 <nav class="breadcrumb" aria-label="Ruta de navegación">
-  <a routerLink="/nacha-security/certificates">Seguridad NACHA</a>
+  <a routerLink="/nacha-security/certificates">Certificados digitales</a>
   <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">chevron_right</mat-icon>
-  <span aria-current="page">Sobre digital</span>
+  <span aria-current="page">Cifrar y descifrar archivos</span>
 </nav>
 
 <section class="context-help" aria-label="Ayuda sobre el proceso">
@@ -98,7 +98,7 @@
                 <div>
                   <strong>No hay un certificado de cifrado disponible</strong>
                   <p>Activa una versión vigente para esta cámara y ambiente antes de continuar.</p>
-                  <a mat-button routerLink="/nacha-security/certificates">Ir a Certificados de seguridad NACHA-M</a>
+                  <a mat-button routerLink="/nacha-security/certificates">Ir a Certificados digitales</a>
                 </div>
               </section>
             }
@@ -129,13 +129,17 @@
               </section>
             }
 
+            @if (!canEncrypt) {
+              <p class="configuration-warning">Tu sesión permite consultar y preparar la operación, pero no ejecutar el cifrado.</p>
+            }
+
             <div class="form-actions">
               @if (selectedFile('encrypt')) {
                 <button mat-button type="button" (click)="removeFile('encrypt', encryptFile)" [disabled]="!!processingMode">
                   Retirar archivo
                 </button>
               }
-              <button mat-flat-button type="submit" [disabled]="!!processingMode || encryptForm.invalid">
+              <button mat-flat-button type="submit" [disabled]="!!processingMode || encryptForm.invalid || !canEncrypt">
                 <mat-icon fontSet="material-symbols-outlined">enhanced_encryption</mat-icon>
                 {{ processingMode === 'encrypt' ? 'Generando sobre…' : 'Generar sobre digital' }}
               </button>
@@ -209,7 +213,7 @@
                 <div>
                   <strong>CFA no tiene un certificado vigente para descifrar</strong>
                   <p>Carga un certificado PFX o P12 de CFA con llave privada antes de continuar.</p>
-                  <a mat-button routerLink="/nacha-security/certificates">Ir a la administración de certificados</a>
+                  <a mat-button routerLink="/nacha-security/certificates">Ir a Certificados digitales</a>
                 </div>
               </section>
             }
@@ -240,13 +244,17 @@
               </section>
             }
 
+            @if (!canDecrypt) {
+              <p class="configuration-warning">Tu sesión permite consultar y preparar la operación, pero no ejecutar el descifrado.</p>
+            }
+
             <div class="form-actions">
               @if (selectedFile('decrypt')) {
                 <button mat-button type="button" (click)="removeFile('decrypt', decryptFile)" [disabled]="!!processingMode">
                   Retirar archivo
                 </button>
               }
-              <button mat-flat-button type="submit" [disabled]="!!processingMode || decryptForm.invalid">
+              <button mat-flat-button type="submit" [disabled]="!!processingMode || decryptForm.invalid || !canDecrypt">
                 <mat-icon fontSet="material-symbols-outlined">lock_open</mat-icon>
                 {{ processingMode === 'decrypt' ? 'Descifrando…' : 'Descifrar archivo' }}
               </button>
@@ -263,7 +271,7 @@
     <mat-card-header>
       <mat-icon mat-card-avatar fontSet="material-symbols-outlined">task_alt</mat-icon>
       <mat-card-title>
-        {{ result.mode === 'encrypt' ? 'Sobre digital generado correctamente' : 'Archivo descifrado correctamente' }}
+        {{ result.mode === 'encrypt' ? 'Archivo cifrado correctamente' : 'Archivo descifrado correctamente' }}
       </mat-card-title>
       <mat-card-subtitle>{{ result.completedAt | date:'dd/MM/yyyy, HH:mm' }}</mat-card-subtitle>
     </mat-card-header>

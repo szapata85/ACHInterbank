@@ -28,7 +28,7 @@ import {
   sanitizeAuditText,
   summarizeChangedFields,
   toLocalDateParam
-} from '../../audit-shared/audit-display.util';
+} from '../../../shared/utils/audit-display.util';
 import { AuditLogEntry, AuditLogFilters } from '../models/audit-log.model';
 import { AuditLogService } from '../services/audit-log.service';
 

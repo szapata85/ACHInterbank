@@ -13,21 +13,19 @@ import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { CellClickedEvent, ColDef, ICellRendererParams } from 'ag-grid-community';
 import { FormBuilder, Validators } from '@angular/forms';
 import { forkJoin, Subject } from 'rxjs';
 import { filter, finalize, takeUntil } from 'rxjs/operators';
-import { ClearingHousesApiService } from '../../ach-cycles/services/ach-cycles-api.service';
-import { ClearingHouseOption } from '../../ach-cycles/models/ach-cycle.model';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { InstitutionClearingHousePreference } from '../models/institution-clearing-house-preference.model';
 import { InstitutionClearingHousePreferencesService } from '../services/institution-clearing-house-preferences.service';
-import { FinancialInstitutionsApiService } from '../../transactions/services/financial-institutions-api.service';
-import { DestinationInstitution } from '../../transactions/transactions.models';
-import { FinancialInstitutionStatusEnum } from '../../transactions/transactions.types';
+import { DestinationInstitution, FinancialInstitutionStatusEnum } from '../../../core/models/financial-institution.model';
+import { FinancialInstitutionsApiService } from '../../../core/services/financial-institutions-api.service';
 import {
   CatalogActionConfirmDialogComponent,
   CatalogActionConfirmDialogData
@@ -48,7 +46,6 @@ import { catalogErrorMessage } from './catalog-error-message.util';
     MatCheckboxModule,
     MatDialogModule,
     MatFormFieldModule,
-    MatProgressBarModule,
     MatSelectModule
   ],
   changeDetection: ChangeDetectionStrategy.OnPush

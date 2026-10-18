@@ -38,20 +38,17 @@ import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { catchError, finalize, forkJoin, of, switchMap } from 'rxjs';
 import { AuthService } from '../../../../core/services/auth.service';
-import {
-  ConfirmationDialogComponent,
-  ConfirmationDialogData
-} from '../../../clearing-houses/clearing-house-dialogs.component';
-import { ClearingHouseContextNavigationComponent } from '../../../clearing-houses/clearing-house-context-navigation.component';
-import { ClearingHouse } from '../../../clearing-houses/clearing-houses.models';
-import { ClearingHousesService } from '../../../clearing-houses/clearing-houses.service';
-import { ClearingHouseCycleConfigsApiService } from '../../services/clearing-house-cycle-configs-api.service';
-import {
-  ClearingHouseCycleConfigItem,
-  CycleStatusFilter,
-  CycleValidityFilter,
-  UpsertCycleConfigRequest
-} from '../../transactions.models';
+import { PageHeaderComponent } from '../../../../shared/components/page-header.component';
+import { UiEstadoCargaComponent } from '../../../../shared/components/ui/ui-estado-carga.component';
+import { UiEstadoErrorComponent } from '../../../../shared/components/ui/ui-estado-error.component';
+import { UiEstadoVacioComponent } from '../../../../shared/components/ui/ui-estado-vacio.component';
+import { OperationalConfirmDialogComponent, OperationalConfirmDialogData } from '../../../../shared/components/operational-confirm-dialog.component';
+import { ClearingHouseContextNavigationComponent } from '../../../../shared/components/clearing-house-context-navigation.component';
+import { ClearingHouse } from '../../../../core/models/clearing-house.model';
+import { ClearingHousesService } from '../../../../core/services/clearing-houses.service';
+import { ClearingHouseCycleConfigsApiService } from '../../../../core/services/clearing-house-cycle-configs-api.service';
+import { ClearingHouseCycleConfigItem, UpsertCycleConfigRequest } from '../../../../core/models/clearing-house-cycle-config.model';
+import { CycleStatusFilter, CycleValidityFilter } from '../../transactions.models';
 
 type CycleFilterForm = FormGroup<{
   cycleName: FormControl<string>;
@@ -66,6 +63,12 @@ type CycleEditorForm = FormGroup<{
   endTime: FormControl<string>;
   cutoffTime: FormControl<string>;
   outputReleaseTime: FormControl<string>;
+  compensationStatementStartTime: FormControl<string>;
+  compensationStatementEndTime: FormControl<string>;
+  compensationPaymentStartTime: FormControl<string>;
+  compensationPaymentEndTime: FormControl<string>;
+  outputReleaseStartTime: FormControl<string>;
+  outputReleaseEndTime: FormControl<string>;
   allowsMonetaryCredit: FormControl<boolean>;
   allowsMonetaryDebit: FormControl<boolean>;
   allowsCreditPrenotification: FormControl<boolean>;
@@ -82,6 +85,10 @@ type CycleEditorForm = FormGroup<{
     CommonModule,
     ReactiveFormsModule,
     RouterLink,
+    PageHeaderComponent,
+    UiEstadoCargaComponent,
+    UiEstadoErrorComponent,
+    UiEstadoVacioComponent,
     ClearingHouseContextNavigationComponent,
     MatButtonModule,
     MatCardModule,
@@ -126,7 +133,7 @@ export class CycleConfigManagementComponent {
   private readonly destroyRef = inject(DestroyRef);
   editorRef?: MatDialogRef<unknown>;
 
-  readonly displayedColumns = ['cycle', 'window', 'cutoff', 'release', 'eligibility', 'validity', 'state', 'updated', 'actions'];
+  readonly displayedColumns = ['cycle', 'window', 'cutoff', 'stages', 'eligibility', 'validity', 'state', 'updated', 'actions'];
   readonly dataSource = new MatTableDataSource<ClearingHouseCycleConfigItem>([]);
   readonly canManage = this.auth.hasPermission('ClearingHouses.ManageCycles');
   readonly canReadPolicies = this.auth.hasPermission(['Config.Read', 'Config.Manage', 'CanReadAch', 'CanManageAch']);
@@ -161,6 +168,12 @@ export class CycleConfigManagementComponent {
       nonNullable: true,
       validators: [Validators.required, timeValidator]
     }),
+    compensationStatementStartTime: new FormControl('', { nonNullable: true, validators: [timeValidator] }),
+    compensationStatementEndTime: new FormControl('', { nonNullable: true, validators: [timeValidator] }),
+    compensationPaymentStartTime: new FormControl('', { nonNullable: true, validators: [timeValidator] }),
+    compensationPaymentEndTime: new FormControl('', { nonNullable: true, validators: [timeValidator] }),
+    outputReleaseStartTime: new FormControl('', { nonNullable: true, validators: [timeValidator] }),
+    outputReleaseEndTime: new FormControl('', { nonNullable: true, validators: [timeValidator] }),
     allowsMonetaryCredit: new FormControl(true, { nonNullable: true }),
     allowsMonetaryDebit: new FormControl(true, { nonNullable: true }),
     allowsCreditPrenotification: new FormControl(true, { nonNullable: true }),
@@ -312,6 +325,12 @@ export class CycleConfigManagementComponent {
       endTime: '',
       cutoffTime: '',
       outputReleaseTime: '',
+      compensationStatementStartTime: '',
+      compensationStatementEndTime: '',
+      compensationPaymentStartTime: '',
+      compensationPaymentEndTime: '',
+      outputReleaseStartTime: '',
+      outputReleaseEndTime: '',
       allowsMonetaryCredit: true,
       allowsMonetaryDebit: true,
       allowsCreditPrenotification: true,
@@ -332,6 +351,12 @@ export class CycleConfigManagementComponent {
       endTime: this.time(item.endTime),
       cutoffTime: this.time(item.cutoffTime),
       outputReleaseTime: this.time(item.outputReleaseTime),
+      compensationStatementStartTime: this.time(item.compensationStatementStartTime),
+      compensationStatementEndTime: this.time(item.compensationStatementEndTime),
+      compensationPaymentStartTime: this.time(item.compensationPaymentStartTime),
+      compensationPaymentEndTime: this.time(item.compensationPaymentEndTime),
+      outputReleaseStartTime: this.time(item.outputReleaseStartTime),
+      outputReleaseEndTime: this.time(item.outputReleaseEndTime),
       allowsMonetaryCredit: item.allowsMonetaryCredit,
       allowsMonetaryDebit: item.allowsMonetaryDebit,
       allowsCreditPrenotification: item.allowsCreditPrenotification,
@@ -362,6 +387,12 @@ export class CycleConfigManagementComponent {
       endTime: this.apiTime(value.endTime),
       cutoffTime: this.apiTime(value.cutoffTime),
       outputReleaseTime: this.apiTime(value.outputReleaseTime),
+      compensationStatementStartTime: this.optionalApiTime(value.compensationStatementStartTime),
+      compensationStatementEndTime: this.optionalApiTime(value.compensationStatementEndTime),
+      compensationPaymentStartTime: this.optionalApiTime(value.compensationPaymentStartTime),
+      compensationPaymentEndTime: this.optionalApiTime(value.compensationPaymentEndTime),
+      outputReleaseStartTime: this.optionalApiTime(value.outputReleaseStartTime),
+      outputReleaseEndTime: this.optionalApiTime(value.outputReleaseEndTime),
       allowsMonetaryCredit: value.allowsMonetaryCredit,
       allowsMonetaryDebit: value.allowsMonetaryDebit,
       allowsCreditPrenotification: value.allowsCreditPrenotification,
@@ -391,14 +422,14 @@ export class CycleConfigManagementComponent {
 
   askInactivate(item: ClearingHouseCycleConfigItem): void {
     if (!this.canManage) return;
-    const data: ConfirmationDialogData = {
+    const data: OperationalConfirmDialogData = {
       title: 'Inactivar configuración',
       message: `Se cerrará la vigencia de ${item.cycleName} con la fecha de hoy. El historial se conservará.`,
-      confirmText: 'Sí, inactivar',
+      confirmLabel: 'Sí, inactivar',
       icon: 'event_busy',
       destructive: true
     };
-    this.dialog.open(ConfirmationDialogComponent, { data, width: 'min(520px, calc(100vw - 2rem))' })
+    this.dialog.open(OperationalConfirmDialogComponent, { data, width: 'min(520px, calc(100vw - 2rem))' })
       .afterClosed().subscribe(confirmed => {
         if (confirmed) this.inactivate(item);
       });
@@ -416,8 +447,24 @@ export class CycleConfigManagementComponent {
     return `${this.dateText(item.effectiveFrom)} – ${item.effectiveTo ? this.dateText(item.effectiveTo) : 'sin cierre'}`;
   }
 
-  time(value: string): string {
+  time(value?: string | null): string {
     return value?.slice(0, 5) ?? '';
+  }
+
+  stageWindow(start?: string | null, end?: string | null): string {
+    return start && end ? `${this.time(start)}–${this.time(end)}` : 'No configurada';
+  }
+
+  stageSummary(item: ClearingHouseCycleConfigItem): string {
+    if (!item.compensationStatementStartTime || !item.compensationStatementEndTime ||
+        !item.compensationPaymentStartTime || !item.compensationPaymentEndTime ||
+        !item.outputReleaseStartTime || !item.outputReleaseEndTime) {
+      return `Etapas no configuradas · salida compatible ${this.time(item.outputReleaseTime)}`;
+    }
+
+    return `Planilla ${this.stageWindow(item.compensationStatementStartTime, item.compensationStatementEndTime)} · ` +
+      `Pago ${this.stageWindow(item.compensationPaymentStartTime, item.compensationPaymentEndTime)} · ` +
+      `Liberación ${this.stageWindow(item.outputReleaseStartTime, item.outputReleaseEndTime)}`;
   }
 
   track(_: number, item: ClearingHouseCycleConfigItem): number {
@@ -516,6 +563,10 @@ export class CycleConfigManagementComponent {
     return value.length === 5 ? `${value}:00` : value;
   }
 
+  private optionalApiTime(value: string): string | null {
+    return value ? this.apiTime(value) : null;
+  }
+
   private apiDate(value: Date | null): string {
     if (!value || Number.isNaN(value.getTime())) return '';
     const year = value.getFullYear();
@@ -557,16 +608,37 @@ function cycleWindowValidator(control: AbstractControl): ValidationErrors | null
   const end = control.get('endTime')?.value as string;
   const cutoff = control.get('cutoffTime')?.value as string;
   const release = control.get('outputReleaseTime')?.value as string;
-  if (!start || !end || !cutoff || !release || !/^([01]\d|2[0-3]):[0-5]\d$/.test(start + '') ||
-      !/^([01]\d|2[0-3]):[0-5]\d$/.test(end + '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(cutoff + '') ||
-      !/^([01]\d|2[0-3]):[0-5]\d$/.test(release + '')) {
+  if (!start || !end || !cutoff || !release || !isValidTime(start) || !isValidTime(end) ||
+      !isValidTime(cutoff) || !isValidTime(release)) {
     return null;
   }
   if (start === end) return { timeOrder: true };
   const closeOffset = stageOffset(start, end);
   if (stageOffset(start, cutoff) > closeOffset) return { cutoffOutside: true };
   if (stageOffset(start, release) < closeOffset) return { releaseBeforeClose: true };
+
+  const stages = [
+    control.get('compensationStatementStartTime')?.value as string,
+    control.get('compensationStatementEndTime')?.value as string,
+    control.get('compensationPaymentStartTime')?.value as string,
+    control.get('compensationPaymentEndTime')?.value as string,
+    control.get('outputReleaseStartTime')?.value as string,
+    control.get('outputReleaseEndTime')?.value as string
+  ];
+  const configuredStages = stages.filter(Boolean);
+  if (!configuredStages.length) return null;
+  if (configuredStages.length !== stages.length) return { incompleteStages: true };
+  if (stages.some(stage => !isValidTime(stage))) return null;
+
+  const offsets = stages.map(stage => stageOffset(start, stage));
+  if (offsets[0] < closeOffset || offsets.some((value, index) => index > 0 && value < offsets[index - 1])) {
+    return { stageOrder: true };
+  }
   return null;
+}
+
+function isValidTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
 function stageOffset(open: string, value: string): number {

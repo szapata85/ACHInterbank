@@ -1,775 +1,962 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { MatDialogHarness } from '@angular/material/dialog/testing';
+import { MatInputHarness } from '@angular/material/input/testing';
+import { MatRadioButtonHarness } from '@angular/material/radio/testing';
+import { MatSelectHarness } from '@angular/material/select/testing';
+import { FormGroup } from '@angular/forms';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { Subject, of, throwError } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import {
-  IntegrationMappingAdminService,
-  IntegrationMappingSet,
-  IntegrationMethod,
-  IntegrationMethodParameter,
-  IntegrationSourceKind,
-  IntegrationSourceCatalogField,
-  IntegrationTransformationCatalog
-} from '../../../core/services/integration-mapping-admin.service';
-import { NotificationService } from '../../../core/services/notification.service';
+  IntegrationMappingPreviewResultDto,
+  IntegrationMappingSetDto,
+  IntegrationMappingWorkspaceDto,
+  IntegrationMethodDto
+} from '../data-access/integration-api.models';
+import { IntegrationMappingApi } from '../data-access/integration-mapping.api';
+import { IntegrationWorkspaceApi } from '../data-access/integration-workspace.api';
 import { MappingSetsPageComponent } from './mapping-sets-page.component';
 
-describe('MappingSetsPageComponent', () => {
+describe('MappingSetsPageComponent P6.4', () => {
   let fixture: ComponentFixture<MappingSetsPageComponent>;
   let component: MappingSetsPageComponent;
-  let api: jasmine.SpyObj<IntegrationMappingAdminService>;
+  let mappingApi: jasmine.SpyObj<IntegrationMappingApi>;
+  let workspaceApi: jasmine.SpyObj<IntegrationWorkspaceApi>;
   let router: jasmine.SpyObj<Router>;
-  let auth: jasmine.SpyObj<AuthService>;
+  let loader: HarnessLoader;
 
-  const methods: IntegrationMethod[] = [
+  const methods: IntegrationMethodDto[] = [
     {
       id: 1,
-      code: 'WSCFAACH.Proc_Contrapartidas',
-      displayName: 'Proc_Contrapartidas',
-      soapClientCode: 'WscfaachSoapClient',
-      isActive: true,
-      integrationKey: 'WSCFAACH',
-      operationKey: 'Proc_Contrapartidas',
-      mappingDirection: 'OutboundRequest',
-      mappingPurpose: 'MonetaryDebitRequest',
-      functionalNature: 'Debito monetario',
-      functionalOriginator: 'CFA originadora',
-      movesMoney: true
-    },
-    {
-      id: 3,
       code: 'WSCFAACH.Proc_Transacciones',
-      displayName: 'Proc_Transacciones',
-      soapClientCode: 'WscfaachSoapClient',
+      displayName: 'Créditos recibidos en CFA',
+      soapClientCode: 'WSCFAACH',
       isActive: true,
-      integrationKey: 'WSCFAACH',
+      integrationKey: 'CFA',
       operationKey: 'Proc_Transacciones',
-      mappingDirection: 'OutboundRequest',
-      mappingPurpose: 'MonetaryCreditRequest',
-      functionalNature: 'Credito monetario',
-      functionalOriginator: 'Entidad financiera externa; CFA receptora',
+      mappingDirection: 'Inbound',
+      mappingPurpose: 'Datos funcionales requeridos para procesar créditos recibidos.',
+      functionalNature: 'Credit',
+      functionalOriginator: 'External',
       movesMoney: true
-    },
-    {
-      id: 2,
-      code: 'WSAXON.RegistrarRespuestaTransaccion',
-      displayName: 'RegistrarRespuestaTransaccion',
-      soapClientCode: 'WsAxonRespuestaTransaccionesSoapClient',
-      isActive: true,
-      integrationKey: 'WSAXON',
-      operationKey: 'RegistrarRespuestaTransaccion',
-      mappingDirection: 'InboundResponse',
-      mappingPurpose: 'DifferentialResponseNotification',
-      functionalNature: 'Respuesta diferencial / notificacion',
-      functionalOriginator: 'Entidad/camara/proveedor externo',
-      movesMoney: false
     }
   ];
 
-  const sourceCatalog: IntegrationSourceCatalogField[] = [
-    { id: 1, sourceKind: 'NachaHeader', entityName: 'NachaHeaders', fieldPath: 'NachaHeaders.FileIdModifier', displayName: 'FileIdModifier', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 1, isActive: true },
-    { id: 2, sourceKind: 'BatchHeader', entityName: 'BatchHeaders', fieldPath: 'BatchHeaders.CompanyIdentification', displayName: 'CompanyIdentification', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 2, isActive: true },
-    { id: 3, sourceKind: 'EntryDetail', entityName: 'EntryDetails', fieldPath: 'EntryDetails.TraceNumber', displayName: 'TraceNumber', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 3, isActive: true },
-    { id: 4, sourceKind: 'AddendaRecord', entityName: 'AddendaRecords', fieldPath: 'AddendaRecords.PaymentRelatedInformation', displayName: 'PaymentRelatedInformation', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 4, isActive: true },
-    { id: 5, sourceKind: 'BatchControl', entityName: 'BatchControls', fieldPath: 'BatchControls.EntryHash', displayName: 'EntryHash', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 5, isActive: true },
-    { id: 6, sourceKind: 'FileControl', entityName: 'FileControls', fieldPath: 'FileControls.BlockCount', displayName: 'BlockCount', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 6, isActive: true },
-    { id: 7, sourceKind: 'Transaction', entityName: 'AchTransaction', fieldPath: 'AchTransaction.Reference', displayName: 'Reference', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 7, isActive: true },
-    { id: 8, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idTransaccion', displayName: 'Id transaccion', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 8, isActive: true },
-    { id: 9, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idCanal', displayName: 'Id canal', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 9, isActive: true },
-    { id: 10, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.nombreCanal', displayName: 'Nombre canal', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 10, isActive: true },
-    { id: 11, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idEstado', displayName: 'Id estado', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 11, isActive: true },
-    { id: 12, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.codigoCausalExterna', displayName: 'Causal externa', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 12, isActive: true },
-    { id: 13, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.idTransaccionServicioExterno', displayName: 'Id transaccion servicio externo', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 13, isActive: true },
-    { id: 14, sourceKind: 'DifferentialResponse', entityName: 'AchResponse', fieldPath: 'differentialResponse.descripcionCausalExterna', displayName: 'Descripcion causal externa', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 14, isActive: true },
-    { id: 15, sourceKind: 'Cycle', entityName: 'AchCycle', fieldPath: 'cycle.processingDate', displayName: 'Fecha proceso ciclo', dataType: 'datetime', cardinality: 'Scalar', nullable: false, sortOrder: 15, isActive: true },
-    { id: 16, sourceKind: 'ClearingHouse', entityName: 'ClearingHouse', fieldPath: 'clearinghouse.id', displayName: 'Id camara', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 16, isActive: true },
-    { id: 17, sourceKind: 'Constant', entityName: 'Constant', fieldPath: 'constant.value', displayName: 'Valor fijo', dataType: 'string', cardinality: 'Scalar', nullable: true, sortOrder: 17, isActive: true },
-    { id: 18, sourceKind: 'Batch', entityName: 'AchBatch', fieldPath: 'batch.id', displayName: 'Id lote', dataType: 'int', cardinality: 'Scalar', nullable: false, sortOrder: 18, isActive: true },
-    { id: 19, sourceKind: 'FinancialInstitution', entityName: 'FinancialInstitution', fieldPath: 'financialInstitution.routingNumber', displayName: 'Routing number', dataType: 'string', cardinality: 'Scalar', nullable: false, sortOrder: 19, isActive: true },
-    { id: 20, sourceKind: 'EntryDetail', entityName: 'EntryDetails', fieldPath: 'EntryDetails.Amount', displayName: 'Amount', dataType: 'number', cardinality: 'Scalar', nullable: false, sortOrder: 20, isActive: true }
-  ];
-
-  const targetFields: IntegrationMethodParameter[] = [
-    { id: 9, methodId: 1, parameterPath: 'Proc_Contrapartidas.CuentaOrigen', displayName: 'CuentaOrigen', descriptionEs: 'Cuenta origen debito', category: 'SOAP', exampleValue: '0000003101', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
-    { id: 18, methodId: 1, parameterPath: 'OFIDTX', displayName: 'OFIDTX', descriptionEs: 'Id transaccion origen', category: 'SOAP', exampleValue: 'REF-1', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 2, isActive: true },
-    { id: 19, methodId: 1, parameterPath: 'OFFECHEFEC', displayName: 'OFFECHEFEC', descriptionEs: 'Fecha efectiva', category: 'SOAP', exampleValue: '20260625', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 3, isActive: true },
-    { id: 20, methodId: 1, parameterPath: 'OFIDCAMCOMPE', displayName: 'OFIDCAMCOMPE', descriptionEs: 'Camara compensacion', category: 'SOAP', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 4, isActive: true },
-    { id: 21, methodId: 1, parameterPath: 'OFDD', displayName: 'OFDD', descriptionEs: 'Naturaleza debito/credito', category: 'SOAP', exampleValue: 'C', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 5, isActive: true },
-    { id: 22, methodId: 1, parameterPath: 'OFIDLOT', displayName: 'OFIDLOT', descriptionEs: 'Id lote', category: 'SOAP', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 6, isActive: true },
-    { id: 23, methodId: 1, parameterPath: 'ANSIDLOTE', displayName: 'ANSIDLOTE', descriptionEs: 'Id lote respuesta reservado', category: 'SOAP', exampleValue: '0', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 7, isActive: true },
-    { id: 24, methodId: 1, parameterPath: 'ANCLC', displayName: 'ANCLC', descriptionEs: 'Codigo local reservado', category: 'SOAP', exampleValue: '', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 8, isActive: true },
-    { id: 10, methodId: 3, parameterPath: 'Proc_Transacciones.TraceNumber', displayName: 'TraceNumber', descriptionEs: 'Trace destino', category: 'SOAP', exampleValue: '123', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
-    { id: 25, methodId: 3, parameterPath: 'IREVER', displayName: 'IREVER', descriptionEs: 'Indicador de reverso', category: 'SOAP', exampleValue: '0', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 2, isActive: true },
-    { id: 11, methodId: 2, parameterPath: 'idCanal', displayName: 'Id canal', descriptionEs: 'Identificador del canal', category: 'Respuesta transaccion', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 1, isActive: true },
-    { id: 12, methodId: 2, parameterPath: 'nombreCanal', displayName: 'Nombre canal', descriptionEs: 'Nombre del canal', category: 'Respuesta transaccion', exampleValue: 'ACH', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 2, isActive: true },
-    { id: 13, methodId: 2, parameterPath: 'idTransaccion', displayName: 'Id transaccion', descriptionEs: 'Id transaccion', category: 'Respuesta transaccion', exampleValue: 'TX-1', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 3, isActive: true },
-    { id: 14, methodId: 2, parameterPath: 'idEstado', displayName: 'Id estado', descriptionEs: 'Id estado', category: 'Respuesta transaccion', exampleValue: '1', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 4, isActive: true },
-    { id: 15, methodId: 2, parameterPath: 'causal', displayName: 'Causal', descriptionEs: 'Causal', category: 'Respuesta transaccion', exampleValue: 'R03', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 5, isActive: true },
-    { id: 16, methodId: 2, parameterPath: 'idTransaccionAxon', displayName: 'Id transaccion Axon', descriptionEs: 'Id transaccion Axon', category: 'Respuesta transaccion', exampleValue: '1001', uiHelpText: '', dataType: 'int', direction: 'Input', cardinality: 'Scalar', required: true, sortOrder: 6, isActive: true },
-    { id: 17, methodId: 2, parameterPath: 'descripcionCausal', displayName: 'Descripcion causal', descriptionEs: 'Descripcion causal', category: 'Respuesta transaccion', exampleValue: 'Cuenta no localizada', uiHelpText: '', dataType: 'string', direction: 'Input', cardinality: 'Scalar', required: false, sortOrder: 7, isActive: true }
-  ];
-
-  const transformations: IntegrationTransformationCatalog[] = [
-    { code: 'Trim', displayName: 'Trim', description: 'Limpia espacios', supportsFormatMask: false, supportsMultipleSources: false }
-  ];
-
-  const mappingSets: IntegrationMappingSet[] = [
+  const mappingSets: IntegrationMappingSetDto[] = [
     {
       id: '11111111-1111-1111-1111-111111111111',
       methodId: 1,
-      methodCode: 'WSCFAACH.Proc_Contrapartidas',
-      name: 'Contrapartidas UAT',
-      version: 1,
-      status: 'Published',
+      methodCode: 'Proc_Transacciones',
+      contractVersionId: '22222222-2222-2222-2222-222222222222',
+      revision: 8,
+      name: 'Configuración de trabajo',
+      version: 0,
+      status: 'Draft',
       isActive: true,
-      notes: 'Version controlada',
-      publishedAtUtc: '2026-06-01T00:00:00Z',
-      publishedBy: 'qa',
-      rules: [
-        {
-          id: 100,
-          mappingSetId: '11111111-1111-1111-1111-111111111111',
-          methodId: 1,
-          parameterId: 9,
-          sourceKind: 'NachaHeader',
-          sourceCatalogFieldId: 1,
-          sourceFieldPath: 'NachaHeaders.FileIdModifier',
-          fixedValue: null,
-          defaultValue: null,
-          transformationCode: 'Trim',
-          formatMask: null,
-          priority: 1,
-          requiredOverride: true,
-          enabled: true,
-          conditionExpression: null
-        },
-        {
-          id: 102,
-          mappingSetId: '11111111-1111-1111-1111-111111111111',
-          methodId: 1,
-          parameterId: 18,
-          sourceKind: 'Transaction',
-          sourceCatalogFieldId: 7,
-          sourceFieldPath: 'AchTransaction.Reference',
-          fixedValue: null,
-          defaultValue: null,
-          transformationCode: null,
-          formatMask: null,
-          priority: 1,
-          requiredOverride: true,
-          enabled: true,
-          conditionExpression: null
-        },
-        {
-          id: 103,
-          mappingSetId: '11111111-1111-1111-1111-111111111111',
-          methodId: 1,
-          parameterId: 19,
-          sourceKind: 'Cycle',
-          sourceCatalogFieldId: 15,
-          sourceFieldPath: 'cycle.processingDate',
-          fixedValue: null,
-          defaultValue: null,
-          transformationCode: null,
-          formatMask: null,
-          priority: 1,
-          requiredOverride: true,
-          enabled: true,
-          conditionExpression: null
-        },
-        {
-          id: 104,
-          mappingSetId: '11111111-1111-1111-1111-111111111111',
-          methodId: 1,
-          parameterId: 20,
-          sourceKind: 'ClearingHouse',
-          sourceCatalogFieldId: 16,
-          sourceFieldPath: 'clearinghouse.id',
-          fixedValue: null,
-          defaultValue: null,
-          transformationCode: null,
-          formatMask: null,
-          priority: 1,
-          requiredOverride: true,
-          enabled: true,
-          conditionExpression: null
-        },
-        {
-          id: 105,
-          mappingSetId: '11111111-1111-1111-1111-111111111111',
-          methodId: 1,
-          parameterId: 21,
-          sourceKind: 'Constant',
-          sourceCatalogFieldId: 17,
-          sourceFieldPath: 'constant.value',
-          fixedValue: 'C',
-          defaultValue: null,
-          transformationCode: null,
-          formatMask: null,
-          priority: 1,
-          requiredOverride: true,
-          enabled: true,
-          conditionExpression: null
-        },
-        {
-          id: 106,
-          mappingSetId: '11111111-1111-1111-1111-111111111111',
-          methodId: 1,
-          parameterId: 22,
-          sourceKind: 'Batch',
-          sourceCatalogFieldId: 18,
-          sourceFieldPath: 'batch.id',
-          fixedValue: null,
-          defaultValue: null,
-          transformationCode: null,
-          formatMask: null,
-          priority: 1,
-          requiredOverride: true,
-          enabled: true,
-          conditionExpression: null
-        }
-      ]
-    },
-    {
-      id: '22222222-2222-2222-2222-222222222222',
-      methodId: 3,
-      methodCode: 'WSCFAACH.Proc_Transacciones',
-      name: 'Transacciones UAT',
-      version: 1,
-      status: 'Published',
-      isActive: true,
-      notes: 'Version controlada',
-      publishedAtUtc: '2026-06-01T00:00:00Z',
-      publishedBy: 'qa',
-      rules: [
-        {
-          id: 101,
-          mappingSetId: '22222222-2222-2222-2222-222222222222',
-          methodId: 3,
-          parameterId: 10,
-          sourceKind: 'NachaHeader',
-          sourceCatalogFieldId: 1,
-          sourceFieldPath: 'NachaHeaders.FileIdModifier',
-          fixedValue: null,
-          defaultValue: null,
-          transformationCode: 'Trim',
-          formatMask: null,
-          priority: 1,
-          requiredOverride: true,
-          enabled: true,
-          conditionExpression: null
-        },
-        {
-          id: 107,
-          mappingSetId: '22222222-2222-2222-2222-222222222222',
-          methodId: 3,
-          parameterId: 25,
-          sourceKind: 'Constant',
-          sourceCatalogFieldId: 17,
-          sourceFieldPath: 'constant.value',
-          fixedValue: '0',
-          defaultValue: null,
-          transformationCode: null,
-          formatMask: null,
-          priority: 1,
-          requiredOverride: true,
-          enabled: true,
-          conditionExpression: null
-        }
-      ]
-    },
-    {
-      id: '33333333-3333-3333-3333-333333333333',
-      methodId: 2,
-      methodCode: 'WSAXON.RegistrarRespuestaTransaccion',
-      name: 'RegistrarRespuestaTransaccion WSDL',
-      version: 1,
-      status: 'Published',
-      isActive: true,
-      notes: 'Version WSDL',
-      publishedAtUtc: '2026-06-01T00:00:00Z',
-      publishedBy: 'qa',
-      rules: [
-        { id: 201, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 11, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 9, sourceFieldPath: 'differentialResponse.idCanal', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
-        { id: 202, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 12, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 10, sourceFieldPath: 'differentialResponse.nombreCanal', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
-        { id: 203, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 13, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 8, sourceFieldPath: 'differentialResponse.idTransaccion', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
-        { id: 204, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 14, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 11, sourceFieldPath: 'differentialResponse.idEstado', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
-        { id: 205, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 15, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 12, sourceFieldPath: 'differentialResponse.codigoCausalExterna', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: false, enabled: true, conditionExpression: null },
-        { id: 206, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 16, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 13, sourceFieldPath: 'differentialResponse.idTransaccionServicioExterno', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: true, enabled: true, conditionExpression: null },
-        { id: 207, mappingSetId: '33333333-3333-3333-3333-333333333333', methodId: 2, parameterId: 17, sourceKind: 'DifferentialResponse', sourceCatalogFieldId: 14, sourceFieldPath: 'differentialResponse.descripcionCausalExterna', fixedValue: null, defaultValue: null, transformationCode: null, formatMask: null, priority: 1, requiredOverride: false, enabled: true, conditionExpression: null }
-      ]
+      notes: '',
+      publishedBy: '',
+      rules: []
     }
   ];
 
-  beforeEach(async () => {
-    api = jasmine.createSpyObj<IntegrationMappingAdminService>('IntegrationMappingAdminService', [
-      'getMethods',
-      'getMappingSets',
-      'createDraft',
-      'getSourceCatalog',
-      'getMethodParameters',
-      'getTransformations',
-      'getHistory',
-      'clone',
-      'upsertRules'
-    ]);
-    router = jasmine.createSpyObj<Router>('Router', ['navigate']);
-    auth = jasmine.createSpyObj<AuthService>('AuthService', ['hasPermission']);
-    auth.hasPermission.and.returnValue(true);
-    api.getMethods.and.returnValue(of(methods));
-    api.getMappingSets.and.callFake((methodId?: number) => of(mappingSets.filter((set) => !methodId || set.methodId === methodId)));
-    api.getSourceCatalog.and.returnValue(of(sourceCatalog));
-    api.getMethodParameters.and.callFake((methodId: number) => of(targetFields.filter((field) => field.methodId === methodId)));
-    api.getTransformations.and.returnValue(of(transformations));
-    api.getHistory.and.returnValue(of([]));
-    api.clone.and.returnValue(of({ ...mappingSets[0], id: '22222222-2222-2222-2222-222222222222', status: 'Draft', version: 0 }));
-    api.createDraft.and.returnValue(of({ ...mappingSets[0], id: '33333333-3333-3333-3333-333333333333', status: 'Draft', version: 0, rules: [] }));
-    api.upsertRules.and.returnValue(of({ ...mappingSets[0], status: 'Draft', version: 0 }));
+  const workspace: IntegrationMappingWorkspaceDto = {
+    mappingSet: {
+      id: mappingSets[0].id,
+      name: mappingSets[0].name,
+      status: 'Draft',
+      revision: 8
+    },
+    contract: {
+      id: '22222222-2222-2222-2222-222222222222',
+      versionLabel: 'cfa-2026-11',
+      targetNamespace: 'http://tempuri.org/'
+    },
+    coverage: {
+      total: 4,
+      configured: 2,
+      pendingRequired: 1,
+      complete: 1,
+      pending: 1,
+      invalid: 1,
+      notApplicable: 1
+    },
+    publication: {
+      canPublish: false,
+      pendingRequired: 1,
+      newRequiredPending: 1,
+      blockingIssues: 2
+    },
+    parameters: [
+      {
+        parameterId: 10,
+        functionalName: 'Tipo de cliente',
+        functionalDescription: 'Clasificación funcional del cliente.',
+        technicalName: 'TIPOCLIENTE',
+        required: true,
+        dataType: 'string',
+        category: 'Cliente',
+        status: 'Complete',
+        source: 'Referencia de la transacción',
+        transformation: 'Recortar',
+        currentRule: {
+          ruleId: 501,
+          sourceCatalogFieldId: 101,
+          sourceKind: 'Transaction',
+          sourceFieldPath: 'transaction.reference',
+          transformationCode: 'Trim',
+          formatMask: null,
+          priority: 1,
+          enabled: true
+        },
+        technicalDetails: {
+          parameterPath: 'TIPOCLIENTE',
+          xmlElementName: 'TIPOCLIENTE',
+          dataType: 'string',
+          xsdType: 'xsd:string',
+          targetNamespace: 'http://tempuri.org/',
+          sortOrder: 10
+        }
+      },
+      {
+        parameterId: 11,
+        functionalName: 'Número de referencia',
+        functionalDescription: 'Referencia funcional de la transacción.',
+        technicalName: 'OFIDTX',
+        required: true,
+        dataType: 'string',
+        category: 'Transacción',
+        status: 'Pending',
+        source: null,
+        transformation: null,
+        currentRule: null,
+        technicalDetails: {
+          parameterPath: 'OFIDTX',
+          xmlElementName: 'OFIDTX',
+          dataType: 'string',
+          xsdType: 'xsd:string',
+          targetNamespace: 'http://tempuri.org/',
+          sortOrder: 20
+        }
+      },
+      {
+        parameterId: 12,
+        functionalName: 'Fecha efectiva',
+        functionalDescription: 'Fecha operacional que aplica al movimiento.',
+        technicalName: 'OFFECHEFEC',
+        required: true,
+        dataType: 'string',
+        category: 'Operación',
+        status: 'Invalid',
+        source: null,
+        transformation: null,
+        currentRule: null,
+        technicalDetails: {
+          parameterPath: 'OFFECHEFEC',
+          xmlElementName: 'OFFECHEFEC',
+          dataType: 'string',
+          xsdType: 'xsd:string',
+          targetNamespace: 'http://tempuri.org/',
+          sortOrder: 30
+        }
+      },
+      {
+        parameterId: 13,
+        functionalName: 'Descripción adicional',
+        functionalDescription: 'Información opcional complementaria.',
+        technicalName: 'ANOBSERVACION',
+        required: false,
+        dataType: 'string',
+        category: 'Información adicional',
+        status: 'NotApplicable',
+        source: null,
+        transformation: null,
+        currentRule: null,
+        technicalDetails: {
+          parameterPath: 'ANOBSERVACION',
+          xmlElementName: 'ANOBSERVACION',
+          dataType: 'string',
+          xsdType: 'xsd:string',
+          targetNamespace: 'http://tempuri.org/',
+          sortOrder: 40
+        }
+      }
+    ],
+    sourceGroups: [
+      {
+        key: 'Transaction',
+        label: 'Transacción',
+        fields: [
+          {
+            id: 101,
+            methodId: 1,
+            sourceKind: 'Transaction',
+            entityName: 'AchTransaction',
+            fieldPath: 'transaction.reference',
+            displayName: 'Referencia de la transacción',
+            dataType: 'string',
+            cardinality: 'Scalar',
+            nullable: true,
+            sortOrder: 1,
+            isActive: true
+          }
+        ]
+      },
+      {
+        key: 'Cycle',
+        label: 'Ciclo',
+        fields: [
+          {
+            id: 201,
+            methodId: 1,
+            sourceKind: 'Cycle',
+            entityName: 'AchCycle',
+            fieldPath: 'cycle.processingDate',
+            displayName: 'Fecha de proceso del ciclo',
+            dataType: 'datetime',
+            cardinality: 'Scalar',
+            nullable: false,
+            sortOrder: 2,
+            isActive: true
+          }
+        ]
+      }
+    ],
+    transformations: [
+      {
+        code: 'Trim',
+        displayName: 'Recortar',
+        description: 'Elimina espacios al inicio y final.',
+        supportsFormatMask: false,
+        supportsMultipleSources: false
+      },
+      {
+        code: 'DateFormat',
+        displayName: 'Formatear fecha',
+        description: 'Formatea una fecha con una máscara aprobada.',
+        supportsFormatMask: true,
+        supportsMultipleSources: false
+      }
+    ],
+    sourceCompatibility: [
+      {
+        parameterId: 10,
+        sourceCatalogFieldId: 101,
+        allowsNoTransformation: true,
+        transformations: [
+          {
+            code: 'Trim',
+            displayName: 'Recortar',
+            description: 'Elimina espacios al inicio y final.',
+            requiresFormatMask: false
+          }
+        ]
+      },
+      {
+        parameterId: 10,
+        sourceCatalogFieldId: 201,
+        allowsNoTransformation: true,
+        transformations: [
+          {
+            code: 'DateFormat',
+            displayName: 'Formatear fecha',
+            description: 'Formatea una fecha con una máscara aprobada.',
+            requiresFormatMask: true
+          }
+        ]
+      },
+      {
+        parameterId: 11,
+        sourceCatalogFieldId: 101,
+        allowsNoTransformation: true,
+        transformations: []
+      },
+      {
+        parameterId: 12,
+        sourceCatalogFieldId: 201,
+        allowsNoTransformation: false,
+        transformations: [
+          {
+            code: 'DateFormat',
+            displayName: 'Formatear fecha',
+            description: 'Formatea una fecha con una máscara aprobada.',
+            requiresFormatMask: true
+          }
+        ]
+      }
+    ]
+  };
 
+  const preview: IntegrationMappingPreviewResultDto = {
+    mappingSetId: mappingSets[0].id,
+    methodId: 1,
+    methodCode: 'Proc_Transacciones',
+    contextMode: 'real-latest',
+    items: [
+      {
+        parameterId: 10,
+        parameterPath: 'TIPOCLIENTE',
+        resolvedFrom: 'transaction.reference',
+        previewValue: '••••9012',
+        sourceSection: 'transaccion',
+        resolutionKind: 'source-field',
+        appliedTransformation: 'Trim',
+        priority: 1,
+        enabled: true,
+        functionalName: 'Tipo de cliente',
+        functionalDescription: 'Clasificación funcional del cliente.',
+        required: true,
+        sourceDisplayName: 'Referencia de la transacción',
+        transformationDisplayName: 'Recortar',
+        validationStatus: 'valid',
+        validationIssues: [],
+        isMasked: true
+      },
+      {
+        parameterId: 11,
+        parameterPath: 'OFIDTX',
+        resolvedFrom: 'Sin origen configurado',
+        previewValue: null,
+        sourceSection: 'sin-configurar',
+        resolutionKind: 'none',
+        appliedTransformation: null,
+        priority: 0,
+        enabled: false,
+        functionalName: 'Número de referencia',
+        functionalDescription: 'Referencia funcional de la transacción.',
+        required: true,
+        sourceDisplayName: null,
+        transformationDisplayName: null,
+        validationStatus: 'incomplete',
+        validationIssues: [
+          {
+            severity: 'Error',
+            code: 'REQUIRED_PARAMETER_MISSING',
+            message: 'Required parameter OFIDTX has no enabled mapping rule.',
+            path: 'OFIDTX',
+            category: 'Coverage'
+          }
+        ],
+        isMasked: false
+      },
+      {
+        parameterId: 12,
+        parameterPath: 'OFFECHEFEC',
+        resolvedFrom: 'cycle.processingDate',
+        previewValue: '2026-10-13',
+        sourceSection: 'ciclo-camara',
+        resolutionKind: 'source-field',
+        appliedTransformation: 'DateFormat',
+        priority: 1,
+        enabled: true,
+        functionalName: 'Fecha efectiva',
+        functionalDescription: 'Fecha operacional que aplica al movimiento.',
+        required: true,
+        sourceDisplayName: 'Fecha de proceso del ciclo',
+        transformationDisplayName: 'Formatear fecha',
+        validationStatus: 'invalid',
+        validationIssues: [
+          {
+            severity: 'Error',
+            code: 'TRANSFORMATION_INVALID',
+            message: 'Transformation DateFormat is not valid for the configured rule.',
+            path: 'OFFECHEFEC',
+            category: 'Transformation'
+          }
+        ],
+        isMasked: false
+      },
+      {
+        parameterId: 13,
+        parameterPath: 'ANOBSERVACION',
+        resolvedFrom: 'Sin origen configurado',
+        previewValue: null,
+        sourceSection: 'sin-configurar',
+        resolutionKind: 'none',
+        appliedTransformation: null,
+        priority: 0,
+        enabled: false,
+        functionalName: 'Descripción adicional',
+        functionalDescription: 'Información opcional complementaria.',
+        required: false,
+        sourceDisplayName: null,
+        transformationDisplayName: null,
+        validationStatus: 'inactive',
+        validationIssues: [],
+        isMasked: false
+      }
+    ],
+    payloadPreviewJson: '{"TIPOCLIENTE":"••••9012"}',
+    rawPreviewJson: '[{"parameterId":10,"previewValue":"••••9012","isMasked":true}]',
+    validation: {
+      mappingSetId: mappingSets[0].id,
+      isValid: false,
+      issues: [
+        {
+          severity: 'Error',
+          code: 'REQUIRED_PARAMETER_MISSING',
+          message: 'Required parameter OFIDTX has no enabled mapping rule.',
+          path: 'OFIDTX',
+          category: 'Coverage'
+        },
+        {
+          severity: 'Error',
+          code: 'TRANSFORMATION_INVALID',
+          message: 'Transformation DateFormat is not valid for the configured rule.',
+          path: 'OFFECHEFEC',
+          category: 'Transformation'
+        }
+      ],
+      coverage: {
+        totalParameters: 4,
+        validParameters: 1,
+        incompleteParameters: 1,
+        invalidParameters: 1,
+        inactiveParameters: 1,
+        coveredByDefaultOrFixed: 0,
+        coveredBySourceField: 2
+      },
+      parameters: [
+        { parameterId: 10, parameterPath: 'TIPOCLIENTE', required: true, status: 'valid', resolutionKind: 'source-field', hints: [] },
+        { parameterId: 11, parameterPath: 'OFIDTX', required: true, status: 'incomplete', resolutionKind: 'none', hints: [] },
+        { parameterId: 12, parameterPath: 'OFFECHEFEC', required: true, status: 'invalid', resolutionKind: 'source-field', hints: [] },
+        { parameterId: 13, parameterPath: 'ANOBSERVACION', required: false, status: 'inactive', resolutionKind: 'none', hints: [] }
+      ]
+    }
+  };
+
+  async function createComponent(): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [MappingSetsPageComponent],
+      imports: [MappingSetsPageComponent, NoopAnimationsModule],
       providers: [
-        { provide: IntegrationMappingAdminService, useValue: api },
-        { provide: NotificationService, useValue: jasmine.createSpyObj('NotificationService', ['success', 'error']) },
-        { provide: Router, useValue: router },
-        { provide: AuthService, useValue: auth },
-        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } }
+        { provide: IntegrationMappingApi, useValue: mappingApi },
+        { provide: IntegrationWorkspaceApi, useValue: workspaceApi },
+        {
+          provide: AuthService,
+          useValue: {
+            hasPermission: (permission: string | string[]) => (Array.isArray(permission) ? permission : [permission]).includes('CanManageAch'),
+            currentUser: { username: 'qa-user' }
+          }
+        },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap({ method: 'Proc_Transacciones' }) } }
+        },
+        { provide: Router, useValue: router }
       ]
     }).compileComponents();
 
     fixture = TestBed.createComponent(MappingSetsPageComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+    loader = TestbedHarnessEnvironment.documentRootLoader(fixture);
+  }
+
+  beforeEach(() => {
+    mappingApi = jasmine.createSpyObj<IntegrationMappingApi>('IntegrationMappingApi', [
+      'getByMethod',
+      'getWorkspace',
+      'preview',
+      'updateParameterMapping',
+      'publishWithRevision'
+    ]);
+    workspaceApi = jasmine.createSpyObj<IntegrationWorkspaceApi>('IntegrationWorkspaceApi', ['getMethods']);
+    router = jasmine.createSpyObj<Router>('Router', ['navigate']);
+    router.navigate.and.resolveTo(true);
+
+    workspaceApi.getMethods.and.returnValue(of(methods));
+    mappingApi.getByMethod.and.returnValue(of(mappingSets));
+    mappingApi.getWorkspace.and.returnValue(of(workspace));
+    mappingApi.preview.and.returnValue(of(preview));
+    mappingApi.updateParameterMapping.and.returnValue(of(mappingSets[0]));
+    mappingApi.publishWithRevision.and.returnValue(of(mappingSets[0]));
   });
 
-  const selectService = (index: number) => {
-    const buttons = fixture.nativeElement.querySelectorAll('[data-testid="soap-service-option"]') as NodeListOf<HTMLButtonElement>;
-    buttons[index].click();
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('mantiene la lista funcional, búsqueda, filtros y cobertura del read model backend', async () => {
+    await createComponent();
+
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="mapping-parameter-item"]').length).toBe(4);
+    expect(fixture.nativeElement.querySelector('[data-testid="coverage-total"]').textContent.trim()).toBe('4');
+
+    const search = fixture.nativeElement.querySelector('[data-testid="mapping-search"]') as HTMLInputElement;
+    search.value = 'referencia';
+    search.dispatchEvent(new Event('input'));
     fixture.detectChanges();
-  };
+    expect(fixture.nativeElement.querySelectorAll('[data-testid="mapping-parameter-item"]').length).toBe(1);
 
-  const rowText = (parameter: string): string => {
-    const rows = Array.from(fixture.nativeElement.querySelectorAll('[data-testid="mapping-matrix-row"]')) as HTMLElement[];
-    const row = rows.find((item) => item.textContent?.includes(parameter));
-    return row?.textContent ?? '';
-  };
-
-  it('renderiza la pantalla como Matriz de campos SOAP', () => {
-    const text = fixture.nativeElement.textContent as string;
-
-    expect(text).toContain('Matriz de campos SOAP');
-    expect(text).toContain('Parámetro SOAP');
-    expect(text).toContain('Fuente o tabla');
-    expect(text).toContain('Campo de origen');
-    expect(text).toContain('Regla de conversión');
-    expect(text).toContain('Obligatorio');
-    expect(text).toContain('Estado');
-    expect(text).toContain('Última actualización');
-    expect(text).toContain('Acciones');
-    expect(fixture.nativeElement.querySelector('[data-testid="mapping-matrix-table"]')).toBeTruthy();
-    expect(fixture.nativeElement.querySelector('[data-testid="mapping-card"]')).toBeFalsy();
-  });
-
-  it('renderiza resumen funcional compacto y filtros principales', () => {
-    const text = fixture.nativeElement.textContent as string;
-    const summary = fixture.nativeElement.querySelector('[data-testid="mapping-functional-summary"]') as HTMLElement;
-    const filterBar = fixture.nativeElement.querySelector('[data-testid="mapping-filter-bar"]') as HTMLElement;
-
-    expect(summary).toBeTruthy();
-    expect(summary.textContent).toContain('Total parámetros');
-    expect(summary.textContent).toContain('Listos');
-    expect(summary.textContent).toContain('Pendientes');
-    expect(summary.textContent).toContain('Bloqueantes');
-    expect(summary.textContent).toContain('Alertas');
-    expect(summary.textContent).toContain('Opcionales/reservados');
-    expect(filterBar).toBeTruthy();
-    expect(text).toContain('Todos');
-    expect(text).toContain('Pendientes');
-    expect(text).toContain('Bloqueantes');
-    expect(text).toContain('Alertas');
-    expect(text).toContain('Listos');
-    expect(text).toContain('Opcionales');
-  });
-
-  it('permite filtrar pendientes y bloqueantes desde la matriz calculada', () => {
-    selectService(1);
-
-    component.mappingSets = [
-      {
-        ...mappingSets[0],
-        rules: mappingSets[0].rules
-          .filter((rule) => rule.parameterId !== 18)
-          .map((rule) => rule.parameterId === 21 ? { ...rule, fixedValue: 'SEED', defaultValue: null } : rule)
-      }
-    ];
-
-    component.setFilter('Pendientes');
-    expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['OFIDTX', 'OFDD']);
-
-    component.setFilter('Bloqueantes');
-    expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['OFIDTX', 'OFDD']);
-  });
-
-  it('permite filtrar opcionales reservados', () => {
-    selectService(1);
-
-    component.setFilter('Opcionales');
-
-    expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['ANSIDLOTE', 'ANCLC']);
-  });
-
-  it('busca por parámetro, tabla, campo o regla y limpia los filtros', () => {
-    component.filterForm.controls.search.setValue('modificador');
-    expect(component.filteredMatrixRows.map((row) => row.parameterSoap)).toEqual(['Proc_Transacciones.TraceNumber']);
-
-    component.filterForm.controls.required.setValue('optional');
-    expect(component.filteredMatrixRows).toEqual([]);
-
-    component.clearFilters();
-    expect(component.filterForm.getRawValue()).toEqual({ search: '', required: 'all' });
-    expect(component.filteredMatrixRows.length).toBe(component.matrixRows.length);
-  });
-
-  it('abrir y cancelar edición no crea borradores ni persiste reglas', () => {
-    const row = component.matrixRows[0];
-
-    component.editRelation(row);
-    expect(component.modalMode).toBe('edit');
-    expect(api.clone).not.toHaveBeenCalled();
-    expect(api.createDraft).not.toHaveBeenCalled();
-    expect(api.upsertRules).not.toHaveBeenCalled();
-
-    component.closeModal();
-    expect(api.clone).not.toHaveBeenCalled();
-    expect(api.upsertRules).not.toHaveBeenCalled();
-  });
-
-  it('clona una versión publicada una sola vez únicamente al guardar', () => {
-    const published = mappingSets.find((set) => set.methodId === 3)!;
-    const draft = { ...published, id: '55555555-5555-5555-5555-555555555555', status: 'Draft' as const, version: 0 };
-    api.clone.and.returnValue(of(draft));
-    api.upsertRules.and.returnValue(of(draft));
-    const row = component.matrixRows[0];
-
-    component.editRelation(row);
-    component.saveRelation();
-
-    expect(api.clone).toHaveBeenCalledTimes(1);
-    expect(api.clone).toHaveBeenCalledWith(published.id, `${published.name} - ajuste matriz`, 'ui-admin');
-    expect(api.upsertRules).toHaveBeenCalledTimes(1);
-  });
-
-  it('muestra los tres servicios con descripcion funcional en espanol', () => {
-    const text = () => fixture.nativeElement.textContent as string;
-
-    expect(text()).toContain('Proc_Contrapartidas');
-    expect(text()).toContain('Proc_Transacciones');
-    expect(text()).toContain('RegistrarRespuestaTransaccion');
-    expect(text()).toContain('créditos monetarios recibidos desde otra entidad financiera');
-
-    const buttons = fixture.nativeElement.querySelectorAll('[data-testid="soap-service-option"]') as NodeListOf<HTMLButtonElement>;
-    buttons[1].click();
+    component.filters.controls.search.setValue('');
+    component.filters.controls.status.setValue('Invalid');
     fixture.detectChanges();
-    expect(text()).toContain('débitos monetarios originados por CFA');
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-parameter-item"]').textContent).toContain('Fecha efectiva');
+  });
 
-    buttons[2].click();
+  it('expone búsqueda, selector de origen y tratamiento guiado mediante Harness Material', async () => {
+    await createComponent();
+    const configurable = component.parameters().find(parameter => parameter.parameterId === 10)!;
+    component.startEdit(configurable);
     fixture.detectChanges();
-    expect(text()).toContain('No realiza movimiento monetario');
+
+    const editor = await loader.getChildLoader('#mapping-editor-10');
+    const sourceSearch = await editor.getHarness(MatInputHarness);
+    await sourceSearch.setValue('Referencia');
+    expect(await sourceSearch.getValue()).toBe('Referencia');
+
+    const source = await editor.getHarness(MatRadioButtonHarness.with({ label: /Referencia de la transacción/ }));
+    await source.check();
+    expect(await source.isChecked()).toBeTrue();
+    fixture.detectChanges();
+
+    const treatment = await editor.getHarness(MatSelectHarness);
+    await treatment.open();
+    await treatment.clickOptions({ text: /Recortar/ });
+    expect(await treatment.getValueText()).toContain('Recortar');
   });
 
-  it('resuelve una relacion parametro SOAP contra tabla y campo origen permitido', () => {
-    const text = fixture.nativeElement.textContent as string;
+  it('usa un Reactive Form tipado y no expone controles para paths libres ni expresiones', async () => {
+    await createComponent();
+    component.startEdit(component.parameters()[0]);
+    fixture.detectChanges();
 
-    expect(text).toContain('TraceNumber');
-    expect(text).toContain('Archivo NACHA');
-    expect(text).toContain('Modificador de archivo');
-    expect(text).toContain('Limpiar espacios');
-    expect(text).toContain('Mapeado NACHA');
-    expect(text).not.toContain('MonetaryDebitRequest');
-    expect(text).not.toContain('OutboundRequest');
+    expect(component.parameterForm instanceof FormGroup).toBeTrue();
+    expect(Object.keys(component.parameterForm.controls)).toEqual([
+      'sourceSearch',
+      'sourceCatalogFieldId',
+      'transformationCode',
+      'formatMask'
+    ]);
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="sourceFieldPath"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[formcontrolname="conditionExpression"]')).toBeNull();
   });
 
-  it('filtra fuentes no permitidas de las opciones principales de edicion', () => {
-    const options = component.allowedSourceFields
-      .map((field) => `${component.getSourceKindLabel(field.sourceKind)} ${component.getSourceFieldLabel(field)}`)
-      .join(' ');
+  it('presenta el catálogo backend agrupado con nombre funcional primero y detalle técnico secundario', async () => {
+    await createComponent();
+    component.startEdit(component.parameters()[0]);
+    fixture.detectChanges();
 
-    expect(options).toContain('Archivo NACHA');
-    expect(options).toContain('Lote NACHA');
-    expect(options).toContain('Detalle NACHA');
-    expect(options).toContain('Addenda NACHA');
-    expect(options).toContain('Control lote NACHA');
-    expect(options).toContain('Control archivo NACHA');
-    expect(options).toContain('Respuesta diferencial');
-    expect(options).not.toContain('AchTransaction');
+    const selector = fixture.nativeElement.querySelector('[data-testid="mapping-source-selector"]');
+    const options = fixture.nativeElement.querySelectorAll('[data-testid="mapping-source-option"]');
+    expect(selector).not.toBeNull();
+    expect(options.length).toBe(2);
+    expect(options[0].textContent).toContain('Referencia de la transacción');
+    expect(options[0].textContent).toContain('transaction.reference');
+    expect(options[0].textContent).toContain('ID 101');
   });
 
-  it('muestra RegistrarRespuestaTransaccion con los siete parámetros WSDL reales', () => {
-    selectService(2);
+  it('busca orígenes sin perder la agrupación funcional informada por backend', async () => {
+    await createComponent();
+    component.startEdit(component.parameters()[0]);
+    component.parameterForm.controls.sourceSearch.setValue('fecha de proceso');
+    fixture.detectChanges();
 
-    const text = fixture.nativeElement.textContent as string;
-    const rows = fixture.nativeElement.querySelectorAll('[data-testid="mapping-matrix-row"]') as NodeListOf<HTMLElement>;
-
-    expect(rows.length).toBe(7);
-    expect(text).toContain('idCanal');
-    expect(text).toContain('nombreCanal');
-    expect(text).toContain('idTransaccion');
-    expect(text).toContain('idEstado');
-    expect(text).toContain('causal');
-    expect(text).toContain('idTransaccionAxon');
-    expect(text).toContain('descripcionCausal');
-    expect(text).toContain('Respuesta diferencial');
-    expect(text).toContain('Mapeado desde respuesta diferencial');
-    rows.forEach((row) => expect(row.textContent).not.toContain('Sin mapear'));
-    expect(text).not.toContain('ANSIDLOTE');
+    const groups = component.filteredSourceGroups();
+    expect(groups.length).toBe(1);
+    expect(groups[0].label).toBe('Ciclo');
+    expect(groups[0].fields.map(field => field.id)).toEqual([201]);
   });
 
-  it('clasifica Transaction como fuente transaccional mapeada y no como Sin mapear', () => {
-    selectService(1);
+  it('muestra únicamente tratamientos compatibles informados por backend y admite sin tratamiento solo cuando está permitido', async () => {
+    await createComponent();
+    component.startEdit(component.parameters()[0]);
 
-    const text = rowText('OFIDTX');
+    component.parameterForm.controls.sourceCatalogFieldId.setValue(201);
+    fixture.detectChanges();
 
-    expect(text).toContain('Transacción');
-    expect(text).toContain('Referencia');
-    expect(text).toContain('Mapeado transaccional');
-    expect(text).not.toContain('Sin mapear');
-    expect(text).not.toContain('Mapeado técnico');
+    expect(component.compatibleTreatments().map(item => item.code)).toEqual(['DateFormat']);
+    expect(component.selectedCompatibility()?.allowsNoTransformation).toBeTrue();
+
+    component.startEdit(component.parameters()[2]);
+    component.parameterForm.controls.sourceCatalogFieldId.setValue(201);
+    fixture.detectChanges();
+    expect(component.selectedCompatibility()?.allowsNoTransformation).toBeFalse();
+    expect(component.parameterForm.controls.transformationCode.hasError('required')).toBeTrue();
   });
 
-  it('clasifica Cycle como fuente de ciclo/camara mapeada', () => {
-    selectService(1);
+  it('valida desde metadata backend la configuración adicional requerida por el tratamiento', async () => {
+    await createComponent();
+    component.startEdit(component.parameters()[2]);
+    component.parameterForm.controls.sourceCatalogFieldId.setValue(201);
+    component.parameterForm.controls.transformationCode.setValue('DateFormat');
+    fixture.detectChanges();
 
-    const text = rowText('OFFECHEFEC');
+    expect(component.parameterForm.controls.formatMask.hasError('required')).toBeTrue();
+    expect(component.canSaveParameter()).toBeFalse();
 
-    expect(text).toContain('Ciclo');
-    expect(text).toContain('Fecha de proceso');
-    expect(text).toContain('Mapeado por ciclo/cámara');
-    expect(text).not.toContain('Sin mapear');
+    component.parameterForm.controls.formatMask.setValue('yyyyMMdd');
+    fixture.detectChanges();
+    expect(component.parameterForm.controls.formatMask.valid).toBeTrue();
   });
 
-  it('clasifica ClearingHouse como fuente de ciclo/camara mapeada', () => {
-    selectService(1);
+  it('guarda por identificador de catálogo con Revision esperada y sin enviar field paths libres', async () => {
+    await createComponent();
+    component.startEdit(component.parameters()[0]);
+    component.parameterForm.controls.sourceCatalogFieldId.setValue(101);
+    component.parameterForm.controls.transformationCode.setValue('Trim');
 
-    const text = rowText('OFIDCAMCOMPE');
+    component.saveParameter();
 
-    expect(text).toContain('Cámara');
-    expect(text).toContain('Identificador interno');
-    expect(text).toContain('Mapeado por ciclo/cámara');
-    expect(text).not.toContain('Sin mapear');
-  });
-
-  it('clasifica FinancialInstitution como fuente de ciclo/camara mapeada', () => {
-    selectService(1);
-
-    component.mappingSets = [
+    expect(mappingApi.updateParameterMapping).toHaveBeenCalledOnceWith(
+      workspace.mappingSet.id,
+      10,
       {
-        ...mappingSets[0],
-        rules: mappingSets[0].rules.map((rule) => rule.parameterId === 20
-          ? {
-            ...rule,
-            sourceKind: 'FinancialInstitution',
-            sourceCatalogFieldId: 19,
-            sourceFieldPath: 'financialInstitution.routingNumber'
-          }
-          : rule)
+        expectedRevision: 8,
+        sourceCatalogFieldId: 101,
+        transformationCode: 'Trim',
+        formatMask: null,
+        updatedBy: 'qa-user'
       }
-    ];
-
-    const row = component.matrixRows.find((item) => item.parameterSoap === 'OFIDCAMCOMPE')!;
-    const text = `${row.tableOrigin} ${row.fieldOrigin} ${row.status}`;
-
-    expect(text).toContain('Entidad financiera');
-    expect(text).toContain('Código ruta');
-    expect(text).toContain('Mapeado por ciclo/cámara');
-    expect(text).not.toContain('Sin mapear');
+    );
+    const payload = mappingApi.updateParameterMapping.calls.mostRecent().args[2] as unknown as Record<string, unknown>;
+    expect(payload['sourceFieldPath']).toBeUndefined();
+    expect(payload['conditionExpression']).toBeUndefined();
   });
 
-  it('clasifica Constant como constante tecnica mapeada', () => {
-    selectService(1);
-
-    const text = rowText('OFDD');
-
-    expect(text).toContain('Constante');
-    expect(text).toContain('Valor fijo');
-    expect(text).toContain('Constante técnica');
-    expect(text).not.toContain('Sin mapear');
-  });
-
-  it('acepta IREVER=0 para Proc_Transacciones sin contarlo como bloqueante funcional', () => {
-    const row = component.matrixRows.find((item) => item.parameterSoap === 'IREVER')!;
-
-    expect(row.status).toBe('Constante técnica');
-    expect(row.fieldOrigin).toBe('Valor fijo');
-    expect(row.conversionRule).toBe('Constante');
-    expect(component.matrixStats.blocking).toBe(0);
-    expect(component.matrixStats.warnings).toBe(1);
-  });
-
-  it('clasifica Constant con SEED como placeholder pendiente funcional', () => {
-    selectService(1);
-
-    component.mappingSets = [
-      {
-        ...mappingSets[0],
-        rules: mappingSets[0].rules.map((rule) => rule.parameterId === 21
-          ? { ...rule, fixedValue: 'SEED', defaultValue: null }
-          : rule)
-      }
-    ];
-
-    const row = component.matrixRows.find((item) => item.parameterSoap === 'OFDD')!;
-    const text = `${row.fieldOrigin} ${row.conversionRule} ${row.status}`;
-
-    expect(text).toContain('Pendiente funcional');
-    expect(text).not.toContain('Constante técnica');
-  });
-
-  it('clasifica DifferentialResponse como fuente valida para RegistrarRespuestaTransaccion', () => {
-    selectService(2);
-
-    const text = rowText('idEstado');
-
-    expect(text).toContain('Respuesta diferencial');
-    expect(text).toContain('Estado');
-    expect(text).toContain('Mapeado desde respuesta diferencial');
-    expect(text).not.toContain('Sin mapear');
-  });
-
-  it('clasifica fuentes NACHA como Mapeado NACHA', () => {
-    selectService(0);
-
-    const cases = [
-      { fieldId: 1, kind: 'NachaHeader' as IntegrationSourceKind, path: 'NachaHeaders.FileIdModifier', table: 'Archivo NACHA', field: 'Modificador de archivo' },
-      { fieldId: 2, kind: 'BatchHeader' as IntegrationSourceKind, path: 'BatchHeaders.CompanyIdentification', table: 'Lote NACHA', field: 'Identificación de compañía' },
-      { fieldId: 20, kind: 'EntryDetail' as IntegrationSourceKind, path: 'EntryDetails.Amount', table: 'Detalle NACHA', field: 'Monto' }
-    ];
-
-    for (const item of cases) {
-      component.mappingSets = [
-        {
-          ...mappingSets[1],
-          rules: [
-            {
-              ...mappingSets[1].rules[0],
-              sourceKind: item.kind,
-              sourceCatalogFieldId: item.fieldId,
-              sourceFieldPath: item.path
+  it('refresca el workspace desde backend después del guardado y no aplica éxito local antes de la respuesta', async () => {
+    const save$ = new Subject<IntegrationMappingSetDto>();
+    const refreshed: IntegrationMappingWorkspaceDto = {
+      ...workspace,
+      mappingSet: { ...workspace.mappingSet, revision: 9 },
+      parameters: workspace.parameters.map(parameter => parameter.parameterId === 10
+        ? {
+            ...parameter,
+            source: 'Fecha de proceso del ciclo',
+            transformation: 'Formatear fecha',
+            currentRule: {
+              ruleId: 501,
+              sourceCatalogFieldId: 201,
+              sourceKind: 'Cycle' as const,
+              sourceFieldPath: 'cycle.processingDate',
+              transformationCode: 'DateFormat',
+              formatMask: 'yyyyMMdd',
+              priority: 1,
+              enabled: true
             }
-          ]
+          }
+        : parameter)
+    };
+    mappingApi.updateParameterMapping.and.returnValue(save$);
+    mappingApi.getWorkspace.and.returnValues(of(workspace), of(refreshed));
+    await createComponent();
+
+    component.startEdit(component.parameters()[0]);
+    component.parameterForm.controls.sourceCatalogFieldId.setValue(201);
+    component.parameterForm.controls.transformationCode.setValue('DateFormat');
+    component.parameterForm.controls.formatMask.setValue('yyyyMMdd');
+    component.saveParameter();
+    fixture.detectChanges();
+
+    expect(component.parameters()[0].sourceSummary).toBe('Referencia de la transacción');
+    expect(mappingApi.getWorkspace).toHaveBeenCalledTimes(1);
+
+    save$.next(mappingSets[0]);
+    save$.complete();
+    fixture.detectChanges();
+
+    expect(mappingApi.getWorkspace).toHaveBeenCalledTimes(2);
+    expect(component.parameters()[0].sourceSummary).toBe('Fecha de proceso del ciclo');
+    expect(component.store.workspace()?.mappingSet.revision).toBe(9);
+  });
+
+  it('muestra error o forbidden de guardado sin asumir éxito local', async () => {
+    mappingApi.updateParameterMapping.and.returnValue(
+      throwError(() => new HttpErrorResponse({ status: 403, statusText: 'Forbidden' }))
+    );
+    await createComponent();
+
+    component.startEdit(component.parameters()[0]);
+    component.parameterForm.controls.sourceCatalogFieldId.setValue(101);
+    component.parameterForm.controls.transformationCode.setValue('Trim');
+    component.saveParameter();
+    fixture.detectChanges();
+
+    const error = fixture.nativeElement.querySelector('[data-testid="mapping-save-error"][role="alert"]');
+    expect(error).not.toBeNull();
+    expect(component.store.saveError()?.kind).toBe('forbidden');
+    expect(component.store.saveSucceededParameterId()).toBeNull();
+  });
+
+  it('conserva loading, empty, error y forbidden de carga con semántica observable', async () => {
+    const loading$ = new Subject<IntegrationMethodDto[]>();
+    workspaceApi.getMethods.and.returnValue(loading$);
+    await createComponent();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-loading-state"]')).not.toBeNull();
+
+    TestBed.resetTestingModule();
+    workspaceApi.getMethods.and.returnValue(of(methods));
+    mappingApi.getByMethod.and.returnValue(of([]));
+    await createComponent();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-empty-state"]')).not.toBeNull();
+
+    TestBed.resetTestingModule();
+    mappingApi.getByMethod.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Error' })));
+    await createComponent();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-error-state"][role="alert"]')).not.toBeNull();
+
+    TestBed.resetTestingModule();
+    mappingApi.getByMethod.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403, statusText: 'Forbidden' })));
+    await createComponent();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-forbidden-state"][role="alert"]')).not.toBeNull();
+  });
+
+  it('muestra por campo dato CFA, origen, tratamiento, valor sanitizado y estado provistos por backend', async () => {
+    await createComponent();
+
+    const fieldPreviews = fixture.nativeElement.querySelectorAll('[data-testid="mapping-field-preview"]');
+    expect(fieldPreviews.length).toBe(4);
+    expect(fieldPreviews[0].textContent).toContain('Dato requerido por CFA');
+    expect(fieldPreviews[0].textContent).toContain('Tipo de cliente · Requerido');
+    expect(fieldPreviews[0].textContent).toContain('Origen del dato');
+    expect(fieldPreviews[0].textContent).toContain('Referencia de la transacción');
+    expect(fieldPreviews[0].textContent).toContain('Tratamiento del dato');
+    expect(fieldPreviews[0].textContent).toContain('Recortar');
+    expect(fieldPreviews[0].textContent).toContain('Valor resultante sanitizado');
+    expect(fieldPreviews[0].textContent).toContain('••••9012');
+    expect(fieldPreviews[0].textContent).toContain('Listo');
+  });
+
+  it('no reconstruye PII completa en frontend y presenta únicamente el valor sanitizado recibido', async () => {
+    await createComponent();
+
+    const pageText = fixture.nativeElement.textContent as string;
+    expect(pageText).toContain('••••9012');
+    expect(pageText).not.toContain('123456789012');
+    expect(fixture.nativeElement.querySelector('.integration-information__protected-badge')?.textContent).toContain('Dato protegido');
+  });
+
+  it('humaniza errores backend y conserva código, ruta y mensaje técnico en detalle colapsado', async () => {
+    await createComponent();
+
+    const fieldPreviews = fixture.nativeElement.querySelectorAll('[data-testid="mapping-field-preview"]');
+    const pendingPreview = fieldPreviews[1] as HTMLElement;
+    expect(pendingPreview.textContent).toContain('Número de referencia: Este dato requerido por CFA todavía no tiene un origen configurado.');
+
+    const technical = pendingPreview.querySelector('[data-testid="mapping-field-validation-technical-detail"]') as HTMLDetailsElement;
+    expect(technical.open).toBeFalse();
+    expect(technical.textContent).toContain('REQUIRED_PARAMETER_MISSING');
+    expect(technical.textContent).toContain('OFIDTX');
+    expect(technical.textContent).toContain('Required parameter OFIDTX has no enabled mapping rule.');
+    expect(technical.querySelector('summary')?.tagName).toBe('SUMMARY');
+  });
+
+  it('mantiene loading, error y forbidden de preview sin ocultar el workspace', async () => {
+    const previewLoading$ = new Subject<IntegrationMappingPreviewResultDto>();
+    mappingApi.preview.and.returnValue(previewLoading$);
+    await createComponent();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-preview-loading-state"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-parameter-list"]')).not.toBeNull();
+
+    TestBed.resetTestingModule();
+    mappingApi.preview.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Error' })));
+    await createComponent();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-preview-error-state"][role="alert"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-parameter-list"]')).not.toBeNull();
+
+    TestBed.resetTestingModule();
+    mappingApi.preview.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403, statusText: 'Forbidden' })));
+    await createComponent();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-preview-forbidden-state"][role="alert"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-parameter-list"]')).not.toBeNull();
+  });
+
+  it('muestra conflicto de Revision, conserva detalle técnico y recarga el estado vigente sin merge', async () => {
+    const refreshed: IntegrationMappingWorkspaceDto = {
+      ...workspace,
+      mappingSet: { ...workspace.mappingSet, revision: 9 }
+    };
+    mappingApi.getWorkspace.and.returnValues(of(workspace), of(refreshed));
+    mappingApi.updateParameterMapping.and.returnValue(
+      throwError(() => new HttpErrorResponse({
+        status: 409,
+        error: {
+          detail: 'La configuración cambió. Revisión esperada=8, actual=9.',
+          expectedRevision: 8,
+          currentRevision: 9
         }
-      ];
-
-      const row = component.matrixRows.find((item) => item.parameterSoap === 'Proc_Transacciones.TraceNumber')!;
-      const text = `${row.tableOrigin} ${row.fieldOrigin} ${row.status}`;
-      expect(text).toContain(item.table);
-      expect(text).toContain(item.field);
-      expect(text).toContain('Mapeado NACHA');
-      expect(text).not.toContain('Sin mapear');
-    }
-  });
-
-  it('clasifica ANS de Proc_Contrapartidas sin regla activa como opcional reservado', () => {
-    selectService(1);
-
-    const text = `${rowText('ANSIDLOTE')} ${rowText('ANCLC')}`;
-
-    expect(text).toContain('Reservado por contrato');
-    expect(text).toContain('Opcional / reservado');
-    expect(text).not.toContain('Sin mapear');
-  });
-
-  it('mantiene Sin mapear cuando no hay regla activa ni fuente valida', () => {
-    selectService(1);
-
-    component.mappingSets = [
-      {
-        ...mappingSets[0],
-        rules: mappingSets[0].rules.filter((rule) => rule.parameterId !== 18)
-      }
-    ];
-
-    const row = component.matrixRows.find((item) => item.parameterSoap === 'OFIDTX')!;
-    const text = `${row.tableOrigin} ${row.fieldOrigin} ${row.status}`;
-
-    expect(text).toContain('Sin mapear');
-    expect(text).not.toContain('Mapeado transaccional');
-  });
-
-  it('prioriza el MappingSet publicado activo sobre borradores existentes', () => {
-    selectService(1);
-
-    component.mappingSets = [
-      {
-        ...mappingSets[0],
-        id: '44444444-4444-4444-4444-444444444444',
-        name: 'Contrapartidas Draft vacio',
-        status: 'Draft',
-        version: 0,
-        publishedAtUtc: null,
-        publishedBy: '',
-        rules: []
-      },
-      mappingSets[0]
-    ];
+      }))
+    );
+    await createComponent();
+    component.startEdit(component.parameters()[0]);
+    component.parameterForm.controls.sourceCatalogFieldId.setValue(101);
+    component.parameterForm.controls.transformationCode.setValue('Trim');
+    component.saveParameter();
     fixture.detectChanges();
 
-    expect(component.activeMappingSet?.id).toBe('11111111-1111-1111-1111-111111111111');
-    expect(component.matrixStats.mapped).toBeGreaterThan(0);
-    expect((fixture.nativeElement.textContent as string)).toContain('Publicado activo');
-    expect((fixture.nativeElement.textContent as string)).not.toContain('Borrador de trabajo');
-  });
+    const conflict = fixture.nativeElement.querySelector('[data-testid="mapping-revision-conflict"][role="alert"]') as HTMLElement;
+    const technical = conflict.querySelector('[data-testid="mapping-revision-technical-detail"]') as HTMLDetailsElement;
+    expect(conflict.textContent).toContain('No se hizo una mezcla automática');
+    expect(technical.open).toBeFalse();
+    expect(technical.textContent).toContain('Revision esperada');
+    expect(technical.textContent).toContain('Revision vigente');
+    expect(component.store.workspace()?.mappingSet.revision).toBe(8);
 
-  it('usa un borrador solo cuando no existe MappingSet publicado', () => {
-    selectService(1);
-
-    component.mappingSets = [
-      {
-        ...mappingSets[0],
-        id: '44444444-4444-4444-4444-444444444444',
-        name: 'Contrapartidas Draft unico',
-        status: 'Draft',
-        version: 0,
-        publishedAtUtc: null,
-        publishedBy: '',
-        rules: []
-      }
-    ];
-
-    expect(component.activeMappingSet?.id).toBe('44444444-4444-4444-4444-444444444444');
-    expect(component.getMappingSetStatusLabel(component.activeMappingSet)).toBe('Borrador de trabajo');
-  });
-
-  it('conserva el boton Ver auditoria y carga el historial del mapping activo', () => {
-    const row = component.matrixRows[0];
-    component.openHistory(row);
+    (conflict.querySelector('[data-testid="mapping-revision-reload"]') as HTMLButtonElement).click();
     fixture.detectChanges();
 
-    expect(api.getHistory).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
-    expect((fixture.nativeElement.textContent as string)).toContain('Auditoría');
+    expect(mappingApi.getWorkspace).toHaveBeenCalledTimes(2);
+    expect(component.store.workspace()?.mappingSet.revision).toBe(9);
+    expect(component.editingParameterId()).toBeNull();
   });
 
-  it('mantiene navegacion hacia editor avanzado desde accion secundaria', () => {
-    selectService(1);
+  it('representa el escenario contract-driven de un campo scalar nuevo como 1 dato nuevo pendiente y bloquea publicación', async () => {
+    await createComponent();
 
-    const row = component.matrixRows.find((item) => item.parameterSoap === 'OFIDTX')!;
-    component.openAdvancedEditor(row);
+    const summary = fixture.nativeElement.querySelector('[data-testid="mapping-publication-pending-summary"]') as HTMLElement;
+    const cta = fixture.nativeElement.querySelector('[data-testid="mapping-publication-cta"]') as HTMLButtonElement;
+    expect(summary.textContent.trim()).toBe('1 dato nuevo pendiente');
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-publication-required-pending"]').textContent).toContain('Número de referencia');
+    expect(cta.disabled).toBeTrue();
 
-    expect(router.navigate).toHaveBeenCalledWith(['/integraciones/mappings', 'WSCFAACH.Proc_Contrapartidas', '11111111-1111-1111-1111-111111111111']);
+    component.store.publish('qa-user');
+    expect(mappingApi.publishWithRevision).not.toHaveBeenCalled();
   });
 
-  it('mueve ruta tecnica y auditoria fuera de la vista principal', () => {
-    const mainText = fixture.nativeElement.querySelector('.mapping-matrix-page').textContent as string;
-    expect(mainText).not.toContain('NachaHeaders.FileIdModifier');
+  it('abre MatDialog humanizado con servicio, versión, cobertura y confirmación deshabilitada cuando backend bloquea', async () => {
+    await createComponent();
+    const review = fixture.nativeElement.querySelector('[data-testid="mapping-publication-review"]') as HTMLButtonElement;
+    review.focus();
+    review.click();
+    fixture.detectChanges();
 
-    expect(component.matrixRows[0].sourceField?.fieldPath).toBe('NachaHeaders.FileIdModifier');
+    const dialog = await loader.getHarness(MatDialogHarness);
+    expect((document.activeElement?.textContent ?? '').trim()).toContain('Publicar configuración CFA');
+    const text = await dialog.getText();
+    expect(text).toContain('Créditos recibidos en CFA');
+    expect(text).toContain('cfa-2026-11');
+    expect(text).toContain('1 dato nuevo pendiente');
+    const confirm = document.querySelector('[data-testid="mapping-publication-confirm"]') as HTMLButtonElement;
+    expect(confirm.disabled).toBeTrue();
+
+    await dialog.close();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(review);
   });
 
-  it('permite usuario solo consulta sin acciones de edicion', async () => {
-    auth.hasPermission.and.returnValue(false);
-    const readOnlyFixture = TestBed.createComponent(MappingSetsPageComponent);
-    readOnlyFixture.detectChanges();
+  it('impide bypass de CTA y diálogo si backend reporta required pendiente aunque canPublish sea true', async () => {
+    const inconsistent: IntegrationMappingWorkspaceDto = {
+      ...workspace,
+      publication: { canPublish: true, pendingRequired: 1, newRequiredPending: 1, blockingIssues: 1 }
+    };
+    mappingApi.getWorkspace.and.returnValue(of(inconsistent));
+    await createComponent();
 
-    expect(readOnlyFixture.nativeElement.querySelector('[data-testid="mapping-detail-button"]')).toBeTruthy();
-    expect(readOnlyFixture.nativeElement.querySelector('[data-testid="mapping-edit-button"]')).toBeFalsy();
+    const cta = fixture.nativeElement.querySelector('[data-testid="mapping-publication-cta"]') as HTMLButtonElement;
+    expect(cta.disabled).toBeTrue();
+
+    const review = fixture.nativeElement.querySelector('[data-testid="mapping-publication-review"]') as HTMLButtonElement;
+    review.click();
+    fixture.detectChanges();
+    await loader.getHarness(MatDialogHarness);
+
+    const confirm = document.querySelector('[data-testid="mapping-publication-confirm"]') as HTMLButtonElement;
+    expect(confirm.disabled).toBeTrue();
+    component.store.publish('qa-user');
+    expect(mappingApi.publishWithRevision).not.toHaveBeenCalled();
   });
+
+  it('publica solo tras confirmación, envía Revision esperada y refresca workspace después de respuesta exitosa', async () => {
+    const eligible: IntegrationMappingWorkspaceDto = {
+      ...workspace,
+      coverage: { total: 4, configured: 4, pendingRequired: 0, complete: 4, pending: 0, invalid: 0, notApplicable: 0 },
+      publication: { canPublish: true, pendingRequired: 0, newRequiredPending: 0, blockingIssues: 0 },
+      parameters: workspace.parameters.map(parameter => ({ ...parameter, status: 'Complete' as const }))
+    };
+    const publishedWorkspace: IntegrationMappingWorkspaceDto = {
+      ...eligible,
+      mappingSet: { ...eligible.mappingSet, status: 'Published' as const, revision: 9 },
+      publication: { ...eligible.publication, canPublish: false }
+    };
+    const publish$ = new Subject<IntegrationMappingSetDto>();
+    mappingApi.getWorkspace.and.returnValues(of(eligible), of(publishedWorkspace));
+    mappingApi.publishWithRevision.and.returnValue(publish$);
+    await createComponent();
+
+    const cta = fixture.nativeElement.querySelector('[data-testid="mapping-publication-cta"]') as HTMLButtonElement;
+    expect(cta.disabled).toBeFalse();
+    cta.click();
+    fixture.detectChanges();
+    const dialog = await loader.getHarness(MatDialogHarness);
+    (document.querySelector('[data-testid="mapping-publication-confirm"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(mappingApi.publishWithRevision).toHaveBeenCalledOnceWith(eligible.mappingSet.id, {
+      expectedRevision: 8,
+      publishedBy: 'qa-user',
+      publishNote: null
+    });
+    expect(mappingApi.getWorkspace).toHaveBeenCalledTimes(1);
+    expect(component.store.publicationSucceeded()).toBeFalse();
+
+    publish$.next({ ...mappingSets[0], status: 'Published', revision: 9 });
+    publish$.complete();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(mappingApi.getWorkspace).toHaveBeenCalledTimes(2);
+    expect(component.store.workspace()?.mappingSet.status).toBe('Published');
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-publication-success"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="mapping-publication-dialog"]')).toBeNull();
+  });
+
+  it('muestra conflicto de publicación y no asume éxito optimista', async () => {
+    const eligible: IntegrationMappingWorkspaceDto = {
+      ...workspace,
+      publication: { canPublish: true, pendingRequired: 0, newRequiredPending: 0, blockingIssues: 0 },
+      coverage: { ...workspace.coverage, pendingRequired: 0 }
+    };
+    mappingApi.getWorkspace.and.returnValue(of(eligible));
+    mappingApi.publishWithRevision.and.returnValue(
+      throwError(() => new HttpErrorResponse({
+        status: 409,
+        error: { detail: 'publish conflict', expectedRevision: 8, currentRevision: 10 }
+      }))
+    );
+    await createComponent();
+    component.publishConfiguration();
+    fixture.detectChanges();
+    (document.querySelector('[data-testid="mapping-publication-confirm"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const conflict = fixture.nativeElement.querySelector('[data-testid="mapping-revision-conflict"]') as HTMLElement;
+    expect(conflict.textContent).toContain('actualizó esta configuración antes de publicarla');
+    expect(component.store.publicationSucceeded()).toBeFalse();
+    expect(component.store.workspace()?.mappingSet.revision).toBe(8);
+  });
+
+  it('mantiene detalle técnico colapsado y controles de edición navegables por teclado', async () => {
+    await createComponent();
+    component.startEdit(component.parameters()[0]);
+    fixture.detectChanges();
+
+    const details = fixture.nativeElement.querySelector('[data-testid="mapping-technical-detail"]') as HTMLDetailsElement;
+    const search = fixture.nativeElement.querySelector('[data-testid="mapping-source-search"]') as HTMLInputElement;
+    const radios = fixture.nativeElement.querySelectorAll('[data-testid="mapping-source-option"] input[type="radio"]');
+    const editButton = fixture.nativeElement.querySelector('[data-testid="mapping-edit-button"]');
+    const previewTechnical = fixture.nativeElement.querySelector('[data-testid="mapping-validation-technical-detail"]') as HTMLDetailsElement;
+    const previewRefresh = fixture.nativeElement.querySelector('[data-testid="mapping-preview-refresh"]') as HTMLButtonElement;
+
+    expect(details.open).toBeFalse();
+    expect(previewTechnical.open).toBeFalse();
+    expect(previewTechnical.querySelector('summary')?.tabIndex).toBeGreaterThanOrEqual(0);
+    expect(previewRefresh.tagName).toBe('BUTTON');
+    expect(details.querySelector('summary')?.tagName).toBe('SUMMARY');
+    expect(search.getAttribute('type')).toBe('search');
+    expect(radios.length).toBeGreaterThan(0);
+    expect(editButton.getAttribute('aria-expanded')).toBe('true');
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-parameter-editor"] form')).toBeNull();
+  });
+  it('usa cards/listas como interacción primaria y mantiene regiones dinámicas anunciables', async () => {
+    await createComponent();
+
+    expect(fixture.nativeElement.querySelector('table')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-result-count"][aria-live="polite"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="mapping-general-validation"][aria-live="polite"]')).not.toBeNull();
+  });
+
 });

@@ -13,9 +13,10 @@ import {
   NachaConfigProfileReadModel,
   NachaConfigProfilesDashboardReadModel,
   NachaConfigValidationResult
-} from '../models/nacha-config-admin.models';
+} from '../../../core/models/nacha-config.model';
 import { NachaConfigCommandService } from '../services/nacha-config-command.service';
 import { NachaConfigQueryService } from '../services/nacha-config-query.service';
+import { nachaConfigUserMessage } from '../services/nacha-config-user-message';
 
 type CatalogosEstado = 'pendientes' | 'cargando' | 'reintentando' | 'disponibles' | 'recuperados' | 'vacios' | 'fallidos';
 
@@ -80,7 +81,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     { field: 'profileCode', headerName: 'Código', minWidth: 160 },
     { field: 'profileName', headerName: 'Nombre', minWidth: 240 },
     { field: 'clearingHouseCode', headerName: 'Cámara', minWidth: 190, valueGetter: (p) => this.camaraLabel(p.data?.clearingHouseCode) },
-    { field: 'status', headerName: 'Estado', minWidth: 130 },
+    { field: 'status', headerName: 'Estado', minWidth: 150, valueGetter: (p) => this.estadoLabel(p.data?.status) },
     { field: 'version', headerName: 'Versión', minWidth: 110 },
     { field: 'layoutVariantCount', headerName: 'Variantes', minWidth: 110 },
     { field: 'fieldCount', headerName: 'Campos', minWidth: 100 },
@@ -103,6 +104,12 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   ngOnInit(): void {
     this.bloquearCreacionPorCatalogos();
     this.cargar();
+    this.crearForm.controls.camaraCode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.cargarCatalogos());
+    this.crearForm.controls.flujoCode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.cargarCatalogos());
     this.filtrosForm.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.aplicarFiltros();
     });
@@ -156,13 +163,15 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     }
 
     const seRecuperaDeFallo = esReintentoManual || this.catalogosEstado === 'fallidos';
+    const camaraCode = this.crearForm.controls.camaraCode.value?.trim() || null;
+    const flujoCode = this.crearForm.controls.flujoCode.value?.trim() || null;
     this.catalogosEstado = 'cargando';
     this.catalogosErrorMessage = '';
     this.catalogosReintentos = 0;
-    this.bloquearCreacionPorCatalogos();
+    this.bloquearCreacionPorCatalogos(!(camaraCode || flujoCode || esReintentoManual));
 
     this.query
-      .catalogosFiltro((event) => {
+      .catalogosOperativos(camaraCode, flujoCode, (event) => {
         this.catalogosEstado = 'reintentando';
         this.catalogosReintentos = event.retryNumber;
         this.cdr.detectChanges();
@@ -187,6 +196,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
           this.catalogosEstado =
             seRecuperaDeFallo || this.catalogosReintentos > 0 ? 'recuperados' : 'disponibles';
           this.crearForm.enable({ emitEvent: false });
+          this.actualizarDisponibilidadContextual();
           if (this.catalogosEstado === 'recuperados') {
             this.notifications.success('Los catálogos de configuración NACHA-M se recuperaron correctamente.');
           }
@@ -338,16 +348,7 @@ export class NachaConfigProfilesPageComponent implements OnInit {
   }
 
   private errorMessage(error: unknown, fallback: string): string {
-    if (error && typeof error === 'object' && 'errorCode' in error) {
-      const errorCode = String((error as { errorCode?: unknown }).errorCode ?? '');
-      if (errorCode.includes('409') || errorCode === 'CONCURRENCY_CONFLICT') {
-        return 'La configuración cambió mientras la editabas. Actualiza el listado e intenta nuevamente.';
-      }
-      if (errorCode.includes('400') || errorCode === 'VALIDATION_ERROR') {
-        return 'No fue posible guardar el perfil. Revisa los campos e intenta nuevamente.';
-      }
-    }
-    return fallback;
+    return nachaConfigUserMessage(error, fallback);
   }
 
   private date(value?: string | null): string {
@@ -370,9 +371,31 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     this.opcionesDireccion = this.catalogos.direcciones.map((x) => ({ valor: x.code, etiqueta: `${x.code} - ${x.labelEs}` }));
     this.opcionesServicio = this.catalogos.servicios.map((x) => ({ valor: x.code, etiqueta: `${x.code} - ${x.labelEs}` }));
 
-    this.seleccionarPrimeraOpcionDisponible('camaraCode', this.opcionesCamara.slice(1));
-    this.seleccionarPrimeraOpcionDisponible('flujoCode', this.opcionesFlujo.slice(1));
-    this.seleccionarPrimeraOpcionDisponible('direccionCode', this.opcionesDireccion);
+    this.limpiarSeleccionInvalida('camaraCode', this.opcionesCamara.slice(1));
+    this.limpiarSeleccionInvalida('flujoCode', this.opcionesFlujo.slice(1));
+    this.limpiarSeleccionInvalida('direccionCode', this.opcionesDireccion);
+    if (this.crearForm.controls.flujoCode.value && !this.crearForm.controls.direccionCode.value && this.opcionesDireccion.length === 1) {
+      this.crearForm.controls.direccionCode.setValue(String(this.opcionesDireccion[0].valor), { emitEvent: false });
+    }
+    if (!this.opcionesServicio.some((opcion) => opcion.valor === this.crearForm.controls.servicioCode.value)) {
+      this.crearForm.controls.servicioCode.setValue('', { emitEvent: false });
+    }
+  }
+
+  private actualizarDisponibilidadContextual(): void {
+    if (this.crearForm.controls.flujoCode.value) {
+      this.crearForm.controls.direccionCode.enable({ emitEvent: false });
+    } else {
+      this.crearForm.controls.direccionCode.setValue('', { emitEvent: false });
+      this.crearForm.controls.direccionCode.disable({ emitEvent: false });
+    }
+
+    if (this.crearForm.controls.camaraCode.value) {
+      this.crearForm.controls.servicioCode.enable({ emitEvent: false });
+    } else {
+      this.crearForm.controls.servicioCode.setValue('', { emitEvent: false });
+      this.crearForm.controls.servicioCode.disable({ emitEvent: false });
+    }
   }
 
   private bloquearCreacionPorCatalogos(limpiar = true): void {
@@ -417,6 +440,16 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     return 'Los catálogos de configuración NACHA-M no están disponibles. Reintenta la carga.';
   }
 
+
+  estadoLabel(code?: string | null): string {
+    if (!code) {
+      return '-';
+    }
+
+    const catalogo = this.catalogos.estados.find((item) => item.code === code);
+    return catalogo?.labelEs || code;
+  }
+
   camaraLabel(code?: string | null): string {
     if (!code) {
       return '-';
@@ -426,13 +459,13 @@ export class NachaConfigProfilesPageComponent implements OnInit {
     return catalogo ? `${catalogo.code} - ${catalogo.labelEs}` : code;
   }
 
-  private seleccionarPrimeraOpcionDisponible(
+  private limpiarSeleccionInvalida(
     controlName: 'camaraCode' | 'flujoCode' | 'direccionCode',
     opciones: OpcionSelectorBuscable[]
   ): void {
     const control = this.crearForm.controls[controlName];
-    if (!opciones.some((opcion) => opcion.valor === control.value)) {
-      control.setValue(opciones[0] ? String(opciones[0].valor) : '');
+    if (control.value && !opciones.some((opcion) => opcion.valor === control.value)) {
+      control.setValue('', { emitEvent: false });
     }
   }
 

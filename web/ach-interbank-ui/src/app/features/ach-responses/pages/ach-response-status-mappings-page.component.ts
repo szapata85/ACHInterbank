@@ -1,8 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { ColDef } from 'ag-grid-community';
 import { finalize } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -23,7 +27,16 @@ type AchStatusMappingRow = AchResponseStatusMappingResponse & {
 @Component({
   selector: 'app-ach-response-status-mappings-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SharedModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    SharedModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule
+  ],
   templateUrl: './ach-response-status-mappings-page.component.html',
   styleUrls: ['./ach-response-status-mappings-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -65,15 +78,15 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
 
   readonly columnas: ColDef<AchStatusMappingRow>[] = [
     { field: 'codigoCamaraCompensacion', headerName: 'Cámara', minWidth: 120 },
-    { field: 'tipoRespuesta', headerName: 'Tipo respuesta', minWidth: 130 },
+    { field: 'tipoRespuesta', headerName: 'Tipo de respuesta', minWidth: 130 },
     { field: 'codigoEstadoExterno', headerName: 'Estado externo', minWidth: 130 },
     { field: 'codigoCausalExterna', headerName: 'Causal externa', minWidth: 140 },
     { field: 'priority', headerName: 'Prioridad', minWidth: 110 },
-    { field: 'idEstadoInterno', headerName: 'Id estado interno', minWidth: 140 },
-    { field: 'idEstadoServicioExterno', headerName: 'Id estado servicio externo', minWidth: 170 },
+    { field: 'idEstadoInterno', headerName: 'ID del estado interno', minWidth: 140 },
+    { field: 'idEstadoServicioExterno', headerName: 'ID del estado del servicio externo', minWidth: 170 },
     { field: 'estadoInternoNombre', headerName: 'Estado interno', minWidth: 140 },
     { field: 'causalNormalizada', headerName: 'Causal normalizada', minWidth: 150 },
-    { field: 'descripcionCausalNormalizada', headerName: 'Descripción causal', minWidth: 180 },
+    { field: 'descripcionCausalNormalizada', headerName: 'Descripción de la causal', minWidth: 180 },
     {
       field: 'requiereCausalText',
       headerName: 'Requiere causal',
@@ -92,8 +105,8 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
       minWidth: 110,
       cellRenderer: (params: any) => createAchBooleanBadgeElement(params.data?.activo, 'activo')
     },
-    { field: 'fechaInicioVigenciaText', headerName: 'Inicio vigencia', minWidth: 160 },
-    { field: 'fechaFinVigenciaText', headerName: 'Fin vigencia', minWidth: 160 },
+    { field: 'fechaInicioVigenciaText', headerName: 'Vigencia inicial', minWidth: 160 },
+    { field: 'fechaFinVigenciaText', headerName: 'Vigencia final', minWidth: 160 },
     {
       headerName: 'Acciones', minWidth: 120, sortable: false, filter: false,
       cellRenderer: () => createAchButtonElement('Editar', 'editar'),
@@ -182,11 +195,13 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
       this.notifications.error('Complete los campos obligatorios y la justificación.');
       return;
     }
+
     const raw = this.mappingForm.getRawValue();
     if (raw.effectiveTo && raw.effectiveFrom && raw.effectiveTo < raw.effectiveFrom) {
       this.notifications.error('La fecha fin no puede ser anterior a la fecha inicio.');
       return;
     }
+
     const request: AchResponseMappingWriteRequest = {
       clearingHouseId: raw.clearingHouseId ?? 0,
       responseType: raw.responseType === 'Prenota' ? 'Prenota' : 'Transaccion',
@@ -199,13 +214,15 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
       effectiveTo: raw.effectiveTo ? this.asUtc(raw.effectiveTo) : null, isActive: !!raw.isActive,
       expectedVersion: this.normalize(raw.expectedVersion) ?? null, reason: raw.reason?.trim() ?? ''
     };
+
     this.saving = true;
     const call = this.editingId == null
       ? this.api.createStatusMapping(request)
       : this.api.updateStatusMapping(this.editingId, request);
+
     call.pipe(finalize(() => { this.saving = false; this.cdr.markForCheck(); })).subscribe({
       next: () => {
-        this.notifications.success('Mapping guardado correctamente.');
+        this.notifications.success('Homologación guardada correctamente.');
         this.cancelEditor();
         this.loadMappings();
       },
@@ -255,7 +272,7 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
 
   private handleWriteError(error: HttpErrorResponse): void {
     if (error.status === 409) {
-      this.notifications.warning('El mapping cambió mientras lo editaba. Se recargó la versión vigente.');
+      this.notifications.warning('La homologación cambió mientras la editaba. Se recargó la versión vigente.');
       this.loadMappings();
       if (this.editingId != null) {
         const id = this.editingId;
@@ -267,7 +284,8 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
       }
       return;
     }
-    const detail = typeof error.error?.detail === 'string' ? error.error.detail : 'No fue posible guardar el mapping.';
+
+    const detail = typeof error.error?.detail === 'string' ? error.error.detail : 'No fue posible guardar la homologación.';
     this.notifications.error(detail);
   }
 
@@ -276,5 +294,4 @@ export class AchResponseStatusMappingsPageComponent implements OnInit {
   }
 
   private asUtc(value: string): string { return `${value}T00:00:00.000Z`; }
-
 }

@@ -1,3 +1,4 @@
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Application.Services.EncryptionService.Interfaces;
@@ -25,17 +26,28 @@ public sealed class SobreDigitalController : ControllerBase
     [HttpGet("certificates")]
     [Authorize(Policy = P1Policies.CertificatesRead)]
     [ProducesResponseType(typeof(IReadOnlyList<ManagedDigitalEnvelopeCertificateDto>), StatusCodes.Status200OK)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Colección de versiones de certificado activas y vigentes que el servicio considera utilizables para operaciones de sobre digital.")]
     public async Task<ActionResult<IReadOnlyList<ManagedDigitalEnvelopeCertificateDto>>> Certificates(
         CancellationToken cancellationToken)
         => Ok(await _service.ListUsableCertificatesAsync(cancellationToken));
 
     [EndpointSummary("Cifrar archivo mediante sobre digital ACH V32")]
-    [EndpointDescription("Recibe multipart/form-data con certificateVersionId y file, cifra en servidor y devuelve el archivo binario con .ENV agregado al nombre completo original.")]
+    [EndpointDescription("Recibe multipart/form-data con certificateVersionId, operationMode, file y clearingHouseId opcional. Tras las validaciones del controller, invoca el servicio de cifrado y devuelve el archivo binario con .ENV agregado al nombre original; en éxito publica X-Cryptographic-Profile. Los errores controlados se devuelven como ProblemDetails.")]
     [HttpPost("encrypt")]
     [Authorize(Policy = P1Policies.DigitalEnvelopeEncrypt)]
     [Consumes("multipart/form-data")]
     [Produces("application/octet-stream", "application/problem+json")]
     [RequestSizeLimit(MaximumFileSize)]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status413PayloadTooLarge)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Archivo cifrado devuelto como application/octet-stream con nombre de descarga y header X-Cryptographic-Profile informados por el servicio.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "La solicitud o la operación criptográfica no cumplen una validación controlada que el controller traduce a solicitud inválida.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No se encontró el certificado requerido para completar la operación de cifrado.")]
+    [OpenApiResponseDescription(StatusCodes.Status409Conflict, "La versión seleccionada no puede utilizarse por estado, vigencia o propósito, o no está disponible el certificado privado de firma requerido para completar el cifrado.")]
+    [OpenApiResponseDescription(StatusCodes.Status413PayloadTooLarge, "El archivo supera el máximo de 50 MB aceptado por la operación.")]
     public async Task<IActionResult> Encrypt([FromForm] DigitalEnvelopeFileRequest request, CancellationToken cancellationToken)
     {
         var validation = ValidateRequest(request, requireEnvelopeExtension: false);
@@ -67,12 +79,24 @@ public sealed class SobreDigitalController : ControllerBase
     }
 
     [EndpointSummary("Descifrar archivo de sobre digital ACH V32")]
-    [EndpointDescription("Recibe multipart/form-data con certificateVersionId y file .ENV, descifra exclusivamente en servidor y devuelve el archivo binario eliminando solo la última extensión .ENV.")]
+    [EndpointDescription("Recibe multipart/form-data con file .ENV, operationMode y certificateVersionId o clearingHouseId según la selección disponible. Tras las validaciones del controller, invoca el servicio de descifrado y devuelve el archivo recuperado eliminando la última extensión .ENV; en éxito publica X-Cryptographic-Profile. Los errores controlados se devuelven como ProblemDetails.")]
     [HttpPost("decrypt")]
     [Authorize(Policy = P1Policies.DigitalEnvelopeDecrypt)]
     [Consumes("multipart/form-data")]
     [Produces("application/octet-stream", "application/problem+json")]
     [RequestSizeLimit(MaximumFileSize)]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Archivo descifrado devuelto como application/octet-stream con nombre de descarga y header X-Cryptographic-Profile informados por el servicio.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "La solicitud o la operación criptográfica no cumplen una validación controlada que el controller traduce a solicitud inválida.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "No se encontró el certificado requerido para completar la operación de descifrado.")]
+    [OpenApiResponseDescription(StatusCodes.Status409Conflict, "La versión requerida no puede utilizarse por estado, vigencia, propósito, disponibilidad de llave privada o correspondencia con el sobre recibido.")]
+    [OpenApiResponseDescription(StatusCodes.Status413PayloadTooLarge, "El archivo supera el máximo de 50 MB aceptado por la operación.")]
+    [OpenApiResponseDescription(StatusCodes.Status422UnprocessableEntity, "El sobre digital, su contenido firmado o la validación criptográfica produce un error controlado que el controller clasifica como no procesable.")]
     public async Task<IActionResult> Decrypt([FromForm] DigitalEnvelopeFileRequest request, CancellationToken cancellationToken)
     {
         var validation = ValidateRequest(request, requireEnvelopeExtension: true);
@@ -198,11 +222,19 @@ public sealed class SobreDigitalController : ControllerBase
     private string ResolveActor()
         => string.IsNullOrWhiteSpace(User.Identity?.Name) ? "api" : User.Identity.Name;
 
+    /// <summary>Formulario multipart utilizado por las operaciones de cifrado y descifrado de sobre digital.</summary>
     public sealed class DigitalEnvelopeFileRequest
     {
+        /// <summary>Identificador de la versión de certificado seleccionada. Para descifrado puede omitirse cuando se informa una cámara válida y el servicio resuelve el certificado aplicable.</summary>
         public int CertificateVersionId { get; set; }
+
+        /// <summary>Identificador opcional de la cámara utilizado como contexto por el servicio de sobre digital.</summary>
         public int? ClearingHouseId { get; set; }
+
+        /// <summary>Modo operacional solicitado. El controller acepta únicamente el valor LIVE sin distinguir mayúsculas de minúsculas.</summary>
         public string OperationMode { get; set; } = string.Empty;
+
+        /// <summary>Archivo multipart a procesar. Debe ser no vacío y no superar 50 MB; para descifrado el nombre debe terminar en .ENV.</summary>
         public IFormFile? File { get; set; }
     }
 }

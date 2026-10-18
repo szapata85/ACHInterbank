@@ -3,6 +3,7 @@ using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.ACH.Implementation;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
@@ -140,8 +141,8 @@ public class AchPreproductionCertificationTests
     [Fact]
     public void ClearingHouseStrategies_KeepSensitiveRulesSeparatedBetweenAchAndCenit()
     {
-        var achStrategy = new AchClearingHouseStrategy();
-        var cenitStrategy = new CenitClearingHouseStrategy();
+        var achStrategy = new AchClearingHouseStrategy(new CycleNumberResolver());
+        var cenitStrategy = new CenitClearingHouseStrategy(new CycleNumberResolver());
 
         var reversal = new AchTransaction
         {

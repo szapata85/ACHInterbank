@@ -1,3 +1,5 @@
+using Cfa.ACHInterbank.Application.Integrations.Models;
+
 namespace Cfa.ACHInterbank.Application.ACH.Models;
 
 public sealed record IncomingNachaDispatchEligibilityResult(
@@ -20,7 +22,33 @@ public sealed record IncomingNachaPostProcessingRunResult(
 
 public sealed record ProcTransaccionesRequestContract(
     IReadOnlyDictionary<string, string> Parameters,
-    IReadOnlyDictionary<string, string>? SourceValues = null);
+    IReadOnlyDictionary<string, string>? SourceValues = null,
+    ResolvedIntegrationRequest? ContractDrivenRequest = null);
+
+public sealed record ProcTransaccionesFunctionalSourceContext(
+    string SourceTransitCode,
+    string DestinationTransitCode,
+    string SourceInstitutionName,
+    string DestinationInstitutionName,
+    string FunctionalBatchId,
+    string ClearingHouseId,
+    string PaymentInformation,
+    string? EntryAccountNumber,
+    string? EntryRecipientName,
+    string? EntryRecipientId)
+{
+    public static ProcTransaccionesFunctionalSourceContext Empty { get; } = new(
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        null,
+        null,
+        null);
+}
 
 public sealed record ProcTransaccionesRequestResolution(
     ProcTransaccionesRequestContract Contract,

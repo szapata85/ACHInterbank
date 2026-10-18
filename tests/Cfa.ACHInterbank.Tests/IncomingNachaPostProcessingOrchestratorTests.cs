@@ -45,6 +45,47 @@ public class IncomingNachaPostProcessingOrchestratorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_PriorSuccessfulExecution_ShouldNotDispatchAgain()
+    {
+        await using var context = BuildContext();
+        SeedDispatchItem(context);
+        var queue = await context.IncomingNachaDispatchQueue.SingleAsync();
+        context.IncomingNachaIntegrationExecution.Add(new IncomingNachaIntegrationExecution
+        {
+            DispatchQueueId = queue.Id,
+            AttemptNumber = 1,
+            ClearingHouseId = queue.ClearingHouseId,
+            MethodName = "Proc_Transacciones",
+            SoapMethodName = "Proc_Transacciones",
+            CorrelationId = "prior-success",
+            StartedAtUtc = DateTime.UtcNow.AddMinutes(-1),
+            FinishedAtUtc = DateTime.UtcNow,
+            IsSuccessful = true,
+            IsSuccess = true
+        });
+        await context.SaveChangesAsync();
+
+        var mapper = new Mock<IProcTransaccionesRequestMapper>(MockBehavior.Strict);
+        var soap = new Mock<IWscfaachSoapClient>(MockBehavior.Strict);
+        var sut = CreateOrchestrator(
+            context,
+            mapper.Object,
+            new ProcTransaccionesResponseParser(),
+            soap.Object,
+            dispatchOptions: LiveProcTransaccionesOptions());
+
+        var result = await sut.ExecuteAsync(50, "tester");
+
+        Assert.Equal(1, result.Confirmed);
+        queue = await context.IncomingNachaDispatchQueue.SingleAsync();
+        Assert.Equal(IncomingNachaDispatchQueueStatus.Confirmed, queue.QueueStatus);
+        Assert.Null(queue.NextAttemptAtUtc);
+        Assert.True(await context.IncomingNachaProcessingEvents.AnyAsync(x => x.EventType == "DispatchAlreadyConfirmed"));
+        mapper.VerifyNoOtherCalls();
+        soap.VerifyNoOtherCalls();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_CyclePolicyDisallowsTransaction_BlocksBeforeDispatch()
     {
         await using var context = BuildContext();

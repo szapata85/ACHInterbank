@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { RoleSummary } from '../models/user.model';
+import { RoleSummary } from '../../../core/models/role.model';
 
 @Injectable({ providedIn: 'root' })
 export class UserPresentationService {

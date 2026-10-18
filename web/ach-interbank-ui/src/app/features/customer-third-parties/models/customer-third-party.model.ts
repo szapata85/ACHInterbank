@@ -29,9 +29,4 @@ export interface CustomerThirdPartyFilters {
   pageSize: number;
 }
 
-export interface PagedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
+export type { PagedResponse } from '../../../core/models/paged-response.model';

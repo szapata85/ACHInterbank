@@ -8,7 +8,6 @@ using Cfa.ACHInterbank.Persistence.Configuration;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.DataBase.Repositories.Navigation;
 using Cfa.ACHInterbank.Persistence.Navigation.Seeders;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -139,13 +138,7 @@ public sealed class OutgoingTransactionMonitoringSeederTests
 
         var handler = new GetMenuForCurrentUserHandler(
             new MenuQueryRepository(fixture.Context),
-            new HttpContextAccessor
-            {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))
-                }
-            });
+            new TestCurrentUserContext(claims));
 
         var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
         var visible = Flatten(menu).Any(item =>

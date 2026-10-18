@@ -36,6 +36,17 @@ La asignación y programación consultan el calendario por cámara. Antes de ini
 4. mueve la fecha al siguiente día hábil de la misma cámara;
 5. usa la fecha de procesamiento como token de concurrencia para que una decisión simultánea no se aplique dos veces.
 
+## ACH Colombia — regulación y horario operacional CFA
+
+La política regulatoria del ciclo y la programación operacional del intercambio son conceptos distintos. Los valores operacionales administrados en `AchColombiaCycleOperationalSchedule` no reescriben `StartTime`, `CutoffTime` ni las ventanas regulatorias.
+
+- C1: `06:30` es una hora operacional soportada; no sustituye la regulación del ciclo.
+- C7: `17:50` es el latest-start operacional soportado; el cutoff regulatorio permanece `18:00`.
+- C2-C6: no existen horas automáticas por defecto; deben permanecer vacías/deshabilitadas hasta que Operación/Negocio las confirme.
+- `ACHCOL-7C-CANDIDATE` permanece **INACTIVE / NOT ACTIVATABLE**. `EffectiveFrom` continúa `null` y C4 no se resuelve por inferencia.
+
+Esta separación debe preservarse en cualquier operación, migración o parametrización posterior. La programación operacional puede prepararse sin activar una política regulatoria candidata.
+
 ## Verificación
 
 Las pruebas de `OperationalCalendarTests`, los tests de despacho y los componentes Angular cubren el cálculo legal, la separación por cámara, la reparación idempotente, la protección de registros legales, la reprogramación y la ausencia de SOAP cuando el calendario bloquea. Las migraciones `CentralizedOperationalCalendar` existen para PostgreSQL y SQL Server y preservan las tablas manuales existentes.

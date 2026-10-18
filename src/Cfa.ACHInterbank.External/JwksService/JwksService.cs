@@ -1,6 +1,7 @@
 using Cfa.ACHInterbank.Application.CacheMemory.Keys.Interfaces;
 using Cfa.ACHInterbank.Application.External.JwksService;
 using Cfa.ACHInterbank.Application.Features;
+using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Cfa.OpenData.Domain.Models.Response;
 using static Cfa.ACHInterbank.Domain.Entities.JwksService.JwksService;
@@ -42,10 +43,12 @@ public class JwksService : IDisposable, IJwksService
     #endregion Diposable
 
     private readonly IKeysRepository _keysRepository;
+    private readonly ILoggerManager _loggerManager;
 
-    public JwksService(IKeysRepository keysRepository)
+    public JwksService(IKeysRepository keysRepository, ILoggerManager loggerManager)
     {
         _keysRepository = keysRepository;
+        _loggerManager = loggerManager;
     }
 
     public Response<Keys> GetPublicJwks()
@@ -56,11 +59,11 @@ public class JwksService : IDisposable, IJwksService
             var key = new Keys { keys = _keysRepository.GetKeyList() };
             if (key is null)
                 throw new Exception("No se encontraron llaves públicas.");
-            response = ExtensionMethods.SuccessResponse<Keys>(key);
+            response = ExtensionMethods.SuccessResponse<Keys>(key, _loggerManager);
         }
         catch (Exception ex)
         {
-            response = ExtensionMethods.ErrorResponse<Keys>(ex.Message);
+            response = ExtensionMethods.ErrorResponse<Keys>(ex.Message, _loggerManager);
         }
         return response;
     }

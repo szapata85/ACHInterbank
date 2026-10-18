@@ -139,21 +139,12 @@ public class AccountingReviewExportEndpointTests
         text.Should().NotContain("LedgerId").And.NotContain("JournalId").And.NotContain("PostingId").And.NotContain("AccountingEntryId");
     }
 
-    private static ReportsController BuildController(IAccountingReviewExportAppService exportService)
+    private static AccountingReviewReportsController BuildController(IAccountingReviewExportAppService exportService)
     {
         var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "qa")], "test"));
         var ctx = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } };
 
-        return new ReportsController(
-            Mock.Of<IReportGenerator>(),
-            Mock.Of<IAchTransactionReportService>(),
-            Mock.Of<IAchReturnRejectionReportService>(),
-            Mock.Of<IAchNachaCycleReportService>(),
-            Mock.Of<IAchReconciliationReportService>(),
-            Mock.Of<IAchAuditHistoryReportService>(),
-            Mock.Of<IClearingHouseService>(),
-            exportService,
-            Mock.Of<ILogger<ReportsController>>())
+        return new AccountingReviewReportsController(exportService)
         { ControllerContext = ctx };
     }
 }

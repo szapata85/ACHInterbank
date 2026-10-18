@@ -13,7 +13,7 @@
 </section>
 
 <mat-card appearance="outlined" class="error-state" *ngIf="error" role="alert">
-  <mat-card-content><mat-icon aria-hidden="true">cloud_off</mat-icon><div><strong>No fue posible consultar las tareas.</strong><p>{{ error }}</p><button mat-stroked-button type="button" (click)="load()">Intentar nuevamente</button></div></mat-card-content>
+  <mat-card-content><mat-icon aria-hidden="true">cloud_off</mat-icon><div><strong>No fue posible consultar las tareas.</strong><p>{{ error }}</p><button mat-stroked-button type="button" (click)="load()">Reintentar</button></div></mat-card-content>
 </mat-card>
 
 <mat-card appearance="outlined" class="tasks-panel" *ngIf="!error">

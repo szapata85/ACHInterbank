@@ -1,9 +1,9 @@
 <app-page-header
-  title="Simular respuesta de otra entidad"
+  title="Simulador de archivos recibidos"
   subtitle="Genere un archivo NACHA-M de entrada sobre una transacción legítima del sistema">
 </app-page-header>
 
-<section class="simulator-page" aria-label="Simulador NACHA-M de entrada">
+<section class="simulator-page" aria-label="Simulador de archivos recibidos">
   <div class="environment-strip" role="status">
     <mat-chip-set aria-label="Clasificación del ambiente">
       <mat-chip class="uat-chip">
@@ -290,7 +290,7 @@
             <mat-icon matSuffix aria-hidden="true">assignment_return</mat-icon>
             <mat-hint>Catálogo oficial vigente para la cámara y el tipo de transacción.</mat-hint>
             <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
-              Seleccione una causal de devolución.
+              Selecciona una causal de devolución.
             </mat-error>
           </mat-form-field>
 
@@ -299,7 +299,7 @@
             <input matInput type="text" formControlName="reasonCode" maxlength="20" />
             <mat-hint>Registre la causal aplicable al rechazo.</mat-hint>
             <mat-error *ngIf="form.controls.reasonCode.hasError('required')">
-              Ingrese la causal del rechazo.
+              Ingresa la causal del rechazo.
             </mat-error>
           </mat-form-field>
 
@@ -658,7 +658,7 @@
       </button>
       <button mat-stroked-button type="button" (click)="goToUpload()">
         <mat-icon aria-hidden="true">upload_file</mat-icon>
-        Ir a carga de archivos NACHA-M
+        Ir a Cargar archivo NACHA-M
       </button>
       <button mat-flat-button color="primary" type="button" (click)="download(result.id)">
         <mat-icon aria-hidden="true">download</mat-icon>

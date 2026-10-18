@@ -88,6 +88,7 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         var sut = BuildClient(Endpoint(server), out _);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegistrarRespuestaTransaccionAsync("<Body>error</Body>"));
+        Assert.Single(server.Requests);
     }
 
     [Fact]
@@ -408,7 +409,8 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
         return new WsAxonRespuestaTransaccionesSoapClient(
             Mock.Of<ILoggerManager>(),
             settings.Object,
-            Options.Create(new WsAxonEndpointSecurityOptions()));
+            Options.Create(new WsAxonEndpointSecurityOptions()),
+            new StaticHttpClientFactory());
     }
 
     private static WsAxonRespuestaTransaccionesSoapClient BuildClientWithCustomMapping(SoapEndpointMethodMappingDto mapping)
@@ -439,6 +441,7 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
             Mock.Of<ILoggerManager>(),
             settings.Object,
             Options.Create(policy),
+            new StaticHttpClientFactory(),
             Options.Create(transport ?? new ControlledLocalSoapTransportOptions()));
     }
 
@@ -464,5 +467,10 @@ public class WsAxonRespuestaTransaccionesSoapClientCharacterizationTests
             AllowedPaths = [.. paths],
             RequireHttps = requireHttps
         };
+
+    private sealed class StaticHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new();
+    }
 
 }

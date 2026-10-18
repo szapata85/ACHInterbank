@@ -22,6 +22,12 @@ public sealed class IncomingNachaOrphanManualResolutionRequest
     public string CorrelationId { get; init; } = string.Empty;
 }
 
+/// <summary>Resultado de la resolución manual de una devolución entrante.</summary>
+/// <param name="IsResolved">Indica si la solicitud terminó con una resolución aplicada o un replay equivalente.</param>
+/// <param name="Status">Código textual del resultado producido por el servicio.</param>
+/// <param name="ProcessingEventId">Identificador del evento de procesamiento creado, cuando existe.</param>
+/// <param name="AchTransactionStateEventId">Identificador del evento de estado de la transacción ACH, cuando fue creado o recuperado.</param>
+/// <param name="Message">Descripción funcional del resultado.</param>
 public sealed record IncomingNachaOrphanManualResolutionResult(
     bool IsResolved,
     string Status,
@@ -29,5 +35,6 @@ public sealed record IncomingNachaOrphanManualResolutionResult(
     long? AchTransactionStateEventId,
     string Message)
 {
+    /// <summary>Indica que la misma relación ya se había aplicado y no se generaron efectos adicionales.</summary>
     public bool IsIdempotentReplay { get; init; }
 }

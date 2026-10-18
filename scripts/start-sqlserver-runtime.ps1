@@ -78,7 +78,7 @@ function Ensure-Environment {
     Set-DefaultEnv -Name 'ASPNETCORE_ENVIRONMENT' -DefaultValue 'Development'
     Set-DefaultEnv -Name 'ASPNETCORE_URLS' -DefaultValue 'http://+:8080'
     Set-DefaultEnv -Name 'ENABLE_HTTPS_REDIRECTION' -DefaultValue 'false'
-    Set-DefaultEnv -Name 'NPM_VERSION' -DefaultValue '12.0.1'
+    Set-DefaultEnv -Name 'NPM_VERSION' -DefaultValue '12.1.0'
     Set-DefaultEnv -Name 'MSSQL_PID' -DefaultValue 'Developer'
     Set-DefaultEnv -Name 'SQLSERVER_HOST_PORT' -DefaultValue '1433'
 

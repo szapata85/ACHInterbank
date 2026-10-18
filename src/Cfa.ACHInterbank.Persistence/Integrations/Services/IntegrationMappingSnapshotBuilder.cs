@@ -30,10 +30,32 @@ public sealed class IntegrationMappingSnapshotBuilder
             .AsNoTracking()
             .FirstAsync(x => x.Id == mappingSetId, ct);
 
-        var parameters = await _context.IntegrationMethodParameters
+        IntegrationContractVersion? contract = null;
+        if (set.ContractVersionId.HasValue)
+        {
+            contract = await _context.IntegrationContractVersions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == set.ContractVersionId.Value, ct)
+                ?? throw new InvalidOperationException($"MappingSet {set.Id} referencia una ContractVersion inexistente.");
+        }
+
+        var parameterQuery = _context.IntegrationMethodParameters
             .AsNoTracking()
-            .Where(x => x.MethodId == set.MethodId && x.IsActive)
+            .Where(x => x.MethodId == set.MethodId && x.IsActive);
+        if (contract is not null)
+        {
+            parameterQuery = IsBaselineBridge(contract)
+                ? parameterQuery.Where(x => x.ContractVersionId == contract.Id || x.ContractVersionId == null)
+                : parameterQuery.Where(x => x.ContractVersionId == contract.Id);
+        }
+        else
+        {
+            parameterQuery = parameterQuery.Where(x => x.ContractVersionId == null);
+        }
+
+        var parameters = await parameterQuery
             .OrderBy(x => x.ParameterPath)
+            .ThenBy(x => x.Id)
             .ToListAsync(ct);
 
         var parameterIds = parameters.Select(x => x.Id).ToHashSet();
@@ -106,6 +128,10 @@ public sealed class IntegrationMappingSnapshotBuilder
             SnapshotJson: snapshotJson,
             SnapshotHash: snapshotHash);
     }
+
+    private static bool IsBaselineBridge(IntegrationContractVersion contract)
+        => contract.SourceType == IntegrationContractSourceTypeEnum.BaselineMigration
+           && string.Equals(contract.VersionLabel, "baseline-v1", StringComparison.Ordinal);
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

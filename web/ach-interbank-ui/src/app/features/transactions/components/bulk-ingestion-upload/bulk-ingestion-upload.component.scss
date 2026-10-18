@@ -14,24 +14,27 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1rem;
-
-  label {
-    display: block;
-    margin-bottom: 0.35rem;
-    font-weight: 700;
-  }
 }
 
 .file-zone {
   display: grid;
   gap: 0.45rem;
+
+  label {
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  small {
+    color: var(--color-text-soft);
+  }
 }
 
 .summary {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 1rem;
-  background: #f8fafc;
+  background: var(--color-surface-muted);
 
   h3 {
     margin: 0 0 0.5rem;
@@ -60,11 +63,27 @@
   flex-wrap: wrap;
 }
 
-.badge.ok { background: #dcfce7; color: #166534; }
-.badge.ko { background: #fee2e2; color: #991b1b; }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.badge.ok {
+  background: var(--color-success-surface);
+  color: var(--color-success-text);
+}
+
+.badge.ko {
+  background: var(--color-error-surface);
+  color: var(--color-error-text);
+}
 
 .success {
   margin-top: 1rem;
-  border: 1px solid #bbf7d0;
-  background: #ecfdf3;
+  border: 1px solid color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+  background: var(--color-success-surface);
 }

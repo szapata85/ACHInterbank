@@ -39,15 +39,13 @@ import {
   OperationalConfirmDialogComponent,
   OperationalConfirmDialogData
 } from '../../../../shared/components/operational-confirm-dialog.component';
-import { FinancialInstitutionsApiService } from '../../../transactions/services/financial-institutions-api.service';
-import { DestinationInstitution } from '../../../transactions/transactions.models';
-import { FinancialInstitutionStatusEnum } from '../../../transactions/transactions.types';
-import { ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
-import { ClearingHouseOption } from '../../../ach-cycles/models/ach-cycle.model';
-import { ClearingHousesService } from '../../../clearing-houses/clearing-houses.service';
-import { NachaProfileOption } from '../../../clearing-houses/clearing-houses.models';
-import { NachaConfigApiService } from '../../../nacha-config-admin/services/nacha-config-api.service';
-import { NachaConfigProfileReadModel } from '../../../nacha-config-admin/models/nacha-config-admin.models';
+import { DestinationInstitution, FinancialInstitutionStatusEnum } from '../../../../core/models/financial-institution.model';
+import { FinancialInstitutionsApiService } from '../../../../core/services/financial-institutions-api.service';
+import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
+import { ClearingHouseOption, NachaProfileOption } from '../../../../core/models/clearing-house.model';
+import { ClearingHousesService } from '../../../../core/services/clearing-houses.service';
+import { NachaConfigApiService } from '../../../../core/services/nacha-config-api.service';
+import { NachaConfigProfileReadModel } from '../../../../core/models/nacha-config.model';
 import {
   AchReturnCodeOption,
   AvailableInboundCycle,

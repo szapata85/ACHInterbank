@@ -194,22 +194,48 @@ public class CenitOperationalGovernanceTests
         Assert.Equal("DXX-LIQ", tx.ReturnReasonCode);
     }
 
-    [Fact]
-    public async Task ReturnOfReturnOrchestrator_RejectsExpiredDeadline()
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(0, true)]
+    [InlineData(-1, false)]
+    public async Task ReturnOfReturnOrchestrator_UsesInjectedTimeAtSlaBoundary(long deadlineOffsetTicks, bool expectedEligible)
     {
         using var connection = new SqliteConnection("DataSource=:memory:");
         await connection.OpenAsync();
         await using var context = CreateContext(connection);
 
         SeedReturnOfReturnPrerequisites(context);
-        var source = new AchTransaction { Id = 10, Type = TransactionTypeEnum.Return, State = AchTransferStateEnum.ReturnedByOperator, SlaDeadlineAtUtc = DateTime.UtcNow.AddMinutes(-1), AchCycleId = "c1", Reference = "r", TransactionExternalId = "op-r", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000010", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
-        var ror = new AchTransaction { Id = 11, Type = TransactionTypeEnum.Return, AchCycleId = "c1", Reference = "r2", TransactionExternalId = "op-r2", CompanyName = "C", CompanyIdentification = "N", CompanyEntryDescriptionId = TestCompanyEntryDescriptionId, OriginatingDFI = "123456789", ReceivingDFI = "987654321", TraceNumber = "123456780000011", SourceAccountNumber = "1", DestinationAccountNumber = "2", SourceInstitutionId = 1, DestinationInstitutionId = 2, AchBatchId = 1, EffectiveEntryDate = DateTime.UtcNow.Date };
+        var now = new DateTimeOffset(2026, 10, 10, 15, 0, 0, TimeSpan.Zero);
+        var clock = new FixedTimeProvider(now, TimeZoneInfo.Utc);
+        var source = BuildReturnTx(10, "r", "op-r");
+        source.SlaDeadlineAtUtc = now.UtcDateTime.AddTicks(deadlineOffsetTicks);
+        source.EffectiveEntryDate = now.UtcDateTime.Date;
+        var ror = BuildReturnTx(11, "r2", "op-r2");
+        ror.EffectiveEntryDate = now.UtcDateTime.Date;
         context.AchTransactions.AddRange(source, ror);
         await context.SaveChangesAsync();
 
-        var catalog = new AchRegulatoryCatalogService(context);
-        var sut = new ReturnOfReturnOrchestrator(context, new AchReturnOfReturnEligibilityService(context, catalog));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R01", CancellationToken.None));
+        AchReturnOfReturnEligibilityRequest? capturedRequest = null;
+        var eligibility = new Mock<IAchReturnOfReturnEligibilityService>();
+        eligibility
+            .Setup(x => x.EvaluateAsync(It.IsAny<AchReturnOfReturnEligibilityRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<AchReturnOfReturnEligibilityRequest, CancellationToken>((request, _) => capturedRequest = request)
+            .ReturnsAsync(new AchReturnOfReturnEligibilityResult(true, 2, source.Id, "R01", "R02", false, Array.Empty<AchReturnOfReturnEligibilityFailure>()));
+        var sut = new ReturnOfReturnOrchestrator(context, eligibility.Object, timeProvider: clock);
+
+        if (!expectedEligible)
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.RegisterAsync(source, ror, "R02", CancellationToken.None));
+            Assert.Equal("El plazo operativo para devolución de devolución expiró.", ex.Message);
+            eligibility.Verify(x => x.EvaluateAsync(It.IsAny<AchReturnOfReturnEligibilityRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+            return;
+        }
+
+        var flow = await sut.RegisterAsync(source, ror, "R02", CancellationToken.None);
+
+        Assert.Equal(now.UtcDateTime, flow.OrchestratedAtUtc);
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(now.UtcDateTime, capturedRequest!.RequestedAtUtc);
     }
 
     [Fact]

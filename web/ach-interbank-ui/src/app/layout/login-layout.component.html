@@ -7,12 +7,12 @@
       <ng-template #defaultPublicLogo>ACH</ng-template>
     </div>
     <div class="brand-copy">
-      <p class="title">ACH Interbank</p>
+      <p class="title">{{ productName }}</p>
       <small>Operación financiera segura</small>
     </div>
   </header>
 
-  <main class="panel" aria-label="Acceso a ACH Interbank">
+  <main class="panel" [attr.aria-label]="'Acceso a ' + productName">
     <router-outlet></router-outlet>
   </main>
 </div>

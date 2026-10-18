@@ -13,6 +13,8 @@ using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.ManagedDigitalEnvelope;
 using Cfa.ACHInterbank.Domain.Entities.Ach.Dtos;
+using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Moq;
@@ -68,7 +70,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
 
         var result = await controller.Export(identifier, CancellationToken.None);
 
@@ -195,7 +199,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
 
         var result = await controller.Export(cycleId, CancellationToken.None);
 
@@ -269,7 +275,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
 
         var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
@@ -334,7 +342,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
 
         var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
@@ -409,7 +419,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
 
         var result = await controller.ExportEncrypted(cycleId, false, CancellationToken.None);
 
@@ -456,7 +468,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
 
         var result = await controller.Export(cycleId, CancellationToken.None);
 
@@ -498,7 +512,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
 
         var result = await controller.Export(cycleId, CancellationToken.None);
 
@@ -554,7 +570,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
 
         var result = await controller.Export(cycleId, CancellationToken.None);
 
@@ -593,7 +611,9 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
     }
 
     private static NachaExportController BuildControllerThrowing(string cycleId, Exception exception)
@@ -637,6 +657,8 @@ public class NachaExportControllerTests
             envelopePolicy.Object,
             identifierMapService.Object,
             auditService.Object,
-            externalFileNamePolicy.Object);
+            externalFileNamePolicy.Object,
+            NullLogger<NachaExportController>.Instance,
+            new OperationalTimeSnapshotProvider());
     }
 }

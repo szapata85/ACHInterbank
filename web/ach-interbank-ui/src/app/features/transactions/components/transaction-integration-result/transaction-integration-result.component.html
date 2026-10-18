@@ -4,7 +4,9 @@
       <p class="eyebrow">Resultado de integración</p>
       <h2 id="core-result-title">RESULTADO DEL PROCESAMIENTO EN EL CORE</h2>
     </div>
-    <button type="button" class="close" aria-label="Cerrar resultado" (click)="closePanel.emit()">×</button>
+    <button mat-icon-button type="button" class="close" aria-label="Cerrar resultado" (click)="closePanel.emit()">
+      <mat-icon fontSet="material-symbols-outlined" aria-hidden="true">close</mat-icon>
+    </button>
   </header>
 
   <ng-container *ngIf="latest as item; else noResult">
@@ -31,6 +33,6 @@
   </ng-container>
 
   <ng-template #noResult>
-    <p role="status">La transacción todavía no tiene resultados de procesamiento en el core.</p>
+    <p role="status">La transacción todavía no tiene resultados de procesamiento interno.</p>
   </ng-template>
 </aside>

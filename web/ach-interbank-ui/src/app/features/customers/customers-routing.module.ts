@@ -18,6 +18,22 @@ export const CUSTOMERS_ROUTES: Routes = [
         data: { breadcrumb: 'Nuevo cliente', title: 'Crear cliente', permissions: ['CanManageAch'] }
       },
       {
+        path: ':id/third-parties',
+        canActivate: [permissionGuard],
+        data: { breadcrumb: 'Terceros', title: 'Terceros del cliente', permissions: ['CanReadAch'] },
+        loadComponent: () =>
+          import('./third-party-administration/customer-third-parties-admin.component')
+            .then((m) => m.CustomerThirdPartiesAdminComponent)
+      },
+      {
+        path: ':id/third-parties/:thirdPartyId',
+        canActivate: [permissionGuard],
+        data: { breadcrumb: 'Detalle del tercero', title: 'Detalle del tercero', permissions: ['CanReadAch'] },
+        loadComponent: () =>
+          import('./third-party-administration/third-party-admin-detail.component')
+            .then((m) => m.ThirdPartyAdminDetailComponent)
+      },
+      {
         path: ':id/edit',
         component: CustomerFormComponent,
         canActivate: [permissionGuard],

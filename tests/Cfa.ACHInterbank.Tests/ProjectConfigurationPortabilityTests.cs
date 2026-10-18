@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Xml.Linq;
 
 namespace Cfa.ACHInterbank.Tests;
 
@@ -6,15 +7,28 @@ public class ProjectConfigurationPortabilityTests
 {
     private static readonly string RepoRoot = FindRepositoryRoot();
 
-    [Fact]
-    public void ApiProject_DocumentationFile_ShouldNotUseWindowsAbsolutePath()
+    [Theory]
+    [InlineData("Cfa.ACHInterbank.Api")]
+    [InlineData("Cfa.ACHInterbank.Application")]
+    [InlineData("Cfa.ACHInterbank.Domain")]
+    public void OpenApiContractProject_ShouldGenerateDocumentationXmlWithoutWindowsAbsolutePath(string projectName)
     {
-        var projectPath = Path.Combine(RepoRoot, "src", "Cfa.ACHInterbank.Api", "Cfa.ACHInterbank.Api.csproj");
-        var content = File.ReadAllText(projectPath);
+        var projectPath = Path.Combine(RepoRoot, "src", projectName, $"{projectName}.csproj");
+        var project = XDocument.Load(projectPath);
 
-        content.Should().Contain("<GenerateDocumentationFile>True</GenerateDocumentationFile>");
-        content.Should().NotMatchRegex(@"<DocumentationFile>[A-Za-z]:\\");
-        content.Should().Contain(@"<DocumentationFile>bin\$(Configuration)\$(TargetFramework)\Cfa.ACHInterbank.Api.xml</DocumentationFile>");
+        var generateDocumentationFile = project
+            .Descendants()
+            .FirstOrDefault(element => element.Name.LocalName == "GenerateDocumentationFile");
+
+        generateDocumentationFile.Should().NotBeNull($"{projectName} expone documentación usada por OpenAPI");
+        bool.TryParse(generateDocumentationFile!.Value, out var enabled).Should().BeTrue();
+        enabled.Should().BeTrue($"{projectName} debe generar su XML de documentación");
+
+        foreach (var documentationFile in project.Descendants().Where(element => element.Name.LocalName == "DocumentationFile"))
+        {
+            documentationFile.Value.Trim().Should().NotMatchRegex(@"^(?:[A-Za-z]:[\\/]|\\\\)",
+                $"{projectName} no debe depender de una ruta absoluta de Windows para generar XML");
+        }
     }
 
     [Fact]

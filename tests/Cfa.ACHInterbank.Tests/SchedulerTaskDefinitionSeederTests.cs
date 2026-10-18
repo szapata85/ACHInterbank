@@ -2,6 +2,7 @@ using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation.Seeders;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
+using Cfa.ACHInterbank.Persistence.Scheduler;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,8 +36,14 @@ public sealed class SchedulerTaskDefinitionSeederTests
         var outboundMft = tasks.Single(x => x.Code == "AchColombiaManagedMftOutbound");
         outboundMft.ManualExecutionEnabled.Should().BeFalse();
         outboundMft.ConcurrencyPolicy.Should().Be(ConcurrencyPolicyEnum.SkipIfRunning);
+        outboundMft.PeriodicityType.Should().Be(PeriodicityTypeEnum.EveryNMinutes);
+        outboundMft.N.Should().Be(5); // metadata legacy conservada; SchedulerSyncService no la usa como trigger primario ACHCOL outbound.
+        SchedulerTaskCatalog.ByHandlerCode("AchColombiaManagedMftOutbound")!.UsesCycleSchedule.Should().BeFalse();
         var inboundMft = tasks.Single(x => x.Code == "AchColombiaManagedMftInbound");
         inboundMft.ManualExecutionEnabled.Should().BeFalse();
         inboundMft.ConcurrencyPolicy.Should().Be(ConcurrencyPolicyEnum.SkipIfRunning);
+        inboundMft.PeriodicityType.Should().Be(PeriodicityTypeEnum.EveryNMinutes);
+        inboundMft.N.Should().Be(3);
+        SchedulerTaskCatalog.ByHandlerCode("AchColombiaManagedMftInbound")!.UsesCycleSchedule.Should().BeFalse();
     }
 }

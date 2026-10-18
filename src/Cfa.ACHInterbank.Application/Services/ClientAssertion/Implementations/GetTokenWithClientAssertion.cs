@@ -6,8 +6,10 @@ using Cfa.ACHInterbank.Application.External.Connections;
 using Cfa.ACHInterbank.Application.Services.ClientAssertion.Interfaces;
 using Cfa.ACHInterbank.Application.Services.ClientAssertion.Model;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
+using IntegrationOptions = Cfa.ACHInterbank.Domain.Models.Configurations.Integrations;
 using Cfa.OpenData.Domain.Models.Response;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using static Cfa.ACHInterbank.Domain.Entities.JwksService.JwksService;
 
 namespace Cfa.ACHInterbank.Application.Services.ClientAssertion.Implementations;
@@ -18,12 +20,19 @@ public class GetTokenWithClientAssertion : IGetTokenWithClientAssertion
 
     private readonly IKeysRepository _keysRepository;
     private readonly IHttpClientService _httpClient;
-    private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly TokenGeneric _tokenSettings;
+    private readonly IntegrationOptions _integrationSettings;
 
-    public GetTokenWithClientAssertion(IKeysRepository keysRepository, IHttpClientService httpClient)
+    public GetTokenWithClientAssertion(
+        IKeysRepository keysRepository,
+        IHttpClientService httpClient,
+        IOptions<TokenGeneric> tokenOptions,
+        IOptions<IntegrationOptions> integrationOptions)
     {
         _keysRepository = keysRepository;
         _httpClient = httpClient;
+        _tokenSettings = tokenOptions?.Value ?? throw new ArgumentNullException(nameof(tokenOptions));
+        _integrationSettings = integrationOptions?.Value ?? throw new ArgumentNullException(nameof(integrationOptions));
     }
 
     public async Task<Response<TokenClientAssertion>> GenerateClientAssertion()
@@ -34,10 +43,10 @@ public class GetTokenWithClientAssertion : IGetTokenWithClientAssertion
             var ClientAssertion = CreateClientAssertion();
             var TokenClient = new SendClientAssertion
             {
-                grant_type = _appSettings.TokenGeneric!.grant_type,
-                client_assertion_type = _appSettings.TokenGeneric.client_assertion_type,
+                grant_type = _tokenSettings.grant_type,
+                client_assertion_type = _tokenSettings.client_assertion_type,
                 client_assertion = ClientAssertion,
-                scope = _appSettings.TokenGeneric.scope,
+                scope = _tokenSettings.scope,
             };
             var url = "https://agregacioninformacionofcer.achcolombia.com.co:8446/realms/agregacion/protocol/openid-connect/token";
             response.Result = await _httpClient.SendPostRequestAsync<TokenClientAssertion>(url, TokenClient, HttpMethod.Post, TypeBody.Query, string.Empty);
@@ -59,9 +68,9 @@ public class GetTokenWithClientAssertion : IGetTokenWithClientAssertion
         var expirationTime = now.AddMinutes(10);
         var claims = new[]
         {
-            new Claim(JwtRegisteredClaimNames.Iss, _appSettings.TokenGeneric!.clientId!),
-            new Claim(JwtRegisteredClaimNames.Sub, _appSettings.TokenGeneric!.clientId!),
-            new Claim(JwtRegisteredClaimNames.Aud, _appSettings.Integrations!.UrlAch!),
+            new Claim(JwtRegisteredClaimNames.Iss, _tokenSettings.clientId!),
+            new Claim(JwtRegisteredClaimNames.Sub, _tokenSettings.clientId!),
+            new Claim(JwtRegisteredClaimNames.Aud, _integrationSettings.UrlAch!),
             new Claim(JwtRegisteredClaimNames.Exp, ((int)(expirationTime - DateTime.UnixEpoch).TotalSeconds).ToString()),
             new Claim(JwtRegisteredClaimNames.Iat, ((int)(now - DateTime.UnixEpoch).TotalSeconds).ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),

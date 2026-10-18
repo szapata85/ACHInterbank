@@ -394,8 +394,7 @@ public class NachaSemanticValidator : INachaSemanticValidator
         var newTrace = addendaRecord.Substring(NewTraceStart, NewTraceLength).Trim();
         var entrySequence = addendaRecord.Substring(EntrySequenceStart, EntrySequenceLength).Trim();
 
-        if (!(returnReason.Length == 3 && returnReason.StartsWith('R'))
-            && !string.Equals(returnReason, "DEV14", StringComparison.OrdinalIgnoreCase))
+        if (!(returnReason.Length == 3 && returnReason.StartsWith('R')))
         {
             throw new InvalidOperationException($"La causal de devolución es inválida en lote ordinal {batchOrdinal + 1}, entrada ordinal {entryOrdinal + 1}.");
         }

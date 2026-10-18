@@ -24,6 +24,13 @@ public sealed record CenitReturnOfReturnInRequest(
     DateTime ReceivedAtUtc,
     string IdempotencyKey);
 
+/// <summary>Resultado del servicio CENIT de devolución de devolución expuesto por la creación saliente.</summary>
+/// <param name="IsSuccessful">Indica si el servicio completó exitosamente la creación solicitada.</param>
+/// <param name="WasDuplicate">Indica si el servicio identificó la solicitud como duplicada.</param>
+/// <param name="FlowId">Identificador del flujo de devolución de devolución cuando existe.</param>
+/// <param name="ReturnOfReturnTransactionId">Identificador de la transacción de devolución de devolución cuando existe.</param>
+/// <param name="Code">Código de resultado producido por el servicio.</param>
+/// <param name="Message">Mensaje de resultado producido por el servicio.</param>
 public sealed record CenitReturnOfReturnResult(
     bool IsSuccessful,
     bool WasDuplicate,

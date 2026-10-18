@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ApiService } from '../../../core/services/api.service';
 import { map, Observable } from 'rxjs';
 import { ApiResponse } from '../../../core/models/api-response.model';
-import { PagedResponse, SaveUserRequest, UserFilter, UserSummary, RoleSummary } from '../models/user.model';
+import { PagedResponse, SaveUserRequest, UserFilter, UserSummary } from '../models/user.model';
 
 @Injectable({ providedIn: 'root' })
 export class UsersApiService {
@@ -46,12 +46,3 @@ export class UsersApiService {
   }
 }
 
-@Injectable({ providedIn: 'root' })
-export class RolesApiService {
-  private readonly api = inject(ApiService);
-  private readonly basePath = 'api/roles';
-
-  getRoles(): Observable<RoleSummary[]> {
-    return this.api.get<RoleSummary[]>(this.basePath);
-  }
-}

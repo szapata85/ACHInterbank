@@ -1,18 +1,25 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterModule } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { forkJoin, of, take } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SharedModule } from '../../../../shared/shared.module';
 import { BulkBatchStatusDto, BulkIngestionBatchStatus, BulkIngestionRetryScope } from '../../transactions.models';
 import { BulkIngestionTrackingApiService } from '../../services/bulk-ingestion-tracking-api.service';
 
+const BULK_INGESTION_RETRY_PERMISSIONS = ['BulkIngestion.Retry', 'CanManageAch'];
+
 @Component({
   selector: 'app-bulk-ingestion-tracking',
   standalone: true,
-  imports: [SharedModule, RouterModule],
+  imports: [SharedModule, RouterModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   templateUrl: './bulk-ingestion-tracking.component.html',
   styleUrls: ['./bulk-ingestion-tracking.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -20,6 +27,7 @@ import { BulkIngestionTrackingApiService } from '../../services/bulk-ingestion-t
 export class BulkIngestionTrackingComponent {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(BulkIngestionTrackingApiService);
+  private readonly auth = inject(AuthService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
 
@@ -38,7 +46,7 @@ export class BulkIngestionTrackingComponent {
       valueGetter: (params) => `${params.data?.batchReference ?? '-'} (${params.data?.batchId ?? ''})`
     },
     { headerName: 'Estado', minWidth: 170, valueGetter: (params) => params.data ? this.statusLabel(params.data.status) : '' },
-    { field: 'uploadedAtUtc', headerName: 'Fecha carga', minWidth: 180, valueFormatter: (params) => params.value ? new Date(params.value).toLocaleString('es-CO') : '-' },
+    { field: 'uploadedAtUtc', headerName: 'Fecha de carga', minWidth: 180, valueFormatter: (params) => params.value ? new Date(params.value).toLocaleString('es-CO') : '-' },
     { field: 'totalRecords', headerName: 'Total', width: 110 },
     { field: 'progressPercent', headerName: 'Progreso', width: 120, valueFormatter: (params) => `${Number(params.value ?? 0).toFixed(2)}%` },
     { field: 'totalSucceeded', headerName: 'Éxitos', width: 110 },
@@ -48,7 +56,7 @@ export class BulkIngestionTrackingComponent {
       minWidth: 220,
       sortable: false,
       filter: false,
-      cellRenderer: (params) => this.canRetry(params.data?.status as BulkIngestionBatchStatus)
+      cellRenderer: (params) => this.canRetryBatches && this.canRetry(params.data?.status as BulkIngestionBatchStatus)
         ? '<button class="btn btn-outline btn-grid" data-action="detail" title="Ver detalle del lote"><span class="material-symbols-outlined">visibility</span></button> <button class="btn btn-secondary btn-grid" data-action="retry" title="Reintentar registros fallidos"><span class="material-symbols-outlined">refresh</span></button>'
         : '<button class="btn btn-outline btn-grid" data-action="detail" title="Ver detalle del lote"><span class="material-symbols-outlined">visibility</span></button>',
       onCellClicked: (params) => {
@@ -65,7 +73,7 @@ export class BulkIngestionTrackingComponent {
   ];
 
   readonly filteredRows = computed(() => {
-    const selectedStatus = this.filtrosForm.controls.status.value ?? 'ALL';
+    const selectedStatus = this.statusFilter();
     return this.rows().filter((row) => selectedStatus === 'ALL' || String(row.status) === selectedStatus);
   });
 
@@ -125,12 +133,17 @@ export class BulkIngestionTrackingComponent {
 
     this.isLoading.set(true);
     forkJoin(ids.map((id) => this.api.getBatch(id).pipe(catchError(() => of(null))))).pipe(take(1)).subscribe((items) => {
-      this.rows.set(items.filter((item): item is BulkBatchStatusDto => !!item));
+      this.rows.set(items
+        .filter((item): item is BulkBatchStatusDto => !!item)
+        .sort((a, b) => new Date(b.uploadedAtUtc).getTime() - new Date(a.uploadedAtUtc).getTime()));
       this.isLoading.set(false);
     });
   }
 
   retryFailed(batchId: string): void {
+    if (!this.ensureCanRetry()) {
+      return;
+    }
     if (this.isLoading()) {
       return;
     }
@@ -164,8 +177,21 @@ export class BulkIngestionTrackingComponent {
     return map[status] ?? `Estado ${status}`;
   }
 
+  get canRetryBatches(): boolean {
+    return this.auth.hasPermission(BULK_INGESTION_RETRY_PERMISSIONS);
+  }
+
   canRetry(status: BulkIngestionBatchStatus): boolean {
     return status === BulkIngestionBatchStatus.PartiallyProcessed || status === BulkIngestionBatchStatus.Failed;
+  }
+
+  private ensureCanRetry(): boolean {
+    if (this.canRetryBatches) {
+      return true;
+    }
+
+    this.notifications.error('No tiene permisos para reintentar lotes de carga.');
+    return false;
   }
 
   private refreshSingle(batchId: string): void {

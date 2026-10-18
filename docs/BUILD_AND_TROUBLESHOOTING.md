@@ -1,7 +1,7 @@
 # Build y troubleshooting — ACHInterbank
 
 **Baseline:** 2026-09-29  
-**SDK requerido:** .NET 10.0.300 (`global.json`, `rollForward=latestPatch`)
+**SDK requerido:** .NET 10.0.402 (`global.json`, `rollForward=latestPatch`)
 
 ## 1. NU1105 de `Cfa.ACHInterbank.Persistence.Migrations.SqlServer`
 
@@ -80,13 +80,13 @@ El repositorio usa `net10.0` en todos sus proyectos .NET y fija:
 ```json
 {
   "sdk": {
-    "version": "10.0.300",
+    "version": "10.0.402",
     "rollForward": "latestPatch"
   }
 }
 ```
 
-Si `dotnet --list-sdks` no muestra un SDK 10.0.3xx compatible, instalar/actualizar el SDK o el workload de Visual Studio antes de investigar errores secundarios de restore.
+Si `dotnet --list-sdks` no muestra el SDK 10.0.402 o un parche compatible del mismo feature band, instalar/actualizar el SDK o el workload de Visual Studio antes de investigar errores secundarios de restore.
 
 ## 5. Migraciones SQL Server y PostgreSQL
 
@@ -105,7 +105,7 @@ En el entorno usado para preparar este paquete no está instalado el SDK `dotnet
 - resolución de todos los `ProjectReference`;
 - revisión del grafo de dependencias y del `global.json`.
 
-El build/test final debe ejecutarse en tu estación con .NET 10/Visual Studio 2026. No se declara compilación exitosa sin esa evidencia.
+El build/test final debe ejecutarse en tu estación con .NET SDK 10.0.402 / runtime 10.0.13 / Visual Studio 2026. No se declara compilación exitosa sin esa evidencia.
 
 ## 7. Error al iniciar: `No configured connection string was found for provider 'SqlServer'`
 

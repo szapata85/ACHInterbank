@@ -22,8 +22,7 @@ import { Subject } from 'rxjs';
 import { filter, finalize, takeUntil } from 'rxjs/operators';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { DestinationInstitution } from '../../transactions/transactions.models';
-import { FinancialInstitutionStatusEnum } from '../../transactions/transactions.types';
+import { DestinationInstitution, FinancialInstitutionStatusEnum } from '../../../core/models/financial-institution.model';
 import {
   FinancialInstitutionAdminService,
   FinancialInstitutionPayload
@@ -80,7 +79,7 @@ export class FinancialInstitutionsComponent implements OnInit, OnDestroy {
     { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 240, filter: 'agTextColumnFilter' },
     { field: 'routingNumber', headerName: 'Routing', minWidth: 120, maxWidth: 150 },
     { field: 'transitCode', headerName: 'Transit', minWidth: 110, maxWidth: 130 },
-    { field: 'checkDigit', headerName: 'Dígito', minWidth: 105, maxWidth: 125 },
+    { field: 'checkDigit', headerName: 'Dígito de chequeo', minWidth: 105, maxWidth: 125 },
     {
       field: 'isDefaultSource',
       headerName: 'Origen por defecto',

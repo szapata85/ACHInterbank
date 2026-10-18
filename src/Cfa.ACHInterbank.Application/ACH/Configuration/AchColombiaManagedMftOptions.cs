@@ -9,4 +9,5 @@ public sealed class AchColombiaManagedMftOptions
     public string ProcessingPath { get; set; } = string.Empty;
     public string ArchivePath { get; set; } = string.Empty;
     public long MaximumFileBytes { get; set; } = 10 * 1024 * 1024;
+    public int SftpTimeoutSeconds { get; set; } = 30;
 }

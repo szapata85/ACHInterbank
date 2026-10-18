@@ -6,7 +6,6 @@ import { forkJoin, finalize } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -21,9 +20,14 @@ import { Sort, MatSortModule } from '@angular/material/sort';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/services/auth.service';
-import { ConfirmationDialogComponent, ConfirmationDialogData } from './clearing-house-dialogs.component';
-import { ClearingHouse, ClearingHouseInput, NachaProfileOption, PaymentRailOption } from './clearing-houses.models';
-import { ClearingHousesService } from './clearing-houses.service';
+import { PageHeaderComponent } from '../../shared/components/page-header.component';
+import { UiEstadoCargaComponent } from '../../shared/components/ui/ui-estado-carga.component';
+import { UiEstadoErrorComponent } from '../../shared/components/ui/ui-estado-error.component';
+import { UiEstadoVacioComponent } from '../../shared/components/ui/ui-estado-vacio.component';
+import { UiEtiquetaEstadoComponent } from '../../shared/components/ui/ui-etiqueta-estado.component';
+import { OperationalConfirmDialogComponent, OperationalConfirmDialogData } from '../../shared/components/operational-confirm-dialog.component';
+import { ClearingHouse, ClearingHouseInput, NachaProfileOption, PaymentRailOption } from '../../core/models/clearing-house.model';
+import { ClearingHousesService } from '../../core/services/clearing-houses.service';
 
 type StateFilter = 'all' | 'active' | 'inactive';
 
@@ -37,7 +41,6 @@ type StateFilter = 'all' | 'active' | 'inactive';
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
-    MatChipsModule,
     MatDialogModule,
     MatDividerModule,
     MatFormFieldModule,
@@ -50,7 +53,12 @@ type StateFilter = 'all' | 'active' | 'inactive';
     MatSnackBarModule,
     MatSortModule,
     MatTableModule,
-    MatTooltipModule
+    MatTooltipModule,
+    PageHeaderComponent,
+    UiEstadoCargaComponent,
+    UiEstadoErrorComponent,
+    UiEstadoVacioComponent,
+    UiEtiquetaEstadoComponent
   ],
   templateUrl: './clearing-houses.component.html',
   styleUrl: './clearing-houses.component.scss'
@@ -84,6 +92,7 @@ export class ClearingHousesComponent implements OnInit {
   readonly canStatus = this.auth.hasPermission('ClearingHouses.ChangeStatus');
   readonly canCycles = this.auth.hasPermission('ClearingHouses.ManageCycles');
   readonly canSpecialDates = this.auth.hasPermission('ClearingHouses.ManageSpecialDates');
+  readonly canReadOperationalRestrictions = this.auth.hasPermission('OperationalRestrictions.Read');
 
   readonly filterForm = this.fb.nonNullable.group({
     search: [''],
@@ -270,7 +279,7 @@ export class ClearingHousesComponent implements OnInit {
     this.confirm({
       title: 'Descartar cambios',
       message: 'Hay cambios sin guardar. Si continúa, se perderán los datos del formulario.',
-      confirmText: 'Descartar cambios',
+      confirmLabel: 'Descartar cambios',
       icon: 'edit_off',
       destructive: true
     }).subscribe(confirmed => {
@@ -287,7 +296,7 @@ export class ClearingHousesComponent implements OnInit {
     this.confirm({
       title: `${row.isActive ? 'Desactivar' : 'Activar'} cámara`,
       message: `¿Desea ${action} ${row.name} (${row.code})? Este cambio afecta su disponibilidad operativa.`,
-      confirmText: row.isActive ? 'Desactivar' : 'Activar',
+      confirmLabel: row.isActive ? 'Desactivar' : 'Activar',
       icon: row.isActive ? 'pause_circle' : 'play_circle',
       destructive: row.isActive
     }).subscribe(confirmed => {
@@ -324,8 +333,8 @@ export class ClearingHousesComponent implements OnInit {
     }
   }
 
-  private confirm(data: ConfirmationDialogData) {
-    return this.dialog.open(ConfirmationDialogComponent, {
+  private confirm(data: OperationalConfirmDialogData) {
+    return this.dialog.open(OperationalConfirmDialogComponent, {
       data,
       width: 'min(92vw, 520px)',
       autoFocus: 'dialog',

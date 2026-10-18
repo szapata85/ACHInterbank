@@ -128,7 +128,7 @@ public class AchTraceabilityServiceTests
             {
                 OriginalTransactionId = 10,
                 ReturnCycleId = cycle.Id,
-                ReturnReasonCode = "DEV14",
+                ReturnReasonCode = "R01",
                 Amount = 1500m,
                 NewSequenceNumber = "765432100000001",
                 OriginalSequenceNumber = "123456780000001",
@@ -156,6 +156,6 @@ public class AchTraceabilityServiceTests
         Assert.Equal("RET_cycle-1_20260323110000.RET", traceability.ReturnFileName);
         Assert.Equal("cycle-1", traceability.ReturnCycleId);
         Assert.Equal(10, traceability.ReturnOriginalTransactionId);
-        Assert.Equal("DEV14", traceability.ReturnReasonCode);
+        Assert.Equal("R01", traceability.ReturnReasonCode);
     }
 }

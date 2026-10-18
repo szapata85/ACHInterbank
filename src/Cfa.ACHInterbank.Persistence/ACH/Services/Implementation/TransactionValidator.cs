@@ -15,7 +15,7 @@ namespace Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 public class TransactionValidator : ITransactionValidator
 {
     private readonly AchDbContext _context;
-    private static readonly Regex ReturnReasonRegex = new(@"^(R\d{2}|DEV14)$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex ReturnReasonRegex = new(@"^R\d{2}$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex ExternalIdRegex = new(@"^[A-Za-z0-9\-_/.]{1,64}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex ReferenceRegex = new(@"^[A-Za-z0-9\-_/]{1,30}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     public TransactionValidator(AchDbContext context)
@@ -322,7 +322,7 @@ public class TransactionValidator : ITransactionValidator
         var normalized = value.Trim().ToUpperInvariant();
         if (!ReturnReasonRegex.IsMatch(normalized))
         {
-            throw new ArgumentException("El código de retorno debe cumplir el formato ^R\\d{2}$ o DEV14.", nameof(value));
+            throw new ArgumentException("El código de retorno debe cumplir el formato ^R\\d{2}$.", nameof(value));
         }
 
         if (!_context.AchReturnCodes.AsNoTracking().Any(x => x.IsActive && x.Code == normalized))

@@ -315,6 +315,57 @@ public class NachaInboundSimulatorTests
     }
 
     [Fact]
+    public async Task ProductionMode_WithSafeGuardrails_ShouldGenerateWithoutEnvironmentRejection()
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var output = CreateTempOutput();
+        var service = CreateService(context, output, configure: options => options.Mode = "Production");
+
+        var response = await service.GenerateAsync(new GenerateNachaInboundSimulationRequest
+        {
+            ClearingHouseCode = "ACHCOL",
+            ScenarioType = NachaInboundSimulationType.IncomingCredit,
+            OriginFinancialInstitutionId = 2,
+            EntriesCount = 1,
+            Amount = 1000,
+            ReferencePrefix = "PROD-SIM",
+            BusinessDate = new DateOnly(2026, 5, 20),
+            CycleCode = "ACH-CYCLE"
+        }, "authorized-test-tools-user");
+
+        Assert.True(response.GeneratedOnly);
+        Assert.False(response.AutoImported);
+        Assert.True(response.UploadRequired);
+        Assert.False(response.ExternalTransmission);
+        Assert.Equal(0, await context.IncomingNachaFileIngestions.CountAsync());
+        Assert.Single(Directory.GetFiles(output, response.FileName, SearchOption.AllDirectories));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Preview_ShouldBlock_WhenFunctionalExternalEffectGuardrailIsUnsafe(bool allowAutoImport, bool allowExternalTransmission)
+    {
+        await using var context = CreateContext();
+        Seed(context);
+        var service = CreateService(
+            context,
+            CreateTempOutput(),
+            configure: options =>
+            {
+                options.Mode = "Production";
+                options.AllowAutoImport = allowAutoImport;
+                options.AllowExternalTransmission = allowExternalTransmission;
+            });
+
+        var preview = await service.PreviewAsync(ValidPreview("ACH-CYCLE"));
+
+        Assert.False(preview.Eligible);
+        Assert.Equal("SIMULATOR_GUARDRAIL_FAILED", preview.FunctionalCode);
+    }
+
+    [Fact]
     public async Task MenuSeed_ShouldExposeInboundSimulator()
     {
         await using var context = CreateContext();
@@ -593,8 +644,10 @@ public class NachaInboundSimulatorTests
         AchDbContext context,
         string output,
         INachaFileBuilder? builder = null,
-        INachaConfigResolver? profileResolver = null)
-        => new(context, Options.Create(new NachaInboundSimulatorOptions
+        INachaConfigResolver? profileResolver = null,
+        Action<NachaInboundSimulatorOptions>? configure = null)
+    {
+        var options = new NachaInboundSimulatorOptions
         {
             Enabled = true,
             Mode = "UAT",
@@ -606,7 +659,14 @@ public class NachaInboundSimulatorTests
             OutputDirectory = output,
             MaxEntriesPerSimulation = 10,
             AllowedClearingHouses = ["ACHCOL", "CENIT"]
-        }), profileResolver: profileResolver, nachaFileBuilder: builder);
+        };
+        configure?.Invoke(options);
+        return new NachaInboundSimulationService(
+            context,
+            Options.Create(options),
+            profileResolver: profileResolver,
+            nachaFileBuilder: builder);
+    }
 
     private static string CreateTempOutput()
     {

@@ -1,52 +1,163 @@
-<app-page-header title="Revisión manual de respuestas ACH" description="Bandeja resolutiva de respuestas críticas y huérfanas"></app-page-header>
+<app-page-header
+  title="Revisión manual"
+  description="Bandeja resolutiva de respuestas críticas y huérfanas"
+></app-page-header>
 
 <form class="filtros" [formGroup]="filtrosForm" (ngSubmit)="applyFilters()">
-  <div class="campo"><label>Fecha desde</label><input type="date" formControlName="fechaDesde" /></div>
-  <div class="campo"><label>Fecha hasta</label><input type="date" formControlName="fechaHasta" /></div>
-  <div class="campo"><label>Estado crítico</label><select formControlName="estadoProcesamiento"><option *ngFor="let estado of criticalStates" [value]="estado">{{ estado }}</option></select></div>
-  <div class="campo"><label>Tipo respuesta</label><select formControlName="tipoRespuesta"><option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</option></select></div>
-  <div class="campo"><label>ID transacción</label><input type="text" formControlName="idTransaccion" /></div>
-  <div class="campo"><label>Selector de cámara</label><input type="text" formControlName="codigoCamaraCompensacion" /></div>
-  <div class="campo"><label>Entidad origen</label><input type="text" formControlName="codigoEntidadOrigen" /></div>
-  <div class="campo"><label>Entidad destino</label><input type="text" formControlName="codigoEntidadDestino" /></div>
+  <mat-form-field appearance="outline">
+    <mat-label>Fecha desde</mat-label>
+    <input matInput type="date" formControlName="fechaDesde" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Fecha hasta</mat-label>
+    <input matInput type="date" formControlName="fechaHasta" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Estado crítico</mat-label>
+    <mat-select formControlName="estadoProcesamiento">
+      <mat-option *ngFor="let estado of criticalStates" [value]="estado">{{ estado }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Tipo de respuesta</mat-label>
+    <mat-select formControlName="tipoRespuesta">
+      <mat-option *ngFor="let tipo of tiposRespuesta" [value]="tipo">{{ tipo || 'Todos' }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>ID de transacción</mat-label>
+    <input matInput type="text" formControlName="idTransaccion" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Cámara</mat-label>
+    <input matInput type="text" formControlName="codigoCamaraCompensacion" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Entidad origen</mat-label>
+    <input matInput type="text" formControlName="codigoEntidadOrigen" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Entidad destino</mat-label>
+    <input matInput type="text" formControlName="codigoEntidadDestino" />
+  </mat-form-field>
+
   <div class="acciones">
-    <ui-boton texto="Buscar" variante="primario" [deshabilitado]="loading" (accion)="applyFilters()"></ui-boton>
-    <ui-boton texto="Limpiar" variante="contorno" [deshabilitado]="loading" (accion)="clearFilters()"></ui-boton>
+    <button mat-flat-button color="primary" type="submit" [disabled]="loading">Buscar</button>
+    <button mat-stroked-button type="button" [disabled]="loading" (click)="clearFilters()">Limpiar filtros</button>
   </div>
 </form>
 
-<p class="resumen">Mostrando {{ rows.length }} de {{ totalCount }} casos. Página {{ filtrosForm.controls.pageNumber.value }} de {{ totalPages || 1 }}.</p>
-<ui-grilla-empresarial [columnas]="columnas" [datos]="rows" [cargando]="loading" [error]="error"
+<p class="resumen">
+  Mostrando {{ rows.length }} de {{ totalCount }} casos. Página {{ filtrosForm.controls.pageNumber.value }} de {{ totalPages || 1 }}.
+</p>
+
+<ui-grilla-empresarial
+  [columnas]="columnas"
+  [datos]="rows"
+  [cargando]="loading"
+  [error]="error"
   [mensajeError]="'No fue posible cargar los casos de revisión manual ACH'"
-  [mensajeCargando]="'Cargando casos críticos de revisión manual...'" [tituloVacio]="'Sin casos críticos'"
-  [mensajeVacio]="'No se encontraron respuestas en estado crítico.'" [placeholderBusqueda]="'Buscar en revisión manual...'"
-  [paginacion]="true" [tamanoPagina]="filtrosForm.controls.pageSize.value ?? 20" (reintentar)="applyFilters()">
-</ui-grilla-empresarial>
+  [mensajeCargando]="'Cargando casos críticos de revisión manual...'"
+  [tituloVacio]="'Sin casos críticos'"
+  [mensajeVacio]="'No se encontraron respuestas en estado crítico.'"
+  [placeholderBusqueda]="'Buscar en revisión manual...'"
+  [paginacion]="true"
+  [tamanoPagina]="filtrosForm.controls.pageSize.value ?? 20"
+  (reintentar)="applyFilters()"
+></ui-grilla-empresarial>
 
 <div class="paginacion">
-  <label for="pageSize">Tamaño página</label>
-  <select id="pageSize" [value]="filtrosForm.controls.pageSize.value ?? 20" (change)="setPageSize(+$any($event.target).value)"><option [value]="10">10</option><option [value]="20">20</option><option [value]="50">50</option></select>
-  <ui-boton texto="Anterior" variante="contorno" [deshabilitado]="loading || (filtrosForm.controls.pageNumber.value ?? 1) <= 1" (accion)="previousPage()"></ui-boton>
-  <ui-boton texto="Siguiente" variante="contorno" [deshabilitado]="loading || (filtrosForm.controls.pageNumber.value ?? 1) >= (totalPages || 1)" (accion)="nextPage()"></ui-boton>
+  <mat-form-field appearance="outline" class="page-size-field">
+    <mat-label>Tamaño de página</mat-label>
+    <mat-select [value]="filtrosForm.controls.pageSize.value ?? 20" (selectionChange)="setPageSize($event.value)">
+      <mat-option [value]="10">10</mat-option>
+      <mat-option [value]="20">20</mat-option>
+      <mat-option [value]="50">50</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <button
+    mat-stroked-button
+    type="button"
+    [disabled]="loading || (filtrosForm.controls.pageNumber.value ?? 1) <= 1"
+    (click)="previousPage()"
+  >Anterior</button>
+  <button
+    mat-stroked-button
+    type="button"
+    [disabled]="loading || (filtrosForm.controls.pageNumber.value ?? 1) >= (totalPages || 1)"
+    (click)="nextPage()"
+  >Siguiente</button>
 </div>
 
-<h2>Respuestas huérfanas</h2>
-<p *ngIf="orphanLoading">Cargando huérfanas...</p>
-<p *ngIf="!orphanLoading && orphans.length === 0">No hay respuestas huérfanas pendientes.</p>
-<div *ngFor="let orphan of orphans" class="nota-operativa">
-  <strong>{{ orphan.responseType }} · {{ orphan.externalCode }}</strong>
-  <span> Estado: {{ orphan.resolutionStatus }} · Cámara #{{ orphan.clearingHouseId }}</span>
-  <span> Motivo: {{ orphan.orphanReason }}</span>
-  <ui-boton texto="Seleccionar" variante="contorno" [deshabilitado]="resolving" (accion)="selectOrphan(orphan)"></ui-boton>
-</div>
+<section class="orphan-section" aria-labelledby="orphan-heading">
+  <h2 id="orphan-heading">Respuestas huérfanas</h2>
 
-<form class="filtros" [formGroup]="resolutionForm">
-  <div class="campo"><label>Huérfana seleccionada</label><input type="text" formControlName="orphanId" readonly /></div>
-  <div class="campo"><label>Referencia funcional exacta</label><input type="text" formControlName="functionalReference" /></div>
-  <div class="campo"><label>Justificación obligatoria</label><textarea formControlName="reason" rows="2"></textarea></div>
-  <div class="campo"><label><input type="checkbox" formControlName="reject" /> Rechazar sin asociar</label></div>
-  <div class="acciones">
-    <ui-boton texto="Iniciar revisión" variante="contorno" [deshabilitado]="resolving" (accion)="beginSelectedReview()"></ui-boton>
-    <ui-boton texto="Resolver" variante="primario" [deshabilitado]="resolving" (accion)="resolveSelectedOrphan()"></ui-boton>
+  <ui-estado-carga
+    *ngIf="orphanLoading"
+    mensaje="Cargando respuestas huérfanas..."
+  ></ui-estado-carga>
+
+  <ui-estado-error
+    *ngIf="!orphanLoading && orphanError"
+    titulo="No fue posible cargar las respuestas huérfanas"
+    mensaje="Intente nuevamente la consulta de respuestas huérfanas."
+    (reintentar)="loadOrphans()"
+  ></ui-estado-error>
+
+  <ui-estado-vacio
+    *ngIf="!orphanLoading && !orphanError && orphans.length === 0"
+    titulo="Sin respuestas huérfanas"
+    mensaje="No hay respuestas huérfanas pendientes."
+    [sugerencia]="''"
+  ></ui-estado-vacio>
+
+  <ng-container *ngIf="!orphanLoading && !orphanError">
+    <article *ngFor="let orphan of orphans" class="nota-operativa">
+      <strong>{{ orphan.responseType }} · {{ orphan.externalCode }}</strong>
+      <span class="orphan-meta">
+        Estado:
+        <ui-etiqueta-estado
+          [estado]="getOrphanResolutionStatusState(orphan.resolutionStatus)"
+          [texto]="orphan.resolutionStatus"
+        ></ui-etiqueta-estado>
+        · Cámara #{{ orphan.clearingHouseId }}
+      </span>
+      <span>Motivo: {{ orphan.orphanReason }}</span>
+      <button *ngIf="canManageManualReview" mat-stroked-button type="button" [disabled]="resolving" (click)="selectOrphan(orphan)">Seleccionar</button>
+    </article>
+  </ng-container>
+</section>
+
+<form *ngIf="canManageManualReview" class="resolution-form" [formGroup]="resolutionForm">
+  <mat-form-field appearance="outline">
+    <mat-label>Huérfana seleccionada</mat-label>
+    <input matInput type="text" formControlName="orphanId" readonly />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Referencia funcional exacta</mat-label>
+    <input matInput type="text" formControlName="functionalReference" />
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="reason-field">
+    <mat-label>Justificación obligatoria</mat-label>
+    <textarea matInput formControlName="reason" rows="2"></textarea>
+  </mat-form-field>
+
+  <div class="reject-field">
+    <mat-checkbox formControlName="reject">Rechazar sin asociar</mat-checkbox>
+  </div>
+
+  <div class="acciones resolution-actions">
+    <button mat-stroked-button type="button" [disabled]="resolving" (click)="beginSelectedReview()">Iniciar revisión</button>
+    <button mat-flat-button color="primary" type="button" [disabled]="resolving" (click)="resolveSelectedOrphan()">Resolver</button>
   </div>
 </form>

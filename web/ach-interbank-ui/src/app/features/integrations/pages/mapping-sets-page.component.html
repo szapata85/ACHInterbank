@@ -1,309 +1,657 @@
-<section class="integration-mappings mapping-matrix-page" data-testid="integration-mappings-page">
-  <header class="integration-mappings__header">
+<section class="integration-information" aria-labelledby="integration-information-title" data-testid="integration-information-page">
+  <header class="integration-information__header">
     <div>
-      <p class="integration-mappings__eyebrow">Integraciones · Configuración funcional</p>
-      <h1>Matriz de campos SOAP</h1>
-      <p>Define de dónde se obtiene cada parámetro y cómo se transforma antes de construir la solicitud SOAP.</p>
+      <p class="integration-information__eyebrow">Conexiones</p>
+      <h1 id="integration-information-title">Relación de información</h1>
+      <p>Consulta qué datos requiere CFA y configura su origen y tratamiento con opciones informadas por el servicio.</p>
     </div>
-    <div class="integration-mappings__header-actions">
-      <button mat-stroked-button type="button" (click)="loadMethods()" [disabled]="loading">
-        Actualizar
-      </button>
-      <button mat-flat-button type="button" *ngIf="canManage" (click)="openDraftModal()">
-        Crear borrador
-      </button>
-    </div>
+    <button mat-stroked-button type="button" (click)="retry()" [disabled]="store.loading()">
+      Actualizar
+    </button>
   </header>
 
-  <mat-progress-bar *ngIf="loading" mode="indeterminate" aria-label="Cargando matriz de campos"></mat-progress-bar>
+  <mat-progress-bar
+    *ngIf="store.status() === 'loading'"
+    mode="indeterminate"
+    aria-label="Cargando relación de información"
+    data-testid="mapping-loading-state"
+  ></mat-progress-bar>
 
-  <mat-tab-group
-    *ngIf="methods.length"
-    class="integration-mappings__tabs"
-    [selectedIndex]="selectedMethodIndex"
-    (selectedIndexChange)="onMethodTabChange($event)"
-    animationDuration="150ms"
-    aria-label="Servicios SOAP"
+  <section
+    *ngIf="store.status() === 'forbidden'"
+    class="integration-information__state"
+    role="alert"
+    aria-labelledby="mapping-forbidden-title"
+    data-testid="mapping-forbidden-state"
   >
-    <mat-tab *ngFor="let method of methods">
-      <ng-template mat-tab-label>
-        <span data-testid="soap-service-option" (click)="selectMethod(method)">{{ method.operationKey }}</span>
-      </ng-template>
-    </mat-tab>
-  </mat-tab-group>
-
-  <mat-card *ngIf="selectedMethod" class="integration-mappings__service" appearance="outlined">
-    <mat-card-header>
-      <div mat-card-avatar class="integration-mappings__service-icon"><span>SOAP</span></div>
-      <mat-card-title>{{ selectedMethod.operationKey }}</mat-card-title>
-      <mat-card-subtitle>{{ selectedServiceDescription }}</mat-card-subtitle>
-      <mat-chip-set>
-        <mat-chip>{{ getMappingSetStatusLabel(activeMappingSet) }}</mat-chip>
-      </mat-chip-set>
-    </mat-card-header>
-  </mat-card>
-
-  <section *ngIf="selectedMethod" class="integration-mappings__summary" data-testid="mapping-functional-summary" aria-label="Resumen de la matriz">
-    <div><span>Total parámetros</span><strong>{{ matrixStats.total }}</strong></div>
-    <div><span>Listos</span><strong>{{ matrixStats.ready }}</strong></div>
-    <div><span>Pendientes</span><strong>{{ matrixStats.pending }}</strong></div>
-    <div class="integration-mappings__summary--critical"><span>Bloqueantes</span><strong>{{ matrixStats.blocking }}</strong></div>
-    <div class="integration-mappings__summary--warning"><span>Alertas</span><strong>{{ matrixStats.warnings }}</strong></div>
-    <div><span>Opcionales/reservados</span><strong>{{ matrixStats.optionalReserved }}</strong></div>
+    <h2 id="mapping-forbidden-title">Acceso no disponible</h2>
+    <p>{{ store.error()?.message || 'No tiene permisos para consultar esta relación de información.' }}</p>
   </section>
 
-  <mat-card *ngIf="selectedMethod" class="integration-mappings__filters" appearance="outlined" data-testid="mapping-filter-bar">
-    <form [formGroup]="filterForm" aria-label="Filtros de la matriz">
-      <mat-form-field appearance="outline">
-        <mat-label>Buscar parámetro, tabla, campo o regla</mat-label>
-        <input matInput formControlName="search" autocomplete="off" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Obligatoriedad</mat-label>
-        <mat-select formControlName="required">
-          <mat-option value="all">Todos</mat-option>
-          <mat-option value="required">Obligatorios</mat-option>
-          <mat-option value="optional">Opcionales</mat-option>
-        </mat-select>
-      </mat-form-field>
-      <button mat-button type="button" (click)="clearFilters()" [disabled]="!filterForm.dirty && selectedFilter === 'Todos'">
-        Limpiar
-      </button>
-    </form>
-    <mat-chip-listbox aria-label="Estado funcional" [value]="selectedFilter">
-      <mat-chip-option
-        *ngFor="let filter of filterOptions"
-        [value]="filter.key"
-        [selected]="selectedFilter === filter.key"
-        (click)="setFilter(filter.key)"
-      >
-        {{ filter.label }} · {{ filter.count }}
-      </mat-chip-option>
-    </mat-chip-listbox>
-  </mat-card>
+  <section
+    *ngIf="store.status() === 'error'"
+    class="integration-information__state"
+    role="alert"
+    aria-labelledby="mapping-error-title"
+    data-testid="mapping-error-state"
+  >
+    <h2 id="mapping-error-title">No fue posible cargar la información</h2>
+    <p>{{ store.error()?.message || 'Intente nuevamente.' }}</p>
+    <button mat-stroked-button type="button" (click)="retry()">Reintentar</button>
+  </section>
 
-  <mat-card class="integration-mappings__table-card" appearance="outlined" *ngIf="matrixRows.length > 0; else emptyMatrix">
-    <div class="integration-mappings__result-count" aria-live="polite">
-      {{ filteredMatrixRows.length }} de {{ matrixRows.length }} parámetros
-    </div>
-    <div class="integration-mappings__table-wrap">
-      <table
-        mat-table
-        matSort
-        [dataSource]="filteredMatrixRows"
-        [matSortActive]="sort.active"
-        [matSortDirection]="sort.direction"
-        (matSortChange)="onSortChange($event)"
-        data-testid="mapping-matrix-table"
-      >
-        <ng-container matColumnDef="parameterSoap">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Parámetro SOAP</th>
-          <td mat-cell *matCellDef="let row">
-            <strong>{{ row.parameterSoap }}</strong>
-            <small matTooltip="{{ row.parameterDescription }}">{{ row.parameterDescription }}</small>
-          </td>
-        </ng-container>
+  <ng-container *ngIf="store.status() !== 'error' && store.status() !== 'forbidden'">
+    <mat-tab-group
+      *ngIf="store.methods().length > 0"
+      class="integration-information__tabs"
+      [selectedIndex]="selectedMethodIndex()"
+      (selectedIndexChange)="onMethodTabChange($event)"
+      animationDuration="150ms"
+      aria-label="Servicios CFA"
+      data-testid="mapping-service-tabs"
+    >
+      <mat-tab *ngFor="let method of store.methods()" [label]="method.functionalNature"></mat-tab>
+    </mat-tab-group>
 
-        <ng-container matColumnDef="tableOrigin">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Fuente o tabla</th>
-          <td mat-cell *matCellDef="let row">{{ row.tableOrigin }}</td>
-        </ng-container>
+    <section
+      *ngIf="store.status() === 'empty'"
+      class="integration-information__state"
+      role="status"
+      aria-labelledby="mapping-empty-title"
+      data-testid="mapping-empty-state"
+    >
+      <h2 id="mapping-empty-title">No hay información para mostrar</h2>
+      <p *ngIf="store.methods().length === 0">No hay servicios CFA disponibles para consulta.</p>
+      <p *ngIf="store.methods().length > 0">El servicio seleccionado todavía no tiene una relación de información disponible.</p>
+    </section>
 
-        <ng-container matColumnDef="fieldOrigin">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Campo de origen</th>
-          <td mat-cell *matCellDef="let row">{{ row.fieldOrigin }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="conversionRule">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Regla de conversión</th>
-          <td mat-cell *matCellDef="let row">{{ row.conversionRule }}</td>
-        </ng-container>
-
-        <ng-container matColumnDef="required">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Obligatorio</th>
-          <td mat-cell *matCellDef="let row">
-            <mat-chip [class.integration-mappings__chip--optional]="!row.required">
-              {{ row.required ? 'Sí' : 'No' }}
+    <ng-container *ngIf="store.status() === 'ready' && store.workspace() as workspace">
+      <mat-card class="integration-information__service" appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>{{ store.selectedMethod()?.functionalNature }}</mat-card-title>
+          <mat-card-subtitle>{{ store.selectedMethod()?.functionalOriginator }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="integration-information__service-meta">
+            <span>Configuración: <strong>{{ workspace.mappingSet.name }}</strong></span>
+            <mat-chip [ngClass]="'integration-information__status--' + statusTone(workspace.mappingSet.status)">
+              {{ statusLabel(workspace.mappingSet.status) }}
             </mat-chip>
-          </td>
-        </ng-container>
+            <span *ngIf="canManage && workspace.mappingSet.status !== 'Draft'" class="integration-information__edit-note">
+              La edición está disponible cuando la configuración está en borrador.
+            </span>
+          </div>
+        </mat-card-content>
+      </mat-card>
 
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
-          <td mat-cell *matCellDef="let row">
-            <mat-chip [ngClass]="'integration-mappings__status--' + getStatusClass(row.status)" matTooltip="{{ getObservationLabel(row) }}">
-              {{ row.status }}
-            </mat-chip>
-          </td>
-        </ng-container>
+      <section
+        *ngIf="store.revisionConflict() as conflict"
+        class="integration-information__conflict"
+        role="alert"
+        aria-labelledby="mapping-revision-conflict-title"
+        data-testid="mapping-revision-conflict"
+      >
+        <div>
+          <p class="integration-information__eyebrow">Cambios concurrentes</p>
+          <h2 id="mapping-revision-conflict-title">La configuración cambió en el servidor</h2>
+          <p>{{ conflict.functionalMessage }}</p>
+          <p>No se hizo una mezcla automática ni se sobrescribieron los cambios de otra persona.</p>
+        </div>
+        <div class="integration-information__conflict-actions">
+          <button mat-flat-button type="button" (click)="reloadAfterRevisionConflict()" data-testid="mapping-revision-reload">
+            Actualizar configuración
+          </button>
+        </div>
+        <details class="integration-information__support-detail" data-testid="mapping-revision-technical-detail">
+          <summary>Detalle técnico para soporte</summary>
+          <dl>
+            <div><dt>Operación</dt><dd>{{ conflict.operation === 'publication' ? 'Publicación' : 'Edición de parámetro' }}</dd></div>
+            <div *ngIf="conflict.expectedRevision !== null"><dt>Revision esperada</dt><dd>{{ conflict.expectedRevision }}</dd></div>
+            <div *ngIf="conflict.currentRevision !== null"><dt>Revision vigente</dt><dd>{{ conflict.currentRevision }}</dd></div>
+            <div class="integration-information__support-detail-message"><dt>Mensaje técnico</dt><dd>{{ conflict.technicalMessage }}</dd></div>
+          </dl>
+        </details>
+      </section>
 
-        <ng-container matColumnDef="lastUpdated">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header>Última actualización</th>
-          <td mat-cell *matCellDef="let row">{{ row.lastUpdated }}</td>
-        </ng-container>
+      <section class="integration-information__coverage" aria-labelledby="mapping-coverage-title" data-testid="mapping-coverage-summary">
+        <div class="integration-information__coverage-heading">
+          <div>
+            <p class="integration-information__eyebrow">Cobertura</p>
+            <h2 id="mapping-coverage-title">Resumen de datos CFA</h2>
+          </div>
+          <p aria-live="polite">{{ workspace.coverage.total }} datos en total</p>
+        </div>
+        <dl>
+          <div>
+            <dt>Total</dt>
+            <dd data-testid="coverage-total">{{ workspace.coverage.total }}</dd>
+          </div>
+          <div class="integration-information__coverage--success">
+            <dt>Completo</dt>
+            <dd data-testid="coverage-complete">{{ workspace.coverage.complete }}</dd>
+          </div>
+          <div class="integration-information__coverage--warning">
+            <dt>Pendiente</dt>
+            <dd data-testid="coverage-pending">{{ workspace.coverage.pending }}</dd>
+          </div>
+          <div class="integration-information__coverage--danger">
+            <dt>Inválido</dt>
+            <dd data-testid="coverage-invalid">{{ workspace.coverage.invalid }}</dd>
+          </div>
+          <div>
+            <dt>No aplica</dt>
+            <dd data-testid="coverage-not-applicable">{{ workspace.coverage.notApplicable }}</dd>
+          </div>
+        </dl>
+      </section>
 
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef>Acciones</th>
-          <td mat-cell *matCellDef="let row">
+      <section
+        class="integration-information__publication"
+        aria-labelledby="mapping-publication-title"
+        data-testid="mapping-publication-panel"
+      >
+        <div class="integration-information__publication-heading">
+          <div>
+            <p class="integration-information__eyebrow">Publicación</p>
+            <h2 id="mapping-publication-title">Publicar configuración CFA</h2>
+            <p>La elegibilidad para publicar la informa el backend. Esta pantalla no recalcula reglas de publicación.</p>
+          </div>
+          <div class="integration-information__publication-actions" *ngIf="canPublish && workspace.mappingSet.status === 'Draft'">
             <button
-              mat-icon-button
+              mat-stroked-button
               type="button"
-              [matMenuTriggerFor]="rowActions"
-              aria-label="Abrir acciones del parámetro"
-              matTooltip="Acciones"
-              data-testid="mapping-detail-button"
+              (click)="reviewPublication()"
+              [disabled]="store.publishing()"
+              data-testid="mapping-publication-review"
             >
-              <span aria-hidden="true">⋮</span>
+              Revisar requisitos
             </button>
-            <mat-menu #rowActions="matMenu">
-              <button mat-menu-item type="button" (click)="openDetail(row)">
-                <span>Ver detalles</span>
-              </button>
-              <button mat-menu-item type="button" (click)="openHistory(row)" [disabled]="!row.mappingSet">
-                <span>Ver auditoría</span>
-              </button>
-              <button mat-menu-item type="button" *ngIf="canManage" (click)="editRelation(row)" data-testid="mapping-edit-button">
-                <span>Editar relación</span>
-              </button>
-              <button mat-menu-item type="button" *ngIf="canManage" (click)="openAdvancedEditor(row)" [disabled]="!row.mappingSet">
-                <span>Abrir editor avanzado</span>
-              </button>
-            </mat-menu>
-          </td>
+            <button
+              mat-flat-button
+              type="button"
+              (click)="publishConfiguration()"
+              [disabled]="publicationDisabled()"
+              data-testid="mapping-publication-cta"
+            >
+              {{ store.publishing() ? 'Publicando…' : 'Publicar configuración' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="integration-information__publication-summary" aria-live="polite">
+          <div><span>Servicio</span><strong>{{ store.selectedMethod()?.displayName || store.selectedMethod()?.functionalNature }}</strong></div>
+          <div><span>Versión contractual</span><strong>{{ workspace.contract?.versionLabel || 'Sin versión asociada' }}</strong></div>
+          <div><span>Cobertura</span><strong>{{ workspace.coverage.complete }} / {{ workspace.coverage.total }}</strong></div>
+          <div>
+            <span>Pendientes requeridos</span>
+            <strong data-testid="mapping-publication-pending-summary">
+              <ng-container *ngIf="workspace.publication.pendingRequired === 1 && workspace.publication.newRequiredPending === 1; else genericPending">1 dato nuevo pendiente</ng-container>
+              <ng-template #genericPending>
+                <ng-container *ngIf="workspace.publication.pendingRequired === 1; else pluralPending">1 dato requerido pendiente</ng-container>
+              </ng-template>
+              <ng-template #pluralPending>{{ workspace.publication.pendingRequired }} datos requeridos pendientes</ng-template>
+            </strong>
+          </div>
+        </div>
+
+        <section
+          *ngIf="workspace.publication.pendingRequired > 0"
+          class="integration-information__publication-pending"
+          role="status"
+          data-testid="mapping-publication-required-pending"
+        >
+          <h3>Qué falta antes de publicar</h3>
+          <p>Configure los datos requeridos que el servicio reporta como pendientes. La publicación permanecerá bloqueada hasta que el backend indique que puede continuar.</p>
+          <ul>
+            <li *ngFor="let parameter of pendingRequiredParameters()">{{ parameter.functionalName }}</li>
+          </ul>
+        </section>
+
+        <p
+          *ngIf="workspace.publication.pendingRequired === 0 && !workspace.publication.canPublish && workspace.mappingSet.status === 'Draft'"
+          class="integration-information__publication-pending"
+          role="status"
+        >
+          No hay datos requeridos pendientes, pero el servicio todavía reporta {{ workspace.publication.blockingIssues }} observación(es) bloqueante(s). Revise la validación general.
+        </p>
+
+        <section
+          *ngIf="store.publicationError() as publicationError"
+          class="integration-information__save-message integration-information__save-message--error"
+          role="alert"
+          data-testid="mapping-publication-error"
+        >
+          <strong>No fue posible publicar.</strong>
+          <span>{{ publicationError.message }}</span>
+        </section>
+
+        <p
+          *ngIf="store.publicationSucceeded()"
+          class="integration-information__save-message"
+          role="status"
+          aria-live="polite"
+          data-testid="mapping-publication-success"
+        >
+          Configuración publicada y workspace actualizado desde el servicio.
+        </p>
+
+        <p *ngIf="workspace.mappingSet.status !== 'Draft'" class="integration-information__publication-published" role="status">
+          Esta configuración ya no está en borrador. El estado vigente se obtuvo del backend.
+        </p>
+      </section>
+
+      <section
+        *ngIf="canValidate"
+        class="integration-information__preview-overview"
+        aria-labelledby="mapping-preview-title"
+        data-testid="mapping-preview-overview"
+      >
+        <div class="integration-information__preview-heading">
+          <div>
+            <p class="integration-information__eyebrow">Vista previa y validación</p>
+            <h2 id="mapping-preview-title">Resultado de muestra sanitizado</h2>
+            <p>La vista previa se calcula en el servicio, protege datos sensibles y no modifica ni persiste valores reales.</p>
+          </div>
+          <button
+            mat-stroked-button
+            type="button"
+            (click)="retryPreview()"
+            [disabled]="store.previewLoading()"
+            data-testid="mapping-preview-refresh"
+          >
+            Actualizar vista previa
+          </button>
+        </div>
+
+        <mat-progress-bar
+          *ngIf="store.previewStatus() === 'loading'"
+          mode="indeterminate"
+          aria-label="Cargando vista previa y validación"
+          data-testid="mapping-preview-loading-state"
+        ></mat-progress-bar>
+        <p *ngIf="store.previewStatus() === 'loading'" class="integration-information__preview-state" role="status" aria-live="polite">
+          Calculando una muestra sanitizada y validando la configuración en el servicio…
+        </p>
+
+        <section
+          *ngIf="store.previewStatus() === 'forbidden'"
+          class="integration-information__preview-state integration-information__preview-state--alert"
+          role="alert"
+          data-testid="mapping-preview-forbidden-state"
+        >
+          <strong>Vista previa no disponible por permisos.</strong>
+          <span>{{ previewErrorMessage() }}</span>
+        </section>
+
+        <section
+          *ngIf="store.previewStatus() === 'error'"
+          class="integration-information__preview-state integration-information__preview-state--alert"
+          role="alert"
+          data-testid="mapping-preview-error-state"
+        >
+          <strong>No fue posible obtener la vista previa.</strong>
+          <span>{{ previewErrorMessage() }}</span>
+          <button mat-button type="button" (click)="retryPreview()">Reintentar</button>
+        </section>
+
+        <ng-container *ngIf="store.previewStatus() === 'ready' && store.preview() as preview">
+          <div class="integration-information__validation-summary" data-testid="mapping-general-validation" aria-live="polite">
+            <div>
+              <span>Validación general</span>
+              <strong>{{ preview.validation?.isValid ? 'Sin errores de validación' : 'Requiere atención' }}</strong>
+            </div>
+            <div>
+              <span>Contexto</span>
+              <strong>{{ previewContextLabel(preview.contextMode) }}</strong>
+            </div>
+            <div>
+              <span>Observaciones</span>
+              <strong>{{ generalValidationIssues().length }}</strong>
+            </div>
+          </div>
+
+          <ul *ngIf="generalValidationIssues().length > 0" class="integration-information__validation-issues" aria-label="Errores y advertencias de validación general">
+            <li *ngFor="let issue of generalValidationIssues()">
+              <p>{{ issue.functionalMessage }}</p>
+              <details class="integration-information__support-detail" data-testid="mapping-validation-technical-detail">
+                <summary>Detalle técnico para soporte</summary>
+                <dl>
+                  <div><dt>Código</dt><dd><code>{{ issue.code }}</code></dd></div>
+                  <div><dt>Severidad</dt><dd>{{ issue.severity }}</dd></div>
+                  <div><dt>Categoría</dt><dd>{{ issue.category }}</dd></div>
+                  <div><dt>Ruta</dt><dd><code>{{ issue.path }}</code></dd></div>
+                  <div class="integration-information__support-detail-message"><dt>Mensaje técnico</dt><dd>{{ issue.technicalMessage }}</dd></div>
+                </dl>
+              </details>
+            </li>
+          </ul>
         </ng-container>
+      </section>
 
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns" data-testid="mapping-matrix-row"></tr>
-      </table>
+      <mat-card class="integration-information__filters" appearance="outlined">
+        <form [formGroup]="filters" aria-label="Buscar y filtrar datos CFA">
+          <mat-form-field appearance="outline">
+            <mat-label>Buscar por nombre, descripción o categoría</mat-label>
+            <input
+              matInput
+              type="search"
+              formControlName="search"
+              autocomplete="off"
+              data-testid="mapping-search"
+            />
+          </mat-form-field>
 
-      <div class="integration-mappings__filter-empty" *ngIf="filteredMatrixRows.length === 0" data-testid="mapping-filter-empty-row">
-        <strong>No hay coincidencias para los filtros seleccionados.</strong>
-        <button mat-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select formControlName="status" data-testid="mapping-status-filter">
+              <mat-option *ngFor="let option of statusOptions" [value]="option.value">
+                {{ option.label }} · {{ statusCount(option.value) }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <button mat-button type="button" (click)="clearFilters()" [disabled]="!filters.dirty">
+            Limpiar filtros
+          </button>
+        </form>
+      </mat-card>
+
+      <div class="integration-information__result-count" aria-live="polite" data-testid="mapping-result-count">
+        {{ filteredParameters().length }} de {{ workspace.coverage.total }} datos
       </div>
-    </div>
-  </mat-card>
 
-  <ng-template #emptyMatrix>
-    <mat-card class="integration-mappings__empty" appearance="outlined" data-testid="empty-mappings-state">
-      <h2>{{ catalogLoadState === 'loading' ? 'Cargando parámetros SOAP' : 'No hay parámetros disponibles' }}</h2>
-      <p *ngIf="catalogLoadState !== 'loading'">
-        No existen parámetros para {{ selectedMethod?.operationKey || 'el servicio seleccionado' }}.
-      </p>
-      <button mat-stroked-button type="button" *ngIf="catalogLoadState !== 'loading'" (click)="loadMethods()">Volver a intentar</button>
-    </mat-card>
-  </ng-template>
+      <ul
+        *ngIf="filteredParameters().length > 0; else noFilterMatches"
+        class="integration-information__list"
+        aria-label="Datos requeridos por CFA"
+        data-testid="mapping-parameter-list"
+      >
+        <li *ngFor="let parameter of filteredParameters(); trackBy: trackParameter" data-testid="mapping-parameter-item">
+          <article class="integration-information__item" [attr.aria-labelledby]="'parameter-' + parameter.parameterId">
+            <div class="integration-information__item-main">
+              <div class="integration-information__item-copy">
+                <div class="integration-information__item-kicker">
+                  <span *ngIf="parameter.categoryLabel">{{ parameter.categoryLabel }}</span>
+                  <span>{{ parameter.required ? 'Requerido' : 'Opcional' }}</span>
+                </div>
+                <h3 [id]="'parameter-' + parameter.parameterId">{{ parameter.functionalName }}</h3>
+                <p *ngIf="parameter.functionalDescription">{{ parameter.functionalDescription }}</p>
+              </div>
+              <mat-chip [ngClass]="'integration-information__status--' + statusTone(parameter.status)">
+                {{ statusLabel(parameter.status) }}
+              </mat-chip>
+            </div>
+
+            <dl class="integration-information__mapping-summary" [attr.aria-label]="'Configuración actual de ' + parameter.functionalName">
+              <div>
+                <dt>Origen del dato</dt>
+                <dd>{{ parameter.sourceSummary || 'Sin configurar' }}</dd>
+              </div>
+              <div>
+                <dt>Tratamiento del dato</dt>
+                <dd>{{ parameter.transformationSummary || (parameter.sourceSummary ? 'Sin tratamiento' : 'Sin configurar') }}</dd>
+              </div>
+            </dl>
+
+            <section
+              *ngIf="canValidate"
+              class="integration-information__field-preview"
+              [attr.aria-labelledby]="'field-preview-title-' + parameter.parameterId"
+              data-testid="mapping-field-preview"
+            >
+              <div class="integration-information__field-preview-heading">
+                <div>
+                  <p class="integration-information__eyebrow">Vista previa del campo</p>
+                  <h4 [id]="'field-preview-title-' + parameter.parameterId">Muestra sanitizada para {{ parameter.functionalName }}</h4>
+                </div>
+                <span *ngIf="previewFor(parameter.parameterId)?.isMasked" class="integration-information__protected-badge">Dato protegido</span>
+              </div>
+              <p class="integration-information__preview-disclaimer">
+                El valor mostrado es una vista previa sanitizada calculada por el servicio. No es el valor real persistido y visualizarlo no guarda cambios.
+              </p>
+
+              <p *ngIf="store.previewStatus() === 'loading'" class="integration-information__preview-state" role="status" aria-live="polite">
+                Preparando vista previa…
+              </p>
+              <p *ngIf="store.previewStatus() === 'error'" class="integration-information__preview-state" role="status">
+                Vista previa temporalmente no disponible. La configuración actual permanece sin cambios.
+              </p>
+              <p *ngIf="store.previewStatus() === 'forbidden'" class="integration-information__preview-state" role="status">
+                Vista previa no disponible para este perfil.
+              </p>
+
+              <ng-container *ngIf="previewFor(parameter.parameterId) as fieldPreview">
+                <dl class="integration-information__field-preview-grid">
+                  <div>
+                    <dt>Dato requerido por CFA</dt>
+                    <dd>{{ fieldPreview.functionalName || parameter.functionalName }} · {{ (fieldPreview.required ?? parameter.required) ? 'Requerido' : 'Opcional' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Origen del dato</dt>
+                    <dd>{{ fieldPreview.sourceDisplayName || parameter.sourceSummary || 'Sin configurar' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Tratamiento del dato</dt>
+                    <dd>{{ fieldPreview.transformationDisplayName || (fieldPreview.sourceDisplayName ? 'Sin tratamiento' : 'Sin configurar') }}</dd>
+                  </div>
+                  <div>
+                    <dt>Valor resultante sanitizado</dt>
+                    <dd class="integration-information__preview-value" data-testid="mapping-sanitized-preview-value">
+                      {{ fieldPreview.previewValue ?? 'Sin valor de muestra' }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Estado / errores de validación</dt>
+                    <dd>
+                      <span [ngClass]="'integration-information__validation-status--' + statusTone(fieldPreview.validationStatus)">
+                        {{ statusLabel(fieldPreview.validationStatus) }}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
+
+                <ul *ngIf="validationIssuesFor(parameter.parameterId).length > 0" class="integration-information__validation-issues" [attr.aria-label]="'Validación de ' + parameter.functionalName">
+                  <li *ngFor="let issue of validationIssuesFor(parameter.parameterId)">
+                    <p>{{ issue.functionalMessage }}</p>
+                    <details class="integration-information__support-detail" data-testid="mapping-field-validation-technical-detail">
+                      <summary>Detalle técnico para soporte</summary>
+                      <dl>
+                        <div><dt>Código</dt><dd><code>{{ issue.code }}</code></dd></div>
+                        <div><dt>Severidad</dt><dd>{{ issue.severity }}</dd></div>
+                        <div><dt>Categoría</dt><dd>{{ issue.category }}</dd></div>
+                        <div><dt>Ruta</dt><dd><code>{{ issue.path }}</code></dd></div>
+                        <div class="integration-information__support-detail-message"><dt>Mensaje técnico</dt><dd>{{ issue.technicalMessage }}</dd></div>
+                      </dl>
+                    </details>
+                  </li>
+                </ul>
+              </ng-container>
+            </section>
+
+            <div class="integration-information__edit-actions" *ngIf="canManage && workspace.mappingSet.status === 'Draft'">
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="isEditing(parameter.parameterId) ? cancelEdit() : startEdit(parameter)"
+                [attr.aria-expanded]="isEditing(parameter.parameterId)"
+                [attr.aria-controls]="'mapping-editor-' + parameter.parameterId"
+                [disabled]="store.savingParameterId() !== null && !isEditing(parameter.parameterId)"
+                data-testid="mapping-edit-button"
+              >
+                {{ isEditing(parameter.parameterId) ? 'Cerrar edición' : 'Configurar' }}
+              </button>
+            </div>
+
+            <form
+              *ngIf="isEditing(parameter.parameterId)"
+              class="integration-information__editor"
+              [id]="'mapping-editor-' + parameter.parameterId"
+              [formGroup]="parameterForm"
+              (ngSubmit)="saveParameter()"
+              [attr.aria-labelledby]="'parameter-' + parameter.parameterId"
+              data-testid="mapping-parameter-editor"
+            >
+              <section class="integration-information__editor-section" [attr.aria-labelledby]="'source-title-' + parameter.parameterId">
+                <div class="integration-information__editor-heading">
+                  <div>
+                    <p class="integration-information__eyebrow">Origen del dato</p>
+                    <h4 [id]="'source-title-' + parameter.parameterId">Seleccione de dónde obtiene CFA este dato</h4>
+                  </div>
+                  <p>Las opciones provienen del catálogo del servicio.</p>
+                </div>
+
+                <mat-form-field appearance="outline" class="integration-information__source-search">
+                  <mat-label>Buscar origen</mat-label>
+                  <input
+                    matInput
+                    type="search"
+                    formControlName="sourceSearch"
+                    autocomplete="off"
+                    [attr.aria-describedby]="'source-help-' + parameter.parameterId"
+                    data-testid="mapping-source-search"
+                  />
+                  <mat-hint [id]="'source-help-' + parameter.parameterId">Busque por nombre funcional; los identificadores técnicos se muestran como detalle.</mat-hint>
+                </mat-form-field>
+
+                <mat-radio-group
+                  formControlName="sourceCatalogFieldId"
+                  class="integration-information__source-groups"
+                  [attr.aria-labelledby]="'source-title-' + parameter.parameterId"
+                  data-testid="mapping-source-selector"
+                >
+                  <section
+                    *ngFor="let group of filteredSourceGroups(); trackBy: trackSourceGroup"
+                    class="integration-information__source-group"
+                    [attr.aria-labelledby]="'source-group-' + parameter.parameterId + '-' + group.key"
+                  >
+                    <h5 [id]="'source-group-' + parameter.parameterId + '-' + group.key">{{ group.label }}</h5>
+                    <mat-radio-button
+                      *ngFor="let source of group.fields; trackBy: trackSource"
+                      [value]="source.id"
+                      class="integration-information__source-option"
+                      data-testid="mapping-source-option"
+                    >
+                      <span class="integration-information__source-name">{{ source.displayName }}</span>
+                      <span class="integration-information__source-technical">
+                        {{ source.entityName }} · <code>{{ source.fieldPath }}</code> · ID {{ source.id }}
+                      </span>
+                    </mat-radio-button>
+                  </section>
+                </mat-radio-group>
+
+                <p *ngIf="filteredSourceGroups().length === 0" class="integration-information__empty-inline" role="status">
+                  No hay orígenes compatibles que coincidan con la búsqueda.
+                </p>
+                <p
+                  *ngIf="parameterForm.controls.sourceCatalogFieldId.touched && parameterForm.controls.sourceCatalogFieldId.hasError('required')"
+                  class="integration-information__field-error"
+                  role="alert"
+                >
+                  Selecciona un origen del catálogo.
+                </p>
+              </section>
+
+              <section class="integration-information__editor-section" [attr.aria-labelledby]="'treatment-title-' + parameter.parameterId">
+                <div class="integration-information__editor-heading">
+                  <div>
+                    <p class="integration-information__eyebrow">Tratamiento del dato</p>
+                    <h4 [id]="'treatment-title-' + parameter.parameterId">Seleccione cómo preparar el dato</h4>
+                  </div>
+                  <p>Solo se muestran tratamientos compatibles informados por el servicio para el origen elegido.</p>
+                </div>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Tratamiento</mat-label>
+                  <mat-select formControlName="transformationCode" data-testid="mapping-transformation-selector">
+                    <mat-option *ngIf="selectedCompatibility()?.allowsNoTransformation" value="">Sin tratamiento</mat-option>
+                    <mat-option
+                      *ngFor="let treatment of compatibleTreatments(); trackBy: trackTreatment"
+                      [value]="treatment.code"
+                    >
+                      {{ treatment.displayName }} — {{ treatment.description }}
+                    </mat-option>
+                  </mat-select>
+                  <mat-error *ngIf="parameterForm.controls.transformationCode.hasError('required')">
+                    El origen seleccionado requiere un tratamiento compatible.
+                  </mat-error>
+                </mat-form-field>
+
+                <mat-form-field *ngIf="treatmentSupportsMask()" appearance="outline">
+                  <mat-label>Configuración del tratamiento</mat-label>
+                  <input matInput formControlName="formatMask" autocomplete="off" data-testid="mapping-format-mask" />
+                  <mat-hint>Use la configuración solicitada por el tratamiento seleccionado.</mat-hint>
+                  <mat-error *ngIf="parameterForm.controls.formatMask.hasError('required')">
+                    Este tratamiento requiere configuración adicional.
+                  </mat-error>
+                </mat-form-field>
+              </section>
+
+              <section
+                *ngIf="store.saveError() as saveError"
+                class="integration-information__save-message integration-information__save-message--error"
+                role="alert"
+                data-testid="mapping-save-error"
+              >
+                <strong>No fue posible guardar.</strong>
+                <span>{{ saveError.message }}</span>
+              </section>
+
+              <p
+                *ngIf="store.saveSucceededParameterId() === parameter.parameterId"
+                class="integration-information__save-message"
+                aria-live="polite"
+                data-testid="mapping-save-success"
+              >
+                Configuración guardada y actualizada desde el servicio.
+              </p>
+
+              <div class="integration-information__editor-actions">
+                <button mat-button type="button" (click)="cancelEdit()" [disabled]="store.savingParameterId() === parameter.parameterId">
+                  Cancelar
+                </button>
+                <button
+                  mat-flat-button
+                  type="submit"
+                  [disabled]="!canSaveParameter()"
+                  data-testid="mapping-save-button"
+                >
+                  {{ store.savingParameterId() === parameter.parameterId ? 'Guardando…' : 'Guardar cambios' }}
+                </button>
+              </div>
+            </form>
+
+            <details class="integration-information__technical" data-testid="mapping-technical-detail">
+              <summary>Detalle técnico</summary>
+              <dl>
+                <div>
+                  <dt>ParameterPath</dt>
+                  <dd><code>{{ parameter.technicalDetails.parameterPath }}</code></dd>
+                </div>
+                <div>
+                  <dt>Elemento XML</dt>
+                  <dd><code>{{ parameter.technicalDetails.xmlElementName }}</code></dd>
+                </div>
+                <div>
+                  <dt>Tipo</dt>
+                  <dd>{{ parameter.technicalDetails.xsdType || parameter.technicalDetails.dataType }}</dd>
+                </div>
+                <div *ngIf="parameter.technicalDetails.targetNamespace">
+                  <dt>Namespace</dt>
+                  <dd><code>{{ parameter.technicalDetails.targetNamespace }}</code></dd>
+                </div>
+              </dl>
+            </details>
+          </article>
+        </li>
+      </ul>
+
+      <ng-template #noFilterMatches>
+        <section class="integration-information__state" role="status" data-testid="mapping-filter-empty-state">
+          <h2>No hay coincidencias</h2>
+          <p>Ajuste la búsqueda o el filtro de estado.</p>
+          <button mat-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+        </section>
+      </ng-template>
+    </ng-container>
+  </ng-container>
 </section>
-
-<div class="integration-mappings__backdrop" *ngIf="modalMode" (click)="closeModal()"></div>
-
-<aside class="integration-mappings__dialog" *ngIf="modalMode === 'detail' && selectedRow" role="dialog" aria-modal="true" aria-labelledby="mapping-detail-title">
-  <header>
-    <div><span>Detalle de relación</span><h2 id="mapping-detail-title">{{ selectedRow.parameterSoap }}</h2></div>
-    <button mat-icon-button type="button" (click)="closeModal()" aria-label="Cerrar detalle"><span aria-hidden="true">×</span></button>
-  </header>
-  <mat-card appearance="outlined">
-    <dl>
-      <div><dt>Servicio SOAP</dt><dd>{{ selectedRow.serviceName }}</dd></div>
-      <div><dt>Fuente o tabla</dt><dd>{{ selectedRow.tableOrigin }}</dd></div>
-      <div><dt>Campo de origen</dt><dd>{{ selectedRow.fieldOrigin }}</dd></div>
-      <div><dt>Regla de conversión</dt><dd>{{ selectedRow.conversionRule }}</dd></div>
-      <div><dt>Obligatorio</dt><dd>{{ selectedRow.required ? 'Sí' : 'No' }}</dd></div>
-      <div><dt>Estado</dt><dd>{{ selectedRow.status }}</dd></div>
-      <div><dt>Última actualización</dt><dd>{{ selectedRow.lastUpdated }}</dd></div>
-      <div><dt>Ruta técnica</dt><dd>{{ selectedRow.sourceField?.fieldPath || 'No aplica' }}</dd></div>
-    </dl>
-  </mat-card>
-  <footer>
-    <button mat-button type="button" (click)="closeModal()">Cerrar</button>
-    <button mat-flat-button type="button" *ngIf="canManage" (click)="editRelation(selectedRow)">Editar relación</button>
-  </footer>
-</aside>
-
-<aside class="integration-mappings__dialog" *ngIf="modalMode === 'edit' && selectedRow" role="dialog" aria-modal="true" aria-labelledby="mapping-edit-title">
-  <header>
-    <div><span>Editar relación</span><h2 id="mapping-edit-title">{{ selectedRow.parameterSoap }}</h2></div>
-    <button mat-icon-button type="button" (click)="closeModal()" aria-label="Cerrar editor"><span aria-hidden="true">×</span></button>
-  </header>
-  <p class="integration-mappings__dialog-note">
-    Los cambios se guardarán en un borrador únicamente al confirmar. Abrir o cancelar no crea versiones.
-  </p>
-  <form [formGroup]="editRelationForm" (ngSubmit)="saveRelation()">
-    <mat-form-field appearance="outline">
-      <mat-label>Campo de origen</mat-label>
-      <mat-select formControlName="sourceCatalogFieldId" data-testid="source-field-select">
-        <mat-option [value]="null">Sin mapear</mat-option>
-        <mat-option *ngFor="let field of allowedSourceFields; trackBy: trackField" [value]="field.id">
-          {{ getSourceKindLabel(field.sourceKind) }} · {{ getSourceFieldLabel(field) }}
-        </mat-option>
-      </mat-select>
-      <mat-error *ngIf="editRelationForm.controls.enabled.value && !editRelationForm.controls.sourceCatalogFieldId.value">
-        Selecciona un campo de origen para activar la relación.
-      </mat-error>
-    </mat-form-field>
-    <mat-form-field appearance="outline">
-      <mat-label>Regla de conversión</mat-label>
-      <mat-select formControlName="transformationCode">
-        <mat-option value="">Sin regla</mat-option>
-        <mat-option *ngFor="let transformation of transformations" [value]="transformation.code">
-          {{ getTransformationLabel(transformation.code) }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
-    <mat-checkbox formControlName="requiredOverride">Parámetro obligatorio</mat-checkbox>
-    <mat-checkbox formControlName="enabled">Relación activa</mat-checkbox>
-    <footer>
-      <button mat-button type="button" (click)="closeModal()" [disabled]="savingRule">Cancelar</button>
-      <button mat-flat-button type="submit" [disabled]="savingRule">
-        {{ savingRule ? 'Guardando…' : 'Guardar relación' }}
-      </button>
-    </footer>
-  </form>
-</aside>
-
-<aside class="integration-mappings__dialog" *ngIf="modalMode === 'draft'" role="dialog" aria-modal="true" aria-labelledby="mapping-draft-title">
-  <header>
-    <div><span>Nueva versión de trabajo</span><h2 id="mapping-draft-title">Crear borrador</h2></div>
-    <button mat-icon-button type="button" (click)="closeModal()" aria-label="Cerrar formulario"><span aria-hidden="true">×</span></button>
-  </header>
-  <form [formGroup]="createDraftForm" (ngSubmit)="createDraft()">
-    <mat-form-field appearance="outline">
-      <mat-label>Servicio SOAP</mat-label>
-      <mat-select formControlName="methodId">
-        <mat-option *ngFor="let method of methods" [value]="method.id">{{ method.operationKey }}</mat-option>
-      </mat-select>
-      <mat-error>Selecciona un servicio SOAP.</mat-error>
-    </mat-form-field>
-    <mat-form-field appearance="outline">
-      <mat-label>Nombre de la versión</mat-label>
-      <input matInput formControlName="name" maxlength="120" />
-      <mat-error *ngIf="createDraftForm.controls.name.hasError('required')">El nombre es obligatorio.</mat-error>
-      <mat-error *ngIf="createDraftForm.controls.name.hasError('maxlength')">El nombre no puede superar 120 caracteres.</mat-error>
-    </mat-form-field>
-    <mat-form-field appearance="outline">
-      <mat-label>Comentario</mat-label>
-      <textarea matInput formControlName="notes" rows="3"></textarea>
-    </mat-form-field>
-    <footer>
-      <button mat-button type="button" (click)="closeModal()" [disabled]="creatingDraft">Cancelar</button>
-      <button mat-flat-button type="submit" [disabled]="createDraftForm.invalid || creatingDraft">
-        {{ creatingDraft ? 'Creando…' : 'Crear borrador' }}
-      </button>
-    </footer>
-  </form>
-</aside>
-
-<aside class="integration-mappings__dialog" *ngIf="modalMode === 'history' && selectedMapping" role="dialog" aria-modal="true" aria-labelledby="mapping-history-title">
-  <header>
-    <div><span>Auditoría</span><h2 id="mapping-history-title">{{ selectedMapping.name }}</h2></div>
-    <button mat-icon-button type="button" (click)="closeModal()" aria-label="Cerrar auditoría"><span aria-hidden="true">×</span></button>
-  </header>
-  <mat-progress-bar *ngIf="historyLoading" mode="indeterminate"></mat-progress-bar>
-  <p *ngIf="!historyLoading && historyItems.length === 0">No hay eventos de auditoría para esta versión.</p>
-  <section class="integration-mappings__history">
-    <article *ngFor="let item of historyItems">
-      <div><strong>{{ item.action }}</strong><span>{{ item.performedBy || 'Sistema' }}</span></div>
-      <time>{{ item.performedAtUtc | date: 'short' }}</time>
-    </article>
-  </section>
-  <footer><button mat-button type="button" (click)="closeModal()">Cerrar</button></footer>
-</aside>

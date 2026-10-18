@@ -14,6 +14,10 @@ public class ClearingHouseTransactionRule : AuditableEntity
     public bool RequiresPrenotification { get; set; }
     public PrenotificationRequirementMode PrenotificationMode { get; set; }
     public int? PrenotificationLeadBusinessDays { get; set; }
+    public PrenotificationResponseDeadlineMode PrenotificationResponseDeadlineMode { get; set; } = PrenotificationResponseDeadlineMode.NotApplicable;
+    public int? PrenotificationResponseWindowCycles { get; set; }
+    public bool TacitAcceptanceEnabled { get; set; }
+    public int? ValidationRetentionMonthsAfterLastMonetaryUse { get; set; }
     public bool RequiresReceiverIdentificationValidation { get; set; }
     public ValidationRequirementMode ReceiverIdentificationValidationMode { get; set; }
     public bool AppliesToNachaExport { get; set; } = true;

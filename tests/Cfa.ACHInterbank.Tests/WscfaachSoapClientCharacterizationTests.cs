@@ -17,12 +17,12 @@ namespace Cfa.ACHInterbank.Tests;
 public class WscfaachSoapClientCharacterizationTests
 {
     [Fact]
-    public void AddExternal_WithZeroRetries_CreatesSoapHttpClientWithoutValidationFailure()
+    public void AddExternal_WithNoRetrySoapPolicy_CreatesSoapHttpClientWithoutValidationFailure()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Resilience:Soap:MaxRetryAttempts"] = "0",
+                ["Resilience:ExternalHttp:Soap:MaxRetryAttempts"] = "0",
                 ["appSettings:tokenManager:issuerJwt"] = "synthetic-test-issuer",
                 ["appSettings:tokenManager:audienceJwt"] = "synthetic-test-audience",
                 ["appSettings:tokenManager:secretKetJwt"] = "synthetic-unit-test-key-32-bytes-minimum"
@@ -34,7 +34,7 @@ public class WscfaachSoapClientCharacterizationTests
         using var provider = services.BuildServiceProvider();
 
         var client = provider.GetRequiredService<IHttpClientFactory>()
-            .CreateClient(nameof(WscfaachSoapClient));
+            .CreateClient(ExternalHttpClientNames.WscfaachSoapNoRetry);
 
         Assert.NotNull(client);
     }
@@ -127,8 +127,9 @@ public class WscfaachSoapClientCharacterizationTests
 
         Assert.DoesNotContain(sensitiveResponse, error.Message);
         logger.Verify(x => x.LogError(It.Is<string>(message =>
-            message.Contains("Response body redacted", StringComparison.Ordinal)
+            message.Contains("responseBody=redacted", StringComparison.Ordinal)
             && !message.Contains(sensitiveResponse, StringComparison.Ordinal))), Times.Once);
+        Assert.Single(server.Requests);
     }
 
     [Fact]

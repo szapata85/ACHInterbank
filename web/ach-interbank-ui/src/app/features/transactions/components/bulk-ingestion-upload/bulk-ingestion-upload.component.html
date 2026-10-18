@@ -1,21 +1,21 @@
 <app-page-header
-  title="Carga masiva por archivo"
+  title="Cargar transacciones desde archivo"
   description="Carga lotes ACH con archivos JSON, CSV o Excel con validaciones y trazabilidad empresarial."
 ></app-page-header>
 
 <section class="card upload-layout">
   <form class="form-grid" [formGroup]="metadataForm">
-    <div>
-      <label for="batchReference">Referencia del lote (opcional)</label>
-      <input id="batchReference" type="text" formControlName="batchReference" placeholder="LOTE-20260411-001" />
-      <small>Si se omite, el backend generará una referencia automática.</small>
-    </div>
+    <mat-form-field appearance="outline">
+      <mat-label>Referencia del lote (opcional)</mat-label>
+      <input matInput id="batchReference" type="text" formControlName="batchReference" placeholder="LOTE-20260411-001" />
+      <mat-hint>Si se omite, el sistema generará una referencia automática.</mat-hint>
+    </mat-form-field>
 
-    <div>
-      <label for="clientRequestId">ID cliente (opcional)</label>
-      <input id="clientRequestId" type="text" formControlName="clientRequestId" placeholder="REQ-OPS-0001" />
-      <small>Permite correlación operacional e idempotencia.</small>
-    </div>
+    <mat-form-field appearance="outline">
+      <mat-label>ID del cliente (opcional)</mat-label>
+      <input matInput id="clientRequestId" type="text" formControlName="clientRequestId" placeholder="REQ-OPS-0001" />
+      <mat-hint>Permite correlación operacional e idempotencia.</mat-hint>
+    </mat-form-field>
   </form>
 
   <div class="file-zone">
@@ -41,24 +41,37 @@
     </dl>
   </div>
 
-  <p class="error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+  <ui-estado-carga
+    *ngIf="isSubmitting()"
+    mensaje="Registrando lote..."
+  ></ui-estado-carga>
+
+  <ui-estado-error
+    *ngIf="errorMessage() as error"
+    titulo="No fue posible cargar el lote"
+    [mensaje]="error"
+    [mostrarReintentar]="false"
+  ></ui-estado-error>
 
   <div class="form-actions">
-    <ui-boton
-      [texto]="isSubmitting() ? 'Registrando lote…' : 'Enviar archivo'"
-      variante="primario"
-      [deshabilitado]="isSubmitting()"
-      (accion)="upload()"
-    ></ui-boton>
-    <ui-boton texto="Ver seguimiento" variante="contorno" (accion)="goToTracking()"></ui-boton>
+    <button *ngIf="canUploadBatch" mat-flat-button type="button" [disabled]="isSubmitting()" (click)="upload()">
+      {{ isSubmitting() ? 'Registrando lote…' : 'Enviar archivo' }}
+    </button>
+    <button mat-stroked-button type="button" [disabled]="isSubmitting()" (click)="goToTracking()">
+      Ver Seguimiento de cargas
+    </button>
   </div>
+
+  <p class="authorization-note" *ngIf="!canUploadBatch">
+    No tiene permisos para cargar transacciones desde archivo.
+  </p>
 </section>
 
 <section class="card success" *ngIf="successBatchId() as batchId">
   <h3>Lote registrado exitosamente</h3>
   <p>Identificador de lote: <strong>{{ batchId }}</strong></p>
   <div class="form-actions">
-    <ui-boton texto="Abrir detalle de lote" variante="primario" (accion)="goToDetail()"></ui-boton>
-    <ui-boton texto="Ir a seguimiento" variante="contorno" (accion)="goToTracking()"></ui-boton>
+    <button mat-flat-button type="button" (click)="goToDetail()">Abrir detalle de lote</button>
+    <button mat-stroked-button type="button" (click)="goToTracking()">Ir a Seguimiento de cargas</button>
   </div>
 </section>

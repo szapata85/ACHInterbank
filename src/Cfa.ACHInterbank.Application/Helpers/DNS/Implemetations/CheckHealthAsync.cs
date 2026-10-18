@@ -5,35 +5,42 @@ using Cfa.ACHInterbank.Application.Helpers.DNS.Interfaces;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Servers;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Application.Helpers.DNS.Implemetations;
 
 [Singleton]
 public class CheckHealthAsync : ICheckHealthAsync
 {
-    private readonly AppSettings _appSettings = AppSettings.Settings;
+    private readonly ServesSettings _serverSettings;
     private readonly int _maxFailedChecks = 3;
     private readonly TimeSpan _healthCheckInterval = TimeSpan.FromSeconds(30);
-    private readonly HttpClient _httpClient = new HttpClient();
+    private readonly IHealthProbeClient _healthProbeClient;
     private readonly IServerRepository _serverRepository;
     private readonly ILoggerManager _loggerManager;
     private readonly IMapper _mapper = MapperBootstrapper.Instance;
 
-    public CheckHealthAsync(IServerRepository serverRepository, ILoggerManager loggerManager)
+    public CheckHealthAsync(
+        IServerRepository serverRepository,
+        ILoggerManager loggerManager,
+        IOptions<ServesSettings> serverOptions,
+        IHealthProbeClient healthProbeClient)
     {
         _serverRepository = serverRepository;
         _loggerManager = loggerManager;
+        _serverSettings = serverOptions?.Value ?? throw new ArgumentNullException(nameof(serverOptions));
+        _healthProbeClient = healthProbeClient;
     }
 
 
     public async Task CheckHealthAsy(string Type)
     {
-        var jsonresult = JsonConvert.SerializeObject(_appSettings.Servers);
-
-        JObject? _servicesIntegration = JObject.Parse(jsonresult);
-        var model = JsonConvert.DeserializeObject<List<ServicesIntegration>>(_servicesIntegration[Type]!.ToString());
+        var model = Type switch
+        {
+            "services" => _serverSettings.services,
+            "servicesWCF" => _serverSettings.servicesWCF,
+            _ => null
+        };
 
         foreach (var healthCheck in model!)
         {
@@ -46,8 +53,9 @@ public class CheckHealthAsync : ICheckHealthAsync
             try
             {
                 // Intentar realizar una solicitud al servidor
-                var response = await _httpClient.GetAsync(healthCheck.Url);
-                healthCheck.IsHealthy = response.IsSuccessStatusCode;
+                healthCheck.IsHealthy = await _healthProbeClient
+                    .IsHealthyAsync(healthCheck.Url ?? throw new InvalidOperationException("Health endpoint is required."))
+                    .ConfigureAwait(false);
                 healthCheck.FailedChecks = 0; // Restablecer fallos si la solicitud tiene éxito
                 break;
             }
@@ -62,7 +70,8 @@ public class CheckHealthAsync : ICheckHealthAsync
                 var serverUpdate = _mapper.Map<ServerCache>(healthCheck);
                 if (_serverRepository!.GetToken(healthCheck.Url!) != null)
                     _serverRepository.UpdateToken(serverUpdate);
-                _loggerManager.LogError($"Error en la evalaución del servicio: {JsonConvert.SerializeObject(healthCheck)} Mensaje Respuesta: {ex.Message}");
+                _loggerManager.LogError(
+                    $"Health probe failed; service={healthCheck.Name ?? "unknown"}; exception={ex.GetType().Name}.");
             }
             finally
             {

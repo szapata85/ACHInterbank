@@ -62,7 +62,9 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
-  readonly canManage = this.auth.hasPermission('CanManageAch');
+  readonly canManage = this.auth.hasPermission(['Integrations.ManageMappings', 'CanManageAch']);
+  readonly canValidate = this.auth.hasPermission(['Integrations.Validate', 'CanManageAch']);
+  readonly canPublish = this.auth.hasPermission(['Integrations.Publish', 'CanManageAch']);
   historyLoadFailed = false;
 
   mappingSetId = '';
@@ -70,8 +72,8 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
 
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/' },
-    { etiqueta: 'Integraciones', ruta: '/integraciones' },
-    { etiqueta: 'Configuración funcional', ruta: '/integraciones/mappings' },
+    { etiqueta: 'Conexiones', ruta: '/integraciones' },
+    { etiqueta: 'Relación de información', ruta: '/integraciones/relacion-informacion' },
     { etiqueta: 'Editor de configuración' }
   ];
 
@@ -216,12 +218,12 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
       .getMappingSetById(this.mappingSetId)
       .pipe(
         timeout(15000),
-        catchError((error) => this.failEditorLoad<IntegrationMappingSet>('No existe o no se pudo cargar el mapping set solicitado.', error)),
+        catchError((error) => this.failEditorLoad<IntegrationMappingSet>('No existe o no se pudo cargar la configuración de relación de información solicitada.', error)),
         switchMap((set) => {
           const routeMethodCode = decodeURIComponent(this.methodCode).trim();
           if (routeMethodCode && set.methodCode !== routeMethodCode) {
             return this.failEditorLoad(
-              `El mapping set cargado pertenece a ${set.methodCode}, pero la ruta solicita ${routeMethodCode}.`
+              `La configuración de relación de información cargada no corresponde al servicio solicitado.`
             );
           }
 
@@ -362,7 +364,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   runValidation(onDone?: (isValid: boolean) => void): void {
-    if (!this.canManage || !this.mappingSet || this.validating) return;
+    if (!this.canValidate || !this.mappingSet || this.validating) return;
 
     this.validating = true;
     this.api.validate(this.mappingSet.id).pipe(
@@ -384,7 +386,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   runPreview(): void {
-    if (!this.canManage || !this.mappingSet || this.previewing) return;
+    if (!this.canValidate || !this.mappingSet || this.previewing) return;
 
     this.previewing = true;
     this.api
@@ -405,24 +407,10 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   publish(): void {
-    if (!this.canManage || !this.mappingSet || this.publishing) return;
+    if (!this.canPublish || !this.mappingSet || this.publishing) return;
 
-    this.runValidation((isValid) => {
-      if (!isValid) {
-        this.notifications.error('Publicación bloqueada: configuración inválida o incompleta.');
-        return;
-      }
-
-      this.publishing = true;
-      this.api.publish(this.mappingSet!.id, 'ui-admin', 'Publicado desde SPA').pipe(
-        finalize(() => (this.publishing = false))
-      ).subscribe({
-        next: (updated) => {
-          this.mappingSet = updated;
-          this.notifications.success('Configuración publicada correctamente.');
-        },
-        error: () => this.notifications.error('No se pudo publicar. Revisa validación y cobertura.')
-      });
+    void this.router.navigate(['/integraciones/relacion-informacion'], {
+      queryParams: { method: this.methodCode }
     });
   }
 
@@ -436,7 +424,7 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
         this.notifications.success('Configuración clonada.');
         this.mappingSet = created;
         this.mappingSetId = created.id;
-        this.router.navigate(['/integraciones/mappings', created.methodCode, created.id]);
+        this.router.navigate(['/integraciones/relacion-informacion', created.methodCode, created.id]);
       },
       error: () => this.notifications.error('No fue posible clonar la configuración.')
     });
@@ -712,6 +700,6 @@ export class MappingEditorPageComponent implements OnInit, OnDestroy {
   }
 
   goToMappingList(): void {
-    this.router.navigate(['/integraciones/mappings']);
+    this.router.navigate(['/integraciones/relacion-informacion']);
   }
 }

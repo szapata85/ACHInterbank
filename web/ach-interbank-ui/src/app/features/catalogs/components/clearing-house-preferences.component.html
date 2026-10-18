@@ -1,60 +1,55 @@
 <section class="catalog-page" aria-labelledby="clearing-house-preferences-title">
+  <ng-template #headerActions>
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="loading || saving"
+      (click)="loadPreferences()"
+    >
+      Actualizar
+    </button>
+    <button
+      mat-flat-button
+      type="button"
+      [disabled]="saving || catalogsLoading || !!catalogsError"
+      (click)="startCreate()"
+    >
+      Nueva relación
+    </button>
+  </ng-template>
+
+  <app-page-header
+    id="clearing-house-preferences-title"
+    title="Prioridades por cámara"
+    subtitle="Catálogos"
+    [actionsTemplate]="headerActions"
+  ></app-page-header>
+  <p class="page-description">
+    Ajusta la prioridad y la relación predeterminada de cada cámara por institución financiera.
+  </p>
+
   <mat-card appearance="outlined" class="catalog-card">
-    <mat-card-header class="catalog-header">
-      <div class="catalog-heading">
-        <p class="eyebrow">Catálogos</p>
-        <h1 mat-card-title id="clearing-house-preferences-title">
-          Prioridades por cámara compensadora
-        </h1>
-        <mat-card-subtitle>
-          Ajusta la prioridad y la relación predeterminada de cada cámara por institución financiera.
-        </mat-card-subtitle>
-      </div>
-
-      <div class="header-actions">
-        <button
-          mat-stroked-button
-          type="button"
-          [disabled]="loading || saving"
-          (click)="loadPreferences()"
-        >
-          Recargar
-        </button>
-        <button
-          mat-flat-button
-          type="button"
-          [disabled]="saving || catalogsLoading || !!catalogsError"
-          (click)="startCreate()"
-        >
-          Nueva relación
-        </button>
-      </div>
-    </mat-card-header>
-
     <mat-card-content>
-      <mat-progress-bar
+      <ui-estado-carga
         *ngIf="catalogsLoading"
-        mode="indeterminate"
-        aria-label="Cargando instituciones y cámaras"
-        class="catalog-progress"
-      ></mat-progress-bar>
-      <div class="catalog-error" *ngIf="catalogsError" role="alert">
-        <span>{{ catalogsError }}</span>
-        <button
-          mat-stroked-button
-          type="button"
-          [disabled]="catalogsLoading"
-          (click)="loadCatalogs()"
-        >
-          Reintentar catálogos
-        </button>
-      </div>
+        mensaje="Cargando instituciones y cámaras..."
+      ></ui-estado-carga>
+      <ui-estado-error
+        *ngIf="catalogsError"
+        titulo="No fue posible cargar los catálogos"
+        [mensaje]="catalogsError"
+        textoReintentar="Reintentar catálogos"
+        (reintentar)="loadCatalogs()"
+      ></ui-estado-error>
       <p class="operation-status operation-status--success" *ngIf="successMessage" role="status">
         {{ successMessage }}
       </p>
-      <p class="operation-status operation-status--error" *ngIf="operationError" role="alert">
-        {{ operationError }}
-      </p>
+      <ui-estado-error
+        *ngIf="operationError"
+        titulo="No fue posible completar la operación"
+        [mensaje]="operationError"
+        [mostrarReintentar]="false"
+      ></ui-estado-error>
 
       <ui-grilla-empresarial
         [datos]="preferences"
@@ -76,12 +71,6 @@
     class="catalog-card editor-card"
     *ngIf="showCreateForm || editing"
   >
-    <mat-progress-bar
-      *ngIf="saving || catalogsLoading"
-      mode="indeterminate"
-      [attr.aria-label]="saving ? 'Guardando preferencia' : 'Cargando catálogos'"
-    ></mat-progress-bar>
-
     <mat-card-header>
       <h2 mat-card-title>{{ showCreateForm ? 'Nueva relación' : 'Editar relación' }}</h2>
       <mat-card-subtitle>
@@ -92,6 +81,11 @@
     </mat-card-header>
 
     <mat-card-content>
+      <ui-estado-carga
+        *ngIf="saving || catalogsLoading"
+        [mensaje]="saving ? 'Guardando preferencia...' : 'Cargando instituciones y cámaras...'"
+      ></ui-estado-carga>
+
       <form
         *ngIf="showCreateForm"
         [formGroup]="createForm"

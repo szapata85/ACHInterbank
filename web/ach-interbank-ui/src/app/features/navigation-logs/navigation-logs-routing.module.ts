@@ -6,7 +6,7 @@ const routes: Routes = [
   {
     path: '',
     component: NavigationLogComponent,
-    data: { breadcrumb: 'Log de navegación', title: 'Log de navegación' }
+    data: { breadcrumb: 'Registro de navegación', title: 'Registro de navegación' }
   }
 ];
 

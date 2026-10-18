@@ -18,6 +18,21 @@ Los valores se enlazan desde `Quartz` y `Quartz:JobStore`:
 
 Los perfiles Production y los dos perfiles de clúster no usan `RAMJobStore`. Development puede usar memoria para desarrollo aislado; cualquier prueba distribuida lo reemplaza explícitamente por store persistente.
 
+## ACH Colombia — programación operativa por ciclo
+
+El outbound automático ACH Colombia usa `AchColombiaCycleOperationalSchedule`, separado de la política regulatoria de ciclos. Quartz crea identidad determinista por cámara + ciclo + propósito y `SchedulerSyncService` reconstruye/resincroniza la programación cuando se crea, actualiza o desactiva una configuración operacional; no requiere reiniciar la aplicación.
+
+- `ExactTime`: un disparo en `AutomaticOutboundStartTime`.
+- `Window`: un disparo en `AutomaticOutboundStartTime`; `AutomaticOutboundLatestStartTime` actúa como límite defensivo. Si no existe hora inicial, no se inventa un trigger.
+- C1 puede configurarse a `06:30` como hora **operacional** sin reemplazar su regulación.
+- C7 acepta `17:50` como latest-start operacional; una ejecución automática posterior debe fallar cerrada.
+- C2-C6 no tienen horas codificadas por defecto.
+- El inbound ACH Colombia continúa con polling `EveryNMinutes=3`; el handler solo trabaja dentro de ventanas `OutputReleaseStartTime`/`OutputReleaseEndTime`.
+
+El seed histórico outbound `EveryNMinutes=5` puede permanecer como metadata, pero no es el mecanismo primario de programación operacional de FASE 3. Quartz locking/no-concurrencia no reemplaza la idempotencia persistida del flujo MFT.
+
+**Estado de validación del paquete actual:** implementación presente, pero build/tests .NET y el escenario controlado FASE 8 no fueron ejecutados en el host de preparación. Mantener `FINAL_EXECUTABLE_GATE_PENDING` hasta obtener evidencia sobre el artefacto exacto.
+
 ## Esquema y locks
 
 Los scripts versionados son `artifacts/sql/quartz/postgres-qrtz-schema.sql` y `artifacts/sql/quartz/sqlserver-qrtz-schema.sql`. Crean las 11 tablas internas de Quartz 3.18 de forma no destructiva, no borran datos, aceptan reaplicación y rechazan un esquema parcial. Estas tablas no forman parte del modelo EF funcional. Las migraciones EF agregan el historial, heartbeats, sonda técnica, índices, unicidad e información de programación.

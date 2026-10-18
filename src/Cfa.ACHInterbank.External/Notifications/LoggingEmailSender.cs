@@ -17,7 +17,7 @@ public class LoggingEmailSender : IEmailSender
 
     public Task SendPasswordResetAsync(User user, string resetLink, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Password reset requested for {Email}. Link: {Link}", user.Email, resetLink);
+        _logger.LogInformation("Password reset notification requested. Recipient and reset token are redacted.");
         return Task.CompletedTask;
     }
 }

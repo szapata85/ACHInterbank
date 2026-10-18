@@ -1,33 +1,25 @@
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
-using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.Security;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Policy = FineGrainedPermissions.TestTools.Access)]
 [Route("api/uat/nacha-inbound-simulator")]
 public sealed class NachaInboundSimulatorController : ControllerBase
 {
     private readonly INachaInboundSimulationService _service;
-    private readonly NachaInboundSimulatorOptions _options;
-    private readonly IHostEnvironment _environment;
     private readonly IAuthorizationService _authorizationService;
 
     public NachaInboundSimulatorController(
         INachaInboundSimulationService service,
-        IOptions<NachaInboundSimulatorOptions> options,
-        IHostEnvironment environment,
         IAuthorizationService authorizationService)
     {
         _service = service;
-        _options = options.Value;
-        _environment = environment;
         _authorizationService = authorizationService;
     }
 
@@ -41,12 +33,6 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<GenerateNachaInboundSimulationResponse>> Generate([FromBody] GenerateNachaInboundSimulationRequest request, CancellationToken ct)
     {
-        var unavailable = UnavailableOutsideAuthorizedEnvironment();
-        if (unavailable is not null)
-        {
-            return unavailable;
-        }
-
         var requiredPolicy = request.SimulationMode == NachaSimulationMode.DifferentialResponses
             ? P1Policies.NachaSimulatorGenerateDifferential
             : P1Policies.NachaSimulatorGenerateIncoming;
@@ -78,8 +64,7 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<IReadOnlyList<NachaInboundSimulationDto>>> List(CancellationToken ct)
     {
-        var unavailable = UnavailableOutsideAuthorizedEnvironment();
-        return unavailable ?? Ok(await _service.ListAsync(ct));
+        return Ok(await _service.ListAsync(ct));
     }
 
     [HttpGet("{id:int}")]
@@ -91,12 +76,6 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<NachaInboundSimulationDto>> GetById(int id, CancellationToken ct)
     {
-        var unavailable = UnavailableOutsideAuthorizedEnvironment();
-        if (unavailable is not null)
-        {
-            return unavailable;
-        }
-
         var simulation = await _service.GetAsync(id, ct);
         return simulation is null ? NotFound() : Ok(simulation);
     }
@@ -110,12 +89,6 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DownloadFile(int id, CancellationToken ct)
     {
-        var unavailable = UnavailableOutsideAuthorizedEnvironment();
-        if (unavailable is not null)
-        {
-            return unavailable;
-        }
-
         var file = await _service.GetFileAsync(id, ct);
         return file is null ? NotFound() : File(file.Value.Content, file.Value.ContentType, file.Value.FileName);
     }
@@ -129,12 +102,6 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<NachaInboundSimulationMetadataDto>> Evidence(int id, CancellationToken ct)
     {
-        var unavailable = UnavailableOutsideAuthorizedEnvironment();
-        if (unavailable is not null)
-        {
-            return unavailable;
-        }
-
         var evidence = await _service.GetEvidenceAsync(id, ct);
         return evidence is null ? NotFound() : Ok(evidence);
     }
@@ -147,8 +114,7 @@ public sealed class NachaInboundSimulatorController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<InboundSimulationEligibilityPreviewResponse>> Preview([FromBody] InboundSimulationEligibilityPreviewRequest request, CancellationToken ct)
     {
-        var unavailable = UnavailableOutsideAuthorizedEnvironment();
-        return unavailable ?? Ok(await _service.PreviewAsync(request, ct));
+        return Ok(await _service.PreviewAsync(request, ct));
     }
 
     [HttpGet("eligible-differential-transactions")]
@@ -161,12 +127,6 @@ public sealed class NachaInboundSimulatorController : ControllerBase
         [FromQuery] DifferentialResponseTransactionQuery query,
         CancellationToken ct)
     {
-        var unavailable = UnavailableOutsideAuthorizedEnvironment();
-        if (unavailable is not null)
-        {
-            return unavailable;
-        }
-
         if (string.IsNullOrWhiteSpace(query.ClearingHouseCode))
         {
             return BadRequest(new ProblemDetails
@@ -190,12 +150,6 @@ public sealed class NachaInboundSimulatorController : ControllerBase
         [FromQuery] AvailableInboundCycleQuery query,
         CancellationToken ct)
     {
-        var unavailable = UnavailableOutsideAuthorizedEnvironment();
-        if (unavailable is not null)
-        {
-            return unavailable;
-        }
-
         if (string.IsNullOrWhiteSpace(query.ClearingHouseCode))
         {
             return BadRequest(new ProblemDetails
@@ -207,21 +161,6 @@ public sealed class NachaInboundSimulatorController : ControllerBase
         }
 
         return Ok(await _service.ListAvailableCyclesAsync(query, ct));
-    }
-
-    private ActionResult? UnavailableOutsideAuthorizedEnvironment()
-    {
-        if (!_environment.IsProduction() && _options.IsUatLike())
-        {
-            return null;
-        }
-
-        return NotFound(new ProblemDetails
-        {
-            Title = "UAT_FEATURE_UNAVAILABLE",
-            Detail = "El simulador NACHA-M no está disponible en este ambiente.",
-            Status = StatusCodes.Status404NotFound
-        });
     }
 
     private static ProblemDetails ToProblem(string message)

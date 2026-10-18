@@ -4,6 +4,12 @@ public static class P1Policies
 {
     public const string ConfigRead = "P1.ConfigRead";
     public const string ConfigManage = "P1.ConfigManage";
+    public const string IntegrationsRead = "P1.IntegrationsRead";
+    public const string IntegrationContractsManage = "P1.IntegrationContractsManage";
+    public const string IntegrationConnectionsManage = "P1.IntegrationConnectionsManage";
+    public const string IntegrationMappingsManage = "P1.IntegrationMappingsManage";
+    public const string IntegrationMappingsValidate = "P1.IntegrationMappingsValidate";
+    public const string IntegrationMappingsPublish = "P1.IntegrationMappingsPublish";
     public const string MaintenanceSeed = "P1.MaintenanceSeed";
     public const string MaintenanceRunAdminTask = "P1.MaintenanceRunAdminTask";
     public const string BulkIngestionRead = "P1.BulkIngestionRead";
@@ -53,6 +59,10 @@ public static class P1Policies
     public const string RolesDelete = "P1.RolesDelete";
     public const string PermissionsRead = "P1.PermissionsRead";
     public const string PermissionsAssign = "P1.PermissionsAssign";
+    public const string AuditLogsRead = "P1.AuditLogsRead";
+    public const string AuthLogsRead = "P1.AuthLogsRead";
+    public const string NavigationLogsRead = "P1.NavigationLogsRead";
+    public const string NavigationMenuManage = "P1.NavigationMenuManage";
     public const string SchedulerView = "P1.SchedulerView";
     public const string SchedulerHistoryView = "P1.SchedulerHistoryView";
     public const string SchedulerExecute = "P1.SchedulerExecute";

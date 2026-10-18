@@ -116,14 +116,53 @@ public sealed class ClearingHouseCyclePolicyResolver(
 
         var close = OffsetFromOpen(cycle.StartTime, cycle.EndTime);
         var cutoff = OffsetFromOpen(cycle.StartTime, cycle.CutoffTime);
-        var release = OffsetFromOpen(cycle.StartTime, cycle.OutputReleaseTime);
+        var legacyRelease = OffsetFromOpen(cycle.StartTime, cycle.OutputReleaseTime);
         if (cutoff > close)
         {
             throw new InvalidOperationException($"El cutoff de entrada del ciclo '{cycle.CycleName}' ocurre después del cierre.");
         }
-        if (release < close)
+        if (legacyRelease < close)
         {
             throw new InvalidOperationException($"La liberación de salida del ciclo '{cycle.CycleName}' ocurre antes del cierre.");
+        }
+
+        var stages = new TimeSpan?[]
+        {
+            cycle.CompensationStatementStartTime,
+            cycle.CompensationStatementEndTime,
+            cycle.CompensationPaymentStartTime,
+            cycle.CompensationPaymentEndTime,
+            cycle.OutputReleaseStartTime,
+            cycle.OutputReleaseEndTime
+        };
+
+        if (stages.All(stage => !stage.HasValue))
+        {
+            return;
+        }
+
+        if (stages.Any(stage => !stage.HasValue))
+        {
+            throw new InvalidOperationException(
+                $"El ciclo '{cycle.CycleName}' debe configurar completas las etapas de planilla, pago y liberación, o dejarlas todas sin configurar.");
+        }
+
+        var statementStart = OffsetFromOpen(cycle.StartTime, cycle.CompensationStatementStartTime!.Value);
+        var statementEnd = OffsetFromOpen(cycle.StartTime, cycle.CompensationStatementEndTime!.Value);
+        var paymentStart = OffsetFromOpen(cycle.StartTime, cycle.CompensationPaymentStartTime!.Value);
+        var paymentEnd = OffsetFromOpen(cycle.StartTime, cycle.CompensationPaymentEndTime!.Value);
+        var releaseStart = OffsetFromOpen(cycle.StartTime, cycle.OutputReleaseStartTime!.Value);
+        var releaseEnd = OffsetFromOpen(cycle.StartTime, cycle.OutputReleaseEndTime!.Value);
+
+        if (statementStart < close
+            || statementEnd < statementStart
+            || paymentStart < statementEnd
+            || paymentEnd < paymentStart
+            || releaseStart < paymentEnd
+            || releaseEnd < releaseStart)
+        {
+            throw new InvalidOperationException(
+                $"Las etapas horarias del ciclo '{cycle.CycleName}' deben respetar el orden cierre → planilla → pago → liberación.");
         }
     }
 

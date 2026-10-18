@@ -5,7 +5,7 @@ import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { CenitOperationsApiService } from '../services/cenit-operations-api.service';
 import { CenitChamberResponseRow, CenitNetPositionRow, CenitOptimizationDecisionRow, CenitQueueRow, CenitTraceabilityRow } from '../models/cenit.models';
-import { CycleReportRow } from '../../reports/services/reports-api.service';
+import { CycleReportRow } from '../../../core/services/reports-api.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { ColDef } from 'ag-grid-community';
 

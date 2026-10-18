@@ -1,13 +1,19 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AchCyclesApiService, ClearingHousesApiService } from '../services/ach-cycles-api.service';
+import { AchCyclesApiService } from '../../../core/services/ach-cycles-api.service';
 import {
   AchCycleConfigurationOption,
   AchCycleSummary,
-  ClearingHouseOption,
   SaveAchCycleRequest
-} from '../models/ach-cycle.model';
+} from '../../../core/models/ach-cycle.model';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
 
@@ -17,7 +23,15 @@ import { RouterModule } from '@angular/router';
   styleUrls: ['./ach-cycle-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
-  imports: [SharedModule, RouterModule]
+  imports: [
+    SharedModule,
+    RouterModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule
+  ]
 })
 export class AchCycleFormComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

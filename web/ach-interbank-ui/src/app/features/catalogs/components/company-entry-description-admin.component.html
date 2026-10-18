@@ -50,12 +50,12 @@
     [cargando]="loading"
     [error]="false"
     [tamanoPagina]="10"
-    [mensajeVacio]="'No hay registros.'"
+    [mensajeVacio]="'No hay descripciones de entrada registradas.'"
     [mensajeCargando]="'Cargando información...'"
   ></ui-grilla-empresarial>
 
   <ng-template #emptyState>
     <p class="muted" *ngIf="loading">Cargando...</p>
-    <p class="muted" *ngIf="!loading">No hay registros.</p>
+    <p class="muted" *ngIf="!loading">No hay descripciones de entrada registradas.</p>
   </ng-template>
 </section>

@@ -1,38 +1,42 @@
 <app-page-header
-  title="Seguimiento de lotes masivos"
+  title="Seguimiento de cargas"
   description="Monitor de ejecución, estado operacional y reintentos para lotes ACH por archivo."
 ></app-page-header>
 
 <section class="card toolbar">
   <form class="search-row" [formGroup]="filtrosForm" (ngSubmit)="searchByBatchId()">
-    <div class="field">
-      <label for="batchId">Identificador del lote</label>
-      <input id="batchId" type="text" formControlName="batchId" (input)="onBatchIdInput($any($event.target).value)" placeholder="GUID del lote" />
-    </div>
-    <ui-boton texto="Agregar al seguimiento" variante="primario" [deshabilitado]="isLoading()" (accion)="searchByBatchId()"></ui-boton>
-    <ui-boton texto="Actualizar" variante="contorno" [deshabilitado]="isLoading()" (accion)="refreshFromRecent()"></ui-boton>
+    <mat-form-field appearance="outline" class="batch-field">
+      <mat-label>Identificador del lote</mat-label>
+      <input
+        matInput
+        id="batchId"
+        type="text"
+        formControlName="batchId"
+        (input)="onBatchIdInput($any($event.target).value)"
+        placeholder="GUID del lote"
+      />
+    </mat-form-field>
+
+    <button mat-flat-button type="submit" [disabled]="isLoading()">Agregar al seguimiento</button>
+    <button mat-stroked-button type="button" [disabled]="isLoading()" (click)="refreshFromRecent()">Actualizar</button>
   </form>
 
-  <div class="field">
-    <label for="statusFilter">Estado</label>
-    <ui-selector-buscable
-      [opciones]="[
-        { valor: 'ALL', etiqueta: 'Todos' },
-        { valor: '1', etiqueta: 'Cargado' },
-        { valor: '2', etiqueta: 'Parseado' },
-        { valor: '3', etiqueta: 'Validado' },
-        { valor: '4', etiqueta: 'En cola' },
-        { valor: '5', etiqueta: 'Procesando' },
-        { valor: '6', etiqueta: 'Parcialmente procesado' },
-        { valor: '7', etiqueta: 'Completado' },
-        { valor: '8', etiqueta: 'Fallido' },
-        { valor: '9', etiqueta: 'Reintentando' },
-        { valor: '10', etiqueta: 'Cancelado' }
-      ]"
-      [formControl]="filtrosForm.controls.status"
-      placeholderBusqueda="Buscar estado"
-    ></ui-selector-buscable>
-  </div>
+  <mat-form-field appearance="outline" class="status-field">
+    <mat-label>Estado</mat-label>
+    <mat-select id="statusFilter" [formControl]="filtrosForm.controls.status">
+      <mat-option value="ALL">Todos</mat-option>
+      <mat-option value="1">Cargado</mat-option>
+      <mat-option value="2">Parseado</mat-option>
+      <mat-option value="3">Validado</mat-option>
+      <mat-option value="4">En cola</mat-option>
+      <mat-option value="5">Procesando</mat-option>
+      <mat-option value="6">Parcialmente procesado</mat-option>
+      <mat-option value="7">Completado</mat-option>
+      <mat-option value="8">Fallido</mat-option>
+      <mat-option value="9">Reintentando</mat-option>
+      <mat-option value="10">Cancelado</mat-option>
+    </mat-select>
+  </mat-form-field>
 </section>
 
 <section class="kpi-grid">

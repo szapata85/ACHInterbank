@@ -59,6 +59,7 @@ public class NotificarRespuestaAchUseCaseTests
         Assert.Equal(attempt.IdEstado, cmd.IdEstado);
         Assert.Equal(attempt.IdTransaccionServicioExterno, cmd.IdTransaccionServicioExterno);
         Assert.Equal(attempt.AchResponse!.CodigoCamaraCompensacion, cmd.CodigoCamaraCompensacion);
+        Assert.Equal(attempt.AchResponse.Id, cmd.DifferentialResponseId);
     }
 
     [Fact]

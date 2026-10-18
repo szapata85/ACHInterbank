@@ -42,7 +42,7 @@ export class NavigationLogComponent implements OnDestroy {
     { key: 'durationDisplay', label: 'Duración' },
     { key: 'sessionId', label: 'Sesión' },
     { key: 'ipAddress', label: 'IP' },
-    { key: 'userAgent', label: 'User agent' }
+    { key: 'userAgent', label: 'User-Agent' }
   ];
 
   filterForm = this.fb.nonNullable.group({

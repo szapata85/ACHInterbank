@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using Cfa.ACHInterbank.Application.External.Connections;
@@ -131,7 +132,7 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             _configuration["WSCFAACH:HostHeader"]);
         var envelope = EnsureEnvelope(requestXml);
 
-        using var client = _httpClientFactory.CreateClient(nameof(WscfaachSoapClient));
+        using var client = _httpClientFactory.CreateClient(ExternalHttpClientNames.WscfaachSoapNoRetry);
         client.Timeout = timeout;
         using var request = new HttpRequestMessage(HttpMethod.Post, transport.TransportEndpoint);
         request.Content = new StringContent(envelope, Encoding.UTF8, "text/xml");
@@ -142,20 +143,45 @@ public class WscfaachSoapClient : IWscfaachSoapClient
             request.Headers.Host = transport.HostHeader;
         }
 
-        _logger.LogInfo($"SOAP request {action} -> {logicalEndpoint}; transport={transport.TransportEndpoint}");
+        var started = Stopwatch.GetTimestamp();
+        _logger.LogInfo(
+            $"SOAP request {action}; endpoint={ExternalLogSanitizer.Endpoint(logicalEndpoint)}; " +
+            $"transport={ExternalLogSanitizer.Endpoint(transport.TransportEndpoint)}; retry=disabled.");
 
-        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
-            .ConfigureAwait(false);
-
-        var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            _logger.LogError($"SOAP error {action}: HTTP {(int)response.StatusCode} ({response.StatusCode}). Response body redacted.");
-            throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
-        }
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, ct)
+                .ConfigureAwait(false);
 
-        return responseContent;
+            var responseContent = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    $"SOAP error {action}; HTTP={(int)response.StatusCode}; contentLength={responseContent.Length}; " +
+                    $"elapsedMs={elapsedMs:F0}; responseBody=redacted; retry=disabled.");
+                throw new InvalidOperationException($"SOAP error {action}: {response.StatusCode}");
+            }
+
+            _logger.LogInfo(
+                $"SOAP response {action}; HTTP={(int)response.StatusCode}; elapsedMs={elapsedMs:F0}; " +
+                $"bodyLength={responseContent.Length}.");
+            return responseContent;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _logger.LogWarn($"SOAP {action} cancelled by caller; retry=disabled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            _logger.LogError(
+                $"SOAP {action} transport failure; elapsedMs={elapsedMs:F0}; exception={ex.GetType().Name}; " +
+                $"outcome=uncertain; retry=disabled.");
+            throw;
+        }
     }
 
     private async Task<(Uri Endpoint, string SoapAction, TimeSpan Timeout)> ResolveConfigurationAsync(

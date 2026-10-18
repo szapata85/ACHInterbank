@@ -83,6 +83,58 @@ public sealed class ClearingHouseCyclePolicyResolverTests
             () => sut.ResolveAsync(1, new DateTime(2026, 8, 25)));
     }
 
+
+    [Fact]
+    public async Task ResolveAsync_ExpandedStagesOutOfOrder_FailsClosed()
+    {
+        using var connection = OpenConnection();
+        await using var context = CreateContext(connection);
+        SeedHouse(context, 1, 11, "ACHCOL", "America/Bogota");
+        var cycle = Cycle(1, "V1", 1, new DateTime(2026, 1, 1));
+        cycle.CompensationStatementStartTime = new TimeSpan(10, 0, 0);
+        cycle.CompensationStatementEndTime = new TimeSpan(10, 30, 0);
+        cycle.CompensationPaymentStartTime = new TimeSpan(10, 15, 0);
+        cycle.CompensationPaymentEndTime = new TimeSpan(10, 45, 0);
+        cycle.OutputReleaseStartTime = new TimeSpan(10, 45, 0);
+        cycle.OutputReleaseEndTime = new TimeSpan(11, 0, 0);
+        cycle.OutputReleaseTime = new TimeSpan(11, 0, 0);
+        context.ClearingHouseCycleConfigs.Add(cycle);
+        await context.SaveChangesAsync();
+        var sut = new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ResolveAsync(1, new DateTime(2026, 8, 25)));
+
+        Assert.Contains("cierre", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("planilla", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("pago", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("liberación", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_LegacyFiveCyclePolicyWithoutExpandedStages_RemainsValid()
+    {
+        using var connection = OpenConnection();
+        await using var context = CreateContext(connection);
+        SeedHouse(context, 1, 11, "ACHCOL", "America/Bogota");
+        AddPolicy(context, 1, "ACH-HISTORICAL-5", 5, new DateTime(2026, 1, 1));
+        await context.SaveChangesAsync();
+        var sut = new ClearingHouseCyclePolicyResolver(context, new CycleNumberResolver());
+
+        var resolved = await sut.ResolveAsync(1, new DateTime(2026, 8, 25));
+
+        Assert.Equal(5, resolved.Cycles.Count);
+        Assert.All(resolved.Cycles, cycle =>
+        {
+            Assert.Null(cycle.CompensationStatementStartTime);
+            Assert.Null(cycle.CompensationStatementEndTime);
+            Assert.Null(cycle.CompensationPaymentStartTime);
+            Assert.Null(cycle.CompensationPaymentEndTime);
+            Assert.Null(cycle.OutputReleaseStartTime);
+            Assert.Null(cycle.OutputReleaseEndTime);
+        });
+    }
+
     [Fact]
     public async Task ResolveAtInstantAsync_UsesConfiguredTimeZone()
     {

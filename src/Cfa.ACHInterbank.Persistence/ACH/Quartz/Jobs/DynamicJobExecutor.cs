@@ -22,13 +22,14 @@ public class DynamicJobExecutor
     private readonly IEnumerable<ITaskHandler> _handlers;
     private readonly QuartzTaskCalendarEvaluator _calendarEvaluator;
     private readonly QuartzJobStoreOptions _options;
+    private readonly TimeProvider _timeProvider;
 
     public DynamicJobExecutor(
         IServiceProvider sp,
         ILogger<DynamicJobExecutor> logger,
         IEnumerable<ITaskHandler> handlers,
         QuartzTaskCalendarEvaluator calendarEvaluator)
-        : this(sp, logger, handlers, calendarEvaluator, new ConfigurationBuilder().Build())
+        : this(sp, logger, handlers, calendarEvaluator, new ConfigurationBuilder().Build(), null)
     {
     }
 
@@ -37,13 +38,15 @@ public class DynamicJobExecutor
         ILogger<DynamicJobExecutor> logger,
         IEnumerable<ITaskHandler> handlers,
         QuartzTaskCalendarEvaluator calendarEvaluator,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        TimeProvider? timeProvider = null)
     {
         _sp = sp;
         _logger = logger;
         _handlers = handlers;
         _calendarEvaluator = calendarEvaluator;
         _options = QuartzJobStoreOptionsFactory.Create(configuration);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task ExecuteAsync(IJobExecutionContext context)
@@ -63,7 +66,7 @@ public class DynamicJobExecutor
 
         var executionId = ResolveExecutionId(context);
         var fireInstanceId = ResolveFireInstanceId(context, executionId);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var functionalCode = SchedulerTaskCatalog.ByHandlerCode(task.Code)?.TaskCode ?? task.Code;
         var jobKey = ResolveJobKey(context);
         var schedulerInstanceId = ResolveSchedulerInstanceId(context);
@@ -138,7 +141,10 @@ public class DynamicJobExecutor
                 fireInstanceId,
                 schedulerInstanceId,
                 context.Recovering,
-                context.RefireCount);
+                context.RefireCount,
+                ExtractExecutionJobData(context.MergedJobDataMap),
+                context.ScheduledFireTimeUtc,
+                log.MisfireDetected);
 
             var result = handler is ISchedulerContextAwareTaskHandler contextAware
                 ? await ExecuteContextAwareHandlerWithRetryAsync(contextAware, task, executionContext, context.CancellationToken)
@@ -173,7 +179,7 @@ public class DynamicJobExecutor
         }
         finally
         {
-            log.FinishedAt = DateTimeOffset.UtcNow;
+            log.FinishedAt = _timeProvider.GetUtcNow();
             log.DurationMilliseconds = Math.Max(0, (long)(log.FinishedAt.Value - log.StartedAt).TotalMilliseconds);
             log.ManualConcurrencyKey = null;
             await db.SaveChangesAsync(CancellationToken.None);
@@ -267,20 +273,20 @@ public class DynamicJobExecutor
         => context.ScheduledFireTimeUtc.HasValue
            && actual - context.ScheduledFireTimeUtc.Value > TimeSpan.FromMilliseconds(_options.MisfireThresholdMilliseconds);
 
-    private static Task<(bool Success, string? Output, string? Error)> ExecuteHandlerWithRetryAsync(
+    private Task<(bool Success, string? Output, string? Error)> ExecuteHandlerWithRetryAsync(
         ITaskHandler handler,
         TaskDefinition task,
         CancellationToken cancellationToken)
         => ExecuteWithRetryAsync(ct => handler.ExecuteAsync(task, ct), task, cancellationToken);
 
-    private static Task<(bool Success, string? Output, string? Error)> ExecuteContextAwareHandlerWithRetryAsync(
+    private Task<(bool Success, string? Output, string? Error)> ExecuteContextAwareHandlerWithRetryAsync(
         ISchedulerContextAwareTaskHandler handler,
         TaskDefinition task,
         SchedulerTaskExecutionContext context,
         CancellationToken cancellationToken)
         => ExecuteWithRetryAsync(ct => handler.ExecuteAsync(task, context, ct), task, cancellationToken);
 
-    private static async Task<(bool Success, string? Output, string? Error)> ExecuteWithRetryAsync(
+    private async Task<(bool Success, string? Output, string? Error)> ExecuteWithRetryAsync(
         Func<CancellationToken, Task<string>> execute,
         TaskDefinition task,
         CancellationToken cancellationToken)
@@ -313,12 +319,36 @@ public class DynamicJobExecutor
 
                 if (backoff > TimeSpan.Zero)
                 {
-                    await Task.Delay(backoff, cancellationToken);
+                    await Task.Delay(backoff, _timeProvider, cancellationToken);
                 }
             }
         }
 
         return (false, null, $"Reintentos agotados tras {maxAttempts} intento(s). Último error: {lastException?.Message}");
+    }
+
+    private static IReadOnlyDictionary<string, string> ExtractExecutionJobData(JobDataMap map)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var key in new[]
+                 {
+                     "TaskCode",
+                     "OperationalScheduleId",
+                     "ClearingHouseId",
+                     "CycleConfigId",
+                     "Flow",
+                     "ScheduleFingerprint",
+                     "TriggerType"
+                 })
+        {
+            var value = GetStringOrNull(map, key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                result[key] = value;
+            }
+        }
+
+        return result;
     }
 
     private static string? Truncate(string? value, int maxLength)

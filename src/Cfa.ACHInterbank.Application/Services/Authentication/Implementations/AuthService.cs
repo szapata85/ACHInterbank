@@ -7,6 +7,7 @@ using Cfa.ACHInterbank.Application.Services.Notifications.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -27,20 +28,24 @@ public class AuthService : IAuthService
     private readonly IEmailSender _emailSender;
     private readonly IUnitOfWork _unitOfWork;
     private readonly Token _tokenSettings;
+    private readonly AuthenticationUiOptions _authenticationUiOptions;
 
     public AuthService(
         IUserAuthRepository userRepository,
         ILoginLockoutSettingsRepository lockoutSettingsRepository,
         IPasswordResetTokenRepository passwordResetTokenRepository,
         IEmailSender emailSender,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IOptions<Token> tokenOptions,
+        IOptions<AuthenticationUiOptions> authenticationUiOptions)
     {
         _userRepository = userRepository;
         _lockoutSettingsRepository = lockoutSettingsRepository;
         _passwordResetTokenRepository = passwordResetTokenRepository;
         _emailSender = emailSender;
         _unitOfWork = unitOfWork;
-        _tokenSettings = AppSettings.Settings.TokenManager!;
+        _tokenSettings = tokenOptions?.Value ?? throw new ArgumentNullException(nameof(tokenOptions));
+        _authenticationUiOptions = authenticationUiOptions?.Value ?? throw new ArgumentNullException(nameof(authenticationUiOptions));
     }
 
     public async Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -194,9 +199,11 @@ public class AuthService : IAuthService
         };
     }
 
-    private static string BuildResetLink(string token)
+    private string BuildResetLink(string token)
     {
-        var baseUrl = AppSettings.Settings.address ?? "https://localhost:4200";
+        var baseUrl = string.IsNullOrWhiteSpace(_authenticationUiOptions.ResetPasswordBaseUrl)
+            ? "https://localhost:4200"
+            : _authenticationUiOptions.ResetPasswordBaseUrl;
         return $"{baseUrl.TrimEnd('/')}/reset-password?token={token}";
     }
 

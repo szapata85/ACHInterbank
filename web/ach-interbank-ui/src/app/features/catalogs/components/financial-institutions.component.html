@@ -3,7 +3,7 @@
     <mat-card-header class="catalog-header">
       <div class="catalog-heading">
         <p class="eyebrow">Catálogos</p>
-        <h1 mat-card-title id="financial-institutions-title">Instituciones financieras</h1>
+        <h1 mat-card-title id="financial-institutions-title">Entidades financieras</h1>
         <mat-card-subtitle>
           Administra las instituciones configuradas en ACH, incluyendo su estado y datos de enrutamiento.
         </mat-card-subtitle>
@@ -16,7 +16,7 @@
           [disabled]="loading || saving"
           (click)="loadInstitutions()"
         >
-          Recargar
+          Actualizar
         </button>
         <button mat-flat-button type="button" [disabled]="saving" (click)="startCreate()">
           Nueva institución

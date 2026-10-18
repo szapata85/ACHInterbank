@@ -5,7 +5,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { AuthService } from '../../core/services/auth.service';
 import { ClearingHousesComponent } from './clearing-houses.component';
-import { ClearingHousesService } from './clearing-houses.service';
+import { ClearingHousesService } from '../../core/services/clearing-houses.service';
+import { OperationalConfirmDialogComponent } from '../../shared/components/operational-confirm-dialog.component';
 
 describe('ClearingHousesComponent', () => {
   let fixture: ComponentFixture<ClearingHousesComponent>;
@@ -39,7 +40,7 @@ describe('ClearingHousesComponent', () => {
 
   it('renderiza lista, estado y configuración incompleta en español', () => {
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Centro administrativo de cámaras'); expect(text).toContain('NUEVARED'); expect(text).toContain('Inactiva');
+    expect(text).toContain('Cámaras compensadoras'); expect(text).toContain('NUEVARED'); expect(text).toContain('Inactiva');
     fixture.componentInstance.view(row); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Configuración incompleta');
     expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
@@ -127,19 +128,81 @@ describe('ClearingHousesComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('[object Object]');
   });
 
-  it('usa controles Material, filtros tipados y no duplica el h1 del shell', () => {
+  it('mantiene el acceso a restricciones operacionales desde el centro administrativo de cámaras', () => {
+    const link = fixture.nativeElement.querySelector('a[href="/operational-restrictions"]') as HTMLAnchorElement | null;
+    expect(link).toBeTruthy();
+    expect(link?.textContent).toContain('Restricciones operativas');
+  });
+
+  it('usa foundation 4C.1, Material y filtros tipados sin ui-boton', () => {
+    expect(fixture.nativeElement.querySelector('app-page-header')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('mat-card')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('table[mat-table]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('ui-etiqueta-estado')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('ui-boton')).toBeFalsy();
     expect(fixture.nativeElement.querySelectorAll('h1').length).toBe(0);
     fixture.componentInstance.filterForm.setValue({ search: 'CENIT', state: 'inactive' });
     fixture.componentInstance.clearFilters();
     expect(fixture.componentInstance.filterForm.getRawValue()).toEqual({ search: '', state: 'all' });
   });
 
-  it('confirma el cambio de estado con MatDialog sin usar confirm del navegador', () => {
+  it('usa los estados shared para loading, error y vacío', () => {
+    fixture.componentInstance.loading = true;
+    (fixture.componentInstance as any).cdr.markForCheck();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('ui-estado-carga')).toBeTruthy();
+
+    fixture.componentInstance.loading = false;
+    fixture.componentInstance.error = 'Fallo controlado';
+    (fixture.componentInstance as any).cdr.markForCheck();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('ui-estado-error')).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain('Fallo controlado');
+
+    fixture.componentInstance.error = '';
+    fixture.componentInstance.rows = [];
+    (fixture.componentInstance as any).cdr.markForCheck();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('ui-estado-vacio')).toBeTruthy();
+  });
+
+  it('preserva expectedUpdatedAt al editar para control de concurrencia', () => {
+    const updatedAt = '2026-10-02T12:34:56Z';
+    const configured = { ...row, updatedAt, paymentRailCode: 'CENIT' };
+    api.update.and.returnValue(of(configured));
+    fixture.componentInstance.edit(configured);
+    fixture.componentInstance.form.controls.name.setValue('Nueva Red actualizada');
+    fixture.componentInstance.save();
+
+    expect(api.update).toHaveBeenCalled();
+    expect(api.update.calls.mostRecent().args[1].expectedUpdatedAt).toBe(updatedAt);
+  });
+
+  it('confirma el cambio de estado con el diálogo operacional compartido', () => {
     api.changeStatus.and.returnValue(of({ ...row, isActive: true, isReady: true, activeCycleCount: 1, missingRequirements: [] }));
     fixture.componentInstance.changeStatus(row);
-    expect(openDialog).toHaveBeenCalled();
+
+    expect(openDialog).toHaveBeenCalledWith(OperationalConfirmDialogComponent, jasmine.objectContaining({
+      data: jasmine.objectContaining({
+        title: 'Activar cámara',
+        confirmLabel: 'Activar',
+        icon: 'play_circle',
+        destructive: false
+      }),
+      width: 'min(92vw, 520px)'
+    }));
     expect(api.changeStatus).toHaveBeenCalledWith(row.id, true);
+  });
+
+  it('respeta cancelar y conserva destructive al desactivar', () => {
+    const active = { ...row, isActive: true };
+    openDialog.and.returnValue({ afterClosed: () => of(false) } as any);
+
+    fixture.componentInstance.changeStatus(active);
+
+    expect(openDialog).toHaveBeenCalledWith(OperationalConfirmDialogComponent, jasmine.objectContaining({
+      data: jasmine.objectContaining({ confirmLabel: 'Desactivar', destructive: true })
+    }));
+    expect(api.changeStatus).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 using Cfa.ACHInterbank.Application.ACH.Implementation;
 using Cfa.ACHInterbank.Application.ACH.Models;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
@@ -121,7 +122,7 @@ public class NachaSemanticAndStrategyTests
     [Fact]
     public void CenitStrategy_UsesRegulatoryFileNamingConvention()
     {
-        var strategy = new CenitClearingHouseStrategy();
+        var strategy = new CenitClearingHouseStrategy(new CycleNumberResolver());
         var cycle = new AchCycle
         {
             CycleName = "CICLO-3",
@@ -137,11 +138,11 @@ public class NachaSemanticAndStrategyTests
     [Fact]
     public void AchStrategy_ValidatesReturnAndReversalRequirements()
     {
-        var strategy = new AchClearingHouseStrategy();
+        var strategy = new AchClearingHouseStrategy(new CycleNumberResolver());
 
         Assert.False(strategy.ValidateTransaction(new AchTransaction { Type = TransactionTypeEnum.Reversal, Amount = 100m }));
         Assert.True(strategy.ValidateTransaction(new AchTransaction { Type = TransactionTypeEnum.Reversal, Amount = 100m, OriginalTraceRef = "123456780000001" }));
-        Assert.True(strategy.ValidateTransaction(new AchTransaction { Type = TransactionTypeEnum.Return, Amount = 100m, OriginalTraceRef = "123456780000001", ReturnReasonCode = "DEV14" }));
+        Assert.True(strategy.ValidateTransaction(new AchTransaction { Type = TransactionTypeEnum.Return, Amount = 100m, OriginalTraceRef = "123456780000001", ReturnReasonCode = "R01" }));
     }
 
     private static (string Content, NachaBuildContext Context) BuildSemanticFile(

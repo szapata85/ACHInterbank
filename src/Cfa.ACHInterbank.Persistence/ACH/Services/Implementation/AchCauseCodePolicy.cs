@@ -19,6 +19,12 @@ public class AchCauseCodePolicy(AchDbContext context) : IAchCauseCodePolicy
         var kind = ClassifyKind(code);
         var rail = ResolveRail(request.ClearingHouseCode);
 
+        if (code == "DEV14")
+        {
+            issues.Add(new("ACHCOL_DEV14_CLAIMS_ONLY", "DEV14 pertenece al flujo de reclamaciones ACH Colombia y no es una causal Return.", AchCauseCodePolicySeverity.Error));
+            return new(false, rail, AchCauseCodeKind.Unknown, false, issues);
+        }
+
         if (code == "DXX-LIQ")
         {
             var allowedInternal = request.Flow == AchCauseCodeFlow.InternalOnly;
@@ -71,7 +77,7 @@ public class AchCauseCodePolicy(AchDbContext context) : IAchCauseCodePolicy
     private static AchCauseCodeKind ClassifyKind(string code)
     {
         if (code == "DXX-LIQ") return AchCauseCodeKind.Internal;
-        if (code == "DEV14" || (code.Length == 3 && code.StartsWith('R') && char.IsDigit(code[1]) && char.IsDigit(code[2]))) return AchCauseCodeKind.ReturnReason;
+        if (code.Length == 3 && code.StartsWith('R') && char.IsDigit(code[1]) && char.IsDigit(code[2])) return AchCauseCodeKind.ReturnReason;
         if (code.StartsWith('D') && code.Length >= 3) return AchCauseCodeKind.FileRejection;
         if (code.StartsWith('I')) return AchCauseCodeKind.TechnicalIntegration;
         return AchCauseCodeKind.Unknown;

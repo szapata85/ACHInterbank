@@ -1,5 +1,9 @@
+using System.Xml.Linq;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.Integrations.Models;
+using Cfa.ACHInterbank.Application.Integrations.Registries;
+using Cfa.ACHInterbank.Application.Integrations.Services;
+using Cfa.ACHInterbank.Application.Integrations.Transformations;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Entities.User;
@@ -7,6 +11,7 @@ using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.ACH.Services.Implementation;
 using Cfa.ACHInterbank.Persistence.DataBase;
+using Cfa.ACHInterbank.Persistence.Integrations.Providers;
 using Cfa.ACHInterbank.Persistence.Integrations.Services;
 using Cfa.ACHInterbank.Persistence.Security.Services;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -292,6 +297,7 @@ public sealed class NachaDesagregadoIntegrationMappingTests
             fixture.Cycle,
             new DateTime(2026, 5, 23, 10, 0, 0, DateTimeKind.Utc));
 
+        Assert.Null(resolution.Contract.ContractDrivenRequest);
         var envelope = mapper.BuildSoapBody(resolution.Contract);
 
         Assert.False(string.IsNullOrWhiteSpace(envelope));
@@ -309,6 +315,66 @@ public sealed class NachaDesagregadoIntegrationMappingTests
         Assert.DoesNotContain("RTALOC", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("password", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Bearer", envelope, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProcTransacciones_ContractDrivenFeatureFlag_ShouldMatchLegacySoapRequest()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.PublishProcTransaccionesMappingAsync();
+        var executionDate = new DateTime(2026, 5, 23, 10, 0, 0, DateTimeKind.Utc);
+
+        var legacyMapper = new ProcTransaccionesRequestMapper(fixture.Context);
+        var legacyResolution = await legacyMapper.ResolveAsync(
+            fixture.Queue,
+            fixture.Ingestion,
+            fixture.Classification,
+            fixture.Transaction,
+            fixture.Cycle,
+            executionDate);
+
+        var functionalSourceResolver = new ProcTransaccionesFunctionalSourceResolver(fixture.Context);
+        var sourceRegistry = new IntegrationSourceProviderRegistry(
+            new CurrentIntegrationSourceProviderFactory(fixture.Context, functionalSourceResolver).Create());
+        var transformationRegistry = new IntegrationTransformationRegistry(
+            StandardIntegrationTransformationCatalog.Create());
+        var requestResolver = new IntegrationRequestResolver(
+            new IntegrationExecutionContractResolver(fixture.Context),
+            new IntegrationParameterValueResolver(sourceRegistry, transformationRegistry));
+        var contractDrivenMapper = new ProcTransaccionesRequestMapper(
+            fixture.Context,
+            options: Options.Create(new ProcTransaccionesDispatchOptions
+            {
+                Mode = "DryRun",
+                UseContractDrivenRequest = true
+            }),
+            requestResolver: requestResolver,
+            soapBodyWriter: new ContractDrivenSoapBodyWriter(),
+            functionalSourceResolver: functionalSourceResolver,
+            parityPolicy: new ProcTransaccionesRequestParityPolicy());
+
+        var contractDrivenResolution = await contractDrivenMapper.ResolveAsync(
+            fixture.Queue,
+            fixture.Ingestion,
+            fixture.Classification,
+            fixture.Transaction,
+            fixture.Cycle,
+            executionDate);
+
+        Assert.NotNull(contractDrivenResolution.Contract.ContractDrivenRequest);
+        Assert.Equal(legacyResolution.MappingSetId, contractDrivenResolution.MappingSetId);
+        Assert.Equal(legacyResolution.MappingVersion, contractDrivenResolution.MappingVersion);
+        Assert.Equal(legacyResolution.MappingSnapshotHash, contractDrivenResolution.MappingSnapshotHash);
+        Assert.Equal(legacyResolution.Contract.Parameters.Count, contractDrivenResolution.Contract.Parameters.Count);
+        foreach (var expected in legacyResolution.Contract.Parameters)
+        {
+            Assert.True(contractDrivenResolution.Contract.Parameters.TryGetValue(expected.Key, out var actual));
+            Assert.Equal(expected.Value, actual);
+        }
+
+        AssertSoapRequestSemanticParity(
+            legacyMapper.BuildSoapBody(legacyResolution.Contract),
+            contractDrivenMapper.BuildSoapBody(contractDrivenResolution.Contract));
     }
 
     [Fact]
@@ -335,6 +401,27 @@ public sealed class NachaDesagregadoIntegrationMappingTests
 
         Assert.Contains("<tem:NCTAORIG>123456789</tem:NCTAORIG>", envelope, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("local-live-test-marker", envelope, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void AssertSoapRequestSemanticParity(string legacyXml, string contractDrivenXml)
+    {
+        XNamespace soap = "http://schemas.xmlsoap.org/soap/envelope/";
+        var legacyDocument = XDocument.Parse(legacyXml);
+        var contractDrivenDocument = XDocument.Parse(contractDrivenXml);
+
+        Assert.Equal(soap + "Envelope", legacyDocument.Root!.Name);
+        Assert.Equal(soap + "Envelope", contractDrivenDocument.Root!.Name);
+        var legacyOperation = Assert.Single(legacyDocument.Root.Element(soap + "Body")!.Elements());
+        var contractDrivenOperation = Assert.Single(contractDrivenDocument.Root.Element(soap + "Body")!.Elements());
+        Assert.Equal(legacyOperation.Name, contractDrivenOperation.Name);
+
+        var legacyParameters = legacyOperation.Elements()
+            .Select(element => (element.Name, element.Value))
+            .ToArray();
+        var contractDrivenParameters = contractDrivenOperation.Elements()
+            .Select(element => (element.Name, element.Value))
+            .ToArray();
+        Assert.Equal(legacyParameters, contractDrivenParameters);
     }
 
     private static TransactionIntegrationOperationResult Operation(Fixture fixture)

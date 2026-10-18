@@ -7,7 +7,6 @@ using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Persistence.Configuration;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Navigation.Seeders;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cfa.ACHInterbank.Tests;
@@ -166,13 +165,7 @@ public sealed class IncomingNachaCommandCenterMenuSeederTests
 
         var handler = new GetMenuForCurrentUserHandler(
             new FakeMenuQueryRepository([parent, commandCenter]),
-            new HttpContextAccessor
-            {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))
-                }
-            });
+            new TestCurrentUserContext(claims));
 
         return await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
     }

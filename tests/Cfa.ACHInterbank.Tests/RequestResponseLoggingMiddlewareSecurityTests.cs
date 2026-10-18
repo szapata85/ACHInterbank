@@ -1,6 +1,6 @@
 using System.Text;
 using Cfa.ACHInterbank.Application.Helpers.Logs.Interfaces;
-using Cfa.ACHInterbank.Application.Helpers.Middleware;
+using Cfa.ACHInterbank.Api.Middleware;
 using Microsoft.AspNetCore.Http;
 using Moq;
 

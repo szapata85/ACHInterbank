@@ -182,6 +182,84 @@ public class CenitIncomingReturnPolicyTests
     }
 
     [Fact]
+    public void Cycle1_R23FromPriorDay_ShouldBeAllowed_WhenExistingR23EvidenceIsValid()
+    {
+        var returnDate = ValueDate.AddDays(1);
+        var result = _sut.Evaluate(Request(
+            TransactionTypeEnum.Credit,
+            "R23",
+            cycle: 1,
+            returnDate: returnDate,
+            returnRequestDate: returnDate,
+            immediateReturnCycle: true,
+            receiverRejectionDeadline: returnDate.AddDays(1)));
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal("CENIT_R23_LATER_ALLOWED", result.Code);
+    }
+
+    [Fact]
+    public void Cycle1_R23SameDay_ShouldBeRejected()
+    {
+        var result = _sut.Evaluate(Request(
+            TransactionTypeEnum.Credit,
+            "R23",
+            cycle: 1,
+            returnRequestDate: ValueDate,
+            immediateReturnCycle: true));
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal("CENIT_CYCLE1_R23_PRIOR_DAY_REQUIRED", result.Code);
+    }
+
+    [Fact]
+    public void Cycle1_R06_ShouldBeRejected_EvenWithCompleteOperationalEvidence()
+    {
+        var result = _sut.Evaluate(Request(
+            TransactionTypeEnum.Credit,
+            "R06",
+            cycle: 1,
+            returnRequestDate: ValueDate,
+            immediateReturnCycle: true,
+            fundsRequired: true,
+            fundsAvailable: true,
+            originatorConfirmation: true));
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal("CENIT_CYCLE1_RETURN_NOT_ALLOWED", result.Code);
+    }
+
+    [Fact]
+    public void Cycle1_OrdinaryReturn_ShouldBeRejected()
+    {
+        var result = _sut.Evaluate(Request(TransactionTypeEnum.Credit, "R32", cycle: 1));
+
+        Assert.False(result.IsAllowed);
+        Assert.Equal("CENIT_CYCLE1_RETURN_NOT_ALLOWED", result.Code);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void R23_Cycles2To5_ShouldPreserveExistingLaterReturnBehavior(int cycle)
+    {
+        var returnDate = ValueDate.AddDays(1);
+        var result = _sut.Evaluate(Request(
+            TransactionTypeEnum.Credit,
+            "R23",
+            cycle: cycle,
+            returnDate: returnDate,
+            returnRequestDate: returnDate,
+            immediateReturnCycle: true,
+            receiverRejectionDeadline: returnDate.AddDays(1)));
+
+        Assert.True(result.IsAllowed);
+        Assert.Equal("CENIT_R23_LATER_ALLOWED", result.Code);
+    }
+
+    [Fact]
     public void Dxx_ShouldRemainFileRejection_NotTransactionalReturn()
     {
         var result = _sut.Evaluate(Request(TransactionTypeEnum.Credit, "D01", cycle: 2));

@@ -1,6 +1,8 @@
+using Cfa.ACHInterbank.Api.OpenApi;
 using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -30,9 +32,20 @@ public sealed class UatContrapartidasController : ControllerBase
         _logger = logger ?? NullLogger<UatContrapartidasController>.Instance;
     }
 
+    /// <summary>Despacha en UAT una transacción elegible hacia el flujo Proc_Contrapartidas.</summary>
+    /// <param name="request">Identificador de la transacción que se solicita procesar.</param>
+    /// <param name="ct">Token de cancelación de la solicitud.</param>
+    [EndpointSummary("Despachar transacción UAT a Proc_Contrapartidas")]
+    [EndpointDescription("La operación solo está habilitada fuera de Production, en Development, Testing o UAT, y cuando ACH_SOAP_LIVE_TESTS es true. Valida que TransactionId sea positivo, obtiene el actor autenticado y solicita a IContrapartidaDispatchJobService procesar esa transacción; la implementación del servicio resuelve su ciclo y cámara desde la cola y ejecuta el flujo Proc_Contrapartidas mediante el cliente SOAP configurado.")]
     [HttpPost("dispatch-cycle")]
     [ProducesResponseType(typeof(ContrapartidaCycleDispatchResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [OpenApiResponseDescription(StatusCodes.Status200OK, "Resultado del procesamiento dirigido de la transacción, con ciclo, cámara y conteos de ejecución reportados por el servicio.")]
+    [OpenApiResponseDescription(StatusCodes.Status400BadRequest, "TransactionId no es positivo; el controller devuelve un body anónimo con errorCode y message.")]
+    [OpenApiResponseDescription(StatusCodes.Status404NotFound, "La operación UAT no está habilitada y responde sin body, o no existe la transacción objetivo en la cola y se devuelve un body anónimo con errorCode.")]
+    [OpenApiResponseDescription(StatusCodes.Status409Conflict, "La transacción ya tiene un resultado funcional exitoso; el controller devuelve un body anónimo con errorCode y message.")]
     public async Task<IActionResult> DispatchCycle([FromBody] UatContrapartidasDispatchCycleRequest request, CancellationToken ct)
     {
         if (!IsUatDispatchEnabled())
@@ -101,7 +114,9 @@ public sealed class UatContrapartidasController : ControllerBase
     }
 }
 
+/// <summary>Solicitud UAT para procesar una transacción concreta en el flujo de contrapartidas.</summary>
 public sealed class UatContrapartidasDispatchCycleRequest
 {
+    /// <summary>Identificador positivo de la transacción ACH cuya cola de Proc_Contrapartidas se solicita procesar.</summary>
     public int TransactionId { get; set; }
 }

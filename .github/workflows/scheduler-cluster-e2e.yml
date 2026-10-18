@@ -95,7 +95,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '24.x'
+          node-version: '24.21.0'
           cache: npm
           cache-dependency-path: web/ach-interbank-ui/package-lock.json
 

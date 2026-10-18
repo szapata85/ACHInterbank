@@ -9,45 +9,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatNativeDateModule } from '@angular/material/core';
 
-export interface ConfirmationDialogData {
-  title: string;
-  message: string;
-  confirmText: string;
-  icon?: string;
-  destructive?: boolean;
-}
-
-@Component({
-  selector: 'app-confirmation-dialog',
-  standalone: true,
-  imports: [CommonModule, MatButtonModule, MatDialogModule, MatIconModule],
-  template: `
-    <h2 mat-dialog-title>
-      <mat-icon aria-hidden="true">{{ data.icon || 'help_outline' }}</mat-icon>
-      {{ data.title }}
-    </h2>
-    <mat-dialog-content><p>{{ data.message }}</p></mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button type="button" [mat-dialog-close]="false">Cancelar</button>
-      <button
-        mat-flat-button
-        type="button"
-        [color]="data.destructive ? 'warn' : 'primary'"
-        [mat-dialog-close]="true"
-      >
-        {{ data.confirmText }}
-      </button>
-    </mat-dialog-actions>
-  `,
-  styles: [`
-    h2 { display: flex; align-items: center; gap: .625rem; }
-    p { color: #475569; line-height: 1.55; max-width: 34rem; }
-  `]
-})
-export class ConfirmationDialogComponent {
-  constructor(@Inject(MAT_DIALOG_DATA) readonly data: ConfirmationDialogData) {}
-}
-
 export interface CloseValidityDialogData {
   transactionType: string;
   initialDate: Date;

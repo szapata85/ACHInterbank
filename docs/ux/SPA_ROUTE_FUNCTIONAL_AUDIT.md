@@ -1,5 +1,7 @@
 # Auditoría funcional de rutas de la SPA
 
+> **Nota de vigencia (2026-09-29):** esta auditoría contiene hallazgos históricos por ruta. El código actual ya implementa varias capacidades que aquí permanecen marcadas `BLOCKED` (manual review, status mappings, resolución de conciliación, scheduler, vistas regulatorias CENIT y administración NACHA). Para el backlog vigente no usar esta matriz aisladamente; consultar `docs/PENDING_WORK_CLASSIFICATION.md`. Los `BLOCKED` históricos que hoy tienen implementación se consideran **pendientes de verificación/UAT** hasta nueva evidencia, no automáticamente pendientes de desarrollo.
+
 Fecha de corte: 2026-07-18  
 Rama local auditada: `ACH-Interbank-Postgresql`  
 Alcance: árbol Angular efectivo, redirecciones, guards, permisos, menú persistido y contrato HTTP usado por cada pantalla. La clasificación describe el estado del *working tree* local; no presupone que una ruta visible sea funcional de extremo a extremo.

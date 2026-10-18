@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
-import { TransactionTypeEnum } from '../transactions/transactions.types';
+import { TransactionTypeEnum } from '../../core/models/transaction-types.model';
 import { TransactionPoliciesService } from './transaction-policies.service';
 
 describe('TransactionPoliciesService', () => {

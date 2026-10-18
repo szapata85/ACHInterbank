@@ -31,7 +31,7 @@ export class IncomingNachaQueuePageComponent implements OnInit {
 
   readonly migas = [
     { etiqueta: 'Inicio', ruta: '/dashboard' },
-    { etiqueta: 'Seguimiento de archivos NACHA-M', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: 'Seguimiento de archivos', ruta: '/incoming-nacha-command-center' },
     { etiqueta: 'Cola de procesamiento' }
   ];
 
@@ -45,7 +45,7 @@ export class IncomingNachaQueuePageComponent implements OnInit {
   });
 
   readonly columnas: ColDef<IncomingNachaQueueListItem>[] = [
-    { field: 'achTransactionId', headerName: 'Tx', minWidth: 100 },
+    { field: 'achTransactionId', headerName: 'ID de transacción ACH', minWidth: 100 },
     { headerName: 'Estado del procesamiento', minWidth: 190, valueGetter: (p) => supportStatusLabel(p.data?.queueStatus) },
     { field: 'priority', headerName: 'Prioridad', minWidth: 110 },
     { field: 'attemptCount', headerName: 'Intentos', minWidth: 100 },

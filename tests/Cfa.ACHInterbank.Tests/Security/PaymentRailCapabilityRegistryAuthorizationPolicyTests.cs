@@ -17,22 +17,14 @@ public class PaymentRailCapabilityRegistryAuthorizationPolicyTests
     [InlineData("CanReadCatalogs", false)]
     public async Task CanViewPaymentRailCapabilityRegistryPolicy_AppliesExpectedFallback(string permission, bool expected)
     {
-        AppSettings.Settings = new AppSettings
-        {
-            TokenManager = new Token
-            {
-                secretKetJwt = "test-super-secret-012345678901234567890123",
-                issuerJwt = "issuer-test",
-                audienceJwt = "audience-test"
-            }
-        };
-
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["appSettings:tokenManager:secretKetJwt"] = "test-super-secret-012345678901234567890123",
                 ["appSettings:tokenManager:issuerJwt"] = "issuer-test",
-                ["appSettings:tokenManager:audienceJwt"] = "audience-test"
+                ["appSettings:tokenManager:audienceJwt"] = "audience-test",
+                ["appSettings:tokenManager:accessExpiration"] = "30",
+                ["appSettings:tokenManager:expirationType"] = "m"
             })
             .Build();
 

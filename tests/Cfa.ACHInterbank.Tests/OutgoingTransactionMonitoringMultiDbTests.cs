@@ -1,3 +1,6 @@
+using Cfa.ACHInterbank.Application.ACH.Configuration;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Moq;
 using Cfa.ACHInterbank.Application.OutgoingTransactionMonitoring;
 using Cfa.ACHInterbank.Application.Security.Dtos;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
@@ -289,7 +292,10 @@ public sealed class OutgoingTransactionMonitoringMultiDbTests
         context.ChangeTracker.Clear();
 
         // Monitoring must remain read-only and must not invoke transport or business execution dependencies.
-        var mft = new AchColombiaManagedFileExchangeService(context, null!, null!, null!, null!, null!, null!, null!);
+        var queryProjection = new AchColombiaManagedMftQueryProjectionComponent(context);
+        var mft = new AchColombiaManagedFileExchangeService(
+            null!, null!, null!, null!, queryProjection, null!, null!,
+            Mock.Of<IAchColombiaManagedMftConnectionTester>());
         var detail = await mft.GetAsync(transfer.Id);
         detail.Should().NotBeNull();
         detail!.TransactionIds.Should().Equal(member.Id).And.NotContain(nonMemberId);

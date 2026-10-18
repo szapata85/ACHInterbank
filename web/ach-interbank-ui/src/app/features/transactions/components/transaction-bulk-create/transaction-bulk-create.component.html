@@ -10,23 +10,43 @@
       <p>Pega aquí el JSON del lote. Puedes revisar y validar antes de enviar.</p>
     </header>
 
-    <textarea
-      [value]="jsonInput()"
-      (input)="onJsonInput($any($event.target).value)"
-      placeholder='{"batchReference":"BATCH-20260410-001","chunkSize":200,"transactions":[{"transactionExternalId":"OP-001", "...":"..."}]}'
-      rows="18"
-      spellcheck="false"
-    ></textarea>
+    <mat-form-field appearance="outline" class="json-field">
+      <mat-label>Contenido JSON del lote</mat-label>
+      <textarea
+        matInput
+        [value]="jsonInput()"
+        (input)="onJsonInput($any($event.target).value)"
+        placeholder='{"batchReference":"BATCH-20260410-001","chunkSize":200,"transactions":[{"transactionExternalId":"OP-001", "...":"..."}]}'
+        rows="18"
+        spellcheck="false"
+      ></textarea>
+      <mat-hint>Valida la estructura antes de enviar el lote.</mat-hint>
+    </mat-form-field>
 
     <div class="actions">
-      <button type="button" class="btn btn-outline" (click)="validateJson()" [disabled]="isSubmitting()">Validar JSON</button>
-      <button type="button" (click)="submit()" [disabled]="isSubmitting() || !payload()">
+      <button mat-stroked-button type="button" (click)="validateJson()" [disabled]="isSubmitting()">
+        Validar JSON
+      </button>
+      <button mat-flat-button type="button" (click)="submit()" [disabled]="isSubmitting() || !payload()">
         {{ isSubmitting() ? 'Enviando lote…' : 'Enviar lote masivo' }}
       </button>
-      <button type="button" class="btn btn-outline" routerLink="/transactions/list" [disabled]="isSubmitting()">Cancelar</button>
+      <button mat-button type="button" routerLink="/transactions/list" [disabled]="isSubmitting()">
+        Cancelar
+      </button>
     </div>
 
-    <p class="error" *ngIf="validationError()">{{ validationError() }}</p>
+    <ui-estado-carga
+      *ngIf="isSubmitting()"
+      mensaje="Procesando lote masivo..."
+    ></ui-estado-carga>
+
+    <ui-estado-error
+      *ngIf="validationError() as error"
+      titulo="No fue posible validar o procesar el lote"
+      [mensaje]="error"
+      [mostrarReintentar]="false"
+    ></ui-estado-error>
+
     <ul class="warnings" *ngIf="parseWarnings().length > 0">
       <li *ngFor="let warning of parseWarnings()">{{ warning }}</li>
     </ul>
@@ -56,10 +76,11 @@
     </ng-container>
 
     <ng-template #emptyPreview>
-      <div class="empty-state">
-        <p>No hay payload validado todavía.</p>
-        <small>Valida el JSON para habilitar el resumen y el envío.</small>
-      </div>
+      <ui-estado-vacio
+        titulo="Sin información validada"
+        mensaje="Aún no hay información validada."
+        sugerencia="Valida el JSON para habilitar el resumen y el envío."
+      ></ui-estado-vacio>
     </ng-template>
 
     <section class="execution" *ngIf="response() as result">

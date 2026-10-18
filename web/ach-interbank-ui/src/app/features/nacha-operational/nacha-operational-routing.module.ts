@@ -1,7 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { permissionGuard } from '../../core/guards/permission.guard';
-import { NachaSoapUatConsoleComponent } from './pages/nacha-soap-uat-console.component';
 import { AchReconciliationConsoleComponent } from './pages/ach-reconciliation-console.component';
 
 export const NACHA_OPERATIONAL_ROUTES: Routes = [
@@ -16,23 +15,13 @@ export const NACHA_OPERATIONAL_ROUTES: Routes = [
     redirectTo: '/incoming-nacha-command-center/files/:fileId'
   },
   {
-    path: 'nacha/soap-uat-console',
-    component: NachaSoapUatConsoleComponent,
-    canActivate: [permissionGuard],
-    data: {
-      permissions: ['CanManageAch'],
-      breadcrumb: 'Consola SOAP/UAT',
-      title: 'Consola SOAP/UAT solo lectura'
-    }
-  },
-  {
     path: 'reconciliation',
     component: AchReconciliationConsoleComponent,
     canActivate: [permissionGuard],
     data: {
       permissions: ['CanReadAch'],
-      breadcrumb: 'Conciliación ACH',
-      title: 'Consola de conciliación ACH solo lectura'
+      breadcrumb: 'Conciliación',
+      title: 'Conciliación'
     }
   },
   {

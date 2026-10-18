@@ -19,5 +19,8 @@ public sealed class RegistrarRespuestaAchCommandMapper : IRegistrarRespuestaAchC
             CodigoCamaraCompensacion: response.CodigoCamaraCompensacion,
             CodigoEntidadOrigen: response.CodigoEntidadOrigen,
             CodigoEntidadDestino: response.CodigoEntidadDestino,
-            CorrelationId: response.CorrelationId);
+            CorrelationId: response.CorrelationId)
+        {
+            DifferentialResponseId = response.Id
+        };
 }

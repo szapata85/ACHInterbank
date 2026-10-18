@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Domain.Entities.Audit;
+using Cfa.ACHInterbank.Domain.Entities.Audit;
 using Cfa.ACHInterbank.Domain.Entities.Navigation;
 using Cfa.ACHInterbank.Domain.Entities.Branding;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
@@ -6,6 +6,7 @@ using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.Services;
 using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Domain.Entities.Integrations;
 using Cfa.ACHInterbank.Domain.Models.ACH;
+using Cfa.ACHInterbank.Domain.Models.ACH.Claims;
 using Cfa.ACHInterbank.Domain.Models.ACH.Enums;
 using Cfa.ACHInterbank.Domain.Models.ACH.ExternalFileNames;
 using Cfa.ACHInterbank.Domain.Models.ACH.Config;
@@ -47,11 +48,16 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<AchTransactionTraceSequence> AchTransactionTraceSequences => Set<AchTransactionTraceSequence>();
     public DbSet<AchTransactionAddenda> AchTransactionAddendas { get; set; }
     public DbSet<AchTransactionStateEvent> AchTransactionStateEvents { get; set; }
+    public DbSet<ClaimCase> ClaimCases => Set<ClaimCase>();
+    public DbSet<ClaimCaseEvent> ClaimCaseEvents => Set<ClaimCaseEvent>();
+    public DbSet<ClaimTransaction> ClaimTransactions => Set<ClaimTransaction>();
     public DbSet<FinancialInstitution> FinancialInstitutions { get; set; }
     public DbSet<BankHolidayModel> BankHolidays { get; set; }
     public DbSet<ClearingHouseSpecialDate> ClearingHouseSpecialDates { get; set; }
     public DbSet<ClearingHouseConfig> ClearingHouseConfigs { get; set; }
     public DbSet<ClearingHouseCycleConfig> ClearingHouseCycleConfigs { get; set; }
+    public DbSet<AchColombiaCycleOperationalSchedule> AchColombiaCycleOperationalSchedules => Set<AchColombiaCycleOperationalSchedule>();
+    public DbSet<CfaOperationalTransactionRestriction> CfaOperationalTransactionRestrictions => Set<CfaOperationalTransactionRestriction>();
 
     public DbSet<NachaHeader> NachaHeaders { get; set; }
     public DbSet<BatchHeader> BatchHeaders { get; set; }
@@ -79,6 +85,8 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<CustomerPhone> CustomerPhones { get; set; }
     public DbSet<CustomerEmail> CustomerEmails { get; set; }
     public DbSet<CustomerThirdParty> CustomerThirdParties { get; set; }
+    public DbSet<ThirdParty> ThirdParties => Set<ThirdParty>();
+    public DbSet<ThirdPartyAccount> ThirdPartyAccounts => Set<ThirdPartyAccount>();
 
     public DbSet<TaskDefinition> TaskDefinitions => Set<TaskDefinition>();
     public DbSet<TaskParameter> TaskParameters => Set<TaskParameter>();
@@ -133,6 +141,8 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<AchReturnOfReturnPolicy> AchReturnOfReturnPolicies => Set<AchReturnOfReturnPolicy>();
     public DbSet<AchPrenotificationPolicy> AchPrenotificationPolicies => Set<AchPrenotificationPolicy>();
     public DbSet<ClearingHouseTransactionRule> ClearingHouseTransactionRules => Set<ClearingHouseTransactionRule>();
+    public DbSet<ThirdPartyAccountValidation> ThirdPartyAccountValidations => Set<ThirdPartyAccountValidation>();
+    public DbSet<PrenotificationValidationAttempt> PrenotificationValidationAttempts => Set<PrenotificationValidationAttempt>();
     public DbSet<NachaFileNamingRule> NachaFileNamingRules => Set<NachaFileNamingRule>();
     public DbSet<NachaInboundSimulation> NachaInboundSimulations => Set<NachaInboundSimulation>();
     public DbSet<NachaInboundSimulationEntry> NachaInboundSimulationEntries => Set<NachaInboundSimulationEntry>();
@@ -194,6 +204,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<LoginLockoutSetting> LoginLockoutSettings => Set<LoginLockoutSetting>();
     public DbSet<SoapIntegrationSetting> SoapIntegrationSettings => Set<SoapIntegrationSetting>();
     public DbSet<IntegrationMethod> IntegrationMethods => Set<IntegrationMethod>();
+    public DbSet<IntegrationContractVersion> IntegrationContractVersions => Set<IntegrationContractVersion>();
     public DbSet<IntegrationResponseCode> IntegrationResponseCodes => Set<IntegrationResponseCode>();
     public DbSet<IntegrationMethodParameter> IntegrationMethodParameters => Set<IntegrationMethodParameter>();
     public DbSet<IntegrationSourceCatalogField> IntegrationSourceCatalogFields => Set<IntegrationSourceCatalogField>();
@@ -211,6 +222,41 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AchDbContext).Assembly);
 
         var isPostgres = Database.ProviderName?.Contains("Npgsql") == true;
+
+        modelBuilder.Entity<IntegrationContractVersion>()
+            .HasIndex(x => x.MethodId)
+            .IsUnique()
+            .HasDatabaseName("UX_IntegrationContractVersions_Method_Active")
+            .HasFilter(isPostgres ? "\"Status\" = 3" : "[Status] = 3");
+
+        modelBuilder.Entity<IntegrationMethodParameter>()
+            .HasIndex(x => new { x.ContractVersionId, x.ParameterPath })
+            .IsUnique()
+            .HasDatabaseName("UX_IntegrationMethodParameters_ContractVersion_ParameterPath")
+            .HasFilter(isPostgres ? "\"ContractVersionId\" IS NOT NULL" : "[ContractVersionId] IS NOT NULL");
+        modelBuilder.Entity<IntegrationMethodParameter>()
+            .HasIndex(x => new { x.MethodId, x.ParameterPath })
+            .IsUnique()
+            .HasDatabaseName("UX_IntegrationMethodParameters_Legacy_Method_ParameterPath")
+            .HasFilter(isPostgres ? "\"ContractVersionId\" IS NULL" : "[ContractVersionId] IS NULL");
+
+        modelBuilder.Entity<IntegrationMappingSet>()
+            .HasIndex(x => new { x.ContractVersionId, x.Version })
+            .IsUnique()
+            .HasDatabaseName("UX_IntegrationMappingSets_ContractVersion_Version")
+            .HasFilter(isPostgres
+                ? "\"ContractVersionId\" IS NOT NULL AND \"Version\" > 0"
+                : "[ContractVersionId] IS NOT NULL AND [Version] > 0");
+        modelBuilder.Entity<ClaimCase>()
+            .HasIndex(x => x.CreationIdempotencyKey)
+            .IsUnique()
+            .HasDatabaseName("UX_ClaimCases_CreationIdempotencyKey")
+            .HasFilter(isPostgres ? "\"CreationIdempotencyKey\" IS NOT NULL" : "[CreationIdempotencyKey] IS NOT NULL");
+        modelBuilder.Entity<ClaimCaseEvent>()
+            .HasIndex(x => new { x.ClaimCaseId, x.IdempotencyKey })
+            .IsUnique()
+            .HasDatabaseName("UX_ClaimCaseEvents_ClaimCase_IdempotencyKey")
+            .HasFilter(isPostgres ? "\"IdempotencyKey\" IS NOT NULL" : "[IdempotencyKey] IS NOT NULL");
         modelBuilder.Entity<AchTransactionStateEvent>()
             .HasIndex(x => x.IdempotencyKey)
             .IsUnique()
@@ -338,6 +384,25 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
             .Property(c => c.PolicyVersion)
             .HasMaxLength(80)
             .IsRequired();
+
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.CompensationStatementStartTime)
+            .IsRequired(false);
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.CompensationStatementEndTime)
+            .IsRequired(false);
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.CompensationPaymentStartTime)
+            .IsRequired(false);
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.CompensationPaymentEndTime)
+            .IsRequired(false);
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.OutputReleaseStartTime)
+            .IsRequired(false);
+        modelBuilder.Entity<ClearingHouseCycleConfig>()
+            .Property(c => c.OutputReleaseEndTime)
+            .IsRequired(false);
 
 
 
@@ -509,10 +574,15 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        IntegrationMappingSetRevisionGuard.Prepare(this);
+        await IntegrationContractVersionInvariantGuard.ValidateAsync(this, cancellationToken);
         await NachaConfigImmutabilityGuard.ValidateAsync(this, cancellationToken);
 
         if (ChangeTracker.Entries<AchResponseAudit>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("La auditoría de respuestas ACH es inmutable.");
+
+        if (ChangeTracker.Entries<IntegrationMappingSetHistory>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("El historial de MappingSet es inmutable y solo admite nuevos eventos.");
 
         foreach (var entry in ChangeTracker.Entries<AchTransaction>().Where(x => x.State == EntityState.Modified))
         {
@@ -622,6 +692,28 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
             entry.Property(x => x.RowVersion).IsModified = true;
         }
 
+        var operationalRestrictionEntries = ChangeTracker
+            .Entries<CfaOperationalTransactionRestriction>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified)
+            .ToList();
+
+        foreach (var entry in operationalRestrictionEntries)
+        {
+            entry.Entity.RowVersion = Guid.NewGuid().ToByteArray();
+            entry.Property(x => x.RowVersion).IsModified = true;
+        }
+
+        var achColombiaOperationalScheduleEntries = ChangeTracker
+            .Entries<AchColombiaCycleOperationalSchedule>()
+            .Where(x => x.State is EntityState.Added or EntityState.Modified)
+            .ToList();
+
+        foreach (var entry in achColombiaOperationalScheduleEntries)
+        {
+            entry.Entity.RowVersion = Guid.NewGuid().ToByteArray();
+            entry.Property(x => x.RowVersion).IsModified = true;
+        }
+
         if (auditEntries.Count > 0)
         {
             AuditLogs.AddRange(auditEntries);
@@ -687,11 +779,39 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         return auditEntries;
     }
 
+    private static bool IsCanonicalThirdPartySensitiveAuditProperty(EntityEntry entry, string propertyName)
+        => entry.Entity switch
+        {
+            ThirdParty => propertyName is nameof(ThirdParty.DocumentNumberNormalized) or nameof(ThirdParty.DisplayName),
+            ThirdPartyAccount => propertyName == nameof(ThirdPartyAccount.AccountNumberNormalized),
+            Customer => propertyName is nameof(Customer.DocumentNumber)
+                or nameof(Customer.FirstName) or nameof(Customer.MiddleName)
+                or nameof(Customer.LastName) or nameof(Customer.SecondLastName)
+                or nameof(Customer.CompanyName),
+            CustomerAccount => propertyName == nameof(CustomerAccount.AccountNumber),
+            CustomerThirdParty => propertyName is nameof(CustomerThirdParty.DestinationAccountNumber)
+                or nameof(CustomerThirdParty.RecipientIdNumber)
+                or nameof(CustomerThirdParty.ValidationMessage),
+            AchTransaction => propertyName is nameof(AchTransaction.SourceAccountNumber)
+                or nameof(AchTransaction.DestinationAccountNumber)
+                or nameof(AchTransaction.CompanyIdentification)
+                or nameof(AchTransaction.CompanyName)
+                or nameof(AchTransaction.RecipientIdNumber),
+            AchBatch => propertyName is nameof(AchBatch.CompanyIdentification) or nameof(AchBatch.CompanyName),
+            PrenotificationValidationAttempt => propertyName is nameof(PrenotificationValidationAttempt.IdempotencyKey)
+                or nameof(PrenotificationValidationAttempt.ReturnDetail)
+                or nameof(PrenotificationValidationAttempt.EvidenceReference)
+                or nameof(PrenotificationValidationAttempt.CorrelationReference)
+                or nameof(PrenotificationValidationAttempt.SourceFileReference),
+            _ => false
+        };
+
     private static string? SerializeValues(EntityEntry entry, bool useOriginalValues, bool onlyModified)
     {
         var properties = entry.Properties
             .Where(property => !property.Metadata.IsShadowProperty())
             .Where(property => !AuditIgnoredProperties.Contains(property.Metadata.Name, StringComparer.OrdinalIgnoreCase))
+            .Where(property => !IsCanonicalThirdPartySensitiveAuditProperty(entry, property.Metadata.Name))
             .Where(property => !property.IsTemporary);
 
         if (onlyModified)
@@ -719,6 +839,7 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
         var properties = entry.Properties
             .Where(property => !property.Metadata.IsShadowProperty())
             .Where(property => !AuditIgnoredProperties.Contains(property.Metadata.Name, StringComparer.OrdinalIgnoreCase))
+            .Where(property => !IsCanonicalThirdPartySensitiveAuditProperty(entry, property.Metadata.Name))
             .Where(property => !property.IsTemporary);
 
         if (onlyModified)

@@ -1,8 +1,8 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { permissionGuard } from '../../core/guards/permission.guard';
-import { NachaOperationalDashboardComponent } from '../nacha-operational/pages/nacha-operational-dashboard.component';
-import { NachaOperationalFileDetailComponent } from '../nacha-operational/pages/nacha-operational-file-detail.component';
+import { NachaOperationalDashboardComponent } from './pages/nacha-operational-dashboard.component';
+import { NachaOperationalFileDetailComponent } from './pages/nacha-operational-file-detail.component';
 import { IncomingNachaObservabilityPageComponent } from './pages/incoming-nacha-observability-page.component';
 import { IncomingNachaQueueDetailPageComponent } from './pages/incoming-nacha-queue-detail-page.component';
 import { IncomingNachaQueuePageComponent } from './pages/incoming-nacha-queue-page.component';
@@ -13,7 +13,7 @@ const routes: Routes = [
     path: '',
     component: NachaOperationalDashboardComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Seguimiento de archivos NACHA-M', title: 'Seguimiento de archivos NACHA-M' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Seguimiento de archivos', title: 'Seguimiento de archivos' }
   },
   {
     path: 'files/:fileId',
@@ -31,19 +31,19 @@ const routes: Routes = [
     path: 'observability',
     component: IncomingNachaObservabilityPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Indicadores operativos', title: 'Indicadores operativos NACHA-M' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Indicadores operativos', title: 'Indicadores operativos' }
   },
   {
     path: 'orphan-resolution',
     component: IncomingNachaOrphansPageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Devoluciones sin relación', title: 'Resolver devoluciones sin relación' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Devoluciones sin relación', title: 'Devoluciones sin relación' }
   },
   {
     path: 'queue',
     component: IncomingNachaQueuePageComponent,
     canActivate: [permissionGuard],
-    data: { permissions: ['CanReadAch'], breadcrumb: 'Cola de procesamiento', title: 'Cola de procesamiento NACHA-M' }
+    data: { permissions: ['CanReadAch'], breadcrumb: 'Cola de procesamiento', title: 'Cola de procesamiento' }
   },
   {
     path: 'queue/:id',

@@ -1,63 +1,12 @@
+:host {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .integration-workspace {
   display: grid;
-  gap: 0.8rem;
-}
-
-.workspace-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.85rem;
-  min-width: 0;
-  border: 1px solid #d7e3f0;
-  border-radius: 12px;
-  background: #fff;
-  padding: 0.45rem;
-}
-
-.workspace-nav {
-  display: flex;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.workspace-nav a {
-  text-decoration: none;
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  color: #374151;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.workspace-nav a.active {
-  background: var(--mat-sys-primary);
-  color: var(--mat-sys-on-primary);
-}
-
-.workspace-bar p {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.86rem;
-  font-weight: 600;
-}
-
-.workspace-content {
-  display: grid;
   gap: 1rem;
-}
-
-@media (max-width: 760px) {
-  .workspace-bar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .workspace-nav {
-    overflow-x: auto;
-  }
-
-  .workspace-bar p {
-    padding: 0 0.35rem 0.2rem;
-  }
+  min-width: 0;
+  max-width: 100%;
 }

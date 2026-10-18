@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@
 import { FormBuilder } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { SharedModule } from '../../../shared/shared.module';
-import { ReportsApiService, ReconciliationReportResponse } from '../services/reports-api.service';
+import { ReportsApiService, ReconciliationReportResponse } from '../../../core/services/reports-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';

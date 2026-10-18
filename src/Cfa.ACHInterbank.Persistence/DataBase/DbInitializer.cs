@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Persistence.Security.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,9 +26,8 @@ public static class DbInitializer
             dbContext.AuditEnabled = false;
         }
 
-        var seeders = scope.ServiceProvider
-                           .GetServices<IDbSeeder>()
-                           .OrderBy(s => s.Order);
+        var seeders = DbSeederExecutionOrder.Apply(
+            scope.ServiceProvider.GetServices<IDbSeeder>());
 
         try
         {

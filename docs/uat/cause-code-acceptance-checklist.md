@@ -37,11 +37,13 @@ Cobertura:
 ## 3. Alcance por dominio
 
 ### 3.1 ACH Colombia
-Validar `R07`, `R10`, `R29`, `R31`, `DEV14` por flujo:
+Validar `R07`, `R10`, `R29`, `R31` por flujo:
 - devolución saliente;
 - devolución entrante;
 - ROR si aplica;
 - command center si aplica.
+
+`DEV14` se valida exclusivamente en **Reclamaciones ACH**. No es causal Return, no se serializa en Addenda 99 y no participa en ROR.
 
 ### 3.2 CENIT
 Validar `R01`, `R02`, `R03`, `R04`, `R06`, `R08`, `R09`, `R12`, `R13`, `R14`, `R15`, `R16`, `R17`, `R20`, `R23` por flujo:
@@ -70,10 +72,10 @@ Validar `DXX-LIQ`:
 | C-ACH-02 | ACH | R10 | Rxx | Outbound Return | Permitido para ACH | Policy rail-flow permite en ACH | Archivo NACHA + R7 + resultado policy | Pendiente | |
 | C-ACH-03 | ACH | R29 | Rxx | Outbound Return | Permitido para ACH | Policy rail-flow permite en ACH | Archivo NACHA + R7 + resultado policy | Pendiente | |
 | C-ACH-04 | ACH | R31 | Rxx | Outbound Return | Permitido para ACH | Policy rail-flow permite en ACH | Archivo NACHA + R7 + resultado policy | Pendiente | |
-| C-ACH-05 | ACH | DEV14 | DEVxx | Outbound Return | Permitido para ACH | Policy rail-flow permite en ACH | Archivo NACHA + R7 + resultado policy | Pendiente | |
+| C-ACH-05 | ACH | DEV14 | Reclamación | Outbound Return | **Prohibido** | Guardrail `ACHCOL_DEV14_CLAIMS_ONLY`; no genera archivo ReturnOut | Error controlado + ausencia de `AchReturnGenerated` | Pendiente | Se gestiona por Reclamaciones ACH |
 | C-ACH-06 | ACH | R07 | Rxx | Incoming Return | Permitido para ACH | Incoming valida rail-flow | Resultado ingestión + issue/evento | Pendiente | |
-| C-ACH-07 | ACH | DEV14 | DEVxx | Incoming Return | Permitido para ACH | Incoming valida rail-flow | Resultado ingestión + issue/evento | Pendiente | |
-| C-ACH-08 | ACH | R07/R10/R29/R31/DEV14 | Rxx/DEVxx | ROR | Aplicabilidad por policy vigente | ROR valida causal original/nueva/linaje | Evaluate + audit/nacha + acta | Pendiente | Si aplica / pendiente por causal |
+| C-ACH-07 | ACH | DEV14 | Reclamación | Incoming Return | **Prohibido** | Addenda 99 con DEV14 se rechaza/falla cerrado como inconsistente | Resultado de validación/clasificación | Pendiente | No es causal física NACHA-M |
+| C-ACH-08 | ACH | R07/R10/R29/R31 | Rxx | ROR | Aplicabilidad por policy vigente | ROR valida causal original/nueva/linaje; DEV14 queda excluido | Evaluate + audit/nacha + acta | Pendiente | DEV14 no participa en ROR |
 | C-CEN-01 | CENIT | R01 | Rxx | Outbound Return | Permitido para CENIT | Policy rail-flow permite en CENIT | Archivo NACHA + R7 + resultado policy | Pendiente | |
 | C-CEN-02 | CENIT | R02 | Rxx | Outbound Return | Permitido para CENIT | Policy rail-flow permite en CENIT | Archivo NACHA + R7 + resultado policy | Pendiente | |
 | C-CEN-03 | CENIT | R03 | Rxx | Outbound Return | Permitido para CENIT | Policy rail-flow permite en CENIT | Archivo NACHA + R7 + resultado policy | Pendiente | |
@@ -109,9 +111,9 @@ Validar `DXX-LIQ`:
 
 | ID | Flujo | Cámara | Códigos permitidos | Códigos rechazados | Validación técnica | Evidencia UAT | Responsable | Estado |
 |---|---|---|---|---|---|---|---|---|
-| F-01 | Devolución saliente ACH | ACH | R07,R10,R29,R31,DEV14 | Rxx CENIT, Dxx, Ixxx, DXX-LIQ | Policy rail-flow outbound | Archivo + R7 + API/policy | QA+Operaciones | Pendiente |
+| F-01 | Devolución saliente ACH | ACH | R07,R10,R29,R31 | DEV14, Rxx CENIT, Dxx, Ixxx, DXX-LIQ | Policy rail-flow outbound | Archivo + R7 + API/policy | QA+Operaciones | Pendiente |
 | F-02 | Devolución saliente CENIT | CENIT | R01,R02,R03,R04,R06,R08,R09,R12,R13,R14,R15,R16,R17,R20,R23 | Rxx/DEVxx ACH, Dxx, Ixxx, DXX-LIQ | Policy rail-flow outbound | Archivo + R7 + API/policy | QA+Operaciones | Pendiente |
-| F-03 | Devolución entrante ACH | ACH | R07,R10,R29,R31,DEV14 | Rxx CENIT, Dxx, Ixxx, DXX-LIQ | Incoming rail-flow | Ingestión + eventos/issues | QA Backend | Pendiente |
+| F-03 | Devolución entrante ACH | ACH | R07,R10,R29,R31 | DEV14, Rxx CENIT, Dxx, Ixxx, DXX-LIQ | Incoming rail-flow | Ingestión + eventos/issues | QA Backend | Pendiente |
 | F-04 | Devolución entrante CENIT | CENIT | R01,R02,R03,R04,R06,R08,R09,R12,R13,R14,R15,R16,R17,R20,R23 | Rxx/DEVxx ACH, Dxx, Ixxx, DXX-LIQ | Incoming rail-flow | Ingestión + eventos/issues | QA Backend | Pendiente |
 | F-05 | ROR ACH | ACH | Según policy ACH vigente | Dxx, Ixxx, DXX-LIQ y no permitidos por linaje | ROR rail-flow+linaje | Evaluate/audit/nacha | QA+Negocio | Pendiente |
 | F-06 | ROR CENIT | CENIT | Según policy CENIT vigente | Dxx, Ixxx, DXX-LIQ y no permitidos por linaje | ROR rail-flow+linaje | Evaluate/audit/nacha | QA+Negocio | Pendiente |
@@ -126,7 +128,7 @@ Validar `DXX-LIQ`:
 | ID | Cámara | Código | Documento fuente | Sección/página | Regla normativa | Flujo autorizado | Evidencia | Estado | Firma requerida |
 |---|---|---|---|---|---|---|---|---|---|
 | N-01 | CENIT | Rxx (tabla Anexo A) | CENIT Anexo A | Tabla de causales | Causales Rxx definidas por cámara | Pendiente cierre por flujo | Extracto + caso UAT | Pendiente | Operaciones + Compliance |
-| N-02 | ACH | Rxx/DEVxx aplicables | ACH Colombia V32 | Sección/página exacta por causal en acta UAT | Causales aplicables por operador/manual | Pendiente ratificación por flujo | Extracto + caso UAT | Pendiente | Negocio + Compliance |
+| N-02 | ACH | Rxx + DEV14 Claims | ACH Colombia V35 | Sección/página exacta por causal en acta UAT | Rxx aplica a Return según flujo; DEV14 pertenece a Reclamaciones ACH | Validación separada Return/Claims | Extracto + caso UAT | Pendiente | Negocio + Compliance |
 | N-03 | ACH/CENIT/STA | Rxx/DEVxx/Dxx/Ixxx/Interno | Matriz de causales current | Documento completo | Control documental vigente de separación por tipo y flujo | Según matriz | Referencia cruzada + checklist firmado | Pendiente | Arquitectura + QA |
 | N-04 | ACH/CENIT/STA | Resultado UAT cámara | Acta UAT por cámara | N/A | Confirmación de comportamiento por flujo | Por flujo | Acta UAT + evidencias | Pendiente | Cámara/Operador |
 | N-05 | ACH/CENIT/STA | Aprobación negocio | Acta comité | N/A | Aprobación funcional | Todos | Acta firmada | Pendiente | Negocio |
@@ -158,18 +160,18 @@ Filtros ejecutados recientemente:
 | ID | Caso UAT | Cámara | Código | Flujo | Entrada | Resultado esperado | Evidencia | Estado |
 |---|---|---|---|---|---|---|---|---|
 | UAT-01 | ACH devolución saliente con R07 | ACH | R07 | Outbound | Tx elegible ACH | Archivo generado y causal válida | Archivo + R7 + API | Pendiente |
-| UAT-02 | ACH devolución saliente con DEV14 | ACH | DEV14 | Outbound | Tx elegible ACH | Archivo generado y causal válida | Archivo + R7 + API | Pendiente |
+| UAT-02 | DEV14 separado de ReturnOut | ACH | DEV14 | Claims / intento Outbound | Tx débito ACH Colombia | ReturnOut rechazado; reclamación se crea por API Claims | Error guardrail + caso Claims | Pendiente |
 | UAT-03 | ACH rechazo por R01 | ACH | R01 | Outbound | Intento usar causal CENIT | Rechazo rail mismatch | Error/failure policy | Pendiente |
 | UAT-04 | CENIT devolución saliente con R01 | CENIT | R01 | Outbound | Tx elegible CENIT | Archivo generado y causal válida | Archivo + R7 + API | Pendiente |
 | UAT-05 | CENIT devolución entrante con R02 | CENIT | R02 | Incoming | Archivo entrante R02 | Ingestión válida | Resultado ingestión/eventos | Pendiente |
-| UAT-06 | CENIT rechazo por DEV14 | CENIT | DEV14 | Outbound | Intento usar causal ACH | Rechazo rail mismatch | Error/failure policy | Pendiente |
+| UAT-06 | CENIT no acepta DEV14 | CENIT | DEV14 | Outbound | Intento usar DEV14 | Rechazo; DEV14 es Claims ACH Colombia | Error/failure policy | Pendiente |
 | UAT-07 | ROR CENIT R01→R02 permitido | CENIT | R01→R02 | ROR | Caso con linaje válido | Evaluate permite | Evaluate/audit/nacha | Pendiente |
 | UAT-08 | ROR con D04 rechazado | ACH/CENIT | D04 | ROR | Intento causal Dxx | Rechazado por policy | Error/failure policy | Pendiente |
 | UAT-09 | Incoming con I500 rechazado como return | ACH/CENIT | I500 | Incoming Return | Addenda con I500 como return reason | Failure/issue, no devolución válida | Resultado ingestión/issues | Pendiente |
 | UAT-10 | DXX-LIQ rechazado como externo | ACH/CENIT/STA | DXX-LIQ | Externo | Intento uso externo | Rechazo policy | Error/failure policy | Pendiente |
 | UAT-11 | D04 permitido como rechazo parcial | STA/Rechazo | D04 | FileRejectPartial | Archivo con error parcial | Rechazo parcial válido | Evidencia rechazo parcial | Pendiente |
 | UAT-12 | I500 permitido como técnico/operator response | Técnico | I500 | OperatorResponse | Evento técnico integración | Registro técnico permitido | Logs + respuesta operador | Pendiente |
-| UAT-13 | Warning NORMATIVE_PENDING no bloquea | ACH/CENIT | Rxx/DEVxx | Return | Caso válido con warning | Warning visible sin bloqueo por sí mismo | Logs + resultado policy | Pendiente |
+| UAT-13 | Warning NORMATIVE_PENDING no bloquea | ACH/CENIT | Rxx | Return | Caso válido con warning | Warning visible sin bloqueo por sí mismo | Logs + resultado policy | Pendiente |
 | UAT-14 | Rail mismatch bloquea o genera failure según flujo | ACH/CENIT | Código no elegible | Return/Incoming/ROR | Causal cruzada por cámara/flujo | Bloqueo/failure según flujo | Error + evidencia procesamiento | Pendiente |
 | UAT-15 | Command center conserva trazabilidad | Operación | Varios permitidos | CommandCenter | Operación manual controlada | Traza completa de decisión causal | Screenshot + logs/auditoría | Pendiente |
 
@@ -199,7 +201,7 @@ Filtros ejecutados recientemente:
 6. Cada causal tiene evidencia UAT.
 7. ACH y CENIT no comparten causal sin evidencia.
 8. Dxx/Ixxx no se usan como devolución.
-9. Rxx/DEVxx no se usan como rechazo técnico.
+9. Rxx no se usan como rechazo técnico; DEV14 se mantiene fuera de Return y de rechazos técnicos.
 10. DXX-LIQ nunca sale a cámara.
 11. Outbound valida rail-flow.
 12. Incoming valida rail-flow.

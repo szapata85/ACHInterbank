@@ -11,12 +11,12 @@ import {
   NachaInboundSimulatorService
 } from '../../services/nacha-inbound-simulator.service';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { FinancialInstitutionsApiService } from '../../../transactions/services/financial-institutions-api.service';
-import { FinancialInstitutionStatusEnum } from '../../../transactions/transactions.types';
-import { ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
-import { ClearingHousesService } from '../../../clearing-houses/clearing-houses.service';
-import { NachaConfigApiService } from '../../../nacha-config-admin/services/nacha-config-api.service';
-import { NachaConfigProfileReadModel } from '../../../nacha-config-admin/models/nacha-config-admin.models';
+import { FinancialInstitutionStatusEnum } from '../../../../core/models/financial-institution.model';
+import { FinancialInstitutionsApiService } from '../../../../core/services/financial-institutions-api.service';
+import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
+import { ClearingHousesService } from '../../../../core/services/clearing-houses.service';
+import { NachaConfigApiService } from '../../../../core/services/nacha-config-api.service';
+import { NachaConfigProfileReadModel } from '../../../../core/models/nacha-config.model';
 
 describe('NachaInboundSimulatorComponent', () => {
   let fixture: ComponentFixture<NachaInboundSimulatorComponent>;

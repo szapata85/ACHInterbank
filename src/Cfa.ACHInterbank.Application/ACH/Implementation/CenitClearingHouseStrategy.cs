@@ -6,9 +6,9 @@ using System.Text;
 
 namespace Cfa.ACHInterbank.Application.ACH.Implementation;
 
-public class CenitClearingHouseStrategy(ICycleNumberResolver? cycleNumberResolver = null) : IClearingHouseStrategy
+public class CenitClearingHouseStrategy(ICycleNumberResolver cycleNumberResolver) : IClearingHouseStrategy
 {
-    private readonly ICycleNumberResolver _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
+    private readonly ICycleNumberResolver _cycleNumberResolver = cycleNumberResolver ?? throw new ArgumentNullException(nameof(cycleNumberResolver));
     public string Name => "CENIT";
     public string OutputFormat => "CENIT";
     public IReadOnlyCollection<TransactionTypeEnum> SupportedTransactionTypes =>

@@ -4,6 +4,7 @@ Permanent coding-agent instructions. Current decisions and status belong in `MEM
 
 ## General rules
 
+- For the phased navigation/menu program `NAV-MENU-IA-001`, start with `docs/ai/navigation-menu/START_HERE.md` and its `MEMORY_STATE.md`; this program uses full-ZIP handoffs without Git.
 - Keep responses concise and evidence based. Do not explain code unless asked; prefer minimal diffs for code changes.
 - Preserve Clean Architecture: Domain, Application contracts/use cases, Persistence/infrastructure, API composition, and isolated frontend concerns. Favor dependency inversion and deterministic, testable behavior.
 - Keep ACH Colombia/CENIT behavior, causes, record layouts, transaction codes, cycles, settlement windows, routing, filenames, limits, and returns profile/configuration/catalog driven. Do not add legacy hardcoded layouts or bypass existing rule engines.
@@ -61,3 +62,20 @@ Permanent coding-agent instructions. Current decisions and status belong in `MEM
 - Development closure does not imply global release readiness. VERIFIED needs scope-appropriate test/build/runtime evidence; GAUNTLET_PASSED needs independent adversarial validation on the exact commit; UAT_READY needs a candidate and user-facing evidence; USER_ACCEPTED needs explicit business acceptance.
 - Gauntlet is optional for routine changes and useful for monetary, NACHA, return, cycle, transport, settlement, idempotency, and release work. A critic reports PASS or FAIL with evidence and reproduction without editing code; convert confirmed defects to deterministic regression tests when practical.
 - Never infer normative rules from code, implementation from normative text, or current correctness from old memory. Report only the precise evidence relevant to the task.
+
+## Third-party/account governance program
+
+- For work on customer third parties, destination accounts or prenotification administration, consult `docs/ai/THIRD_PARTY_ACCOUNT_GOVERNANCE_STATE.md` and `docs/architecture/THIRD_PARTY_ACCOUNT_GOVERNANCE_IMPLEMENTATION_PLAN.md` and execute only its `NEXT_ALLOWED_PHASE`.
+- Preserve silent onboarding from both single and bulk transaction creation; do not replace it with mandatory manual preregistration.
+- **Master onboarding is clearing-house agnostic:** `ThirdParty` and `ThirdPartyAccount` identity/creation must not depend on ACH Colombia, CENIT, credit/debit nature, service class, cycles, deadlines or return causes. Chamber context belongs only to eligibility/validation after the account is resolved.
+- Single, bulk and future manual master creation must converge on the same onboarding use case.
+- Interbank prenotification outcomes are automatic. Manual APIs/UI may manage master data or request/retry validation, but must not directly set an ACH/CENIT validation result.
+- Resolve ACH Colombia and CENIT eligibility from effective chamber policy; do not use a global `Active` third-party/account status as a long-term authorization rule.
+
+
+## CFA SOAP UX + contract-driven mapping program
+
+- For CFA SOAP administration/mapping UX work, use `docs/CFA_SOAP_UX_MAPPING_IMPLEMENTATION_PACKAGE_2026-10-12/` and treat its `MEMORY_STATE.md` as the program-local execution state.
+- Execute exactly one `next_micro_prompt` per chat turn from `micro-prompts/Px.md`; do not reload the entire architecture package each turn. Follow `MICRO_PROMPT_PROTOCOL.md`.
+- Read root `MEMORY.md` narrowly by `CFAUX` IDs and direct dependencies; update root memory only for durable decisions/gaps/closures/evidence, while micro-step progress stays in the program state.
+- Do not advance automatically beyond the selected micro-prompt, even when it completes successfully.

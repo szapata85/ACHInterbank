@@ -188,7 +188,7 @@ public class IncomingNachaPostParseProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_TransitionsOperator_WhenDevCodeIsMappedAsOperator()
+    public async Task ProcessAsync_TransitionsOperator_WhenReturnCodeIsMappedAsOperator()
     {
         using var context = BuildContext();
         SeedMinimalParsed(context, out var ingestionId, out _, out _);
@@ -203,7 +203,7 @@ public class IncomingNachaPostParseProcessorTests
                 EligibilityStatus = IncomingNachaEligibilityStatus.PendienteResolucion,
                 RequiresLink = true,
                 BusinessMeaning = "rechazo operador",
-                ReturnReasonCode = "DEV14",
+                ReturnReasonCode = "R01",
                 OriginalTraceRef = "123456789012345",
                 ClassifierVersion = "vtest"
             });
@@ -224,13 +224,13 @@ public class IncomingNachaPostParseProcessorTests
             .ReturnsAsync(new AchStateTransitionResult(new AchTransaction { Id = 101 }, true, false));
         var resultResolver = new Mock<IIncomingNachaAchResultResolver>();
         resultResolver.Setup(x => x.ResolveAsync(It.IsAny<IncomingNachaAchResultRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IncomingNachaAchResultResolution(true, 78, "DEV14", "Rechazo del operador", IncomingNachaBusinessOutcome.Rejected, "OK"));
+            .ReturnsAsync(new IncomingNachaAchResultResolution(true, 78, "R01", "Rechazo del operador", IncomingNachaBusinessOutcome.Rejected, "OK"));
 
         var regulatory = new Mock<IAchRegulatoryCatalogService>();
         regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>
             {
-                new() { Code = "DEV14", Description = "rechazo operador", AppliesToReturn = true, IsActive = true, RegulatorySource = "OPERATOR" }
+                new() { Code = "R01", Description = "rechazo operador", AppliesToReturn = true, IsActive = true, RegulatorySource = "OPERATOR" }
             });
 
         var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object, null, resultResolver.Object);
@@ -240,7 +240,7 @@ public class IncomingNachaPostParseProcessorTests
             It.Is<AchStateTransitionRequest>(request => request.TransactionId == 101
                 && request.ToState == AchTransferStateEnum.ReturnedByOperator
                 && request.Source == AchStateEventSourceEnum.Operator
-                && request.ReasonCode == "DEV14"
+                && request.ReasonCode == "R01"
                 && request.OriginalTraceRef == "123456789012345"
                 && request.IdempotencyKey != null),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -347,7 +347,7 @@ public class IncomingNachaPostParseProcessorTests
                 EligibilityStatus = IncomingNachaEligibilityStatus.PendienteResolucion,
                 RequiresLink = true,
                 BusinessMeaning = "devolución",
-                ReturnReasonCode = "DEV14",
+                ReturnReasonCode = "R02",
                 OriginalTraceRef = "123456789012345",
                 ClassifierVersion = "vtest"
             });
@@ -368,7 +368,7 @@ public class IncomingNachaPostParseProcessorTests
         regulatory.Setup(x => x.GetReturnCodesAsync(It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AchReturnCode>
             {
-                new() { Code = "DEV14", Description = "rechazo operador", AppliesToReturn = true, IsActive = false, RegulatorySource = "OPERATOR" }
+                new() { Code = "R02", Description = "rechazo operador", AppliesToReturn = true, IsActive = false, RegulatorySource = "OPERATOR" }
             });
 
         var sut = new IncomingNachaPostParseProcessor(context, classifier.Object, linker.Object, Mock.Of<IIncomingNachaPrenotificationResolver>(), Mock.Of<IIncomingNachaDispatchPlanner>(), regulatory.Object, state.Object);

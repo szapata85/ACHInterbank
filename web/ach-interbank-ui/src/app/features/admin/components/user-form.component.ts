@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { AbstractControl, AsyncValidatorFn, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { UsersApiService, RolesApiService } from '../services/users-api.service';
-import { RoleSummary, SaveUserRequest, UserSummary } from '../models/user.model';
+import { UsersApiService } from '../services/users-api.service';
+import { RolesApiService } from '../../../core/services/roles-api.service';
+import { SaveUserRequest, UserSummary } from '../models/user.model';
+import { RoleSummary } from '../../../core/models/role.model';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
 import { PasswordRulesService, PasswordRules } from '../../../core/services/password-rules.service';
@@ -148,7 +150,7 @@ export class UserFormComponent implements OnInit {
       return 'Ingresa un correo electrónico válido.';
     }
     if (control.hasError('invalidEmailDomain')) {
-      return 'El dominio del correo no es válido';
+      return 'Ingresa un correo con un dominio válido.';
     }
     return 'Revisa el correo electrónico ingresado.';
   }

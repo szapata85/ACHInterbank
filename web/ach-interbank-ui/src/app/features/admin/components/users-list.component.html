@@ -1,7 +1,7 @@
 <section class="users-page" aria-labelledby="users-title">
   <header class="page-heading">
     <div>
-      <h2 id="users-title">Administración de usuarios</h2>
+      <h2 id="users-title">{{ pageHeading }}</h2>
       <p>Consulta, crea y actualiza las personas autorizadas para ingresar a la plataforma.</p>
     </div>
     <button mat-flat-button color="primary" type="button" (click)="createUser()">
@@ -43,7 +43,7 @@
       <div class="feedback-state error-state" *ngIf="loadError" role="alert">
         <mat-icon aria-hidden="true">error_outline</mat-icon>
         <div><strong>No fue posible cargar los usuarios.</strong><span>Revisa la conexión e inténtalo nuevamente.</span></div>
-        <button mat-stroked-button type="button" (click)="loadUsers()">Intentar nuevamente</button>
+        <button mat-stroked-button type="button" (click)="loadUsers()">Reintentar</button>
       </div>
 
       <div class="feedback-state" *ngIf="!loading && hasLoaded && !loadError && users.length === 0">

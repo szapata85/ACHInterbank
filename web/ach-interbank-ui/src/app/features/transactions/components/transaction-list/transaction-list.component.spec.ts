@@ -2,9 +2,12 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
+import { ClearingHousesApiService } from '../../../../core/services/clearing-houses-api.service';
 import { NotificationService } from '../../../../core/services/notification.service';
-import { AchCyclesApiService, ClearingHousesApiService } from '../../../ach-cycles/services/ach-cycles-api.service';
+import { AchCyclesApiService } from '../../../../core/services/ach-cycles-api.service';
 import { TransactionsApiService } from '../../services/transactions-api.service';
+import { TransactionIntegrationResult, TransactionListItem } from '../../transactions.models';
+import { TransactionTypeEnum } from '../../../../core/models/transaction-types.model';
 import { TransactionListComponent } from './transaction-list.component';
 
 describe('TransactionListComponent', () => {
@@ -14,6 +17,7 @@ describe('TransactionListComponent', () => {
   let cyclesApi: jasmine.SpyObj<AchCyclesApiService>;
   let clearingHousesApi: jasmine.SpyObj<ClearingHousesApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
+  let router: jasmine.SpyObj<Router>;
 
   const cycleResponse = {
     items: [
@@ -33,6 +37,7 @@ describe('TransactionListComponent', () => {
     cyclesApi = jasmine.createSpyObj<AchCyclesApiService>('AchCyclesApiService', ['search']);
     clearingHousesApi = jasmine.createSpyObj<ClearingHousesApiService>('ClearingHousesApiService', ['list']);
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['error', 'warning']);
+    router = jasmine.createSpyObj<Router>('Router', ['navigate']);
 
     transactionsApi.getAll.and.returnValue(of([]));
     cyclesApi.search.and.returnValue(of(cycleResponse as any));
@@ -48,7 +53,7 @@ describe('TransactionListComponent', () => {
         { provide: AchCyclesApiService, useValue: cyclesApi },
         { provide: ClearingHousesApiService, useValue: clearingHousesApi },
         { provide: NotificationService, useValue: notifications },
-        { provide: Router, useValue: jasmine.createSpyObj<Router>('Router', ['navigate']) }
+        { provide: Router, useValue: router }
       ]
     }).compileComponents();
 
@@ -190,6 +195,64 @@ describe('TransactionListComponent', () => {
     expect(element.querySelector('[data-testid="transaction-clear"]')?.textContent).toContain('Limpiar filtros');
   });
 
+
+  it('conserva las navegaciones operativas de la bandeja', () => {
+    component.createNew();
+    component.createBulk();
+    component.openBulkTracking();
+
+    expect(router.navigate.calls.allArgs()).toEqual([
+      [['/transactions/create']],
+      [['/transactions/bulk-ingestion/upload']],
+      [['/transactions/bulk-ingestion/tracking']]
+    ]);
+  });
+
+  it('mantiene los códigos de devoluciones recibidas 21/31/51 y enviadas 26/36/56', () => {
+    transactionsApi.getAll.and.returnValue(of([
+      transaction({ id: 21, transactionCode: '21', achBatchId: 1 }),
+      transaction({ id: 31, transactionCode: '31', achBatchId: 1 }),
+      transaction({ id: 51, transactionCode: '51', achBatchId: 1 }),
+      transaction({ id: 26, transactionCode: '26', achBatchId: 2 }),
+      transaction({ id: 36, transactionCode: '36', achBatchId: 2 }),
+      transaction({ id: 56, transactionCode: '56', achBatchId: 2 }),
+      transaction({ id: 99, transactionCode: '22', achBatchId: 3 })
+    ]));
+
+    component.setReturnView('received');
+    expect(component.groups.flatMap((group) => group.items).map((item) => item.id)).toEqual([21, 31, 51]);
+    expect(component.groups.flatMap((group) => group.items).every((item) => item.returnManagementLabel === 'Devolución recibida')).toBeTrue();
+
+    component.setReturnView('sent');
+    expect(component.groups.flatMap((group) => group.items).map((item) => item.id)).toEqual([26, 36, 56]);
+    expect(component.groups.flatMap((group) => group.items).every((item) => item.returnManagementLabel === 'Devolución enviada')).toBeTrue();
+  });
+
+  it('consulta getIntegrationResult al seleccionar una transacción', () => {
+    const integrationResult: TransactionIntegrationResult = {
+      transactionId: 45,
+      latest: null,
+      history: []
+    };
+    transactionsApi.getIntegrationResult.and.returnValue(of(integrationResult));
+
+    component.onTransactionSelection([transaction({ id: 45 }) as any]);
+
+    expect(transactionsApi.getIntegrationResult).toHaveBeenCalledOnceWith(45);
+    expect(component.selectedIntegrationResult).toBe(integrationResult);
+    expect(component.loadingIntegrationResult).toBeFalse();
+  });
+
+  it('retira ui-boton y conserva UiGrillaEmpresarial en la superficie', () => {
+    transactionsApi.getAll.and.returnValue(of([transaction()]));
+    component.applyFilters();
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('ui-boton')).toBeNull();
+    expect(element.querySelector('ui-grilla-empresarial')).not.toBeNull();
+  });
+
   it('presenta un error controlado y permite reintentar sin perder filtros', () => {
     transactionsApi.getAll.calls.reset();
     transactionsApi.getAll.and.returnValue(throwError(() => new Error('fallo controlado')));
@@ -203,3 +266,31 @@ describe('TransactionListComponent', () => {
     expect(fixture.nativeElement.querySelector('[data-testid="transactions-error"]')).not.toBeNull();
   });
 });
+
+function transaction(overrides: Partial<TransactionListItem> = {}): TransactionListItem {
+  return {
+    id: 1,
+    amount: 1000,
+    transactionExternalId: 'TX-1',
+    reference: 'REF-1',
+    type: TransactionTypeEnum.Credit,
+    traceNumber: '000000000000001',
+    effectiveEntryDate: '2026-07-27T00:00:00Z',
+    createdAt: '2026-07-27T00:00:00Z',
+    sourceAccountNumber: '1001',
+    destinationAccountNumber: '2002',
+    sourceInstitutionName: 'Origen',
+    destinationInstitutionName: 'Destino',
+    isPrenotification: false,
+    transactionCode: '22',
+    achBatchId: 1,
+    batchSequenceNumber: 1,
+    batchCompanyName: 'Compañía',
+    batchEffectiveEntryDate: '2026-07-27',
+    achCycleId: 'cycle-1',
+    achCycleName: 'Ciclo operativo',
+    clearingHouseName: 'ACH Colombia',
+    ...overrides
+  };
+}
+

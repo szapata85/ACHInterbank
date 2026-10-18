@@ -9,6 +9,7 @@ export interface OperationalConfirmDialogData {
   confirmLabel: string;
   cancelLabel?: string;
   icon?: string;
+  destructive?: boolean;
 }
 
 @Component({
@@ -27,7 +28,13 @@ export interface OperationalConfirmDialogData {
       <button mat-button type="button" [mat-dialog-close]="false">
         {{ data.cancelLabel || 'Cancelar' }}
       </button>
-      <button mat-flat-button color="primary" type="button" [mat-dialog-close]="true">
+      <button
+        mat-flat-button
+        color="primary"
+        type="button"
+        [class.destructive-action]="data.destructive"
+        [mat-dialog-close]="true"
+      >
         {{ data.confirmLabel }}
       </button>
     </mat-dialog-actions>
@@ -46,6 +53,11 @@ export interface OperationalConfirmDialogData {
     mat-dialog-content p {
       margin: 0;
       line-height: 1.55;
+    }
+
+    .destructive-action {
+      --mdc-filled-button-container-color: var(--color-error);
+      --mdc-filled-button-label-text-color: var(--color-on-error);
     }
 
     @media (max-width: 480px) {

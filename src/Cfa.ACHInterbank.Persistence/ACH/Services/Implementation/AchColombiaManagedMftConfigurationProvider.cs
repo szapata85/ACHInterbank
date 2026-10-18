@@ -18,10 +18,29 @@ public sealed class AchColombiaManagedMftConfigurationProvider(
             .Where(x => x.ClearingHouse.Code == "ACHCOL").SingleOrDefaultAsync(ct);
         var fallback = options.Value;
         if (configured is null)
-            return new(fallback.Enabled, fallback.OutboundPath, fallback.InboundPath, fallback.ProcessingPath, fallback.ArchivePath, fallback.MaximumFileBytes);
+            return new(fallback.Enabled, fallback.OutboundPath, fallback.InboundPath, fallback.ProcessingPath, fallback.ArchivePath, fallback.MaximumFileBytes)
+            {
+                Provider = "ManagedFolder",
+                Protocol = "ManagedFile",
+                SftpTimeoutSeconds = fallback.SftpTimeoutSeconds
+            };
+        var processingPath = string.Equals(configured.Provider, "ManagedFolder", StringComparison.OrdinalIgnoreCase)
+            ? Required(fallback.ProcessingPath)
+            : fallback.ProcessingPath ?? string.Empty;
         return new(configured.ProfileEnabled,
             Required(configured.OutboundLocation), Required(configured.InboundLocation),
-            Required(fallback.ProcessingPath), Required(configured.ArchiveLocation), fallback.MaximumFileBytes);
+            processingPath, Required(configured.ArchiveLocation), fallback.MaximumFileBytes)
+        {
+            Provider = Required(configured.Provider),
+            Protocol = Required(configured.Protocol),
+            Endpoint = configured.Endpoint,
+            Port = configured.Port,
+            Principal = configured.Principal,
+            CredentialType = configured.CredentialType,
+            ProtectedCredential = configured.ProtectedCredential,
+            SftpHostKeyFingerprint = configured.SftpHostKeyFingerprint,
+            SftpTimeoutSeconds = configured.SftpTimeoutSeconds
+        };
     }
 
     private static string Required(string value) => string.IsNullOrWhiteSpace(value)

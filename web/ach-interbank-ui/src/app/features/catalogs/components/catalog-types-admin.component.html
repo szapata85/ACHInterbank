@@ -37,12 +37,12 @@
     [mensajeError]="'No fue posible cargar el catálogo.'"
     (reintentar)="load()"
     [tamanoPagina]="10"
-    [mensajeVacio]="'No hay registros.'"
+    [mensajeVacio]="'No hay tipos de catálogo registrados.'"
     [mensajeCargando]="'Cargando información...'"
   ></ui-grilla-empresarial>
 
   <ng-template #emptyState>
     <p class="muted" *ngIf="loading">Cargando...</p>
-    <p class="muted" *ngIf="!loading">No hay registros.</p>
+    <p class="muted" *ngIf="!loading">No hay tipos de catálogo registrados.</p>
   </ng-template>
 </section>

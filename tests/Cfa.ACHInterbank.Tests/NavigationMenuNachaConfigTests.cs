@@ -6,7 +6,6 @@ using Cfa.ACHInterbank.Domain.Entities.User;
 using Cfa.ACHInterbank.Persistence.Configuration;
 using Cfa.ACHInterbank.Persistence.DataBase;
 using Cfa.ACHInterbank.Persistence.Navigation.Seeders;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -23,16 +22,8 @@ public class NavigationMenuNachaConfigTests
             MenuItem(2, "Definiciones NACHA", "/ach-cycles/nacha/definitions", readAch),
             MenuItem(20, "Config Profiles", "/nacha-config-admin/perfiles", readAch)
         ]);
-        var http = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity([
-                    new Claim("permission", "CanReadAch")
-                ], "test"))
-            }
-        };
-        var handler = new GetMenuForCurrentUserHandler(repo, http);
+        var currentUser = new TestCurrentUserContext([new Claim("permission", "CanReadAch")]);
+        var handler = new GetMenuForCurrentUserHandler(repo, currentUser);
 
         var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
         var routes = FlattenRoutes(menu).ToList();
@@ -62,16 +53,8 @@ public class NavigationMenuNachaConfigTests
             MenuItem(MenuItemConfiguration.NachaConfigRecordsId, "Registros oficiales", "/nacha-config-admin/records", readAch, MenuItemConfiguration.NachaLayoutsId),
             MenuItem(MenuItemConfiguration.NachaConfigVariantsFieldsId, "Variantes y campos", "/nacha-config-admin/variants-fields", readAch, MenuItemConfiguration.NachaLayoutsId)
         ]);
-        var http = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity([
-                    new Claim("permission", "CanReadAch")
-                ], "test"))
-            }
-        };
-        var handler = new GetMenuForCurrentUserHandler(repo, http);
+        var currentUser = new TestCurrentUserContext([new Claim("permission", "CanReadAch")]);
+        var handler = new GetMenuForCurrentUserHandler(repo, currentUser);
 
         var menu = await handler.Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
         var group = Assert.Single(menu, x => x.Id == MenuItemConfiguration.NachaLayoutsId);
@@ -95,17 +78,9 @@ public class NavigationMenuNachaConfigTests
             MenuItem(MenuItemConfiguration.UatSimulatorsId, "UAT", "/uat", readAch),
             MenuItem(MenuItemConfiguration.NachaInboundSimulatorId, "Simulador", "/uat/nacha-inbound-simulator", readAch, MenuItemConfiguration.UatSimulatorsId)
         ]);
-        var http = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity([
-                    new Claim("permission", "CanReadAch")
-                ], "test"))
-            }
-        };
+        var currentUser = new TestCurrentUserContext([new Claim("permission", "CanReadAch")]);
 
-        var menu = await new GetMenuForCurrentUserHandler(repo, http)
+        var menu = await new GetMenuForCurrentUserHandler(repo, currentUser)
             .Handle(new GetMenuForCurrentUserQuery(), CancellationToken.None);
 
         Assert.Empty(menu);

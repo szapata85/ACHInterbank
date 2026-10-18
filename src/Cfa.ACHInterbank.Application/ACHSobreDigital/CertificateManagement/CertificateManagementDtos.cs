@@ -93,6 +93,27 @@ public record CertificateVersionDto(
     string? RevokedBy = null,
     bool CanDelete = false);
 
+/// <summary>Resultado de previsualización de un certificado antes de persistirlo.</summary>
+/// <param name="Purpose">Uso funcional evaluado para el certificado.</param>
+/// <param name="FinancialInstitutionId">Identificador de la entidad financiera asociada cuando aplica.</param>
+/// <param name="FinancialInstitutionName">Nombre de la entidad financiera asociada cuando aplica.</param>
+/// <param name="ClearingHouseId">Identificador de la cámara asociada cuando aplica.</param>
+/// <param name="ClearingHouseName">Nombre de la cámara asociada cuando aplica.</param>
+/// <param name="Subject">Subject extraído del certificado.</param>
+/// <param name="Issuer">Issuer extraído del certificado.</param>
+/// <param name="SerialNumber">Número de serie extraído del certificado.</param>
+/// <param name="Thumbprint">Thumbprint extraído del certificado.</param>
+/// <param name="NotBefore">Fecha inicial de vigencia contenida en el certificado.</param>
+/// <param name="NotAfter">Fecha final de vigencia contenida en el certificado.</param>
+/// <param name="HasPrivateKey">Indica si el archivo evaluado contiene llave privada.</param>
+/// <param name="KeyAlgorithm">Algoritmo de llave pública identificado por el servicio.</param>
+/// <param name="KeySize">Tamaño de llave identificado por el servicio.</param>
+/// <param name="SignatureAlgorithm">Algoritmo de firma identificado en el certificado.</param>
+/// <param name="FunctionalStatus">Estado funcional calculado durante la previsualización.</param>
+/// <param name="DaysRemaining">Días restantes calculados cuando el servicio puede determinarlos.</param>
+/// <param name="CanSignAndDecrypt">Indica si el certificado evaluado puede usarse para firma y descifrado según la validación ejecutada.</param>
+/// <param name="IsValid">Resultado consolidado de la validación realizada por el servicio.</param>
+/// <param name="Warnings">Advertencias generadas por la validación cuando existen.</param>
 public record CertificatePreviewDto(
     CertificatePurpose Purpose,
     int? FinancialInstitutionId,

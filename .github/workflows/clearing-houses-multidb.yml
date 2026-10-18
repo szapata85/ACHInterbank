@@ -82,7 +82,7 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.300'
+          dotnet-version: '10.0.402'
 
       - name: Start isolated database services
         shell: bash
@@ -170,7 +170,7 @@ jobs:
 
       - name: Publish test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: clearing-houses-multidb-results
           path: TestResults/ClearingHouses

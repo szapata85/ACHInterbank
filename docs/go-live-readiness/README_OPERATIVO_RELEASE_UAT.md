@@ -272,3 +272,24 @@ Resultados del commit `e5721150`:
 - Angular: 347/347.
 
 G3.6B demuestra correlacion por `AchCycleId`, no causalidad NachaExport -> Proc_Contrapartidas. Productivo permanece **NO-GO**.
+
+## 17. ACH Colombia — pendiente antes de homologación/producción
+
+Estado del frente FASE 1–8: **IMPLEMENTACIÓN COMPLETADA / VALIDACIÓN EJECUTABLE FINAL PENDIENTE**. No usar este estado como `GO`, `RELEASE_READY`, homologación o aceptación de usuario.
+
+Antes de homologar o promover a un ambiente productivo debe existir evidencia del artefacto exacto para:
+
+- [ ] build Release y pruebas backend .NET;
+- [ ] build y pruebas frontend completas;
+- [ ] FASE 8 controlada con PostgreSQL persistente, dos instancias y Quartz cluster;
+- [ ] una sola ejecución lógica con dos nodos, reschedule sin restart y recuperación después de caída;
+- [ ] SFTP CFA en ambiente autorizado, con rutas INPUT/OUTPUT acordadas;
+- [ ] usuario/credencial de homologación y procedimiento de rotación;
+- [ ] huella del servidor validada por canal autorizado;
+- [ ] firewall/lista blanca e IP de origen acordados con infraestructura/ACH Colombia;
+- [ ] horarios operativos definitivos C2-C6, sin inferencia desde regulación;
+- [ ] `EffectiveFrom` oficial de siete ciclos y resolución oficial del inicio de C4;
+- [ ] homologación ACH Colombia/GoAnywhere con evidencia de transporte/recepción acordada;
+- [ ] UAT del usuario y aceptación formal.
+
+El harness para el control interno está documentado en `docs/certification/ACH_COLOMBIA_PHASE8_CONTROLLED_E2E.md`. El handoff corto del frente está en `docs/ACH_COLOMBIA_INTERNAL_CLOSURE.md`.

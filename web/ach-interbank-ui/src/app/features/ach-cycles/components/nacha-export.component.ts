@@ -22,11 +22,11 @@ import {
 } from '../../../core/services/blob-download.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { OperationalErrorView } from '../../../core/models/operational-error.model';
+import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
+import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
 import { presentNachaError } from '../../../core/utils/nacha-error-presentation.util';
 import { SharedModule } from '../../../shared/shared.module';
 import { ExportableAchCycle } from '../models/ach-cycle-export.model';
-import { ClearingHouseOption } from '../models/ach-cycle.model';
-import { ClearingHousesApiService } from '../services/ach-cycles-api.service';
 import { NachaExportApiService } from '../services/nacha-export-api.service';
 
 type ExportAction = 'plain' | 'encrypted';
@@ -258,7 +258,7 @@ export class NachaExportComponent implements OnInit {
       const result = await this.downloads.save(response);
       this.notifications.success(
         action === 'encrypted'
-          ? `Sobre digital generado: ${result.fileName}`
+          ? `Archivo NACHA-M cifrado: ${result.fileName}`
           : `Archivo NACHA-M descargado: ${result.fileName}`
       );
       this.load();

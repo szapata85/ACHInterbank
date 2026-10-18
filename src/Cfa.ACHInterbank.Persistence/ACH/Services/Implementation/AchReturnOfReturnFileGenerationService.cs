@@ -4,6 +4,7 @@ using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.ExternalFileNames;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Application.ACH.Models.ExternalFileNames;
+using Cfa.ACHInterbank.Application.ACH.Services;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Domain.Entities.Transactions.Enums;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -20,7 +21,8 @@ public class AchReturnOfReturnFileGenerationService(
     INachaRecordFieldValidator? nachaRecordFieldValidator = null,
     ILogger<AchReturnOfReturnFileGenerationService>? logger = null,
     INachaFileBuilder? nachaFileBuilder = null,
-    ICycleTransactionPolicy? cycleTransactionPolicy = null) : IAchReturnOfReturnFileGenerationService
+    ICycleTransactionPolicy? cycleTransactionPolicy = null,
+    IOperationalCalendarService? operationalCalendarService = null) : IAchReturnOfReturnFileGenerationService
 {
     private readonly IExternalFileNamePolicy? _externalFileNamePolicy = externalFileNamePolicy;
     private readonly INachaRecordConfigProvider? _nachaRecordConfigProvider = nachaRecordConfigProvider;
@@ -28,6 +30,7 @@ public class AchReturnOfReturnFileGenerationService(
     private readonly ILogger<AchReturnOfReturnFileGenerationService> _logger = logger ?? NullLogger<AchReturnOfReturnFileGenerationService>.Instance;
     private readonly INachaFileBuilder? _nachaFileBuilder = nachaFileBuilder;
     private readonly ICycleTransactionPolicy? _cycleTransactionPolicy = cycleTransactionPolicy;
+    private readonly IOperationalCalendarService? _operationalCalendarService = operationalCalendarService;
     public async Task<AchReturnOfReturnFileGenerationResult> GenerateAsync(AchReturnOfReturnFileGenerationRequest request, CancellationToken cancellationToken)
     {
         var failures = new List<AchReturnOfReturnFileGenerationFailure>();
@@ -229,6 +232,33 @@ public class AchReturnOfReturnFileGenerationService(
         var now = request.GeneratedAtUtc;
         var clearingHouseId = clearingHouseIds[0];
         var firstCycle = flows.First().ReturnOfReturnTransaction.AchCycle;
+        var isCenit = string.Equals(firstCycle.ClearingHouse?.Code, "CENIT", StringComparison.OrdinalIgnoreCase);
+        var cycleNumberResolver = new CycleNumberResolver();
+        var cycleNumberFromName = cycleNumberResolver.Resolve(firstCycle.CycleName);
+
+        if (isCenit)
+        {
+            var targetCycleNumbers = flows
+                .Select(flow => cycleNumberResolver.Resolve(flow.ReturnOfReturnTransaction?.AchCycle?.CycleName))
+                .ToArray();
+            if (targetCycleNumbers.Any(cycleNumber => cycleNumber == 1)
+                && targetCycleNumbers.Any(cycleNumber => cycleNumber != 1))
+            {
+                failures.Add(new(
+                    "CENIT_ROR_CYCLE1_TARGET_CONTEXT_MISMATCH",
+                    "Un archivo ROR CENIT que contiene ciclo 1 no puede mezclar flujos de otros ciclos o con ciclo no resoluble."));
+                return new(false, null, null, null, 0, requestedIds, failures, null, null);
+            }
+        }
+
+        if (isCenit && cycleNumberFromName == 1 && _cycleTransactionPolicy is null)
+        {
+            failures.Add(new(
+                CycleTransactionPolicy.UnresolvedReasonCode,
+                "No existe politica de ciclos disponible para validar la excepcion contextual CENIT de ROR en ciclo 1."));
+            return new(false, null, null, null, 0, requestedIds, failures, null, null);
+        }
+
         if (_cycleTransactionPolicy is not null)
         {
             var cycleDecision = await _cycleTransactionPolicy.EvaluateAsync(new CycleTransactionPolicyRequest(
@@ -241,7 +271,41 @@ public class AchReturnOfReturnFileGenerationService(
                 TransactionTypeEnum.Return,
                 false,
                 IsReturnOfReturn: true), cancellationToken);
-            if (!cycleDecision.IsAllowed)
+
+            if (isCenit
+                && cycleNumberFromName.HasValue
+                && cycleDecision.CycleNumber.HasValue
+                && cycleNumberFromName.Value != cycleDecision.CycleNumber.Value
+                && (cycleNumberFromName.Value == 1 || cycleDecision.CycleNumber.Value == 1))
+            {
+                failures.Add(new(
+                    CycleTransactionPolicy.UnresolvedReasonCode,
+                    "La identidad del ciclo CENIT no es consistente entre el ciclo operativo y la politica resuelta."));
+                return new(false, null, null, null, 0, requestedIds, failures, null, null);
+            }
+
+            var effectiveCycleNumber = cycleDecision.CycleNumber ?? cycleNumberFromName;
+            var isCenitCycle1 = isCenit && effectiveCycleNumber == 1;
+            if (isCenitCycle1)
+            {
+                if (!cycleDecision.IsAllowed
+                    && !string.Equals(cycleDecision.ReasonCode, CycleTransactionPolicy.NotAllowedReasonCode, StringComparison.Ordinal))
+                {
+                    failures.Add(new(cycleDecision.ReasonCode, cycleDecision.Message));
+                    return new(false, null, null, null, 0, requestedIds, failures, null, null);
+                }
+
+                var contextualFailure = await ValidateCenitCycle1ReturnOfReturnExceptionAsync(
+                    flows,
+                    firstCycle,
+                    cancellationToken);
+                if (contextualFailure is not null)
+                {
+                    failures.Add(contextualFailure);
+                    return new(false, null, null, null, 0, requestedIds, failures, null, null);
+                }
+            }
+            else if (!cycleDecision.IsAllowed)
             {
                 failures.Add(new(cycleDecision.ReasonCode, cycleDecision.Message));
                 return new(false, null, null, null, 0, requestedIds, failures, null, null);
@@ -322,6 +386,82 @@ public class AchReturnOfReturnFileGenerationService(
         context.AchReturnOfReturnGeneratedFileAudits.Add(audit);
         await context.SaveChangesAsync(cancellationToken);
         return new(true, fileName, contentText, content, flows.Count, flows.Select(x => (int)x.Id).ToArray(), Array.Empty<AchReturnOfReturnFileGenerationFailure>(), audit.Id, contentSha256);
+    }
+
+    private async Task<AchReturnOfReturnFileGenerationFailure?> ValidateCenitCycle1ReturnOfReturnExceptionAsync(
+        IReadOnlyList<ReturnOfReturnFlow> flows,
+        AchCycle targetCycle,
+        CancellationToken ct)
+    {
+        if (_operationalCalendarService is null)
+        {
+            return new(
+                "CENIT_ROR_PREVIOUS_BUSINESS_DAY_UNRESOLVED",
+                "No existe calendario operacional disponible para validar la excepcion CENIT de ROR en ciclo 1.");
+        }
+
+        if (targetCycle.ClearingHouseId <= 0 || targetCycle.ProcessingDate == default)
+        {
+            return new(
+                "CENIT_ROR_CYCLE1_CONTEXT_REQUIRED",
+                "No existe evidencia suficiente del ciclo 1 CENIT destino para validar la excepcion de devolucion de una devolucion.");
+        }
+
+        DateOnly previousBusinessDay;
+        try
+        {
+            var targetOperationalDate = DateOnly.FromDateTime(targetCycle.ProcessingDate.Date);
+            previousBusinessDay = await _operationalCalendarService.GetPreviousBusinessDayAsync(
+                targetOperationalDate.AddDays(-1),
+                targetCycle.ClearingHouseId,
+                ct);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "No fue posible resolver el Dia Habil Bancario inmediatamente anterior para ROR CENIT ciclo 1. ClearingHouseId={ClearingHouseId}, ProcessingDate={ProcessingDate}",
+                targetCycle.ClearingHouseId,
+                targetCycle.ProcessingDate.Date);
+            return new(
+                "CENIT_ROR_PREVIOUS_BUSINESS_DAY_UNRESOLVED",
+                "No fue posible resolver el Dia Habil Bancario inmediatamente anterior para validar ROR CENIT en ciclo 1.");
+        }
+
+        foreach (var flow in flows)
+        {
+            var flowTargetCycle = flow.ReturnOfReturnTransaction?.AchCycle;
+            if (flowTargetCycle is null
+                || flowTargetCycle.ClearingHouseId != targetCycle.ClearingHouseId
+                || flowTargetCycle.ProcessingDate.Date != targetCycle.ProcessingDate.Date
+                || !string.Equals(flowTargetCycle.CycleName?.Trim(), targetCycle.CycleName?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return new(
+                    "CENIT_ROR_CYCLE1_TARGET_CONTEXT_MISMATCH",
+                    "Todos los flujos ROR CENIT del archivo deben corresponder al mismo ciclo 1 y a la misma Fecha Valor.");
+            }
+
+            var sourceReturn = flow.SourceReturnTransaction ?? flow.OriginalTransaction;
+            var sourceCycle = sourceReturn?.AchCycle;
+            if (sourceReturn is null
+                || sourceReturn.Type != TransactionTypeEnum.Return
+                || sourceCycle is null
+                || sourceCycle.ClearingHouseId != targetCycle.ClearingHouseId)
+            {
+                return new(
+                    "CENIT_ROR_SOURCE_RETURN_CYCLE_REQUIRED",
+                    $"No existe evidencia suficiente del ciclo de la devolucion origen para el flujo {flow.Id}.");
+            }
+
+            if (DateOnly.FromDateTime(sourceCycle.ProcessingDate.Date) != previousBusinessDay)
+            {
+                return new(
+                    "CENIT_ROR_CYCLE1_PREVIOUS_BUSINESS_DAY_REQUIRED",
+                    $"El flujo {flow.Id} no corresponde a una devolucion del Dia Habil Bancario inmediatamente anterior.");
+            }
+        }
+
+        return null;
     }
 
     private async Task<AchReturnOfReturnFileGenerationResult> GenerateCenitNachaAsync(

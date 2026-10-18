@@ -21,7 +21,7 @@ import { OperationalErrorView } from '../../core/models/operational-error.model'
         <div class="actions">
           <button *ngIf="error.retryable" mat-stroked-button type="button" (click)="retry.emit()">
             <mat-icon fontSet="material-symbols-outlined">refresh</mat-icon>
-            Volver a intentar
+            Reintentar
           </button>
           <a
             *ngIf="error.correctionRoute"

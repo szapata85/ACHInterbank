@@ -71,6 +71,7 @@ public sealed class AchManagedFileTransferConfigurationEntityConfiguration : IEn
         builder.Property(x => x.Principal).HasMaxLength(160);
         builder.Property(x => x.CredentialType).HasMaxLength(40);
         builder.Property(x => x.ProtectedCredential).HasMaxLength(8000);
+        builder.Property(x => x.SftpHostKeyFingerprint).HasMaxLength(200);
         builder.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
         builder.HasOne(x => x.ClearingHouse).WithMany().HasForeignKey(x => x.ClearingHouseId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => x.ClearingHouseId).IsUnique();

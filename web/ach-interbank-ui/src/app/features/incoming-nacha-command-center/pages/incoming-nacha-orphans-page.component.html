@@ -1,18 +1,18 @@
 <main class="orphan-page" aria-labelledby="orphan-title">
   <ui-migas-pan [items]="[
     { etiqueta: 'Inicio', ruta: '/dashboard' },
-    { etiqueta: 'Seguimiento de archivos NACHA-M', ruta: '/incoming-nacha-command-center' },
+    { etiqueta: 'Seguimiento de archivos', ruta: '/incoming-nacha-command-center' },
     { etiqueta: 'Devoluciones sin relación' }
   ]"></ui-migas-pan>
 
   <header class="page-hero">
     <div>
       <p class="eyebrow">Resolución operativa controlada</p>
-      <h1 id="orphan-title">Devoluciones recibidas sin relación</h1>
+      <h1 id="orphan-title">Devoluciones sin relación</h1>
       <p>Investigue la devolución, compare sus datos con una transacción originada y confirme explícitamente la relación.</p>
     </div>
     <button mat-stroked-button type="button" routerLink="/incoming-nacha-command-center">
-      <mat-icon aria-hidden="true">arrow_back</mat-icon> Volver al seguimiento
+      <mat-icon aria-hidden="true">arrow_back</mat-icon> Volver a Seguimiento de archivos
     </button>
   </header>
 
@@ -107,7 +107,7 @@
             <mat-label>Justificación de la relación</mat-label>
             <textarea matInput rows="3" formControlName="justification" maxlength="500"></textarea>
             <mat-error *ngIf="resolutionForm.controls.justification.hasError('required')">La justificación es obligatoria.</mat-error>
-            <mat-error *ngIf="resolutionForm.controls.justification.hasError('minlength')">Escriba al menos 8 caracteres.</mat-error>
+            <mat-error *ngIf="resolutionForm.controls.justification.hasError('minlength')">Escribe al menos 8 caracteres.</mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline">
             <mat-label>Comentario adicional</mat-label>
@@ -115,7 +115,7 @@
             <mat-error *ngIf="resolutionForm.controls.comment.hasError('maxlength')">Máximo 500 caracteres.</mat-error>
           </mat-form-field>
           <mat-checkbox formControlName="confirmed">Confirmo que revisé cámara, valor, fechas, cuenta, causal y números de rastreo.</mat-checkbox>
-          <mat-error class="checkbox-error" *ngIf="resolutionForm.controls.confirmed.touched && resolutionForm.controls.confirmed.invalid">Debe confirmar la revisión antes de continuar.</mat-error>
+          <mat-error class="checkbox-error" *ngIf="resolutionForm.controls.confirmed.touched && resolutionForm.controls.confirmed.invalid">Confirma la revisión antes de continuar.</mat-error>
           <button mat-flat-button color="primary" type="submit" [disabled]="resolving">
             <mat-icon aria-hidden="true">link</mat-icon>{{ resolving ? 'Relacionando…' : 'Confirmar relación' }}
           </button>

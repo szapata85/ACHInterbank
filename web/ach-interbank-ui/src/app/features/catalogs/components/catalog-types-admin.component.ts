@@ -174,7 +174,7 @@ export class CatalogTypesAdminComponent implements OnInit {
       return;
     }
 
-    const ok = window.confirm(`¿Deseas eliminar el código ${row.code}?`);
+    const ok = window.confirm(`¿Deseas eliminar el código ${row.code} del catálogo?`);
     if (!ok) {
       return;
     }

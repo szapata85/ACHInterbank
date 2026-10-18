@@ -1,1 +1,73 @@
-@use '../../admin/components/user-form.component' as *;
+:host {
+  display: block;
+}
+
+.cycle-form-page {
+  max-width: 58rem;
+  margin: 0 auto;
+}
+
+.cycle-form-card {
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.form-field,
+mat-form-field {
+  width: 100%;
+}
+
+.field-span {
+  grid-column: 1 / -1;
+}
+
+.configuration-state,
+.empty-configurations {
+  display: block;
+  margin-top: var(--space-2);
+}
+
+.empty-configurations {
+  color: var(--color-text-muted);
+}
+
+.holiday-option {
+  color: var(--color-text);
+}
+
+.form-error {
+  margin-top: var(--space-4);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 720px) {
+  .cycle-form-card {
+    padding: var(--space-4);
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field-span {
+    grid-column: auto;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+}

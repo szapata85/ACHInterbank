@@ -30,14 +30,15 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/services/auth.service';
-import {
-  CloseValidityDialogComponent,
-  ConfirmationDialogComponent,
-  ConfirmationDialogData
-} from './clearing-house-dialogs.component';
-import { ClearingHouseContextNavigationComponent } from './clearing-house-context-navigation.component';
-import { ClearingHousesService } from './clearing-houses.service';
-import { ClearingHouse } from './clearing-houses.models';
+import { PageHeaderComponent } from '../../shared/components/page-header.component';
+import { UiEstadoCargaComponent } from '../../shared/components/ui/ui-estado-carga.component';
+import { UiEstadoErrorComponent } from '../../shared/components/ui/ui-estado-error.component';
+import { UiEstadoVacioComponent } from '../../shared/components/ui/ui-estado-vacio.component';
+import { CloseValidityDialogComponent } from './clearing-house-dialogs.component';
+import { OperationalConfirmDialogComponent, OperationalConfirmDialogData } from '../../shared/components/operational-confirm-dialog.component';
+import { ClearingHouseContextNavigationComponent } from '../../shared/components/clearing-house-context-navigation.component';
+import { ClearingHousesService } from '../../core/services/clearing-houses.service';
+import { ClearingHouse } from '../../core/models/clearing-house.model';
 import { TransactionPoliciesService } from './transaction-policies.service';
 import {
   CreateTransactionPolicyVersionRequest,
@@ -45,7 +46,7 @@ import {
   TransactionPolicy,
   TransactionPolicyPreview
 } from './transaction-policies.models';
-import { TransactionTypeEnum } from '../transactions/transactions.types';
+import { TransactionTypeEnum } from '../../core/models/transaction-types.model';
 
 type PolicyForm = FormGroup<{
   transactionType: FormControl<TransactionTypeEnum | null>;
@@ -70,6 +71,10 @@ interface PolicyLoadResult {
   imports: [
     CommonModule,
     ReactiveFormsModule,
+    PageHeaderComponent,
+    UiEstadoCargaComponent,
+    UiEstadoErrorComponent,
+    UiEstadoVacioComponent,
     ClearingHouseContextNavigationComponent,
     MatButtonModule,
     MatCardModule,
@@ -285,8 +290,8 @@ export class TransactionPoliciesComponent {
     if (this.form.dirty) {
       this.confirm({
         title: 'Descartar cambios',
-        message: 'Los cambios del formulario no se han guardado.',
-        confirmText: 'Descartar',
+        message: 'Los cambios del formulario no se han guardado y se perderán al descartarlos.',
+        confirmLabel: 'Descartar',
         icon: 'edit_off',
         destructive: true
       }).subscribe(confirmed => {
@@ -311,7 +316,7 @@ export class TransactionPoliciesComponent {
     this.confirm({
       title: 'Confirmar nueva versión',
       message: 'La nueva política puede cerrar una vigencia anterior y cambiar los prerrequisitos de exportación NACHA-M.',
-      confirmText: 'Crear versión',
+      confirmLabel: 'Crear versión',
       icon: 'warning_amber'
     }).subscribe(confirmed => {
       if (confirmed) {
@@ -350,7 +355,7 @@ export class TransactionPoliciesComponent {
     this.confirm({
       title: 'Activar versión futura',
       message: `Se activará la versión de ${this.typeLabel(policy.transactionType).toLowerCase()} vigente desde ${policy.effectiveFrom}.`,
-      confirmText: 'Activar versión',
+      confirmLabel: 'Activar versión',
       icon: 'play_circle'
     }).subscribe(confirmed => {
       if (!confirmed || !this.clearingHouse) {
@@ -497,8 +502,8 @@ export class TransactionPoliciesComponent {
     };
   }
 
-  private confirm(data: ConfirmationDialogData) {
-    return this.dialog.open(ConfirmationDialogComponent, {
+  private confirm(data: OperationalConfirmDialogData) {
+    return this.dialog.open(OperationalConfirmDialogComponent, {
       data,
       width: 'min(92vw, 540px)',
       autoFocus: 'dialog',

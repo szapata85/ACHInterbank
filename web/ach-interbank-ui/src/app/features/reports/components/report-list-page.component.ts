@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { NotificationService } from '../../../core/services/notification.service';
 import { TableColumn } from '../../../shared/components/table.component';
 import { SharedModule } from '../../../shared/shared.module';
-import { ReportsApiService } from '../services/reports-api.service';
+import { ReportsApiService } from '../../../core/services/reports-api.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -192,29 +192,29 @@ export class ReportListPageComponent implements OnInit {
 
   private buildConfig(key: ReportKey): ReportConfig {
     const base: Record<ReportKey, ReportConfig> = {
-      sent: { key, title: 'Enviados', subtitle: 'Reporte de transacciones enviadas', columns: [
-        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }
+      sent: { key, title: 'Transacciones enviadas', subtitle: 'Reporte de transacciones enviadas', columns: [
+        { key: 'transactionId', label: 'ID de transacción' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }
       ] },
-      received: { key, title: 'Recibidos', subtitle: 'Reporte de transacciones recibidas', columns: [
-        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }
+      received: { key, title: 'Transacciones recibidas', subtitle: 'Reporte de transacciones recibidas', columns: [
+        { key: 'transactionId', label: 'ID de transacción' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }, { key: 'sourceBankName', label: 'Banco de origen' }, { key: 'destinationBankName', label: 'Banco de destino' }
       ] },
       returns: { key, title: 'Devoluciones', subtitle: 'Reporte de devoluciones ACH', columns: [
-        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }
+        { key: 'transactionId', label: 'ID de transacción' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }
       ] },
       rejections: { key, title: 'Rechazos', subtitle: 'Reporte de rechazos ACH', columns: [
-        { key: 'transactionId', label: 'Identificador' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'Identificador de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }
+        { key: 'transactionId', label: 'ID de transacción' }, { key: 'effectiveEntryDate', label: 'Fecha' }, { key: 'transactionExternalId', label: 'ID de operación' }, { key: 'reference', label: 'Referencia anterior' }, { key: 'causalCode', label: 'Causal' }, { key: 'amount', label: 'Monto' }, { key: 'state', label: 'Estado' }
       ] },
-      files: { key, title: 'Archivos', subtitle: 'Reporte de archivos NACHA', columns: [
+      files: { key, title: 'Archivos NACHA-M', subtitle: 'Reporte de archivos NACHA', columns: [
         { key: 'fileName', label: 'Archivo' }, { key: 'generatedAtUtc', label: 'Fecha' }, { key: 'clearingHouseName', label: 'Cámara' }, { key: 'totalRecords', label: 'Registros', align: 'end' }, { key: 'totalTransactions', label: 'Transacciones', align: 'end' }
       ] },
       cycles: { key, title: 'Ciclos', subtitle: 'Reporte de ciclos ACH', columns: [
         { key: 'cycleName', label: 'Nombre' }, { key: 'schedule', label: 'Horario' }, { key: 'processingDate', label: 'Fecha' }, { key: 'status', label: 'Estado' }, { key: 'totalTransactions', label: 'Transacciones' }, { key: 'totalAmount', label: 'Monto' }
       ] },
       audit: { key, title: 'Auditoría', subtitle: 'Traza operativa por usuario/acción/entidad', columns: [
-        { key: 'user', label: 'Usuario' }, { key: 'action', label: 'Acción' }, { key: 'entity', label: 'Entidad' }, { key: 'entityId', label: 'Identificador de entidad' }, { key: 'dateUtc', label: 'Fecha y hora' }
+        { key: 'user', label: 'Usuario' }, { key: 'action', label: 'Acción' }, { key: 'entity', label: 'Entidad' }, { key: 'entityId', label: 'ID de entidad' }, { key: 'dateUtc', label: 'Fecha y hora' }
       ] },
       history: { key, title: 'Histórico', subtitle: 'Histórico de cambios por rango de fechas', columns: [
-        { key: 'transactionId', label: 'Transacción' }, { key: 'fromState', label: 'Estado anterior' }, { key: 'toState', label: 'Estado nuevo' }, { key: 'source', label: 'Fuente' }, { key: 'reasonCode', label: 'Causal' }, { key: 'dateUtc', label: 'Fecha y hora' }
+        { key: 'transactionId', label: 'ID de transacción' }, { key: 'fromState', label: 'Estado anterior' }, { key: 'toState', label: 'Estado nuevo' }, { key: 'source', label: 'Fuente' }, { key: 'reasonCode', label: 'Causal' }, { key: 'dateUtc', label: 'Fecha y hora' }
       ] }
     };
 

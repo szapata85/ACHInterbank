@@ -6,9 +6,9 @@ using System.Text;
 
 namespace Cfa.ACHInterbank.Application.ACH.Implementation;
 
-public class AchClearingHouseStrategy(ICycleNumberResolver? cycleNumberResolver = null) : IClearingHouseStrategy
+public class AchClearingHouseStrategy(ICycleNumberResolver cycleNumberResolver) : IClearingHouseStrategy
 {
-    private readonly ICycleNumberResolver _cycleNumberResolver = cycleNumberResolver ?? new CycleNumberResolver();
+    private readonly ICycleNumberResolver _cycleNumberResolver = cycleNumberResolver ?? throw new ArgumentNullException(nameof(cycleNumberResolver));
     public string Name => "ACH Colombia";
     public string OutputFormat => "NACHA-M";
     public IReadOnlyCollection<TransactionTypeEnum> SupportedTransactionTypes =>

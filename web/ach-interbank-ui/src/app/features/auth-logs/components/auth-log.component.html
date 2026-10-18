@@ -1,9 +1,9 @@
 <app-page-header
-  title="Registro de autenticaciones"
+  title="Registro de accesos"
   subtitle="Seguimiento de accesos exitosos y fallidos a la plataforma"
 ></app-page-header>
 
-<section class="auth-log" aria-label="Consulta del registro de autenticaciones">
+<section class="auth-log" aria-label="Consulta del registro de accesos">
   <mat-card appearance="outlined" class="filters-card">
     <mat-card-header>
       <mat-icon mat-card-avatar aria-hidden="true">filter_alt</mat-icon>
@@ -16,7 +16,7 @@
         class="form-grid"
         [formGroup]="filterForm"
         (ngSubmit)="search()"
-        aria-label="Filtros del registro de autenticaciones"
+        aria-label="Filtros del registro de accesos"
       >
         <mat-form-field appearance="outline">
           <mat-label>Fecha inicial</mat-label>
@@ -87,7 +87,7 @@
             [disabled]="loading"
           >
             <mat-icon aria-hidden="true">filter_alt_off</mat-icon>
-            Limpiar
+            Limpiar filtros
           </button>
         </div>
 
@@ -111,9 +111,9 @@
     <mat-progress-bar
       *ngIf="loading"
       mode="indeterminate"
-      aria-label="Cargando registros de autenticación"
+      aria-label="Cargando registros de accesos"
     ></mat-progress-bar>
-    <span *ngIf="loading" class="sr-only">Cargando registros de autenticación.</span>
+    <span *ngIf="loading" class="sr-only">Cargando registros de accesos.</span>
 
     <mat-card
       *ngIf="errorMessage && !loading"
@@ -168,7 +168,7 @@
     <div
       class="table-scroll"
       tabindex="0"
-      aria-label="Resultados de autenticación. La tabla admite desplazamiento horizontal."
+      aria-label="Resultados del registro de accesos. La tabla admite desplazamiento horizontal."
     >
       <table
         mat-table
@@ -178,7 +178,7 @@
         [matSortDirection]="sort.direction"
         matSortDisableClear
         (matSortChange)="onSortChange($event)"
-        aria-label="Registros de autenticación"
+        aria-label="Registros de accesos"
       >
         <ng-container matColumnDef="loggedAt">
           <th mat-header-cell *matHeaderCellDef mat-sort-header>Fecha</th>
@@ -256,7 +256,7 @@
       [pageSizeOptions]="pageSizeOptions"
       [disabled]="loading"
       showFirstLastButtons
-      aria-label="Paginación del registro de autenticaciones"
+      aria-label="Paginación del registro de accesos"
       (page)="onPageChange($event)"
     ></mat-paginator>
   </mat-card>

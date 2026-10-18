@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 import { NotificationService } from '../../../core/services/notification.service';
-import { ReportsApiService } from '../services/reports-api.service';
+import { ReportsApiService } from '../../../core/services/reports-api.service';
 import { ReportListPageComponent } from './report-list-page.component';
 
 describe('ReportListPageComponent', () => {
@@ -40,7 +40,7 @@ describe('ReportListPageComponent', () => {
           provide: ActivatedRoute,
           useValue: {
             snapshot: {
-              data: { title: 'Enviados', reportKey: 'sent', permissions: ['CanReadAch'] }
+              data: { title: 'Transacciones enviadas', reportKey: 'sent', permissions: ['CanReadAch'] }
             }
           }
         }

@@ -31,8 +31,8 @@ import { AuthService } from '../../../core/services/auth.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
 import { SharedModule } from '../../../shared/shared.module';
-import { RoleSummary } from '../../admin/models/user.model';
-import { RolesApiService } from '../../admin/services/users-api.service';
+import { RoleSummary } from '../../../core/models/role.model';
+import { RolesApiService } from '../../../core/services/roles-api.service';
 import { NavigationMenuItem, SaveNavigationMenuItem } from '../models/navigation-menu.model';
 import { NavigationMenuService } from '../services/navigation-menu.service';
 
@@ -59,7 +59,6 @@ const FRIENDLY_PERMISSION_LABELS: Readonly<Record<string, string>> = {
   CanManageCertificates: 'Administrar certificados digitales',
   CanManageUsers: 'Administrar usuarios',
   CanReadAch: 'Consultar información ACH',
-  CanReadAliases: 'Consultar alias',
   CanReadCatalogs: 'Consultar catálogos',
   'ClearingHouses.ChangeStatus': 'Activar o desactivar cámaras compensadoras',
   'ClearingHouses.Create': 'Crear cámaras compensadoras',
@@ -199,7 +198,7 @@ export class NavigationMenuComponent implements OnInit, OnDestroy {
   private permissionCodeLookup = new Map<string, string>();
   private initialPayload: SaveNavigationMenuItem | null = null;
 
-  readonly canManage = this.authService.hasRole('Admin') && this.authService.hasPermission('CanManageUsers');
+  readonly canManage = this.authService.hasPermission(['NavigationMenu.Manage', 'CanManageUsers']);
   readonly childrenAccessor = (node: NavigationMenuItem): NavigationMenuItem[] => node.children ?? [];
   readonly expansionKey = (node: NavigationMenuItem): number => node.id;
 

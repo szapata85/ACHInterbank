@@ -1,15 +1,23 @@
-<section class="clearing-page" aria-labelledby="clearing-center-title">
-  <header class="clearing-hero">
-    <div>
-      <p class="clearing-hero__eyebrow">Configuración ACH</p>
-      <h2 id="clearing-center-title">Centro administrativo de cámaras</h2>
-      <p>Consulte la disponibilidad operativa y acceda a las configuraciones propias de cada cámara compensadora.</p>
-    </div>
+<section class="clearing-page" aria-label="Cámaras compensadoras">
+  <ng-template #headerActions>
+    <a *ngIf="canReadOperationalRestrictions" mat-stroked-button routerLink="/operational-restrictions">
+      <mat-icon>rule_settings</mat-icon>
+      Restricciones operativas
+    </a>
     <button *ngIf="canCreate" mat-flat-button color="primary" type="button" (click)="create()">
       <mat-icon>add</mat-icon>
       Nueva cámara
     </button>
-  </header>
+  </ng-template>
+
+  <app-page-header
+    title="Cámaras compensadoras"
+    subtitle="Configuración ACH"
+    [actionsTemplate]="headerActions"
+  ></app-page-header>
+  <p class="page-description">
+    Consulte la disponibilidad operativa y acceda a las configuraciones propias de cada cámara compensadora.
+  </p>
 
   <section class="metrics" aria-label="Resumen de cámaras">
     <mat-card>
@@ -60,16 +68,17 @@
     </mat-card-content>
   </mat-card>
 
-  <mat-card *ngIf="loading" class="state-card" role="status" aria-live="polite">
-    <mat-spinner diameter="36"></mat-spinner>
-    <div><strong>Cargando cámaras compensadoras…</strong><span>Consultando configuración y disponibilidad.</span></div>
-  </mat-card>
+  <ui-estado-carga
+    *ngIf="loading"
+    mensaje="Cargando cámaras compensadoras…"
+  ></ui-estado-carga>
 
-  <mat-card *ngIf="!loading && error" class="state-card state-card--error" role="alert">
-    <mat-icon>error_outline</mat-icon>
-    <div><strong>No fue posible cargar las cámaras</strong><span>{{ error }}</span></div>
-    <button mat-stroked-button type="button" (click)="load()">Reintentar</button>
-  </mat-card>
+  <ui-estado-error
+    *ngIf="!loading && error"
+    titulo="No fue posible cargar las cámaras"
+    [mensaje]="error"
+    (reintentar)="load()"
+  ></ui-estado-error>
 
   <mat-card *ngIf="!loading && !error && rows.length" class="table-card">
     <div class="table-card__heading">
@@ -89,15 +98,16 @@
         <ng-container matColumnDef="state">
           <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
           <td mat-cell *matCellDef="let row">
-            <mat-chip [class.chip--inactive]="!row.isActive">{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip>
+            <ui-etiqueta-estado [estado]="row.isActive ? 'activo' : 'inactivo'" [texto]="row.isActive ? 'Activa' : 'Inactiva'"></ui-etiqueta-estado>
           </td>
         </ng-container>
         <ng-container matColumnDef="availability">
           <th mat-header-cell *matHeaderCellDef mat-sort-header>Disponibilidad</th>
           <td mat-cell *matCellDef="let row">
-            <mat-chip [class.chip--pending]="!row.isReady">
-              {{ row.isReady ? 'Configuración completa' : 'Configuración pendiente' }}
-            </mat-chip>
+            <ui-etiqueta-estado
+              [estado]="row.isReady ? 'exitoso' : 'pendiente'"
+              [texto]="row.isReady ? 'Configuración completa' : 'Configuración pendiente'"
+            ></ui-etiqueta-estado>
           </td>
         </ng-container>
         <ng-container matColumnDef="updated">
@@ -155,7 +165,10 @@
 
     <div class="mobile-cards" aria-label="Cámaras configuradas">
       <article *ngFor="let row of sortedRows">
-        <header><div><span class="code">{{ row.code }}</span><h3>{{ row.name }}</h3></div><mat-chip>{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip></header>
+        <header>
+          <div><span class="code">{{ row.code }}</span><h3>{{ row.name }}</h3></div>
+          <ui-etiqueta-estado [estado]="row.isActive ? 'activo' : 'inactivo'" [texto]="row.isActive ? 'Activa' : 'Inactiva'"></ui-etiqueta-estado>
+        </header>
         <div class="mobile-cards__facts">
           <span><strong>Disponibilidad</strong>{{ row.isReady ? 'Configuración completa' : 'Configuración pendiente' }}</span>
           <span><strong>Ciclos activos</strong>{{ row.activeCycleCount }}</span>
@@ -186,12 +199,14 @@
     ></mat-paginator>
   </mat-card>
 
-  <mat-card *ngIf="!loading && !error && !rows.length" class="empty-card">
-    <mat-icon>search_off</mat-icon>
-    <h3>Sin resultados</h3>
-    <p>No hay cámaras compensadoras para los filtros seleccionados.</p>
+  <div *ngIf="!loading && !error && !rows.length" class="empty-state">
+    <ui-estado-vacio
+      titulo="Sin resultados"
+      mensaje="No hay cámaras compensadoras para los filtros seleccionados."
+      [sugerencia]="''"
+    ></ui-estado-vacio>
     <button mat-stroked-button type="button" (click)="clearFilters()">Limpiar filtros</button>
-  </mat-card>
+  </div>
 
   <mat-card *ngIf="editing" class="editor-card">
     <mat-card-header>
@@ -206,7 +221,7 @@
           <input matInput formControlName="code" maxlength="20" autocomplete="off" (blur)="normalizeCode(); loadProfiles()" />
           <mat-hint>2 a 20 letras, números, guion o guion bajo.</mat-hint>
           <mat-error *ngIf="form.controls.code.hasError('required')">El código es obligatorio.</mat-error>
-          <mat-error *ngIf="form.controls.code.hasError('pattern')">Use entre 2 y 20 caracteres válidos.</mat-error>
+          <mat-error *ngIf="form.controls.code.hasError('pattern')">Usa de 2 a 20 caracteres: letras mayúsculas, números, guion o guion bajo.</mat-error>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Nombre</mat-label>
@@ -267,9 +282,18 @@
     </mat-card-header>
     <mat-card-content>
       <div class="detail-grid">
-        <span><strong>Estado</strong>{{ selected.isActive ? 'Activa' : 'Inactiva' }}</span>
+        <span>
+          <strong>Estado</strong>
+          <ui-etiqueta-estado [estado]="selected.isActive ? 'activo' : 'inactivo'" [texto]="selected.isActive ? 'Activa' : 'Inactiva'"></ui-etiqueta-estado>
+        </span>
         <span><strong>Estrategia operativa</strong>{{ selected.paymentRailCode || 'Sin configurar' }}</span>
-        <span><strong>Disponibilidad</strong>{{ selected.isReady ? 'Configuración completa' : 'Configuración incompleta' }}</span>
+        <span>
+          <strong>Disponibilidad</strong>
+          <ui-etiqueta-estado
+            [estado]="selected.isReady ? 'exitoso' : 'pendiente'"
+            [texto]="selected.isReady ? 'Configuración completa' : 'Configuración incompleta'"
+          ></ui-etiqueta-estado>
+        </span>
         <span><strong>Ciclos activos</strong>{{ selected.activeCycleCount }}</span>
       </div>
       <ul *ngIf="selected.missingRequirements.length">

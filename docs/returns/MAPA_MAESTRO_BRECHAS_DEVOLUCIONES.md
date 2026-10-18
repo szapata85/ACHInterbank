@@ -1,5 +1,7 @@
 # Mapa maestro residual de brechas de devoluciones
 
+> **Contexto histórico (análisis 2026-08-07):** este documento conserva el estado residual observado en esa fecha. Las menciones que presentan `RET-GAP-019` como abierto fueron superadas por la decisión posterior `DEC-ACHCOL-R10-DEV14-001`: DEV14 pertenece exclusivamente a Reclamaciones ACH Colombia, no es una causal física Return, no se mapea a Rxx y no se serializa en Addenda 99. El estado vigente se mantiene en `MEMORY.md`, `docs/CURRENT_PROJECT_STATUS.md` y `docs/claims/ACHCOL-CLAIMS-DEV14-checkpoint.md`.
+
 ## 1. HEAD y alcance analizado
 
 - `BASE_HEAD`: `033948fd035257ee64aab60606fb66481e830a0d`.

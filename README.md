@@ -24,15 +24,19 @@ El helper escribe la cadena seleccionada directamente en `appsettings.Developmen
 
 ## Estado actual
 
-Las capacidades cerradas internamente y los pendientes vigentes están consolidados en `docs/CURRENT_PROJECT_STATUS.md` y `MEMORY.md`.
+Para el frente ACH Colombia FASE 1–8, el estado del paquete actual es **IMPLEMENTACIÓN COMPLETADA / VALIDACIÓN EJECUTABLE FINAL PENDIENTE**. El harness integral controlado de FASE 8 está preparado, pero en el host de preparación no pudieron ejecutarse build/tests .NET, Docker E2E ni la validación frontend completa. Esto **no** significa producción lista, homologación con ACH Colombia, UAT aprobada, aceptación de usuario ni salida a producción.
 
-**No interpretar el repositorio como RELEASE_READY/GO productivo.** La interoperabilidad externa CENIT Gateway/PO, la homologación del MFT empresarial de ACH Colombia y la certificación UAT/release del commit exacto siguen siendo dependencias separadas.
+El resumen para continuar sin reconstruir toda la historia está en `docs/ACH_COLOMBIA_INTERNAL_CLOSURE.md`. El estado general se consolida en `docs/CURRENT_PROJECT_STATUS.md` y `MEMORY.md`; la clasificación de pendientes propios, externos y UAT está en `docs/PENDING_WORK_CLASSIFICATION.md`.
+
+El programa **NACHA-CONFIG-UX-001** quedó **CLOSED** en UX6 con `NEXT_ALLOWED_PHASE=NONE`. La parametrización NACHA-M conserva motor/goldens/migraciones intactos y cierra el endurecimiento de accesibilidad, Angular Material, branding dinámico, navegación, estados, protección de `PUBLICADO`, publicación fail-closed y aislamiento ACH/CENIT. Los gates Angular/Playwright/.NET no ejecutables en este host están documentados como `NOT_RUN_ENVIRONMENT`, no como PASS; ver `docs/NACHA_CONFIG_UX_IMPLEMENTATION_PACKAGE_2026-10-11/NACHA_CONFIG_UX_STATE.md`.
+
+**No interpretar el repositorio como RELEASE_READY/GO productivo.** La interoperabilidad externa CENIT Gateway/PO, la homologación MFT/SFTP de ACH Colombia y la certificación UAT/release del artefacto exacto siguen siendo dependencias separadas.
 
 ## Requisitos de desarrollo
 
-- .NET SDK **10.0.300** o parche compatible según `global.json`.
+- .NET SDK **10.0.402** o parche compatible según `global.json`.
 - Visual Studio 2026 con workload de ASP.NET/.NET y soporte .NET 10, o CLI `dotnet`.
-- Node/npm para `web/ach-interbank-ui`.
+- Node.js **24.21.0 LTS** y npm **12.1.0** para `web/ach-interbank-ui` (mismos niveles fijados en Docker/CI).
 - PostgreSQL o SQL Server según el perfil de ejecución.
 
 Ver `docs/BUILD_AND_TROUBLESHOOTING.md` antes del primer restore.
@@ -114,13 +118,29 @@ La integridad de las copias normativas se documenta en `docs/normativa/SOURCE_MA
 ## Documentación canónica para continuar el proyecto
 
 1. `docs/CURRENT_PROJECT_STATUS.md` — auditoría consolidada código vs. fuentes y backlog vigente.
-2. `docs/BUILD_AND_TROUBLESHOOTING.md` — restore/build/NU1105 y recuperación de Visual Studio.
-3. `docs/DOCUMENTATION_INDEX.md` — índice reducido de documentación vigente vs. histórica.
-4. `MEMORY.md` — decisiones durables y estado técnico aceptado.
-5. `AGENTS.md` — instrucciones permanentes para agentes de desarrollo.
+2. `docs/ACH_COLOMBIA_INTERNAL_CLOSURE.md` — handoff corto FASE 1–9 y control final pendiente.
+3. `docs/BUILD_AND_TROUBLESHOOTING.md` — restore/build/NU1105 y recuperación de Visual Studio.
+4. `docs/DOCUMENTATION_INDEX.md` — índice reducido de documentación vigente vs. histórica.
+5. `MEMORY.md` — decisiones durables y estado técnico aceptado.
+6. `AGENTS.md` — instrucciones permanentes para agentes de desarrollo.
 
 Los documentos históricos bajo `docs/` siguen siendo evidencia útil, pero no deben usarse aisladamente para inferir el estado actual.
 
 ### Visual Studio 2026 quick start database
 
 For the `Development` profile, the API uses SQL Server LocalDB through `ConnectionStrings:SqlConnection` and applies EF Core migrations automatically. This lets the API start directly from Visual Studio without first storing a database password in the repository. If you prefer the SQL Server 2025 Docker runtime, replace that one development connection string with your Docker `sa` connection and password.
+
+## Programa de administración de terceros y cuentas — TPA-GOV-001
+
+El paquete incluye un programa incremental para evolucionar `CustomerThirdParty` hacia **master data genérico** cliente → tercero → cuentas, **preservando el onboarding silencioso existente en creación individual y masiva de transacciones**. El onboarding es independiente de ACH Colombia/CENIT; la cámara aparece después, únicamente en elegibilidad y validaciones operativas. El programa mantiene la resolución automática de prenotificaciones y usa branch-by-abstraction para evitar un corte big bang.
+
+Inicio: `docs/ai/third-party-accounts/START_HERE.md`. La primera fase permitida es **TPA0 (characterization/baseline únicamente)**. El prompt optimizado para ChatGPT modo Chat está en `docs/ai/third-party-accounts/MASTER_PROMPT_CHATGPT.md`.
+
+
+## CFA SOAP UX + Mapping dinámico — programa incremental
+
+La implementación del rediseño de administración CFA y del mapping SOAP versionado para `Proc_Contrapartidas`, `Proc_Transacciones` y `RegistrarRespuestaTransaccion` está definida en:
+
+`docs/CFA_SOAP_UX_MAPPING_IMPLEMENTATION_PACKAGE_2026-10-12/`
+
+Para una conversación nueva de ChatGPT use el prompt mínimo de `CHATGPT_MICRO_START.md`. El estado canónico `MEMORY_STATE.md` indica el único `next_micro_prompt` permitido, de modo que cada conversación ejecute un cambio pequeño y verificable.

@@ -1,21 +1,32 @@
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { HttpErrorResponse } from '@angular/common/http';
-import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, distinctUntilChanged, finalize, map, of, switchMap, tap } from 'rxjs';
+import { PageHeaderComponent } from '../../../shared/components/page-header.component';
+import { UiEstadoCargaComponent } from '../../../shared/components/ui/ui-estado-carga.component';
+import { UiEstadoErrorComponent } from '../../../shared/components/ui/ui-estado-error.component';
 import { OutgoingTransactionMonitoringApiService } from './outgoing-transaction-monitoring-api.service';
 import { OutgoingMonitoringDetail } from './outgoing-transaction-monitoring.models';
 
 @Component({
   selector: 'app-outgoing-transaction-monitoring-detail',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatCardModule, MatExpansionModule, MatIconModule, MatProgressSpinnerModule],
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatCardModule,
+    MatExpansionModule,
+    MatIconModule,
+    PageHeaderComponent,
+    UiEstadoCargaComponent,
+    UiEstadoErrorComponent
+  ],
   templateUrl: './outgoing-transaction-monitoring-detail.component.html',
   styleUrl: './outgoing-transaction-monitoring-detail.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -48,12 +59,18 @@ export class OutgoingTransactionMonitoringDetailComponent implements OnInit {
     ).subscribe(detail => this.detail.set(detail));
   }
 
-  back(): void { void this.router.navigate(['/transactions/outgoing-monitoring']); }
+  back(): void {
+    void this.router.navigate(['/transactions/outgoing-monitoring']);
+  }
+
   reload(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
     this.resetState();
     this.api.getDetail(id).pipe(
-      catchError((response: HttpErrorResponse) => { this.applyError(response); return of(null); }),
+      catchError((response: HttpErrorResponse) => {
+        this.applyError(response);
+        return of(null);
+      }),
       finalize(() => this.loading.set(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(value => this.detail.set(value));

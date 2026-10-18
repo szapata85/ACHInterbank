@@ -65,10 +65,22 @@ public class IntegrationCatalogService : IIntegrationCatalogService
     public async Task<IReadOnlyCollection<IntegrationMethodParameterDto>> GetMethodParametersAsync(int methodId, CancellationToken ct = default)
     {
         await EnsureSeedAsync(ct);
-        return await _context.Set<IntegrationMethodParameter>()
+        var activeContractId = await _context.IntegrationContractVersions
             .AsNoTracking()
-            .Where(x => x.MethodId == methodId && x.IsActive)
-            .OrderBy(x => x.SortOrder)
+            .Where(x => x.MethodId == methodId && x.Status == IntegrationContractVersionStatusEnum.Active)
+            .Select(x => (Guid?)x.Id)
+            .SingleOrDefaultAsync(ct);
+
+        var query = _context.Set<IntegrationMethodParameter>()
+            .AsNoTracking()
+            .Where(x => x.MethodId == methodId && x.IsActive);
+        query = activeContractId.HasValue
+            ? query.Where(x => x.ContractVersionId == activeContractId.Value || x.ContractVersionId == null)
+            : query.Where(x => x.ContractVersionId == null);
+
+        return await query
+            .OrderBy(x => x.ContractVersionId == activeContractId ? 0 : 1)
+            .ThenBy(x => x.SortOrder)
             .ThenBy(x => x.ParameterPath)
             .Select(x => new IntegrationMethodParameterDto(
                 x.Id,

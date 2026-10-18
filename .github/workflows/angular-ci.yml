@@ -54,7 +54,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.x"
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: web/ach-interbank-ui/package-lock.json
 
@@ -62,13 +62,16 @@ jobs:
         run: npm ci
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=low
 
-      - name: Reject critical development vulnerabilities
-        run: npm audit --audit-level=critical
+      - name: Reject any known development vulnerability
+        run: npm audit --audit-level=low
 
       - name: Build
         run: npm run build
+
+      - name: Install Chromium for Karma
+        run: npx playwright install --with-deps chromium
 
       - name: Test
         run: npm test -- --watch=false --browsers=ChromeHeadless
@@ -89,14 +92,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "24.x"
+          node-version: "24.21.0"
           cache: npm
           cache-dependency-path: web/ach-interbank-ui/package-lock.json
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "10.0.402"
 
       - name: Install dependencies
         run: npm ci

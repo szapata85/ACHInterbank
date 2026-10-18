@@ -48,7 +48,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
 
     public async Task<SchedulerOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var offlineLimit = now.AddSeconds(-Math.Max(_options.OfflineThresholdSeconds, 10));
         var instances = await _db.SchedulerInstanceStates.AsNoTracking()
             .Where(x => x.SchedulerName == _options.SchedulerName)
@@ -200,7 +200,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
     public async Task<IReadOnlyList<SchedulerInstanceDto>> GetInstancesAsync(CancellationToken cancellationToken = default)
     {
         var scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var degradedLimit = now.AddSeconds(-Math.Max(_options.InstanceHeartbeatSeconds * 2, 5));
         var offlineLimit = now.AddSeconds(-Math.Max(_options.OfflineThresholdSeconds, 10));
         var items = await _db.SchedulerInstanceStates.AsNoTracking()
@@ -274,7 +274,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
         }
 
         var executionId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         var log = new TaskExecutionLog
         {
             TaskDefinitionId = task.Id,
@@ -338,7 +338,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
             log.Status = SchedulerExecutionStatus.Rejected;
             log.ErrorCode = "QUARTZ_TRIGGER_REJECTED";
             log.Error = "Quartz no aceptó el disparo manual.";
-            log.FinishedAt = DateTimeOffset.UtcNow;
+            log.FinishedAt = _timeProvider.GetUtcNow();
             log.ManualConcurrencyKey = null;
             await _db.SaveChangesAsync(CancellationToken.None);
             throw;
@@ -427,7 +427,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
     {
         ValidateSchedule(request);
         var description = DescribeSchedule(request.PeriodicityType, request.N, request.Minute, request.TimeOfDay, request.WeeklyDay, request.MonthDay, request.CronExpression);
-        var next = CalculateNextExecutions(request, 5);
+        var next = CalculateNextExecutions(request, 5, _timeProvider.GetUtcNow());
         return Task.FromResult(new SchedulerSchedulePreviewDto(description, next));
     }
 
@@ -447,7 +447,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
         CancellationToken cancellationToken)
     {
         var executionId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         _db.TaskExecutionLogs.Add(new TaskExecutionLog
         {
             TaskDefinitionId = task.Id,
@@ -609,10 +609,10 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
 
     private sealed record WindowCandidate(OperationalCycleWindow Window);
 
-    private static void MarkSynchronizationPending(TaskDefinition task)
+    private void MarkSynchronizationPending(TaskDefinition task)
     {
         task.SchedulerSynchronizationStatus = "Pending";
-        task.LastSchedulerSynchronizationAttemptUtc = DateTimeOffset.UtcNow;
+        task.LastSchedulerSynchronizationAttemptUtc = _timeProvider.GetUtcNow();
         task.LastSchedulerSynchronizationError = null;
     }
 
@@ -624,7 +624,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
         }
 
         task.SchedulerSynchronizationStatus = "Synchronized";
-        task.LastSchedulerSynchronizationAttemptUtc = DateTimeOffset.UtcNow;
+        task.LastSchedulerSynchronizationAttemptUtc = _timeProvider.GetUtcNow();
         task.LastSchedulerSynchronizationError = null;
         await _db.SaveChangesAsync(cancellationToken);
     }
@@ -632,7 +632,7 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
     private async Task MarkSynchronizationFailedAsync(TaskDefinition task, Exception exception, CancellationToken cancellationToken)
     {
         task.SchedulerSynchronizationStatus = "Failed";
-        task.LastSchedulerSynchronizationAttemptUtc = DateTimeOffset.UtcNow;
+        task.LastSchedulerSynchronizationAttemptUtc = _timeProvider.GetUtcNow();
         task.LastSchedulerSynchronizationError = Truncate(exception.Message, 2000);
         await _db.SaveChangesAsync(CancellationToken.None);
     }
@@ -771,9 +771,12 @@ public sealed class SchedulerAdminService : ISchedulerAdminService
         return "Configuración avanzada administrada por el sistema";
     }
 
-    private static IReadOnlyList<DateTimeOffset> CalculateNextExecutions(SchedulerScheduleUpdateRequest request, int count)
+    private static IReadOnlyList<DateTimeOffset> CalculateNextExecutions(
+        SchedulerScheduleUpdateRequest request,
+        int count,
+        DateTimeOffset now)
     {
-        var start = request.StartAt ?? DateTimeOffset.UtcNow;
+        var start = request.StartAt ?? now;
         if ((PeriodicityTypeEnum)request.PeriodicityType == PeriodicityTypeEnum.EveryNMinutes)
             return Enumerable.Range(1, count).Select(i => start.AddMinutes((request.N ?? 1) * i)).ToList();
         if ((PeriodicityTypeEnum)request.PeriodicityType == PeriodicityTypeEnum.Once)

@@ -1,7 +1,9 @@
+using Microsoft.Extensions.Options;
+using Cfa.ACHInterbank.Domain.Models.Configurations;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Cfa.ACHInterbank.Application.ACHSobreDigital.Interfaces;
-using Cfa.ACHInterbank.Application.Services.EncryptionService.Implementations;
+using Cfa.ACHInterbank.External.Security.Certificates;
 using Cfa.ACHInterbank.Domain.Models.ACHSobreDigital;
 using Moq;
 
@@ -28,7 +30,7 @@ public class RsaKeyProviderSecretResolverTests
                 null,
                 Array.Empty<string>()));
 
-        var provider = new RsaKeyProvider(resolver.Object);
+        var provider = new RsaKeyProvider(resolver.Object, Options.Create(new CertificatesSettings()));
         var act = () => provider.ObtenerCertificate("CertSign");
 
         act.Should().Throw<InvalidOperationException>()
@@ -55,7 +57,7 @@ public class RsaKeyProviderSecretResolverTests
                 null,
                 Array.Empty<string>()));
 
-        var provider = new RsaKeyProvider(resolver.Object);
+        var provider = new RsaKeyProvider(resolver.Object, Options.Create(new CertificatesSettings()));
         var act = () => provider.ObtenerCertificateForDecrypt("CN=hist", "SER-1");
 
         act.Should().Throw<InvalidOperationException>()
@@ -80,7 +82,7 @@ public class RsaKeyProviderSecretResolverTests
                 "missing",
                 Array.Empty<string>()));
 
-        var provider = new RsaKeyProvider(resolver.Object);
+        var provider = new RsaKeyProvider(resolver.Object, Options.Create(new CertificatesSettings()));
         var act = () => provider.ObtenerCertificateForDecrypt("CN=hist", "SER-1");
         act.Should().Throw<InvalidOperationException>();
     }

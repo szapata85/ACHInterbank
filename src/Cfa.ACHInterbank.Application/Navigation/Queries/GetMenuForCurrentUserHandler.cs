@@ -1,12 +1,8 @@
-using System.Security.Claims;
 using Cfa.ACHInterbank.Application.DataBase.Queries.Navigation;
-using Cfa.ACHInterbank.Application.ACH.Configuration;
 using Cfa.ACHInterbank.Application.Navigation;
+using Cfa.ACHInterbank.Application.Security.Interfaces;
 using Cfa.ACHInterbank.Domain.Entities.Navigation;
 using MediatR;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 
 namespace Cfa.ACHInterbank.Application.Navigation.Queries;
 
@@ -21,39 +17,27 @@ public class GetMenuForCurrentUserHandler : IRequestHandler<GetMenuForCurrentUse
     };
 
     private readonly IMenuQueryRepository _menuRepository;
-    private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly bool _uatSimulatorAvailable;
+    private readonly ICurrentUserContext _currentUserContext;
 
     public GetMenuForCurrentUserHandler(
         IMenuQueryRepository menuRepository,
-        IHttpContextAccessor httpContextAccessor,
-        IOptions<NachaInboundSimulatorOptions>? simulatorOptions = null,
-        IHostEnvironment? environment = null)
+        ICurrentUserContext currentUserContext)
     {
         _menuRepository = menuRepository;
-        _httpContextAccessor = httpContextAccessor;
-        _uatSimulatorAvailable = environment?.IsProduction() != true
-            && simulatorOptions?.Value.IsUatLike() == true;
+        _currentUserContext = currentUserContext;
     }
 
     public async Task<IList<MenuItemDto>> Handle(GetMenuForCurrentUserQuery request, CancellationToken cancellationToken)
     {
-        var principal = _httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal();
-        var roleClaimType = (principal.Identity as ClaimsIdentity)?.RoleClaimType ?? ClaimTypes.Role;
-        var userRoles = principal.FindAll(roleClaimType)
-            .Select(c => c.Value)
+        var userRoles = _currentUserContext.Roles
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var userPermissions = principal.FindAll("permission")
-            .Select(c => c.Value)
+        var userPermissions = _currentUserContext.Permissions
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var menuItems = await _menuRepository.GetActiveMenuItemsAsync(cancellationToken);
 
         var visibleItems = menuItems
             .Where(mi => !LegacyNachaRoutes.Contains(mi.Route))
-            .Where(mi => _uatSimulatorAvailable
-                || (!string.Equals(mi.Route, "/uat", StringComparison.OrdinalIgnoreCase)
-                    && !mi.Route.StartsWith("/uat/", StringComparison.OrdinalIgnoreCase)))
             .Where(mi => ShouldInclude(mi, userRoles, userPermissions))
             .ToList();
 
