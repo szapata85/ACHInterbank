@@ -1,0 +1,207 @@
+<section class="mft-admin" aria-labelledby="mft-admin-title">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">ACH Colombia</p>
+      <h2 id="mft-admin-title">Configuración del intercambio de archivos</h2>
+      <p>Configura la conexión, las carpetas y los horarios automáticos sin cambiar las reglas regulatorias de ACH Colombia.</p>
+    </div>
+    <button mat-stroked-button type="button" (click)="load()" [disabled]="loading || savingConnection || savingSchedules">
+      <mat-icon>refresh</mat-icon>Actualizar
+    </button>
+  </header>
+
+  <div *ngIf="loading" class="loading-state" role="status">
+    <mat-spinner diameter="36"></mat-spinner>
+    <span>Cargando configuración…</span>
+  </div>
+
+  <div *ngIf="!loading && error" class="error-banner" role="alert">
+    <mat-icon>error_outline</mat-icon>
+    <span>{{ error }}</span>
+  </div>
+
+  <ng-container *ngIf="!loading && model">
+    <mat-card appearance="outlined" class="section-card" data-testid="exchange-summary">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">swap_horiz</mat-icon>
+        <mat-card-title>Datos del intercambio con ACH Colombia</mat-card-title>
+        <mat-card-subtitle>Resumen de la configuración vigente y del estado externo conocido.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content class="summary-grid">
+        <div><span>Tipo de conexión</span><strong>{{ connectionTypeLabel }}</strong></div>
+        <div><span>Servidor</span><strong>{{ isSftp ? (model.endpoint || 'Sin configurar') : 'No aplica' }}</strong></div>
+        <div><span>Puerto</span><strong>{{ isSftp ? (model.port || 'Sin configurar') : 'No aplica' }}</strong></div>
+        <div><span>Usuario</span><strong>{{ isSftp ? (model.principal || 'Sin configurar') : 'No aplica' }}</strong></div>
+        <div><span>Carpeta de envío</span><strong>{{ model.outboundLocation || 'Sin configurar' }}</strong></div>
+        <div><span>Carpeta de recepción</span><strong>{{ model.inboundLocation || 'Sin configurar' }}</strong></div>
+        <div><span>IP de ACH Colombia autorizada</span><strong>{{ authorizedAchIp }}</strong></div>
+        <div><span>Estado de homologación</span><strong>{{ homologationStatus }}</strong></div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="section-card" data-testid="connection-config">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">settings_ethernet</mat-icon>
+        <mat-card-title>Configuración de conexión</mat-card-title>
+        <mat-card-subtitle>Elige cómo accede ACHInterbank a la infraestructura administrada por CFA.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de conexión</mat-label>
+            <mat-select [(ngModel)]="connectionType" [disabled]="!canManage || savingConnection" aria-label="Tipo de conexión">
+              <mat-option value="ManagedFolder">Carpeta compartida</mat-option>
+              <mat-option value="SftpEndpoint">SFTP</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <div class="toggle-field">
+            <mat-slide-toggle [(ngModel)]="model.profileEnabled" [disabled]="!canManage || savingConnection">
+              Integración habilitada
+            </mat-slide-toggle>
+          </div>
+
+          <mat-form-field appearance="outline" *ngIf="isSftp">
+            <mat-label>Servidor</mat-label>
+            <input matInput [(ngModel)]="model.endpoint" [disabled]="!canManage || savingConnection" autocomplete="off" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="isSftp">
+            <mat-label>Puerto</mat-label>
+            <input matInput type="number" min="1" max="65535" [(ngModel)]="model.port" [disabled]="!canManage || savingConnection" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="isSftp">
+            <mat-label>Usuario</mat-label>
+            <input matInput [(ngModel)]="model.principal" [disabled]="!canManage || savingConnection" autocomplete="off" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="isSftp" class="wide-field">
+            <mat-label>Huella del servidor</mat-label>
+            <input matInput [(ngModel)]="model.sftpHostKeyFingerprint" [disabled]="!canManage || savingConnection" autocomplete="off" placeholder="SHA256:…" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" *ngIf="isSftp">
+            <mat-label>Tiempo de espera (segundos)</mat-label>
+            <input matInput type="number" min="1" max="300" [(ngModel)]="model.sftpTimeoutSeconds" [disabled]="!canManage || savingConnection" />
+          </mat-form-field>
+
+          <div *ngIf="isSftp" class="credential-state" aria-live="polite">
+            <span>Credencial configurada</span>
+            <strong>{{ model.credentialConfigured ? 'Sí' : 'No' }}</strong>
+          </div>
+
+          <mat-form-field appearance="outline" *ngIf="isSftp" class="wide-field">
+            <mat-label>{{ model.credentialConfigured ? 'Nueva credencial (opcional)' : 'Credencial' }}</mat-label>
+            <input matInput type="password" [(ngModel)]="secret" [disabled]="!canManage || savingConnection" autocomplete="new-password" />
+            <mat-hint *ngIf="model.credentialConfigured">Déjalo vacío para conservar la credencial actual.</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="wide-field">
+            <mat-label>Carpeta de envío</mat-label>
+            <input matInput [(ngModel)]="model.outboundLocation" [disabled]="!canManage || savingConnection" autocomplete="off" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="wide-field">
+            <mat-label>Carpeta de recepción</mat-label>
+            <input matInput [(ngModel)]="model.inboundLocation" [disabled]="!canManage || savingConnection" autocomplete="off" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="wide-field">
+            <mat-label>Carpeta de archivo</mat-label>
+            <input matInput [(ngModel)]="model.archiveLocation" [disabled]="!canManage || savingConnection" autocomplete="off" />
+          </mat-form-field>
+        </div>
+
+        <div class="actions" *ngIf="canManage">
+          <button mat-flat-button color="primary" type="button" (click)="saveConnection()" [disabled]="savingConnection || testingConnection">
+            <mat-spinner *ngIf="savingConnection" diameter="18"></mat-spinner>
+            <mat-icon *ngIf="!savingConnection">save</mat-icon>
+            Guardar conexión
+          </button>
+          <button mat-stroked-button type="button" (click)="testConnection()" [disabled]="savingConnection || testingConnection">
+            <mat-spinner *ngIf="testingConnection" diameter="18"></mat-spinner>
+            <mat-icon *ngIf="!testingConnection">network_check</mat-icon>
+            Probar conexión
+          </button>
+          <span class="test-result" *ngIf="connectionTest" [class.test-result--ok]="connectionTest.succeeded" role="status">
+            {{ connectionMessage(connectionTest) }}
+          </span>
+        </div>
+        <p class="helper-text" *ngIf="canManage">La prueba usa la configuración guardada y no envía archivos NACHA-M.</p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="section-card" data-testid="automatic-schedules">
+      <mat-card-header>
+        <mat-icon mat-card-avatar aria-hidden="true">schedule</mat-icon>
+        <mat-card-title>Horarios automáticos</mat-card-title>
+        <mat-card-subtitle>Las ventanas de ACH Colombia son solo lectura. Las horas operacionales se administran por separado.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="schedule-toolbar">
+          <mat-slide-toggle [(ngModel)]="masterAutomaticOutbound" [disabled]="!canManage || savingSchedules">
+            Habilitar envíos automáticos
+          </mat-slide-toggle>
+        </div>
+
+        <div class="table-wrap" *ngIf="schedules.length; else noSchedules">
+          <table mat-table [dataSource]="schedules" class="schedule-table">
+            <ng-container matColumnDef="cycle">
+              <th mat-header-cell *matHeaderCellDef>Ciclo</th>
+              <td mat-cell *matCellDef="let row"><strong>{{ cycleLabel(row) }}</strong></td>
+            </ng-container>
+
+            <ng-container matColumnDef="window">
+              <th mat-header-cell *matHeaderCellDef>Ventana ACH Colombia</th>
+              <td mat-cell *matCellDef="let row">{{ windowLabel(row) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="automaticTime">
+              <th mat-header-cell *matHeaderCellDef>Hora automática</th>
+              <td mat-cell *matCellDef="let row">
+                <input class="time-input" type="time" [(ngModel)]="row.automaticTime" [disabled]="!canManage || savingSchedules" [attr.aria-label]="'Hora automática ' + cycleLabel(row)" />
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="latestTime">
+              <th mat-header-cell *matHeaderCellDef>Última hora permitida</th>
+              <td mat-cell *matCellDef="let row">
+                <input class="time-input" type="time" [(ngModel)]="row.latestTime" [disabled]="!canManage || savingSchedules" [attr.aria-label]="'Última hora permitida ' + cycleLabel(row)" />
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="active">
+              <th mat-header-cell *matHeaderCellDef>Activo</th>
+              <td mat-cell *matCellDef="let row">
+                <mat-slide-toggle [(ngModel)]="row.active"
+                  [disabled]="!canManage || savingSchedules || !row.regulatoryCycleActive"
+                  [matTooltip]="row.regulatoryCycleActive ? '' : 'Este ciclo regulatorio no está activo.'"
+                  [attr.aria-label]="'Activar ' + cycleLabel(row)">
+                </mat-slide-toggle>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="scheduleColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: scheduleColumns"></tr>
+          </table>
+        </div>
+
+        <ng-template #noSchedules>
+          <div class="empty-state">
+            <mat-icon>event_busy</mat-icon>
+            <span>No hay ciclos regulatorios disponibles para administrar.</span>
+          </div>
+        </ng-template>
+
+        <div class="actions" *ngIf="canManage">
+          <button mat-flat-button color="primary" type="button" (click)="saveSchedules()" [disabled]="savingSchedules">
+            <mat-spinner *ngIf="savingSchedules" diameter="18"></mat-spinner>
+            <mat-icon *ngIf="!savingSchedules">save</mat-icon>
+            Guardar horarios
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </ng-container>
+</section>

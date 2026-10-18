@@ -1,0 +1,309 @@
+<section class="contract-page" aria-labelledby="contract-page-title">
+  <header class="contract-page__header">
+    <div>
+      <a mat-button routerLink="/integraciones">Volver a Conexiones</a>
+      <p class="contract-page__eyebrow">Contrato del servicio</p>
+      <h1 id="contract-page-title">Contrato del servicio</h1>
+      @if (store.method(); as method) {
+        <p class="contract-page__service">{{ method.displayName }}</p>
+        <p class="contract-page__description">{{ method.mappingPurpose || 'Descripción funcional no disponible.' }}</p>
+      }
+    </div>
+    @if (store.permissions().canManage && store.methodId() != null && !showImportFlow()) {
+      <button mat-flat-button type="button" (click)="beginImport()">Importar WSDL/XSD como borrador</button>
+    }
+  </header>
+
+  @if (showImportFlow()) {
+    <app-contract-import-stepper (closed)="closeImport()" />
+  } @else {
+  @switch (store.listStatus()) {
+    @case ('loading') {
+      <div class="state-panel" role="status" aria-live="polite">
+        <mat-progress-spinner mode="indeterminate" diameter="36" />
+        <p>Cargando versiones contractuales…</p>
+      </div>
+    }
+    @case ('forbidden') {
+      <div class="state-panel state-panel--warning" role="alert">
+        <h2>Permisos insuficientes</h2>
+        <p>{{ store.listError()?.message }}</p>
+      </div>
+    }
+    @case ('error') {
+      <div class="state-panel state-panel--error" role="alert">
+        <h2>No fue posible cargar las versiones</h2>
+        <p>{{ store.listError()?.message }}</p>
+        <button mat-stroked-button type="button" (click)="store.reload()">Reintentar</button>
+      </div>
+    }
+    @case ('empty') {
+      <div class="state-panel" role="status" aria-live="polite">
+        <h2>Sin versiones contractuales</h2>
+        <p>El backend no reporta versiones para este servicio.</p>
+      </div>
+    }
+    @case ('ready') {
+      @if (!store.detail()) {
+        <div class="contract-groups" aria-label="Versiones contractuales por estado">
+          <section class="contract-group" aria-labelledby="draft-heading">
+            <header>
+              <h2 id="draft-heading">Borrador</h2>
+              <p>Versiones en preparación. Las acciones disponibles dependen del backend y de sus permisos.</p>
+            </header>
+            @if (draftVersions().length) {
+              <div class="contract-grid">
+                @for (version of draftVersions(); track version.id) {
+                  <article class="contract-card">
+                    <div class="contract-card__heading">
+                      <div>
+                        <p class="contract-card__version">Versión {{ version.versionLabel }}</p>
+                        <span class="status-badge" data-tone="info">{{ version.statusLabel }}</span>
+                      </div>
+                      <span class="contract-card__revision">Revisión {{ version.revision }}</span>
+                    </div>
+                    <dl class="contract-card__meta">
+                      <div><dt>Origen</dt><dd>{{ version.sourceLabel }}</dd></div>
+                      <div><dt>Relación de información</dt><dd>{{ version.relationship.label }}</dd></div>
+                      @if (version.importedBy || version.importedAtUtc) {
+                        <div><dt>Creada/importada</dt><dd>{{ version.importedBy || 'Actor no informado' }} · {{ formatDate(version.importedAtUtc) }}</dd></div>
+                      }
+                    </dl>
+                    <button mat-stroked-button type="button" (click)="openDetail(version)">
+                      {{ store.permissions().canManage && version.canEditFunctionalMetadata ? 'Ver y editar metadatos' : 'Ver detalle' }}
+                    </button>
+                  </article>
+                }
+              </div>
+            } @else {
+              <p class="contract-group__empty" role="status">No hay versiones en borrador.</p>
+            }
+          </section>
+
+          <section class="contract-group" aria-labelledby="active-heading">
+            <header>
+              <h2 id="active-heading">Activa</h2>
+              <p>La versión vigente se presenta en modo solo lectura.</p>
+            </header>
+            @if (activeVersions().length) {
+              <div class="contract-grid">
+                @for (version of activeVersions(); track version.id) {
+                  <article class="contract-card">
+                    <div class="contract-card__heading">
+                      <div>
+                        <p class="contract-card__version">Versión {{ version.versionLabel }}</p>
+                        <span class="status-badge" data-tone="success">{{ version.statusLabel }}</span>
+                      </div>
+                      <span class="contract-card__revision">Revisión {{ version.revision }}</span>
+                    </div>
+                    <dl class="contract-card__meta">
+                      <div><dt>Relación de información</dt><dd>{{ version.relationship.label }}</dd></div>
+                      @if (version.activatedBy || version.activatedAtUtc) {
+                        <div><dt>Activada</dt><dd>{{ version.activatedBy || 'Actor no informado' }} · {{ formatDate(version.activatedAtUtc) }}</dd></div>
+                      }
+                    </dl>
+                    <p class="read-only-note">Solo lectura</p>
+                    <button mat-stroked-button type="button" (click)="openDetail(version)">Ver detalle</button>
+                  </article>
+                }
+              </div>
+            } @else {
+              <p class="contract-group__empty" role="status">No hay versión activa reportada.</p>
+            }
+          </section>
+
+          <section class="contract-group" aria-labelledby="retired-heading">
+            <header>
+              <h2 id="retired-heading">Retirada</h2>
+              <p>Historial contractual preservado en modo solo lectura.</p>
+            </header>
+            @if (retiredVersions().length) {
+              <div class="contract-grid">
+                @for (version of retiredVersions(); track version.id) {
+                  <article class="contract-card">
+                    <div class="contract-card__heading">
+                      <div>
+                        <p class="contract-card__version">Versión {{ version.versionLabel }}</p>
+                        <span class="status-badge" data-tone="neutral">{{ version.statusLabel }}</span>
+                      </div>
+                      <span class="contract-card__revision">Revisión {{ version.revision }}</span>
+                    </div>
+                    <dl class="contract-card__meta">
+                      <div><dt>Relación de información</dt><dd>{{ version.relationship.label }}</dd></div>
+                      @if (version.activatedBy || version.activatedAtUtc) {
+                        <div><dt>Última activación informada</dt><dd>{{ version.activatedBy || 'Actor no informado' }} · {{ formatDate(version.activatedAtUtc) }}</dd></div>
+                      }
+                    </dl>
+                    <p class="read-only-note">Solo lectura</p>
+                    <button mat-stroked-button type="button" (click)="openDetail(version)">Ver detalle</button>
+                  </article>
+                }
+              </div>
+            } @else {
+              <p class="contract-group__empty" role="status">No hay versiones retiradas.</p>
+            }
+          </section>
+        </div>
+      }
+    }
+  }
+
+  @if (store.detailStatus() === 'loading') {
+    <div class="state-panel" role="status" aria-live="polite">
+      <mat-progress-spinner mode="indeterminate" diameter="32" />
+      <p>Cargando detalle contractual…</p>
+    </div>
+  }
+
+  @if (store.detailStatus() === 'error' || store.detailStatus() === 'forbidden') {
+    <div class="state-panel state-panel--error" role="alert">
+      <h2>No fue posible cargar el detalle</h2>
+      <p>{{ store.detailError()?.message }}</p>
+      <button mat-button type="button" (click)="closeDetail()">Volver a versiones</button>
+    </div>
+  }
+
+  @if (store.detail(); as detail) {
+    @if (store.detailStatus() === 'ready') {
+      <section class="contract-detail" aria-labelledby="contract-detail-title">
+        <header class="contract-detail__header">
+          <div>
+            <button mat-button type="button" (click)="closeDetail()">Volver a versiones</button>
+            <p class="contract-page__eyebrow">Detalle contractual</p>
+            <h2 id="contract-detail-title">Versión {{ detail.contract.versionLabel }}</h2>
+          </div>
+          @if (store.selectedVersion(); as selected) {
+            <span class="status-badge" [attr.data-tone]="selected.displayState === 'Active' ? 'success' : selected.displayState === 'Retired' ? 'neutral' : 'info'">
+              {{ selected.statusLabel }}
+            </span>
+          }
+        </header>
+
+        <div class="detail-summary-grid">
+          <section class="detail-panel" aria-labelledby="functional-summary-title">
+            <h3 id="functional-summary-title">Información funcional</h3>
+            <dl>
+              <div><dt>Servicio</dt><dd>{{ store.method()?.displayName || 'Servicio de integración' }}</dd></div>
+              <div><dt>Propósito</dt><dd>{{ store.method()?.mappingPurpose || 'No informado por backend' }}</dd></div>
+              <div><dt>Versión</dt><dd>{{ detail.contract.versionLabel }}</dd></div>
+              <div><dt>Revisión</dt><dd>{{ detail.contract.revision }}</dd></div>
+              <div><dt>Notas</dt><dd>{{ detail.contract.notes || 'Sin notas funcionales.' }}</dd></div>
+              @if (store.selectedVersion(); as selected) {
+                <div><dt>Relación de información</dt><dd>{{ selected.relationship.label }}</dd></div>
+              }
+              @if (detail.contract.importedBy || detail.contract.importedAtUtc) {
+                <div><dt>Creada/importada</dt><dd>{{ detail.contract.importedBy || 'Actor no informado' }} · {{ formatDate(detail.contract.importedAtUtc ?? null) }}</dd></div>
+              }
+              @if (detail.contract.activatedBy || detail.contract.activatedAtUtc) {
+                <div><dt>Activada</dt><dd>{{ detail.contract.activatedBy || 'Actor no informado' }} · {{ formatDate(detail.contract.activatedAtUtc ?? null) }}</dd></div>
+              }
+            </dl>
+            @if (store.selectedVersion()?.isReadOnly) {
+              <p class="read-only-note" role="status">Esta versión es solo lectura. Para cambiar el contrato se debe trabajar sobre una versión editable autorizada por backend.</p>
+            }
+          </section>
+
+          <details class="technical-details" data-testid="contract-technical-details">
+            <summary>Detalle técnico avanzado</summary>
+            <dl>
+              <div><dt>Operación</dt><dd><code>{{ detail.contract.operationName }}</code></dd></div>
+              <div><dt>Namespace</dt><dd><code>{{ detail.contract.targetNamespace }}</code></dd></div>
+              <div><dt>SOAP Action</dt><dd><code>{{ detail.contract.soapAction }}</code></dd></div>
+              <div><dt>Documento fuente</dt><dd>{{ sourceDocumentLabel() }}</dd></div>
+              @if (detail.contract.sourceDocumentHash) {
+                <div><dt>Huella del documento</dt><dd><code>{{ detail.contract.sourceDocumentHash }}</code></dd></div>
+              }
+            </dl>
+          </details>
+        </div>
+
+        <section class="parameters" aria-labelledby="parameters-title">
+          <header>
+            <h3 id="parameters-title">Datos del contrato</h3>
+            <p>Se muestran primero los nombres y descripciones funcionales. El detalle XML/XSD permanece colapsado.</p>
+          </header>
+
+          @if (store.parameters().length === 0) {
+            <p class="contract-group__empty">Esta versión no reporta parámetros activos.</p>
+          }
+
+          <div class="parameter-list">
+            @for (parameter of store.parameters(); track parameter.parameterId) {
+              <article class="parameter-card" [attr.aria-labelledby]="'parameter-' + parameter.parameterId">
+                <header class="parameter-card__header">
+                  <div>
+                    <h4 [id]="'parameter-' + parameter.parameterId">{{ parameter.functionalName }}</h4>
+                    <p>{{ parameter.functionalDescription || 'Descripción funcional no disponible.' }}</p>
+                  </div>
+                  @if (parameter.required) {
+                    <span class="required-badge">Requerido</span>
+                  }
+                </header>
+
+                <dl class="parameter-functional-meta">
+                  <div><dt>Categoría</dt><dd>{{ parameter.categoryLabel || 'Sin categoría' }}</dd></div>
+                  <div><dt>Ayuda</dt><dd>{{ parameter.uiHelpText || 'Sin ayuda adicional' }}</dd></div>
+                  <div><dt>Ejemplo</dt><dd>{{ parameter.exampleValue || 'Sin ejemplo' }}</dd></div>
+                </dl>
+
+                @if (canEditCurrentContract() && editingParameterId() !== parameter.parameterId) {
+                  <button mat-stroked-button type="button" (click)="beginEdit(parameter)">Editar metadatos funcionales</button>
+                }
+
+                @if (editingParameterId() === parameter.parameterId) {
+                  <form class="functional-editor" [formGroup]="functionalMetadataForm" (ngSubmit)="saveEdit(parameter.parameterId)">
+                    <h5>Editar metadata funcional</h5>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Nombre funcional</mat-label>
+                      <input matInput formControlName="displayName" autocomplete="off" />
+                      @if (functionalMetadataForm.controls.displayName.hasError('required')) {
+                        <mat-error>El nombre funcional es obligatorio.</mat-error>
+                      }
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Descripción</mat-label>
+                      <textarea matInput rows="3" formControlName="descriptionEs"></textarea>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Texto de ayuda</mat-label>
+                      <textarea matInput rows="2" formControlName="uiHelpText"></textarea>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Categoría</mat-label>
+                      <input matInput formControlName="category" autocomplete="off" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Ejemplo</mat-label>
+                      <input matInput formControlName="exampleValue" autocomplete="off" />
+                    </mat-form-field>
+                    @if (store.parameterSaveError(); as saveError) {
+                      <p class="inline-error" role="alert">{{ saveError.message }}</p>
+                    }
+                    <div class="functional-editor__actions">
+                      <button mat-button type="button" (click)="cancelEdit()" [disabled]="store.parameterSaveStatus() === 'loading'">Cancelar</button>
+                      <button mat-flat-button type="submit" [disabled]="functionalMetadataForm.invalid || store.parameterSaveStatus() === 'loading'">Guardar cambios</button>
+                    </div>
+                  </form>
+                }
+
+                <details class="technical-details parameter-card__technical">
+                  <summary>Detalle técnico</summary>
+                  <dl>
+                    <div><dt>Nombre técnico</dt><dd><code>{{ parameter.technicalName }}</code></dd></div>
+                    <div><dt>Elemento XML</dt><dd><code>{{ parameter.technicalDetails.xmlElementName }}</code></dd></div>
+                    <div><dt>Tipo de dato</dt><dd><code>{{ parameter.technicalDetails.dataType }}</code></dd></div>
+                    <div><dt>Tipo XSD</dt><dd><code>{{ parameter.technicalDetails.xsdType }}</code></dd></div>
+                    <div><dt>Dirección</dt><dd>{{ parameter.technicalDetails.direction }}</dd></div>
+                    <div><dt>Cardinalidad</dt><dd>{{ parameter.technicalDetails.cardinality }}</dd></div>
+                    <div><dt>Soporte</dt><dd>{{ parameter.technicalDetails.supportStatus }}</dd></div>
+                  </dl>
+                </details>
+              </article>
+            }
+          </div>
+        </section>
+      </section>
+    }
+  }
+  }
+</section>

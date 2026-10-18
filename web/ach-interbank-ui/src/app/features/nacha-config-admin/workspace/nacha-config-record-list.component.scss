@@ -1,0 +1,4 @@
+:host { display: block; min-width: 0; }
+.record-card { height: 100%; }
+button[mat-list-item] { width: 100%; text-align: left; }
+.empty-state { display: grid; gap: .35rem; padding: 1rem 0; color: var(--mat-sys-on-surface-variant); }

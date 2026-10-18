@@ -1,0 +1,411 @@
+<section class="restrictions-page" aria-labelledby="restrictions-title">
+  <header class="restrictions-hero">
+    <div>
+      <p class="restrictions-hero__eyebrow">Configuración operacional CFA</p>
+      <h2 id="restrictions-title">Restricciones operativas</h2>
+      <p>
+        Administra límites y allowlists internos de CFA. Estas restricciones son una capa operacional separada y
+        <strong>no modifican las reglas regulatorias de las cámaras</strong>.
+      </p>
+    </div>
+    <div class="restrictions-hero__actions">
+      <a mat-stroked-button routerLink="/clearing-houses"><mat-icon>arrow_back</mat-icon>Volver a Cámaras compensadoras</a>
+      <button *ngIf="canManage" mat-flat-button color="primary" type="button" (click)="create()">
+        <mat-icon>add</mat-icon>Nueva restricción
+      </button>
+    </div>
+  </header>
+
+  <mat-card class="notice-card" role="note">
+    <mat-icon aria-hidden="true">info</mat-icon>
+    <div>
+      <strong>Separación de responsabilidades</strong>
+      <span>CycleTransactionPolicy conserva la autoridad regulatoria. Esta pantalla solo puede restringir operaciones ya permitidas por la regulación.</span>
+    </div>
+  </mat-card>
+
+  <mat-card class="filters-card">
+    <mat-card-header>
+      <mat-card-title>Filtros</mat-card-title>
+      <mat-card-subtitle>Consulta por cámara, versión de política, ciclo, tipo, prenotificación, estado y vigencia.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="filterForm" class="filters" (ngSubmit)="applyFilters()">
+        <mat-form-field appearance="outline">
+          <mat-label>Cámara</mat-label>
+          <mat-select formControlName="clearingHouseCode" aria-label="Filtrar por cámara">
+            <mat-option [value]="null">Todas</mat-option>
+            <mat-option *ngFor="let house of houses" [value]="house.code">{{ house.code }} · {{ house.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Versión de política</mat-label>
+          <input matInput formControlName="policyVersion" autocomplete="off" placeholder="Ej. V35" aria-label="Filtrar por versión de política" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Ciclo versionado</mat-label>
+          <mat-select formControlName="cycleConfigId" aria-label="Filtrar por ciclo versionado">
+            <mat-option [value]="null">Todos</mat-option>
+            <mat-option *ngFor="let cycle of filterCycles" [value]="cycle.id">
+              {{ cycle.policyVersion }} · {{ cycle.cycleName }}
+            </mat-option>
+          </mat-select>
+          <mat-hint *ngIf="!filterForm.controls.clearingHouseCode.value">Seleccione una cámara para listar sus ciclos.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de transacción</mat-label>
+          <mat-select formControlName="transactionType" aria-label="Filtrar por tipo de transacción">
+            <mat-option [value]="null">Todos</mat-option>
+            <mat-option [value]="transactionTypes.Credit">Crédito</mat-option>
+            <mat-option [value]="transactionTypes.Debit">Débito</mat-option>
+            <mat-option [value]="transactionTypes.Prenotification">Prenotificación</mat-option>
+            <mat-option [value]="transactionTypes.Reversal">Reverso</mat-option>
+            <mat-option [value]="transactionTypes.Return">Devolución</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Naturaleza</mat-label>
+          <mat-select formControlName="prenotification" aria-label="Filtrar por prenotificación">
+            <mat-option value="all">Monetaria o prenotificación</mat-option>
+            <mat-option value="yes">Prenotificación</mat-option>
+            <mat-option value="no">Monetaria</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select formControlName="active" aria-label="Filtrar por estado">
+            <mat-option value="all">Todos</mat-option>
+            <mat-option value="yes">Activas</mat-option>
+            <mat-option value="no">Inactivas</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Vigente en</mat-label>
+          <input matInput [matDatepicker]="filterDatePicker" formControlName="effectiveAt" aria-label="Filtrar por fecha de vigencia" />
+          <mat-datepicker-toggle matIconSuffix [for]="filterDatePicker"></mat-datepicker-toggle>
+          <mat-datepicker #filterDatePicker></mat-datepicker>
+        </mat-form-field>
+
+        <div class="filters__actions">
+          <button mat-button type="button" (click)="clearFilters()">Limpiar filtros</button>
+          <button mat-stroked-button type="submit"><mat-icon>search</mat-icon>Consultar</button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card *ngIf="loading" class="state-card" role="status">
+    <mat-spinner diameter="34"></mat-spinner>
+    <div><strong>Cargando restricciones</strong><span>Consultando configuración operacional CFA.</span></div>
+  </mat-card>
+
+  <mat-card *ngIf="!loading && error" class="state-card state-card--error" role="alert">
+    <mat-icon>error_outline</mat-icon>
+    <div><strong>No fue posible cargar la información</strong><span>{{ error }}</span></div>
+    <button mat-stroked-button type="button" (click)="loadLookupsAndRows()">Reintentar</button>
+  </mat-card>
+
+  <p *ngIf="lookupWarning" class="lookup-warning" role="status"><mat-icon>info</mat-icon>{{ lookupWarning }} La consulta de restricciones sigue disponible.</p>
+
+  <mat-card *ngIf="!loading && !error" class="results-card">
+    <mat-card-header>
+      <mat-card-title>Restricciones configuradas</mat-card-title>
+      <mat-card-subtitle>{{ dataSource.data.length }} resultado(s). Las reglas globales, de cámara y de ciclo mantienen su ámbito explícito.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="!dataSource.data.length" class="empty-state" role="status">
+        <mat-icon>rule_settings</mat-icon>
+        <strong>Sin restricciones para los filtros seleccionados</strong>
+        <span>Prueba limpiando los filtros o crea una nueva restricción operacional CFA.</span>
+      </div>
+
+      <div *ngIf="dataSource.data.length" class="desktop-table">
+        <table mat-table [dataSource]="dataSource" matSort aria-label="Restricciones operativas">
+          <ng-container matColumnDef="scope">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="clearingHouseCode">Ámbito</th>
+            <td mat-cell *matCellDef="let row">
+              <mat-chip>{{ scopeLabel(row) }}</mat-chip>
+              <strong>{{ scopeDetail(row) }}</strong>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="transaction">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="transactionType">Aplicación</th>
+            <td mat-cell *matCellDef="let row">
+              <strong>{{ transactionLabel(row.transactionType) }}</strong>
+              <span>{{ prenotificationLabel(row.isPrenotification) }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="limits">
+            <th mat-header-cell *matHeaderCellDef>Límites</th>
+            <td mat-cell *matCellDef="let row">
+              <span>Tx: {{ formatMoney(row.maxAmountPerTransaction) }}</span>
+              <span>Ciclo: {{ formatMoney(row.maxAmountPerCycle) }}</span>
+              <span>Cantidad: {{ row.maxTransactionsPerCycle == null ? 'Hereda' : row.maxTransactionsPerCycle }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="accounts">
+            <th mat-header-cell *matHeaderCellDef>Tipos de cuenta</th>
+            <td mat-cell *matCellDef="let row" [class.deny-all]="row.allowedAccountTypes?.length === 0">
+              {{ accountsLabel(row.allowedAccountTypes) }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="validity">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="effectiveFrom">Vigencia</th>
+            <td mat-cell *matCellDef="let row">
+              <strong>{{ validityLabel(row) }}</strong>
+              <span>{{ dateLabel(row.effectiveFrom) }} – {{ row.effectiveTo ? dateLabel(row.effectiveTo) : 'sin fin' }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="state">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="isActive">Estado</th>
+            <td mat-cell *matCellDef="let row"><mat-chip [class.chip--inactive]="!row.isActive">{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip></td>
+          </ng-container>
+
+          <ng-container matColumnDef="updated">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="updatedAt">Actualizada</th>
+            <td mat-cell *matCellDef="let row">{{ row.updatedAt | date:'short' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let row">
+              <button mat-icon-button [matMenuTriggerFor]="rowActions" type="button"
+                [attr.aria-label]="'Acciones de la restricción ' + row.id" matTooltip="Ver acciones de la restricción">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #rowActions="matMenu">
+                <button mat-menu-item type="button" (click)="view(row)"><mat-icon>visibility</mat-icon><span>Ver detalle</span></button>
+                <button *ngIf="canManage" mat-menu-item type="button" (click)="edit(row)"><mat-icon>edit</mat-icon><span>Editar</span></button>
+                <button *ngIf="canManage" mat-menu-item type="button" (click)="changeStatus(row)">
+                  <mat-icon>{{ row.isActive ? 'pause_circle' : 'play_circle' }}</mat-icon>
+                  <span>{{ row.isActive ? 'Desactivar' : 'Activar' }}</span>
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        </table>
+      </div>
+
+      <div *ngIf="dataSource.data.length" class="mobile-cards">
+        <article *ngFor="let row of dataSource.filteredData; trackBy: track">
+          <header>
+            <div><mat-chip>{{ scopeLabel(row) }}</mat-chip><h3>{{ scopeDetail(row) }}</h3></div>
+            <mat-chip [class.chip--inactive]="!row.isActive">{{ row.isActive ? 'Activa' : 'Inactiva' }}</mat-chip>
+          </header>
+          <dl>
+            <div><dt>Aplicación</dt><dd>{{ transactionLabel(row.transactionType) }} · {{ prenotificationLabel(row.isPrenotification) }}</dd></div>
+            <div><dt>Máx. por transacción</dt><dd>{{ formatMoney(row.maxAmountPerTransaction) }}</dd></div>
+            <div><dt>Máx. por ciclo</dt><dd>{{ formatMoney(row.maxAmountPerCycle) }}</dd></div>
+            <div><dt>Máx. transacciones</dt><dd>{{ row.maxTransactionsPerCycle == null ? 'Hereda' : row.maxTransactionsPerCycle }}</dd></div>
+            <div><dt>Tipos de cuenta</dt><dd [class.deny-all]="row.allowedAccountTypes?.length === 0">{{ accountsLabel(row.allowedAccountTypes) }}</dd></div>
+            <div><dt>Vigencia</dt><dd>{{ dateLabel(row.effectiveFrom) }} – {{ row.effectiveTo ? dateLabel(row.effectiveTo) : 'sin fin' }}</dd></div>
+          </dl>
+          <button mat-stroked-button type="button" [matMenuTriggerFor]="mobileActions" [attr.aria-label]="'Administrar restricción ' + row.id">
+            Acciones<mat-icon>expand_more</mat-icon>
+          </button>
+          <mat-menu #mobileActions="matMenu">
+            <button mat-menu-item type="button" (click)="view(row)"><mat-icon>visibility</mat-icon><span>Ver detalle</span></button>
+            <button *ngIf="canManage" mat-menu-item type="button" (click)="edit(row)"><mat-icon>edit</mat-icon><span>Editar</span></button>
+            <button *ngIf="canManage" mat-menu-item type="button" (click)="changeStatus(row)">
+              <mat-icon>{{ row.isActive ? 'pause_circle' : 'play_circle' }}</mat-icon><span>{{ row.isActive ? 'Desactivar' : 'Activar' }}</span>
+            </button>
+          </mat-menu>
+        </article>
+      </div>
+    </mat-card-content>
+    <mat-paginator *ngIf="dataSource.data.length" [pageSize]="10" [pageSizeOptions]="[5, 10, 20, 50]" showFirstLastButtons
+      aria-label="Paginación de restricciones operativas"></mat-paginator>
+  </mat-card>
+
+  <ng-template #editorDialog>
+    <h2 mat-dialog-title><mat-icon aria-hidden="true">tune</mat-icon>{{ editing ? 'Editar restricción operacional CFA' : 'Nueva restricción operacional CFA' }}</h2>
+    <mat-dialog-content>
+      <p class="dialog-intro">Configura una restricción interna CFA. La regulación de la cámara no se modifica desde esta pantalla.</p>
+      <form [formGroup]="form" id="restriction-editor-form" class="editor-form" (ngSubmit)="save()">
+        <section class="editor-section">
+          <h3>Ámbito</h3>
+          <mat-form-field appearance="outline">
+            <mat-label>Nivel de aplicación</mat-label>
+            <mat-select formControlName="scope" aria-label="Nivel de aplicación de la restricción">
+              <mat-option value="global">Global</mat-option>
+              <mat-option value="clearingHouse">Cámara</mat-option>
+              <mat-option value="cycle">Ciclo versionado</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field *ngIf="form.controls.scope.value !== 'global'" appearance="outline">
+            <mat-label>Cámara</mat-label>
+            <mat-select formControlName="clearingHouseCode" aria-label="Cámara de la restricción">
+              <mat-option *ngFor="let house of houses" [value]="house.code">{{ house.code }} · {{ house.name }}</mat-option>
+            </mat-select>
+            <mat-error *ngIf="form.hasError('houseRequired')">Selecciona una cámara.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field *ngIf="form.controls.scope.value === 'cycle'" appearance="outline">
+            <mat-label>Versión de política</mat-label>
+            <mat-select formControlName="policyVersion" aria-label="Versión de política del ciclo">
+              <mat-option *ngFor="let version of editorPolicyVersions" [value]="version">{{ version }}</mat-option>
+            </mat-select>
+            <mat-error *ngIf="form.hasError('policyRequired')">Selecciona una versión de política.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field *ngIf="form.controls.scope.value === 'cycle'" appearance="outline">
+            <mat-label>Ciclo versionado</mat-label>
+            <mat-select formControlName="cycleConfigId" aria-label="Ciclo versionado de la restricción">
+              <mat-option *ngFor="let cycle of editorCycleOptions" [value]="cycle.id">
+                {{ cycle.policyVersion }} · {{ cycle.cycleName }} · {{ dateLabel(cycle.effectiveFrom) }}
+              </mat-option>
+            </mat-select>
+            <mat-hint>El ID se toma del ciclo versionado; no se usan nombres ni IDs de cámara definidos de forma fija.</mat-hint>
+            <mat-error *ngIf="form.hasError('cycleRequired')">Selecciona un ciclo versionado.</mat-error>
+          </mat-form-field>
+          <p *ngIf="form.hasError('houseRequired') || form.hasError('policyRequired') || form.hasError('cycleRequired')" class="scope-error" role="alert">
+            Completa la cámara, la versión de política y el ciclo requeridos para el ámbito seleccionado.
+          </p>
+        </section>
+
+        <section class="editor-section">
+          <h3>Aplicación</h3>
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de transacción</mat-label>
+            <mat-select formControlName="transactionType" aria-label="Tipo de transacción de la restricción">
+              <mat-option [value]="null">Cualquier tipo</mat-option>
+              <mat-option [value]="transactionTypes.Credit">Crédito</mat-option>
+              <mat-option [value]="transactionTypes.Debit">Débito</mat-option>
+              <mat-option [value]="transactionTypes.Prenotification">Prenotificación</mat-option>
+              <mat-option [value]="transactionTypes.Reversal">Reverso</mat-option>
+              <mat-option [value]="transactionTypes.Return">Devolución</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Monetaria / prenotificación</mat-label>
+            <mat-select formControlName="isPrenotification" aria-label="Naturaleza monetaria o prenotificación">
+              <mat-option value="all">Cualquiera / hereda especialización</mat-option>
+              <mat-option value="no">Monetaria</mat-option>
+              <mat-option value="yes">Prenotificación</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </section>
+
+        <section class="editor-section">
+          <h3>Límites</h3>
+          <mat-form-field appearance="outline">
+            <mat-label>Máximo por transacción</mat-label>
+            <input matInput type="number" min="0" step="0.01" formControlName="maxAmountPerTransaction" aria-label="Máximo por transacción" />
+            <span matTextSuffix>COP</span>
+            <mat-hint>Vacío = hereda.</mat-hint>
+            <mat-error *ngIf="form.controls.maxAmountPerTransaction.hasError('min')">No puede ser negativo.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Máximo por ciclo</mat-label>
+            <input matInput type="number" min="0" step="0.01" formControlName="maxAmountPerCycle" aria-label="Máximo por ciclo" />
+            <span matTextSuffix>COP</span>
+            <mat-hint>Vacío = hereda.</mat-hint>
+            <mat-error *ngIf="form.controls.maxAmountPerCycle.hasError('min')">No puede ser negativo.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Máximo de transacciones por ciclo</mat-label>
+            <input matInput type="number" min="0" step="1" formControlName="maxTransactionsPerCycle" aria-label="Máximo de transacciones por ciclo" />
+            <mat-hint>Vacío = hereda.</mat-hint>
+            <mat-error *ngIf="form.controls.maxTransactionsPerCycle.hasError('min')">No puede ser negativo.</mat-error>
+            <mat-error *ngIf="form.controls.maxTransactionsPerCycle.hasError('integer')">Ingresa un número entero.</mat-error>
+          </mat-form-field>
+        </section>
+
+        <section class="editor-section editor-section--accounts">
+          <h3>AllowedAccountTypes</h3>
+          <mat-form-field appearance="outline">
+            <mat-label>Tratamiento de tipos de cuenta</mat-label>
+            <mat-select formControlName="accountTypesMode" aria-label="Tratamiento de tipos de cuenta permitidos">
+              <mat-option value="inherit">Herencia / null</mat-option>
+              <mat-option value="explicit">Allowlist explícita</mat-option>
+            </mat-select>
+            <mat-hint>{{ accountsHelp }}</mat-hint>
+          </mat-form-field>
+
+          <div *ngIf="form.controls.accountTypesMode.value === 'explicit'" class="account-checks" role="group" aria-label="Tipos de cuenta permitidos">
+            <mat-checkbox formControlName="checking">Corriente</mat-checkbox>
+            <mat-checkbox formControlName="savings">Ahorros</mat-checkbox>
+            <mat-checkbox formControlName="electronicDeposits">Depósito electrónico</mat-checkbox>
+          </div>
+          <p *ngIf="form.controls.accountTypesMode.value === 'explicit' && selectedAccountTypes().length === 0" class="deny-warning" role="alert">
+            <mat-icon>block</mat-icon>Allowlist vacía: esta restricción producirá DENY para cualquier tipo de cuenta dentro de su ámbito.
+          </p>
+        </section>
+
+        <section class="editor-section">
+          <h3>Vigencia y estado</h3>
+          <mat-form-field appearance="outline">
+            <mat-label>Vigencia inicial</mat-label>
+            <input matInput [matDatepicker]="fromPicker" formControlName="effectiveFrom" aria-label="Fecha inicial de vigencia" />
+            <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+            <mat-datepicker #fromPicker></mat-datepicker>
+            <mat-error *ngIf="form.controls.effectiveFrom.hasError('required')">La fecha inicial es obligatoria.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Vigencia final</mat-label>
+            <input matInput [matDatepicker]="toPicker" formControlName="effectiveTo" aria-label="Fecha final de vigencia" />
+            <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+            <mat-datepicker #toPicker></mat-datepicker>
+            <mat-error *ngIf="form.hasError('dateRange')">La vigencia final no puede ser anterior a la vigencia inicial.</mat-error>
+          </mat-form-field>
+
+          <div class="active-toggle">
+            <mat-slide-toggle formControlName="isActive" aria-label="Estado activo de la restricción">Restricción activa</mat-slide-toggle>
+            <span>La activación solo controla la capa operacional CFA.</span>
+          </div>
+        </section>
+      </form>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" [mat-dialog-close]="false" [disabled]="saving">Cancelar</button>
+      <button mat-flat-button color="primary" type="submit" form="restriction-editor-form" [disabled]="form.invalid || saving || !canManage">
+        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        <mat-icon *ngIf="!saving">save</mat-icon>{{ saving ? 'Guardando…' : 'Guardar' }}
+      </button>
+    </mat-dialog-actions>
+  </ng-template>
+
+  <ng-template #detailDialog>
+    <h2 mat-dialog-title><mat-icon aria-hidden="true">visibility</mat-icon>Detalle de restricción operacional CFA</h2>
+    <mat-dialog-content *ngIf="detail">
+      <p class="dialog-intro">Consulta de solo lectura. Esta información no representa una regla regulatoria de la cámara.</p>
+      <dl class="detail-grid">
+        <div><dt>ID</dt><dd>{{ detail.id }}</dd></div>
+        <div><dt>Ámbito</dt><dd>{{ scopeLabel(detail) }}</dd></div>
+        <div class="detail-grid__wide"><dt>Contexto</dt><dd>{{ scopeDetail(detail) }}</dd></div>
+        <div><dt>Transacción</dt><dd>{{ transactionLabel(detail.transactionType) }}</dd></div>
+        <div><dt>Naturaleza</dt><dd>{{ prenotificationLabel(detail.isPrenotification) }}</dd></div>
+        <div><dt>Máx. por transacción</dt><dd>{{ formatMoney(detail.maxAmountPerTransaction) }}</dd></div>
+        <div><dt>Máx. por ciclo</dt><dd>{{ formatMoney(detail.maxAmountPerCycle) }}</dd></div>
+        <div><dt>Máx. transacciones</dt><dd>{{ detail.maxTransactionsPerCycle == null ? 'Hereda' : detail.maxTransactionsPerCycle }}</dd></div>
+        <div class="detail-grid__wide"><dt>AllowedAccountTypes</dt><dd [class.deny-all]="detail.allowedAccountTypes?.length === 0">{{ accountsLabel(detail.allowedAccountTypes) }}</dd></div>
+        <div><dt>EffectiveFrom</dt><dd>{{ dateLabel(detail.effectiveFrom) }}</dd></div>
+        <div><dt>EffectiveTo</dt><dd>{{ detail.effectiveTo ? dateLabel(detail.effectiveTo) : 'Sin fin' }}</dd></div>
+        <div><dt>Estado</dt><dd>{{ detail.isActive ? 'Activa' : 'Inactiva' }}</dd></div>
+        <div><dt>Creada</dt><dd>{{ detail.createdAt | date:'short' }}</dd></div>
+        <div><dt>Actualizada</dt><dd>{{ detail.updatedAt | date:'short' }}</dd></div>
+        <div class="detail-grid__wide"><dt>RowVersion</dt><dd class="row-version">{{ detail.rowVersion }}</dd></div>
+      </dl>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end"><button mat-flat-button color="primary" type="button" mat-dialog-close>Cerrar</button></mat-dialog-actions>
+  </ng-template>
+</section>

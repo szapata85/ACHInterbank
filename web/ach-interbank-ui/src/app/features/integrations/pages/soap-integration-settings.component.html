@@ -1,0 +1,266 @@
+<section class="soap-settings" data-testid="soap-settings-page">
+  <header class="soap-settings__header">
+    <div>
+      <p class="soap-settings__eyebrow">Conexiones · Configuración avanzada</p>
+      <h1>Conexión entidad participante</h1>
+      <p>
+        Consulta el estado de conexión de cada servicio y modifica su configuración técnica solo cuando sea necesario.
+        La relación de información se administra por separado.
+      </p>
+    </div>
+    <div class="soap-settings__header-actions">
+      <button mat-stroked-button type="button" (click)="reload()" [disabled]="reloading || saving || previewing || !canRead">
+        {{ reloading ? 'Actualizando…' : 'Actualizar configuración' }}
+      </button>
+    </div>
+  </header>
+
+  <mat-progress-bar
+    *ngIf="loading || reloading || saving || previewing"
+    mode="indeterminate"
+    aria-label="Procesando configuración de conexión técnica"
+  ></mat-progress-bar>
+
+  <mat-card *ngIf="forbidden" appearance="outlined" class="soap-settings__state-card" role="alert" data-testid="soap-forbidden-state">
+    <mat-card-content>
+      <h2>Acceso restringido</h2>
+      <p>No tienes permiso para consultar o modificar la conexión de la entidad participante.</p>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card *ngIf="loadFailed && !forbidden" appearance="outlined" class="soap-settings__state-card" role="alert" data-testid="soap-error-state">
+    <mat-card-content>
+      <h2>No fue posible cargar la configuración</h2>
+      <p>La información mostrada no puede considerarse vigente hasta actualizarla desde el sistema.</p>
+      <button mat-stroked-button type="button" (click)="reload()">Reintentar</button>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card *ngIf="requiresReload && !forbidden" appearance="outlined" class="soap-settings__conflict" role="alert" data-testid="soap-revision-conflict">
+    <mat-card-content>
+      <strong>La configuración cambió en el sistema.</strong>
+      <span>Recarga antes de continuar para evitar sobrescribir una Revision más reciente.</span>
+      <button mat-stroked-button type="button" (click)="reload()">Actualizar configuración</button>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card *ngIf="backendStateIncomplete && !forbidden" appearance="outlined" class="soap-settings__conflict" role="alert" data-testid="soap-backend-state-incomplete">
+    <mat-card-content>
+      <strong>No se pudo confirmar el estado vigente.</strong>
+      <span>No se habilitan cambios hasta contar con la revisión y las capacidades vigentes.</span>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-expansion-panel *ngIf="!forbidden && !loadFailed" class="soap-settings__help">
+    <mat-expansion-panel-header>
+      <mat-panel-title>Qué se administra aquí</mat-panel-title>
+      <mat-panel-description>Sección técnica, no experiencia principal</mat-panel-description>
+    </mat-expansion-panel-header>
+    <ul>
+      <li>Dirección del servicio, acción técnica, modo de envío y estado de configuración.</li>
+      <li>La seguridad del destino, certificados, hosts, puertos y resolución de red permanecen exclusivamente en backend.</li>
+      <li>Seleccionar, editar o cancelar nunca ejecuta una operación SOAP.</li>
+      <li>Un cambio hacia envío real exige confirmación explícita con destino sanitizado por backend.</li>
+    </ul>
+  </mat-expansion-panel>
+
+  <ng-container *ngIf="!loading && !forbidden && !loadFailed">
+    <mat-tab-group
+      *ngIf="allMethods.length > 0; else emptyState"
+      class="soap-settings__tabs"
+      [selectedIndex]="selectedIndex"
+      (selectedIndexChange)="onSelectedIndexChange($event)"
+      animationDuration="150ms"
+      aria-label="Servicios CFA configurados"
+    >
+      <mat-tab *ngFor="let method of allMethods; trackBy: trackMethod">
+        <ng-template mat-tab-label>
+          <span data-testid="soap-service-card" class="soap-settings__tab-label">
+            <strong>{{ serviceCopyFor(method).title }}</strong>
+            <small>{{ methodNameFor(method.group) }} · {{ statusFor(method.group) }}</small>
+          </span>
+        </ng-template>
+      </mat-tab>
+    </mat-tab-group>
+
+    <mat-card *ngIf="selectedMethod as method" class="soap-settings__workbench" appearance="outlined">
+      <mat-card-header>
+        <div mat-card-avatar class="soap-settings__service-icon" aria-hidden="true">
+          <span>SOAP</span>
+        </div>
+        <mat-card-title>{{ selectedCopy.title }}</mat-card-title>
+        <mat-card-subtitle>{{ selectedCopy.nature }}</mat-card-subtitle>
+        <p class="soap-settings__technical-name">Nombre técnico: <code>{{ methodNameFor(method.group) }}</code></p>
+        <mat-chip-set class="soap-settings__status" aria-label="Estado de conexión">
+          <mat-chip [class.soap-settings__chip--live]="method.group.get('configurationState')?.value === 'RealSendEnabled'">
+            {{ statusFor(method.group) }}
+          </mat-chip>
+          <mat-chip>{{ operatingModeFor(method.group) }}</mat-chip>
+        </mat-chip-set>
+      </mat-card-header>
+
+      <mat-card-content>
+        <p class="soap-settings__description">{{ selectedCopy.description }}</p>
+
+        <div class="soap-settings__live-warning" *ngIf="method.group.get('configurationState')?.value === 'RealSendEnabled'">
+          <strong aria-hidden="true">!</strong>
+          <span>
+            <strong>Comunicación externa habilitada.</strong>
+            El backend conserva la autoridad sobre seguridad del endpoint y ejecución del transporte.
+          </span>
+        </div>
+
+        <section class="soap-settings__summary" aria-label="Resumen de conexión técnica" aria-live="polite">
+          <div>
+            <span>Modo de envío</span>
+            <strong>{{ operatingModeFor(method.group) }}</strong>
+          </div>
+          <div>
+            <span>Estado</span>
+            <strong>{{ statusFor(method.group) }}</strong>
+          </div>
+        </section>
+
+        <p
+          *ngIf="method.group.get('configurationStateKnown')?.value !== true"
+          class="soap-settings__capability-warning"
+          role="alert"
+          data-testid="soap-capability-warning"
+        >
+          {{ method.group.get('capabilityBlockingReason')?.value || 'Backend no pudo determinar el estado vigente de este servicio.' }}
+        </p>
+
+        <mat-expansion-panel class="soap-settings__advanced-panel" [expanded]="isEditingSelected">
+          <mat-expansion-panel-header>
+            <mat-panel-title>Detalle técnico y edición</mat-panel-title>
+            <mat-panel-description>Contenido avanzado colapsado por defecto</mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <section class="soap-settings__technical-readout" aria-label="Dirección y acción técnicas">
+            <div>
+              <span>Dirección del servicio</span>
+              <strong data-testid="soap-sanitized-endpoint">{{ endpointFor(method.group) }}</strong>
+            </div>
+            <div>
+              <span>Acción técnica</span>
+              <strong data-testid="soap-sanitized-action">{{ technicalActionFor(method.group) }}</strong>
+            </div>
+          </section>
+
+          <form
+            [formGroup]="editorForm"
+            class="soap-settings__form"
+            aria-label="Configuración técnica SOAP avanzada"
+            (ngSubmit)="save()"
+          >
+            <mat-form-field appearance="outline">
+              <mat-label>Dirección del servicio</mat-label>
+              <input
+                matInput
+                type="text"
+                formControlName="endpoint"
+                data-testid="soap-endpoint-input"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <mat-hint>El sistema determina y aplica la seguridad del destino.</mat-hint>
+              <mat-error>La dirección es obligatoria.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Acción técnica</mat-label>
+              <input
+                matInput
+                type="text"
+                formControlName="soapAction"
+                data-testid="soap-action-input"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <mat-hint>Acción del contrato técnico; no incluye credenciales ni secretos.</mat-hint>
+              <mat-error>La acción técnica es obligatoria.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Modo de envío</mat-label>
+              <mat-select formControlName="operatingMode" data-testid="soap-operating-mode">
+                <mat-option value="Live">Envío real</mat-option>
+                <mat-option value="DryRun">Simulación sin envío</mat-option>
+                <mat-option value="Disabled">Inactivo</mat-option>
+              </mat-select>
+              <mat-error>Selecciona un modo de envío.</mat-error>
+            </mat-form-field>
+
+            <div class="soap-settings__toggle">
+              <mat-slide-toggle formControlName="enabled">Configuración habilitada</mat-slide-toggle>
+              <small>Habilitar la configuración no ejecuta el servicio por sí solo.</small>
+            </div>
+          </form>
+
+          <section class="soap-settings__support-detail" aria-label="Detalle técnico para soporte">
+            <div>
+              <span>Cliente técnico</span>
+              <strong>{{ method.clientName }}</strong>
+            </div>
+            <div>
+              <span>Parámetros de contrato</span>
+              <strong>{{ mappingCountFor(method.group) }}</strong>
+            </div>
+            <div>
+              <span>Código técnico</span>
+              <strong>{{ methodCodeFor(method) }}</strong>
+            </div>
+          </section>
+        </mat-expansion-panel>
+      </mat-card-content>
+
+      <mat-card-actions align="end" class="soap-settings__actions">
+        <a
+          mat-button
+          [routerLink]="['/integraciones/relacion-informacion']"
+          [queryParams]="{ method: methodNameFor(method.group) }"
+          data-testid="soap-view-mappings"
+        >
+          Ver relación de información
+        </a>
+        <button
+          *ngIf="!isEditingSelected && canManage"
+          mat-stroked-button
+          type="button"
+          (click)="beginEdit()"
+          [disabled]="!canEditSelected || saving || previewing"
+          data-testid="soap-edit"
+        >
+          Editar configuración
+        </button>
+        <button
+          *ngIf="isEditingSelected"
+          mat-button
+          type="button"
+          (click)="cancelEdit()"
+          [disabled]="saving || previewing || confirmationOpen"
+          data-testid="soap-cancel"
+        >
+          Cancelar
+        </button>
+        <button
+          *ngIf="isEditingSelected"
+          mat-flat-button
+          type="button"
+          (click)="save()"
+          [disabled]="!canSave"
+          data-testid="soap-save"
+        >
+          {{ saving ? 'Guardando…' : previewing ? 'Verificando…' : 'Guardar cambios' }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </ng-container>
+
+  <ng-template #emptyState>
+    <mat-card appearance="outlined" class="soap-settings__empty" data-testid="soap-empty-state">
+      <h2>No hay conexiones configuradas</h2>
+      <p>Backend no devolvió servicios configurables para esta sección.</p>
+    </mat-card>
+  </ng-template>
+</section>

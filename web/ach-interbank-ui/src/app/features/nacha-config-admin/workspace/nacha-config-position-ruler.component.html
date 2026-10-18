@@ -1,0 +1,34 @@
+<mat-card class="position-ruler" *ngIf="variant" data-testid="nacha-config-position-ruler">
+  <mat-card-header>
+    <mat-card-title>Posiciones del registro</mat-card-title>
+    <mat-card-subtitle>{{ variant.nombreEs }} · {{ totalLength }} posiciones</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <div class="ruler-labels" aria-hidden="true"><span>1</span><span>{{ totalLength }}</span></div>
+    <div
+      class="ruler-grid"
+      role="listbox"
+      aria-label="Campos por posición dentro del registro"
+      [style.grid-template-columns]="'repeat(' + totalLength + ', minmax(0, 1fr))'"
+    >
+      <button
+        *ngFor="let field of fields"
+        type="button"
+        class="field-block"
+        role="option"
+        [attr.aria-selected]="field.id === selectedFieldId"
+        [attr.aria-label]="ariaLabel(field)"
+        [class.selected]="field.id === selectedFieldId"
+        [class.disabled-field]="!field.isEnabled"
+        [class.overlap]="hasOverlap(field)"
+        [style.grid-column]="gridColumn(field)"
+        [matTooltip]="ariaLabel(field)"
+        (click)="selectedFieldIdChange.emit(field.id)"
+      >
+        <span>{{ field.fieldNameEs }}</span>
+        <span *ngIf="hasOverlap(field)" class="overlap-indicator" aria-hidden="true">!</span>
+      </button>
+    </div>
+    <p class="ruler-help">Selecciona un bloque para editar el campo. Los bloques tramados indican campos inactivos; el símbolo “!” y el borde de error señalan superposición.</p>
+  </mat-card-content>
+</mat-card>

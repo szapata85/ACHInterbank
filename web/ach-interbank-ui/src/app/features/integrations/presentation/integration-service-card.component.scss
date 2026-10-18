@@ -1,0 +1,172 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.service-card {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1rem;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.service-card__header {
+  display: grid;
+  gap: 0.75rem;
+}
+
+h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  line-height: 1.25;
+}
+
+.service-card__description {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.service-card__technical {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  margin: 0;
+  color: var(--color-text-soft);
+  font-size: 0.78rem;
+}
+
+.service-card__technical span {
+  font-weight: 700;
+}
+
+.service-card__technical code {
+  overflow-wrap: anywhere;
+}
+
+.service-card__status-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.service-card__status-item {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.service-card__status-item dt {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.service-card__status-item dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.service-card__value,
+.service-card__coverage {
+  color: var(--color-text);
+  font-size: 0.88rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  border-radius: var(--radius-pill);
+  padding: 0.15rem 0.55rem;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.status-badge[data-tone='success'] {
+  background: var(--color-success-surface);
+  color: var(--color-success-text);
+}
+
+.status-badge[data-tone='info'] {
+  background: var(--color-info-surface);
+  color: var(--color-info-text);
+}
+
+.status-badge[data-tone='warning'] {
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+}
+
+.status-badge[data-tone='danger'] {
+  background: var(--color-error-surface);
+  color: var(--color-error-text);
+}
+
+.service-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding-top: 0.15rem;
+}
+
+@media (max-width: 767px) {
+  .service-card {
+    padding: 0.9rem;
+  }
+
+  .service-card__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .service-card__actions a {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* P7.4 touch, focus and long-copy resilience */
+.service-card h2,
+.service-card p,
+.service-card dd,
+.service-card code,
+.service-card a {
+  overflow-wrap: anywhere;
+}
+
+.service-card__actions a {
+  min-height: 2.75rem;
+  white-space: normal;
+}
+
+.service-card__actions a:focus-visible {
+  outline: 3px solid var(--mat-sys-primary, var(--color-primary));
+  outline-offset: 3px;
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .service-card {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .service-card__actions a {
+    min-height: 3rem;
+  }
+}

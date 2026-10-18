@@ -1,0 +1,12 @@
+.history-panel { display: grid; gap: 1rem; padding: 1rem 0; }
+.panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.panel-heading h2 { margin: 0; }
+.panel-heading p { margin: .35rem 0 0; color: var(--mat-sys-on-surface-variant); }
+.loading-state { display: flex; gap: .75rem; align-items: center; justify-content: center; min-height: 5rem; }
+.history-list { display: grid; gap: .75rem; }
+.event-meta { display: flex; flex-wrap: wrap; gap: 1rem 2rem; margin-bottom: .6rem; }
+.event-meta span { display: grid; gap: .1rem; }
+.event-meta strong { color: var(--mat-sys-on-surface-variant); font-size: .8rem; font-weight: 500; }
+.event-detail { margin: .5rem 0 0; padding-inline-start: 1.25rem; }
+.error-card { border-inline-start: .25rem solid var(--mat-sys-error); }
+@media (max-width: 720px) { .panel-heading { align-items: stretch; flex-direction: column; } }

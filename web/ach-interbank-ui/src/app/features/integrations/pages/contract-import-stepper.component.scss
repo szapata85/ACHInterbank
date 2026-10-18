@@ -1,0 +1,340 @@
+:host {
+  display: block;
+}
+
+.import-flow {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.import-flow__header,
+.diff-card header,
+.step-actions,
+.loading-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.import-flow__header,
+.diff-card header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.import-flow__header h2,
+.step-panel h3,
+.diff-card h4,
+.analysis-issues h4,
+.success-panel h4 {
+  margin: 0;
+}
+
+.import-flow__header p,
+.step-panel p,
+.diff-card p,
+.analysis-issues ul,
+.success-panel p {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.import-flow__eyebrow,
+.diff-card__kind {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 0.3rem;
+}
+
+.step-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 0.25rem 0.25rem;
+}
+
+.file-picker {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 40rem;
+  font-weight: 600;
+}
+
+.file-picker input {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 0.75rem;
+  background: var(--mat-sys-surface-container-low);
+}
+
+.selected-file,
+.detected-value,
+.message,
+.draft-notice,
+.success-panel,
+.analysis-issues {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 0.9rem 1rem;
+  margin: 0;
+}
+
+.detected-value {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.message--error,
+.analysis-issues {
+  border-color: var(--mat-sys-error);
+  color: var(--mat-sys-error);
+}
+
+.message--warning,
+.draft-notice {
+  background: var(--mat-sys-surface-container-low);
+}
+
+.analysis-issues ul {
+  margin-bottom: 0;
+}
+
+.xsd-metadata,
+.confirm-form,
+.diff-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.xsd-metadata,
+.confirm-form {
+  max-width: 48rem;
+}
+
+.summary-grid,
+.technical-details dl {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.summary-grid div,
+.technical-details dl div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+dt {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.technical-details {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 0.75rem 1rem;
+}
+
+.technical-details summary {
+  cursor: pointer;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+.diff-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.diff-summary div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 0.85rem;
+  background: var(--mat-sys-surface-container-low);
+}
+
+.diff-summary strong {
+  font-size: 1.35rem;
+}
+
+.diff-summary span {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.82rem;
+}
+
+.diff-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.diff-card {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--radius-lg, 0.75rem);
+  padding: 1rem;
+  background: var(--mat-sys-surface-container-low);
+}
+
+.impact-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.impact-badge[data-impact='MappingRequired'] {
+  background: var(--color-info-surface, var(--mat-sys-secondary-container));
+  color: var(--color-info-text, var(--mat-sys-on-secondary-container));
+}
+
+.impact-badge[data-impact='RequiresDevelopment'] {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.step-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.loading-inline {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.success-panel {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+button:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--mat-sys-primary);
+  outline-offset: 3px;
+}
+
+@media (max-width: 1199px) {
+  .diff-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .diff-list,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .import-flow__header,
+  .diff-card header,
+  .detected-value,
+  .step-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .diff-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .step-actions button {
+    width: 100%;
+  }
+}
+
+/* P7.4 responsive/accessibility hardening */
+:host,
+.import-flow,
+.step-panel,
+.diff-card,
+.confirm-form,
+.xsd-metadata {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.import-flow h2,
+.import-flow h3,
+.import-flow h4,
+.import-flow p,
+.import-flow li,
+.import-flow dd,
+.import-flow code,
+.import-flow strong,
+.import-flow span,
+.import-flow label {
+  overflow-wrap: anywhere;
+}
+
+.import-flow button,
+.import-flow summary,
+.file-picker input {
+  min-height: 2.75rem;
+  white-space: normal;
+}
+
+.import-flow mat-form-field,
+.file-picker,
+.file-picker input {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .diff-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .diff-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .import-flow ::ng-deep .mat-horizontal-stepper-header-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .25rem;
+  }
+
+  .import-flow ::ng-deep .mat-horizontal-stepper-header {
+    width: 100%;
+    min-height: 3rem;
+    box-sizing: border-box;
+  }
+
+  .import-flow ::ng-deep .mat-stepper-horizontal-line {
+    display: none;
+  }
+
+  .import-flow ::ng-deep .mat-horizontal-content-container {
+    padding: 0 .25rem 1rem;
+  }
+
+  .import-flow button,
+  .import-flow summary,
+  .file-picker input {
+    min-height: 3rem;
+  }
+}

@@ -1,0 +1,43 @@
+:host { display: block; }
+
+.context-card {
+  border-top: 4px solid var(--mat-sys-primary);
+}
+
+.context-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  padding-top: 1rem;
+}
+
+.context-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding-top: .25rem;
+}
+
+.context-summary > div {
+  display: grid;
+  gap: .35rem;
+}
+
+.summary-label {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: .8rem;
+}
+
+.catalog-warning {
+  margin: 1rem 0 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@media (max-width: 980px) {
+  .context-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .context-form,
+  .context-summary { grid-template-columns: minmax(0, 1fr); }
+}

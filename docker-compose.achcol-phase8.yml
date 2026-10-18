@@ -1,0 +1,164 @@
+name: achinterbank-achcol-phase8
+
+x-api-common: &api-common
+  image: achinterbank-api:achcol-phase8
+  build:
+    context: .
+    dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
+  environment: &api-environment
+    ASPNETCORE_URLS: http://+:8080
+    ASPNETCORE_ENVIRONMENT: Development
+    EnableHttpsRedirection: "false"
+    Database__Provider: Postgres
+    ConnectionStrings__PostgresConnection: Host=phase8-postgres;Port=5432;Database=achinterbank_phase8;Username=phase8_test;Password=${PHASE8_POSTGRES_PASSWORD:?PHASE8_POSTGRES_PASSWORD is required}
+    Quartz__SchedulerName: ACHInterbankScheduler
+    Quartz__InstanceId: AUTO
+    Quartz__MaxConcurrency: 6
+    Quartz__MaxBatchSize: 6
+    Quartz__AcquireTriggersWithinLock: "true"
+    Quartz__InstanceHeartbeatSeconds: 2
+    Quartz__OfflineThresholdSeconds: 12
+    Quartz__JobStore__Mode: Persistent
+    Quartz__JobStore__Provider: Postgres
+    Quartz__JobStore__TablePrefix: QRTZ_
+    Quartz__JobStore__Clustered: "true"
+    Quartz__JobStore__ClusterCheckinIntervalSeconds: 3
+    Quartz__JobStore__MisfireThresholdMilliseconds: 5000
+    Quartz__JobStore__PerformSchemaValidation: "true"
+    Scheduler__Probe__Enabled: "true"
+    Cors__Origins__0: http://localhost:746
+    DigitalEnvelope__CertificateBootstrap__Enabled: "false"
+    DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
+    RateLimiting__PermitLimit: "120"
+    RateLimiting__WindowSeconds: "1"
+    RateLimiting__QueueLimit: "40"
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/live >/dev/null"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+    start_period: 30s
+  restart: unless-stopped
+  stop_grace_period: 30s
+  networks: [phase8]
+
+services:
+  phase8-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: achinterbank_phase8
+      POSTGRES_USER: phase8_test
+      POSTGRES_PASSWORD: ${PHASE8_POSTGRES_PASSWORD:?PHASE8_POSTGRES_PASSWORD is required}
+    ports:
+      - "127.0.0.1:${PHASE8_POSTGRES_PORT:-5548}:5432"
+    volumes:
+      - phase8_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase8_test -d achinterbank_phase8"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [phase8]
+
+  phase8-quartz-schema:
+    image: postgres:16
+    depends_on:
+      phase8-postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${PHASE8_POSTGRES_PASSWORD:?PHASE8_POSTGRES_PASSWORD is required}
+    volumes:
+      - ./artifacts/sql/quartz/postgres-qrtz-schema.sql:/schema/quartz.sql:ro
+    command: ["psql", "-v", "ON_ERROR_STOP=1", "-h", "phase8-postgres", "-U", "phase8_test", "-d", "achinterbank_phase8", "-f", "/schema/quartz.sql"]
+    restart: "no"
+    networks: [phase8]
+
+  phase8-sftp:
+    image: achinterbank-phase8-sftp:local
+    build:
+      context: .
+      dockerfile: docker/achcol-phase8-sftp/Dockerfile
+    environment:
+      PHASE8_SFTP_USERNAME: ${PHASE8_SFTP_USERNAME:-achcol_phase8}
+      PHASE8_SFTP_PASSWORD: ${PHASE8_SFTP_PASSWORD:?PHASE8_SFTP_PASSWORD is required}
+    ports:
+      - "127.0.0.1:${PHASE8_SFTP_PORT:-2228}:22"
+    volumes:
+      - phase8_sftp_data:/srv/sftp
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/22' || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks: [phase8]
+
+  achinterbank-api-01:
+    <<: *api-common
+    hostname: achinterbank-api-01
+    environment:
+      <<: *api-environment
+      Database__ApplyMigrations: "true"
+      Database__ApplySeed: "true"
+      Quartz__InstanceName: achinterbank-api-01
+    ports:
+      - "127.0.0.1:${PHASE8_API_01_PORT:-8461}:8080"
+    depends_on:
+      phase8-quartz-schema:
+        condition: service_completed_successfully
+      phase8-sftp:
+        condition: service_healthy
+
+  achinterbank-api-02:
+    <<: *api-common
+    hostname: achinterbank-api-02
+    environment:
+      <<: *api-environment
+      Database__ApplyMigrations: "false"
+      Database__ApplySeed: "false"
+      Quartz__InstanceName: achinterbank-api-02
+    ports:
+      - "127.0.0.1:${PHASE8_API_02_PORT:-8462}:8080"
+    depends_on:
+      achinterbank-api-01:
+        condition: service_healthy
+
+  achinterbank-spa:
+    image: achinterbank-spa:achcol-phase8
+    build:
+      context: ./web/ach-interbank-ui
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${PHASE8_SPA_PORT:-746}:80"
+    depends_on:
+      achinterbank-api-01:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/health/live >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [phase8]
+
+  phase8-goanywhere:
+    image: achinterbank-phase8-sftp:local
+    entrypoint: ["/bin/bash", "/phase8/goanywhere-simulator.sh", "daemon"]
+    environment:
+      PHASE8_SFTP_HOST: phase8-sftp
+      PHASE8_SFTP_PORT: "22"
+      PHASE8_SFTP_USERNAME: ${PHASE8_SFTP_USERNAME:-achcol_phase8}
+      PHASE8_SFTP_PASSWORD: ${PHASE8_SFTP_PASSWORD:?PHASE8_SFTP_PASSWORD is required}
+    volumes:
+      - ./scripts/ci/achcol-phase8:/phase8:ro
+      - ./artifacts/achcol-phase8-fixtures:/fixtures:ro
+    depends_on:
+      phase8-sftp:
+        condition: service_healthy
+    networks: [phase8]
+
+networks:
+  phase8:
+    driver: bridge
+
+volumes:
+  phase8_postgres_data:
+  phase8_sftp_data:

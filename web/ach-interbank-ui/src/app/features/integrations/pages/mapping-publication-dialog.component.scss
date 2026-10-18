@@ -1,0 +1,115 @@
+.mapping-publication-dialog {
+  display: grid;
+  gap: var(--ach-space-4, 1rem);
+  min-width: min(34rem, 80vw);
+}
+
+.mapping-publication-dialog__intro,
+.mapping-publication-dialog__pending p,
+.mapping-publication-dialog__ready {
+  margin: 0;
+}
+
+.mapping-publication-dialog__summary,
+.mapping-publication-dialog__technical dl {
+  display: grid;
+  gap: var(--ach-space-3, .75rem);
+  margin: 0;
+}
+
+.mapping-publication-dialog__summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mapping-publication-dialog__summary > div,
+.mapping-publication-dialog__technical dl > div {
+  display: grid;
+  gap: var(--ach-space-1, .25rem);
+}
+
+.mapping-publication-dialog__summary dt,
+.mapping-publication-dialog__technical dt {
+  font-size: .8125rem;
+  font-weight: 600;
+}
+
+.mapping-publication-dialog__summary dd,
+.mapping-publication-dialog__technical dd {
+  margin: 0;
+}
+
+.mapping-publication-dialog__pending {
+  border: 1px solid var(--ach-border-subtle, currentColor);
+  border-radius: var(--ach-radius-md, .75rem);
+  padding: var(--ach-space-3, .75rem);
+}
+
+.mapping-publication-dialog__pending h3 {
+  margin-top: 0;
+}
+
+.mapping-publication-dialog__pending ul {
+  margin-bottom: 0;
+}
+
+.mapping-publication-dialog__technical summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  .mapping-publication-dialog {
+    min-width: 0;
+  }
+
+  .mapping-publication-dialog__summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* P7.4 dialog viewport/focus hardening */
+:host {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mapping-publication-dialog {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.mapping-publication-dialog dd,
+.mapping-publication-dialog li,
+.mapping-publication-dialog code,
+.mapping-publication-dialog p {
+  overflow-wrap: anywhere;
+}
+
+.mapping-publication-dialog summary,
+:host ::ng-deep .mat-mdc-dialog-actions button {
+  min-height: 2.75rem;
+  white-space: normal;
+}
+
+.mapping-publication-dialog summary:focus-visible,
+:host ::ng-deep .mat-mdc-dialog-actions button:focus-visible {
+  outline: 3px solid var(--mat-sys-primary, currentColor);
+  outline-offset: 3px;
+}
+
+:host ::ng-deep .mat-mdc-dialog-actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 767px) {
+  :host ::ng-deep .mat-mdc-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  :host ::ng-deep .mat-mdc-dialog-actions button {
+    width: 100%;
+    min-height: 3rem;
+  }
+}

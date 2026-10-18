@@ -1,0 +1,8 @@
+:host { display: block; min-width: 0; }
+.field-card { height: 100%; }
+.table-shell { overflow: auto; }
+.field-table { width: 100%; }
+tr[mat-row] { cursor: pointer; }
+tr[mat-row]:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
+.selected-row { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+.empty-state { display: grid; gap: .35rem; padding: 1rem 0; color: var(--mat-sys-on-surface-variant); }

@@ -1,0 +1,13 @@
+.claims-page { display: grid; gap: 1rem; }
+.page-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.page-heading h1 { margin: .1rem 0 .35rem; }
+.page-heading p { margin: 0; color: var(--mat-sys-on-surface-variant); }
+.eyebrow { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem; align-items: start; padding-top: .75rem; }
+.filter-actions { display: flex; gap: .5rem; align-items: center; min-height: 56px; flex-wrap: wrap; }
+.table-wrap { overflow: auto; }
+table { width: 100%; min-width: 1180px; }
+.status-pill { display: inline-flex; padding: .25rem .55rem; border-radius: 999px; background: var(--mat-sys-surface-container-high); font-weight: 600; white-space: nowrap; }
+.state-box { min-height: 9rem; display: flex; align-items: center; justify-content: center; gap: .75rem; text-align: center; color: var(--mat-sys-on-surface-variant); }
+.state-box--error { color: var(--mat-sys-error); }
+@media (max-width: 700px) { .page-heading button { width: 100%; } }

@@ -1,0 +1,87 @@
+<section class="changes-panel" data-testid="nacha-config-changes-panel" [attr.aria-busy]="loading || publishing">
+  <div class="panel-heading">
+    <div>
+      <h2>Cambios</h2>
+      <p>Revisa únicamente las diferencias reales antes de publicar una nueva versión.</p>
+    </div>
+    <button mat-stroked-button type="button" [disabled]="loading || publishing" (click)="load()">Actualizar revisión</button>
+  </div>
+
+  <div class="loading-state" *ngIf="loading" role="status" aria-live="polite">
+    <mat-spinner diameter="32"></mat-spinner>
+    <span>Comparando configuración…</span>
+  </div>
+
+  <mat-card class="error-card" *ngIf="errorMessage" role="alert" aria-live="assertive">
+    <mat-card-content>{{ errorMessage }}</mat-card-content>
+  </mat-card>
+
+  <ng-container *ngIf="review && !loading">
+    <mat-card class="summary-card">
+      <mat-card-header>
+        <mat-card-title>Resumen para publicar</mat-card-title>
+        <mat-card-subtitle>{{ review.summaryEs }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="summary-grid">
+          <span><strong>Campos modificados</strong>{{ review.changedFieldsCount }}</span>
+          <span><strong>Cambios reales</strong>{{ review.changeCount }}</span>
+          <span><strong>Versión actual</strong>{{ review.currentVersion }}</span>
+          <span><strong>Nueva versión</strong>{{ review.nextVersion }}</span>
+          <span><strong>Vigencia</strong>{{ review.effectiveFrom | date:'yyyy-MM-dd' }}<ng-container *ngIf="review.effectiveTo"> a {{ review.effectiveTo | date:'yyyy-MM-dd' }}</ng-container></span>
+          <span><strong>Contexto</strong>{{ review.camaraNombreEs }} · {{ review.flujoNombreEs }} · {{ review.direccionNombreEs }}<ng-container *ngIf="review.servicioNombreEs"> · {{ review.servicioNombreEs }}</ng-container></span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="empty-card" *ngIf="review.changes.length === 0" role="status">
+      <mat-card-content>
+        <strong>Sin cambios reales</strong>
+        <span>La configuración coincide con su base de comparación.</span>
+      </mat-card-content>
+    </mat-card>
+
+    <div class="change-list" *ngIf="review.changes.length > 0">
+      <mat-card class="change-card" *ngFor="let change of review.changes">
+        <mat-card-header>
+          <mat-card-title>{{ change.fieldNameEs || change.elementNameEs }}</mat-card-title>
+          <mat-card-subtitle>
+            <ng-container *ngIf="change.recordNameEs">{{ change.recordNameEs }} · </ng-container>{{ change.propertyNameEs }}
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="before-after">
+            <div><span>Antes</span><strong>{{ change.beforeValueEs || 'Sin valor' }}</strong></div>
+            <div aria-hidden="true">→</div>
+            <div><span>Después</span><strong>{{ change.afterValueEs || 'Sin valor' }}</strong></div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <mat-card class="validation-card" *ngIf="validation && !validation.canPublish" role="alert">
+      <mat-card-content>
+        <strong>Publicación bloqueada</strong>
+        <span>{{ validation.erroresBloqueantes }} errores bloqueantes. Usa “Probar configuración” para localizarlos y corregirlos.</span>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="success-card" *ngIf="publicationResult?.publicado" role="status" aria-live="polite">
+      <mat-card-content>
+        <strong>Publicación completada</strong>
+        <span>Versión {{ publicationResult?.versionMajor }}.{{ publicationResult?.versionMinor }} · {{ publicationResult?.estadoNombreEs || publicationResult?.estado }}</span>
+      </mat-card-content>
+    </mat-card>
+
+    <div class="publish-actions" *ngIf="review.isEditable">
+      <p>Al publicar se validará nuevamente en el servidor. Si existen errores o cambió la versión de concurrencia, la operación se detendrá.</p>
+      <button mat-flat-button type="button" [disabled]="!canPublish || publishing" (click)="publicar()">
+        {{ publishing ? 'Preparando publicación…' : 'Publicar nueva versión' }}
+      </button>
+    </div>
+
+    <mat-card class="protected-card" *ngIf="!review.isEditable" role="status">
+      <mat-card-content>Esta configuración está protegida. Los cambios se muestran para consulta histórica y no se puede volver a publicar directamente.</mat-card-content>
+    </mat-card>
+  </ng-container>
+</section>

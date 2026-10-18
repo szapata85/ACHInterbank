@@ -1,0 +1,21 @@
+.position-ruler { min-width: 0; }
+.ruler-labels { display: flex; justify-content: space-between; margin-block: .25rem; color: var(--mat-sys-on-surface-variant); font-size: .75rem; }
+.ruler-grid { display: grid; min-height: 3.5rem; position: relative; border: 1px solid var(--mat-sys-outline-variant); border-radius: .5rem; overflow: hidden; background: var(--mat-sys-surface-container-low); }
+.field-block { grid-row: 1; min-width: 0; border: 1px solid var(--mat-sys-outline-variant); background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); padding: .35rem .2rem; overflow: hidden; cursor: pointer; }
+.field-block span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; }
+.field-block.selected { outline: 3px solid var(--mat-sys-primary); outline-offset: -3px; z-index: 3; }
+.field-block.disabled-field { background: var(--mat-sys-surface-variant); color: var(--mat-sys-on-surface-variant); text-decoration: line-through; }
+.field-block.overlap { border: 2px solid var(--mat-sys-error); z-index: 2; }
+.field-block:focus-visible { outline: 3px solid var(--mat-sys-primary); outline-offset: -3px; z-index: 4; }
+.ruler-help { margin: .6rem 0 0; color: var(--mat-sys-on-surface-variant); font-size: .8rem; }
+
+.overlap-indicator {
+  position: absolute;
+  inset-block-start: .15rem;
+  inset-inline-end: .25rem;
+  min-width: 1rem;
+  font-weight: 700;
+  color: var(--mat-sys-error);
+  text-align: center;
+}
+.field-block { position: relative; }

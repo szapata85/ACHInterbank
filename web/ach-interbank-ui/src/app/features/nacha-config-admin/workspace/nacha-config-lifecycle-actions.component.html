@@ -1,0 +1,15 @@
+<mat-card data-testid="nacha-config-lifecycle-actions" [attr.aria-busy]="validando || procesando">
+  <mat-card-header>
+    <mat-card-title>Acciones del perfil</mat-card-title>
+    <mat-card-subtitle>Valida aquí; la publicación guiada se realiza desde la pestaña Cambios.</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-actions>
+    <button mat-stroked-button type="button" [disabled]="validando || procesando" (click)="validar()">{{ validando ? 'Validando…' : 'Validar configuración' }}</button>
+    <button *ngIf="puedeGestionar && estado === 'PUBLICADO'" mat-stroked-button type="button" [disabled]="procesando" (click)="inactivar()">Inactivar</button>
+    <button *ngIf="puedeGestionar && (estado === 'PUBLICADO' || estado === 'INACTIVO')" mat-stroked-button type="button" [disabled]="procesando" (click)="archivar()">Archivar</button>
+  </mat-card-actions>
+</mat-card>
+
+<p class="operation-error" *ngIf="operationError" role="alert" aria-live="assertive">{{ operationError }}</p>
+
+<app-nacha-config-validation-summary [result]="validacion"></app-nacha-config-validation-summary>

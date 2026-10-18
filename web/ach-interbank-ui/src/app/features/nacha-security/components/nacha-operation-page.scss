@@ -1,0 +1,75 @@
+:host {
+  display: block;
+}
+
+.operation-page {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.operation-card {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.operation-form {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 42rem;
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.file-field {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.file-field label {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.file-field small {
+  color: var(--color-text-muted);
+}
+
+.file-field input[type='file'] {
+  width: 100%;
+  color: var(--color-text);
+}
+
+.file-field input[type='file']:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-focus) 40%, transparent);
+  outline-offset: 3px;
+}
+
+.download-action {
+  margin-top: var(--space-3);
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .form-actions,
+  .download-action {
+    justify-content: stretch;
+  }
+
+  .form-actions button,
+  .download-action button {
+    width: 100%;
+  }
+}
