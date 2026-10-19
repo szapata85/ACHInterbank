@@ -45,3 +45,6 @@ README.md
 !.git/config
 !.git/packed-refs
 !.git/refs/heads/**
+
+# Nunca incluir contrasenas ni secretos locales en capas de imagen de la API.
+src/Cfa.ACHInterbank.Api/appsettings.Development.json

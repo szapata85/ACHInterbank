@@ -32,6 +32,12 @@ public class AchDbContext : DbContext, IDataProtectionKeyContext
 
     public bool AuditEnabled { get; set; } = true;
 
+    // Uso exclusivo del bootstrapper: permite completar los parámetros de los tres
+    // contratos baseline-v1 importados por migración, si aún no tienen parámetros.
+    // La validación de inmutabilidad sigue vigente para cualquier otra operación.
+    internal bool AllowEmptyMigratedBaselineParameterBootstrap { get; set; }
+
+
     public AchDbContext(
         DbContextOptions<AchDbContext> options,
         IHttpContextAccessor? httpContextAccessor = null,

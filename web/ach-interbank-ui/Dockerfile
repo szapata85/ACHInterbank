@@ -4,7 +4,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN apk add --no-cache curl \
     && npm install -g npm@"${NPM_VERSION}"
-RUN npm ci --no-audit --no-fund --loglevel=error
+# Compensa el package-lock de NAV6 previo a npm ci (reparar y versionar el lock del proyecto a futuro).
+RUN npm install --package-lock-only --ignore-scripts --no-audit --no-fund --loglevel=error \
+    && npm ci --no-audit --no-fund --loglevel=error
 COPY . .
 RUN npm run build -- --configuration production
 

@@ -1,92 +1,89 @@
 name: achinterbank
 
-# PostgreSQL is retained only as a separate legacy test/development variant in
-# docker-compose.postgres.yml; it is not an active service in this Stack.
-
+# Stack SQL Server local. Usar docker-ach.cmd (CMD) o dotnet run --project
+# tools/AchInterbank.DockerCli -- <accion>; contraseña solo en appsettings.Development.json.
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2025-latest
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_PID: "${MSSQL_PID:-Developer}"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria}"
-    volumes:
-      - ach_sqlserver_data:/var/opt/mssql
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Use docker-ach.cmd o el ejecutor dotnet de tools/AchInterbank.DockerCli}"
     ports:
       - "127.0.0.1:${SQLSERVER_HOST_PORT:-1433}:1433"
+    volumes:
+      - ach_sqlserver_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\""]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 45s
     restart: unless-stopped
-    networks: [ach_onprem]
 
   quartz-schema:
-    image: achinterbank-quartz-schema:2026.07.24
-    build:
-      context: .
-      dockerfile: docker/quartz-schema/Dockerfile
+    image: mcr.microsoft.com/mssql/server:2025-latest
     entrypoint: ["/bin/bash"]
+    command:
+      - -ec
+      - |
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C -b \
+          -Q "IF DB_ID(N'$${MSSQL_DB}') IS NULL CREATE DATABASE [$${MSSQL_DB}]" 
+        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C -b \
+          -d "$${MSSQL_DB}" -i /schema/quartz.sql
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Use docker-ach.cmd o el ejecutor dotnet de tools/AchInterbank.DockerCli}"
+      MSSQL_DB: "${MSSQL_DB:-ACHInterbank}"
+    volumes:
+      - ./artifacts/sql/quartz/sqlserver-qrtz-schema.sql:/schema/quartz.sql:ro
     depends_on:
       sqlserver:
         condition: service_healthy
-    environment:
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria}"
-      MSSQL_DB: "${MSSQL_DB:-ACHInterbank}"
-    command:
-      - -ec
-      - >-
-        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C
-        -Q "IF DB_ID(N'$${MSSQL_DB}') IS NULL CREATE DATABASE [$${MSSQL_DB}]" &&
-        /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$${MSSQL_SA_PASSWORD}" -C
-        -d "$${MSSQL_DB}" -b -i /schema/quartz.sql
     restart: "no"
-    networks: [ach_onprem]
 
   achinterbank-api:
     build:
       context: .
       dockerfile: src/Cfa.ACHInterbank.Api/Dockerfile
-    image: achinterbank-api:2026.07.24
+    image: achinterbank-api:local
     environment:
-      # The host/container zone is intentionally UTC by default. Operational
-      # cycle decisions must use each clearing house TimeZoneId instead.
-      TZ: "${API_HOST_TIME_ZONE:-UTC}"
+      TZ: UTC
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Development
+      EnableHttpsRedirection: "false"
       Database__Provider: SqlServer
       Database__ApplyMigrations: "${DATABASE_APPLY_MIGRATIONS:-true}"
       Database__ApplySeed: "${DATABASE_APPLY_SEED:-true}"
-      ConnectionStrings__SqlConnection: "Server=sqlserver,1433;Database=${MSSQL_DB:-ACHInterbank};User Id=sa;Password=${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD es obligatoria};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
-      ASPNETCORE_URLS: "${ASPNETCORE_URLS:-http://+:8080}"
-      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
-      EnableHttpsRedirection: "${ENABLE_HTTPS_REDIRECTION:-false}"
+      ConnectionStrings__SqlConnection: "${ACH_DOCKER_SQL_CONNECTION:?Use docker-ach.cmd o el ejecutor dotnet de tools/AchInterbank.DockerCli}"
       Quartz__JobStore__Mode: Persistent
       Quartz__JobStore__Provider: SqlServer
       Quartz__JobStore__TablePrefix: QRTZ_
-      Quartz__JobStore__Clustered: "${QUARTZ_CLUSTERED:-false}"
+      Quartz__JobStore__Clustered: "false"
       Quartz__JobStore__PerformSchemaValidation: "true"
       Quartz__JobStore__AcquireTriggersWithinLock: "true"
       Quartz__SchedulerName: ACHInterbankScheduler
       Quartz__InstanceId: AUTO
       DigitalEnvelope__CertificateSecretResolver__FailIfSecretProviderUnavailable: "false"
       DigitalEnvelope__CertificateBootstrap__Enabled: "false"
-      RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E: "${RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E:-false}"
-      ALLOW_LOCAL_MONETARY_SOAP_E2E: "${ALLOW_LOCAL_MONETARY_SOAP_E2E:-false}"
-      ACH_SOAP_LIVE_TESTS: "${ACH_SOAP_LIVE_TESTS:-false}"
-      ProcTransacciones__Mode: "${PROC_TRANSACCIONES_MODE:-DryRun}"
-      RateLimiting__PermitLimit: "${RATE_LIMITING_PERMIT_LIMIT:-10}"
-      RateLimiting__WindowSeconds: "${RATE_LIMITING_WINDOW_SECONDS:-1}"
-      RateLimiting__QueueLimit: "${RATE_LIMITING_QUEUE_LIMIT:-2}"
-      CenitLocalGateway__Enabled: "${CENIT_LOCAL_GATEWAY_ENABLED:-false}"
+      RUN_LOCAL_SOAP_PROC_TRANSACCIONES_E2E: "false"
+      ALLOW_LOCAL_MONETARY_SOAP_E2E: "false"
+      ACH_SOAP_LIVE_TESTS: "false"
+      ProcTransacciones__Mode: DryRun
+      RateLimiting__PermitLimit: "10"
+      RateLimiting__WindowSeconds: "1"
+      RateLimiting__QueueLimit: "2"
+      CenitLocalGateway__Enabled: "false"
       CenitLocalGateway__InputPath: /var/ach/cenit/input
       CenitLocalGateway__OutputPath: /var/ach/cenit/output
       CenitLocalGateway__ArchivePath: /var/ach/cenit/archive
       CenitLocalGateway__PollIntervalMilliseconds: "250"
     volumes:
+      # No incluye secretos de appsettings.Development.json en la imagen Docker.
+      # Montaje solo para ejecución local; la conexión SQL se sobreescribe por ambiente.
+      - ./src/Cfa.ACHInterbank.Api/appsettings.Development.json:/app/appsettings.Development.json:ro
       - ./.runtime/cenit:/var/ach/cenit
     ports:
-      - "843:8080"
+      - "127.0.0.1:${API_HOST_PORT:-843}:8080"
     depends_on:
       quartz-schema:
         condition: service_completed_successfully
@@ -97,15 +94,14 @@ services:
       retries: 30
       start_period: 60s
     restart: unless-stopped
-    networks: [ach_onprem]
 
   achinterbank-spa:
     build:
       context: ./web/ach-interbank-ui
       dockerfile: Dockerfile
-    image: achinterbank-spa:2026.07.24
+    image: achinterbank-spa:local
     ports:
-      - "743:80"
+      - "127.0.0.1:${SPA_HOST_PORT:-743}:80"
     depends_on:
       achinterbank-api:
         condition: service_healthy
@@ -116,11 +112,6 @@ services:
       retries: 20
       start_period: 30s
     restart: unless-stopped
-    networks: [ach_onprem]
-
-networks:
-  ach_onprem:
-    driver: bridge
 
 volumes:
   ach_sqlserver_data:

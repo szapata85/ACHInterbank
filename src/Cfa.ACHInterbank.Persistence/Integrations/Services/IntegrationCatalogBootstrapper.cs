@@ -96,7 +96,19 @@ public sealed class IntegrationCatalogBootstrapper
             targetTransactionState: "AppliedTacitly",
             ct);
 
-        await _context.SaveChangesAsync(ct);
+        // La migración IntegrationsAddContractVersioningBaseline inserta versiones
+        // baseline-v1 Active aun cuando todavía no existen sus parámetros. Se
+        // autoriza exclusivamente el primer relleno de esos catálogos vacíos.
+        // Este permiso no se extiende al resto del seed ni a futuras ediciones.
+        _context.AllowEmptyMigratedBaselineParameterBootstrap = true;
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        finally
+        {
+            _context.AllowEmptyMigratedBaselineParameterBootstrap = false;
+        }
     }
 
     private async Task EnsureBaselineContractVersionAsync(

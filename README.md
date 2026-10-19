@@ -2,6 +2,11 @@
 
 ACH Interbank es la solución para procesamiento operativo de transferencias interbancarias ACH Colombia y CENIT. El repositorio contiene backend .NET 10, persistencia EF Core para PostgreSQL/SQL Server, SPA Angular, pruebas, migraciones y documentación normativa/operativa.
 
+
+## Docker SQL Server local sin PowerShell
+
+Para el stack Docker SQL Server, use `docker-ach.cmd` desde CMD (o `dotnet run --project tools/AchInterbank.DockerCli -- <accion>` desde cualquier terminal). La contraseña se define exclusivamente en `appsettings.Development.json`. Instrucciones completas en [README-Docker-Sin-PowerShell.md](README-Docker-Sin-PowerShell.md). Los scripts PowerShell históricos no son necesarios para este flujo.
+
 ## Arranque local desde Visual Studio 2026
 
 La configuración de base de datos de Development se mantiene en `src/Cfa.ACHInterbank.Api/appsettings.Development.json`, en la sección solicitada:

@@ -13,6 +13,16 @@ internal static class IntegrationContractVersionInvariantGuard
         nameof(IntegrationContractVersion.Revision)
     ];
 
+    // Identidades inmutables de las versiones baseline-v1 creadas por la migración
+    // 20261012231100_IntegrationsAddContractVersioningBaseline. La autorización
+    // inicial no aplica a otras versiones ni a contratos importados por el usuario.
+    private static readonly HashSet<Guid> MigratedBaselineContractIds =
+    [
+        new("39b5693c-407b-505c-8e8a-e49e8558a82e"),
+        new("9f3a13b6-eb79-5e43-803b-4c97b71a0f5d"),
+        new("4a093eb5-beed-5b15-bc7c-5768c0e0547e")
+    ];
+
     public static async Task ValidateAsync(AchDbContext context, CancellationToken ct)
     {
         var contractEntries = context.ChangeTracker
@@ -203,6 +213,30 @@ internal static class IntegrationContractVersionInvariantGuard
                 .Select(contract => new ContractState(contract.Id, contract.Status, contract.SourceType))
                 .ToDictionaryAsync(contract => contract.Id, ct);
 
+        // Solo durante el primer arranque del catálogo: identificar baselines
+        // que YA tienen parámetros persistidos. Nunca abrir una versión Active
+        // que haya empezado a usarse, ni permitir cambios a sus filas existentes.
+        var bootstrappableIds = context.AllowEmptyMigratedBaselineParameterBootstrap
+            ? parameterEntries
+                .Where(entry => entry.State == EntityState.Added)
+                .Select(entry => entry.Entity.ContractVersionId)
+                .Where(id => id.HasValue && MigratedBaselineContractIds.Contains(id.Value))
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToArray()
+            : [];
+
+        var initializedBaselineIds = bootstrappableIds.Length == 0
+            ? new HashSet<Guid>()
+            : (await context.IntegrationMethodParameters
+                .AsNoTracking()
+                .Where(parameter => parameter.ContractVersionId.HasValue
+                    && bootstrappableIds.Contains(parameter.ContractVersionId.Value))
+                .Select(parameter => parameter.ContractVersionId!.Value)
+                .Distinct()
+                .ToListAsync(ct))
+                .ToHashSet();
+
         foreach (var entry in parameterEntries)
         {
             var originalContractId = entry.State == EntityState.Added
@@ -226,6 +260,17 @@ internal static class IntegrationContractVersionInvariantGuard
                 if (trackedById.TryGetValue(effectiveContractId.Value, out var parent)
                     && parent.State == EntityState.Added)
                 {
+                    continue;
+                }
+
+                if (state.Status == IntegrationContractVersionStatusEnum.Active
+                    && state.SourceType == IntegrationContractSourceTypeEnum.BaselineMigration
+                    && context.AllowEmptyMigratedBaselineParameterBootstrap
+                    && MigratedBaselineContractIds.Contains(state.Id)
+                    && !initializedBaselineIds.Contains(state.Id))
+                {
+                    // La migración creó este baseline Active sin catálogo técnico.
+                    // Se permite únicamente su carga inicial (cero filas previas).
                     continue;
                 }
 
