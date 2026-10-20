@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Interfaces.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models.PaymentRails;
 using Cfa.ACHInterbank.Application.ACH.Models;
@@ -108,16 +108,11 @@ public class RoutingStrategyService : IRoutingStrategyService
                     pref.ClearingHouseId,
                     ct);
                 var candidateProcessingDate = candidateDate.ToDateTime(TimeOnly.MinValue);
-                var hasCycles = await _context.AchCycles.AnyAsync(c =>
-                    c.ClearingHouseId == pref.ClearingHouseId
-                    && c.ProcessingDate.Date == candidateProcessingDate.Date,
-                    ct);
-                if (!hasCycles)
-                {
-                    await _cycleScheduler.ScheduleCyclesForClearingHouseAsync(
-                        pref.ClearingHouseId,
-                        candidateProcessingDate);
-                }
+                // La ruta de alta es respaldo de Quartz: crea o completa los ciclos
+                // de la fecha hábil, incluso si Quartz no corrió o quedaron incompletos.
+                await _cycleScheduler.ScheduleCyclesForClearingHouseAsync(
+                    pref.ClearingHouseId,
+                    candidateProcessingDate);
 
                 var candidateCyclesRaw = await _context.AchCycles
                     .Where(c =>

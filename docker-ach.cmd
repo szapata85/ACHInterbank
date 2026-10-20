@@ -5,8 +5,7 @@ rem Requiere Docker Desktop, Docker Compose y .NET SDK 10.
 rem Ejemplos:
 rem   docker-ach.cmd config
 rem   docker-ach.cmd migrate
-rem   docker-ach.cmd up  (inicio habitual: sin seed)
-rem   docker-ach.cmd up --seed --no-auto-migrations  (seed solo cuando se necesite)
+rem   docker-ach.cmd up --seed --no-auto-migrations --no-build
 rem   docker-ach.cmd status
 rem   docker-ach.cmd logs
 rem   docker-ach.cmd down

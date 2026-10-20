@@ -6,12 +6,15 @@ import { AchCycleListComponent } from './ach-cycle-list.component';
 import { AchCyclesApiService } from '../../../core/services/ach-cycles-api.service';
 import { AchCycleSummary } from '../../../core/models/ach-cycle.model';
 import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
+import { ClearingHouseCycleConfigsApiService } from '../../../core/services/clearing-house-cycle-configs-api.service';
+import { ClearingHouseCycleConfigItem } from '../../../core/models/clearing-house-cycle-config.model';
 
 describe('AchCycleListComponent', () => {
   let fixture: ComponentFixture<AchCycleListComponent>;
   let component: AchCycleListComponent;
   let cyclesApi: jasmine.SpyObj<AchCyclesApiService>;
   let clearingHousesApi: jasmine.SpyObj<ClearingHousesApiService>;
+  let configsApi: jasmine.SpyObj<ClearingHouseCycleConfigsApiService>;
   let notifications: jasmine.SpyObj<NotificationService>;
   let router: Router;
 
@@ -40,6 +43,12 @@ describe('AchCycleListComponent', () => {
       { id: 9, code: 'CENIT', name: 'CENIT' }
     ]));
 
+    configsApi = jasmine.createSpyObj<ClearingHouseCycleConfigsApiService>('ClearingHouseCycleConfigsApiService', ['getCurrentByClearingHouse']);
+    configsApi.getCurrentByClearingHouse.and.callFake((id: number) => of(
+      id === 7 ? Array.from({ length: 7 }, (_, index) => config(7, 'ACH Colombia', index + 1))
+        : Array.from({ length: 5 }, (_, index) => config(9, 'CENIT', index + 1))
+    ));
+
     notifications = jasmine.createSpyObj<NotificationService>('NotificationService', ['error']);
 
     await TestBed.configureTestingModule({
@@ -48,6 +57,7 @@ describe('AchCycleListComponent', () => {
         provideRouter([]),
         { provide: AchCyclesApiService, useValue: cyclesApi },
         { provide: ClearingHousesApiService, useValue: clearingHousesApi },
+        { provide: ClearingHouseCycleConfigsApiService, useValue: configsApi },
         { provide: NotificationService, useValue: notifications }
       ]
     }).compileComponents();
@@ -71,6 +81,26 @@ describe('AchCycleListComponent', () => {
     expect(mapped.endText).toBe('09:45');
     expect(mapped.statusText).toBe('Activo');
     expect(component.total).toBe(1);
+  });
+
+  it('muestra los siete ciclos ACH Colombia y cinco CENIT desde configuración aunque no haya instancias', () => {
+    createFixture();
+    expect(component.cycles.length).toBe(0);
+    expect(component.currentConfigs.length).toBe(12);
+    expect(configsApi.getCurrentByClearingHouse).toHaveBeenCalledWith(7);
+    expect(configsApi.getCurrentByClearingHouse).toHaveBeenCalledWith(9);
+    fixture.detectChanges();
+    const rows = fixture.nativeElement.querySelectorAll('.current-configs__table tbody tr');
+    expect(rows.length).toBe(12);
+    expect(rows[0].textContent).toContain('2026-10-14');
+  });
+
+  it('filtra configuraciones vigentes por cámara sin ocultar ejecuciones diarias', () => {
+    createFixture();
+    component.filterForm.controls.clearingHouseId.setValue(7);
+    component.submit();
+    expect(component.currentConfigs.length).toBe(7);
+    expect(component.currentConfigs.every(item => item.clearingHouseId === 7)).toBeTrue();
   });
 
   it('resuelve clearingHouseCode contra las cámaras antes de buscar', () => {
@@ -184,6 +214,29 @@ describe('AchCycleListComponent', () => {
     expect(fixture.nativeElement.querySelector('app-table')).not.toBeNull();
     expect(fixture.nativeElement.querySelectorAll('ui-grilla-empresarial').length).toBeGreaterThan(0);
   });
+
+  function config(id: number, name: string, number: number): ClearingHouseCycleConfigItem {
+    return {
+      id: id * 100 + number,
+      clearingHouseId: id,
+      clearingHouseName: name,
+      policyVersion: id === 7 ? 'ACHCOL-7C-20261014' : 'REGULATORY-2025',
+      cycleName: `Ciclo ${number}`,
+      startTime: number === 4 ? '11:01:00' : '07:01:00',
+      endTime: '12:30:00',
+      cutoffTime: '12:30:00',
+      outputReleaseTime: '13:30:00',
+      allowsMonetaryCredit: true,
+      allowsMonetaryDebit: number !== 7,
+      allowsCreditPrenotification: true,
+      allowsDebitPrenotification: true,
+      allowsReturn: true,
+      allowsReturnOfReturn: true,
+      isActive: true,
+      isCurrent: true,
+      effectiveFrom: id === 7 ? '2026-10-14T00:00:00Z' : '2025-01-01T00:00:00Z'
+    };
+  }
 
   function createFixture(detectChanges = true): void {
     fixture = TestBed.createComponent(AchCycleListComponent);

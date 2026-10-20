@@ -53,8 +53,7 @@ services:
       EnableHttpsRedirection: "false"
       Database__Provider: SqlServer
       Database__ApplyMigrations: "${DATABASE_APPLY_MIGRATIONS:-true}"
-      # Seed deshabilitado en reinicios normales; activar solo de forma controlada.
-      Database__ApplySeed: "${DATABASE_APPLY_SEED:-false}"
+      Database__ApplySeed: "${DATABASE_APPLY_SEED:-true}"
       ConnectionStrings__SqlConnection: "${ACH_DOCKER_SQL_CONNECTION:?Use docker-ach.cmd o el ejecutor dotnet de tools/AchInterbank.DockerCli}"
       Quartz__JobStore__Mode: Persistent
       Quartz__JobStore__Provider: SqlServer

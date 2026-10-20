@@ -33,6 +33,17 @@ public class ClearingHouseCycleConfigSeeder(
                 house.Id,
                 policy,
                 cycleNumberResolver);
+
+            if (code == RegulatoryCycleScheduleCatalog.AchColombiaCode)
+            {
+                // Seed the new effective version after the historical baseline. The
+                // repair algorithm closes the old validity on 2026-10-13 and is idempotent.
+                await RegulatoryCycleSeedRepair.ApplyAsync(
+                    context,
+                    house.Id,
+                    RegulatoryCycleScheduleCatalog.AchColombiaSevenCycleConfirmedPolicy,
+                    cycleNumberResolver);
+            }
         }
     }
 }

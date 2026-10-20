@@ -25,6 +25,37 @@ public sealed class RegulatoryCycleScheduleCatalogTests
     }
 
     [Fact]
+    public void AchColombiaSevenCycleConfirmedPolicy_IsEffectiveOctober14WithSevenExactWindows()
+    {
+        var policy = RegulatoryCycleScheduleCatalog.AchColombiaSevenCycleConfirmedPolicy;
+        Assert.Equal("ACHCOL", policy.ClearingHouseCode);
+        Assert.Equal("ACHCOL-7C-20261014", policy.PolicyVersion);
+        Assert.Equal(new DateTime(2026, 10, 14, 0, 0, 0, DateTimeKind.Utc), policy.EffectiveFrom);
+        Assert.Equal(7, policy.Cycles.Count);
+        var starts = new[] { "19:01", "07:01", "09:01", "11:01", "12:31", "14:31", "16:01" };
+        var closes = new[] { "07:00", "09:00", "11:00", "12:30", "14:30", "16:00", "18:00" };
+        var statementEnds = new[] { "07:30", "09:30", "11:30", "13:00", "15:00", "16:30", "18:30" };
+        var paymentEnds = new[] { "07:45", "09:45", "11:45", "13:15", "15:15", "16:45", "18:45" };
+        var releases = new[] { "08:00", "10:00", "12:00", "13:30", "15:30", "17:00", "19:00" };
+        for (var index = 0; index < 7; index++)
+        {
+            var cycle = policy.Cycles[index];
+            Assert.Equal(index + 1, cycle.CycleNumber);
+            Assert.Equal(TimeSpan.Parse(starts[index]), cycle.StartTime);
+            Assert.Equal(TimeSpan.Parse(closes[index]), cycle.EndTime);
+            Assert.Equal(cycle.EndTime, cycle.CutoffTime);
+            Assert.Equal(cycle.EndTime, cycle.CompensationStatementStartTime);
+            Assert.Equal(TimeSpan.Parse(statementEnds[index]), cycle.CompensationStatementEndTime);
+            Assert.Equal(cycle.CompensationStatementEndTime, cycle.CompensationPaymentStartTime);
+            Assert.Equal(TimeSpan.Parse(paymentEnds[index]), cycle.CompensationPaymentEndTime);
+            Assert.Equal(cycle.CompensationPaymentEndTime, cycle.OutputReleaseStartTime);
+            Assert.Equal(TimeSpan.Parse(releases[index]), cycle.OutputReleaseEndTime);
+            Assert.Equal(cycle.OutputReleaseEndTime, cycle.OutputReleaseTime);
+        }
+        Assert.False(policy.Cycles[6].AllowsMonetaryDebit);
+    }
+
+    [Fact]
     public void AchColombiaSevenCycleCandidate_RemainsFailClosedWithoutOfficialEffectiveFrom()
     {
         var candidate = RegulatoryCycleScheduleCatalog.AchColombiaSevenCycleCandidate;

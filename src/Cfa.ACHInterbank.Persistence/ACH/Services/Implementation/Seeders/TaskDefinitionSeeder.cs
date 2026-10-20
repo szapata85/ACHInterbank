@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Application.DataBase;
+using Cfa.ACHInterbank.Application.DataBase;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask.enums;
 using Cfa.ACHInterbank.Domain.Models.Configurations;
@@ -42,6 +42,10 @@ public class TaskDefinitionSeeder : IDbSeeder
                 Name = "Preparar ciclos operativos",
                 Description = "Crea los ciclos operativos diarios a partir de la configuración vigente de cada cámara.",
                 ManualExecutionEnabled = true,
+                // Se ejecuta también sábado, domingo y festivo para proyectar el siguiente día hábil.
+                CalendarPolicy = CalendarPolicyEnum.IgnoreCalendar,
+                // Si la aplicación estuvo detenida a las 02:00, recuperar una ejecución al reiniciar.
+                MisfirePolicy = SchedulerMisfirePolicy.FireAndProceed,
                 PeriodicityType = PeriodicityTypeEnum.DailyAtTime,
                 TimeOfDayTicks = new TimeOnly(2, 0).Ticks,
                 TimeZoneId = "America/Bogota",
@@ -192,6 +196,13 @@ public class TaskDefinitionSeeder : IDbSeeder
             task.Name = values.Name;
             task.Description = values.Description;
             if (values.Manual.HasValue) task.ManualExecutionEnabled = values.Manual.Value;
+            if (task.Code == "AchCycleScheduler")
+            {
+                // Reparar también las tareas ya persistidas: el default OnlyBusinessDays
+                // impedía preparar los ciclos futuros en festivos y fines de semana.
+                task.CalendarPolicy = CalendarPolicyEnum.IgnoreCalendar;
+                task.MisfirePolicy = SchedulerMisfirePolicy.FireAndProceed;
+            }
             if (values.Monetary)
             {
                 task.RetryOnFailure = false;

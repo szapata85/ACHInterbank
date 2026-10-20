@@ -36,3 +36,29 @@
     width: 100%;
   }
 }
+
+.current-configs {
+  margin: 1.25rem 0 2rem;
+}
+
+.current-configs__scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.current-configs__table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 760px;
+
+  th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  th { font-weight: 700; }
+}
+
+.operational-title { margin-bottom: 0.25rem; }
+.operational-help { margin-bottom: 1rem; }

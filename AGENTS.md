@@ -52,7 +52,7 @@ Permanent coding-agent instructions. Current decisions and status belong in `MEM
 
 - An incoming Return must correlate exact original trace and amount before mutating the original transaction.
 - Prenotification differential responses are non-monetary and idempotent through `RegistrarRespuestaTransaccion`; they are not physical simulator files. The inbound simulator is generate-only for an external non-default counterparty.
-- Operational dates follow the configured timezone; cycles must not target future operational dates. Effective-dated chamber cycle policy governs stages and eligibility.
+- Operational dates follow the configured timezone. Projection/assignment to the next business-date `AchCycle` is allowed on weekends, holidays, or after cutoff; monetary execution/settlement must not run ahead of that operational date. Effective-dated chamber cycle policy governs stages and eligibility.
 - ACH Colombia V35 Return Addenda 99 has a three-character physical cause at positions 4–6 and original trace at 7–21. DEV14 is Claims-only, never an Rxx alias or Addenda 99 cause. R10 uses the accepted configurable same-day cycle window and proven basis in `DEC-ACHCOL-R10-DEV14-001`.
 - CENIT local Gateway simulation is disabled by default and prohibited in Production. External Gateway/PO and managed-MFT deployment/homologation remain distinct from internal completion.
 - Immutable `PUBLISH` NACHA snapshots are runtime authority for supported ordinary flows; do not revive live-row or static-layout fallbacks. PSE-specific inbound work remains deferred pending separate authority.

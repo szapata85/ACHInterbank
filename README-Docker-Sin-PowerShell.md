@@ -10,7 +10,7 @@ Edite **solo los apartados indicados** del archivo original `src/Cfa.ACHInterban
 "Database": {
   "Provider": "SqlServer",
   "ApplyMigrations": true,
-  "ApplySeed": false
+  "ApplySeed": true
 },
 "ConnectionStrings": {
   "PostgresConnection": "",
@@ -49,25 +49,6 @@ Construir e iniciar API + Angular, **ejecutando el seed** sin repetir migracione
 ```cmd
 docker-ach.cmd up --seed --no-auto-migrations
 ```
-
-**Arranque cotidiano, sin repetir el seed** (una vez inicializada la base de datos):
-
-```cmd
-docker-ach.cmd up
-```
-
-En `docker-compose.yml`, `Database__ApplySeed` ahora usa `${DATABASE_APPLY_SEED:-false}`:
-por defecto **no se ejecuta `DbInitializer.SeedAllAsync()` en cada arranque**.
-No cambia la aplicación de migraciones, que se mantiene habilitada por defecto en este stack.
-El archivo `appsettings.Development.json` ya incluye `"ApplySeed": false`.
-
-- **Primera instalación o actualización de catálogos:** ejecutar explícitamente `docker-ach.cmd up --seed` (o `--seed --no-auto-migrations` si las migraciones ya están aplicadas).
-- **Operación desde Docker Desktop:** el botón *Play* de un contenedor ya creado conserva sus variables de entorno anteriores. Después de aplicar este cambio, use `docker-ach.cmd up --no-build` desde la carpeta del proyecto para que Docker Compose recree la API si detecta un cambio de configuración; luego podrá reiniciarla normalmente.
-- **Ejecución manual desde la API:** se conserva `POST /Maintenance/seed`, autenticado y protegido por la política `MaintenanceSeed`.
-- **Compose sin el ejecutor:** puede habilitar temporalmente `DATABASE_APPLY_SEED=true` si lo necesita; en el uso habitual déjelo ausente o en `false`.
-
-La base de datos debe tener previamente los catálogos y permisos requeridos. Este ajuste no incluye un seed inicial ni garantiza que una base recién creada esté lista sin ejecutar la carga controlada.
-Los Compose especializados de CI, PostgreSQL y clúster no se modifican.
 
 Consultar estado y logs:
 

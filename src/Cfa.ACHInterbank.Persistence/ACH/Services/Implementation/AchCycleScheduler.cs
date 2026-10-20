@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Domain.Helpers;
 using Cfa.ACHInterbank.Domain.Models.ACH;
 using Cfa.ACHInterbank.Persistence.DataBase;
@@ -54,16 +54,8 @@ public class AchCycleScheduler : IAchCycleScheduler
             DateOnly.FromDateTime(localNow),
             clearingHouseId);
 
-        // ✅ Validar que no existan ciclos para esa cámara en la fecha
-        bool exists = await _context.AchCycles
-            .AnyAsync(c => c.ClearingHouseId == clearingHouseId &&
-                           c.ProcessingDate.Date == nextBusinessDate.ToDateTime(TimeOnly.MinValue).Date);
-        if (exists)
-        {
-            // Si ya hay ciclos, no continuar
-            return;
-        }
-
+        // La generación es idempotente ciclo por ciclo. No saltar toda la fecha cuando
+        // ya existe un subconjunto de ciclos: podrían faltar registros por una caída.
         await ScheduleCyclesForClearingHouseAsync(
             clearingHouseId,
             nextBusinessDate.ToDateTime(TimeOnly.MinValue));
@@ -98,15 +90,17 @@ public class AchCycleScheduler : IAchCycleScheduler
             return;
         }
 
-        // Crear los ciclos para la fecha indicada según la configuración
+        // Cargar una sola vez los ciclos de esta fecha. El alta de una transacción
+        // puede invocar el respaldo de Quartz muchas veces durante el día.
+        var existingCycles = await _context.AchCycles
+            .Where(c => c.ClearingHouseId == clearingHouseId
+                && c.ProcessingDate.Date == processingDate.Date)
+            .ToListAsync();
+        var byName = existingCycles.ToDictionary(c => c.CycleName, StringComparer.OrdinalIgnoreCase);
+
         foreach (var cfg in cycles)
         {
-            bool exists = await _context.AchCycles.AnyAsync(c =>
-                c.ClearingHouseId == clearingHouseId &&
-                c.CycleName == cfg.CycleName &&
-                c.ProcessingDate.Date == processingDate.Date);
-
-            if (!exists)
+            if (!byName.TryGetValue(cfg.CycleName, out var existing))
             {
                 _context.AchCycles.Add(new AchCycle
                 {
@@ -127,11 +121,54 @@ public class AchCycleScheduler : IAchCycleScheduler
                     RescheduleOnHoliday = true,
                     ClearingHouseCycleConfigId = cfg.Id
                 });
+                continue;
+            }
+
+            if (!SnapshotMatches(existing, cfg))
+            {
+                // No reescribir horarios de un ciclo ya referenciado por transacciones
+                // o archivos. Es preferible una alerta visible a mutar historia financiera.
+                bool hasMovements = await _context.AchTransactions.AnyAsync(t => t.AchCycleId == existing.Id)
+                    || await _context.AchBatches.AnyAsync(b => b.AchCycleId == existing.Id)
+                    || await _context.NachaHeaders.AnyAsync(h => h.AchCycleId == existing.Id);
+                if (hasMovements)
+                {
+                    throw new InvalidOperationException(
+                        $"El ciclo '{cfg.CycleName}' de {processingDate:yyyy-MM-dd} pertenece a una versión horaria diferente y ya tiene operaciones asociadas. Requiere conciliación manual antes de actualizar.");
+                }
+
+                existing.StartTime = cfg.StartTime;
+                existing.EndTime = cfg.EndTime;
+                existing.CutoffTime = cfg.CutoffTime;
+                existing.OutputReleaseTime = cfg.OutputReleaseTime;
+                existing.CompensationStatementStartTime = cfg.CompensationStatementStartTime;
+                existing.CompensationStatementEndTime = cfg.CompensationStatementEndTime;
+                existing.CompensationPaymentStartTime = cfg.CompensationPaymentStartTime;
+                existing.CompensationPaymentEndTime = cfg.CompensationPaymentEndTime;
+                existing.OutputReleaseStartTime = cfg.OutputReleaseStartTime;
+                existing.OutputReleaseEndTime = cfg.OutputReleaseEndTime;
+                existing.ClearingHouseCycleConfigId = cfg.Id;
             }
         }
 
-        await _context.SaveChangesAsync();
+        if (_context.ChangeTracker.HasChanges())
+        {
+            await _context.SaveChangesAsync();
+        }
     }
+
+    private static bool SnapshotMatches(AchCycle cycle, ClearingHouseCycleConfig config)
+        => cycle.ClearingHouseCycleConfigId == config.Id
+            && cycle.StartTime == config.StartTime
+            && cycle.EndTime == config.EndTime
+            && cycle.CutoffTime == config.CutoffTime
+            && cycle.OutputReleaseTime == config.OutputReleaseTime
+            && cycle.CompensationStatementStartTime == config.CompensationStatementStartTime
+            && cycle.CompensationStatementEndTime == config.CompensationStatementEndTime
+            && cycle.CompensationPaymentStartTime == config.CompensationPaymentStartTime
+            && cycle.CompensationPaymentEndTime == config.CompensationPaymentEndTime
+            && cycle.OutputReleaseStartTime == config.OutputReleaseStartTime
+            && cycle.OutputReleaseEndTime == config.OutputReleaseEndTime;
 
     public async Task<List<AchCycle>> GetScheduledCyclesAsync(int clearingHouseId, DateTime date)
     {

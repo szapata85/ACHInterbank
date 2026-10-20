@@ -2,6 +2,13 @@
 
 This file records current durable decisions and verified project state. It is not a normative, source-code, runtime, or CI oracle. Current evidence can supersede an entry. Detailed human-facing documentation remains in `docs/`; historical versions remain in Git.
 
+## ACHCOL seven-cycle decision confirmed — 2026-10-20 (implementation unverified)
+
+- User confirmed seven ACH Colombia cycles effective **2026-10-14** and cycle 4 start **11:01 a.m.**; source: `Nuevos Ciclos de Proceso y Horarios.pdf` with a documented C4 a.m./p.m. typo.
+- `AchColombiaSevenCycleConfirmedPolicy` (`ACHCOL-7C-20261014`) and seeder now materialize seven effective-dated configurations starting 2026-10-14, preserving five historical ACHCOL cycles through 2026-10-13 and five CENIT cycles. Legacy unresolved candidate remains a distinct archived staging policy.
+- `/ach-cycles` now displays current `ClearingHouseCycleConfigs` as well as dated `AchCycles` executions; those are separate datasets. Root documentation: `docs/operations/ACHCOL_CICLOS_7_VIGENCIA_2026-10-14.md`.
+- **IMPLEMENTED_UNVERIFIED_ENVIRONMENT**: static TypeScript transpilation checks only; no .NET SDK, Angular app runtime, seed execution against deployed DB, or monetary external UAT. Older `ACHCOL-7C-CANDIDATE` gap statements below refer to historical snapshots and are superseded for the confirmed regulatory schedule.
+
 ## Current accepted baseline
 
 - BRANCH: ACH-Interbank-Postgresql

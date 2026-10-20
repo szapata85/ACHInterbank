@@ -34,6 +34,36 @@
   </form>
 </div>
 
+<section class="current-configs" aria-label="Configuración de ciclos vigente">
+  <h2>Configuración vigente por cámara</h2>
+  <p>Estas son las ventanas de procesamiento definidas para cada cámara. Se muestran aunque todavía no existan ejecuciones diarias del planificador.</p>
+  <p *ngIf="configLoading" role="status">Consultando configuraciones vigentes…</p>
+  <p *ngIf="configError" role="alert">No fue posible consultar las configuraciones vigentes. Verifica el acceso a la administración de cámaras y vuelve a aplicar los filtros.</p>
+  <div class="current-configs__scroll" *ngIf="!configLoading && !configError && currentConfigs.length">
+    <table class="current-configs__table">
+      <thead><tr>
+        <th scope="col">Cámara</th><th scope="col">Ciclo</th><th scope="col">Inicio</th><th scope="col">Cierre</th>
+        <th scope="col">Liberación</th><th scope="col">Vigente desde</th><th scope="col">Configuración</th>
+      </tr></thead>
+      <tbody>
+        <tr *ngFor="let config of currentConfigs">
+          <td>{{ config.clearingHouseName }}</td>
+          <td>{{ config.cycleName }}</td>
+          <td>{{ configTime(config.startTime) }}</td>
+          <td>{{ configTime(config.endTime) }}</td>
+          <td>{{ configTime(config.outputReleaseTime) }}</td>
+          <td>{{ configDate(config.effectiveFrom) }}</td>
+          <td><a [routerLink]="['/clearing-houses', config.clearingHouseId, 'cycles']">Ver reglas e historial</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p *ngIf="!configLoading && !configError && !currentConfigs.length">No hay configuraciones vigentes para las cámaras seleccionadas. Verifica que se haya ejecutado el seed.</p>
+</section>
+
+<h2 class="operational-title">Ejecuciones diarias de ciclos</h2>
+<p class="operational-help">Esta tabla muestra instancias operativas por fecha; se generan independientemente de las configuraciones anteriores.</p>
+
 <app-table
   [columns]="[
     { key: 'clearingHouseName', label: 'Cámara' },

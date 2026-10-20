@@ -6,13 +6,15 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AchCyclesApiService } from '../../../core/services/ach-cycles-api.service';
+import { ClearingHouseCycleConfigsApiService } from '../../../core/services/clearing-house-cycle-configs-api.service';
+import { ClearingHouseCycleConfigItem } from '../../../core/models/clearing-house-cycle-config.model';
 import { AchCycleFilter, AchCycleSummary } from '../../../core/models/ach-cycle.model';
 import { ClearingHouseOption } from '../../../core/models/clearing-house.model';
 import { ClearingHousesApiService } from '../../../core/services/clearing-houses-api.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { RouterModule } from '@angular/router';
-import { finalize, Subscription } from 'rxjs';
+import { finalize, forkJoin, map, Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-ach-cycle-list',
@@ -25,6 +27,7 @@ import { finalize, Subscription } from 'rxjs';
 export class AchCycleListComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(AchCyclesApiService);
+  private readonly configApi = inject(ClearingHouseCycleConfigsApiService);
   private readonly clearingHouseApi = inject(ClearingHousesApiService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -37,6 +40,7 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
     day: '2-digit'
   });
   private requestSub?: Subscription;
+  private configSub?: Subscription;
 
   readonly filterForm = this.fb.group({
     clearingHouseId: [null as number | null],
@@ -48,6 +52,9 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
 
   cycles: AchCycleSummary[] = [];
   clearingHouses: ClearingHouseOption[] = [];
+  currentConfigs: ClearingHouseCycleConfigItem[] = [];
+  configLoading = false;
+  configError = false;
   total = 0;
   today = new Date();
   loading = false;
@@ -62,11 +69,13 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.requestSub?.unsubscribe();
+    this.configSub?.unsubscribe();
   }
 
   submit(): void {
     this.filterForm.patchValue({ page: 1 });
     this.load();
+    this.loadCurrentConfigurations();
   }
 
   load(): void {
@@ -114,10 +123,12 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
         const requestedCode = this.route.snapshot.queryParamMap.get('clearingHouseCode');
         if (requestedCode) {
           const selected = items.find((item) =>
+            item.code?.toUpperCase() === requestedCode.toUpperCase() ||
             item.name.replace(/\s+/g, '').toUpperCase().includes(requestedCode.replace(/\s+/g, '').toUpperCase()));
           this.filterForm.patchValue({ clearingHouseId: selected?.id ?? null, page: 1 });
           this.load();
         }
+        this.loadCurrentConfigurations();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -125,6 +136,60 @@ export class AchCycleListComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       }
     });
+  }
+
+  // The regulatory seed populates ClearingHouseCycleConfigs, not dated AchCycles.
+  // Display current configuration separately, so the screen is useful before the
+  // scheduler creates operational instances for a particular processing day.
+  private loadCurrentConfigurations(): void {
+    this.configSub?.unsubscribe();
+    const selectedId = this.filterForm.controls.clearingHouseId.value;
+    const houses = this.clearingHouses.filter(house => !selectedId || house.id === selectedId);
+    this.currentConfigs = [];
+    this.configError = false;
+    if (!houses.length) {
+      this.configLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.configLoading = true;
+    this.cdr.markForCheck();
+    this.configSub = forkJoin(houses.map(house =>
+      this.configApi.getCurrentByClearingHouse(house.id).pipe(
+        map(configs => configs.map(config => ({
+          ...config,
+          clearingHouseName: config.clearingHouseName || house.name
+        })))
+      )
+    )).pipe(finalize(() => {
+      this.configLoading = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: grouped => {
+        this.currentConfigs = grouped.flat().sort((a, b) =>
+          (a.clearingHouseName || '').localeCompare(b.clearingHouseName || '') ||
+          this.cycleNumber(a.cycleName) - this.cycleNumber(b.cycleName));
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.configError = true;
+        this.notifications.error('No fue posible consultar las configuraciones vigentes de ciclos');
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private cycleNumber(value: string): number {
+    return Number(value.match(/\d+/)?.[0] ?? 0);
+  }
+
+  configDate(value: string): string {
+    return value?.slice(0, 10) ?? '-';
+  }
+
+  configTime(value: string | null | undefined): string {
+    return value?.slice(0, 5) ?? '-';
   }
 
   private formatDate(date: string | null | undefined): string {

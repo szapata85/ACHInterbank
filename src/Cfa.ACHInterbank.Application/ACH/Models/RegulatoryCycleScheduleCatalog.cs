@@ -151,6 +151,9 @@ public static class RegulatoryCycleScheduleCatalog
 
     public const string HistoricalBootstrapPolicyVersion = "REGULATORY-2025";
     public const string AchColombiaSevenCycleCandidateVersion = "ACHCOL-7C-CANDIDATE";
+    public const string AchColombiaSevenCycleConfirmedVersion = "ACHCOL-7C-20261014";
+    public static readonly DateTime AchColombiaSevenCycleEffectiveFrom =
+        DateTime.SpecifyKind(new DateTime(2026, 10, 14), DateTimeKind.Utc);
 
     private static readonly IReadOnlyList<RegulatoryCycleSchedule> AchColombiaV35HistoricalCycles = Freeze(
         new RegulatoryCycleSchedule(1, new TimeSpan(19, 1, 0), new TimeSpan(8, 30, 0), new TimeSpan(8, 30, 0), new TimeSpan(9, 30, 0)),
@@ -247,6 +250,21 @@ public static class RegulatoryCycleScheduleCatalog
     {
         ReturnWindows = AchColombiaSevenCycleReturnWindows
     };
+
+    // ACH Colombia seven-cycle schedule confirmed for 2026-10-14 onward. The legacy
+    // unresolved candidate remains available only for audit/compatibility; the active
+    // seed is a separate immutable snapshot, never a rewrite of the five-cycle history.
+    public static RegulatoryCyclePolicySnapshot AchColombiaSevenCycleConfirmedPolicy { get; } =
+        (AchColombiaSevenCycleCandidate with
+        {
+            PolicyVersion = AchColombiaSevenCycleConfirmedVersion,
+            EffectiveFrom = AchColombiaSevenCycleEffectiveFrom,
+            Cycles = Freeze(AchColombiaSevenCycleCandidate.Cycles
+                .Select(cycle => cycle.CycleNumber == 4
+                    ? cycle with { StartTime = new TimeSpan(11, 1, 0) }
+                    : cycle)
+                .ToArray())
+        }).RequireActivatable();
 
     internal static RegulatoryCyclePolicySnapshot CenitHistoricalSeedPolicy { get; } = new(
         CenitCode,

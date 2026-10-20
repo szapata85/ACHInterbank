@@ -1,4 +1,4 @@
-﻿using Cfa.ACHInterbank.Application.ACH.Interfaces;
+using Cfa.ACHInterbank.Application.ACH.Interfaces;
 using Cfa.ACHInterbank.Application.JobsQuartz.Interfaces;
 using Cfa.ACHInterbank.Application.ACH.Models;
 using Cfa.ACHInterbank.Domain.Entities.SchedulerTask;
@@ -117,6 +117,13 @@ public class AchCycleSchedulerHandler : ITaskHandler
             }
         });
 
+
+        if (fail > 0)
+        {
+            // No registrar como exitosa una ejecución parcial; Quartz podrá reintentar.
+            throw new InvalidOperationException(
+                $"Generación de ciclos incompleta. Cámaras: {clearingHouses.Count}. Éxitos: {ok}. Fallos: {fail}. Consultar logs por cámara.");
+        }
 
         return $"Scheduler paralelo ejecutado. Cámaras: {clearingHouses.Count}. Éxitos: {ok}. Fallos: {fail}.";
     }
