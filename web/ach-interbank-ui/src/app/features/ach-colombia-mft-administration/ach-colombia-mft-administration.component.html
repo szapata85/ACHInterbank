@@ -3,10 +3,12 @@
     <div>
       <p class="eyebrow">ACH Colombia</p>
       <h2 id="mft-admin-title">Configuración del intercambio de archivos</h2>
-      <p>Configura la conexión, las carpetas y los horarios automáticos sin cambiar las reglas regulatorias de ACH Colombia.</p>
+      <p>Administra la conexión y las rutas de intercambio de archivos. La operación automática se configura por separado.</p>
     </div>
-    <button mat-stroked-button type="button" (click)="load()" [disabled]="loading || savingConnection || savingSchedules">
-      <mat-icon>refresh</mat-icon>Actualizar
+    <button mat-stroked-button type="button" (click)="load()" [disabled]="loading || refreshing || savingConnection || savingSchedules || testingConnection" aria-label="Actualizar configuración">
+      <mat-spinner *ngIf="refreshing" diameter="18"></mat-spinner>
+      <mat-icon *ngIf="!refreshing">refresh</mat-icon>
+      {{ refreshing ? 'Actualizando…' : 'Actualizar' }}
     </button>
   </header>
 
@@ -15,7 +17,7 @@
     <span>Cargando configuración…</span>
   </div>
 
-  <div *ngIf="!loading && error" class="error-banner" role="alert">
+  <div *ngIf="error" class="error-banner" role="alert">
     <mat-icon>error_outline</mat-icon>
     <span>{{ error }}</span>
   </div>
@@ -25,17 +27,16 @@
       <mat-card-header>
         <mat-icon mat-card-avatar aria-hidden="true">swap_horiz</mat-icon>
         <mat-card-title>Datos del intercambio con ACH Colombia</mat-card-title>
-        <mat-card-subtitle>Resumen de la configuración vigente y del estado externo conocido.</mat-card-subtitle>
+        <mat-card-subtitle>Estado actual de la conexión. La validación con la contraparte es independiente de la configuración.</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content class="summary-grid">
-        <div><span>Tipo de conexión</span><strong>{{ connectionTypeLabel }}</strong></div>
-        <div><span>Servidor</span><strong>{{ isSftp ? (model.endpoint || 'Sin configurar') : 'No aplica' }}</strong></div>
-        <div><span>Puerto</span><strong>{{ isSftp ? (model.port || 'Sin configurar') : 'No aplica' }}</strong></div>
-        <div><span>Usuario</span><strong>{{ isSftp ? (model.principal || 'Sin configurar') : 'No aplica' }}</strong></div>
+        <div><span>Conexión</span><strong>{{ connectionTypeLabel }}</strong></div>
+        <div><span>Integración</span><strong>{{ model.profileEnabled ? 'Habilitada' : 'Deshabilitada' }}</strong></div>
         <div><span>Carpeta de envío</span><strong>{{ model.outboundLocation || 'Sin configurar' }}</strong></div>
         <div><span>Carpeta de recepción</span><strong>{{ model.inboundLocation || 'Sin configurar' }}</strong></div>
-        <div><span>IP de ACH Colombia autorizada</span><strong>{{ authorizedAchIp }}</strong></div>
-        <div><span>Estado de homologación</span><strong>{{ homologationStatus }}</strong></div>
+        <div><span>Envío automático</span><strong>{{ model.automaticOutboundEnabled ? 'Habilitado' : 'Deshabilitado' }}</strong></div>
+        <div><span>Recepción automática</span><strong>{{ model.automaticInboundEnabled ? 'Habilitada' : 'Deshabilitada' }}</strong></div>
+        <div><span>Homologación externa</span><strong>{{ homologationStatus }}</strong></div>
       </mat-card-content>
     </mat-card>
 
@@ -43,7 +44,7 @@
       <mat-card-header>
         <mat-icon mat-card-avatar aria-hidden="true">settings_ethernet</mat-icon>
         <mat-card-title>Configuración de conexión</mat-card-title>
-        <mat-card-subtitle>Elige cómo accede ACHInterbank a la infraestructura administrada por CFA.</mat-card-subtitle>
+        <mat-card-subtitle>Configura cómo se conecta el sistema a las ubicaciones de intercambio autorizadas.</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         <div class="form-grid">
@@ -76,11 +77,6 @@
             <input matInput [(ngModel)]="model.principal" [disabled]="!canManage || savingConnection" autocomplete="off" />
           </mat-form-field>
 
-          <mat-form-field appearance="outline" *ngIf="isSftp" class="wide-field">
-            <mat-label>Huella del servidor</mat-label>
-            <input matInput [(ngModel)]="model.sftpHostKeyFingerprint" [disabled]="!canManage || savingConnection" autocomplete="off" placeholder="SHA256:…" />
-          </mat-form-field>
-
           <mat-form-field appearance="outline" *ngIf="isSftp">
             <mat-label>Tiempo de espera (segundos)</mat-label>
             <input matInput type="number" min="1" max="300" [(ngModel)]="model.sftpTimeoutSeconds" [disabled]="!canManage || savingConnection" />
@@ -96,6 +92,11 @@
             <input matInput type="password" [(ngModel)]="secret" [disabled]="!canManage || savingConnection" autocomplete="new-password" />
             <mat-hint *ngIf="model.credentialConfigured">Déjalo vacío para conservar la credencial actual.</mat-hint>
           </mat-form-field>
+
+          <div class="form-divider wide-field">
+            <strong>Rutas de archivos NACHA-M</strong>
+            <p>El sistema deposita los archivos de salida en la carpeta de envío y recoge los recibidos desde la carpeta de recepción. Los procesados se trasladan a archivo.</p>
+          </div>
 
           <mat-form-field appearance="outline" class="wide-field">
             <mat-label>Carpeta de envío</mat-label>
@@ -113,13 +114,23 @@
           </mat-form-field>
         </div>
 
+        <details *ngIf="isSftp" class="advanced-security">
+          <summary><mat-icon aria-hidden="true">verified_user</mat-icon> Verificación técnica de SFTP <span>{{ model.sftpHostKeyFingerprint ? '· dato configurado' : '· pendiente' }}</span></summary>
+          <p>Para evitar conexiones a servidores impostores, SFTP requiere una identidad de servidor previamente validada. El equipo de infraestructura o seguridad debe proporcionar este dato; no debes generarlo ni copiarlo de una conexión no verificada.</p>
+          <mat-form-field appearance="outline" class="security-field">
+            <mat-label>Identidad del servidor (uso técnico)</mat-label>
+            <input matInput [(ngModel)]="model.sftpHostKeyFingerprint" [disabled]="!canManage || savingConnection" autocomplete="off" placeholder="SHA256:…" />
+            <mat-hint>El sistema valida esta identidad cada vez que abre una conexión SFTP.</mat-hint>
+          </mat-form-field>
+        </details>
+
         <div class="actions" *ngIf="canManage">
-          <button mat-flat-button color="primary" type="button" (click)="saveConnection()" [disabled]="savingConnection || testingConnection">
+          <button mat-flat-button color="primary" type="button" (click)="saveConnection()" [disabled]="savingConnection || savingSchedules || testingConnection || refreshing">
             <mat-spinner *ngIf="savingConnection" diameter="18"></mat-spinner>
             <mat-icon *ngIf="!savingConnection">save</mat-icon>
             Guardar conexión
           </button>
-          <button mat-stroked-button type="button" (click)="testConnection()" [disabled]="savingConnection || testingConnection">
+          <button mat-stroked-button type="button" (click)="testConnection()" [disabled]="savingConnection || savingSchedules || testingConnection || refreshing">
             <mat-spinner *ngIf="testingConnection" diameter="18"></mat-spinner>
             <mat-icon *ngIf="!testingConnection">network_check</mat-icon>
             Probar conexión
@@ -136,15 +147,19 @@
       <mat-card-header>
         <mat-icon mat-card-avatar aria-hidden="true">schedule</mat-icon>
         <mat-card-title>Horarios automáticos</mat-card-title>
-        <mat-card-subtitle>Las ventanas de ACH Colombia son solo lectura. Las horas operacionales se administran por separado.</mat-card-subtitle>
+        <mat-card-subtitle>Define cuándo se envían y reciben archivos automáticamente. Las ventanas reglamentarias no se pueden editar.</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         <div class="schedule-toolbar">
-          <mat-slide-toggle [(ngModel)]="masterAutomaticOutbound" [disabled]="!canManage || savingSchedules">
-            Habilitar envíos automáticos
+          <mat-slide-toggle [(ngModel)]="masterAutomaticOutbound" [disabled]="!canManage || savingSchedules || savingConnection || refreshing">
+            Envío automático
+          </mat-slide-toggle>
+          <mat-slide-toggle [(ngModel)]="masterAutomaticInbound" [disabled]="!canManage || savingSchedules || savingConnection || refreshing">
+            Recepción automática
           </mat-slide-toggle>
         </div>
 
+        <p class="helper-text">Los envíos usan el horario configurado para cada ciclo. La recepción consulta las carpetas durante las ventanas de liberación de ACH Colombia, mediante una tarea independiente del programador.</p>
         <div class="table-wrap" *ngIf="schedules.length; else noSchedules">
           <table mat-table [dataSource]="schedules" class="schedule-table">
             <ng-container matColumnDef="cycle">
@@ -195,7 +210,7 @@
         </ng-template>
 
         <div class="actions" *ngIf="canManage">
-          <button mat-flat-button color="primary" type="button" (click)="saveSchedules()" [disabled]="savingSchedules">
+          <button mat-flat-button color="primary" type="button" (click)="saveSchedules()" [disabled]="savingSchedules || savingConnection || refreshing">
             <mat-spinner *ngIf="savingSchedules" diameter="18"></mat-spinner>
             <mat-icon *ngIf="!savingSchedules">save</mat-icon>
             Guardar horarios

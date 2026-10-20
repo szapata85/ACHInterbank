@@ -1,9 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, Subject, throwError } from 'rxjs';
 import { ManagedMftAdministration } from '../../core/models/ach-colombia-file-exchange.model';
 import { AchColombiaOperationalScheduleAdministrationRow } from '../../core/models/ach-colombia-operational-schedule.model';
 import { AchColombiaFileExchangeService } from '../../core/services/ach-colombia-file-exchange.service';
@@ -87,8 +87,11 @@ describe('AchColombiaMftAdministrationComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Huella del servidor');
+    expect(text).toContain('Verificación técnica de SFTP');
     expect(text).toContain('Credencial configurada');
+    const advanced = fixture.nativeElement.querySelector('details.advanced-security') as HTMLDetailsElement;
+    expect(advanced.open).toBeFalse();
+    expect(advanced.querySelector('input[placeholder="SHA256:…"]')).not.toBeNull();
     const password = fixture.nativeElement.querySelector('input[type=password]') as HTMLInputElement;
     expect(password).not.toBeNull();
     expect(password.type).toBe('password');
@@ -97,7 +100,7 @@ describe('AchColombiaMftAdministrationComponent', () => {
     await connectionType.open();
     await connectionType.clickOptions({ text: 'Carpeta compartida' });
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).not.toContain('Huella del servidor');
+    expect(fixture.nativeElement.querySelector('details.advanced-security')).toBeNull();
   });
 
   it('preserves the existing credential when saving without a replacement', () => {
@@ -133,8 +136,8 @@ describe('AchColombiaMftAdministrationComponent', () => {
     component.testConnection();
 
     fixture.detectChanges();
-    expect(notifications.error).toHaveBeenCalledWith('Huella del servidor no válida.');
-    expect(fixture.nativeElement.textContent).toContain('Huella del servidor no válida.');
+    expect(notifications.error).toHaveBeenCalledWith('No se pudo verificar la identidad del servidor SFTP. Contacta al equipo de infraestructura.');
+    expect(fixture.nativeElement.textContent).toContain('No se pudo verificar la identidad del servidor SFTP.');
     expect(fixture.nativeElement.textContent).not.toContain('internal');
   });
 
@@ -143,7 +146,7 @@ describe('AchColombiaMftAdministrationComponent', () => {
     component.saveConnection();
 
     expect(component.error).toContain('modificada por otro usuario');
-    expect(notifications.error).toHaveBeenCalledWith(jasmine.stringMatching(/Recargue/));
+    expect(notifications.error).toHaveBeenCalledWith(jasmine.stringMatching(/Actualizar/));
   });
 
   it('renders C1 06:30, C7 17:50 and leaves C2 without invented time', () => {
@@ -157,6 +160,46 @@ describe('AchColombiaMftAdministrationComponent', () => {
     expect(c7.latestTime).toBe('17:50');
     expect(component.windowLabel(c1)).toBe('19:01 – 07:00');
     expect(component.windowLabel(c7)).toBe('16:01 – 18:00');
+  });
+
+  it('refreshes without unmounting the form while APIs are still responding', () => {
+    const pending = new Subject<ManagedMftAdministration>();
+    api.administration.and.returnValue(pending);
+    component.load();
+    fixture.detectChanges();
+
+    expect(component.refreshing).toBeTrue();
+    expect(component.loading).toBeFalse();
+    expect(fixture.nativeElement.querySelector('[data-testid=connection-config]')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Actualizando…');
+
+    pending.next({ ...model, endpoint: 'new.sftp.example' });
+    pending.complete();
+    fixture.detectChanges();
+    expect(component.refreshing).toBeFalse();
+    expect(component.model?.endpoint).toBe('new.sftp.example');
+  });
+
+  it('unblocks the refresh after a timeout without forcing F5 or discarding the form', fakeAsync(() => {
+    api.administration.and.returnValue(NEVER);
+    component.load();
+    tick(15001);
+    fixture.detectChanges();
+
+    expect(component.refreshing).toBeFalse();
+    expect(component.loading).toBeFalse();
+    expect(component.error).toContain('sin recargar el navegador');
+    expect(fixture.nativeElement.querySelector('[data-testid=connection-config]')).not.toBeNull();
+  }));
+
+  it('allows automatic inbound to be enabled independently of outbound cycles', () => {
+    component.masterAutomaticInbound = false;
+    component.saveSchedules();
+
+    expect(api.updateAdministration).toHaveBeenCalledWith(jasmine.objectContaining({
+      automaticInboundEnabled: false,
+      automaticOutboundEnabled: false
+    }));
   });
 
   it('keeps the regulatory window read-only', () => {

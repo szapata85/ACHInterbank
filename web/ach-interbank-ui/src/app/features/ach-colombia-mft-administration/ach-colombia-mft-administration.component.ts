@@ -12,7 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { finalize, forkJoin, map, Observable, of, switchMap } from 'rxjs';
+import { finalize, forkJoin, map, Observable, of, switchMap, timeout, TimeoutError } from 'rxjs';
 import { ManagedMftAdministration, ManagedMftConnectionTestResult } from '../../core/models/ach-colombia-file-exchange.model';
 import {
   AchColombiaOperationalSchedule,
@@ -59,7 +59,6 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
 
   readonly canManage = this.auth.hasPermission(['Config.Manage', 'CanManageAch']);
   readonly scheduleColumns = ['cycle', 'window', 'automaticTime', 'latestTime', 'active'];
-  readonly authorizedAchIp = 'Pendiente de confirmación externa';
   readonly homologationStatus = 'Pendiente de homologación externa';
 
   model?: ManagedMftAdministration;
@@ -67,7 +66,9 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
   connectionType: 'ManagedFolder' | 'SftpEndpoint' = 'ManagedFolder';
   secret = '';
   masterAutomaticOutbound = false;
+  masterAutomaticInbound = false;
   loading = false;
+  refreshing = false;
   savingConnection = false;
   savingSchedules = false;
   testingConnection = false;
@@ -87,33 +88,48 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
   }
 
   load(): void {
-    this.loading = true;
+    if (this.loading || this.refreshing || this.savingConnection || this.savingSchedules || this.testingConnection) return;
+    // Keep the editor mounted on refresh; a slow API must not blank the page.
+    const isRefresh = !!this.model;
+    this.loading = !isRefresh;
+    this.refreshing = isRefresh;
     this.error = '';
     forkJoin({
       configuration: this.api.administration(),
       schedules: this.schedulesApi.administration()
-    }).pipe(finalize(() => this.loading = false)).subscribe({
+    }).pipe(
+      timeout({ first: 15000 }),
+      finalize(() => { this.loading = false; this.refreshing = false; })
+    ).subscribe({
       next: ({ configuration, schedules }) => {
         this.applyConfiguration(configuration);
         this.schedules = schedules.map(row => this.toEditorRow(row));
+        if (isRefresh) this.notifications.info('Información actualizada.');
       },
-      error: () => this.error = 'No fue posible cargar la administración de ACH Colombia.'
+      error: error => {
+        this.error = error instanceof TimeoutError
+          ? 'La actualización tardó demasiado. Puedes intentarlo nuevamente sin recargar el navegador.'
+          : 'No fue posible actualizar la configuración. Puedes reintentar sin salir del formulario.';
+      }
     });
   }
 
   saveConnection(): void {
-    if (!this.model || !this.canManage || this.savingConnection) return;
+    if (!this.model || !this.canManage || this.savingConnection || this.savingSchedules || this.refreshing) return;
     this.error = '';
     this.connectionTest = undefined;
 
-    if (this.isSftp) {
-      if (!this.model.endpoint?.trim() || !this.model.port || !this.model.principal?.trim()
-          || !this.model.sftpHostKeyFingerprint?.trim()) {
-        this.notifications.error('Complete servidor, puerto, usuario y huella del servidor.');
+    if (this.isSftp && this.model.profileEnabled) {
+      if (!this.model.endpoint?.trim() || !this.model.port || !this.model.principal?.trim()) {
+        this.notifications.error('Completa servidor, puerto y usuario para activar SFTP.');
+        return;
+      }
+      if (!this.model.sftpHostKeyFingerprint?.trim()) {
+        this.notifications.error('Antes de activar SFTP, solicita al equipo técnico la validación de identidad del servidor.');
         return;
       }
       if (!this.model.credentialConfigured && !this.secret.trim()) {
-        this.notifications.error('Configure una credencial antes de guardar la conexión SFTP.');
+        this.notifications.error('Configura una credencial antes de activar la conexión SFTP.');
         return;
       }
     }
@@ -139,7 +155,7 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
   }
 
   testConnection(): void {
-    if (!this.canManage || this.testingConnection) return;
+    if (!this.canManage || this.testingConnection || this.savingConnection || this.savingSchedules || this.refreshing) return;
     this.testingConnection = true;
     this.connectionTest = undefined;
     this.api.testConnection().pipe(finalize(() => this.testingConnection = false)).subscribe({
@@ -155,7 +171,7 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
   }
 
   saveSchedules(): void {
-    if (!this.model || !this.canManage || this.savingSchedules) return;
+    if (!this.model || !this.canManage || this.savingConnection || this.savingSchedules || this.refreshing) return;
 
     const invalid = this.schedules.find(row => row.active && !row.automaticTime);
     if (invalid) {
@@ -164,7 +180,8 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
     }
 
     const changedRows = this.schedules.filter(row => this.isScheduleDirty(row) && (row.scheduleId || this.hasScheduleValues(row)));
-    const masterChanged = this.masterAutomaticOutbound !== this.model.automaticOutboundEnabled;
+    const masterChanged = this.masterAutomaticOutbound !== this.model.automaticOutboundEnabled
+      || this.masterAutomaticInbound !== this.model.automaticInboundEnabled;
     if (!masterChanged && changedRows.length === 0) {
       this.notifications.info('No hay cambios de horarios para guardar.');
       return;
@@ -172,7 +189,9 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
 
     this.savingSchedules = true;
     const masterSave$ = masterChanged
-      ? this.api.updateAdministration({ ...this.model, automaticOutboundEnabled: this.masterAutomaticOutbound }).pipe(
+      ? this.api.updateAdministration({ ...this.model,
+          automaticOutboundEnabled: this.masterAutomaticOutbound,
+          automaticInboundEnabled: this.masterAutomaticInbound }).pipe(
           map(updated => { this.applyConfiguration(updated, false); return updated; }))
       : of(this.model);
 
@@ -219,7 +238,10 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
   private applyConfiguration(configuration: ManagedMftAdministration, resetMaster = true): void {
     this.model = { ...configuration };
     this.connectionType = configuration.provider === 'SftpEndpoint' ? 'SftpEndpoint' : 'ManagedFolder';
-    if (resetMaster) this.masterAutomaticOutbound = configuration.automaticOutboundEnabled;
+    if (resetMaster) {
+      this.masterAutomaticOutbound = configuration.automaticOutboundEnabled;
+      this.masterAutomaticInbound = configuration.automaticInboundEnabled;
+    }
   }
 
   private connectionPayload(model: ManagedMftAdministration): ManagedMftAdministration {
@@ -271,7 +293,7 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
   connectionMessage(result: ManagedMftConnectionTestResult): string {
     switch (result.code) {
       case 'ACHCOL_MFT_SFTP_AUTHENTICATION_FAILED': return 'Usuario o credencial incorrecta.';
-      case 'ACHCOL_MFT_SFTP_HOST_KEY_REJECTED': return 'Huella del servidor no válida.';
+      case 'ACHCOL_MFT_SFTP_HOST_KEY_REJECTED': return 'No se pudo verificar la identidad del servidor SFTP. Contacta al equipo de infraestructura.';
       case 'ACHCOL_MFT_SFTP_ACCESS_DENIED':
       case 'ACHCOL_MFT_SFTP_PATH_NOT_FOUND':
       case 'ACHCOL_MFT_FOLDER_ACCESS_DENIED':
@@ -283,7 +305,7 @@ export class AchColombiaMftAdministrationComponent implements OnInit {
   private handleEditError(error: unknown, fallback: string): void {
     const http = error as HttpErrorResponse;
     if (http?.status === 409) {
-      const message = 'La configuración fue modificada por otro usuario. Recargue la pantalla e intente nuevamente.';
+      const message = 'La configuración fue modificada por otro usuario. Pulsa Actualizar e inténtalo nuevamente.';
       this.error = message;
       this.notifications.error(message);
       return;

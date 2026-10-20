@@ -79,3 +79,34 @@
   .summary-grid, .form-grid { grid-template-columns: 1fr; }
   .wide-field { grid-column: auto; }
 }
+
+/* Clear, grouped configuration instead of an uninterrupted grid of fields. */
+.page-header { align-items: center; padding: .5rem 0 .75rem; }
+.page-header h2 { font-size: clamp(1.35rem, 2.4vw, 1.9rem); line-height: 1.25; }
+.page-header > button { flex-shrink: 0; display: inline-flex; align-items: center; gap: .5rem; }
+.section-card { border-radius: 16px; overflow: hidden; }
+.section-card mat-card-header { padding: 1.2rem 1.25rem .35rem; }
+.section-card mat-card-content { padding: 1.2rem 1.25rem 1.35rem; }
+.section-card mat-card-title { font-weight: 650; }
+.summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; }
+.summary-grid > div { border-radius: 11px; padding: 1rem; }
+.summary-grid strong { font-size: .95rem; }
+.form-grid { column-gap: 1.4rem; row-gap: .5rem; }
+.form-divider { padding: 1rem 0 .3rem; border-top: 1px solid var(--mat-sys-outline-variant); }
+.form-divider strong { display: block; margin-bottom: .3rem; }
+.form-divider p { color: var(--mat-sys-on-surface-variant); font-size: .86rem; line-height: 1.5; margin: 0; }
+.advanced-security { padding: .7rem 1rem; margin-top: 1rem; border: 1px solid var(--mat-sys-outline-variant); border-radius: 10px; }
+.advanced-security summary { display: flex; align-items: center; gap: .5rem; cursor: pointer; font-weight: 600; }
+.advanced-security summary span { font-weight: 400; color: var(--mat-sys-on-surface-variant); font-size: .82rem; }
+.advanced-security p { line-height: 1.5; font-size: .87rem; color: var(--mat-sys-on-surface-variant); max-width: 750px; }
+.security-field { display: block; width: 100%; max-width: 640px; }
+.schedule-toolbar { justify-content: flex-start; gap: 1.4rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.schedule-table th.mat-mdc-header-cell { font-weight: 650; }
+.schedule-table td.mat-mdc-cell { padding-top: .55rem; padding-bottom: .55rem; }
+@media (max-width: 980px) { .summary-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 760px) {
+  .section-card mat-card-header { padding: 1rem 1rem .3rem; }
+  .section-card mat-card-content { padding: 1rem; }
+  .summary-grid { grid-template-columns: 1fr; }
+  .schedule-toolbar { flex-direction: column; align-items: flex-start; }
+}
